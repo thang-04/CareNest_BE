@@ -13,8 +13,8 @@ import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AccountPhotoService;
 import com.carenest.service.account.AccountService;
-import com.carenest.service.account.ParentPhotoService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
@@ -26,6 +26,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ClassroomStatus;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupVerification;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
@@ -81,7 +82,7 @@ class PickupServiceImplTest {
     private GuardianChildLinkService guardianChildLinkService;
 
     @Mock
-    private ParentPhotoService parentPhotoService;
+    private AccountPhotoService accountPhotoService;
 
     @Mock
     private NotificationService notificationService;
@@ -90,8 +91,8 @@ class PickupServiceImplTest {
     private AccountService accountService;
 
     private PickupServiceImpl service;
-    private final CurrentUser teacher =
-            new CurrentUser(7L, "kc-7", "teacher", "Cô A (giả)", null, Set.of(CareNestRole.TEACHER));
+    private final CurrentUser teacher = new CurrentUser(
+            7L, "kc-7", "teacher", "Cô A (giả)", null, Set.of(CareNestRole.TEACHER), Set.of(Permission.PICKUP_RECORD));
 
     @BeforeEach
     void setUp() {
@@ -105,7 +106,7 @@ class PickupServiceImplTest {
                 childService,
                 childIntakeService,
                 guardianChildLinkService,
-                parentPhotoService,
+                accountPhotoService,
                 notificationService,
                 accountService,
                 CLOCK);
@@ -127,6 +128,31 @@ class PickupServiceImplTest {
         when(classroomService.findClassroomInfo(CLASS_ID)).thenReturn(Optional.of(cls));
         when(rules.canRecord(any(), any())).thenReturn(true);
         when(childIntakeService.findGuardianContacts(CHILD_ID)).thenReturn(List.of());
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("PCK-02: ưu tiên ảnh tiếp nhận khi chưa có tài khoản, fallback ảnh tài khoản")
+    void pickupUsesEnrollmentPhotoWithoutAnAccount() {
+        when(childIntakeService.findGuardianContacts(CHILD_ID))
+                .thenReturn(List.of(
+                        new com.carenest.dto.child.ChildGuardianContact(
+                                0,
+                                "Mẹ giả",
+                                com.carenest.utils.enums.GuardianRelationship.MOTHER,
+                                "0900000001",
+                                null,
+                                "/children/1/guardian-photos/11"),
+                        new com.carenest.dto.child.ChildGuardianContact(
+                                1,
+                                "Bố giả",
+                                com.carenest.utils.enums.GuardianRelationship.FATHER,
+                                "0900000002",
+                                71L,
+                                null)));
+        when(accountPhotoService.findUserIdsWithPhoto(List.of(71L))).thenReturn(Set.of(71L));
+        var response = service.getChild(teacher, CHILD_ID);
+        assertThat(response.guardians().getFirst().photoUrl()).isEqualTo("/children/1/guardian-photos/11");
+        assertThat(response.guardians().get(1).photoUrl()).isEqualTo("/children/1/guardians/71/photo");
     }
 
     @Test // A: trẻ điểm danh vắng ⇒ không trả được

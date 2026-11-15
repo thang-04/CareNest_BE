@@ -32,13 +32,13 @@ public class EduConfigController {
     public ResponseEntity<ResponseJson<EduConfigResponse>> getEduConfig(CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getEduConfig|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        EduConfigResponse config = eduConfigService.getEduConfig();
+        EduConfigResponse config = eduConfigService.getEduConfig(currentUser);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get education plan config success", config);
     }
 
     @PutMapping("/config")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("hasRole('PRINCIPAL')")
     public ResponseEntity<ResponseJson<EduConfigResponse>> updateEduConfig(
             @Valid @RequestBody EduConfigRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|updateEduConfig|userId=" + currentUser.userId();

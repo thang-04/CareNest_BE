@@ -14,7 +14,7 @@
       "description": "Lấy access token cho 8 user dev qua password grant (client `carenest-dev`). Chạy đầu tiên.",
       "item": [
         {
-          "name": "Login admin",
+          "name": "Login Hoàng Công Lâm",
           "event": [
             {
               "listen": "test",
@@ -48,7 +48,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "admin"
+                  "value": "0861723024"
                 },
                 {
                   "key": "password",
@@ -56,11 +56,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `admin` — ADMIN — chỉ quản lý tài khoản, không có phạm vi dữ liệu trẻ.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_admin`."
+            "description": "Lấy access token (5 phút) cho `0861723024` (Hoàng Công Lâm) — ADMIN — chỉ quản lý tài khoản.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_admin`."
           }
         },
         {
-          "name": "Login principal",
+          "name": "Login Hoàng Minh Tuyết",
           "event": [
             {
               "listen": "test",
@@ -94,7 +94,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "principal"
+                  "value": "0399825361"
                 },
                 {
                   "key": "password",
@@ -102,11 +102,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `principal` — PRINCIPAL — toàn trường.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_principal`."
+            "description": "Lấy access token (5 phút) cho `0399825361` (Hoàng Minh Tuyết) — PRINCIPAL — toàn trường.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_principal`."
           }
         },
         {
-          "name": "Login viceprincipal",
+          "name": "Login Lê Thị Tâm",
           "event": [
             {
               "listen": "test",
@@ -140,7 +140,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "viceprincipal"
+                  "value": "0392274816"
                 },
                 {
                   "key": "password",
@@ -148,11 +148,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `viceprincipal` — VICE_PRINCIPAL — Cơ sở A.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_vp_a`."
+            "description": "Lấy access token (5 phút) cho `0392274816` (Lê Thị Tâm) — VICE_PRINCIPAL — Cơ sở 1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_vp_a`."
           }
         },
         {
-          "name": "Login teacher1",
+          "name": "Login Nguyễn Kim Lan",
           "event": [
             {
               "listen": "test",
@@ -187,7 +187,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "teacher1"
+                  "value": "0902197238"
                 },
                 {
                   "key": "password",
@@ -195,11 +195,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `teacher1` — TEACHER — Lớp A1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_a`."
+            "description": "Lấy access token (5 phút) cho `0902197238` (Nguyễn Kim Lan) — TEACHER — chủ nhiệm Lớp Chồi 1, tổ trưởng Mẫu giáo nhỡ.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_a`."
           }
         },
         {
-          "name": "Login teacher2",
+          "name": "Login Trần Mai Yến",
           "event": [
             {
               "listen": "test",
@@ -233,7 +233,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "teacher2"
+                  "value": "0985648263"
                 },
                 {
                   "key": "password",
@@ -241,11 +241,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `teacher2` — TEACHER — Lớp A1 đã hết hạn (tới 30/09/2026), đang dạy Lớp B1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_b`."
+            "description": "Lấy access token (5 phút) cho `0985648263` (Trần Mai Yến) — TEACHER — Lớp Mầm 1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_b`."
           }
         },
         {
-          "name": "Login parent1",
+          "name": "Login Lê Phương Liên",
           "event": [
             {
               "listen": "test",
@@ -279,7 +279,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "parent1"
+                  "value": "0335474254"
                 },
                 {
                   "key": "password",
@@ -287,11 +287,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `parent1` — PARENT — con: Trẻ Demo A1-01.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_a`."
+            "description": "Lấy access token (5 phút) cho `0335474254` (Lê Phương Liên) — PARENT — 1 con Lớp Chồi 1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_a`."
           }
         },
         {
-          "name": "Login parent2",
+          "name": "Login Trần Thị Minh",
           "event": [
             {
               "listen": "test",
@@ -325,7 +325,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "parent2"
+                  "value": "0377841592"
                 },
                 {
                   "key": "password",
@@ -333,11 +333,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `parent2` — PARENT — con: Trẻ Demo B1-01.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_b`."
+            "description": "Lấy access token (5 phút) cho `0377841592` (Trần Thị Minh) — PARENT — 2 con: Lớp Mầm 1 (Cơ sở 1) và Lớp Lá 3 (Cơ sở 2).\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_b`."
           }
         },
         {
-          "name": "Login kitchen",
+          "name": "Login Nguyễn Thị Thơm",
           "event": [
             {
               "listen": "test",
@@ -371,7 +371,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "kitchen"
+                  "value": "0987731447"
                 },
                 {
                   "key": "password",
@@ -379,7 +379,7 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `kitchen` — KITCHEN_STAFF — bếp Cơ sở A.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_kitchen_a`."
+            "description": "Lấy access token (5 phút) cho `0987731447` (Nguyễn Thị Thơm) — KITCHEN_STAFF — bếp Cơ sở 1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_kitchen_a`."
           }
         },
         {
@@ -572,10 +572,10 @@
     },
     {
       "name": "2. Tài khoản hiện tại — GET /accounts/me",
-      "description": "Chạy trước folder 3 (lưu id con của parent1/parent2 vào biến).",
+      "description": "Chạy trước folder 3 (lưu id con của hai phụ huynh đại diện vào biến).",
       "item": [
         {
-          "name": "me — teacher1 (TEACHER, Lớp A1)",
+          "name": "me — giáo viên chủ nhiệm Lớp Chồi 1 (TEACHER)",
           "request": {
             "method": "GET",
             "header": [],

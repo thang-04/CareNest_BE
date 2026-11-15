@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -191,9 +192,56 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
 
     @Override
     public void setUserEnabled(String userId, boolean enabled) {
-        // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+        updateUser("setUserEnabled", userId, user -> user.put("enabled", enabled));
+    }
+
+    @Override
+    public void updateUserProfile(String userId, String fullName, String email) {
+        updateUser("updateUserProfile", userId, user -> {
+            // Họ tên đầy đủ ở firstName như lúc tạo
+            user.put("firstName", fullName);
+            if (email != null && !email.equalsIgnoreCase(String.valueOf(user.get("email")))) {
+                user.put("email", email);
+                user.put("emailVerified", false);
+            }
+        });
+    }
+
+    @Override
+    public void updateUsername(String userId, String username) {
+        updateUser("updateUsername", userId, user -> user.put("username", username));
+        // Realm cấm sửa username thì Keycloak có thể bỏ qua ô này mà vẫn trả 204: đọc lại để không báo đổi thành công
+        // giả
+        Object saved = getUser("updateUsername", userId).get("username");
+        if (!username.equals(saved)) {
+            throw new IdentityProviderException(
+                    IdentityProviderErrorReason.REJECTED, "Keycloak did not change username", null);
+        }
+    }
+
+    @Override
+    public void replaceProfile(String userId, String fullName, String email) {
+        updateUser("replaceProfile", userId, user -> {
+            user.put("firstName", fullName);
+            String next = email == null ? "" : email;
+            Object current = user.get("email");
+            if (!next.equalsIgnoreCase(current == null ? "" : String.valueOf(current))) {
+                user.put("email", next);
+                user.put("emailVerified", false);
+            }
+        });
+    }
+
+    // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+    private void updateUser(String operation, String userId, Consumer<Map<String, Object>> change) {
+        Map<String, Object> user = getUser(operation, userId);
+        change.accept(user);
+        putUser(operation, userId, user);
+    }
+
+    private Map<String, Object> getUser(String operation, String userId) {
         Map<String, Object> user = call(
-                "setUserEnabled",
+                operation,
                 () -> restClient
                         .get()
                         .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
@@ -204,9 +252,12 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
             throw new IdentityProviderException(
                     IdentityProviderErrorReason.UNAVAILABLE, "Keycloak returned empty user", null);
         }
-        user.put("enabled", enabled);
+        return user;
+    }
+
+    private void putUser(String operation, String userId, Map<String, Object> user) {
         call(
-                "setUserEnabled",
+                operation,
                 () -> restClient
                         .put()
                         .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
@@ -227,6 +278,21 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
                         .headers(headers -> headers.setBearerAuth(adminToken()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(Map.of("type", "password", "value", temporaryPassword, "temporary", true))
+                        .retrieve()
+                        .toBodilessEntity());
+    }
+
+    @Override
+    public void setPassword(String userId, String password) {
+        // temporary=false: Keycloak gỡ required action UPDATE_PASSWORD đã gắn lúc tạo user
+        call(
+                "setPassword",
+                () -> restClient
+                        .put()
+                        .uri("/admin/realms/{realm}/users/{id}/reset-password", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Map.of("type", "password", "value", password, "temporary", false))
                         .retrieve()
                         .toBodilessEntity());
     }

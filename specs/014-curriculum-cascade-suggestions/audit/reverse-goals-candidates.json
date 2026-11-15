@@ -1,0 +1,59 @@
+{
+  "pdfSha256": "146c1f23b3515d46f2e2e97afcfc0a1d871ef28b6700c7db4fbacfeb56e8572f",
+  "candidates": [
+    {
+      "page": 58,
+      "congBaoPage": 70,
+      "table": 0,
+      "age": "ag-5",
+      "goalNo": "1.2",
+      "fragment": "Nói được tên một số món ăn hàng ngày và dạng chế biến đơn giản: rau có thể luộc, nấu canh; thịt có thể luộc, rán, kho; gạo nấu cơm, nấu cháo...",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 69,
+      "congBaoPage": 81,
+      "table": 0,
+      "age": "ag-3",
+      "goalNo": "2.1",
+      "fragment": "Nói rõ để người",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 70,
+      "congBaoPage": 82,
+      "table": 0,
+      "age": "ag-4",
+      "goalNo": "3.1",
+      "fragment": "Chọn sách để “đọc”",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 73,
+      "congBaoPage": 85,
+      "table": 0,
+      "age": "ag-5",
+      "goalNo": "5.1",
+      "fragment": "Thích chăm sóc cây, con vật thân thuộc.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 76,
+      "congBaoPage": 88,
+      "table": 0,
+      "age": "ag-5",
+      "goalNo": "3.3",
+      "fragment": "Nói lên ý tưởng và tạo ra các sản phẩm tạo hình theo ý thích.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 76,
+      "congBaoPage": 88,
+      "table": 0,
+      "age": "ag-5",
+      "goalNo": "3.4",
+      "fragment": "Đặt tên cho sản phẩm tạo hình.",
+      "status": "requires_visual_review"
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
+import com.carenest.utils.enums.UserStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -150,9 +151,23 @@ class StaffingServiceImplTest {
                 .isEqualTo(ApiCode.ASSIGNMENT_END_IN_PAST);
     }
 
-    private void givenAccount(Long id, CareNestRole role) {
+    @Test
+    @DisplayName("AUTH-16: PHT/bếp đang khóa không nhận phân công mới ⇒ 409")
+    void lockedKitchenAccountCannotBeAssigned() {
+        givenAccount(41L, CareNestRole.KITCHEN_STAFF).changeStatus(UserStatus.INACTIVE);
+        given(assignments.resolveCampusId(StaffRole.KITCHEN_STAFF, 10L, null)).willReturn(10L);
+
+        assertThatThrownBy(() ->
+                        service.assignStaff(VICE, new CreateStaffAssignmentRequest(41L, 10L, null, null, null, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.STAFF_ACCOUNT_LOCKED);
+        verify(assignments, never()).createAssignment(any());
+    }
+
+    private UserAccount givenAccount(Long id, CareNestRole role) {
         UserAccount account = UserAccount.create("kc-" + id, "u" + id, null, "U", role);
         ReflectionTestUtils.setField(account, "id", id);
         given(accounts.findById(id)).willReturn(Optional.of(account));
+        return account;
     }
 }

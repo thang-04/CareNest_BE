@@ -3,7 +3,9 @@ package com.carenest.service.child.impl;
 import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.child.AutoPlaceRequest;
 import com.carenest.dto.child.AutoPlaceResponse;
+import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.child.PlacementBoardResponse;
+import com.carenest.dto.child.PrepClassesResponse;
 import com.carenest.dto.child.SavePlacementsRequest;
 import com.carenest.dto.child.YearReadinessResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
@@ -18,13 +20,17 @@ import com.carenest.repository.child.ClassPlacementRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.ProgramCompletionLookup;
 import com.carenest.service.child.YearTransitionService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.service.organization.YearSetupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
@@ -68,6 +74,68 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     private final DevActivationProperties devActivation;
     private final ApplicationEventPublisher eventPublisher;
     private final List<ProgramCompletionLookup> programCompletionLookups;
+    private final GuardianChildLinkService guardianChildLinkService;
+    private final NotificationService notificationService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public PrepClassesResponse getPrepClasses(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix =
+                LOG_PREFIX + "|getPrepClasses|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            // GV không thấy năm chưa tới ngày mở chuẩn bị ⇒ 404 từ service năm học
+            SchoolYearDetailResponse year = schoolYearService.getSchoolYear(currentUser, schoolYearId);
+            if (year.status() != SchoolYearStatus.PLANNED || !year.preparing()) {
+                throw GlobalException.of(ApiCode.PREP_YEAR_NOT_OPEN, year.name(), DISPLAY_DATE.format(year.prepDate()));
+            }
+            LocalDate today = LocalDate.now(clock);
+            YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
+            // AUTH-20: HT, PHT còn phân công xem mọi lớp (chỉ xem); PHT hết phân công chỉ như GV
+            boolean leader = campusAccessPolicy.canReadAllCampuses(currentUser);
+            Set<Long> taught = staffAssignmentService.findCurrentTeacherClassroomIds(currentUser.userId(), today);
+            Set<Long> led =
+                    staffAssignmentService.findYearTeamLeaderAgeGroupIds(currentUser.userId(), schoolYearId, today);
+            List<YearSetupResponse.SetupClass> classes = setup.classes().stream()
+                    .filter(c -> leader || taught.contains(c.id()) || led.contains(c.ageGroupId()))
+                    .toList();
+            Set<Long> classIds =
+                    classes.stream().map(YearSetupResponse.SetupClass::id).collect(Collectors.toSet());
+            Map<Long, List<Long>> childIdsByClass =
+                    classPlacementRepository.findAllBySchoolYearId(schoolYearId).stream()
+                            .filter(p -> p.getAction().keepsChildInClass() && classIds.contains(p.getToClassroomId()))
+                            .collect(Collectors.groupingBy(
+                                    ClassPlacement::getToClassroomId,
+                                    Collectors.mapping(ClassPlacement::getChildId, Collectors.toList())));
+            Map<Long, Child> children =
+                    childRepository
+                            .findAllById(childIdsByClass.values().stream()
+                                    .flatMap(List::stream)
+                                    .toList())
+                            .stream()
+                            .collect(Collectors.toMap(Child::getId, Function.identity()));
+            List<PrepClassesResponse.PrepClass> rows = classes.stream()
+                    .map(c -> new PrepClassesResponse.PrepClass(
+                            c.id(),
+                            c.name(),
+                            c.campusId(),
+                            c.ageGroupId(),
+                            taught.contains(c.id()),
+                            childIdsByClass.getOrDefault(c.id(), List.of()).stream()
+                                    .map(children::get)
+                                    .filter(Objects::nonNull)
+                                    .sorted(Comparator.comparing(Child::getFullName))
+                                    .map(ch -> new PrepClassesResponse.PrepChild(
+                                            ch.getId(), ch.getFullName(), ch.getDateOfBirth(), ch.getGender()))
+                                    .toList()))
+                    .toList();
+            log.info("{}|classes={}|END", logPrefix, rows.size());
+            return new PrepClassesResponse(year.id(), year.name(), year.prepDate(), year.startDate(), rows);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -77,15 +145,13 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         log.info("{}|START", logPrefix);
         try {
             boolean principal = isPrincipal(currentUser);
-            // AUTH-20: PHT còn phân công xem bảng xếp lớp mọi điểm trường, chỉ xem
-            if (!principal && !campusAccessPolicy.canReadAllCampuses(currentUser)) {
-                throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
-            }
+            checkCanPlace(currentUser);
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             Board board = loadBoard(setup);
             Map<Long, Long> nextGroups = nextAgeGroups(setup.ageGroups());
             Map<Long, Boolean> completion = graduatingCompletion(setup, board, nextGroups);
             List<PlacementBoardResponse.SourceClass> classes = setup.sourceClasses().stream()
+                    .filter(c -> placesCampus(currentUser, c.campusId()))
                     .map(c -> {
                         Long next = nextGroups.get(c.ageGroupId());
                         List<PlacementBoardResponse.ChildPlacement> children = board.childrenOf(c.id()).stream()
@@ -111,13 +177,18 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     })
                     .toList();
             List<PlacementBoardResponse.TargetClass> targets = setup.classes().stream()
+                    .filter(c -> placesCampus(currentUser, c.campusId()))
                     .map(c -> new PlacementBoardResponse.TargetClass(
                             c.id(), c.name(), c.campusId(), c.ageGroupId(), c.capacity(), board.taken(c.id())))
                     .toList();
             PlacementBoardResponse response = new PlacementBoardResponse(
                     toBrief(setup.year()),
                     setup.sourceYear() == null ? null : toBrief(setup.sourceYear()),
-                    principal
+                    // PHT có quyền nhưng hết phân công (không còn điểm trường nào) thì chỉ xem
+                    (principal
+                                    || (currentUser.hasPermission(Permission.YEAR_PLACEMENT_MANAGE)
+                                            && setup.campuses().stream()
+                                                    .anyMatch(c -> placesCampus(currentUser, c.id()))))
                             && setup.year().status() == SchoolYearStatus.PLANNED
                             && setup.sourceYear() != null
                             && isNextYear(setup),
@@ -125,6 +196,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                             .map(g -> new PlacementBoardResponse.AgeGroupBrief(g.id(), g.shortName()))
                             .toList(),
                     setup.campuses().stream()
+                            .filter(c -> placesCampus(currentUser, c.id()))
                             .map(c -> new PlacementBoardResponse.CampusBrief(c.id(), c.name()))
                             .toList(),
                     classes,
@@ -143,7 +215,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 LOG_PREFIX + "|savePlacements|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            checkPrincipal(currentUser);
+            checkCanPlace(currentUser);
             YearSetupResponse setup = checkPlanned(schoolYearId);
             Board board = loadBoard(setup);
             board.purgeStale();
@@ -154,6 +226,10 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 YearSetupResponse.SetupClass from = board.sourceClassOf(item.childId());
                 if (from == null) {
                     throw GlobalException.of(ApiCode.CHILD_NOT_IN_ACTIVE_YEAR, String.valueOf(item.childId()));
+                }
+                // Phân quyền động: trẻ và lớp năm mới đều phải trong phạm vi HT cấp
+                if (!placesCampus(currentUser, from.campusId())) {
+                    throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
                 }
                 if (from.ageGroupId() == null && item.action() != PlacementAction.LEAVE) {
                     throw GlobalException.of(ApiCode.CLASS_WITHOUT_AGE_GROUP, from.name());
@@ -169,6 +245,9 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     YearSetupResponse.SetupClass to = item.toClassId() == null ? null : targets.get(item.toClassId());
                     if (to == null) {
                         throw GlobalException.of(ApiCode.TARGET_CLASS_REQUIRED);
+                    }
+                    if (!placesCampus(currentUser, to.campusId())) {
+                        throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
                     }
                     Long wanted = item.action() == PlacementAction.PROMOTE ? next : from.ageGroupId();
                     if (!Objects.equals(to.ageGroupId(), wanted)) {
@@ -200,7 +279,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         String logPrefix = LOG_PREFIX + "|autoPlace|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            checkPrincipal(currentUser);
+            checkCanPlace(currentUser);
             YearSetupResponse setup = checkPlanned(schoolYearId);
             Board board = loadBoard(setup);
             board.purgeStale();
@@ -212,7 +291,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             Map<Long, Boolean> completion = graduatingCompletion(setup, board, nextGroups);
             // Cả lớp lên nhóm tuổi kế tiếp, vào lớp còn nhiều chỗ nhất; nhóm lớn nhất ra trường. Trẻ đã xếp giữ nguyên
             for (YearSetupResponse.SetupClass from : setup.sourceClasses()) {
-                if ((request.campusId() != null && !request.campusId().equals(from.campusId()))
+                if (!placesCampus(currentUser, from.campusId())
+                        || (request.campusId() != null && !request.campusId().equals(from.campusId()))
                         || (request.ageGroupId() != null
                                 && !request.ageGroupId().equals(from.ageGroupId()))) {
                     continue;
@@ -303,6 +383,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             SchoolYearDetailResponse activated =
                     schoolYearService.activateSchoolYear(currentUser, schoolYearId, confirmName);
             int moved = applyPlacements(setup, board);
+            notifyGuardiansOfNewClass(setup, board);
             List<Long> leftSchool = board.placements.values().stream()
                     .filter(placement -> !placement.getAction().keepsChildInClass())
                     .map(ClassPlacement::getChildId)
@@ -340,6 +421,34 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         }
         enrollmentRepository.flush();
         return changed;
+    }
+
+    // Báo phụ huynh đã liên kết: trẻ lên lớp / ở lại vào lớp năm mới (Cần chốt 14/11/2026)
+    private void notifyGuardiansOfNewClass(YearSetupResponse setup, Board board) {
+        Map<Long, String> classNames = setup.classes().stream()
+                .collect(Collectors.toMap(YearSetupResponse.SetupClass::id, YearSetupResponse.SetupClass::name));
+        Map<Long, ClassPlacement> moved = board.placements.values().stream()
+                .filter(p -> p.getAction().keepsChildInClass() && classNames.containsKey(p.getToClassroomId()))
+                .collect(Collectors.toMap(ClassPlacement::getChildId, p -> p));
+        if (moved.isEmpty()) {
+            return;
+        }
+        String from = DateTimeFormatter.ofPattern("dd/MM/yyyy").format(transitionStart(setup));
+        Map<Long, List<Long>> guardians = guardianChildLinkService.findLinksOfChildren(moved.keySet()).stream()
+                .collect(Collectors.groupingBy(
+                        GuardianLinkResponse::childId,
+                        Collectors.mapping(GuardianLinkResponse::userId, Collectors.toList())));
+        guardians.forEach((childId, userIds) -> {
+            Child child = board.children.get(childId);
+            String name = child == null ? "Bé" : "Bé " + child.getFullName();
+            notificationService.notifyUsers(
+                    userIds,
+                    NotificationType.CHILD_PLACED,
+                    "Lớp năm học " + setup.year().name(),
+                    name + " học lớp " + classNames.get(moved.get(childId).getToClassroomId()) + " năm học "
+                            + setup.year().name() + " từ ngày " + from + ".",
+                    childId);
+        });
     }
 
     private LocalDate transitionStart(YearSetupResponse setup) {
@@ -454,6 +563,14 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             blockers.add("Chỉ kích hoạt được từ " + DISPLAY_DATE.format(openFrom) + " (" + ACTIVATION_LEAD_DAYS
                     + " ngày trước ngày bắt đầu)");
         }
+        // CFG-YR-05: chưa tới ngày mở chuẩn bị thì chưa kích hoạt (giai đoạn chuẩn bị không bị bỏ qua)
+        LocalDate prepDate = prepDateOf(setup);
+        if (prepDate != null && prepDate.isAfter(openFrom)) {
+            openFrom = prepDate;
+            if (!devActivation.skipDateWindow() && LocalDate.now(clock).isBefore(prepDate)) {
+                blockers.add("Chưa tới ngày mở chuẩn bị " + DISPLAY_DATE.format(prepDate));
+            }
+        }
         long move = board.placements.values().stream()
                 .filter(p -> p.getAction().keepsChildInClass())
                 .count();
@@ -563,6 +680,17 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     }
 
     // AUTH-01: xếp lớp và kích hoạt năm do Hiệu trưởng có phân công còn hiệu lực
+    // Phân quyền động (Cần chốt 10/11/2026): HT luôn xếp được; PHT khi HT cấp YEAR_PLACEMENT_MANAGE, ở đúng phạm vi
+    private void checkCanPlace(CurrentUser user) {
+        if (!isPrincipal(user) && !user.hasPermission(Permission.YEAR_PLACEMENT_MANAGE)) {
+            throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
+        }
+    }
+
+    private boolean placesCampus(CurrentUser user, Long campusId) {
+        return isPrincipal(user) || campusAccessPolicy.canEditCampus(user, Permission.YEAR_PLACEMENT_MANAGE, campusId);
+    }
+
     private void checkPrincipal(CurrentUser user) {
         if (!isPrincipal(user)) {
             throw GlobalException.of(ApiCode.PRINCIPAL_ONLY, "quản lý chuyển năm học");
@@ -585,6 +713,15 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             "teachers", "Giáo viên lớp",
             "placement", "Xếp lớp trẻ năm mới",
             "cutoff", "Giờ chốt điểm danh");
+
+    // Năm được kích hoạt luôn là năm PLANNED sớm nhất (CFG-YR-03) nên lấy ngày mở chuẩn bị của năm đó
+    private LocalDate prepDateOf(YearSetupResponse setup) {
+        if (setup.year().status() != SchoolYearStatus.PLANNED) {
+            return null;
+        }
+        SchoolYearDetailResponse next = schoolYearService.findNextPlannedYear();
+        return next != null && next.id().equals(setup.year().id()) ? next.prepDate() : null;
+    }
 
     private static YearReadinessResponse.Step step(String key, boolean required, boolean ok, String detail) {
         return new YearReadinessResponse.Step(key, STEP_LABELS.get(key), required, ok, false, detail);

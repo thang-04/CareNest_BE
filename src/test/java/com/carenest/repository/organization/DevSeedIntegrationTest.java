@@ -2,20 +2,55 @@ package com.carenest.repository.organization;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+/** Bộ dữ liệu dev (db/dev, sinh bởi scripts/dev/gen-dev-dataset.mjs): nạp sạch, nhất quán, chạy lại không đổi, phủ mọi bảng. */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DevSeedIntegrationTest {
+    private static final String SCHEMA = "dev_dataset";
+    // Mỗi file một truy vấn trả (tên kiểm, số vi phạm); tách file vì mỗi phần có CTE riêng
+    private static final List<String> INVARIANT_FILES =
+            List.of("invariants.sql", "kitchen-invariants.sql", "year-invariants.sql");
+
+    // Bảng không seed có chủ đích: cần file media/S3 (ảnh bữa, chữ ký, đính kèm, phiếu kiểm thực ký), token/OTP phát
+    // sinh lúc chạy, hoặc nghiệp vụ đã bỏ (phiếu theo dõi sau khám, HLT-16)
+    private static final Set<String> EMPTY_BY_DESIGN = Set.of(
+            "flyway_schema_history",
+            "password_tokens",
+            "otp_send_limits",
+            "parent_activation_codes",
+            "device_tokens",
+            "user_signatures",
+            "meal_photos",
+            "inspection_sheets",
+            "health_follow_ups",
+            "health_follow_up_events",
+            "health_follow_up_images",
+            "edu_resource_attachments");
+
     @Container
     @ServiceConnection
     static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
@@ -23,77 +58,103 @@ class DevSeedIntegrationTest {
     @Autowired
     JdbcTemplate jdbc;
 
-    @Test
-    @DisplayName("NUT-17, SCH-03, AUTH-23: seed dev mới cho lớp demo có nhóm tuổi có bữa, phòng, sức chứa và tổ trưởng")
-    void freshSeedSatisfiesClassInvariants() {
-        String schema = "dev_seed_fresh";
-        flyway(schema, "classpath:db/migration", "classpath:db/dev").migrate();
-
-        assertClassInvariants(schema);
+    @BeforeAll
+    void loadDataset() {
+        flyway().migrate();
     }
 
     @Test
-    @DisplayName("NUT-17: DB dev cũ có lớp A1/B1 thiếu nhóm tuổi/phòng ⇒ seed mới điền vào, chạy lại không đổi")
-    void seedPatchesLegacyClassesWithoutAgeGroup() {
-        String schema = "dev_seed_legacy";
-        flyway(schema, "classpath:db/migration").migrate();
-        // Trạng thái seed cũ: lớp chỉ có campus, năm, tên
-        jdbc.update("insert into " + schema + ".campuses(code, name, short_name, address) values"
-                + " ('CS-A','Cơ sở A (demo)','Cơ sở A','A'), ('CS-B','Cơ sở B (demo)','Cơ sở B','B')");
-        jdbc.update("insert into " + schema + ".school_years(name, start_date, end_date)"
-                + " values ('2026-2027','2026-09-01','2027-05-31')");
-        jdbc.update("insert into " + schema + ".classrooms(campus_id, school_year_id, name)"
-                + " select c.id, y.id, v.name from (values ('CS-A','Lớp A1'), ('CS-B','Lớp B1')) v(code, name)"
-                + " join " + schema + ".campuses c on c.code = v.code"
-                + " join " + schema + ".school_years y on y.name = '2026-2027'");
+    @DisplayName(
+            "Bộ dữ liệu dev nhất quán: phân công, người nhận tài khoản, điểm danh–đơn nghỉ–đón trẻ, đánh giá, sức khỏe")
+    void datasetSatisfiesInvariants() throws IOException {
+        Map<String, Long> violations = new LinkedHashMap<>();
+        for (String file : INVARIANT_FILES) {
+            String sql = new ClassPathResource("dev-seed/" + file).getContentAsString(StandardCharsets.UTF_8);
+            jdbc.execute((ConnectionCallback<Void>) connection -> {
+                try (Statement st = connection.createStatement()) {
+                    st.execute("set search_path to " + SCHEMA);
+                    try (ResultSet rs = st.executeQuery(sql)) {
+                        while (rs.next()) {
+                            violations.put(file + ":" + rs.getString(1), rs.getLong(2));
+                        }
+                    }
+                    st.execute("set search_path to public");
+                }
+                return null;
+            });
+        }
 
-        flyway(schema, "classpath:db/migration", "classpath:db/dev").migrate();
-        assertClassInvariants(schema);
-
-        String snapshot = classSnapshot(schema);
-        jdbc.update("update " + schema + ".flyway_schema_history set checksum = 0 where script = 'R__dev_seed.sql'");
-        flyway(schema, "classpath:db/migration", "classpath:db/dev").migrate();
-        assertThat(classSnapshot(schema)).isEqualTo(snapshot);
-        assertThat(count(
-                        schema, "select count(*) from %s.staff_assignments where staff_role = 'AGE_GROUP_TEAM_LEADER'"))
-                .isEqualTo(2);
+        assertThat(violations).isNotEmpty();
+        assertThat(violations)
+                .allSatisfy((check, count) -> assertThat(count).as(check).isZero());
     }
 
-    private void assertClassInvariants(String schema) {
-        assertThat(count(schema, "select count(*) from %s.classrooms where name in ('Lớp A1', 'Lớp B1')"))
-                .isEqualTo(2);
-        assertThat(count(
-                        schema,
-                        "select count(*) from %1$s.classrooms cl left join %1$s.age_groups g on g.id = cl.age_group_id"
-                                + " where cl.room_id is null or cl.capacity is null or g.meal_sessions is null"
-                                + " or g.meal_sessions = ''"))
+    @Test
+    @DisplayName("Mọi bảng nghiệp vụ có dữ liệu (trừ bảng media/token/chưa tới kỳ), vào màn nào cũng có dữ liệu")
+    void datasetFillsEveryBusinessTable() {
+        List<String> empty = tables().stream()
+                .filter(t -> !EMPTY_BY_DESIGN.contains(t))
+                .filter(t -> count(t) == 0)
+                .toList();
+
+        assertThat(empty).isEmpty();
+        assertThat(count("user_accounts")).isGreaterThan(200);
+        assertThat(count("children")).isGreaterThan(200);
+    }
+
+    @Test
+    @DisplayName("Chạy lại seed (đổi checksum) không nhân đôi dữ liệu")
+    void rerunKeepsRowCounts() {
+        Map<String, Long> before = rowCounts();
+        jdbc.update("update " + SCHEMA + ".flyway_schema_history set checksum = 0 where script like 'R__dev_%'");
+        flyway().migrate();
+
+        Map<String, Long> after = rowCounts();
+        after.remove("flyway_schema_history");
+        before.remove("flyway_schema_history");
+        assertThat(after).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("Không còn tài khoản/dữ liệu demo cũ: tên đăng nhập là SĐT, không tên chứa Demo")
+    void datasetHasNoDemoIdentities() {
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + SCHEMA
+                                + ".user_accounts where username !~ '^0[0-9]{9}$' and username not in ('admin', 'principal', 'viceprincipal', 'teacher1', 'teacher2', 'parent1', 'parent2', 'kitchen')"
+                                + " or full_name ilike '%demo%'",
+                        Long.class))
                 .isZero();
-        assertThat(count(
-                        schema,
-                        "select count(*) from %1$s.classrooms cl where not exists (select 1 from %1$s.staff_assignments a"
-                                + " where a.staff_role = 'AGE_GROUP_TEAM_LEADER' and a.age_group_id = cl.age_group_id"
-                                + " and a.school_year_id = cl.school_year_id)"))
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + SCHEMA + ".children where full_name ilike '%demo%'", Long.class))
+                .isZero();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + SCHEMA + ".campuses where name ilike '%demo%'", Long.class))
                 .isZero();
     }
 
-    private String classSnapshot(String schema) {
-        return String.join(
-                ";",
-                jdbc.queryForList(
-                        "select name || ':' || age_group_id || ':' || room_id || ':' || capacity from " + schema
-                                + ".classrooms order by name",
-                        String.class));
+    private Map<String, Long> rowCounts() {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        tables().forEach(t -> counts.put(t, count(t)));
+        return counts;
     }
 
-    private long count(String schema, String sql) {
-        return jdbc.queryForObject(sql.formatted(schema), Long.class);
+    private List<String> tables() {
+        return jdbc.queryForList(
+                "select table_name from information_schema.tables where table_schema = ? and table_type = 'BASE TABLE'"
+                        + " order by table_name",
+                String.class,
+                SCHEMA);
     }
 
-    private Flyway flyway(String schema, String... locations) {
+    private long count(String table) {
+        return jdbc.queryForObject("select count(*) from " + SCHEMA + "." + table, Long.class);
+    }
+
+    private Flyway flyway() {
         return Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
-                .schemas(schema)
-                .locations(locations)
+                .schemas(SCHEMA)
+                .locations("classpath:db/migration", "classpath:db/dev")
                 .load();
     }
 }

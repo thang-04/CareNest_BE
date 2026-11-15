@@ -10,7 +10,7 @@ Nguồn chuẩn: `docs/backend-coding-guide.md` mục 12. PostgreSQL 17, Spring 
 4. **Campus scope:** dữ liệu campus-scoped có cột campus; không thêm school/tenant vào mọi bảng (1 trường — ADR-0002).
 5. Dữ liệu có hiệu lực theo thời gian (phân công, lớp của trẻ): khoảng từ–đến để tra theo ngày.
 6. Bản ghi do AI tạo: nguồn (`AI`/thủ công/template), model, trạng thái nháp/đã duyệt, người duyệt, thời điểm.
-7. Không lưu binary trong bảng nghiệp vụ; ảnh/tệp qua `StorageService`, bảng giữ metadata (`MediaAsset`).
+7. Không lưu binary trong bảng nghiệp vụ; ảnh/tệp qua `FileStorage`, bảng giữ metadata (`MediaAsset`).
 8. pgvector chỉ khi làm semantic search/RAG, migration bật extension tách riêng.
 9. Convention (đặt bởi migration đầu tiên `V1__create_user_accounts.sql`):
    - ID: `BIGINT GENERATED ALWAYS AS IDENTITY` (JPA `Long`, `GenerationType.IDENTITY`).

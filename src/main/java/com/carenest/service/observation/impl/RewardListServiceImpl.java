@@ -28,13 +28,17 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.AttendanceService.ClassChildDay;
 import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.observation.RewardListService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationPeriodType;
+import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RewardAction;
 import com.carenest.utils.enums.RewardStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -45,6 +49,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -100,6 +105,8 @@ public class RewardListServiceImpl implements RewardListService {
     private final RewardListEventRepository eventRepository;
     private final ChildEvaluationRepository evaluationRepository;
     private final BehaviourTicketRepository ticketRepository;
+    private final StaffAssignmentService staffAssignmentService;
+    private final NotificationService notificationService;
 
     @Override
     public List<RewardClassRow> classes(CurrentUser currentUser, Long schoolYearId) {
@@ -184,11 +191,15 @@ public class RewardListServiceImpl implements RewardListService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecordPeriod(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.REWARD_EDIT_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+            }
+            // OBS-14 (Cần chốt 10/11/2026): lập / gửi danh sách từ ngày kết thúc HK II
+            if (rules.today().isBefore(rules.yearEndOpensOn(currentUser, cls))) {
+                throw GlobalException.of(ApiCode.REWARD_NOT_OPEN);
             }
             // Khóa lớp trước khi đọc: 2 lần lưu cùng lúc không tạo trùng danh sách của lớp
             rules.lockClassForUpdate(cls.id());
@@ -230,6 +241,10 @@ public class RewardListServiceImpl implements RewardListService {
                         currentUser.userId(),
                         at,
                         null));
+                notifyReward(
+                        staffAssignmentService.findCampusVicePrincipalIds(cls.campusId(), rules.today()),
+                        "Đề xuất khen thưởng chờ xét",
+                        "Lớp " + cls.name() + " gửi đề xuất khen thưởng cuối năm.");
             }
             log.info("{}|listId={}|items={}|status={}|END", logPrefix, listId, items.size(), list.getStatus());
             return toDetail(currentUser, cls, list);
@@ -237,6 +252,18 @@ public class RewardListServiceImpl implements RewardListService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // OBS-31: luồng khen thưởng — GV gửi báo PHT, PHT chuyển báo HT, trả lại / duyệt báo GV lớp
+    private void notifyReward(Collection<Long> users, String title, String body) {
+        if (!users.isEmpty()) {
+            notificationService.notifyUsers(
+                    users, NotificationType.REWARD_LIST_UPDATED, title, body, "/assessment/rewards", false);
+        }
+    }
+
+    private List<Long> teachersOf(ClassroomInfoResponse cls) {
+        return rules.periodTeacherIds(cls);
     }
 
     @Override
@@ -253,6 +280,7 @@ public class RewardListServiceImpl implements RewardListService {
                 }
                 throw GlobalException.of(ApiCode.REWARD_REVIEW_FORBIDDEN);
             }
+            checkYearActive(cls);
             String decision = request == null ? null : request.decision();
             if (!"FORWARD".equals(decision) && !"RETURN".equals(decision)) {
                 throw GlobalException.of(ApiCode.REWARD_DECISION_INVALID);
@@ -268,6 +296,14 @@ public class RewardListServiceImpl implements RewardListService {
                     currentUser.userId(),
                     at,
                     comment));
+            if (forward) {
+                notifyReward(
+                        staffAssignmentService.findPrincipalIds(rules.today()),
+                        "Đề xuất khen thưởng chờ duyệt",
+                        "Phó hiệu trưởng đã xét đề xuất khen thưởng lớp " + cls.name() + ".");
+            } else {
+                notifyReward(teachersOf(cls), "Đề xuất khen thưởng bị trả lại", "Lý do: " + comment);
+            }
             log.info("{}|decision={}|END", logPrefix, decision);
             return toDetail(currentUser, cls, list);
         } catch (RuntimeException ex) {
@@ -288,6 +324,7 @@ public class RewardListServiceImpl implements RewardListService {
             if (!currentUser.hasRole(CareNestRole.PRINCIPAL) || !rules.leadsCampus(currentUser, cls.campusId())) {
                 throw GlobalException.of(ApiCode.REWARD_REVIEW_FORBIDDEN);
             }
+            checkYearActive(cls);
             if (!canDecide(currentUser, list)) {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
             }
@@ -296,16 +333,22 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_DECISION_INVALID);
             }
             boolean approve = "APPROVE".equals(decision);
+            // Cần chốt 11/11/2026: luồng thường GV → PHT xét → HT duyệt; HT được duyệt thẳng khi PHT chưa xét, ghi rõ
+            boolean direct = list.getStatus() == RewardStatus.PENDING_VP;
             String comment = checkComment(request.comment(), !approve);
             Instant at = rules.now();
             list.decide(approve, currentUser.userId(), at, comment);
             listRepository.saveAndFlush(list);
             eventRepository.save(RewardListEvent.of(
                     list.getId(),
-                    approve ? RewardAction.APPROVED : RewardAction.RETURNED,
+                    !approve ? RewardAction.RETURNED : direct ? RewardAction.DIRECT_APPROVED : RewardAction.APPROVED,
                     currentUser.userId(),
                     at,
                     comment));
+            notifyReward(
+                    teachersOf(cls),
+                    approve ? "Đề xuất khen thưởng đã duyệt" : "Đề xuất khen thưởng bị trả lại",
+                    approve ? "Hiệu trưởng đã duyệt đề xuất khen thưởng lớp " + cls.name() + "." : "Lý do: " + comment);
             log.info("{}|decision={}|END", logPrefix, decision);
             return toDetail(currentUser, cls, list);
         } catch (RuntimeException ex) {
@@ -334,20 +377,32 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private boolean canEdit(CurrentUser user, ClassroomInfoResponse cls, RewardList list) {
-        return rules.canRecord(user, cls)
+        return user.hasPermission(Permission.ASSESSMENT_RECORD)
+                && rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                && !rules.today().isBefore(rules.yearEndOpensOn(user, cls))
                 && (list == null || list.isEditable());
     }
 
     private boolean isReviewer(CurrentUser user, RewardList list) {
-        return user.hasRole(CareNestRole.VICE_PRINCIPAL) && rules.leadsCampus(user, list.getCampusId());
+        return user.hasRole(CareNestRole.VICE_PRINCIPAL)
+                && user.hasPermission(Permission.REWARD_REVIEW)
+                && rules.leadsCampus(user, Permission.REWARD_REVIEW, list.getCampusId());
+    }
+
+    // Năm học đã kết thúc: danh sách khen thưởng chỉ xem, không xét / duyệt tiếp
+    private static void checkYearActive(ClassroomInfoResponse cls) {
+        if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
+            throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+        }
     }
 
     private boolean canReview(CurrentUser user, RewardList list) {
         return list != null && list.getStatus() == RewardStatus.PENDING_VP && isReviewer(user, list);
     }
 
-    // HT toàn quyền: phê duyệt được cả danh sách đang chờ PHT (điểm trường chưa có PHT)
+    // HT toàn quyền: duyệt được cả danh sách đang chờ PHT (PHT chưa xét) — ghi "HT duyệt trực tiếp" (Cần chốt
+    // 11/11/2026)
     private boolean canDecide(CurrentUser user, RewardList list) {
         return list != null
                 && user.hasRole(CareNestRole.PRINCIPAL)
@@ -398,15 +453,14 @@ public class RewardListServiceImpl implements RewardListService {
                 // Không có danh hiệu thì không lưu dòng (ghi chú đi kèm danh hiệu)
                 continue;
             }
+            // Cô chọn danh hiệu không cần chờ đánh giá cuối năm (Cần chốt 10/11/2026); hoàn thành chương trình thì cần
             ChildEvaluation ye = yearEnds.get(item.childId());
-            if (ye == null) {
-                throw GlobalException.of(ApiCode.REWARD_YEAR_END_REQUIRED, name);
-            }
             if (picked.stream().filter(GENERAL_TITLES::contains).count() > 1
                     || picked.stream().filter(PROGRAM_TITLES::contains).count() > 1) {
                 throw GlobalException.of(ApiCode.REWARD_TITLE_CONFLICT, name);
             }
-            if (picked.stream().anyMatch(PROGRAM_TITLES::contains) && !Boolean.TRUE.equals(ye.getProgramCompleted())) {
+            if (picked.stream().anyMatch(PROGRAM_TITLES::contains)
+                    && (ye == null || !Boolean.TRUE.equals(ye.getProgramCompleted()))) {
                 throw GlobalException.of(ApiCode.REWARD_PROGRAM_TITLE_INVALID, name);
             }
             List<String> ordered = TITLES.stream().filter(picked::contains).toList();
@@ -530,22 +584,22 @@ public class RewardListServiceImpl implements RewardListService {
                             .count();
                     ChildEvaluation ye = yearEnds.get(c.id());
                     List<String> suggested = new ArrayList<>();
-                    if (ye != null) {
-                        // Chăm: đi học từ 90% ngày học; ngoan: phiếu tuần từ nửa số tuần học; ngoan toàn diện: phiếu
-                        // tháng từ nửa số tháng học. Gợi ý một danh hiệu cao nhất đạt được, GV quyết định
-                        boolean diligent = rate != null && rate >= DILIGENT_PERCENT;
-                        boolean good = weeks > 0 && weekly * 2L >= weeks;
-                        boolean allRound = months > 0 && monthly * 2L >= months;
-                        if (diligent && allRound) {
-                            suggested.add(EXCELLENT);
-                        } else if (diligent && good) {
-                            suggested.add(DILIGENT_GOOD);
-                        } else if (good) {
-                            suggested.add(GOOD);
-                        }
-                        if (programClass && Boolean.TRUE.equals(ye.getProgramCompleted())) {
-                            suggested.add(PROGRAM_GOOD);
-                        }
+                    // Chăm: đi học từ 90% ngày học; ngoan: phiếu tuần từ nửa số tuần học; ngoan toàn diện: phiếu
+                    // tháng từ nửa số tháng học. Gợi ý một danh hiệu cao nhất đạt được, GV quyết định. Luôn gợi ý theo
+                    // số liệu hiện có, không chờ đánh giá cuối năm (Cần chốt 10/11/2026)
+                    boolean diligent = rate != null && rate >= DILIGENT_PERCENT;
+                    boolean good = weeks > 0 && weekly * 2L >= weeks;
+                    boolean allRound = months > 0 && monthly * 2L >= months;
+                    if (diligent && allRound) {
+                        suggested.add(EXCELLENT);
+                    } else if (diligent && good) {
+                        suggested.add(DILIGENT_GOOD);
+                    } else if (good) {
+                        suggested.add(GOOD);
+                    }
+                    // Hoàn thành chương trình lấy từ đánh giá cuối năm đã xác nhận
+                    if (programClass && ye != null && Boolean.TRUE.equals(ye.getProgramCompleted())) {
+                        suggested.add(PROGRAM_GOOD);
                     }
                     RewardListItem item = items.get(c.id());
                     return new RewardChildRow(
@@ -620,8 +674,9 @@ public class RewardListServiceImpl implements RewardListService {
                                 e.getNote()))
                         .toList(),
                 canEdit(user, cls, list),
-                canReview(user, list),
-                canDecide(user, list),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE && canReview(user, list),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE && canDecide(user, list),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE ? rules.yearEndOpensOn(user, cls) : null,
                 schoolDays.stream()
                         .filter(day -> day.isBefore(today)
                                 && !recorded.contains(day)

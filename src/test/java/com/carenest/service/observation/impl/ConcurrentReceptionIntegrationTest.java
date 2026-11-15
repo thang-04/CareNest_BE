@@ -18,6 +18,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Emotion;
 import com.carenest.utils.enums.Participation;
+import com.carenest.utils.enums.Permission;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
@@ -106,9 +107,6 @@ class ConcurrentReceptionIntegrationTest {
     private DailyHealthService healthService;
 
     @Autowired
-    private com.carenest.service.observation.ClassMonthlyCommentService monthlyComments;
-
-    @Autowired
     private JdbcTemplate jdbc;
 
     @Autowired
@@ -171,20 +169,21 @@ class ConcurrentReceptionIntegrationTest {
         teach(teacherB, classB);
 
         // Giáo án tuần 26–30/10 của lớp A đã duyệt: Hoạt động học thứ 3 có MT1, thứ 4 có MT1 + MT2
-        long plan = insertId("INSERT INTO edu_year_plans (code, school_year_id, age_group_id, title, status, owner_id) "
-                + "VALUES ('KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
-                + ") RETURNING id");
+        long plan = insertId(
+                "INSERT INTO edu_team_plans (legacy_team_without_source, code, school_year_id, age_group_id, title, status, owner_id) "
+                        + "VALUES (true, 'KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
+                        + ") RETURNING id");
         long domain = jdbc.queryForObject("SELECT id FROM edu_domains ORDER BY sort_order LIMIT 1", Long.class);
         goal1 = goal(plan, domain, 1, "Trẻ nhận biết màu");
         goal2 = goal(plan, domain, 2, "Trẻ đếm đến 5");
         goal3 = goal(plan, domain, 3, "Trẻ nhảy bật");
-        long theme = insertId("INSERT INTO edu_themes (year_plan_id, sort_order, name, abbr) VALUES (" + plan
+        long theme = insertId("INSERT INTO edu_themes (team_plan_id, sort_order, name, abbr) VALUES (" + plan
                 + ", 1, 'Bản thân', 'BT') RETURNING id");
         String content = "{\"grid\":{\"hoc\":{\"days\":[\"\",\"Toán\",\"Tạo hình\",\"\",\"\"]}},\"picks\":{"
                 + "\"hoc.1\":[{\"id\":\"p1\",\"goalId\":\"" + goal1 + "\"}],"
                 + "\"hoc.2\":[{\"id\":\"p2\",\"goalId\":\"" + goal1 + "\"},{\"id\":\"p3\",\"goalId\":\"" + goal2
                 + "\"}]}}";
-        weekDoc = insertId("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, year_plan_id, theme_id, "
+        weekDoc = insertId("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, "
                 + "week_start, status, content, created_by, updated_by) VALUES ('w-a', 'week', " + classA + ", "
                 + plan + ", " + theme + ", '2026-10-26', 'APPROVED', '" + content + "'::jsonb, "
                 + principal.userId() + ", " + principal.userId() + ") RETURNING id");
@@ -237,28 +236,6 @@ class ConcurrentReceptionIntegrationTest {
                         Integer.class,
                         classA))
                 .isZero();
-        var month = LocalDate.of(2026, 9, 1);
-        race(() -> monthlyComments.get(teacherA, classA, month), () -> monthlyComments.get(teacherA, classA, month));
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM class_monthly_comments WHERE classroom_id=?", Integer.class, classA))
-                .isEqualTo(1);
-        jdbc.update("DELETE FROM class_monthly_comments WHERE classroom_id=?", classA);
-        var saveRequest = new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
-                classA, month, "TEST monthly saved: lớp đi học đều, các bé ngoan");
-        race(() -> monthlyComments.get(teacherA, classA, month), () -> monthlyComments.save(teacherA, saveRequest));
-        assertThat(jdbc.queryForObject(
-                        "SELECT content FROM class_monthly_comments WHERE classroom_id=?", String.class, classA))
-                .isEqualTo("TEST monthly saved: lớp đi học đều, các bé ngoan");
-        var confirmRequest = new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
-                classB, month, "TEST monthly confirmed: lớp đi học đều, các bé ngoan");
-        race(
-                () -> monthlyComments.get(teacherB, classB, month),
-                () -> monthlyComments.confirm(teacherB, confirmRequest));
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM class_monthly_comments WHERE classroom_id=? AND confirmed_at IS NOT NULL",
-                        Integer.class,
-                        classB))
-                .isEqualTo(1);
     }
 
     private void race(Runnable first, Runnable second) throws Exception {
@@ -330,14 +307,28 @@ class ConcurrentReceptionIntegrationTest {
     }
 
     private long goal(long plan, long domain, int no, String text) {
-        return insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no) VALUES ("
+        return insertId("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no) VALUES ("
                 + plan + ", " + domain + ", " + no + ", '" + text + "', " + no + ") RETURNING id");
     }
 
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case TEACHER, TEAM_LEADER ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_RECORD,
+                                Permission.DAILY_HEALTH_RECORD,
+                                Permission.ASSESSMENT_VIEW,
+                                Permission.ASSESSMENT_RECORD,
+                                Permission.ASSESSMENT_CONFIRM);
+                    case PRINCIPAL, VICE_PRINCIPAL ->
+                        Set.of(Permission.ATTENDANCE_UNLOCK, Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_UNLOCK);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
     }
 
     private void campusRole(CurrentUser user, long campusId) {

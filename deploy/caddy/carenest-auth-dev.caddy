@@ -1,0 +1,11 @@
+# VPS: /data/thangnd/CAPSTONE/caddy/carenest-auth-dev.caddy, CI job deploy-dev đồng bộ khi push nhánh dev.
+# Keycloak của môi trường dev (compose.dev.yaml); cùng quy tắc chặn admin như site production.
+auth-dev.carenest.edu.vn {
+	encode gzip
+
+	# Admin console/REST và realm master không mở ra Internet: quản trị qua SSH tunnel tới 127.0.0.1:18322
+	@internal path /admin /admin/* /realms/master /realms/master/*
+	respond @internal 404
+
+	reverse_proxy 127.0.0.1:18322
+}

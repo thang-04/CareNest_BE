@@ -1,0 +1,97 @@
+[
+  {
+    "page": 58,
+    "congBaoPage": 70,
+    "table": 0,
+    "age": "ag-5",
+    "goalNo": "1.2",
+    "fragment": "Nói được tên một số món ăn hàng ngày và dạng chế biến đơn giản: rau có thể luộc, nấu canh; thịt có thể luộc, rán, kho; gạo nấu cơm, nấu cháo...",
+    "status": "missing_after_visual_review",
+    "index": 0,
+    "sameTextInOtherAges": [
+      {
+        "age": "ag-4",
+        "id": 74,
+        "ref": "Phần ba › D › I › b) › 1 › 1.2"
+      }
+    ]
+  },
+  {
+    "page": 73,
+    "congBaoPage": 85,
+    "table": 0,
+    "age": "ag-5",
+    "goalNo": "5.1",
+    "fragment": "Thích chăm sóc cây, con vật thân thuộc.",
+    "status": "missing_after_visual_review",
+    "index": 3,
+    "sameTextInOtherAges": [
+      {
+        "age": "ag-4",
+        "id": 260,
+        "ref": "Phần ba › D › IV › 5 › 5.1"
+      }
+    ]
+  },
+  {
+    "page": 76,
+    "congBaoPage": 88,
+    "table": 0,
+    "age": "ag-5",
+    "goalNo": "3.3",
+    "fragment": "Nói lên ý tưởng và tạo ra các sản phẩm tạo hình theo ý thích.",
+    "status": "missing_after_visual_review",
+    "index": 4,
+    "sameTextInOtherAges": [
+      {
+        "age": "ag-4",
+        "id": 313,
+        "ref": "Phần ba › D › V › 3 › 3.3"
+      }
+    ]
+  },
+  {
+    "page": 76,
+    "congBaoPage": 88,
+    "table": 0,
+    "age": "ag-5",
+    "goalNo": "3.4",
+    "fragment": "Đặt tên cho sản phẩm tạo hình.",
+    "status": "missing_after_visual_review",
+    "index": 5,
+    "sameTextInOtherAges": [
+      {
+        "age": "ag-3",
+        "id": 299,
+        "ref": "Phần ba › D › V › 3 › 3.3"
+      },
+      {
+        "age": "ag-4",
+        "id": 314,
+        "ref": "Phần ba › D › V › 3 › 3.4"
+      }
+    ]
+  },
+  {
+    "page": 69,
+    "congBaoPage": 81,
+    "table": 0,
+    "age": "ag-3",
+    "goalNo": "2.1",
+    "fragment": "Nói rõ để người",
+    "status": "wrong_age_column_extraction",
+    "index": 1,
+    "actualAge": "ag-4"
+  },
+  {
+    "page": 70,
+    "congBaoPage": 82,
+    "table": 0,
+    "age": "ag-4",
+    "goalNo": "3.1",
+    "fragment": "Chọn sách để “đọc”",
+    "status": "wrong_age_column_extraction",
+    "index": 2,
+    "actualAge": "ag-5"
+  }
+]

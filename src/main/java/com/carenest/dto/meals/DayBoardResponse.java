@@ -38,6 +38,14 @@ public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
      * chốt nhưng kho chưa trừ đúng nhu cầu — {@code foodCount} = số thực phẩm lệch, đồng bộ lại bằng
      * {@code POST /nutrition/stock/days/{date}/sync}), NOTHING_TO_DEDUCT, DEDUCTED, SHORTFALL.
      * {@code openShortfallCount}: số dòng thiếu còn mở của điểm trường (mọi ngày).
+     * {@code upcomingShortFoodCount}, {@code upcomingShortFrom}: số thực phẩm khô sắp thiếu từ hôm nay tới hết tuần sau
+     * theo sĩ số dự kiến và ngày bắt đầu thiếu sớm nhất (NUT-11, P-38); đủ kho ⇒ 0 và null.
      */
-    public record DryStock(String status, int foodCount, int shortfallFoodCount, int openShortfallCount) {}
+    public record DryStock(
+            String status,
+            int foodCount,
+            int shortfallFoodCount,
+            int openShortfallCount,
+            int upcomingShortFoodCount,
+            LocalDate upcomingShortFrom) {}
 }

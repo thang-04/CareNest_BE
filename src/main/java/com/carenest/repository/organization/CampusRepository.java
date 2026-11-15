@@ -59,6 +59,9 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
                     join user_accounts u on u.id = a.user_id
                     where a.campus_id is not null
                       and a.valid_from <= :date and (a.valid_to is null or a.valid_to >= :date)
+                      and (a.valid_to is not null or a.staff_role <> 'VICE_PRINCIPAL'
+                           or not exists (select 1 from school_years y
+                                          where y.end_date >= a.valid_from and y.end_date < :date))
                     order by u.full_name
                     """, nativeQuery = true)
     List<CampusStaff> findActiveCampusStaff(@Param("date") LocalDate date);

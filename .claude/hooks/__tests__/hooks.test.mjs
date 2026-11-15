@@ -110,6 +110,26 @@ test("guard: user đã duyệt (ask rồi edit thành công) ⇒ không hỏi l�
   assert.equal(decisionOf(hook("guard-edits", root, { session_id: "khac", tool_name: "Edit", tool_input: { file_path: join(root, "pom.xml") } })), "ask");
 });
 
+test("guard: tự chạy vẫn hỏi ở điểm dừng cứng (vùng dùng chung, module người khác, dependency); việc khác chỉ nhắc", () => {
+  const config = {
+    ...CONFIG,
+    guard: { ...CONFIG.guard, autonomous: true, sharedGlobs: ["src/shared/**"] },
+    ownership: { modules: { "src/main/java/meals/**": "an", "src/main/java/health/**": "binh" }, identities: { an: ["An"], binh: ["Binh"] } },
+  };
+  const root = makeGitRepo({ ".claude/hooks/harness.config.json": JSON.stringify(config), "src/shared/Button.java": "class B {}" });
+  git(root, "config", "user.name", "An");
+  const out = (rel) => hook("guard-edits", root, { session_id: "g3", tool_name: "Edit", tool_input: { file_path: join(root, rel) } });
+  const shared = out("src/shared/Button.java");
+  assert.equal(decisionOf(shared), "ask");
+  assert.match(JSON.stringify(shared), /impact\.mjs/);
+  assert.equal(decisionOf(out("src/main/java/health/H.java")), "ask", "module của Binh");
+  assert.equal(decisionOf(out("src/main/java/meals/M.java")), null, "module của chính mình");
+  assert.equal(decisionOf(out("pom.xml")), "ask", "dependency là điểm dừng cứng");
+  assert.equal(decisionOf(out("src/main/java/security/S.java")), null, "vùng rủi ro chưa có plan: tự chạy chỉ nhắc");
+  git(root, "config", "user.name", "Người lạ");
+  assert.equal(decisionOf(out("src/main/java/health/H.java")), null, "không xác định được người làm ⇒ không hỏi");
+});
+
 test("orient: luôn nêu mã task của nhánh; có plan cùng branch thì in thêm; sau compact nhắc xác nhận lại", () => {
   const root = makeGitRepo();
   const start = hook("session-orient", root, { session_id: "o1", source: "startup" }).hookSpecificOutput.additionalContext;

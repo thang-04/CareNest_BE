@@ -33,4 +33,6 @@ public interface MealCountRepository extends JpaRepository<MealCount, Long> {
     List<MealCount> findByCampusIdAndDate(Long campusId, LocalDate date);
 
     List<MealCount> findByDateBetween(LocalDate from, LocalDate to);
+
+    List<MealCount> findByCampusIdAndDateBetween(Long campusId, LocalDate from, LocalDate to);
 }

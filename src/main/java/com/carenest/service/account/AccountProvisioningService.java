@@ -1,9 +1,12 @@
 package com.carenest.service.account;
 
 import com.carenest.dto.account.AccountCandidateResponse;
+import com.carenest.dto.account.AccountDetailResponse;
 import com.carenest.dto.account.AccountResponse;
+import com.carenest.dto.account.ChangeStaffRoleRequest;
 import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
+import com.carenest.dto.account.UpdateAccountProfileRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.UserStatus;
 
@@ -24,4 +27,13 @@ public interface AccountProvisioningService {
      * hủy mọi phiên.
      */
     AccountResponse revokeStaffRole(CurrentUser actor, Long userId);
+
+    /**
+     * Đổi vai trò nhân sự tại chỗ (AUTH-25): giữ tài khoản, kết thúc phân công cũ, xóa quyền ngoại lệ, tạo phân công
+     * mới theo request, hủy mọi phiên.
+     */
+    AccountDetailResponse changeStaffRole(CurrentUser actor, Long userId, ChangeStaffRoleRequest request);
+
+    /** Sửa họ tên/email nhân sự trên Keycloak và DB (AUTH-25). */
+    AccountResponse updateProfile(CurrentUser actor, Long userId, UpdateAccountProfileRequest request);
 }

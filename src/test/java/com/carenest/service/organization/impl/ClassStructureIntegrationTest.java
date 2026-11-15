@@ -20,6 +20,7 @@ import com.carenest.service.organization.RoomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.RoomType;
 import java.time.Clock;
@@ -100,8 +101,22 @@ class ClassStructureIntegrationTest {
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        principal = new CurrentUser(principalId, "kc-p", "principal.it", "P", null, Set.of(CareNestRole.PRINCIPAL));
-        vicePrincipal = new CurrentUser(vpId, "kc-vp", "vp.it", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        principal = new CurrentUser(
+                principalId,
+                "kc-p",
+                "principal.it",
+                "P",
+                null,
+                Set.of(CareNestRole.PRINCIPAL),
+                Set.of(Permission.ROOM_MANAGE));
+        vicePrincipal = new CurrentUser(
+                vpId,
+                "kc-vp",
+                "vp.it",
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.ROOM_MANAGE));
     }
 
     @Test
@@ -326,8 +341,67 @@ class ClassStructureIntegrationTest {
     }
 
     @Test
-    void vicePrincipalCannotWrite() {
-        expectError(() -> createRoomAs(vicePrincipal, campusA, "P.301", 25), ApiCode.FORBIDDEN);
+    void vicePrincipalWritesOnlyWithinGrantedCampusScope() {
+        assertThat(createRoomAs(vicePrincipal, campusA, "P.301", 25).campusId()).isEqualTo(campusA);
+        expectError(() -> createRoomAs(vicePrincipal, campusB, "P.302", 25), ApiCode.FORBIDDEN);
+
+        CurrentUser withoutPermission = new CurrentUser(
+                vicePrincipal.userId(),
+                vicePrincipal.keycloakUserId(),
+                vicePrincipal.username(),
+                vicePrincipal.fullName(),
+                vicePrincipal.email(),
+                vicePrincipal.roles(),
+                Set.of());
+        expectError(() -> createRoomAs(withoutPermission, campusA, "P.303", 25), ApiCode.FORBIDDEN);
+
+        // Phân quyền động (Cần chốt 10/11/2026): PHT chỉ xem phòng cơ sở mình; HT cấp ROOM_MANAGE toàn trường thì xem
+        // cả cơ sở B
+        createRoom(campusB, "P.401", 25);
+        assertThat(roomService.getRooms(vicePrincipal, null, null))
+                .extracting(RoomResponse::campusId)
+                .containsOnly(campusA);
+        CurrentUser schoolWide = new CurrentUser(
+                vicePrincipal.userId(),
+                vicePrincipal.keycloakUserId(),
+                vicePrincipal.username(),
+                vicePrincipal.fullName(),
+                vicePrincipal.email(),
+                vicePrincipal.roles(),
+                Set.of(Permission.ROOM_MANAGE),
+                Set.of(Permission.ROOM_MANAGE));
+        assertThat(roomService.getRooms(schoolWide, null, null))
+                .extracting(RoomResponse::campusId)
+                .contains(campusA, campusB);
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05: GV chỉ thấy lớp năm sắp diễn ra từ ngày mở chuẩn bị, kể cả khi gọi kèm năm học")
+    void teacherSeesUpcomingClassOnlyFromPreparationDate() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-gv', 'gv.it', 'GV IT') RETURNING id");
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-gv", "gv.it", "GV", null, Set.of(CareNestRole.TEACHER), Set.of());
+        // Hôm nay 22/10/2026: năm sau mở chuẩn bị 01/12/2026 (chưa tới) rồi đổi thành 20/10/2026 (đã tới)
+        long planned = insertId("INSERT INTO school_years (name, prep_date, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2026-12-01', '2027-09-06', '2028-05-31', 'PLANNED') RETURNING id");
+        long cls = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
+                + campusA + ", " + planned + ", 'Lớp năm sau', " + ageGroup3 + ", 25) RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to)"
+                        + " VALUES (?, 'TEACHER', ?, '2026-12-01', '2028-05-31')",
+                teacherId,
+                cls);
+
+        // Trước ngày mở chuẩn bị: GV chưa có lớp nào được xem ⇒ bị từ chối, không lộ lớp năm sau
+        assertThatThrownBy(() -> classService.getSchoolStructure(teacher, planned, null))
+                .isInstanceOf(GlobalException.class);
+
+        jdbc.update("UPDATE school_years SET prep_date = '2026-10-20' WHERE id = ?", planned);
+        jdbc.update("UPDATE staff_assignments SET valid_from = '2026-10-20' WHERE user_id = ?", teacherId);
+        assertThat(classService.getSchoolStructure(teacher, planned, null).classes())
+                .extracting(ClassResponse::id)
+                .containsExactly(cls);
     }
 
     private RoomResponse createRoom(long campusId, String code, int capacity) {

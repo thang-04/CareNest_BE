@@ -24,6 +24,9 @@ public interface ClassroomService {
     /** classroomId → campusId cho các lớp có tồn tại. */
     Map<Long, Long> findCampusIds(Collection<Long> classroomIds);
 
+    /** Ngày mở lớp (giờ trường): hạn kế hoạch giáo dục trước ngày này không tính quá hạn (spec 003). */
+    Map<Long, LocalDate> findOpenedDates(Collection<Long> classroomIds);
+
     /** Mọi lớp (mọi năm học) thuộc các campus; lọc theo ngày do nơi gọi áp qua enrollment. */
     List<Long> findClassroomIdsOfCampuses(Collection<Long> campusIds);
 

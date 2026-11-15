@@ -159,17 +159,9 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                 throw GlobalException.of(ApiCode.STOCK_RECEIPT_STATUS_INVALID);
             }
             receipt.confirm(currentUser.userId(), clock.instant());
-            // NUT-11: mỗi dòng thành một lô, bút toán nhập = số lượng của lô
+            // NUT-11: mỗi dòng thành một lô (chính dòng phiếu), bút toán nhập = số lượng của dòng
             for (StockReceiptLine line : receipt.getLines()) {
-                StockLot lot = lotRepository.save(StockLot.fromReceipt(receipt, line));
-                movementRepository.save(StockMovement.of(
-                        lot,
-                        StockMovementType.RECEIPT,
-                        lot.getQuantity(),
-                        null,
-                        receipt.getId(),
-                        "",
-                        currentUser.userId()));
+                movementRepository.save(StockMovement.receipt(receipt, line, currentUser.userId()));
             }
             Collection<Long> foodIds =
                     receipt.getLines().stream().map(StockReceiptLine::getFoodId).collect(Collectors.toSet());
@@ -197,7 +189,7 @@ public class StockReceiptServiceImpl implements StockReceiptService {
             }
             List<Long> lineIds =
                     receipt.getLines().stream().map(StockReceiptLine::getId).toList();
-            List<StockLot> lots = lotRepository.findByReceiptLineIdIn(lineIds);
+            List<StockLot> lots = lotRepository.findAllById(lineIds);
             Map<Long, BigDecimal> balances =
                     movementRepository
                             .sumByLotIds(lots.stream().map(StockLot::getId).toList())

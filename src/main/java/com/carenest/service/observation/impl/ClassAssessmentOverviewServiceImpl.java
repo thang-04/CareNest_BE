@@ -1,6 +1,7 @@
 package com.carenest.service.observation.impl;
 
 import com.carenest.dto.child.ClassChildResponse;
+import com.carenest.dto.eduplan.ApprovedDayLessonResponse;
 import com.carenest.dto.observation.ClassAssessmentDetailResponse;
 import com.carenest.dto.observation.ClassAssessmentDetailResponse.ChildRow;
 import com.carenest.dto.observation.ClassAssessmentDetailResponse.Comment;
@@ -118,7 +119,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         try {
             boolean leader = rules.isLeader(currentUser);
             // Tổ trưởng chuyên môn xem các lớp nhóm tuổi mình (Cần chốt 04/11); GV khác không xem
-            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_OVERVIEW_FORBIDDEN);
             }
@@ -179,8 +180,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.readsCampus(currentUser, cls.campusId())
-                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
+            if (!rules.readsCampus(currentUser, cls.campusId()) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             String p = checkPeriod(period);
@@ -291,8 +291,14 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         List<Long> ids = children.stream().map(ClassChildResponse::id).toList();
         LocalDate from = range.days().getFirst();
         LocalDate to = range.days().getLast();
-        Set<String> present = attendanceService.findClassDays(List.of(cls.id()), from, to).stream()
+        var attendance = attendanceService.findClassDays(List.of(cls.id()), from, to);
+        Set<String> present = attendance.stream()
                 .filter(s -> s.status() == AttendanceStatus.PRESENT)
+                .map(s -> s.childId() + "|" + s.date())
+                .collect(Collectors.toSet());
+        // Trẻ đã điểm danh vắng (có phép / không phép): chưa điểm danh thì không tính
+        Set<String> absent = attendance.stream()
+                .filter(s -> s.status() != null && s.status() != AttendanceStatus.PRESENT)
                 .map(s -> s.childId() + "|" + s.date())
                 .collect(Collectors.toSet());
         Map<String, DailyObservation> observations =
@@ -304,10 +310,11 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
                 .toList();
         Map<String, List<DailyActivityResult>> results =
                 storedResults.stream().collect(Collectors.groupingBy(r -> r.getChildId() + "|" + r.getDate()));
-        Map<DailyActivityResult, ActivityResult> projected = AssessmentResultProjection.project(
-                lessonQueryService,
-                storedResults.isEmpty() ? Map.of() : lessonQueryService.findApprovedDayLessons(cls.id(), from, to),
-                storedResults);
+        Map<LocalDate, ApprovedDayLessonResponse> lessons = storedResults.isEmpty() && absent.isEmpty()
+                ? Map.of()
+                : lessonQueryService.findApprovedDayLessons(cls.id(), from, to);
+        Map<DailyActivityResult, ActivityResult> projected =
+                AssessmentResultProjection.project(lessonQueryService, lessons, storedResults);
         Map<String, List<HealthSymptom>> prefill = new HashMap<>();
         dailyHealthService
                 .findLatestDaySigns(ids, from, to)
@@ -316,6 +323,16 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         for (ChildStats s : stats) {
             for (LocalDate d : range.days()) {
                 String key = s.child.id() + "|" + d;
+                if (absent.contains(key) && daySet.contains(d)) {
+                    // OBS-01 (Cần chốt 10/11/2026): trẻ vắng thì mọi mục tiêu của giáo án ngày đó tính Chưa đạt
+                    ApprovedDayLessonResponse lesson = lessons.get(d);
+                    if (lesson != null) {
+                        s.chuaDat += lesson.activities().stream()
+                                .mapToInt(a -> a.goals().size())
+                                .sum();
+                    }
+                    continue;
+                }
                 if (!present.contains(key) || !daySet.contains(d)) {
                     continue;
                 }

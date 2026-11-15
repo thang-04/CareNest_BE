@@ -35,7 +35,7 @@ import tools.jackson.core.JacksonException;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(GlobalException.class)
-    public ResponseEntity<ResponseJson<List<FieldErrorResponse>>> handleGlobalException(GlobalException ex) {
+    public ResponseEntity<ResponseJson<Object>> handleGlobalException(GlobalException ex) {
         if (ex.getApiCode().getHttpStatus().is5xxServerError()) {
             log.error(
                     "[handleGlobalException]|code={}|errorCode={}|desc={}",
@@ -53,8 +53,8 @@ public class GlobalExceptionHandler {
                     ex.getFieldErrors().stream().map(FieldErrorResponse::field).toList());
         }
         // Lỗi theo ô (C-5): data = [{ field, message }]; lỗi khác data = null như trước
-        List<FieldErrorResponse> fields = ex.getFieldErrors().isEmpty() ? null : ex.getFieldErrors();
-        return ResponseJson.toJsonWithData(ex.getApiCode(), ex.getMessage(), fields);
+        Object data = ex.getData() != null ? ex.getData() : ex.getFieldErrors().isEmpty() ? null : ex.getFieldErrors();
+        return ResponseJson.toJsonWithData(ex.getApiCode(), ex.getMessage(), data);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -130,12 +130,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<ResponseJson<Void>> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
-        return error(ApiCode.UNSUPPORTED_MEDIA_TYPE);
+        return ResponseJson.toJson(ApiCode.UNSUPPORTED_MEDIA_TYPE, ApiCode.UNSUPPORTED_MEDIA_TYPE.format(""));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ResponseJson<Void>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
-        return error(ApiCode.FILE_TOO_LARGE);
+        return ResponseJson.toJson(ApiCode.FILE_TOO_LARGE, ApiCode.FILE_TOO_LARGE.format(""));
     }
 
     // @PreAuthorize từ chối bên trong DispatcherServlet nên tới đây, không qua RestAccessDeniedHandler

@@ -15,6 +15,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.DishService;
 import com.carenest.service.meals.FoodService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.Allergen;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodGroup;
@@ -81,7 +82,7 @@ class NutritionCatalogIntegrationTest {
     @Test
     @DisplayName("NUT-18: dinh dưỡng và giá một suất tính riêng từng nhóm tuổi; chất dị ứng suy từ thực phẩm")
     void dishNutritionIsComputedPerAgeGroup() {
-        Long peanutId = jdbc.queryForObject("SELECT id FROM allergens WHERE code = 'PEANUT'", Long.class);
+        Long peanutId = Allergen.PEANUT.getId();
         // 100 g gạo = 344 kcal; 18.000đ/kg, không thải bỏ
         FoodResponse rice = foodService.createFood(manager, food("TP001", "Gạo tẻ", "344", "18000", "0", List.of()));
         // 100 g đậu phộng = 567 kcal; 60.000đ/kg, thải bỏ 10%

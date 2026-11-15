@@ -26,6 +26,8 @@ import com.carenest.service.observation.BehaviourTicketService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.TicketType;
 import java.time.DayOfWeek;
@@ -55,12 +57,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class BehaviourTicketServiceImpl implements BehaviourTicketService {
 
     private static final String LOG_PREFIX = "[BehaviourTicketServiceImpl]";
-    // Công thức phiếu đang có (FE TICKET_RULES), Cần giữ nguyên 30/10/2026
-    static final int WEEK_MIN_PRESENT_DAYS = 4;
+    // OBS-10 (Cần chốt 11/11/2026): phiếu tuần chỉ cần ≥3 cờ trong tuần (mỗi ngày tối đa 1 cờ ⇒ có mặt ≥3 ngày);
+    // phiếu tháng cần ≥3 phiếu tuần
     static final int WEEK_MIN_FLAGS = 3;
     static final int MONTH_MIN_WEEKLY_TICKETS = 3;
     private static final Map<String, Integer> RULES = Map.of(
-            "WEEK_MIN_PRESENT_DAYS", WEEK_MIN_PRESENT_DAYS,
             "WEEK_MIN_FLAGS", WEEK_MIN_FLAGS,
             "MONTH_MIN_WEEKLY_TICKETS", MONTH_MIN_WEEKLY_TICKETS);
 
@@ -80,18 +81,26 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canView(currentUser, cls)) {
-                throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
-            }
+            boolean views = rules.canView(currentUser, cls);
             TicketType t = type == null ? TicketType.WEEKLY : type;
             List<TicketPeriod> periods = endedPeriods(cls, t);
+            // Người dạy thay đã hết đợt: chỉ các kỳ có ngày cuối nằm trong đợt dạy thay (như khi phát phiếu)
+            if (!views) {
+                periods = periods.stream()
+                        .filter(p -> rules.canViewDay(currentUser, cls, p.end()))
+                        .toList();
+                if (periods.isEmpty()) {
+                    throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
+                }
+            }
             TicketPeriod current = periodStart == null
                     ? (periods.isEmpty() ? null : periods.getFirst())
                     : periods.stream()
                             .filter(p -> p.start().equals(periodStart))
                             .findFirst()
-                            .orElseThrow(() -> GlobalException.of(ApiCode.TICKET_PERIOD_INVALID));
-            List<TicketBoardRow> rows = current == null ? List.of() : boardRows(cls, t, current);
+                            .orElseThrow(() -> GlobalException.of(
+                                    views ? ApiCode.TICKET_PERIOD_INVALID : ApiCode.TICKET_VIEW_FORBIDDEN));
+            List<TicketBoardRow> rows = current == null ? List.of() : boardRows(currentUser, cls, t, current);
             log.info("{}|rows={}|END", logPrefix, rows.size());
             return new TicketBoardResponse(new TicketClassRef(cls.id(), cls.name()), t, periods, current, rows, RULES);
         } catch (RuntimeException ex) {
@@ -108,13 +117,18 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
+                    || !currentUser.hasRole(CareNestRole.TEACHER)) {
                 throw GlobalException.of(ApiCode.TICKET_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
             }
             TicketPeriod period = checkPeriod(cls, request.type(), request.periodStart());
+            // Cần chốt 14/11/2026: xét theo ngày cuối kỳ phát phiếu — GV dạy chính, hoặc người dạy thay ngày đó
+            if (!rules.canRecordDay(currentUser, cls, period.end())) {
+                throw GlobalException.of(ApiCode.TICKET_FORBIDDEN);
+            }
             List<Long> childIds = request.childIds();
             if (childIds == null || childIds.isEmpty()) {
                 throw GlobalException.of(ApiCode.TICKET_NO_CHILDREN);
@@ -181,8 +195,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
             // Tổ trưởng chuyên môn xem tổng hợp phiếu các lớp nhóm tuổi mình (AUTH-23)
-            if (!rules.canView(currentUser, cls)
-                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
+            if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
             checkMonth(month, cls.yearStart(), cls.yearEnd());
@@ -231,7 +244,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         try {
             boolean leader = rules.isLeader(currentUser);
             // Tổ trưởng chuyên môn xem phiếu các lớp nhóm tuổi mình (Cần chốt 04/11)
-            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
@@ -389,7 +402,8 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
 
     // ---------- số liệu ----------
 
-    private List<TicketBoardRow> boardRows(ClassroomInfoResponse cls, TicketType type, TicketPeriod period) {
+    private List<TicketBoardRow> boardRows(
+            CurrentUser currentUser, ClassroomInfoResponse cls, TicketType type, TicketPeriod period) {
         List<ClassChildResponse> children = childrenOf(cls, period);
         Set<Long> endMembers =
                 enrollmentService
@@ -418,7 +432,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             t == null && eligible(type, present, flags, weeklyCount),
                             t == null ? null : toIssued(t),
                             t != null && !t.getClassroomId().equals(cls.id()),
-                            endMembers.contains(c.id()));
+                            currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
+                                    && rules.canRecordDay(currentUser, cls, period.end())
+                                    && endMembers.contains(c.id()));
                 })
                 .toList();
     }
@@ -488,9 +504,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         return result;
     }
 
-    private static boolean eligible(TicketType type, Integer present, Integer flags, Integer weeklyCount) {
+    static boolean eligible(TicketType type, Integer present, Integer flags, Integer weeklyCount) {
         return type == TicketType.WEEKLY
-                ? present != null && flags != null && present >= WEEK_MIN_PRESENT_DAYS && flags >= WEEK_MIN_FLAGS
+                ? flags != null && flags >= WEEK_MIN_FLAGS
                 : weeklyCount != null && weeklyCount >= MONTH_MIN_WEEKLY_TICKETS;
     }
 

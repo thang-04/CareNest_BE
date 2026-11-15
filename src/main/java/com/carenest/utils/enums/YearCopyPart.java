@@ -5,6 +5,7 @@ public enum YearCopyPart {
     CLASSES,
     TEACHERS,
     TEAM_LEADERS,
+    VICE_PRINCIPALS,
     CUTOFF,
     SEMESTER
 }

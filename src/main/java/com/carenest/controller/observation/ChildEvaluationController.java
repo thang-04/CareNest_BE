@@ -42,7 +42,7 @@ public class ChildEvaluationController {
     private final YearEndSheetService yearEndSheetService;
 
     @GetMapping("/assessment/evaluations")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<List<EvaluationRow>>> list(
             @RequestParam(required = false) EvaluationPeriodType periodType,
             @RequestParam(required = false) Long schoolYearId,
@@ -57,7 +57,7 @@ public class ChildEvaluationController {
     }
 
     @GetMapping("/assessment/evaluations/{id}")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<EvaluationDetailResponse>> get(@PathVariable Long id, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|get|userId=" + currentUser.userId() + "|id=" + id;
         log.info("{}|START", logPrefix);
@@ -67,7 +67,7 @@ public class ChildEvaluationController {
     }
 
     @PutMapping("/assessment/evaluations/{id}/content")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<EvaluationRow>> saveContent(
             @PathVariable Long id, @RequestBody EvaluationContentRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveContent|userId=" + currentUser.userId() + "|id=" + id;
@@ -78,7 +78,7 @@ public class ChildEvaluationController {
     }
 
     @PostMapping("/assessment/evaluations/{id}/confirm")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_CONFIRM')")
     public ResponseEntity<ResponseJson<EvaluationRow>> confirm(
             @PathVariable Long id, @RequestBody EvaluationContentRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|confirm|userId=" + currentUser.userId() + "|id=" + id;
@@ -89,7 +89,7 @@ public class ChildEvaluationController {
     }
 
     @PostMapping("/assessment/evaluations/{id}/redraft")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<EvaluationRow>> redraft(@PathVariable Long id, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|redraft|userId=" + currentUser.userId() + "|id=" + id;
         log.info("{}|START", logPrefix);
@@ -99,7 +99,7 @@ public class ChildEvaluationController {
     }
 
     @PutMapping("/assessment/evaluations/{id}/program-completion")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<EvaluationRow>> markProgram(
             @PathVariable Long id, @RequestBody ProgramCompletionRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|markProgram|userId=" + currentUser.userId() + "|id=" + id;
@@ -110,7 +110,7 @@ public class ChildEvaluationController {
     }
 
     @GetMapping("/assessment/evaluations/{id}/year-sheet")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<YearEndSheetResponse>> getYearSheet(
             @PathVariable Long id, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getYearSheet|userId=" + currentUser.userId() + "|id=" + id;
@@ -121,7 +121,7 @@ public class ChildEvaluationController {
     }
 
     @PutMapping("/assessment/evaluations/{id}/year-sheet")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<YearEndSheetResponse>> saveYearSheet(
             @PathVariable Long id, @Valid @RequestBody YearEndSheetRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveYearSheet|userId=" + currentUser.userId() + "|id=" + id;
@@ -132,7 +132,7 @@ public class ChildEvaluationController {
     }
 
     @GetMapping("/assessment/program-completion")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<ProgramCompletionResponse>> programReport(
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(required = false) Long campusId,
@@ -145,7 +145,7 @@ public class ChildEvaluationController {
     }
 
     @GetMapping("/assessment/children")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<List<DevelopmentChildRow>>> developmentChildren(
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(required = false) Long classId,

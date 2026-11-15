@@ -20,13 +20,16 @@ import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
-import com.carenest.security.authorization.StaffAccessPolicy;
+import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
-import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -43,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
+    private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final String LOG_PREFIX = "[TeacherAssignmentServiceImpl]";
 
     private final StaffAssignmentRepository staffAssignmentRepository;
@@ -53,9 +57,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final TeacherDirectory teacherDirectory;
     private final YearSnapshotReader yearSnapshotReader;
     private final SchoolConfigAccess schoolConfigAccess;
-    private final StaffAccessPolicy staffAccessPolicy;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final SchoolStructureMapper schoolStructureMapper;
     private final TeacherClassRules teacherClassRules;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -71,11 +76,14 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             List<Classroom> classes =
                     classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId()).stream()
                             .filter(c -> campusId == null || c.getCampusId().equals(campusId))
+                            .filter(c -> campusAccessPolicy.canEditCampus(
+                                    currentUser, Permission.STAFF_ASSIGNMENT_MANAGE, c.getCampusId()))
                             .toList();
+            Set<Long> visibleCampusIds =
+                    classes.stream().map(Classroom::getCampusId).collect(Collectors.toSet());
             List<TeacherCandidateResponse> teachers = teacherDirectory.findTeachers(schoolConfigAccess.today()).stream()
-                    .filter(t -> campusId == null
-                            || t.campusIds().isEmpty()
-                            || t.campusIds().contains(campusId))
+                    .filter(t ->
+                            t.campusIds().isEmpty() || t.campusIds().stream().anyMatch(visibleCampusIds::contains))
                     .toList();
             TeacherAssignmentResponse response = new TeacherAssignmentResponse(
                     schoolStructureMapper.toDetailResponse(year, classroomRepository.countBySchoolYearId(year.getId())),
@@ -99,8 +107,11 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             Classroom classroom = classroomRepository
                     .findById(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            // AUTH-16: HT mọi lớp, PHT chỉ lớp thuộc điểm trường mình phụ trách
-            staffAccessPolicy.checkCanAssign(currentUser, StaffRole.TEACHER, classroom.getCampusId());
+            // HT mọi lớp; PHT theo scope CAMPUS/SCHOOL mà HT cấp cho STAFF_ASSIGNMENT_MANAGE.
+            if (!campusAccessPolicy.canEditCampus(
+                    currentUser, Permission.STAFF_ASSIGNMENT_MANAGE, classroom.getCampusId())) {
+                throw GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+            }
             SchoolYear year = findYear(classroom.getSchoolYearId());
             SchoolYearRules.checkOpen(year);
             Set<Long> teacherIds = new HashSet<>(request.teacherIds());
@@ -125,13 +136,23 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (teacherIds.size() != request.teacherIds().size()) {
                 throw GlobalException.of(ApiCode.TEACHERS_MUST_DIFFER);
             }
+            // SCH-04 (Cần chốt 10/11/2026): năm đang học mỗi lớp đúng 2 GV đứng lớp, có chủ nhiệm; năm sắp tới xếp dần
+            if (year.getStatus() == SchoolYearStatus.ACTIVE) {
+                if (teacherIds.size() != 2) {
+                    throw GlobalException.of(ApiCode.CLASS_NEEDS_TWO_TEACHERS);
+                }
+                if (request.homeroomTeacherId() == null) {
+                    throw GlobalException.of(ApiCode.HOMEROOM_REQUIRED);
+                }
+            }
             // AUTH-24: năm mở, tài khoản hoạt động; PHT chỉ xếp GV thuộc điểm trường của lớp, HT mọi điểm trường
             teacherClassRules.checkTeachers(
                     classroom,
                     year,
                     teacherIds,
                     schoolConfigAccess.today(),
-                    schoolConfigAccess.isPrincipal(currentUser));
+                    schoolConfigAccess.isPrincipal(currentUser)
+                            || currentUser.hasSchoolWidePermission(Permission.STAFF_ASSIGNMENT_MANAGE));
             // Lớp còn 1 giáo viên mà không chọn chủ nhiệm (vd. vừa gỡ chủ nhiệm) ⇒ người còn lại làm chủ nhiệm
             Long homeroomId = request.homeroomTeacherId() == null && teacherIds.size() == 1
                     ? teacherIds.iterator().next()
@@ -164,7 +185,17 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 }
             }
             staffAssignmentRepository.flush();
-            // TODO(Cần): thông báo giáo viên mới được phân công — chờ module notification
+            // OBS-31: báo giáo viên mới được phân công vào lớp
+            if (!added.isEmpty()) {
+                notificationService.notifyUsers(
+                        added,
+                        NotificationType.STAFF_ASSIGNED,
+                        "Phân công lớp mới",
+                        "Cô được phân công dạy lớp " + classroom.getName() + " năm học " + year.getName() + ", từ ngày "
+                                + DMY.format(start) + ".",
+                        "/attendance",
+                        false);
+            }
             ClassTeachersResponse response = toClassTeachers(List.of(classroom), schoolConfigAccess.today())
                     .getFirst();
             log.info("{}|END", logPrefix);
@@ -213,6 +244,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 throw GlobalException.of(ApiCode.TEAM_LEADER_INVALID);
             }
             LocalDate start = effectiveStart(year);
+            schoolYearRepository.findForUpdate(year.getId());
             // 1 tổ trưởng/nhóm tuổi/năm cho cả trường; 1 giáo viên làm tổ trưởng tối đa 1 nhóm tuổi trong năm
             for (StaffAssignment leader : currentLeaders(year)) {
                 boolean sameGroup = leader.getAgeGroupId().equals(request.ageGroupId());
@@ -236,6 +268,21 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                         currentUser.userId()));
             }
             staffAssignmentRepository.flush();
+            // OBS-31: báo tổ trưởng mới được phân công
+            if (request.userId() != null) {
+                String group = ageGroupRepository
+                        .findById(request.ageGroupId())
+                        .map(g -> g.getName())
+                        .orElse("");
+                notificationService.notifyUsers(
+                        Set.of(request.userId()),
+                        NotificationType.STAFF_ASSIGNED,
+                        "Phân công tổ trưởng",
+                        "Cô được phân công làm tổ trưởng " + group + " năm học " + year.getName() + ", từ ngày "
+                                + DMY.format(start) + ".",
+                        "/education/plan-reviews",
+                        false);
+            }
             TeamLeaderResponse response = toTeamLeaderResponse(year);
             log.info("{}|END", logPrefix);
             return response;
@@ -255,7 +302,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             Classroom classroom = classroomRepository
                     .findById(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            schoolConfigAccess.checkCanViewSchool(currentUser);
+            if (!campusAccessPolicy.canEditCampus(
+                    currentUser, Permission.STAFF_ASSIGNMENT_MANAGE, classroom.getCampusId())) {
+                throw GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+            }
             List<AssignmentHistoryResponse> history = toHistory(staffAssignmentRepository.findTeacherHistory(classId));
             log.info("{}|END", logPrefix);
             return history;
@@ -324,10 +374,23 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         }
     }
 
-    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày bắt đầu năm học
+    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày mở chuẩn bị (CFG-YR-05) để GV / Tổ trưởng soạn giáo án
     private LocalDate effectiveStart(SchoolYear year) {
         LocalDate today = schoolConfigAccess.today();
-        return today.isAfter(year.getStartDate()) ? today : year.getStartDate();
+        if (today.isAfter(year.getStartDate())) {
+            return today;
+        }
+        if (year.getStatus() == SchoolYearStatus.PLANNED) {
+            LocalDate prep = year.getPrepDate().isAfter(year.getStartDate()) ? year.getStartDate() : year.getPrepDate();
+            // Ngày mở chuẩn bị không được chồng lên năm trước (dữ liệu cũ thiếu ngày này)
+            for (SchoolYear other : schoolYearRepository.findAllByOrderByStartDateDesc()) {
+                if (other.getEndDate().isBefore(year.getStartDate()) && !prep.isAfter(other.getEndDate())) {
+                    prep = other.getEndDate().plusDays(1);
+                }
+            }
+            return today.isAfter(prep) ? today : prep;
+        }
+        return year.getStartDate();
     }
 
     private List<StaffAssignment> currentLeaders(SchoolYear year) {

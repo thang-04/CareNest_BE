@@ -11,4 +11,6 @@ public interface RewardListRepository extends JpaRepository<RewardList, Long> {
     List<RewardList> findByClassroomIdIn(Collection<Long> classroomIds);
 
     Optional<RewardList> findByClassroomId(Long classroomId);
+
+    boolean existsBySchoolYearId(Long schoolYearId);
 }

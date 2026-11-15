@@ -12,7 +12,6 @@ import org.springframework.data.repository.query.Param;
 
 public interface FreshForecastRepository extends JpaRepository<FreshForecast, Long> {
 
-    // Hai danh sách (sĩ số, dòng) không nạp cùng lúc được: lấy dòng, sĩ số nạp lười (vài nhóm tuổi)
     @EntityGraph(attributePaths = "lines")
     Optional<FreshForecast> findWithLinesById(Long id);
 

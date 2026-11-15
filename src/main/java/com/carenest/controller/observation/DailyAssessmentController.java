@@ -32,7 +32,7 @@ public class DailyAssessmentController {
     private final DailyAssessmentService dailyAssessmentService;
 
     @GetMapping("/classes/{classId}/daily-assessment")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<DailySheetResponse>> getDailySheet(
             @PathVariable Long classId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
@@ -45,7 +45,7 @@ public class DailyAssessmentController {
     }
 
     @PutMapping("/classes/{classId}/daily-assessment/general")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<SaveDailyResponse>> saveGeneral(
             @PathVariable Long classId, @Valid @RequestBody SaveDailyGeneralRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveGeneral|userId=" + currentUser.userId() + "|classId=" + classId;
@@ -56,7 +56,7 @@ public class DailyAssessmentController {
     }
 
     @PutMapping("/classes/{classId}/daily-assessment/skills")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<SaveDailyResponse>> saveSkills(
             @PathVariable Long classId, @Valid @RequestBody SaveDailySkillsRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveSkills|userId=" + currentUser.userId() + "|classId=" + classId;

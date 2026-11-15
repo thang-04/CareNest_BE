@@ -2,6 +2,7 @@ package com.carenest.service.attendance.impl;
 
 import com.carenest.dto.attendance.PickupBoardResponse;
 import com.carenest.dto.attendance.PickupChildResponse;
+import com.carenest.dto.attendance.PickupClassResponse;
 import com.carenest.dto.attendance.PickupRecordResponse;
 import com.carenest.dto.attendance.PickupRequest;
 import com.carenest.dto.child.ChildBriefResponse;
@@ -16,8 +17,8 @@ import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AccountPhotoService;
 import com.carenest.service.account.AccountService;
-import com.carenest.service.account.ParentPhotoService;
 import com.carenest.service.attendance.PickupService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildService;
@@ -31,6 +32,7 @@ import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupOutcome;
 import com.carenest.utils.enums.PickupStatus;
 import com.carenest.utils.enums.PickupVerification;
@@ -43,6 +45,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -74,10 +77,32 @@ public class PickupServiceImpl implements PickupService {
     private final ChildService childService;
     private final ChildIntakeService childIntakeService;
     private final GuardianChildLinkService guardianChildLinkService;
-    private final ParentPhotoService parentPhotoService;
+    private final AccountPhotoService accountPhotoService;
     private final NotificationService notificationService;
     private final AccountService accountService;
     private final Clock clock;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PickupClassResponse> listClasses(CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            // PCK-01: cùng điều kiện với bảng đón (quyền PICKUP_RECORD, GV đang phân công, năm học đang hoạt động)
+            List<PickupClassResponse> classes = currentUser.hasPermission(Permission.PICKUP_RECORD)
+                    ? teacherActiveClasses(currentUser, rules.today()).stream()
+                            .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
+                                    .thenComparing(ClassroomInfoResponse::name))
+                            .map(c -> new PickupClassResponse(c.id(), c.name(), c.campusId(), c.ageGroupId()))
+                            .toList()
+                    : List.of();
+            log.info("{}|END", logPrefix);
+            return classes;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -88,7 +113,7 @@ public class PickupServiceImpl implements PickupService {
             ClassroomInfoResponse cls = classroomService
                     .findClassroomInfo(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.PICKUP_RECORD) || !rules.canRecord(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.PICKUP_ACCESS_DENIED);
             }
             checkActiveYear(cls);
@@ -117,7 +142,7 @@ public class PickupServiceImpl implements PickupService {
             PickupBoardResponse.PickupRow row =
                     rows(List.of(childId), today, Map.of(cls.id(), cls.name())).getFirst();
             List<ChildGuardianContact> contacts = childIntakeService.findGuardianContacts(childId);
-            Set<Long> withPhoto = parentPhotoService.findUserIdsWithPhoto(contacts.stream()
+            Set<Long> withPhoto = accountPhotoService.findUserIdsWithPhoto(contacts.stream()
                     .map(ChildGuardianContact::userId)
                     .filter(Objects::nonNull)
                     .toList());
@@ -127,9 +152,11 @@ public class PickupServiceImpl implements PickupService {
                             g.fullName(),
                             g.relationship(),
                             g.phone(),
-                            withPhoto.contains(g.userId())
-                                    ? "/children/" + childId + "/guardians/" + g.userId() + "/photo"
-                                    : null))
+                            g.photoUrl() != null
+                                    ? g.photoUrl()
+                                    : g.userId() != null && withPhoto.contains(g.userId())
+                                            ? "/children/" + childId + "/guardians/" + g.userId() + "/photo"
+                                            : null))
                     .toList();
             log.info("{}|END", logPrefix);
             return new PickupChildResponse(row, today, cls.id(), cls.name(), guardians);
@@ -208,17 +235,12 @@ public class PickupServiceImpl implements PickupService {
         String logPrefix = LOG_PREFIX + "|listResults|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
-            if (!currentUser.hasRole(CareNestRole.TEACHER)) {
+            if (!currentUser.hasRole(CareNestRole.TEACHER) || !currentUser.hasPermission(Permission.PICKUP_RECORD)) {
                 throw GlobalException.of(ApiCode.PICKUP_ACCESS_DENIED);
             }
             LocalDate today = rules.today();
             LocalDate day = date == null ? today : date;
-            List<ClassroomInfoResponse> classes =
-                    staffAssignmentService.findCurrentTeacherClassroomIds(currentUser.userId(), today).stream()
-                            .map(classroomService::findClassroomInfo)
-                            .flatMap(Optional::stream)
-                            .filter(c -> c.yearStatus() == SchoolYearStatus.ACTIVE)
-                            .toList();
+            List<ClassroomInfoResponse> classes = teacherActiveClasses(currentUser, today);
             classes.forEach(c -> checkDay(c, day));
             Map<Long, String> classNames =
                     classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, ClassroomInfoResponse::name));
@@ -236,12 +258,24 @@ public class PickupServiceImpl implements PickupService {
         }
     }
 
+    /** Lớp năm học đang hoạt động mà GV đang được phân công hôm nay (kể cả dạy thay). */
+    private List<ClassroomInfoResponse> teacherActiveClasses(CurrentUser user, LocalDate today) {
+        if (!user.hasRole(CareNestRole.TEACHER)) {
+            return List.of();
+        }
+        return staffAssignmentService.findCurrentTeacherClassroomIds(user.userId(), today).stream()
+                .map(classroomService::findClassroomInfo)
+                .flatMap(Optional::stream)
+                .filter(c -> c.yearStatus() == SchoolYearStatus.ACTIVE)
+                .toList();
+    }
+
     /** Lớp trẻ đang học hôm nay; chỉ GV đang phụ trách lớp, năm học đang hoạt động. Ngoài phạm vi trả 404. */
     private ClassroomInfoResponse classOfChild(CurrentUser user, Long childId) {
         ClassroomInfoResponse cls = enrollmentService.findActiveClassroomIds(childId, rules.today()).stream()
                 .findFirst()
                 .flatMap(classroomService::findClassroomInfo)
-                .filter(c -> rules.canRecord(user, c))
+                .filter(c -> user.hasPermission(Permission.PICKUP_RECORD) && rules.canRecord(user, c))
                 .orElseThrow(() -> GlobalException.of(ApiCode.PICKUP_CHILD_NOT_FOUND));
         checkActiveYear(cls);
         return cls;

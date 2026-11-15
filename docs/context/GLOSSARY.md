@@ -35,7 +35,11 @@ Code dùng tên tiếng Anh; UI/docs dùng tiếng Việt.
 | Thực đơn tuần đã công bố | Published weekly menu | Thực đơn cả tuần PHT công bố một lần cho cả trường; không công bố theo ngày, đến ngày chỉ thêm ảnh bữa (NUT-08, chốt 02/11; thay "thực đơn chuẩn ngày") |
 | Kiểm tra đầu ngày | Morning health check | GV đo nhiệt độ, quan sát khi nhận trẻ, nhập cùng điểm danh (HLT-07) |
 | Đo sức khỏe / cân đo | HealthRecord | Chiều cao, cân nặng, tình trạng, ghi chú theo đợt; lưu mọi lần đo (HLT-13) |
-| Phân loại WHO | Growth classification | Hệ thống tự phân loại theo chuẩn WHO; GV chỉnh kèm lý do (HLT-03, HLT-10) |
+| Phân loại WHO | Growth classification | Hệ thống tự phân loại theo chuẩn WHO (HLT-03): mức BMI theo tuổi của kỳ cân đo ở sổ sức khỏe (HLT-18); cân nặng/tuổi, chiều cao/tuổi chỉ trong báo cáo tăng trưởng (HLT-20). GV chỉnh tay kèm lý do còn mở (P-40) |
+| Báo cáo tăng trưởng (mẫu 5.1) | Growth report | Bảng tổng hợp theo tháng, lớp, MG/NT cho HT/PHT (HLT-20): PTBT = phát triển bình thường; SDDNC = suy dinh dưỡng nhẹ cân (cân nặng/tuổi < −2SD); SDDTC = suy dinh dưỡng thấp còi (chiều cao/tuổi < −2SD); SDD thể gầy còm = BMI/tuổi < −2SD |
+| Mức BMI theo tuổi | BMI-for-age status (`HealthBmiStatus`) | Gầy còm nặng, gầy còm, bình thường, nguy cơ thừa cân, thừa cân, béo phì theo z-score WHO; chỉ số đo kỳ cân đo, tính khi đọc (HLT-18) |
+| Cảnh báo sức khỏe | Health warning | Kết luận bác sĩ (đợt khám) hoặc mức BMI (kỳ cân đo) lưu ở sổ sức khỏe; không có phiếu hay bước xử lý (HLT-19) |
+| Phiếu theo dõi sức khỏe | Health follow-up | Đã bỏ 2026-11-04 (HLT-16 REMOVED); dữ liệu cũ giữ trong DB |
 | Công bố (kết quả) | Publish | Bước GV/PHT cho phụ huynh thấy dữ liệu có công bố (PAR-03) |
 | Sức khỏe trong ngày | Daily health incident | Triệu chứng, xử trí, tai nạn nhỏ trong ngày; báo phụ huynh ngay (HLT-14) |
 | Đón trẻ / trả trẻ | Pickup | GV xác nhận người đón, giờ đón; là bước xác nhận trả trẻ (PCK-04, ATT-10) |

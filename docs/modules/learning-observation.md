@@ -25,7 +25,10 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 - `GET /assessment/overview?period=DAY|WEEK|MONTH`, `GET /assessment/overview/classes/{classId}` (PHT/HT).
 - `GET /assessment/theme-evaluations/classes?schoolYearId` (lớp mọi nhóm tuổi trong phạm vi xem, cờ `teaches`), `GET /assessment/theme-evaluations/themes?classId`, `GET|PUT /assessment/theme-evaluations`, `POST .../confirm` — đánh giá cuối chủ đề mọi nhóm tuổi (OBS-27), bảng `theme_evaluations` (V75, V76 khóa theo dòng gốc chủ đề); chủ đề/MT đọc từ kế hoạch năm học đã duyệt bằng truy vấn chỉ đọc trong `ThemeEvaluationRepository` (không gọi code module kế hoạch giáo dục ngoài `EduLessonQueryService.findGoalLineages`).
 - `GET|PUT /assessment/evaluations/{id}/year-sheet` — phiếu đánh giá sự phát triển cuối năm (OBS-28) gắn vào đánh giá cuối năm: MT kế hoạch năm theo lĩnh vực (`ThemeEvaluationRepository.findYearGoals`), kết quả tổng hợp từ cuối chủ đề (`ThemeEvaluationService.childThemeResults`), số đo từ `HealthMeasurementService.findLatestMeasurement`; cột `child_evaluations.goal_results`, `note_for_*` (V79); xác nhận đánh giá cuối năm gọi `YearEndSheetService.freeze`.
-- `GET|PUT /assessment/class-monthly-comments`, `POST .../confirm` — nhận xét chung cả lớp theo tháng, bảng `class_monthly_comments` (V72), OBS-26.
+- ~~`GET|PUT /assessment/class-monthly-comments`, `POST .../confirm`~~ — đã bỏ 14/11/2026 (OBS-26); bảng `class_monthly_comments` (V72) giữ dữ liệu cũ, không còn code dùng.
+- `GET|PUT /assessment/weekly-comments`, `POST .../drafts`, `POST .../send` — nhận xét tuần theo trẻ (tuần theo giáo án tuần đã duyệt qua `EduLessonQueryService`, chưa có giáo án thì thứ Hai–Sáu; mở từ ngày học cuối của tuần, mã 7398; 06:00 việc `createOpenWeekDrafts` tạo nháp mẫu câu còn thiếu cho mọi trẻ, trẻ nghỉ cả tuần có nháp hỏi thăm; GV viết, gửi phụ huynh, báo `WEEKLY_COMMENT_SENT`); bảng trả `week`, `weeks` (các tuần tới hiện tại, mới nhất trước); hạn khóa sau 23:59:59 của ngày học thứ 1 sau tuần (cố định ở `AssessmentDeadlines`, mã 7400 khi quá hạn), trong hạn GV sửa bản đã gửi (lịch sử `weekly_comment_revisions`, gửi lại báo "đã cập nhật"); `GET|POST /assessment/weekly-comments/unlocks`, `POST .../unlocks/{id}/revoke` — HT / PHT có quyền `ASSESSMENT_UNLOCK` ở điểm trường mở lại lớp – tuần đã khóa tới "Mở đến" (bảng `weekly_comment_unlocks`, như mở lại ngày đánh giá); `GET /assessment/weekly-comments/overview` — BGH xem đã gửi / tổng, lớp quá hạn; `GET /children/{childId}/weekly-comments` — phụ huynh đã liên kết xem bản đã gửi (`weekFrom`, `weekEnd`, `weekLabel` theo tuần giáo án như phía GV); bảng `weekly_comments` (V129), OBS-29.
+- `GET /assessment/evaluation-periods?classId=` — các kỳ của lớp (chủ đề đã duyệt, học kỳ I, II, cuối năm) kèm `openFrom`, `deadline`, `locked`, `unlockedUntil`; hạn cố định ở `AssessmentDeadlines` (chủ đề 3, học kỳ 5, cuối năm 5 ngày học), quá hạn `ChildEvaluationServiceImpl`, `ThemeEvaluationServiceImpl`, `YearEndSheetServiceImpl` chặn mã 7404 qua `EvaluationDeadlineService.checkWritable`; `GET|POST /assessment/evaluation-unlocks`, `POST .../{id}/revoke` — HT / PHT mở lại lớp – kỳ (bảng `evaluation_unlocks`, V133); `GET /assessment/overdue` — BGH xem lớp quá hạn (nhận xét tuần + 3 loại); OBS-30.
+- Nhắc việc (OBS-30): `AssessmentReminderServiceImpl` (06–12h mỗi 5 phút: sắp tới giờ chốt điểm danh; 20:00 chưa đánh giá ngày; 07:00 đánh giá / nhận xét tuần mở, gần hạn, đã khóa; mỗi 10 phút: lần mở lại còn ≤ 1 giờ; 07:30 BGH lớp quá hạn) và `MealBookReminderServiceImpl` (sổ báo ăn chưa xác nhận 30 phút sau giờ chốt); "một lần" nhờ `notifyUsers(..., once=true)` với khóa lời nhắc trong đường dẫn.
 - `GET /assessment/class-ratings?period=SEMESTER_1|SEMESTER_2|YEAR` (HT/PHT/GV), `PUT /assessment/class-ratings` (HT; PHT lớp điểm trường mình) — xếp loại nhóm lớp, bảng `class_ratings` (V69), OBS-24.
 - Đánh giá học kỳ `periodType=SEMESTER` (V68); `SemesterEvaluationUsageImpl` cài `organization.SemesterUsageCheck` để khóa ngày học kỳ đã có đánh giá (OBS-25).
 - Bảng: `daily_observations`, `daily_activity_results`, `assessment_day_unlocks` (V41). Mã lỗi 73xx.
@@ -33,6 +36,8 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 - Đọc giáo án đã duyệt qua `EduLessonQueryService` (education-plan); điểm danh / sức khỏe qua `AttendanceService.findDayStatuses`, `DailyHealthService.findLatestDaySigns`.
 
 ## PENDING
+
+- Thiết kế feature012 (07/11/2026) chờ duyệt, chưa triển khai: [plan làn L](../plans/active/2026-11-07-school-year-team-plans.md) cần filter TEAM trong ba query nguồn của ThemeEvaluationRepository, dùng projection lịch hiệu lực theo lớp từ eduplan và giữ frozen view khi current plan bỏ theme. Đề xuất presentation_snapshot bổ sung để bản confirmed không phụ thuộc live goals/membership; legacy chỉ baseline có nguồn, không bịa metadata lịch sử chưa từng lưu. Không đổi công thức/endpoint đánh giá. [Data model](../../specs/012-school-year-team-plans/data-model.md), [client/downstream contract](../../specs/012-school-year-team-plans/contracts/clients.md).
 P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng enum theo danh sách FE đã chốt với Cần, lệch OBS-02 cho tới khi có màn cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
 
 ## Known pitfalls
@@ -42,7 +47,7 @@ P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng e
 - Class-comment get/save/confirm must validate the month intersects the class year, including partial boundary months. See [month scope](../knowledge/incidents/BUG-261103-class-comment-month-scope.md).
 
 - Không enum cứng tiêu chí đánh giá khi P-11 chưa chốt (OBS-02).
-- Trẻ vắng không có đánh giá ngày; trẻ có mặt mặc định "bình thường", GV chỉ sửa trẻ khác thường (OBS-01).
+- Trẻ vắng không có đánh giá ngày (vẫn hiện trong phiếu ngày qua `absentChildren`, không chấm được); trẻ có mặt mặc định "bình thường", GV chỉ sửa trẻ khác thường (OBS-01).
 - Đánh giá ngày khóa sau hết ngày (OBS-12); không mở API sửa ngày cũ, ngoại lệ là lần mở lại còn hiệu lực do PHT/HT cấp (OBS-18, OBS-19).
 - Nhận xét định kỳ không có bước BGH duyệt; GV xác nhận là xong (OBS-05).
 - Hệ thống không gợi ý trẻ nhận phiếu bé ngoan; GV tự chọn (OBS-10).
@@ -56,3 +61,7 @@ Chưa có.
 
 ## Đọc thêm khi
 Đụng đánh giá theo MT / ngữ cảnh hoạt động ⇒ ADR-0006, card education-plan. Đụng AI nháp nhận xét ⇒ card ai-assistance, ADR-0008. Đụng hiển thị phụ huynh ⇒ ADR-0010.
+
+- OBS-27 (user chốt lại 09/11/2026): từng MT cuối chủ đề Đạt khi có ít nhất một hoạt động Đạt; vắng/chưa có hoạt động Đạt là Chưa đạt. Tổng kết cả chủ đề 70% giữ nguyên. Bảng đã xác nhận không tính lại.
+
+- Học kỳ vẫn dùng bảng lớp/lĩnh vực, hai tầng 50% và kỳ II riêng. Riêng cuối năm, user chốt 09/11/2026: mỗi MT tổng hợp theo các chủ đề có gắn MT và Đạt khi ít nhất 50% chủ đề Đạt; bảng chủ đề/phiếu năm đã xác nhận giữ snapshot.

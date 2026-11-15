@@ -25,6 +25,7 @@ import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.TemperatureLevel;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -166,13 +167,70 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Năm đã kết thúc: PHT năm đó xem lại lớp điểm trường mình, dạy thay chỉ xem đúng ngày mình dạy")
+    void closedYearReadsFollowThatYearsAssignments() {
+        // PHT điểm trường A năm 2025-2026, năm nay không còn phân công
+        CurrentUser oldVp = user("vpold", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2025-09-01', '2026-05-31')",
+                oldVp.userId(),
+                jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass));
+        LocalDate oldDay = LocalDate.of(2026, 3, 4);
+        assertThat(service.getClassAttendance(oldVp, oldClass, oldDay)).isNotNull();
+        expectCode(() -> service.getClassAttendance(oldVp, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
+        // PHT điểm trường B năm nay không có phân công năm 2025-2026 ⇒ không xem lớp năm đó
+        expectCode(() -> service.getClassAttendance(vpB, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
+
+        // Cô dạy thay lớp cũ 02/03–06/03/2026: chỉ xem lại đúng những ngày đó
+        CurrentUser sub = user("subold", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_substitute) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-03-02', '2026-03-06', TRUE)",
+                sub.userId(),
+                oldClass);
+        assertThat(service.getClassAttendance(sub, oldClass, oldDay)).isNotNull();
+        expectCode(
+                () -> service.getClassAttendance(sub, oldClass, LocalDate.of(2026, 3, 10)),
+                ApiCode.CLASS_ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("HT thu hồi quyền Xem điểm danh: GV có quyền ghi vẫn thấy và ghi lớp đang dạy, không thấy lớp khác")
+    void teacherWithoutViewPermissionStillRecordsOwnClass() {
+        CurrentUser recordOnly = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of(Permission.ATTENDANCE_RECORD, Permission.DAILY_HEALTH_RECORD));
+        assertThat(service.getClasses(recordOnly, null))
+                .extracting(AttendanceClassResponse::id)
+                .containsExactly(classA);
+        assertThat(service.getClassAttendance(recordOnly, classA, TODAY)).isNotNull();
+        service.saveClassAttendance(recordOnly, classA, request(TODAY, present(child1)));
+
+        CurrentUser nothing = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of());
+        assertThat(service.getClasses(nothing, null)).isEmpty();
+    }
+
+    @Test
     void teacherSeesOwnClassesAndRecordsTodayBeforeCutoff() {
         List<AttendanceClassResponse> classes = service.getClasses(teacherA, null);
         assertThat(classes).extracting(AttendanceClassResponse::id).containsExactly(classA);
         assertThat(classes.getFirst().canRecord()).isTrue();
         assertThat(classes.getFirst().canUnlock()).isFalse();
-        // AUTH-20: PHT thấy lớp mọi cơ sở, chỉ mở lại được lớp cơ sở mình (ATT-08)
-        assertThat(service.getClasses(vpA, null))
+        // Scope SCHOOL: PHT thấy lớp mọi cơ sở nhưng quyền mở lại vẫn theo ATTENDANCE_UNLOCK riêng.
+        assertThat(service.getClasses(withSchoolWide(vpA, Permission.ATTENDANCE_VIEW), null))
                 .extracting(AttendanceClassResponse::id, AttendanceClassResponse::canUnlock)
                 .containsExactly(tuple(classA, true), tuple(classB, false));
         assertThat(service.getClasses(principal, null)).hasSize(2);
@@ -350,8 +408,9 @@ class AttendanceIntegrationTest {
         DayUnlockRequest unlockRequest =
                 new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "  GV quên lưu  ");
         expectError(() -> unlockService.unlockDay(vpB, unlockRequest), ApiCode.FORBIDDEN);
-        // AUTH-20: PHT cơ sở B xem được điểm danh cơ sở A nhưng không mở lại được (ATT-08)
-        ClassAttendanceResponse otherCampus = service.getClassAttendance(vpB, classA, TODAY);
+        // HT cấp ATTENDANCE_VIEW phạm vi SCHOOL nhưng ATTENDANCE_UNLOCK vẫn chỉ ở campus B.
+        ClassAttendanceResponse otherCampus =
+                service.getClassAttendance(withSchoolWide(vpB, Permission.ATTENDANCE_VIEW), classA, TODAY);
         assertThat(otherCampus.classId()).isEqualTo(classA);
         assertThat(otherCampus.canRecord()).isFalse();
         DayUnlockResponse unlock = unlockService.unlockDay(vpA, unlockRequest);
@@ -369,6 +428,51 @@ class AttendanceIntegrationTest {
         expectError(
                 () -> service.saveClassAttendance(teacherA, classA, request(TODAY, absent(child1))), ApiCode.CONFLICT);
         expectError(() -> unlockService.revokeUnlock(principal, unlock.id()), ApiCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("Cần chốt 14/11/2026: dạy thay ghi điểm danh theo ngày được ghi, kể cả khi đợt dạy thay đã hết")
+    void substituteRecordsReopenedDaysOfOwnStintOnly() {
+        CurrentUser sub = user("subnow", CareNestRole.TEACHER);
+        // Dạy thay lớp A 15/10–20/10 (đã hết đợt vào hôm nay 21/10)
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_substitute) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-10-15', '2026-10-20', TRUE)",
+                sub.userId(),
+                classA);
+        LocalDate inStint = LocalDate.of(2026, 10, 19);
+        LocalDate outside = LocalDate.of(2026, 10, 14);
+        Instant until = BEFORE_CUTOFF.plus(Duration.ofHours(4));
+        unlockService.unlockDay(vpA, new DayUnlockRequest(classA, inStint, until, "Bổ sung"));
+        unlockService.unlockDay(vpA, new DayUnlockRequest(classA, outside, until, "Bổ sung"));
+
+        // Luồng thật: lớp vẫn có trong danh sách, mở được thông tin ngày, sổ, sức khỏe trẻ của ngày trong đợt
+        assertThat(service.getClasses(sub, null))
+                .extracting(AttendanceClassResponse::id)
+                .containsExactly(classA);
+        assertThat(service.getDayInfo(sub, inStint, classA).unlock()).isNotNull();
+        expectCode(() -> service.getDayInfo(sub, outside, classA), ApiCode.CLASS_ACCESS_DENIED);
+        assertThat(service.getClassAttendance(sub, classA, inStint).canRecord()).isTrue();
+        service.saveClassAttendance(sub, classA, request(inStint, present(child1)));
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'ATTENDANCE_DAY_UNLOCKED' AND body LIKE ?",
+                        Long.class,
+                        "%19/10/2026%"))
+                .containsExactlyInAnyOrder(teacherA.userId(), sub.userId());
+        // Ngày ngoài đợt: không ghi, không được báo
+        expectCode(
+                () -> service.saveClassAttendance(sub, classA, request(outside, present(child1))),
+                ApiCode.CLASS_ACCESS_DENIED);
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'ATTENDANCE_DAY_UNLOCKED' AND body LIKE ?",
+                        Long.class,
+                        "%14/10/2026%"))
+                .containsExactly(teacherA.userId());
+        assertThat(healthService.getClassChildHealth(sub, classA, child1, inStint))
+                .isNotNull();
+        expectCode(() -> healthService.getClassChildHealth(sub, classA, child1, outside), ApiCode.CLASS_ACCESS_DENIED);
+        // GV dạy chính ghi được mọi ngày được mở lại
+        service.saveClassAttendance(teacherA, classA, request(outside, present(child1)));
     }
 
     @Test
@@ -421,8 +525,9 @@ class AttendanceIntegrationTest {
         AttendanceSummaryResponse.MultiSummary all = service.getSummary(principal, null, null, TODAY, TODAY);
         assertThat(all.size()).isEqualTo(3);
         assertThat(all.days().getFirst().missing()).isEqualTo(1);
-        // AUTH-20: PHT xem tổng hợp mọi cơ sở như HT
-        assertThat(service.getSummary(vpB, null, null, TODAY, TODAY).classes())
+        // PHT chỉ xem toàn trường khi ATTENDANCE_VIEW được cấp scope SCHOOL.
+        assertThat(service.getSummary(withSchoolWide(vpB, Permission.ATTENDANCE_VIEW), null, null, TODAY, TODAY)
+                        .classes())
                 .extracting(AttendanceSummaryResponse.ClassTotal::classId)
                 .containsExactlyElementsOf(all.classes().stream()
                         .map(AttendanceSummaryResponse.ClassTotal::classId)
@@ -484,6 +589,13 @@ class AttendanceIntegrationTest {
                                 null)),
                 ApiCode.BAD_REQUEST);
 
+        long parent = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name)"
+                + " VALUES ('kc-parent1', 'parent1', 'parent1') RETURNING id");
+        jdbc.update(
+                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
+                        + " linked_at) VALUES (?, 0, 'Mẹ', 'MOTHER', '0918888101', '999900000581', ?, now())",
+                child1,
+                parent);
         healthService.addEntry(
                 teacherA,
                 new DailyHealthRequest(
@@ -500,6 +612,29 @@ class AttendanceIntegrationTest {
         DailyHealthResponse.ChildDay day = healthService.getClassChildHealth(teacherA, classA, child1, TODAY);
         assertThat(day.canRecord()).isTrue();
         assertThat(day.entries()).hasSize(2);
+        // Cần chốt 14/11/2026: "cần lưu ý" báo phụ huynh đã liên kết, một lần mỗi trẻ mỗi ngày
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'DAILY_HEALTH_NOTED' AND child_id = ?",
+                        Long.class,
+                        child1))
+                .containsExactly(parent);
+        healthService.addEntry(
+                teacherA,
+                new DailyHealthRequest(
+                        "r8",
+                        classA,
+                        child1,
+                        TODAY,
+                        new BigDecimal("38.0"),
+                        HealthObservation.NOTED,
+                        List.of(HealthSymptom.FEVER),
+                        "",
+                        List.of(),
+                        null));
+        assertThat(count(
+                        "SELECT count(*) FROM notifications WHERE type = 'DAILY_HEALTH_NOTED' AND child_id = ?",
+                        child1))
+                .isEqualTo(1);
         assertThat(day.entries().getFirst().observation()).isEqualTo(HealthObservation.NOTED);
         assertThat(healthService
                         .getClassChildHealth(teacherA, classA, child2, TODAY)
@@ -559,20 +694,30 @@ class AttendanceIntegrationTest {
                 .extracting(DailyHealthResponse.Attention::childName)
                 .containsExactly("Bình");
         assertThat(all.classes()).hasSize(2);
-        // AUTH-20: PHT cơ sở B xem sức khỏe trong ngày của mọi cơ sở, chỉ xem
-        assertThat(healthService.getOverview(vpB, TODAY, null, null, null, null).classes())
+        CurrentUser schoolViewer = withSchoolWide(vpB, Permission.ATTENDANCE_VIEW);
+        // PHT cơ sở B xem sức khỏe toàn trường khi ATTENDANCE_VIEW được cấp scope SCHOOL.
+        assertThat(healthService
+                        .getOverview(schoolViewer, TODAY, null, null, null, null)
+                        .classes())
                 .extracting(DailyHealthResponse.ClassRow::classId)
                 .containsExactlyElementsOf(all.classes().stream()
                         .map(DailyHealthResponse.ClassRow::classId)
                         .toList());
         assertThat(healthService
-                        .getOverview(vpB, TODAY, null, all.classes().getFirst().campusId(), null, null)
+                        .getOverview(
+                                schoolViewer,
+                                TODAY,
+                                null,
+                                all.classes().getFirst().campusId(),
+                                null,
+                                null)
                         .classes())
                 .isNotEmpty();
         expectError(() -> healthService.getOverview(teacherA, TODAY, null, null, null, null), ApiCode.FORBIDDEN);
 
         assertThat(healthService.getChildHistory(vpA, child2, TODAY).entries()).hasSize(1);
-        assertThat(healthService.getChildHistory(vpB, child2, TODAY).entries()).hasSize(1);
+        assertThat(healthService.getChildHistory(schoolViewer, child2, TODAY).entries())
+                .hasSize(1);
     }
 
     @Test
@@ -673,13 +818,36 @@ class AttendanceIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case PRINCIPAL, VICE_PRINCIPAL -> Set.of(Permission.ATTENDANCE_VIEW, Permission.ATTENDANCE_UNLOCK);
+                    case TEACHER, TEAM_LEADER ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_RECORD,
+                                Permission.DAILY_HEALTH_RECORD,
+                                Permission.PICKUP_RECORD);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
+    }
+
+    private static CurrentUser withSchoolWide(CurrentUser user, Permission... permissions) {
+        return new CurrentUser(
+                user.userId(),
+                user.keycloakUserId(),
+                user.username(),
+                user.fullName(),
+                user.email(),
+                user.roles(),
+                user.permissions(),
+                Set.of(permissions));
     }
 
     private void campusRole(CurrentUser user, long campusId) {
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
-                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-09-01')",
                 user.userId(),
                 campusId);
     }

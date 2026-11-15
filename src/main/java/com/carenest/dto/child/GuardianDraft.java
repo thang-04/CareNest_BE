@@ -12,11 +12,22 @@ public record GuardianDraft(
         GuardianRelationship relationship,
         String phone,
         String citizenId,
-        String email) {
+        String email,
+        boolean accountRecipient) {
+    public GuardianDraft(
+            int position,
+            String fullName,
+            GuardianRelationship relationship,
+            String phone,
+            String citizenId,
+            String email) {
+        this(position, fullName, relationship, phone, citizenId, email, false);
+    }
 
     /** Thông tin theo tài khoản có sẵn (họ tên, SĐT, email), giữ quan hệ và CCCD của hồ sơ. */
     public GuardianDraft withAccountInfo(String accountFullName, String accountPhone, String accountEmail) {
-        return new GuardianDraft(position, accountFullName, relationship, accountPhone, citizenId, accountEmail);
+        return new GuardianDraft(
+                position, accountFullName, relationship, accountPhone, citizenId, accountEmail, accountRecipient);
     }
 
     @Override

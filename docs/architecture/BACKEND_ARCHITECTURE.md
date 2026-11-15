@@ -15,7 +15,7 @@ Nguồn chuẩn cho code: `docs/backend-coding-guide.md` (từ `CareNest_Backend
 | --- | --- |
 | Đọc dữ liệu feature khác | Gọi service của feature đó (không inject repository của nó) |
 | Phản ứng ngược chiều phụ thuộc (vd. attendance đổi sau khi suất đã xác nhận) | Spring application event, listener sau commit (PROPOSED) |
-| AI, storage, notification | Interface trong `integration/` (`AiClient`, `StorageService`, ...) |
+| AI, storage, notification | Interface trong `integration/` (`AiClient`, `FileStorage`, ...) |
 
 ## Transaction
 

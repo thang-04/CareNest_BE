@@ -1,5 +1,6 @@
 package com.carenest.service.meals;
 
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.meals.MealPhotoResponse;
 import com.carenest.dto.meals.MealPhotoWindowResponse;
 import com.carenest.dto.meals.MealPhotoWindowsRequest;
@@ -24,6 +25,9 @@ public interface MealPhotoService {
     List<MealPhotoResponse> getPhotos(CurrentUser currentUser, Long campusId, LocalDate date);
 
     Content getPhotoContent(CurrentUser currentUser, Long photoId);
+
+    /** Liên kết xem có hạn, cùng điều kiện quyền với {@link #getPhotoContent}. */
+    FileUrlResponse getPhotoUrl(CurrentUser currentUser, Long photoId);
 
     record Content(Resource resource, String contentType) {}
 }

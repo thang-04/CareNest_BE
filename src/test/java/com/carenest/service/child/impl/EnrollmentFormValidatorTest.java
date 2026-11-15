@@ -51,7 +51,8 @@ class EnrollmentFormValidatorTest {
             assertThat(g.email()).isEqualTo("me@example.vn");
         });
         assertThat(draft.profile().premature()).isEqualTo(YesNo.NO);
-        assertThat(draft.profile().gestationWeeks()).isNull();
+        // Tuần thai ghi cho mọi trẻ, kể cả trẻ không sinh non (user chốt 2026-11-04)
+        assertThat(draft.profile().gestationWeeks()).isEqualTo((short) 39);
         assertThat(draft.declaration().allergies()).isEmpty();
         assertThat(draft.declaration().diet().text()).isNull();
         assertThat(draft.declaration().otherNotes().state()).isEqualTo(DeclarationState.NOT_PROVIDED);
@@ -78,6 +79,7 @@ class EnrollmentFormValidatorTest {
                 .containsEntry("guardians.0.phone", "Nhập số điện thoại để gửi tài khoản")
                 .containsEntry("guardians.0.idNumber", "Nhập số CCCD của phụ huynh")
                 .containsEntry("profile.premature", "Chọn trẻ có sinh non hay không")
+                .containsEntry("profile.gestationWeeks", "Nhập tuần thai khi sinh")
                 .containsEntry("profile.ethnicity", "Nhập dân tộc")
                 .containsEntry("profile.beneficiary", "Nhập đối tượng")
                 .containsEntry("profile.address.province", "Nhập tỉnh/thành nơi ở")
@@ -167,21 +169,55 @@ class EnrollmentFormValidatorTest {
     }
 
     @Test
-    @DisplayName("CHD-05: trẻ sinh non phải có tuần thai 20–42; số định danh 12 số hoặc hộ chiếu 6–12 ký tự")
+    @DisplayName("CHD-05: tuần thai 20–42 bắt buộc với mọi trẻ; số định danh 12 số hoặc hộ chiếu 6–12 ký tự")
     void profileRules() {
         assertThat(errors(EnrollmentFormValidator.validate(
                         request(child(List.of(guardian()), profile("YES", null, "")), okDeclaration()), TODAY)))
-                .containsEntry("profile.gestationWeeks", "Nhập tuần thai khi sinh của trẻ sinh non");
+                .containsEntry("profile.gestationWeeks", "Nhập tuần thai khi sinh");
+        assertThat(errors(EnrollmentFormValidator.validate(
+                        request(child(List.of(guardian()), profile("NO", null, null)), okDeclaration()), TODAY)))
+                .containsEntry("profile.gestationWeeks", "Nhập tuần thai khi sinh");
         assertThat(errors(EnrollmentFormValidator.validate(
                         request(child(List.of(guardian()), profile("YES", 45, "12345")), okDeclaration()), TODAY)))
                 .containsEntry("profile.gestationWeeks", "Nhập tuần thai từ 20 đến 42")
                 .containsEntry("profile.idNumber", "Nhập 12 chữ số (CCCD/mã định danh) hoặc số hộ chiếu 6–12 ký tự");
+        // Ngoài 20–42 chỉ báo khoảng, chưa so với "Sinh non"
+        assertThat(errors(EnrollmentFormValidator.validate(
+                        request(child(List.of(guardian()), profile("NO", 19, null)), okDeclaration()), TODAY)))
+                .containsEntry("profile.gestationWeeks", "Nhập tuần thai từ 20 đến 42");
 
         EnrollmentFormValidator.Result passport = EnrollmentFormValidator.validate(
                 request(child(List.of(guardian()), profile("YES", 34, "B1234567")), okDeclaration()), TODAY);
         assertThat(passport.errors()).isEmpty();
         assertThat(passport.draft().profile().gestationWeeks()).isEqualTo((short) 34);
         assertThat(passport.draft().profile().idNumber()).isEqualTo("B1234567");
+    }
+
+    @Test
+    @DisplayName("CHD-05: \"Sinh non\" khớp tuần thai — Có ⇒ dưới 37 tuần, Không ⇒ từ 37 tuần")
+    void prematureMatchesGestationWeeks() {
+        assertThat(errors(EnrollmentFormValidator.validate(
+                        request(child(List.of(guardian()), profile("YES", 37, null)), okDeclaration()), TODAY)))
+                .containsEntry("profile.gestationWeeks", "Trẻ sinh non có tuần thai dưới 37");
+        assertThat(errors(EnrollmentFormValidator.validate(
+                        request(child(List.of(guardian()), profile("NO", 36, null)), okDeclaration()), TODAY)))
+                .containsEntry(
+                        "profile.gestationWeeks", "Dưới 37 tuần là sinh non: chọn Sinh non là Có hoặc sửa tuần thai");
+        // "Sinh non" chưa chọn hợp lệ ⇒ chỉ báo ô Sinh non, không so tuần thai
+        assertThat(errors(EnrollmentFormValidator.validate(
+                        request(child(List.of(guardian()), profile("CHUA_RO", 30, null)), okDeclaration()), TODAY)))
+                .containsEntry("profile.premature", "Chọn trẻ có sinh non hay không")
+                .doesNotContainKey("profile.gestationWeeks");
+
+        EnrollmentFormValidator.Result preterm = EnrollmentFormValidator.validate(
+                request(child(List.of(guardian()), profile("YES", 36, null)), okDeclaration()), TODAY);
+        assertThat(preterm.errors()).isEmpty();
+        assertThat(preterm.draft().profile().gestationWeeks()).isEqualTo((short) 36);
+        EnrollmentFormValidator.Result fullTerm = EnrollmentFormValidator.validate(
+                request(child(List.of(guardian()), profile("NO", 37, null)), okDeclaration()), TODAY);
+        assertThat(fullTerm.errors()).isEmpty();
+        assertThat(fullTerm.draft().profile().premature()).isEqualTo(YesNo.NO);
+        assertThat(fullTerm.draft().profile().gestationWeeks()).isEqualTo((short) 37);
     }
 
     @Test
@@ -217,7 +253,7 @@ class EnrollmentFormValidatorTest {
     }
 
     private static EnrollmentChildInput child(List<GuardianInput> guardians) {
-        return child(guardians, profile("NO", null, null));
+        return child(guardians, profile("NO", 39, null));
     }
 
     private static EnrollmentChildInput child(List<GuardianInput> guardians, ChildProfileInput profile) {
@@ -226,7 +262,7 @@ class EnrollmentFormValidatorTest {
 
     private static EnrollmentChildInput childBorn(String dateOfBirth) {
         return new EnrollmentChildInput(
-                "Nguyễn Minh An", dateOfBirth, "MALE", List.of(guardian()), profile("NO", null, null));
+                "Nguyễn Minh An", dateOfBirth, "MALE", List.of(guardian()), profile("NO", 39, null));
     }
 
     private static ChildProfileInput profile(String premature, Integer weeks, String idNumber) {

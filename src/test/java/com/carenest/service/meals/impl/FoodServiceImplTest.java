@@ -15,7 +15,6 @@ import com.carenest.dto.meals.FoodResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
-import com.carenest.repository.meals.AllergenRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.ApiCode;
@@ -38,9 +37,7 @@ class FoodServiceImplTest {
             new CurrentUser(3L, "kc-3", "viceprincipal.a", "Demo", null, Set.of(CareNestRole.VICE_PRINCIPAL));
 
     private final FoodRepository foodRepository = mock(FoodRepository.class);
-    private final AllergenRepository allergenRepository = mock(AllergenRepository.class);
-    private final FoodServiceImpl service =
-            new FoodServiceImpl(foodRepository, allergenRepository, new NutritionCatalogMapper());
+    private final FoodServiceImpl service = new FoodServiceImpl(foodRepository, new NutritionCatalogMapper());
 
     @Test
     @DisplayName("NUT-05: thực phẩm thiếu nguồn dinh dưỡng thì không lưu")
@@ -103,7 +100,6 @@ class FoodServiceImplTest {
     @DisplayName("NUT-05: nhập hàng loạt có một dòng lỗi thì không dòng nào được lưu, báo số dòng")
     void importRejectsWholeBatchWhenOneRowInvalid() {
         given(foodRepository.findByCodeIn(anyCollection())).willReturn(List.of());
-        given(allergenRepository.findAll()).willReturn(List.of());
         FoodImportRequest request = new FoodImportRequest(List.of(
                 new FoodImportRequest.Item(null, food("TP001", "Viện Dinh dưỡng 2017")),
                 new FoodImportRequest.Item(null, food("TP002", " ")),
@@ -121,7 +117,6 @@ class FoodServiceImplTest {
     @Test
     void importSavesEveryValidRow() {
         given(foodRepository.findByCodeIn(anyCollection())).willReturn(List.of());
-        given(allergenRepository.findAll()).willReturn(List.of());
 
         int created = service.importFoods(
                         VICE_PRINCIPAL,
@@ -210,7 +205,7 @@ class FoodServiceImplTest {
                         new BigDecimal("30"), null, new BigDecimal("1.3"), null, null, null, null, new BigDecimal("5")),
                 Set.of(),
                 3L);
-        given(foodRepository.findWithAllergensById(7L)).willReturn(Optional.of(existing));
+        given(foodRepository.findById(7L)).willReturn(Optional.of(existing));
 
         FoodResponse updated = service.updateFood(
                 VICE_PRINCIPAL, 7L, food("TP001", "Viện Dinh dưỡng 2017", new BigDecimal("32"), null));
@@ -224,7 +219,6 @@ class FoodServiceImplTest {
     @DisplayName("NUT-26: nhập hàng loạt lưu vi chất của từng dòng")
     void importPersistsMicronutrients() {
         given(foodRepository.findByCodeIn(anyCollection())).willReturn(List.of());
-        given(allergenRepository.findAll()).willReturn(List.of());
 
         service.importFoods(
                 VICE_PRINCIPAL,

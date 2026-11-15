@@ -5,6 +5,9 @@ import com.carenest.dto.child.EnrollChildRequest;
 import com.carenest.dto.child.GuardianCheckRequest;
 import com.carenest.dto.child.ParentAccountLookupResponse;
 import com.carenest.security.CurrentUser;
+import java.util.List;
+import java.util.Map;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Phần tài khoản phụ huynh của tiếp nhận trẻ (AUTH-18, AUTH-20): tra tài khoản theo CCCD, kiểm một người một tài
@@ -24,4 +27,7 @@ public interface ChildEnrollmentService {
      * tài khoản cho phụ huynh chưa có và gửi SMS sau khi lưu, không có quyền thì phụ huynh chờ kích hoạt (P-18).
      */
     ChildEnrollmentResponse enroll(CurrentUser actor, EnrollChildRequest request);
+
+    ChildEnrollmentResponse enrollWithPhotos(
+            CurrentUser actor, EnrollChildRequest request, Map<String, List<MultipartFile>> files);
 }

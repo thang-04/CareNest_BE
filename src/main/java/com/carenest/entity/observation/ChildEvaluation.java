@@ -84,6 +84,10 @@ public class ChildEvaluation {
     @Column(name = "note_for_parent", length = 1000)
     private String noteForParent;
 
+    /** Phiếu cuối năm: JSON nhận xét theo lĩnh vực {"<domainId>": "..."}. */
+    @Column(name = "domain_comments")
+    private String domainComments;
+
     @Column(name = "confirmed_by")
     private Long confirmedBy;
 
@@ -148,6 +152,10 @@ public class ChildEvaluation {
         this.noteForTeacher = forTeacher;
         this.noteForSchool = forSchool;
         this.noteForParent = forParent;
+    }
+
+    public void saveDomainComments(String json) {
+        this.domainComments = json;
     }
 
     /** Xác nhận: chốt cả phiếu, lưu ý giữ nguyên. */

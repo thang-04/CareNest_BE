@@ -10,4 +10,9 @@ public interface SemesterUsageCheck {
 
     /** Có dữ liệu thuộc học kỳ [start, end] của năm học không. */
     boolean usedBySemester(Long schoolYearId, LocalDate start, LocalDate end);
+
+    /** Năm học đã có dữ liệu mở từ ngày kết thúc học kỳ II (đánh giá cuối năm, đề xuất khen thưởng) không. */
+    default boolean usedByYearEnd(Long schoolYearId) {
+        return false;
+    }
 }

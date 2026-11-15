@@ -54,7 +54,7 @@ public class EduYearPlanController {
 
     /** EDU-46: đọc file bảng mục tiêu (Word/Excel/CSV) thành bản xem trước; không lưu. */
     @PostMapping(value = "/file-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<GoalFilePreviewResponse>> previewGoalFile(
             @RequestPart MultipartFile file, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|previewGoalFile|userId=" + currentUser.userId();
@@ -71,19 +71,40 @@ public class EduYearPlanController {
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(required = false) Long ageGroupId,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planLevel,
+            @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planType,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getYearPlans|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
+        if (planType != null && planLevel != null && planType != planLevel) {
+            throw com.carenest.exception.GlobalException.of(ApiCode.INVALID_VALUE, "loại kế hoạch");
+        }
+        var level = planType != null
+                ? planType
+                : planLevel == null ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel;
         PageResponse<YearPlanSummaryResponse> plans = eduYearPlanService.getYearPlans(
                 currentUser,
                 schoolYearId,
                 ageGroupId,
                 q,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")),
+                level);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plans success", plans);
+    }
+
+    /** Kế hoạch năm/tổ đang chờ đúng người gọi duyệt (spec 002 FR-001, FR-007). */
+    @GetMapping("/review-queue")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<java.util.List<YearPlanSummaryResponse>>> getReviewQueue(
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        var plans = eduYearPlanService.getReviewQueue(currentUser);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get review queue success", plans);
     }
 
     @GetMapping("/{planId}")
@@ -98,13 +119,13 @@ public class EduYearPlanController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     // Để OpenAPI ghi 201 khớp ApiCode.CREATED
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createYearPlan(
             @Valid @RequestBody YearPlanRequest request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix =
@@ -117,12 +138,12 @@ public class EduYearPlanController {
     }
 
     @PutMapping("/{planId}")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> updateYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody YearPlanRequest request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|updateYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -133,13 +154,38 @@ public class EduYearPlanController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update year plan success", plan);
     }
 
+    @PostMapping("/{planId}/review/{reviewItemId}/resolve")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> resolveReview(
+            @PathVariable Long planId,
+            @PathVariable Long reviewItemId,
+            @Valid @RequestBody ReviewResolutionRequest request,
+            CurrentUser currentUser,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("Idempotency-Key") UUID requestId) {
+        String logPrefix = LOG_PREFIX + "|resolveReview|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        var result = eduYearPlanService.resolveReview(
+                currentUser,
+                planId,
+                reviewItemId,
+                request.expectedSourcePlanId(),
+                new YearPlanEditRequest(sessionId, revision, requestId));
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Review resolved", result);
+    }
+
+    public record ReviewResolutionRequest(
+            @jakarta.validation.constraints.NotNull Long expectedSourcePlanId) {}
+
     @PostMapping("/{planId}/submit")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> submitYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody(required = false) PlanActionRequest.Note request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|submitYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -154,12 +200,12 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/issue")
-    @PreAuthorize("hasRole('VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> issueYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody(required = false) PlanActionRequest.Note request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|issueYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -174,12 +220,12 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/return")
-    @PreAuthorize("hasRole('VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> returnYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody PlanActionRequest.RequiredNote request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|returnYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -191,11 +237,11 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/start-editing")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> startEditing(
             @PathVariable Long planId,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|startEditing|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -207,11 +253,11 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/finish-editing")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> finishEditing(
             @PathVariable Long planId,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|finishEditing|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -223,11 +269,11 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/editing-heartbeat")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> heartbeat(
             @PathVariable Long planId,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|heartbeat|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -238,19 +284,38 @@ public class EduYearPlanController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Editing session renewed", plan);
     }
 
+    /** Spec 004 (Q5): Hiệu trưởng mở khóa kế hoạch năm học / tổ (lý do + hạn mới). */
+    @PostMapping("/{planId}/unlock")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> unlockYearPlan(
+            @PathVariable Long planId,
+            @RequestBody com.carenest.dto.eduplan.YearPlanUnlockRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|unlockYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan =
+                eduYearPlanService.unlockYearPlan(currentUser, planId, request.note(), request.deadline());
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Unlock year plan success", plan);
+    }
+
     @PostMapping("/{planId}/versions")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createVersion(
             @PathVariable Long planId,
+            @RequestBody(required = false) com.carenest.dto.eduplan.YearPlanVersionRequest request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|createVersion|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.createVersion(
-                currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
+                currentUser,
+                planId,
+                new YearPlanEditRequest(sessionId, revision, requestId),
+                request == null ? null : request.curriculumSourcePlanId());
         log.info("{}|newPlanId={}|END", logPrefix, plan.id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create year plan version success", plan);
     }
@@ -267,11 +332,11 @@ public class EduYearPlanController {
     }
 
     @DeleteMapping("/{planId}")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<Void>> deleteYearPlan(
             @PathVariable Long planId,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|deleteYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;

@@ -74,8 +74,8 @@ public record HealthExamForm(
     public record HealthExamImmunization(String bcg, String hepB1, String fullSchedule) {}
 
     /**
-     * Kết luận của bác sĩ. Mẫu STANDARD dùng các cờ, {@code issueKind}, {@code action}; mẫu FOLLOW_UP dùng
-     * {@code followUpFinding}.
+     * Kết luận của bác sĩ. Mẫu STANDARD dùng các cờ, {@code issueKind}, {@code action}; {@code followUpFinding} chỉ có
+     * ở phiếu đã kết luận theo mẫu FOLLOW_UP cũ (phiếu theo dõi đã bỏ — HLT-16).
      */
     public record HealthExamConclusion(
             boolean normal,

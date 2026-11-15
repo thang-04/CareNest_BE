@@ -1,6 +1,7 @@
 package com.carenest.service.meals.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.carenest.dto.meals.MenuStatisticsRequest;
 import com.carenest.dto.meals.MenuStatisticsResponse;
@@ -8,6 +9,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
 import java.time.LocalDate;
 import java.util.List;
@@ -115,6 +117,47 @@ class MenuStatisticsIntegrationTest {
         assertThat(stats.evaluation().sessions())
                 .extracting(r -> r.session())
                 .containsExactly(MealSession.LUNCH, MealSession.AFTERNOON);
+    }
+
+    @Test
+    @DisplayName("NUT-10: mỗi thực phẩm mang storage; tổng hàng tươi + hàng khô = tổng tiền")
+    void splitsCostByStorage() {
+        jdbc.update("UPDATE foods SET storage = 'FRESH' WHERE code = 'SUA'");
+
+        MenuStatisticsResponse stats = mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        ag3,
+                        DAY,
+                        null,
+                        80,
+                        List.of(
+                                new MenuStatisticsRequest.Item(MealSession.LUNCH, com),
+                                new MenuStatisticsRequest.Item(MealSession.AFTERNOON, sua))));
+
+        assertThat(stats.ingredients())
+                .extracting(MenuStatisticsResponse.Ingredient::foodName, MenuStatisticsResponse.Ingredient::storage)
+                .containsExactlyInAnyOrder(tuple("Gạo tẻ", FoodStorage.DRY), tuple("Sữa tươi", FoodStorage.FRESH));
+        assertThat(stats.freshCost()).isEqualByComparingTo("640000");
+        assertThat(stats.dryCost()).isEqualByComparingTo("96000");
+        assertThat(stats.freshCost().add(stats.dryCost())).isEqualByComparingTo(stats.totalCost());
+    }
+
+    @Test
+    @DisplayName("NUT-12: mua theo ĐVT đếm được làm tròn lên nguyên hộp; tiền ăn vẫn theo lượng thực dùng")
+    void countablePurchaseQtyRoundsUp() {
+        jdbc.update("UPDATE foods SET purchase_unit = 'hộp 110 ml', purchase_unit_size = 110 WHERE code = 'SUA'");
+
+        MenuStatisticsResponse stats = mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        ag3, DAY, null, 80, List.of(new MenuStatisticsRequest.Item(MealSession.AFTERNOON, sua))));
+
+        // 80 × 180 ml = 14.400 ml ÷ 110 = 130,9 ⇒ 131 hộp; tiền = 14.400 × 8.000 ÷ 110
+        assertThat(stats.ingredients()).singleElement().satisfies(milk -> {
+            assertThat(milk.purchaseQty()).isEqualByComparingTo("131");
+            assertThat(milk.cost()).isEqualByComparingTo("1047273");
+        });
     }
 
     @Test

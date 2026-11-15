@@ -78,7 +78,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                             .orElseThrow(() -> GlobalException.of(ApiCode.NO_ACTIVE_SCHOOL_YEAR))
                     : findYear(schoolYearId);
             List<Classroom> classes = classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId());
-            classes = filterVisible(currentUser, classes);
+            classes = filterVisible(currentUser, classes, year.isPreparing(schoolConfigAccess.today()));
             if (campusId != null) {
                 classes = classes.stream()
                         .filter(c -> c.getCampusId().equals(campusId))
@@ -369,11 +369,11 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         return name;
     }
 
-    private List<Classroom> filterVisible(CurrentUser currentUser, List<Classroom> classes) {
+    private List<Classroom> filterVisible(CurrentUser currentUser, List<Classroom> classes, boolean upcoming) {
         if (schoolConfigAccess.canViewSchool(currentUser)) {
             return classes;
         }
-        Set<Long> classIds = schoolConfigAccess.teacherClassroomIds(currentUser);
+        Set<Long> classIds = schoolConfigAccess.teacherClassroomIds(currentUser, upcoming);
         if (classIds.isEmpty()) {
             throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
         }

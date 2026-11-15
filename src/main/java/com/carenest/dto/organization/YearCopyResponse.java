@@ -14,6 +14,7 @@ public record YearCopyResponse(
         List<String> withoutRoom,
         int teacherClasses,
         int teamLeaders,
+        int vicePrincipals,
         @JsonFormat(pattern = "HH:mm") LocalTime cutoffTime,
         boolean semesterCopied,
         List<Skipped> skipped) {

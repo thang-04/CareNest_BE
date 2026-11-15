@@ -66,7 +66,9 @@ class PermissionSchemaIntegrationTest {
                     .map(RolePermission::getPermissionCode)
                     .collect(Collectors.toSet());
             Set<String> expected = Arrays.stream(Permission.values())
-                    .filter(permission -> permission.defaultRoles().contains(role))
+                    // Quyền mặc định không cấu hình được (vd. GV xem đánh giá) là cố định, không nằm trong ma trận
+                    .filter(permission ->
+                            permission.defaultRoles().contains(role) && permission.isConfigurableFor(role))
                     .map(Permission::name)
                     .collect(Collectors.toSet());
             assertThat(seeded).as(role.name()).isEqualTo(expected);

@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,8 +23,23 @@ public class EduPlanEvent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "year_plan_id", nullable = false, updatable = false)
+    @org.hibernate.annotations.Formula("coalesce(school_year_plan_id, team_plan_id)")
     private Long yearPlanId;
+
+    @Column(name = "school_year_plan_id", updatable = false)
+    private Long schoolYearPlanId;
+
+    @Column(name = "team_plan_id", updatable = false)
+    private Long teamPlanId;
+
+    public void initializeOwner(EduPlan plan) {
+        if (yearPlanId != null && !yearPlanId.equals(plan.getId()))
+            throw new IllegalArgumentException("Plan owner differs");
+        yearPlanId = plan.getId();
+        schoolYearPlanId =
+                plan.getPlanLevel() == com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR ? plan.getId() : null;
+        teamPlanId = plan.getPlanLevel() == com.carenest.utils.enums.EduPlanLevel.TEAM ? plan.getId() : null;
+    }
 
     @Column(nullable = false, length = 30)
     private String action;
@@ -48,6 +64,15 @@ public class EduPlanEvent {
 
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
+
+    /** Spec 004: hạn mới khi Hiệu trưởng mở khóa (action = unlock). */
+    @Column(name = "deadline")
+    private LocalDate deadline;
+
+    public EduPlanEvent withDeadline(LocalDate value) {
+        deadline = value;
+        return this;
+    }
 
     public static EduPlanEvent of(
             Long yearPlanId,

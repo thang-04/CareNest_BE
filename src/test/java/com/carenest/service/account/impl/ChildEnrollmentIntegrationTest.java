@@ -50,6 +50,7 @@ import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SmsStatus;
+import com.carenest.utils.enums.YesNo;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
@@ -73,6 +74,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -85,6 +88,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
+@RecordApplicationEvents
 class ChildEnrollmentIntegrationTest {
     // Mã phòng duy nhất trong lần chạy (nanoTime % 100000 trùng khi hai lần gọi sát nhau)
     private static final AtomicInteger ROOM_SEQ = new AtomicInteger();
@@ -109,6 +113,13 @@ class ChildEnrollmentIntegrationTest {
 
     @MockitoBean
     private SmsGateway smsGateway;
+
+    // Spy kho thật: giới hạn/định dạng lấy từ cấu hình, chỉ chặn phần gọi S3
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private com.carenest.integration.storage.FileStorage childPhotoStorage;
+
+    @Autowired
+    private com.carenest.service.child.ChildPhotoService childPhotos;
 
     @Autowired
     private ChildEnrollmentService enrollmentService;
@@ -191,6 +202,97 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("CHD-02/PCK-02: lưu ảnh trẻ/phụ huynh chưa kích hoạt, đọc lại đúng scope")
+    void enrollsPhotosBeforeAccountActivation() throws Exception {
+        Set<Permission> permissions = new java.util.HashSet<>(principal.permissions());
+        permissions.remove(Permission.PARENT_ACCOUNT_MANAGE);
+        CurrentUser withoutAccounts = user(principal.userId(), CareNestRole.PRINCIPAL, permissions);
+        org.mockito.Mockito.doReturn(
+                        new com.carenest.integration.storage.FileStorage.StoredFile("child-photo", "image/png", 3),
+                        new com.carenest.integration.storage.FileStorage.StoredFile("parent-photo", "image/png", 3))
+                .when(childPhotoStorage)
+                .store(eq(com.carenest.utils.enums.FileCategory.CHILD_AVATAR), any(), any(byte[].class));
+        org.mockito.Mockito.doReturn(new byte[] {7, 8, 9})
+                .when(childPhotoStorage)
+                .loadBytes(com.carenest.utils.enums.FileCategory.CHILD_AVATAR, "parent-photo");
+        var request = request("Trẻ ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000711", "999000000711"));
+        var result = enrollmentService.enrollWithPhotos(
+                withoutAccounts,
+                request,
+                Map.of(
+                        "childPhoto", List.of(portrait("childPhoto")),
+                        "guardianPhoto0", List.of(portrait("guardianPhoto0"))));
+        entityManager.flush();
+        entityManager.clear();
+        var view = intakeService.getChildView(result.child().id());
+        assertThat(view.photoUrl()).isEqualTo("/children/" + view.id() + "/photo");
+        assertThat(view.guardians().getFirst().photoUrl()).contains("/guardian-photos/");
+        assertThat(view.guardians().getFirst().accountStatus()).isEqualTo(GuardianAccountStatus.NOT_ACTIVATED);
+        Long guardianId =
+                jdbc.queryForObject("select id from child_guardians where child_id = ?", Long.class, view.id());
+        assertThat(childPhotos
+                        .getGuardianPhoto(principal, view.id(), guardianId)
+                        .content())
+                .containsExactly(7, 8, 9);
+        assertThat(childPhotos
+                        .getGuardianPhoto(vicePrincipalOfB, view.id(), guardianId)
+                        .content())
+                .containsExactly(7, 8, 9);
+        CurrentUser otherReader = user(teacher, CareNestRole.TEACHER, TestPermissions.defaultsOf(CareNestRole.TEACHER));
+        assertThatThrownBy(() -> childPhotos.getGuardianPhoto(otherReader, view.id(), guardianId))
+                .isInstanceOf(GlobalException.class);
+        verifyNoInteractions(identityProviderClient, smsGateway);
+    }
+
+    @Test
+    @DisplayName("CHD-02: ảnh không hợp lệ bị chặn trước tạo Keycloak/SMS/DB")
+    void invalidPhotoDoesNotCreateEnrollment() {
+        var request =
+                request("Trẻ ảnh lỗi giả", "2023-03-01", null, campusA, newGuardian("0900000712", "999000000712"));
+        var file = new org.springframework.mock.web.MockMultipartFile(
+                "childPhoto", "fake.png", "image/png", "fake".getBytes());
+        assertThatThrownBy(() ->
+                        enrollmentService.enrollWithPhotos(principal, request, Map.of("childPhoto", List.of(file))))
+                .isInstanceOf(GlobalException.class);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from children where full_name = ?", Integer.class, "Trẻ ảnh lỗi giả"))
+                .isZero();
+        verifyNoInteractions(identityProviderClient, smsGateway);
+        verify(childPhotoStorage, org.mockito.Mockito.never()).store(any(), any(), any(byte[].class));
+    }
+
+    @Test
+    @DisplayName("CHD-02: S3 lỗi giữa chừng rollback hồ sơ, dọn object ảnh mới và bù trừ Keycloak")
+    void uploadFailureRollsBackEnrollment() throws Exception {
+        org.mockito.Mockito.doReturn(
+                        new com.carenest.integration.storage.FileStorage.StoredFile("new-object", "image/png", 3))
+                .doThrow(GlobalException.of(ApiCode.STORAGE_UNAVAILABLE))
+                .when(childPhotoStorage)
+                .store(eq(com.carenest.utils.enums.FileCategory.CHILD_AVATAR), any(), any(byte[].class));
+        var request =
+                request("Trẻ rollback ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000713", "999000000713"));
+        var files = Map.<String, List<org.springframework.web.multipart.MultipartFile>>of(
+                "childPhoto", List.of(portrait("childPhoto")), "guardianPhoto0", List.of(portrait("guardianPhoto0")));
+        assertThatThrownBy(() -> enrollmentService.enrollWithPhotos(principal, request, files))
+                .isInstanceOf(GlobalException.class);
+        org.springframework.test.context.transaction.TestTransaction.flagForRollback();
+        org.springframework.test.context.transaction.TestTransaction.end();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from children where full_name = ?", Integer.class, "Trẻ rollback ảnh giả"))
+                .isZero();
+        verify(childPhotoStorage).removeQuietly(com.carenest.utils.enums.FileCategory.CHILD_AVATAR, "new-object");
+        verify(identityProviderClient).deleteUser("kc-new-1");
+        verifyNoInteractions(smsGateway);
+    }
+
+    private static org.springframework.mock.web.MockMultipartFile portrait(String part) throws Exception {
+        var bytes = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(
+                new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", bytes);
+        return new org.springframework.mock.web.MockMultipartFile(part, "fake.png", "image/png", bytes.toByteArray());
+    }
+
+    @Test
     @DisplayName(
             "CHD-02, AUTH-20: HT tiếp nhận không chọn lớp ⇒ Chờ xếp lớp ở điểm trường tiếp nhận, tạo tài khoản, SMS")
     void principalEnrollsPendingChildAndCreatesAccount() {
@@ -206,6 +308,9 @@ class ChildEnrollmentIntegrationTest {
         assertThat(child.enrolledAt()).isEqualTo(TODAY);
         assertThat(child.hasDeclaration()).isTrue();
         assertThat(child.profile().paymentSource()).isEqualTo("BHYT");
+        // CHD-05 (user chốt 2026-11-04): tuần thai lưu cả khi trẻ không sinh non
+        assertThat(child.profile().premature()).isEqualTo(YesNo.NO);
+        assertThat(child.profile().gestationWeeks()).isEqualTo((short) 39);
         assertThat(child.history()).singleElement().satisfies(h -> {
             assertThat(h.action()).isEqualTo(ChildHistoryAction.ENROLLED);
             assertThat(h.userFullName()).isEqualTo("ht.enroll");
@@ -225,7 +330,7 @@ class ChildEnrollmentIntegrationTest {
         assertThat(account).containsEntry("citizen_id", "001234567890").containsEntry("primary_role", "PARENT");
         long accountId = ((Number) account.get("id")).longValue();
         assertThat(count(
-                        "SELECT count(*) FROM guardian_child_links WHERE user_id = ? AND child_id = ?",
+                        "SELECT count(*) FROM child_guardians WHERE user_id = ? AND child_id = ?",
                         accountId,
                         child.id()))
                 .isEqualTo(1);
@@ -245,6 +350,32 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("G94-180/CHD-07: tiếp nhận khai Có tiếp xúc lao ⇒ báo HT, PHT điểm trường tiếp nhận (không PHT khác)")
+    void intakeWithTbContactNotifiesLeaders() {
+        EnrollChildRequest base =
+                request("Trần Gia Huy", "2023-05-01", null, campusA, newGuardian("0912345679", "001234567891"));
+        HealthDeclarationInput declaration = base.declaration();
+        EnrollChildRequest withTbContact = new EnrollChildRequest(
+                base.child(),
+                new HealthDeclarationInput(
+                        declaration.allergies(),
+                        declaration.diet(),
+                        declaration.otherNotes(),
+                        new MedicalHistoryInput(
+                                declaration.medicalHistory().self(),
+                                declaration.medicalHistory().family(),
+                                new TbContactInput("REPORTED", "2026-10-20"))),
+                null,
+                campusA);
+
+        enrollmentService.enroll(principal, withTbContact);
+        entityManager.flush();
+
+        assertThat(jdbc.queryForList("SELECT user_id FROM notifications WHERE type = 'CHILD_TB_CONTACT'", Long.class))
+                .containsExactlyInAnyOrder(principal.userId(), vicePrincipal.userId());
+    }
+
+    @Test
     @DisplayName(
             "CHD-10: tiếp nhận vào lớp năm đang hoạt động ⇒ Đang học; lớp đủ sĩ số, lớp năm khác, lệch điểm trường ⇒ 400 classId")
     void enrollIntoClassChecksClass() {
@@ -261,6 +392,20 @@ class ChildEnrollmentIntegrationTest {
                         placed.child().id(),
                         TODAY))
                 .isEqualTo(principal.userId());
+        // Mục 6.2: tiếp nhận có lớp ghi lịch sử xếp lớp (xếp lần đầu) và báo GV lớp
+        entityManager.flush();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM child_placements WHERE child_id = ? AND from_classroom_id IS NULL"
+                                + " AND to_classroom_id = ?",
+                        Long.class,
+                        placed.child().id(),
+                        classA))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT body FROM notifications WHERE type = 'CHILD_PLACED' AND user_id = ?",
+                        String.class,
+                        teacher))
+                .isEqualTo("Trẻ Có Lớp đã được xếp vào Lớp A1.");
 
         // Lớp A1 sĩ số 2: anh cả + trẻ vừa tiếp nhận
         expectField(
@@ -354,7 +499,7 @@ class ChildEnrollmentIntegrationTest {
 
         assertThat(response.guardianAccounts())
                 .extracting(g -> g.result())
-                .containsExactly(GuardianAccountResult.LINKED, GuardianAccountResult.NOT_ACTIVATED);
+                .containsExactly(GuardianAccountResult.LINKED);
         // C-2: phụ huynh có tài khoản ⇒ hồ sơ ghi theo tài khoản, không sửa tài khoản
         assertThat(response.child().guardians().getFirst()).satisfies(g -> {
             assertThat(g.fullName()).isEqualTo("Lê Thị Có Sẵn");
@@ -363,7 +508,7 @@ class ChildEnrollmentIntegrationTest {
         });
         assertThat(response.child().guardians().get(1).accountStatus()).isEqualTo(GuardianAccountStatus.NOT_ACTIVATED);
         assertThat(count(
-                        "SELECT count(*) FROM guardian_child_links WHERE user_id = ? AND child_id = ?",
+                        "SELECT count(*) FROM child_guardians WHERE user_id = ? AND child_id = ?",
                         existingParent,
                         response.child().id()))
                 .isEqualTo(1);
@@ -401,7 +546,7 @@ class ChildEnrollmentIntegrationTest {
         GuardianCheckRequest check = new GuardianCheckRequest(List.of(
                 new GuardianInput("Mẹ", "MOTHER", "0915000002", "001600000001", null),
                 new GuardianInput("Bố", "FATHER", "0901000001", "001600000002", null),
-                new GuardianInput("Bà", "GRANDMOTHER", "0915000009", "001600000003", null)));
+                new GuardianInput("Bà", "GRANDMOTHER", "0915000009", "001600000003", null, true)));
         expectFields(
                 () -> enrollmentService.checkGuardians(principal, check),
                 ApiCode.GUARDIAN_IDENTITY_CONFLICT,
@@ -421,8 +566,7 @@ class ChildEnrollmentIntegrationTest {
                 ApiCode.GUARDIAN_IDENTITY_CONFLICT,
                 Map.of(
                         "guardians.0.idNumber", ChildEnrollmentServiceImpl.CITIZEN_ID_TAKEN,
-                        "guardians.1.phone", ChildEnrollmentServiceImpl.PHONE_HAS_OTHER_ID,
-                        "guardians.2.phone", ApiCode.PHONE_OF_STAFF_ACCOUNT.getDefaultDesc()));
+                        "guardians.1.phone", ChildEnrollmentServiceImpl.PHONE_HAS_OTHER_ID));
         verify(identityProviderClient, never()).createUser(any());
 
         // Phụ huynh có sẵn theo CCCD (gõ SĐT khác) là chính người đó ⇒ không lệch
@@ -519,11 +663,12 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("AUTH-20: Keycloak lỗi ở phụ huynh thứ hai ⇒ xóa user đã tạo, không lưu hồ sơ")
+    @DisplayName("AUTH-20: gán role Keycloak lỗi ⇒ xóa user được chọn, không lưu hồ sơ")
     void identityFailureCompensatesCreatedUsers() {
-        given(identityProviderClient.createUser(any()))
-                .willReturn("kc-first")
-                .willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null));
+        given(identityProviderClient.createUser(any())).willReturn("kc-first");
+        willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null))
+                .given(identityProviderClient)
+                .assignRealmRole("kc-first", "PARENT");
         long before = count("SELECT count(*) FROM children");
 
         expectCode(
@@ -598,13 +743,359 @@ class ChildEnrollmentIntegrationTest {
             assertThat(h.action()).isEqualTo(ChildHistoryAction.READMITTED);
             assertThat(h.note()).isEqualTo("Gia đình chuyển về");
         });
+        // Feature account mở lại tài khoản phụ huynh do hệ thống khóa (sau commit); lần lỗi ở trên không phát
+        assertThat(applicationEvents.stream(com.carenest.service.child.ChildIntakeService.ChildReadmittedEvent.class))
+                .containsExactly(new com.carenest.service.child.ChildIntakeService.ChildReadmittedEvent(left));
 
         expectCode(
                 () -> intakeService.readmit(principal, left, new ReadmitChildRequest("Lần nữa")),
                 ApiCode.CHILD_NOT_LEFT);
     }
 
+    @Autowired
+    private com.carenest.service.child.ChildRecordService recordService;
+
+    @Test
+    @DisplayName(
+            "CHD-03, CHD-04: nghỉ ngay ngày vào lớp (bỏ lớp đó) ⇒ hồ sơ đã nghỉ vẫn thuộc điểm trường của lớp; mở lại về Chờ xếp lớp ở đó")
+    void readmitChildWithdrawnOnPlacementDay() {
+        long childId = enrollmentService
+                .enroll(
+                        principal,
+                        request("Trẻ Nghỉ Ngay", "2022-05-06", classA, null, newGuardian("0918888981", "999900000981")))
+                .child()
+                .id();
+
+        ChildViewResponse left = recordService.withdraw(
+                principal,
+                childId,
+                new com.carenest.dto.child.WithdrawChildRequest(TODAY.toString(), "Gia đình đổi ý"));
+        assertThat(left.status()).isEqualTo(ChildStatus.LEFT);
+        assertThat(count("SELECT count(*) FROM enrollments WHERE child_id = " + childId))
+                .isZero();
+        assertThat(left.campusId()).isEqualTo(campusA);
+        entityManager.clear();
+
+        ChildViewResponse view =
+                intakeService.readmit(vicePrincipal, childId, new ReadmitChildRequest("Gia đình quay lại"));
+        assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+        assertThat(view.campusId()).isEqualTo(campusA);
+    }
+
     // ---------- dữ liệu ----------
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
+
+    @Autowired
+    private com.carenest.service.account.SelectedParentAccountService selectedAccounts;
+
+    @Autowired
+    private com.carenest.service.account.EnrollmentImportAccountService imports;
+
+    @Test
+    void onlyChosenGuardianReceivesAccountAndAllContactsRemain() {
+        long before = count("SELECT count(*) FROM user_accounts");
+        EnrollChildRequest base = request(
+                "Trẻ Chọn Bố",
+                "2023-04-04",
+                null,
+                campusA,
+                newGuardian("0918888001", "999900000571"),
+                new GuardianInput("Bố Chọn", "FATHER", "0918888002", "999900000572", null));
+        var gs = base.child().guardians();
+        EnrollChildRequest chosen = new EnrollChildRequest(
+                new EnrollmentChildInput(
+                        base.child().fullName(),
+                        base.child().dateOfBirth(),
+                        base.child().gender(),
+                        List.of(
+                                new GuardianInput(
+                                        gs.get(0).fullName(),
+                                        gs.get(0).relation(),
+                                        gs.get(0).phone(),
+                                        gs.get(0).idNumber(),
+                                        null,
+                                        false),
+                                new GuardianInput(
+                                        gs.get(1).fullName(),
+                                        gs.get(1).relation(),
+                                        gs.get(1).phone(),
+                                        gs.get(1).idNumber(),
+                                        null,
+                                        true)),
+                        base.child().profile()),
+                base.declaration(),
+                null,
+                campusA);
+        var saved = enrollmentService.enroll(principal, chosen);
+        assertThat(saved.child().guardians()).hasSize(2);
+        assertThat(saved.child().guardians())
+                .extracting(g -> g.accountRecipient())
+                .containsExactly(false, true);
+        assertThat(saved.guardianAccounts())
+                .singleElement()
+                .extracting(g -> g.phone())
+                .isEqualTo("0918888002");
+        assertThat(count("SELECT count(*) FROM user_accounts")).isEqualTo(before + 1);
+        assertThat(count(
+                        "SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL",
+                        saved.child().id()))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM user_accounts WHERE username = '0918888001'"))
+                .isZero();
+    }
+
+    @Test
+    void importDefersActivationAndRejectsStaleRecipient() {
+        EnrollChildRequest row = request(
+                "Trẻ Nhập Chọn",
+                "2023-04-05",
+                null,
+                campusA,
+                newGuardian("0918888011", "999900000581"),
+                new GuardianInput("Bố Chọn", "FATHER", "0918888012", "999900000582", null));
+        long before = count("SELECT count(*) FROM user_accounts");
+        Long childId = imports.importRows(
+                        vicePrincipal,
+                        new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                                List.of(row), campusA))
+                .ids()
+                .getFirst();
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM user_accounts")).isEqualTo(before);
+        assertThat(count("SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL", childId))
+                .isZero();
+        var candidates = selectedAccounts.candidates(vicePrincipal, childId);
+        Long old = candidates.get(0).id();
+        Long next = candidates.get(1).id();
+        selectedAccounts.select(vicePrincipal, childId, next);
+        expectCode(() -> selectedAccounts.activate(vicePrincipal, childId, old), ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+        verifyNoInteractions(identityProviderClient);
+        var activated = selectedAccounts.activate(vicePrincipal, childId, next);
+        assertThat(activated).singleElement().satisfies(a -> {
+            assertThat(a.username()).isEqualTo("0918888012");
+            assertThat(a.newAccount()).isTrue();
+        });
+        assertThat(selectedAccounts.activate(vicePrincipal, childId, next))
+                .singleElement()
+                .satisfies(a -> assertThat(a.newAccount()).isFalse());
+        assertThat(count("SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL", childId))
+                .isEqualTo(1);
+        expectCode(() -> selectedAccounts.select(vicePrincipal, childId, old), ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+    }
+
+    @Test
+    void selectedAccountOperationsDenyOtherCampusIncludingPendingChildren() {
+        var row = request("Trẻ Ngoài Phạm Vi", "2023-04-06", null, campusB, newGuardian("0918888021", "999900000591"));
+        Long childId = imports.importRows(
+                        principal,
+                        new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                                List.of(row), campusB))
+                .ids()
+                .getFirst();
+        expectCode(() -> selectedAccounts.candidates(vicePrincipal, childId), ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        var candidates = selectedAccounts.candidates(principal, childId);
+        expectCode(
+                () -> selectedAccounts.select(
+                        vicePrincipal, childId, candidates.getFirst().id()),
+                ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        expectCode(
+                () -> selectedAccounts.activate(
+                        vicePrincipal, childId, candidates.getFirst().id()),
+                ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        verifyNoInteractions(identityProviderClient);
+    }
+
+    @Autowired
+    private com.carenest.repository.account.UserAccountRepository accountRepository;
+
+    @Test
+    void citizenIdClaimDoesNotAcceptConcurrentDifferentIdentity() {
+        long accountId = staff("0918888991", "PARENT");
+        assertThat(accountRepository.claimCitizenId(accountId, "999900000991")).isEqualTo(1);
+        assertThat(accountRepository.claimCitizenId(accountId, "999900000991")).isEqualTo(1);
+        assertThat(accountRepository.claimCitizenId(accountId, "999900000992")).isZero();
+        assertThat(jdbc.queryForObject("SELECT citizen_id FROM user_accounts WHERE id = ?", String.class, accountId))
+                .isEqualTo("999900000991");
+    }
+
+    @Test
+    void importBatchAllowsDifferentFamiliesAndRejectsOverlappingGuardians() {
+        var first = request("Trẻ Trùng Tên", "2023-02-02", null, campusA, newGuardian("0918888911", "999900000911"));
+        var other = request("Trẻ Trùng Tên", "2023-02-02", null, campusA, newGuardian("0918888912", "999900000912"));
+        var result = imports.importRows(
+                principal,
+                new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                        List.of(first, other), campusA));
+        assertThat(result.created()).isEqualTo(2);
+        var one = request("Trẻ Trùng Gia Đình", "2023-02-03", null, campusA, newGuardian("0918888921", "999900000921"));
+        var two = request(
+                "Trẻ Trùng Gia Đình",
+                "2023-02-03",
+                null,
+                campusA,
+                newGuardian("0918888921", "999900000921"),
+                newGuardian("0918888922", "999900000922"));
+        long before = count("SELECT count(*) FROM children");
+        expectCode(
+                () -> imports.importRows(
+                        principal,
+                        new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                                List.of(one, two), campusA)),
+                ApiCode.INVALID_REQUEST_DATA);
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-04: xem trước Excel như BE giả FE — trẻ trùng đã nghỉ chỉ ghi chú mở lại hồ sơ cũ,"
+            + " trẻ trùng đang học vẫn lỗi, phụ huynh trùng CCCD tài khoản có ghi chú")
+    void importPreviewNotesWithdrawnDuplicateAndExistingAccount() {
+        parent("0918888931", "Mẹ Đã Có Tài Khoản", null, "999900000931");
+        Long leftId = enrollmentService
+                .enroll(
+                        principal,
+                        request(
+                                "Trẻ Đã Nghỉ Nhập",
+                                "2023-03-03",
+                                null,
+                                campusA,
+                                newGuardian("0918888941", "999900000941")))
+                .child()
+                .id();
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = ?, left_reason = 'Đã nghỉ (giả)' WHERE id = ?",
+                TODAY,
+                leftId);
+        String leftCode = jdbc.queryForObject("SELECT code FROM children WHERE id = ?", String.class, leftId);
+        enrollmentService.enroll(
+                principal,
+                request("Trẻ Đang Học Nhập", "2023-03-04", null, campusA, newGuardian("0918888951", "999900000951")));
+        entityManager.flush();
+        entityManager.clear();
+
+        var preview = imports.preview(
+                principal,
+                importCsv(
+                        importRow(
+                                "Trẻ Mới Có Mẹ Tài Khoản",
+                                "05/03/2023",
+                                "Mẹ Đã Có Tài Khoản",
+                                "0918888931",
+                                "999900000931"),
+                        importRow("Trẻ Đã Nghỉ Nhập", "03/03/2023", "Phụ Huynh Mới", "0918888941", "999900000941"),
+                        importRow("Trẻ Đang Học Nhập", "04/03/2023", "Phụ Huynh Mới", "0918888951", "999900000951")));
+
+        var rows = preview.rows();
+        assertThat(rows.get(0).errors()).isEmpty();
+        assertThat(rows.get(0).notes())
+                .contains(
+                        "Phụ huynh đã có tài khoản (trùng CCCD): Mẹ Đã Có Tài Khoản · 0918888931. Dùng thông tin tài khoản,"
+                                + " chỉ liên kết người được chọn khi kích hoạt sau khi nhập.");
+        assertThat(rows.get(1).errors()).isEmpty();
+        assertThat(rows.get(1).notes())
+                .contains("Trẻ từng học ở trường (hồ sơ cũ " + leftCode
+                        + ", đã nghỉ học): nên mở lại hồ sơ cũ ở Tiếp nhận trẻ thay vì nhập mới.");
+        assertThat(rows.get(2).errors())
+                .contains("Trẻ đã có hồ sơ trong hệ thống (trùng họ tên, ngày sinh và phụ huynh)");
+        assertThat(rows.get(2).notes()).noneMatch(n -> n.startsWith("Trẻ từng học ở trường"));
+    }
+
+    /** File CSV theo mẫu nhập trẻ (cột bắt buộc của ChildEnrollmentImportServiceImpl), một phụ huynh mỗi dòng. */
+    private static org.springframework.mock.web.MockMultipartFile importCsv(List<String>... rows) {
+        List<String> header = List.of(
+                "Họ tên trẻ",
+                "Ngày sinh (dd/mm/yyyy)",
+                "Giới tính (Nam/Nữ)",
+                "Họ tên phụ huynh",
+                "Quan hệ (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ)",
+                "Số điện thoại",
+                "Số CCCD phụ huynh",
+                "Sinh non (Có/Không)",
+                "Tuần thai khi sinh (20–42)",
+                "Dân tộc",
+                "Đối tượng",
+                "Nơi ở - Tỉnh/thành",
+                "Nơi ở - Phường/xã",
+                "Nơi ở - Số nhà/thôn/xóm",
+                "Tiền sử bản thân (\"Không\" hoặc tên bệnh)",
+                "Tiền sử gia đình (\"Không\" hoặc tên bệnh)",
+                "Tiếp xúc người bệnh lao (Có/Không)");
+        StringBuilder csv = new StringBuilder();
+        for (List<String> line : java.util.stream.Stream.concat(
+                        java.util.stream.Stream.of(header), java.util.Arrays.stream(rows))
+                .toList()) {
+            csv.append(line.stream()
+                            .map(v -> "\"" + v.replace("\"", "\"\"") + "\"")
+                            .collect(java.util.stream.Collectors.joining(",")))
+                    .append("\n");
+        }
+        return new org.springframework.mock.web.MockMultipartFile(
+                "file", "tiep-nhan.csv", "text/csv", csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static List<String> importRow(
+            String fullName, String dateOfBirth, String guardian, String phone, String citizenId) {
+        return List.of(
+                fullName,
+                dateOfBirth,
+                "Nữ",
+                guardian,
+                "Mẹ",
+                phone,
+                citizenId,
+                "Không",
+                "39",
+                "Kinh",
+                "Không",
+                "Hà Nội",
+                "Cầu Giấy",
+                "1 Láng",
+                "Không",
+                "Không",
+                "Không");
+    }
+
+    @Autowired
+    private com.carenest.service.account.GuardianAccountService legacyAccounts;
+
+    @Test
+    void selectedAccountProjectionUsesStoredAccountIdRatherThanAmbiguousIdentity() {
+        var row = request(
+                "Trẻ Legacy Chiếu Tài Khoản", "2023-02-06", null, campusA, newGuardian("0918888981", "999900000981"));
+        var saved = enrollmentService.enroll(principal, row);
+        Long childId = saved.child().id();
+        Long selectedUser = selectedAccounts.selectedAccountId(principal, childId);
+        jdbc.update("UPDATE child_guardians SET phone = '0901000001' WHERE child_id = ?", childId);
+        // Một phụ huynh khác của trẻ cũng đã có tài khoản: chiếu vẫn theo người được chọn, không theo SĐT trùng
+        jdbc.update(
+                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
+                        + " linked_at) VALUES (?, 1, 'Bố Legacy', 'FATHER', '0918888982', '999900000982', ?, now())",
+                childId,
+                existingParent);
+        entityManager.clear();
+        assertThat(legacyAccounts.listGuardians(principal, childId))
+                .singleElement()
+                .satisfies(g -> assertThat(g.userId()).isEqualTo(selectedUser));
+        assertThat(count("SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL", childId))
+                .isEqualTo(2);
+    }
+
+    @Test
+    void pendingScopeDoesNotGrantVicePrincipalAccessToLeavers() {
+        var row =
+                request("Trẻ Đã Nghỉ Phạm Vi", "2023-02-08", null, campusA, newGuardian("0918888971", "999900000971"));
+        var saved = enrollmentService.enroll(principal, row);
+        Long childId = saved.child().id();
+        Long accountId = selectedAccounts.selectedAccountId(principal, childId);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = ?, left_reason = 'Đã nghỉ (giả)' WHERE id = ?",
+                TODAY,
+                childId);
+        entityManager.clear();
+        expectCode(() -> selectedAccounts.candidates(vicePrincipal, childId), ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        expectCode(() -> selectedAccounts.checkParentScope(vicePrincipal, accountId), ApiCode.ACCOUNT_MANAGE_DENIED);
+    }
 
     private static EnrollChildRequest request(
             String fullName, String dateOfBirth, Long classId, Long campusId, GuardianInput... guardians) {
@@ -613,11 +1104,17 @@ class ChildEnrollmentIntegrationTest {
                         fullName,
                         dateOfBirth,
                         "FEMALE",
-                        List.of(guardians),
+                        java.util.stream.IntStream.range(0, guardians.length)
+                                .mapToObj(i -> {
+                                    GuardianInput g = guardians[i];
+                                    return new GuardianInput(
+                                            g.fullName(), g.relation(), g.phone(), g.idNumber(), g.email(), i == 0);
+                                })
+                                .toList(),
                         new ChildProfileInput(
                                 null,
                                 "NO",
-                                null,
+                                39,
                                 "Kinh",
                                 "Không",
                                 null,
@@ -676,21 +1173,16 @@ class ChildEnrollmentIntegrationTest {
     private void guardian(
             long childId, String fullName, String relationship, String phone, String citizenId, Long userId) {
         jdbc.update(
-                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id) "
-                        + "VALUES (?, 0, ?, ?, ?, ?, ?)",
+                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
+                        + " linked_at) VALUES (?, 0, ?, ?, ?, ?, ?, CASE WHEN CAST(? AS BIGINT) IS NULL THEN NULL"
+                        + " ELSE now() END)",
                 childId,
                 fullName,
                 relationship,
                 phone,
                 citizenId,
+                userId,
                 userId);
-        if (userId != null) {
-            jdbc.update(
-                    "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, ?)",
-                    userId,
-                    childId,
-                    relationship);
-        }
     }
 
     private long classroom(long campusId, long yearId, String name, long ageGroupId, int capacity) {

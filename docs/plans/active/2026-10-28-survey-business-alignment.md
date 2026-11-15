@@ -133,3 +133,5 @@ Chỉ làm khi user cho phép trong tin nhắn lúc đó. Trước đó chỉ li
   - Thực đơn dị ứng chưa có 2 mức (NUT-23); cho sửa thực đơn sau công bố (NUT-08).
   - App: điều chỉnh "+1 suất chờ duyệt" (ATT-03, NUT-04); GV đăng ảnh bữa (NUT-16); màn BGH (AUTH-21).
 - Tiếp: user review; commit cần mã Jira.
+
+Cập nhật tham chiếu P-28 ngày 05/11/2026: quyết định tiếp nhận mới một người nhận tài khoản, giữ liên kết cũ, đã triển khai theo [Spec013](../../../specs/013-selected-parent-account/domain-spec.md); các ghi nhận trước trong plan này là lịch sử.

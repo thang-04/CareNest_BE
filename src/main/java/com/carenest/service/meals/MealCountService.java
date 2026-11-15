@@ -1,5 +1,6 @@
 package com.carenest.service.meals;
 
+import com.carenest.dto.meals.ClassMealCountResponse;
 import com.carenest.dto.meals.MealAdjustRequest;
 import com.carenest.dto.meals.MealCountDayResponse;
 import com.carenest.dto.meals.MealCountResponse;
@@ -12,6 +13,12 @@ public interface MealCountService {
 
     /** schoolYearId = năm chọn ở header; null = năm đang hoạt động. Sau giờ chốt tự tổng hợp số của ngày. */
     MealCountDayResponse getMealCounts(CurrentUser currentUser, LocalDate date, Long schoolYearId);
+
+    /**
+     * Suất ăn của một lớp trong ngày cho người xem được lớp (giáo viên được phân công, HT, PHT theo phạm vi); lớp
+     * không xem được ⇒ CLASS_ACCESS_DENIED. Chỉ đọc: không lập sổ, số lấy từ sổ đã lập hoặc tạm tính từ điểm danh.
+     */
+    ClassMealCountResponse getClassMealCount(CurrentUser currentUser, Long classId, LocalDate date);
 
     MealCountResponse confirm(CurrentUser currentUser, Long mealCountId);
 

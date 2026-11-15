@@ -52,6 +52,10 @@ public class StaffingServiceImpl implements StaffingService {
             Long campusId =
                     staffAssignmentService.resolveCampusId(staffRole, request.campusId(), request.classroomId());
             staffAccessPolicy.checkCanAssign(actor, staffRole, campusId);
+            // GV khóa đã bị chặn ở luật xếp lớp (2305, AUTH-24); PHT/bếp khóa cũng không nhận phân công mới
+            if (staffRole != StaffRole.TEACHER && !target.isActive()) {
+                throw GlobalException.of(ApiCode.STAFF_ACCOUNT_LOCKED);
+            }
 
             StaffAssignmentResponse created = staffAssignmentService.createAssignment(new NewStaffAssignment(
                     target.getId(),
@@ -61,7 +65,8 @@ public class StaffingServiceImpl implements StaffingService {
                     request.validFrom() == null ? LocalDate.now(clock) : request.validFrom(),
                     request.validTo(),
                     actor.userId(),
-                    Boolean.TRUE.equals(request.substitute())));
+                    Boolean.TRUE.equals(request.substitute()),
+                    request.replacedTeacherId()));
             log.info("{}|assignmentId={}|END", logPrefix, created.id());
             return created;
         } catch (RuntimeException ex) {

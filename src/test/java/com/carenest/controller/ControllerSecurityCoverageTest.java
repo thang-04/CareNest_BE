@@ -103,6 +103,12 @@ class ControllerSecurityCoverageTest {
                 // hasRole(ADMIN)
                 "AccountController#createAccount", EnumSet.of(CareNestRole.ADMIN, CareNestRole.PRINCIPAL),
                 "AccountController#updateAccountStatus", EnumSet.of(CareNestRole.ADMIN, CareNestRole.PRINCIPAL),
+                "AttendanceController#saveClassAttendance", EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+                "AttendanceController#unlockDay", EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+                "DailyAssessmentController#saveGeneral", EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+                "AssessmentDayUnlockController#unlockDay",
+                        EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+                "ClassRatingController#saveRatings", EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
                 // NUT-02: xác nhận số suất giữ HT + PHT như hasAnyRole cũ; phạm vi theo mảng kiểm ở service (AUTH-20)
                 "MealCountController#confirm", EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL));
         Map<String, String> handlers = preAuthorizeByHandler();

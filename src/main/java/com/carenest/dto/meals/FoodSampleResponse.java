@@ -31,5 +31,6 @@ public record FoodSampleResponse(
         Instant disposalApprovedAt,
         boolean canApprove) {
 
-    public record SampleDish(Long id, String code, String name) {}
+    /** {@code weight}, {@code container}, {@code temperature}: ghi chú Mẫu 5 của món, rỗng khi chưa ghi. */
+    public record SampleDish(Long id, String code, String name, String weight, String container, String temperature) {}
 }

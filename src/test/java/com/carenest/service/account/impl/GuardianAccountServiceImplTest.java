@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.carenest.dto.child.ActivationCodeResponse;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
 import com.carenest.dto.child.GuardianCandidateResponse;
@@ -32,6 +33,7 @@ import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
+import com.carenest.utils.enums.SmsStatus;
 import com.carenest.utils.enums.UserStatus;
 import java.time.Instant;
 import java.util.List;
@@ -53,6 +55,8 @@ class GuardianAccountServiceImplTest {
     private static final Long CHILD = 101L;
     private static final AddGuardianRequest REQUEST = withEmail(null);
 
+    private final com.carenest.service.account.SelectedParentAccountService selected =
+            mock(com.carenest.service.account.SelectedParentAccountService.class);
     private final UserAccountRepository accounts = mock(UserAccountRepository.class);
     private final GuardianChildLinkService links = mock(GuardianChildLinkService.class);
     private final ChildService children = mock(ChildService.class);
@@ -60,18 +64,39 @@ class GuardianAccountServiceImplTest {
     private final IdentityProviderClient identity = mock(IdentityProviderClient.class);
     private final AuthStateStore authState = mock(AuthStateStore.class);
     private final TemporaryPasswordGenerator passwords = mock(TemporaryPasswordGenerator.class);
+    private final ParentActivationCodes activationCodes = mock(ParentActivationCodes.class);
+    private final ParentSmsSender smsSender = mock(ParentSmsSender.class);
     private final GuardianAccountServiceImpl service = new GuardianAccountServiceImpl(
+            selected,
             accounts,
             links,
             children,
+            mock(com.carenest.service.child.ChildListService.class),
+            mock(com.carenest.service.child.ChildIntakeService.class),
             policy,
             new AccountLifecycleOperations(
                     accounts, identity, authState, new TransactionTemplate(mock(PlatformTransactionManager.class))),
             passwords,
-            new AccountMapper());
+            new AccountMapper(),
+            activationCodes,
+            smsSender);
 
     @BeforeEach
     void setUp() {
+        given(accounts.claimCitizenId(any(), any())).willReturn(1);
+        given(selected.candidates(VICE, CHILD))
+                .willReturn(List.of(new com.carenest.dto.child.ChildGuardianResponse(
+                        "Demo",
+                        GuardianRelationship.MOTHER,
+                        "0912345678",
+                        "999900000001",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        1L,
+                        true)));
         given(children.childExists(CHILD)).willReturn(true);
         given(passwords.generate()).willReturn("Gen3rated7k");
         given(accounts.saveAndFlush(any())).willAnswer(invocation -> {
@@ -89,13 +114,13 @@ class GuardianAccountServiceImplTest {
 
         AddGuardianResponse response = service.addGuardian(VICE, CHILD, REQUEST);
 
-        verify(policy).checkCanManageChildGuardians(VICE, CHILD);
+        verify(selected, org.mockito.Mockito.atLeastOnce()).candidates(VICE, CHILD);
         ArgumentCaptor<NewIdentityUser> user = ArgumentCaptor.forClass(NewIdentityUser.class);
-        InOrder order = inOrder(identity, accounts, links);
+        InOrder order = inOrder(identity, accounts, selected);
         order.verify(identity).createUser(user.capture());
         order.verify(identity).assignRealmRole("kc-parent", "PARENT");
         order.verify(accounts).saveAndFlush(any());
-        order.verify(links).createLink(50L, CHILD, GuardianRelationship.MOTHER);
+        order.verify(selected).recordLink(VICE, CHILD, 1L, 50L);
         assertThat(user.getValue().username()).isEqualTo("0912345678");
         assertThat(user.getValue().email()).isNull();
         assertThat(user.getValue().temporaryPassword()).isEqualTo("Gen3rated7k");
@@ -111,7 +136,7 @@ class GuardianAccountServiceImplTest {
 
         AddGuardianResponse response = service.addGuardian(VICE, CHILD, confirmed(60L));
 
-        verify(links).createLink(60L, CHILD, GuardianRelationship.MOTHER);
+        verify(selected).recordLink(VICE, CHILD, 1L, 60L);
         verifyNoInteractions(identity);
         assertThat(response.newAccount()).isFalse();
         assertThat(response.temporaryPassword()).isNull();
@@ -120,6 +145,19 @@ class GuardianAccountServiceImplTest {
     @Test
     @DisplayName("AUTH-18: email phụ huynh chỉ để liên hệ ⇒ lưu ở CareNest (chữ thường), không gửi lên Keycloak")
     void storesContactEmailOnlyInCareNest() {
+        given(selected.candidates(VICE, CHILD))
+                .willReturn(List.of(new com.carenest.dto.child.ChildGuardianResponse(
+                        "Phụ huynh Demo",
+                        GuardianRelationship.MOTHER,
+                        "0912345678",
+                        "999900000001",
+                        "Me@Example.TEST",
+                        null,
+                        null,
+                        null,
+                        null,
+                        1L,
+                        true)));
         given(accounts.findByUsername("0912345678")).willReturn(Optional.empty());
         given(identity.createUser(any())).willReturn("kc-parent");
 
@@ -166,6 +204,20 @@ class GuardianAccountServiceImplTest {
     @Test
     @DisplayName("AUTH-18: danh sách phụ huynh của trẻ trả email liên hệ")
     void listGuardiansReturnsEmail() {
+        given(selected.selectedAccountId(VICE, CHILD)).willReturn(60L);
+        given(selected.candidates(VICE, CHILD))
+                .willReturn(List.of(new com.carenest.dto.child.ChildGuardianResponse(
+                        "Demo",
+                        GuardianRelationship.MOTHER,
+                        "u60",
+                        "999900000001",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        1L,
+                        true)));
         given(links.findLinksOfChild(CHILD))
                 .willReturn(List.of(new GuardianLinkResponse(60L, CHILD, GuardianRelationship.FATHER, Instant.EPOCH)));
         given(accounts.findAllById(List.of(60L)))
@@ -190,7 +242,7 @@ class GuardianAccountServiceImplTest {
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(99L)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED);
-        verify(links, never()).createLink(any(), any(), any());
+        verify(selected, never()).recordLink(any(), any(), any(), any());
         verifyNoInteractions(identity);
     }
 
@@ -203,9 +255,9 @@ class GuardianAccountServiceImplTest {
         AddGuardianResponse response = service.addGuardian(VICE, CHILD, confirmed(61L));
 
         verify(policy).checkCanManageAccount(VICE, 61L, CareNestRole.TEACHER);
-        InOrder order = inOrder(identity, links);
+        InOrder order = inOrder(identity, selected);
         order.verify(identity).assignRealmRole("kc-61", "PARENT");
-        order.verify(links).createLink(61L, CHILD, GuardianRelationship.MOTHER);
+        order.verify(selected).recordLink(VICE, CHILD, 1L, 61L);
         verify(identity, never()).createUser(any());
         verify(identity, never()).removeRealmRole(any(), any());
         assertThat(response.newAccount()).isFalse();
@@ -218,8 +270,8 @@ class GuardianAccountServiceImplTest {
         given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(61L, CareNestRole.TEACHER)));
         given(identity.getRealmRoleNames("kc-61")).willReturn(List.of("TEACHER"));
         willThrow(GlobalException.of(ApiCode.GUARDIAN_ALREADY_LINKED))
-                .given(links)
-                .createLink(61L, CHILD, GuardianRelationship.MOTHER);
+                .given(selected)
+                .recordLink(VICE, CHILD, 1L, 61L);
 
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(61L)))
                 .extracting("apiCode")
@@ -235,7 +287,7 @@ class GuardianAccountServiceImplTest {
         service.addGuardian(VICE, CHILD, confirmed(61L));
 
         verify(identity, never()).assignRealmRole(any(), any());
-        verify(links).createLink(61L, CHILD, GuardianRelationship.MOTHER);
+        verify(selected).recordLink(VICE, CHILD, 1L, 61L);
     }
 
     @Test
@@ -250,7 +302,7 @@ class GuardianAccountServiceImplTest {
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.ACCOUNT_MANAGE_DENIED);
         verifyNoInteractions(identity);
-        verify(links, never()).createLink(any(), any(), any());
+        verify(selected, never()).recordLink(any(), any(), any(), any());
     }
 
     @Test
@@ -292,8 +344,8 @@ class GuardianAccountServiceImplTest {
     @Test
     void candidateLookupChecksChildScopeFirst() {
         willThrow(GlobalException.of(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED))
-                .given(policy)
-                .checkCanManageChildGuardians(VICE, CHILD);
+                .given(selected)
+                .candidates(VICE, CHILD);
 
         assertThatThrownBy(() -> service.findGuardianCandidate(VICE, CHILD, "0912345678"))
                 .extracting("apiCode")
@@ -314,8 +366,8 @@ class GuardianAccountServiceImplTest {
     @DisplayName("AUTH-08: trẻ ngoài campus ⇒ 403 trước khi đụng Keycloak/DB")
     void childOutOfScopeIsDenied() {
         willThrow(GlobalException.of(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED))
-                .given(policy)
-                .checkCanManageChildGuardians(VICE, CHILD);
+                .given(selected)
+                .candidates(VICE, CHILD);
 
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, REQUEST))
                 .extracting("apiCode")
@@ -327,7 +379,9 @@ class GuardianAccountServiceImplTest {
     void linkFailureAfterKeycloakCreateDeletesKeycloakUser() {
         given(accounts.findByUsername("0912345678")).willReturn(Optional.empty());
         given(identity.createUser(any())).willReturn("kc-parent");
-        given(links.createLink(any(), any(), any())).willThrow(GlobalException.of(ApiCode.GUARDIAN_ALREADY_LINKED));
+        willThrow(GlobalException.of(ApiCode.GUARDIAN_ALREADY_LINKED))
+                .given(selected)
+                .recordLink(VICE, CHILD, 1L, 50L);
 
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, REQUEST))
                 .extracting("apiCode")
@@ -342,11 +396,54 @@ class GuardianAccountServiceImplTest {
 
         ParentPasswordResponse response = service.resetParentPassword(VICE, 60L);
 
-        verify(policy).checkCanManageParent(VICE, 60L);
+        verify(selected).checkParentScope(VICE, 60L);
         verify(identity).resetTemporaryPassword("kc-60", "Gen3rated7k");
         verify(authState).revokeAccountAuth(60L);
         verify(identity).logoutUser("kc-60");
         assertThat(response.temporaryPassword()).isEqualTo("Gen3rated7k");
+    }
+
+    @Test
+    @DisplayName("AUTH-18: gửi lại mã qua SMS thật thành công ⇒ không trả mã")
+    void resendActivationCodeHidesCodeWhenRealSmsSent() {
+        UserAccount parent = account(60L, CareNestRole.PARENT);
+        given(accounts.findById(60L)).willReturn(Optional.of(parent));
+        Instant expires = Instant.parse("2026-11-14T03:00:00Z");
+        given(activationCodes.reissue(60L)).willReturn(new ParentActivationCodes.Issued("654321", expires));
+        given(smsSender.sendActivationCode(parent, "654321")).willReturn(SmsStatus.SENT);
+        given(smsSender.activationCodeMode()).willReturn(true);
+
+        ActivationCodeResponse response = service.resendActivationCode(VICE, 60L);
+
+        verify(selected).checkParentScope(VICE, 60L);
+        assertThat(response.smsStatus()).isEqualTo(SmsStatus.SENT);
+        assertThat(response.expiresAt()).isEqualTo(expires);
+        assertThat(response.activationCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("AUTH-18: SMS lỗi hoặc cổng giả ⇒ trả mã để in phiếu")
+    void resendActivationCodeReturnsCodeForPrintWhenSmsNotDelivered() {
+        UserAccount parent = account(60L, CareNestRole.PARENT);
+        given(accounts.findById(60L)).willReturn(Optional.of(parent));
+        given(activationCodes.reissue(60L))
+                .willReturn(new ParentActivationCodes.Issued("654321", Instant.parse("2026-11-14T03:00:00Z")));
+        given(smsSender.sendActivationCode(parent, "654321")).willReturn(SmsStatus.FAILED);
+        given(smsSender.activationCodeMode()).willReturn(true);
+
+        assertThat(service.resendActivationCode(VICE, 60L).activationCode()).isEqualTo("654321");
+    }
+
+    @Test
+    @DisplayName("AUTH-18: ngoài phạm vi điểm trường ⇒ không cấp mã")
+    void resendActivationCodeOutsideScopeDenied() {
+        given(accounts.findById(60L)).willReturn(Optional.of(account(60L, CareNestRole.PARENT)));
+        willThrow(GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED))
+                .given(selected)
+                .checkParentScope(VICE, 60L);
+
+        assertThatThrownBy(() -> service.resendActivationCode(VICE, 60L)).isInstanceOf(GlobalException.class);
+        verifyNoInteractions(activationCodes, smsSender);
     }
 
     @Test
@@ -370,6 +467,26 @@ class GuardianAccountServiceImplTest {
         verify(links).deleteLink(60L, CHILD);
         verifyNoInteractions(identity);
         verify(accounts, never()).delete(any(UserAccount.class));
+    }
+
+    @Test
+    void failedCitizenIdClaimRejectsLegacyLink() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(60L, CareNestRole.PARENT)));
+        given(accounts.claimCitizenId(60L, "999900000001")).willReturn(0);
+        assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(60L)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+    }
+
+    @Test
+    void legacyRouteCannotActivateUnselectedPhone() {
+        assertThatThrownBy(() -> service.addGuardian(
+                        VICE,
+                        CHILD,
+                        new AddGuardianRequest("0912345679", "Khác", GuardianRelationship.FATHER, null, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+        verifyNoInteractions(identity, accounts);
     }
 
     private static AddGuardianRequest confirmed(Long userId) {

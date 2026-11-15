@@ -17,10 +17,24 @@ public class GlobalException extends RuntimeException {
     /** Lỗi theo ô (C-5): trả trong {@code data} dạng {@code [{ field, message }]}; rỗng = lỗi không gắn ô. */
     private final List<FieldErrorResponse> fieldErrors;
 
+    /** Dữ liệu máy đọc kèm lỗi (trả trong {@code data}); null = không có. */
+    private final Object data;
+
     private GlobalException(ApiCode apiCode, String desc, Throwable cause, List<FieldErrorResponse> fieldErrors) {
+        this(apiCode, desc, cause, fieldErrors, null);
+    }
+
+    private GlobalException(
+            ApiCode apiCode, String desc, Throwable cause, List<FieldErrorResponse> fieldErrors, Object data) {
         super(desc, cause);
         this.apiCode = apiCode;
         this.fieldErrors = List.copyOf(fieldErrors);
+        this.data = data;
+    }
+
+    /** Như {@link #of(ApiCode, Object...)} kèm {@code data} để client xử lý theo cấu trúc (vd. {@code { details }}). */
+    public static GlobalException withData(ApiCode apiCode, Object data, Object... args) {
+        return new GlobalException(apiCode, apiCode.format(args), null, List.of(), data);
     }
 
     /** Lỗi theo mã tập trung trong {@link ApiCode}: câu lỗi lấy từ mã, {@code args} thay vào {0}, {1}... */

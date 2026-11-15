@@ -2,7 +2,6 @@ package com.carenest.service.eduplan.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -13,7 +12,6 @@ import com.carenest.repository.eduplan.EduDomainRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,13 +41,27 @@ class EduGoalFileServiceImplTest {
     @Mock
     private EduPlanAccessPolicy accessPolicy;
 
+    @Mock
+    private com.carenest.service.eduplan.EduWorkflowService workflow;
+
+    @Mock
+    private com.carenest.service.organization.SchoolStructureService schoolStructure;
+
     @InjectMocks
     private EduGoalFileServiceImpl service;
+
+    @org.junit.jupiter.api.BeforeEach
+    void configuredAgeGroup() {
+        given(schoolStructure.findAgeGroups())
+                .willReturn(List.of(
+                        new com.carenest.dto.organization.AgeGroupResponse(3L, "ag-3", "Ba tuổi", "3", (short) 1)));
+    }
 
     @Test
     @DisplayName("Không có quyền sửa kế hoạch năm ⇒ 7005, không đọc file")
     void rejectsWithoutEditPermission() {
-        given(accessPolicy.hasPermission(any(), eq(EduPermission.GOALS_EDIT))).willReturn(false);
+        given(workflow.isAuthorEligible(eq(TEACHER), eq("schoolYear"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn(false);
 
         assertThatThrownBy(() -> service.preview(TEACHER, file("a.csv", CSV.getBytes(StandardCharsets.UTF_8))))
                 .isInstanceOfSatisfying(
@@ -61,7 +73,8 @@ class EduGoalFileServiceImplTest {
     @Test
     @DisplayName("File trên 2 MB ⇒ 7035")
     void rejectsLargeFile() {
-        given(accessPolicy.hasPermission(any(), eq(EduPermission.GOALS_EDIT))).willReturn(true);
+        given(workflow.isAuthorEligible(eq(TEACHER), eq("schoolYear"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn(true);
 
         assertThatThrownBy(() -> service.preview(TEACHER, file("a.csv", new byte[2 * 1024 * 1024 + 1])))
                 .isInstanceOfSatisfying(
@@ -72,7 +85,8 @@ class EduGoalFileServiceImplTest {
     @Test
     @DisplayName("Chỉ dùng lĩnh vực đang bật trong cấu hình")
     void usesActiveConfiguredDomains() {
-        given(accessPolicy.hasPermission(any(), eq(EduPermission.GOALS_EDIT))).willReturn(true);
+        given(workflow.isAuthorEligible(eq(TEACHER), eq("schoolYear"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn(true);
         EduDomain active = Mockito.mock(EduDomain.class);
         given(active.isActive()).willReturn(true);
         given(active.getName()).willReturn("Phát triển thể chất");
@@ -90,7 +104,8 @@ class EduGoalFileServiceImplTest {
     @Test
     @DisplayName("EDU-46: .doc nhị phân qua service vẫn dùng quyền và lĩnh vực cấu hình hiện có")
     void binaryDocUsesConfiguredDomains() throws IOException {
-        given(accessPolicy.hasPermission(any(), eq(EduPermission.GOALS_EDIT))).willReturn(true);
+        given(workflow.isAuthorEligible(eq(TEACHER), eq("schoolYear"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn(true);
         EduDomain active = Mockito.mock(EduDomain.class);
         given(active.isActive()).willReturn(true);
         given(active.getName()).willReturn("Phát triển thể chất");

@@ -9,6 +9,8 @@ public interface EduConfigService {
 
     EduConfigResponse getEduConfig();
 
+    EduConfigResponse getEduConfig(CurrentUser currentUser);
+
     /** EDU-11: Hiệu trưởng, Phó HT lưu tên lĩnh vực, lĩnh vực thêm, chuỗi người ký, dòng hoạt động tuần. */
     EduConfigResponse updateEduConfig(CurrentUser currentUser, EduConfigRequest request);
 }

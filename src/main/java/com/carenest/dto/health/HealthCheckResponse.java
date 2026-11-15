@@ -9,8 +9,8 @@ import java.util.List;
 
 /**
  * Đợt khám hoặc kỳ cân đo. {@code progress} tính trên các lớp người xem được: phiếu khám nháp ({@code inProgress}, đợt
- * đã đóng {@code notConcluded}), trẻ cần theo dõi / theo dõi sát ({@code watch}, {@code closeWatch}); {@code
- * *FollowUpCount}: phiếu theo dõi đang mở của trẻ trong danh sách chờ trao đổi phụ huynh, đã quá hạn.
+ * đã đóng {@code notConcluded}), trẻ cần theo dõi / theo dõi sát theo kết luận bác sĩ ({@code watch}, {@code
+ * closeWatch}), số trẻ theo mức BMI của kỳ cân đo ({@code bmi}, đợt khám luôn 0 — HLT-18).
  */
 public record HealthCheckResponse(
         Long id,
@@ -32,8 +32,6 @@ public record HealthCheckResponse(
         Instant cancelledAt,
         boolean hasResults,
         HealthCheckProgress progress,
-        int waitingFollowUpCount,
-        int overdueFollowUpCount,
         List<HealthCheckHistory> history) {
 
     public record HealthCheckProgress(
@@ -44,7 +42,11 @@ public record HealthCheckResponse(
             int notConcluded,
             int absent,
             int watch,
-            int closeWatch) {}
+            int closeWatch,
+            HealthBmiProgress bmi) {}
+
+    /** Số trẻ có cảnh báo BMI theo từng mức (không đếm mức bình thường). */
+    public record HealthBmiProgress(int severeThinness, int thinness, int overweightRisk, int overweight, int obese) {}
 
     public record HealthCheckHistory(
             HealthCheckAction action, Long userId, String userName, String reason, Instant at) {}

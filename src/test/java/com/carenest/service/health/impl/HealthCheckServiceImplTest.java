@@ -71,7 +71,8 @@ class HealthCheckServiceImplTest {
             mock(HealthMeasurementRepository.class),
             schoolStructure,
             mock(ChildService.class),
-            mock(AccountService.class));
+            mock(AccountService.class),
+            mock(HealthNotifier.class));
 
     @BeforeEach
     void setUp() {

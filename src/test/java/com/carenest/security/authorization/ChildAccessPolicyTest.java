@@ -41,14 +41,12 @@ class ChildAccessPolicyTest {
     private final ClassroomService classroomService = mock(ClassroomService.class);
     private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
     private final GuardianChildLinkService guardianChildLinkService = mock(GuardianChildLinkService.class);
+    private final CampusAccessPolicy campusAccessPolicy = new CampusAccessPolicy(staffAssignmentService, FIXED_CLOCK);
     private final ChildAccessPolicy policy = new ChildAccessPolicy(
             enrollmentService,
             guardianChildLinkService,
-            new ClassroomAccessPolicy(
-                    staffAssignmentService,
-                    classroomService,
-                    new CampusAccessPolicy(staffAssignmentService, FIXED_CLOCK),
-                    FIXED_CLOCK),
+            new ClassroomAccessPolicy(staffAssignmentService, classroomService, campusAccessPolicy, FIXED_CLOCK),
+            campusAccessPolicy,
             FIXED_CLOCK);
 
     @BeforeEach
@@ -204,6 +202,37 @@ class ChildAccessPolicyTest {
                 .hasMessage(ApiCode.CHILD_ACCESS_DENIED.getDefaultDesc())
                 .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
                 .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
+    }
+
+    @Test
+    @DisplayName("AUTH-01: Hiệu trưởng xem được trẻ chờ xếp lớp theo điểm trường tiếp nhận")
+    void principalCanViewChildPendingPlacement() {
+        CurrentUser principal = user(CareNestRole.PRINCIPAL);
+        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY))
+                .willReturn(true);
+        given(enrollmentService.findPendingPlacementCampusId(CHILD_WITHOUT_ENROLLMENT))
+                .willReturn(Optional.of(CAMPUS_A));
+
+        assertThat(policy.canViewChild(principal, CHILD_WITHOUT_ENROLLMENT)).isTrue();
+        assertThat(policy.canReadChild(principal, CHILD_WITHOUT_ENROLLMENT)).isTrue();
+    }
+
+    @Test
+    @DisplayName("AUTH-02: PHT chỉ thao tác trẻ chờ xếp lớp của điểm trường mình; GV không có phạm vi điểm trường")
+    void pendingPlacementChildFollowsIntakeCampusScope() {
+        CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+        CurrentUser teacher = teacherOf(CLASS_B1);
+        given(enrollmentService.findPendingPlacementCampusId(CHILD_WITHOUT_ENROLLMENT))
+                .willReturn(Optional.of(CAMPUS_A));
+        assertThat(policy.canViewChild(vicePrincipal, CHILD_WITHOUT_ENROLLMENT)).isTrue();
+        assertThat(policy.canViewChild(teacher, CHILD_WITHOUT_ENROLLMENT)).isFalse();
+
+        given(enrollmentService.findPendingPlacementCampusId(CHILD_WITHOUT_ENROLLMENT))
+                .willReturn(Optional.of(CAMPUS_B));
+        assertThat(policy.canViewChild(vicePrincipal, CHILD_WITHOUT_ENROLLMENT)).isFalse();
     }
 
     private CurrentUser teacherOf(long classroomId) {

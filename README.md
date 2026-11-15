@@ -77,7 +77,7 @@ flowchart LR
     API -->|"JWT, Admin API"| KC
     API --> DB[("PostgreSQL 17")]
     API --> S3[("S3<br/>học liệu")]
-    API --> SMTP["SMTP<br/>Mailpit khi dev"]
+    API --> SMTP["SMTP<br/>Gmail (VPS: Mailpit)"]
 ```
 
 - Luồng request: `controller → service → repository`. Entity không trả qua API; mapper chuyển Entity sang DTO.
@@ -134,14 +134,14 @@ cp .env.example .env    # bắt buộc; đổi các giá trị change-me khi lê
 docker compose up --build
 ```
 
-Compose dựng PostgreSQL, Keycloak (import realm `carenest`), Mailpit và API với profile `dev` (nạp dữ liệu mẫu). Swagger UI: <http://localhost:8080/swagger-ui/index.html>.
+Compose dựng PostgreSQL, Keycloak (import realm `carenest`, email gửi thật qua Gmail) và API với profile `dev` (nạp dữ liệu mẫu). Swagger UI: <http://localhost:8080/swagger-ui/index.html>.
 
-User dev (8 tài khoản, bảng ở `docs/system/KEYCLOAK.md` mục 5) dùng mật khẩu `demo123` **chỉ ở máy local**. VPS demo dùng cùng user nhưng mật khẩu là `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` của VPS (`docs/system/DEPLOYMENT.md`).
+Bộ dữ liệu dev (Trường Mầm non Thượng Hồng: 2 cơ sở, 10 lớp, ~210 trẻ, đủ mọi vai trò, dữ liệu vận hành từ 01/09 tới hôm qua) sinh bằng `node scripts/dev/gen-dev-dataset.mjs`. Tài khoản đăng nhập (tên đăng nhập = SĐT) ở `docs/TAI_KHOAN_DEV.md`; mật khẩu `demo123` **chỉ ở máy local**. VPS dùng cùng user nhưng mật khẩu là `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` của VPS (`docs/system/DEPLOYMENT.md`).
 
 Chạy API trong IDE để debug, chỉ để hạ tầng trong Docker:
 
 ```bash
-docker compose up -d postgres keycloak mailpit
+docker compose up -d postgres keycloak
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
@@ -223,7 +223,7 @@ Chi tiết: [AGENTS.md](AGENTS.md), mục "Quy tắc chung CareNest".
 
 ## Trạng thái
 
-- **Đã có:** 6 module có code, migration V1–V40, gateway đăng nhập Web, phân quyền cấu hình được, học liệu S3, triển khai VPS qua CI.
+- **Đã có:** 9 package feature có code (`controller/` của `src/main/java/com/carenest`), migration Flyway trong `src/main/resources/db/migration`, gateway đăng nhập Web, phân quyền cấu hình được, học liệu S3, triển khai VPS qua CI.
 - **Chưa có:** sức khỏe định kỳ, đánh giá trẻ, thông báo, audit, AI, báo cáo; thực đơn và kho của module dinh dưỡng.
 
 Chi tiết từng module và các rule còn `PENDING`: [CURRENT_STATE](docs/context/CURRENT_STATE.md).

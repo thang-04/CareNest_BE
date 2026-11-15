@@ -57,6 +57,10 @@ public class StaffAssignment {
     @Column(name = "is_substitute", nullable = false)
     private boolean substitute;
 
+    // Dạy thay cho GV đứng lớp nào (Cần chốt 10/11/2026); dòng dạy thay cũ có thể trống
+    @Column(name = "replaced_user_id")
+    private Long replacedUserId;
+
     @Column(name = "school_year_id")
     private Long schoolYearId;
 
@@ -143,7 +147,21 @@ public class StaffAssignment {
             LocalDate validTo,
             Long assignedBy,
             boolean substitute) {
+        return create(userId, staffRole, campusId, classroomId, validFrom, validTo, assignedBy, substitute, null);
+    }
+
+    public static StaffAssignment create(
+            Long userId,
+            StaffRole staffRole,
+            Long campusId,
+            Long classroomId,
+            LocalDate validFrom,
+            LocalDate validTo,
+            Long assignedBy,
+            boolean substitute,
+            Long replacedUserId) {
         StaffAssignment assignment = new StaffAssignment();
+        assignment.replacedUserId = replacedUserId;
         assignment.assignedBy = assignedBy;
         assignment.substitute = substitute;
         assignment.userId = userId;

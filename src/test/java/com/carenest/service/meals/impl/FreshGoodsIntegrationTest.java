@@ -162,6 +162,32 @@ class FreshGoodsIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "NUT-12: đơn vị mua đếm được ⇒ lượng đặt từng ngày làm tròn lên nguyên đơn vị; đơn vị cân đo giữ số lẻ")
+    void forecastRoundsCountablePurchaseUnitUpPerDay() {
+        jdbc.update("UPDATE foods SET purchase_unit = 'hộp 100 g', purchase_unit_size = 100 WHERE id = ?", pork);
+
+        FreshForecastResponse preview = freshService.previewForecast(principal, request(MONDAY, FRIDAY, null));
+
+        // Thịt 2 × 40 g = 80 g/ngày ⇒ đặt 1 hộp 100 g mỗi ngày; rau (kg) giữ 125 g/ngày
+        assertThat(preview.lines())
+                .filteredOn(l -> "THIT".equals(l.food().code()))
+                .singleElement()
+                .satisfies(l -> {
+                    assertThat(l.byDate())
+                            .allSatisfy(d -> assertThat(d.quantity()).isEqualByComparingTo("100"));
+                    assertThat(l.totalQty())
+                            .isEqualByComparingTo(
+                                    BigDecimal.valueOf(100L * l.byDate().size()));
+                });
+        assertThat(preview.lines())
+                .filteredOn(l -> "RAU".equals(l.food().code()))
+                .singleElement()
+                .satisfies(l -> assertThat(l.byDate())
+                        .allSatisfy(d -> assertThat(d.quantity()).isEqualByComparingTo("125")));
+    }
+
+    @Test
     @DisplayName("NUT-07: tuần nháp vẫn tính, tuần chưa có thực đơn không có dòng; thứ Bảy, Chủ nhật là ngày nghỉ")
     void draftWeekCountsAndMissingMenuHasNoLines() {
         FreshForecastResponse draft =
@@ -294,6 +320,50 @@ class FreshGoodsIntegrationTest {
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM fresh_check_lines", Integer.class))
                 .isEqualTo(2);
+
+        // INS-01: nhà cung cấp của lần giao ghi kèm kiểm nhận; không có thì bỏ; không tồn tại ⇒ 6025
+        long supplier = jdbc.queryForObject(
+                "INSERT INTO suppliers (name, phone, address, delivery_person)"
+                        + " VALUES ('Cơ sở Hòa Phát', '0901234567', '12 Lê Lợi', 'Anh Nam') RETURNING id",
+                Long.class);
+        FreshCheckResponse withSupplier = freshService.recordCheck(
+                principal,
+                campus,
+                MONDAY,
+                1,
+                new FreshCheckRequest(
+                        "",
+                        List.of(line(pork, FreshCheckResult.ENOUGH), line(veg, FreshCheckResult.ENOUGH)),
+                        supplier));
+        assertThat(withSupplier.rounds().getFirst().supplier()).satisfies(s -> {
+            assertThat(s.id()).isEqualTo(supplier);
+            assertThat(s.name()).isEqualTo("Cơ sở Hòa Phát");
+            assertThat(s.phone()).isEqualTo("0901234567");
+            assertThat(s.deliveryPerson()).isEqualTo("Anh Nam");
+        });
+        assertThat(withSupplier.rounds().get(1).supplier()).isNull();
+        expectCode(
+                () -> freshService.recordCheck(
+                        principal,
+                        campus,
+                        MONDAY,
+                        1,
+                        new FreshCheckRequest(
+                                "",
+                                List.of(line(pork, FreshCheckResult.ENOUGH), line(veg, FreshCheckResult.ENOUGH)),
+                                -1L)),
+                ApiCode.SUPPLIER_NOT_FOUND);
+        assertThat(freshService
+                        .recordCheck(
+                                principal,
+                                campus,
+                                MONDAY,
+                                1,
+                                check(line(pork, FreshCheckResult.ENOUGH), line(veg, FreshCheckResult.ENOUGH)))
+                        .rounds()
+                        .getFirst()
+                        .supplier())
+                .isNull();
     }
 
     @Test
@@ -398,6 +468,23 @@ class FreshGoodsIntegrationTest {
         // Lần 2 không gắn bản dự trù và không ảnh hưởng lần 1
         assertThat(recorded.rounds().get(1).forecastId()).isNull();
         assertThat(recorded.rounds().getFirst().recorded()).isFalse();
+    }
+
+    @Test
+    @DisplayName("NUT-12: lần 2 với đơn vị mua đếm được ⇒ lượng cần nhận làm tròn lên nguyên đơn vị")
+    void roundTwoRoundsCountablePurchaseUnitUp() {
+        jdbc.update("UPDATE foods SET purchase_unit = 'hộp 150 g', purchase_unit_size = 150 WHERE id = ?", pork);
+        long count = insertCount("PENDING_CONFIRMATION");
+        addLine(count, 10);
+        jdbc.update("UPDATE meal_counts SET status = 'CONFIRMED', confirmed_at = now() WHERE id = ?", count);
+
+        FreshCheckResponse.FreshCheckRound ready =
+                freshService.getChecks(principal, campus, MONDAY).rounds().get(1);
+
+        // Thịt 10 × 40 g = 400 g ⇒ 3 hộp 150 g = 450 g; rau (kg) giữ 625 g
+        assertThat(ready.lines())
+                .extracting(l -> l.food().code(), l -> l.expectedQty().intValue())
+                .containsExactlyInAnyOrder(tuple("THIT", 450), tuple("RAU", 625));
     }
 
     @Test
@@ -518,7 +605,7 @@ class FreshGoodsIntegrationTest {
     }
 
     private static FreshCheckRequest check(FreshCheckRequest.FreshCheckLineInput... lines) {
-        return new FreshCheckRequest("", List.of(lines));
+        return new FreshCheckRequest("", List.of(lines), null);
     }
 
     private static FreshCheckRequest.FreshCheckLineInput line(long foodId, FreshCheckResult result) {
@@ -526,7 +613,12 @@ class FreshGoodsIntegrationTest {
     }
 
     private void setOff(LocalDate date) {
-        jdbc.update("UPDATE meal_plan_days SET off = TRUE WHERE menu_date = ?", date);
+        jdbc.update(
+                "UPDATE meal_plan_weeks w SET days = (SELECT jsonb_agg(CASE WHEN (e ->> 'date')::date = ?"
+                        + " THEN jsonb_set(e, '{off}', 'true') ELSE e END) FROM jsonb_array_elements(w.days) e)"
+                        + " WHERE w.days @> jsonb_build_array(jsonb_build_object('date', ?::text))",
+                date,
+                date.toString());
     }
 
     private long insertCount(String status) {
@@ -550,11 +642,17 @@ class FreshGoodsIntegrationTest {
         long week = insertId("INSERT INTO meal_plan_weeks (week_start, status, published_at) VALUES ('" + start + "', '"
                 + status + "', " + ("PUBLISHED".equals(status) ? "now()" : "NULL") + ") RETURNING id");
         for (int i = 0; i < 5; i++) {
-            long day = insertId("INSERT INTO meal_plan_days (week_id, menu_date) VALUES (" + week + ", '"
-                    + start.plusDays(i) + "') RETURNING id");
+            LocalDate day = start.plusDays(i);
+            jdbc.update(
+                    "UPDATE meal_plan_weeks SET days = days || jsonb_build_array("
+                            + "jsonb_build_object('date', ?::date, 'off', false, 'note', '')) WHERE id = ?",
+                    day,
+                    week);
             for (long dish : dishes) {
                 jdbc.update(
-                        "INSERT INTO meal_plan_items (day_id, session, menu_block, dish_id) VALUES (?, 'LUNCH', 'KINDERGARTEN', ?)",
+                        "INSERT INTO meal_plan_items (week_id, menu_date, session, menu_block, dish_id)"
+                                + " VALUES (?, ?, 'LUNCH', 'KINDERGARTEN', ?)",
+                        week,
                         day,
                         dish);
             }

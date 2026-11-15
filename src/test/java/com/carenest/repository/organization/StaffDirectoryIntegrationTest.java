@@ -109,11 +109,36 @@ class StaffDirectoryIntegrationTest {
 
     @Test
     void overlapDetectionTreatsNullScopeColumnsAsEqual() {
-        assertThat(assignments.existsOverlapping(teacher, StaffRole.TEACHER, null, classA, TODAY))
+        assertThat(assignments.existsOverlappingOpenEnded(teacher, StaffRole.TEACHER, null, classA, TODAY, null))
                 .isTrue();
-        assertThat(assignments.existsOverlapping(teacher, StaffRole.TEACHER, null, oldClassA, TODAY))
+        assertThat(assignments.existsOverlappingOpenEnded(teacher, StaffRole.TEACHER, null, oldClassA, TODAY, null))
                 .isFalse();
-        assertThat(assignments.existsOverlapping(kitchen, StaffRole.KITCHEN_STAFF, campusB, null, TODAY))
+        assertThat(assignments.existsOverlappingOpenEnded(kitchen, StaffRole.KITCHEN_STAFF, campusB, null, TODAY, null))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("Trùng phân công xét cả hai đầu khoảng: đợt trước không giao đợt sau thì không trùng")
+    void overlapDetectionComparesBothEnds() {
+        assignments.save(StaffAssignment.create(
+                kitchen, StaffRole.KITCHEN_STAFF, campusA, null, TODAY.plusDays(20), TODAY.plusDays(25)));
+
+        // Đợt sớm hơn kết thúc trước ngày đợt đã có bắt đầu
+        assertThat(assignments.existsOverlapping(
+                        kitchen, StaffRole.KITCHEN_STAFF, campusA, null, TODAY.plusDays(3), TODAY.plusDays(5)))
+                .isFalse();
+        assertThat(assignments.existsOverlapping(
+                        kitchen, StaffRole.KITCHEN_STAFF, campusA, null, TODAY.plusDays(26), TODAY.plusDays(30)))
+                .isFalse();
+        assertThat(assignments.existsOverlapping(
+                        kitchen, StaffRole.KITCHEN_STAFF, campusA, null, TODAY.plusDays(3), TODAY.plusDays(20)))
+                .isTrue();
+        assertThat(assignments.existsOverlapping(
+                        kitchen, StaffRole.KITCHEN_STAFF, campusA, null, TODAY.plusDays(25), TODAY.plusDays(30)))
+                .isTrue();
+        // Không ngày kết thúc ⇒ chạm mọi đợt về sau
+        assertThat(assignments.existsOverlappingOpenEnded(
+                        kitchen, StaffRole.KITCHEN_STAFF, campusA, null, TODAY.plusDays(3), null))
                 .isTrue();
     }
 
@@ -122,13 +147,15 @@ class StaffDirectoryIntegrationTest {
     void teamLeaderLookupAndMatrixColumn() {
         assertThat(assignments.existsActiveTeamLeader(teacher, TODAY)).isFalse();
 
-        jdbc.update("INSERT INTO role_permissions (role, permission_code) VALUES ('TEAM_LEADER', 'TEST_CODE')");
+        Long before =
+                jdbc.queryForObject("SELECT count(*) FROM permission_grants WHERE role = 'TEAM_LEADER'", Long.class);
+        jdbc.update("INSERT INTO permission_grants (role, permission_code) VALUES ('TEAM_LEADER', 'TEST_CODE')");
         try {
             assertThat(jdbc.queryForObject(
-                            "SELECT count(*) FROM role_permissions WHERE role = 'TEAM_LEADER'", Long.class))
-                    .isEqualTo(1L);
+                            "SELECT count(*) FROM permission_grants WHERE role = 'TEAM_LEADER'", Long.class))
+                    .isEqualTo(before + 1L);
         } finally {
-            jdbc.update("DELETE FROM role_permissions WHERE role = 'TEAM_LEADER'");
+            jdbc.update("DELETE FROM permission_grants WHERE role = 'TEAM_LEADER' AND permission_code = 'TEST_CODE'");
         }
     }
 

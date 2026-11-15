@@ -44,6 +44,7 @@ public class DayBoardServiceImpl implements DayBoardService {
     private final FoodSampleService foodSampleService;
     private final CampusService campusService;
     private final CampusAccessPolicy campusAccessPolicy;
+    private final DryStockOutlook dryStockOutlook;
     private final Clock clock;
 
     @Override
@@ -154,7 +155,16 @@ public class DayBoardServiceImpl implements DayBoardService {
                 status = demands.isEmpty() ? "NOTHING_TO_DEDUCT" : shortfallFoods > 0 ? "SHORTFALL" : "DEDUCTED";
             }
         }
-        return new DayBoardResponse.DryStock(status, foodCount, shortfallFoods, openShortfalls);
+        // NUT-11, P-38: nhắc sớm kho khô sắp thiếu tới hết tuần sau; chi tiết ở bản dự trù
+        List<DryStockOutlook.Line> upcoming = dryStockOutlook.shortages(
+                campusId, date.with(DayOfWeek.MONDAY).plusWeeks(1).plusDays(4), null);
+        return new DayBoardResponse.DryStock(
+                status,
+                foodCount,
+                shortfallFoods,
+                openShortfalls,
+                upcoming.size(),
+                upcoming.isEmpty() ? null : upcoming.getFirst().shortFrom());
     }
 
     private static boolean isDayOff(LocalDate date, Optional<MealPlanWeek> week) {

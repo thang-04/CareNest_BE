@@ -17,6 +17,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.security.TestPermissions;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.utils.enums.CareNestRole;
 import java.util.Set;
@@ -90,7 +91,9 @@ class YearTransitionControllerTest {
     }
 
     private CurrentUser authenticateAs(CareNestRole role) {
-        CurrentUser user = new CurrentUser(7L, "kc-7", "demo.user", "Demo", null, Set.of(role));
+        // Quyền mặc định theo role (HT có YEAR_PLACEMENT_MANAGE) để @permissionGuard kiểm như thật
+        CurrentUser user =
+                new CurrentUser(7L, "kc-7", "demo.user", "Demo", null, Set.of(role), TestPermissions.defaultsOf(role));
         given(currentUserService.getCurrentUser()).willReturn(user);
         return user;
     }

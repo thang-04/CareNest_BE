@@ -15,8 +15,23 @@ public abstract class EduGoalRow {
     @SequenceGenerator(name = "edu_plan_rows", sequenceName = "edu_plan_rows_seq", allocationSize = 1)
     private Long id;
 
-    @Column(name = "year_plan_id", nullable = false, updatable = false)
+    @org.hibernate.annotations.Formula("coalesce(school_year_plan_id, team_plan_id)")
     private Long yearPlanId;
+
+    @Column(name = "school_year_plan_id", updatable = false)
+    private Long schoolYearPlanId;
+
+    @Column(name = "team_plan_id", updatable = false)
+    private Long teamPlanId;
+
+    public void initializeOwner(EduPlan plan) {
+        if (yearPlanId != null && !yearPlanId.equals(plan.getId()))
+            throw new IllegalArgumentException("Plan owner differs");
+        yearPlanId = plan.getId();
+        schoolYearPlanId =
+                plan.getPlanLevel() == com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR ? plan.getId() : null;
+        teamPlanId = plan.getPlanLevel() == com.carenest.utils.enums.EduPlanLevel.TEAM ? plan.getId() : null;
+    }
 
     @Column(name = "lineage_id", updatable = false)
     private Long lineageId;
@@ -41,6 +56,10 @@ public abstract class EduGoalRow {
     }
 
     public Short getGoalNo() {
+        return null;
+    }
+
+    public String getDisplayLabel() {
         return null;
     }
 
@@ -81,6 +100,9 @@ public abstract class EduGoalRow {
         row.lineageId = source.lineage();
         row.place(source.domainId, source.sortOrder, source.getKind(), source.text, source.getGoalNo());
         row.linkCurriculum(source.getCurriculumId());
+        if (row instanceof EduPlanGoal goal) {
+            goal.label(source.getDisplayLabel());
+        }
         return row;
     }
 }

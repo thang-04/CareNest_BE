@@ -7,6 +7,7 @@ import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.security.CurrentUser;
+import java.time.LocalDate;
 import org.springframework.data.domain.Pageable;
 
 /** Kế hoạch giáo dục năm học theo nhóm tuổi (rule EDU, sequence SD-01..SD-08). */
@@ -15,7 +16,21 @@ public interface EduYearPlanService {
     PageResponse<YearPlanSummaryResponse> getYearPlans(
             CurrentUser currentUser, Long schoolYearId, Long ageGroupId, String keyword, Pageable pageable);
 
+    PageResponse<YearPlanSummaryResponse> getYearPlans(
+            CurrentUser user,
+            Long yearId,
+            Long ageId,
+            String keyword,
+            Pageable pageable,
+            com.carenest.utils.enums.EduPlanLevel level);
+
+    YearPlanDetailResponse createVersion(
+            CurrentUser user, Long planId, YearPlanEditRequest edit, Long curriculumSourcePlanId);
+
     YearPlanDetailResponse getYearPlan(CurrentUser currentUser, Long planId);
+
+    /** Kế hoạch năm/tổ đang chờ đúng người gọi duyệt ở bước hiện tại. */
+    java.util.List<YearPlanSummaryResponse> getReviewQueue(CurrentUser currentUser);
 
     YearPlanDetailResponse createYearPlan(CurrentUser currentUser, YearPlanRequest request, YearPlanEditRequest edit);
 
@@ -28,12 +43,18 @@ public interface EduYearPlanService {
 
     YearPlanDetailResponse returnYearPlan(CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit);
 
+    /** Spec 004 (Q5): Hiệu trưởng mở khóa kế hoạch năm học / tổ đã khóa theo ngày bắt đầu năm học. */
+    YearPlanDetailResponse unlockYearPlan(CurrentUser currentUser, Long planId, String note, LocalDate deadline);
+
     void deleteYearPlan(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
-    /** EDU-10: vào trang soạn ⇒ cấp quyền cho đúng phiên, giữ trạng thái Chờ duyệt khi Phó HT sửa. */
+    YearPlanDetailResponse resolveReview(
+            CurrentUser user, Long planId, Long reviewItemId, Long expectedSourcePlanId, YearPlanEditRequest edit);
+
+    /** EDU-10: cấp khóa sửa theo phiên khi hồ sơ đang ở trạng thái nháp. */
     YearPlanDetailResponse startEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
-    /** EDU-10: thoát trang soạn ⇒ nhả khóa của chính người này, về Nháp / Bị trả lại. */
+    /** EDU-10: thoát trang soạn ⇒ nhả khóa của chính người này. */
     YearPlanDetailResponse finishEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
     YearPlanDetailResponse heartbeat(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);

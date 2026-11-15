@@ -1,12 +1,17 @@
 package com.carenest.service.account.impl;
 
 import com.carenest.dto.account.AccountResponse;
+import com.carenest.dto.child.ActivationCodeResponse;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
+import com.carenest.dto.child.ChildGuardianOverviewResponse;
+import com.carenest.dto.child.ChildListFilter;
+import com.carenest.dto.child.ChildListItemResponse;
 import com.carenest.dto.child.GuardianCandidateResponse;
 import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.child.GuardianResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
+import com.carenest.dto.common.PageResponse;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.NewIdentityUser;
@@ -15,13 +20,17 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.GuardianAccountService;
+import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildListService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.PersonNames;
 import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.SmsStatus;
 import com.carenest.utils.enums.UserStatus;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,6 +40,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /**
@@ -43,13 +53,18 @@ import org.springframework.util.StringUtils;
 public class GuardianAccountServiceImpl implements GuardianAccountService {
     private static final String LOG_PREFIX = "[GuardianAccountServiceImpl]";
 
+    private final com.carenest.service.account.SelectedParentAccountService selectedParentAccountService;
     private final UserAccountRepository userAccountRepository;
     private final GuardianChildLinkService guardianChildLinkService;
     private final ChildService childService;
+    private final ChildListService childListService;
+    private final ChildIntakeService childIntakeService;
     private final StaffAccessPolicy staffAccessPolicy;
     private final AccountLifecycleOperations accountLifecycle;
     private final TemporaryPasswordGenerator passwordGenerator;
     private final AccountMapper accountMapper;
+    private final ParentActivationCodes activationCodes;
+    private final ParentSmsSender smsSender;
 
     @Override
     public List<GuardianResponse> listGuardians(CurrentUser actor, Long childId) {
@@ -57,6 +72,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
         log.info("{}|START", logPrefix);
         try {
             checkChild(actor, childId);
+            Long selectedAccountId = selectedParentAccountService.selectedAccountId(actor, childId);
             List<GuardianLinkResponse> links = guardianChildLinkService.findLinksOfChild(childId);
             Map<Long, UserAccount> accounts =
                     userAccountRepository
@@ -67,17 +83,8 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                             .collect(Collectors.toMap(UserAccount::getId, Function.identity()));
             List<GuardianResponse> guardians = links.stream()
                     .filter(link -> accounts.containsKey(link.userId()))
-                    .map(link -> {
-                        UserAccount account = accounts.get(link.userId());
-                        return new GuardianResponse(
-                                account.getId(),
-                                account.getUsername(),
-                                account.getFullName(),
-                                account.getEmail(),
-                                link.relationship(),
-                                account.getStatus(),
-                                link.linkedAt());
-                    })
+                    .filter(link -> link.userId().equals(selectedAccountId))
+                    .map(link -> guardianResponse(accounts.get(link.userId()), link))
                     .toList();
             log.info("{}|END", logPrefix);
             return guardians;
@@ -85,6 +92,67 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ChildGuardianOverviewResponse> guardianOverview(CurrentUser actor, ChildListFilter filter) {
+        String logPrefix = LOG_PREFIX + "|guardianOverview|actorUserId=" + actor.userId() + "|campusId="
+                + filter.campusId() + "|page=" + filter.page() + "|size=" + filter.size();
+        log.info("{}|START", logPrefix);
+        try {
+            PageResponse<ChildListItemResponse> page = childListService.searchChildren(actor, filter);
+            // Cùng điều kiện với /children/{id}/guardians: trẻ người xem không quản lý được thì không lộ tài khoản
+            Map<Long, GuardianResponse> accounts = recipientAccounts(page.items().stream()
+                    .filter(ChildListItemResponse::canManage)
+                    .map(ChildListItemResponse::id)
+                    .toList());
+            List<ChildGuardianOverviewResponse> items = page.items().stream()
+                    .map(child -> new ChildGuardianOverviewResponse(child, accounts.get(child.id())))
+                    .toList();
+            log.info("{}|count={}|accounts={}|END", logPrefix, items.size(), accounts.size());
+            return new PageResponse<>(items, page.page(), page.size(), page.totalElements(), page.totalPages());
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /** childId → tài khoản của phụ huynh nhận tài khoản đã liên kết với trẻ; ba truy vấn cho cả danh sách. */
+    private Map<Long, GuardianResponse> recipientAccounts(List<Long> childIds) {
+        Map<Long, Long> recipients = childIntakeService.findRecipientAccountIds(childIds);
+        if (recipients.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, GuardianLinkResponse> links = new HashMap<>();
+        guardianChildLinkService.findLinksOfChildren(recipients.keySet()).stream()
+                .filter(link -> link.userId().equals(recipients.get(link.childId())))
+                .forEach(link -> links.putIfAbsent(link.childId(), link));
+        Map<Long, UserAccount> accounts = userAccountRepository
+                .findAllById(links.values().stream()
+                        .map(GuardianLinkResponse::userId)
+                        .collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(UserAccount::getId, Function.identity()));
+        Map<Long, GuardianResponse> result = new HashMap<>();
+        links.forEach((childId, link) -> {
+            UserAccount account = accounts.get(link.userId());
+            if (account != null) {
+                result.put(childId, guardianResponse(account, link));
+            }
+        });
+        return result;
+    }
+
+    private static GuardianResponse guardianResponse(UserAccount account, GuardianLinkResponse link) {
+        return new GuardianResponse(
+                account.getId(),
+                account.getUsername(),
+                account.getFullName(),
+                account.getEmail(),
+                link.relationship(),
+                account.getStatus(),
+                link.linkedAt());
     }
 
     @Override
@@ -119,19 +187,36 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
         log.info("{}|START", logPrefix);
         try {
             checkChild(actor, childId);
+            PhoneNumbers.normalize(request.phone()).orElseThrow(() -> GlobalException.of(ApiCode.PHONE_NUMBER_INVALID));
+            var selected = selectedParentAccountService.candidates(actor, childId).stream()
+                    .filter(g -> g.accountRecipient()
+                            && g.phone()
+                                    .equals(PhoneNumbers.normalize(request.phone())
+                                            .orElse(null)))
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT));
             String username = PhoneNumbers.normalize(request.phone())
                     .orElseThrow(() -> GlobalException.of(ApiCode.PHONE_NUMBER_INVALID));
-            String fullName = request.fullName().trim();
+            com.carenest.utils.CitizenIds.normalize(selected.idNumber())
+                    .orElseThrow(() -> GlobalException.of(ApiCode.INVALID_REQUEST_DATA));
+            String fullName = selected.fullName().trim();
             // AUTH-18: email chỉ để liên hệ ⇒ lưu ở CareNest, không gửi Keycloak (không thành tên đăng nhập,
             // không vướng kiểm trùng email với nhân sự)
-            String email = StringUtils.hasText(request.email())
-                    ? request.email().trim().toLowerCase(Locale.ROOT)
+            String email = StringUtils.hasText(selected.email())
+                    ? selected.email().trim().toLowerCase(Locale.ROOT)
                     : null;
 
-            Optional<UserAccount> existing = userAccountRepository.findByUsername(username);
+            Optional<UserAccount> existing = userAccountRepository
+                    .findByCitizenId(selected.idNumber())
+                    .or(() -> userAccountRepository.findByUsername(username));
+            if (existing.isPresent()
+                    && existing.get().getCitizenId() != null
+                    && !existing.get().getCitizenId().equals(selected.idNumber())) {
+                throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+            }
             if (existing.isPresent()) {
                 UserAccount account = existing.get();
-                linkExistingAccount(logPrefix, actor, account, childId, request);
+                linkExistingAccount(logPrefix, actor, account, childId, selected.id(), selected.idNumber(), request);
                 log.info("{}|userId={}|newAccount=false|END", logPrefix, account.getId());
                 return response(account, request, false, null);
             }
@@ -142,9 +227,9 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                     new NewIdentityUser(username, null, fullName, temporaryPassword),
                     CareNestRole.PARENT,
                     keycloakUserId -> {
-                        UserAccount parent = userAccountRepository.saveAndFlush(
-                                UserAccount.create(keycloakUserId, username, email, fullName, CareNestRole.PARENT));
-                        guardianChildLinkService.createLink(parent.getId(), childId, request.relationship());
+                        UserAccount parent = userAccountRepository.saveAndFlush(UserAccount.createParent(
+                                keycloakUserId, username, email, fullName, selected.idNumber()));
+                        selectedParentAccountService.recordLink(actor, childId, selected.id(), parent.getId());
                         return parent;
                     });
             log.info("{}|userId={}|newAccount=true|END", logPrefix, created.getId());
@@ -203,9 +288,38 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
         }
     }
 
+    @Override
+    public ActivationCodeResponse resendActivationCode(CurrentUser actor, Long userId) {
+        String logPrefix = LOG_PREFIX + "|resendActivationCode|actorUserId=" + actor.userId() + "|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            UserAccount parent = loadManageableParent(actor, userId);
+            ParentActivationCodes.Issued issued = activationCodes.reissue(parent.getId());
+            SmsStatus smsStatus = smsSender.sendActivationCode(parent, issued.code());
+            // AUTH-18: không gửi được SMS thật (cổng giả hoặc lỗi) ⇒ trả mã để in phiếu, không in mật khẩu
+            boolean printable = !smsSender.activationCodeMode() || smsStatus != SmsStatus.SENT;
+            log.info("{}|smsStatus={}|END", logPrefix, smsStatus);
+            return new ActivationCodeResponse(
+                    parent.getId(),
+                    parent.getUsername(),
+                    smsStatus,
+                    issued.expiresAt(),
+                    printable ? issued.code() : null);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     // AUTH-18: một người một tài khoản, giữ mật khẩu; không liên kết chỉ vì trùng SĐT khi chưa xác nhận đúng người
     private void linkExistingAccount(
-            String logPrefix, CurrentUser actor, UserAccount account, Long childId, AddGuardianRequest request) {
+            String logPrefix,
+            CurrentUser actor,
+            UserAccount account,
+            Long childId,
+            Long guardianId,
+            String citizenId,
+            AddGuardianRequest request) {
         if (!account.getId().equals(request.confirmUserId())) {
             throw GlobalException.of(ApiCode.GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED);
         }
@@ -216,18 +330,25 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             // Thêm vai trò phụ huynh vào tài khoản nhân sự là thao tác trên tài khoản đó ⇒ theo phạm vi AUTH-17
             staffAccessPolicy.checkCanManageAccount(actor, account.getId(), account.getPrimaryRole());
             accountLifecycle.addRealmRole(logPrefix, account, CareNestRole.PARENT, () -> {
-                guardianChildLinkService.createLink(account.getId(), childId, request.relationship());
+                selectedParentAccountService.recordLink(actor, childId, guardianId, account.getId());
+                if (userAccountRepository.claimCitizenId(account.getId(), citizenId) != 1)
+                    throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
                 return null;
             });
             log.info("{}|userId={}|parentRoleGranted", logPrefix, account.getId());
             return;
         }
-        guardianChildLinkService.createLink(account.getId(), childId, request.relationship());
+        accountLifecycle.createIdentities(logPrefix, List.of(), CareNestRole.PARENT, ignored -> {
+            selectedParentAccountService.recordLink(actor, childId, guardianId, account.getId());
+            if (userAccountRepository.claimCitizenId(account.getId(), citizenId) != 1)
+                throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+            return null;
+        });
     }
 
     // Kiểm phạm vi trước: với PHT, trẻ không tồn tại và trẻ ngoài campus cùng 403 (không dò được id)
     private void checkChild(CurrentUser actor, Long childId) {
-        staffAccessPolicy.checkCanManageChildGuardians(actor, childId);
+        selectedParentAccountService.candidates(actor, childId);
         if (!childService.childExists(childId)) {
             throw GlobalException.of(ApiCode.CHILD_NOT_FOUND);
         }
@@ -243,7 +364,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                 .orElseThrow(() -> staffAccessPolicy.managesWholeSchool(actor)
                         ? GlobalException.of(ApiCode.ACCOUNT_NOT_FOUND)
                         : GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED));
-        staffAccessPolicy.checkCanManageParent(actor, userId);
+        selectedParentAccountService.checkParentScope(actor, userId);
         if (account.getPrimaryRole() != CareNestRole.PARENT) {
             throw GlobalException.of(ApiCode.NOT_PARENT_ACCOUNT);
         }

@@ -1,0 +1,245 @@
+{
+  "seedSha256": "24a8484b429f8f365a7feac8c209ca5940e417b290dd461a93cc9eabb01b0757",
+  "rows": [
+    {
+      "page": 14,
+      "congBaoPage": 26,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Tập bò, trườn:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "page": 15,
+      "congBaoPage": 27,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Tập tung, ném, bắt:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        14,
+        15,
+        16
+      ]
+    },
+    {
+      "page": 16,
+      "congBaoPage": 28,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Tập tự phục vụ:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        29,
+        30,
+        31
+      ]
+    },
+    {
+      "page": 40,
+      "congBaoPage": 52,
+      "table": 0,
+      "age": "ag-3",
+      "text": "Lưng, bụng, lườn:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        81,
+        82,
+        83
+      ]
+    },
+    {
+      "page": 40,
+      "congBaoPage": 52,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Lưng, bụng, lườn:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        110,
+        111,
+        112
+      ]
+    },
+    {
+      "page": 40,
+      "congBaoPage": 52,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Lưng, bụng, lườn:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        147,
+        148,
+        149
+      ]
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-3",
+      "text": "Bò, trườn, trèo:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        90,
+        91,
+        92,
+        93
+      ]
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-3",
+      "text": "Tung, ném, bắt:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        94,
+        95,
+        96,
+        97
+      ]
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Bò, trườn, trèo:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        121,
+        122,
+        123,
+        124,
+        125,
+        126
+      ]
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Tung, ném, bắt:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        127,
+        128,
+        129,
+        130,
+        131,
+        132
+      ]
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Bò, trườn, trèo:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        158,
+        159,
+        160,
+        161,
+        162
+      ]
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Tung, ném, bắt:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        163,
+        164,
+        165,
+        166,
+        167,
+        168
+      ]
+    },
+    {
+      "page": 48,
+      "congBaoPage": 60,
+      "table": 1,
+      "age": "ag-5",
+      "text": "tính, đặc điểm bên ngoài, sở thích của bản thân và vị trí của trẻ trong gia đình. đình. Địa chỉ gia đình. cô bác trong trường. của trẻ ở trường.",
+      "status": "requires_visual_review",
+      "review": "extraction_artifact",
+      "labelIds": []
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-3",
+      "text": "Làm quen với cách đọc và viết tiếng Việt:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        316,
+        317
+      ]
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Làm quen với cách đọc và viết tiếng Việt:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        464,
+        465
+      ]
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Làm quen với cách đọc và viết tiếng Việt:",
+      "status": "requires_visual_review",
+      "review": "existing_label",
+      "labelIds": [
+        468,
+        469
+      ]
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Quan tâm, chia sẻ, giúp",
+      "status": "requires_visual_review",
+      "review": "extraction_artifact",
+      "labelIds": []
+    }
+  ]
+}

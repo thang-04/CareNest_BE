@@ -94,4 +94,26 @@ class OpenApiSnapshotTest {
                 .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['428']")
                         .exists());
     }
+
+    @Test
+    void educationNestedSchemasKeepDistinctPayloadShapes() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.GoalFileDomainPreview.properties.rows")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.GoalFileRowPreview.properties.kind")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.GoalFileContentPreview.properties.themes")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.EduConfigDomainResponse.properties.standard")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.YearPlanContentChange.properties.lineageId")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.YearPlanContentChange.properties.change")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.YearPlanThemeRequest.properties.key")
+                        .exists())
+                .andExpect(jsonPath("$.components.schemas.YearPlanThemeResponse.properties.id")
+                        .exists());
+    }
 }

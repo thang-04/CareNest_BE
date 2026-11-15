@@ -6,15 +6,18 @@ import com.carenest.dto.health.HealthCheckDetailResponse;
 import com.carenest.dto.health.HealthCheckReopenRequest;
 import com.carenest.dto.health.HealthCheckRequest;
 import com.carenest.dto.health.HealthCheckResponse;
+import com.carenest.dto.health.HealthGrowthReportResponse;
 import com.carenest.dto.health.HealthScheduleWarningResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthCheckService;
+import com.carenest.service.health.HealthGrowthReportService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckStatus;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +44,7 @@ public class HealthCheckController {
     private static final String LOG_PREFIX = "[HealthCheckController]";
 
     private final HealthCheckService healthCheckService;
+    private final HealthGrowthReportService healthGrowthReportService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
@@ -72,6 +76,20 @@ public class HealthCheckController {
                 healthCheckService.getScheduleWarnings(currentUser, campusId, kind, startDate, excludeId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get schedule warnings success", warnings);
+    }
+
+    /** Báo cáo tổng hợp tăng trưởng theo tháng, mẫu 5.1 (HLT-20): HT mọi điểm trường, PHT điểm trường được phân công. */
+    @GetMapping("/growth-report")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<HealthGrowthReportResponse>> getGrowthReport(
+            @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth month,
+            @RequestParam(required = false) Long campusId,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getGrowthReport|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        HealthGrowthReportResponse report = healthGrowthReportService.getGrowthReport(currentUser, month, campusId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get growth report success", report);
     }
 
     @GetMapping("/{campaignId}")

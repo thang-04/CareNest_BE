@@ -96,6 +96,10 @@ public class SecurityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers(PUBLIC_PATHS).permitAll();
+                    // ADR-0026: phụ huynh kích hoạt bằng mã SMS khi chưa có mật khẩu (chưa có token)
+                    auth.requestMatchers(PathPatternRequestMatcher.withDefaults()
+                                    .matcher(HttpMethod.POST, apiPrefix + "/parent-activation"))
+                            .permitAll();
                     if (authProperties.enabled())
                         auth.requestMatchers(authGet, authPost).permitAll();
                     // AUTH-21: token không còn role nào dùng được trên nền tảng của client ⇒ 403 mọi API
@@ -177,6 +181,10 @@ public class SecurityConfig {
                 "X-Edit-Session",
                 "X-Plan-Revision",
                 "Idempotency-Key",
+                // Khóa lạc quan tài liệu lớp: thiếu ở đây thì trình duyệt chặn preflight, lưu chủ đề nhánh báo mất kết
+                // nối
+                "X-Class-Doc-Version",
+                "X-Dossier-Version",
                 HttpHeaders.RANGE));
         config.setExposedHeaders(
                 List.of(HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES));

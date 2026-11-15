@@ -14,6 +14,11 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserAccountRepository extends JpaRepository<UserAccount, Long>, JpaSpecificationExecutor<UserAccount> {
 
+    @Modifying
+    @Query(
+            "update UserAccount u set u.citizenId = :citizenId where u.id = :userId and (u.citizenId is null or u.citizenId = :citizenId)")
+    int claimCitizenId(@Param("userId") Long userId, @Param("citizenId") String citizenId);
+
     Optional<UserAccount> findByKeycloakUserId(String keycloakUserId);
 
     boolean existsByUsername(String username);
@@ -25,6 +30,15 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
             value = "UPDATE user_accounts SET primary_role = :role, updated_at = now() WHERE id = :id",
             nativeQuery = true)
     int updatePrimaryRole(@Param("id") Long id, @Param("role") String role);
+
+    /** Đổi tên đăng nhập (cột không updatable trên entity); chỉ khi tên cũ còn đúng — trả 0 nếu đã đổi theo đường khác. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+            value = "UPDATE user_accounts SET username = :newUsername, updated_at = now()"
+                    + " WHERE id = :id AND username = :oldUsername",
+            nativeQuery = true)
+    int updateUsername(
+            @Param("id") Long id, @Param("oldUsername") String oldUsername, @Param("newUsername") String newUsername);
 
     java.util.List<UserAccount> findByEmailIgnoreCase(String email);
 

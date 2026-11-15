@@ -1,0 +1,2776 @@
+[
+  {
+    "kind": "content",
+    "age": "ag-2",
+    "text": "Nhận biết một số vật dụng nguy hiểm, những nơi nguy hiểm không được phép sờ vào hoặc đến gần.",
+    "pdfPage": 16,
+    "candidateSources": [],
+    "requiresParentReview": true,
+    "manualAnchor": 35,
+    "manualPosition": "before",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 441,
+        "previous": [
+          399,
+          34,
+          34
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-2",
+    "text": "Nhận biết một số hành động nguy hiểm và phòng tránh.",
+    "pdfPage": 16,
+    "candidateSources": [],
+    "requiresParentReview": true,
+    "manualAnchor": 35,
+    "manualPosition": "before",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 516,
+        "previous": [
+          399,
+          34,
+          34
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-2",
+    "text": "Nghe lời nói với sắc thái tình cảm khác nhau.",
+    "pdfPage": 20,
+    "candidateSources": [],
+    "requiresParentReview": true,
+    "manualAnchor": 53,
+    "manualPosition": "before",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 1,
+        "previous": null,
+        "next": [
+          87,
+          53,
+          53
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-2",
+    "text": "Nghe các từ chỉ tên gọi đồ vật, sự vật, hành động quen thuộc.",
+    "pdfPage": 20,
+    "candidateSources": [],
+    "requiresParentReview": true,
+    "manualAnchor": 53,
+    "manualPosition": "before",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 38,
+        "previous": null,
+        "next": [
+          87,
+          53,
+          53
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-2",
+    "text": "Phát âm các âm khác nhau.",
+    "pdfPage": 20,
+    "candidateSources": [],
+    "requiresParentReview": true,
+    "manualAnchor": 56,
+    "manualPosition": "before",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 231,
+        "previous": [
+          172,
+          55,
+          55
+        ],
+        "next": [
+          252,
+          56,
+          56
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Nhận biết các bữa ăn trong ngày và ích lợi của ăn uống đủ lượng và đủ chất.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 182,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "1",
+        "category": "Nhận biết một số món ăn, thực phẩm thông thường và ích lợi của chúng đối với sức khỏe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 1",
+        "sortOrder": 32
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 182,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 51,
+        "previous": [
+          1,
+          194,
+          39
+        ],
+        "next": [
+          187,
+          195,
+          40
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Nhận biết sự liên quan giữa ăn uống với bệnh tật (ỉa chảy, sâu răng, suy dinh dưỡng, béo phì…).",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 183,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "1",
+        "category": "Nhận biết một số món ăn, thực phẩm thông thường và ích lợi của chúng đối với sức khỏe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 1",
+        "sortOrder": 33
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 183,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 110,
+        "previous": [
+          1,
+          194,
+          39
+        ],
+        "next": [
+          187,
+          195,
+          40
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Tập luyện một số thói quen tốt về giữ gìn sức khỏe.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 187,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "3",
+        "category": "Giữ gìn sức khỏe và an toàn",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 3",
+        "sortOrder": 37
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 187,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 265,
+        "previous": [
+          241,
+          197,
+          42
+        ],
+        "next": [
+          377,
+          198,
+          43
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Lợi ích của việc giữ gìn vệ sinh thân thể, vệ sinh môi trường đối với sức khỏe con người.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 188,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "3",
+        "category": "Giữ gìn sức khỏe và an toàn",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 3",
+        "sortOrder": 38
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 188,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 306,
+        "previous": [
+          241,
+          197,
+          42
+        ],
+        "next": [
+          377,
+          198,
+          43
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Nhận biết và phòng tránh những hành động nguy hiểm, những nơi không an toàn, những vật dụng nguy hiểm đến tính mạng.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 191,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "3",
+        "category": "Giữ gìn sức khỏe và an toàn",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 3",
+        "sortOrder": 41
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 191,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 503,
+        "previous": [
+          452,
+          200,
+          45
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Nhận biết một số trường hợp khẩn cấp và gọi người giúp đỡ.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 192,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "3",
+        "category": "Giữ gìn sức khỏe và an toàn",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 3",
+        "sortOrder": 42
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 192,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 598,
+        "previous": [
+          452,
+          200,
+          45
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nhận biết các bữa ăn trong ngày và ích lợi của ăn uống đủ lượng và đủ chất.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 182,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "1",
+        "category": "Nhận biết một số món ăn, thực phẩm thông thường và ích lợi của chúng đối với sức khỏe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 1",
+        "sortOrder": 32
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 182,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 49,
+        "previous": [
+          0,
+          203,
+          39
+        ],
+        "next": [
+          185,
+          204,
+          40
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nhận biết sự liên quan giữa ăn uống với bệnh tật (ỉa chảy, sâu răng, suy dinh dưỡng, béo phì…).",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 183,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "1",
+        "category": "Nhận biết một số món ăn, thực phẩm thông thường và ích lợi của chúng đối với sức khỏe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 1",
+        "sortOrder": 33
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 183,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 108,
+        "previous": [
+          0,
+          203,
+          39
+        ],
+        "next": [
+          185,
+          204,
+          40
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Tập luyện một số thói quen tốt về giữ gìn sức khỏe.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 187,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "3",
+        "category": "Giữ gìn sức khỏe và an toàn",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 3",
+        "sortOrder": 37
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 187,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 286,
+        "previous": [
+          235,
+          205,
+          41
+        ],
+        "next": [
+          398,
+          206,
+          42
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Lợi ích của việc giữ gìn vệ sinh thân thể, vệ sinh môi trường đối với sức khỏe con người.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 188,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "3",
+        "category": "Giữ gìn sức khỏe và an toàn",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 3",
+        "sortOrder": 38
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 188,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 327,
+        "previous": [
+          235,
+          205,
+          41
+        ],
+        "next": [
+          398,
+          206,
+          42
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nhận biết và phòng tránh những hành động nguy hiểm, những nơi không an toàn, những vật dụng nguy hiểm đến tính mạng.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 191,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "3",
+        "category": "Giữ gìn sức khỏe và an toàn",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 3",
+        "sortOrder": 41
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 191,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 536,
+        "previous": [
+          481,
+          208,
+          44
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nhận biết một số trường hợp khẩn cấp và gọi người giúp đỡ.",
+    "pdfPage": 43,
+    "candidateSources": [
+      {
+        "id": 192,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": "3",
+        "category": "Giữ gìn sức khỏe và an toàn",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › I › b) › 3",
+        "sortOrder": 42
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 192,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 631,
+        "previous": [
+          481,
+          208,
+          44
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Chức năng các giác quan và các bộ phận khác của cơ thể.",
+    "pdfPage": 44,
+    "candidateSources": [
+      {
+        "id": 221,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "1",
+        "category": "Các bộ phận của cơ thể con người",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 1",
+        "sortOrder": 46
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 221,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 0,
+        "previous": null,
+        "next": [
+          165,
+          239,
+          45
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Đặc điểm, công dụng và cách sử dụng đồ dùng, đồ chơi.",
+    "pdfPage": 44,
+    "candidateSources": [
+      {
+        "id": 222,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "2",
+        "category": "Đồ vật: Đồ dùng, đồ chơi",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 2",
+        "sortOrder": 47
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 222,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 44,
+        "previous": null,
+        "next": [
+          165,
+          239,
+          45
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Một số mối liên hệ đơn giản giữa đặc điểm cấu tạo với cách sử dụng của đồ dùng, đồ chơi quen thuộc.",
+    "pdfPage": 44,
+    "candidateSources": [
+      {
+        "id": 223,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "2",
+        "category": "Đồ vật: Đồ dùng, đồ chơi",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 2",
+        "sortOrder": 48
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 223,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 87,
+        "previous": null,
+        "next": [
+          165,
+          239,
+          45
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Quan sát, phán đoán mối liên hệ đơn giản giữa con vật, cây với môi trường sống.",
+    "pdfPage": 45,
+    "candidateSources": [
+      {
+        "id": 230,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "3",
+        "category": "Động vật và thực vật",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 3",
+        "sortOrder": 55
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 230,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 278,
+        "previous": [
+          236,
+          245,
+          51
+        ],
+        "next": [
+          372,
+          246,
+          52
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Cách chăm sóc và bảo vệ con vật, cây.",
+    "pdfPage": 45,
+    "candidateSources": [
+      {
+        "id": 231,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "3",
+        "category": "Động vật và thực vật",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 3",
+        "sortOrder": 56
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 231,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 342,
+        "previous": [
+          236,
+          245,
+          51
+        ],
+        "next": [
+          372,
+          246,
+          52
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Các nguồn nước trong môi trường sống.",
+    "pdfPage": 45,
+    "candidateSources": [
+      {
+        "id": 234,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "4",
+        "category": "Nước",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 4",
+        "sortOrder": 59
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 234,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 517,
+        "previous": [
+          475,
+          247,
+          53
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Ích lợi của nước với đời sống con người, con vật và cây.",
+    "pdfPage": 45,
+    "candidateSources": [
+      {
+        "id": 235,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "4",
+        "category": "Nước",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 4",
+        "sortOrder": 60
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 235,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 549,
+        "previous": [
+          475,
+          247,
+          53
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Một số đặc điểm, tính chất của nước.",
+    "pdfPage": 46,
+    "candidateSources": [
+      {
+        "id": 236,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "4",
+        "category": "Nước",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 4",
+        "sortOrder": 61
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 236,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 1,
+        "previous": null,
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Gộp hai nhóm đối tượng và đếm.",
+    "pdfPage": 46,
+    "candidateSources": [
+      {
+        "id": 250,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Làm quen với một số khái niệm sơ đẳng về toán",
+        "categoryNo": "1",
+        "category": "Tập hợp, số lượng, số thứ tự và đếm",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › b) › 1",
+        "sortOrder": 57
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 250,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 1,
+        "offset": 82,
+        "previous": [
+          47,
+          259,
+          65
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Tách một nhóm đối tượng thành các nhóm nhỏ hơn.",
+    "pdfPage": 46,
+    "candidateSources": [
+      {
+        "id": 251,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Làm quen với một số khái niệm sơ đẳng về toán",
+        "categoryNo": "1",
+        "category": "Tập hợp, số lượng, số thứ tự và đếm",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › b) › 1",
+        "sortOrder": 58
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 251,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 1,
+        "offset": 107,
+        "previous": [
+          47,
+          259,
+          65
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "So sánh, phát hiện quy tắc sắp xếp và sắp xếp theo quy tắc.",
+    "pdfPage": 47,
+    "candidateSources": [
+      {
+        "id": 261,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Làm quen với một số khái niệm sơ đẳng về toán",
+        "categoryNo": "3",
+        "category": "So sánh, sắp xếp theo quy tắc",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › b) › 3",
+        "sortOrder": 67
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 261,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 116,
+        "previous": [
+          76,
+          272,
+          57
+        ],
+        "next": [
+          163,
+          273,
+          58
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Chắp ghép các hình hình học để tạo thành các hình mới theo ý thích và theo yêu cầu.",
+    "pdfPage": 47,
+    "candidateSources": [
+      {
+        "id": 265,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Làm quen với một số khái niệm sơ đẳng về toán",
+        "categoryNo": "5",
+        "category": "Hình dạng",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › b) › 5",
+        "sortOrder": 71
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 265,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 388,
+        "previous": [
+          300,
+          277,
+          62
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Nghe hiểu nội dung truyện kể, truyện đọc phù hợp với độ tuổi.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 301,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "1",
+        "category": "Nghe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 1",
+        "sortOrder": 74
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 301,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 73,
+        "previous": [
+          29,
+          322,
+          83
+        ],
+        "next": [
+          193,
+          323,
+          84
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Nghe các bài hát, bài thơ, ca dao, đồng dao, tục ngữ, câu đố, hò, vè phù hợp với độ tuổi.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 302,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "1",
+        "category": "Nghe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 1",
+        "sortOrder": 75
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 302,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 123,
+        "previous": [
+          29,
+          322,
+          83
+        ],
+        "next": [
+          193,
+          323,
+          84
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Nói và thể hiện cử chỉ, điệu bộ, nét mặt phù hợp với yêu cầu, hoàn cảnh giao tiếp.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 307,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Nói",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 2",
+        "sortOrder": 80
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 307,
+    "sourceAge": "ag-3",
+    "anchor": 326,
+    "position": "after",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 365,
+        "previous": [
+          337,
+          326,
+          87
+        ],
+        "next": [
+          464,
+          327,
+          88
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Đọc thơ, ca dao, đồng dao, tục ngữ, hò vè.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 308,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Nói",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 2",
+        "sortOrder": 81
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 308,
+    "sourceAge": "ag-3",
+    "anchor": 326,
+    "position": "after",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 430,
+        "previous": [
+          337,
+          326,
+          87
+        ],
+        "next": [
+          464,
+          327,
+          88
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nghe hiểu nội dung các câu đơn, câu mở rộng, câu phức.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 322,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "1",
+        "category": "Nghe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 1",
+        "sortOrder": 83
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 322,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 37,
+        "previous": [
+          1,
+          337,
+          72
+        ],
+        "next": [
+          201,
+          338,
+          73
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nghe hiểu nội dung truyện kể, truyện đọc phù hợp với độ tuổi.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 301,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "1",
+        "category": "Nghe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 1",
+        "sortOrder": 74
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 301,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 81,
+        "previous": [
+          1,
+          337,
+          72
+        ],
+        "next": [
+          201,
+          338,
+          73
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nghe các bài hát, bài thơ, ca dao, đồng dao, tục ngữ, câu đố, hò, vè phù hợp với độ tuổi.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 302,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "1",
+        "category": "Nghe",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 1",
+        "sortOrder": 75
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 302,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 131,
+        "previous": [
+          1,
+          337,
+          72
+        ],
+        "next": [
+          201,
+          338,
+          73
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nói và thể hiện cử chỉ, điệu bộ, nét mặt phù hợp với yêu cầu, hoàn cảnh giao tiếp.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 307,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Nói",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 2",
+        "sortOrder": 80
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 307,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 499,
+        "previous": [
+          469,
+          342,
+          77
+        ],
+        "next": [
+          598,
+          343,
+          78
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Đọc thơ, ca dao, đồng dao, tục ngữ, hò vè.",
+    "pdfPage": 50,
+    "candidateSources": [
+      {
+        "id": 308,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Nói",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 2",
+        "sortOrder": 81
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 308,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 564,
+        "previous": [
+          469,
+          342,
+          77
+        ],
+        "next": [
+          598,
+          343,
+          78
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Làm quen với một số ký hiệu thông thường trong cuộc sống (nhà vệ sinh, lối ra, nơi nguy hiểm, biển báo giao thông: đường cho người đi bộ,...)",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 313,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 86
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 313,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 69,
+        "previous": [
+          31,
+          329,
+          90
+        ],
+        "next": [
+          183,
+          331,
+          92
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Xem và nghe đọc các loại sách khác nhau.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 315,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 88
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 315,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 226,
+        "previous": [
+          204,
+          332,
+          93
+        ],
+        "next": [
+          391,
+          333,
+          94
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Hướng đọc, viết: từ trái sang phải, từ dòng trên xuống dòng dưới.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 316,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 89
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 316,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 293,
+        "previous": [
+          204,
+          332,
+          93
+        ],
+        "next": [
+          391,
+          333,
+          94
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Hướng viết của các nét chữ; đọc ngắt nghỉ sau các dấu.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 317,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 90
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 317,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 347,
+        "previous": [
+          204,
+          332,
+          93
+        ],
+        "next": [
+          391,
+          333,
+          94
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Tập tô, tập đồ các nét chữ.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 332,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 93
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 332,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 197,
+        "previous": [
+          178,
+          346,
+          81
+        ],
+        "next": [
+          219,
+          347,
+          82
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Xem và nghe đọc các loại sách khác nhau.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 315,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 88
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 315,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 257,
+        "previous": [
+          219,
+          347,
+          82
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Hướng đọc, viết: từ trái sang phải, từ dòng trên xuống dòng dưới.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 316,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 89
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 316,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 324,
+        "previous": [
+          219,
+          347,
+          82
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Hướng viết của các nét chữ; đọc ngắt nghỉ sau các dấu.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 317,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 90
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 317,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 378,
+        "previous": [
+          219,
+          347,
+          82
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Phân biệt phần mở đầu, kết thúc của sách.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 333,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 94
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 333,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 422,
+        "previous": [
+          219,
+          347,
+          82
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "“Đọc” truyện qua các tranh vẽ.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 334,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 95
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 334,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 456,
+        "previous": [
+          219,
+          347,
+          82
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Giữ gìn, bảo vệ sách.",
+    "pdfPage": 51,
+    "candidateSources": [
+      {
+        "id": 335,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển ngôn ngữ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Làm quen với đọc, viết",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › III › 3",
+        "sortOrder": 96
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 335,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 482,
+        "previous": [
+          219,
+          347,
+          82
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Kính yêu Bác Hồ.",
+    "pdfPage": 52,
+    "candidateSources": [
+      {
+        "id": 352,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "1",
+        "category": "Nhận biết và thể hiện cảm xúc, tình cảm với con người, sự vật và hiện tượng xung quanh.",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 1",
+        "sortOrder": 97
+      },
+      {
+        "id": 367,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "1",
+        "category": "Nhận biết và thể hiện cảm xúc, tình cảm với con người, sự vật và hiện tượng xung quanh.",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 1",
+        "sortOrder": 101
+      }
+    ],
+    "requiresParentReview": true,
+    "sourceId": 367,
+    "sourceAge": "ag-4",
+    "anchor": 375,
+    "position": "after",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 469,
+        "previous": [
+          422,
+          383,
+          91
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Quan tâm đến di tích lịch sử, cảnh đẹp, lễ hội của quê hương, đất nước.",
+    "pdfPage": 52,
+    "candidateSources": [
+      {
+        "id": 368,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "1",
+        "category": "Nhận biết và thể hiện cảm xúc, tình cảm với con người, sự vật và hiện tượng xung quanh.",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 1",
+        "sortOrder": 102
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 368,
+    "sourceAge": "ag-4",
+    "anchor": 375,
+    "position": "after",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 483,
+        "previous": [
+          422,
+          383,
+          91
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Tiết kiệm điện, nước.",
+    "pdfPage": 53,
+    "candidateSources": [
+      {
+        "id": 360,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Phát triển kỹ năng xã hội - Hành vi và quy tắc ứng xử xã hội - Quan tâm đến môi trường",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 2",
+        "sortOrder": 105
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 360,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 291,
+        "previous": [
+          251,
+          374,
+          108
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Giữ gìn vệ sinh môi trường.",
+    "pdfPage": 53,
+    "candidateSources": [
+      {
+        "id": 361,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Phát triển kỹ năng xã hội - Hành vi và quy tắc ứng xử xã hội - Quan tâm đến môi trường",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 2",
+        "sortOrder": 106
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 361,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 310,
+        "previous": [
+          251,
+          374,
+          108
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Bảo vệ chăm sóc con vật và cây cối.",
+    "pdfPage": 53,
+    "candidateSources": [
+      {
+        "id": 362,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Phát triển kỹ năng xã hội - Hành vi và quy tắc ứng xử xã hội - Quan tâm đến môi trường",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 2",
+        "sortOrder": 107
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 362,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 333,
+        "previous": [
+          251,
+          374,
+          108
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Một số quy định ở lớp, gia đình và nơi công cộng (để đồ dùng, đồ chơi đúng chỗ; trật tự khi ăn, khi ngủ; đi bên phải lề đường).",
+    "pdfPage": 53,
+    "candidateSources": [
+      {
+        "id": 369,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Phát triển kỹ năng xã hội - Hành vi và quy tắc ứng xử xã hội - Quan tâm đến môi trường",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 2",
+        "sortOrder": 103
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 369,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 1,
+        "previous": null,
+        "next": [
+          100,
+          384,
+          92
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Tiết kiệm điện, nước.",
+    "pdfPage": 53,
+    "candidateSources": [
+      {
+        "id": 360,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Phát triển kỹ năng xã hội - Hành vi và quy tắc ứng xử xã hội - Quan tâm đến môi trường",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 2",
+        "sortOrder": 105
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 360,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 284,
+        "previous": [
+          232,
+          387,
+          95
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Giữ gìn vệ sinh môi trường.",
+    "pdfPage": 53,
+    "candidateSources": [
+      {
+        "id": 361,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Phát triển kỹ năng xã hội - Hành vi và quy tắc ứng xử xã hội - Quan tâm đến môi trường",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 2",
+        "sortOrder": 106
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 361,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 303,
+        "previous": [
+          232,
+          387,
+          95
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Bảo vệ chăm sóc con vật và cây cối.",
+    "pdfPage": 53,
+    "candidateSources": [
+      {
+        "id": 362,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Phát triển kỹ năng xã hội - Hành vi và quy tắc ứng xử xã hội - Quan tâm đến môi trường",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 2",
+        "sortOrder": 107
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 362,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 326,
+        "previous": [
+          232,
+          387,
+          95
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Hát đúng giai điệu, lời ca và thể hiện sắc thái, tình cảm của bài hát.",
+    "pdfPage": 54,
+    "candidateSources": [
+      {
+        "id": 403,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển thẩm mỹ",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Một số kỹ năng trong hoạt động âm nhạc và hoạt động tạo hình.",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › V › 2",
+        "sortOrder": 112
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 403,
+    "sourceAge": "ag-4",
+    "anchor": 417,
+    "position": "before",
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 139,
+        "previous": [
+          72,
+          415,
+          98
+        ],
+        "next": [
+          195,
+          416,
+          99
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Đặt tên cho sản phẩm của mình.",
+    "pdfPage": 55,
+    "candidateSources": [
+      {
+        "id": 399,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thẩm mỹ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Thể hiện sự sáng tạo khi tham gia các hoạt động nghệ thuật (âm nhạc, tạo hình)",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › V › 3",
+        "sortOrder": 119
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 399,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 382,
+        "previous": [
+          354,
+          412,
+          121
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nói lên ý tưởng tạo hình của mình.",
+    "pdfPage": 55,
+    "candidateSources": [
+      {
+        "id": 412,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển thẩm mỹ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Thể hiện sự sáng tạo khi tham gia các hoạt động nghệ thuật (âm nhạc, tạo hình)",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › V › 3",
+        "sortOrder": 121
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 412,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 451,
+        "previous": [
+          381,
+          423,
+          106
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Đặt tên cho sản phẩm của mình.",
+    "pdfPage": 55,
+    "candidateSources": [
+      {
+        "id": 399,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thẩm mỹ",
+        "subDomain": null,
+        "categoryNo": "3",
+        "category": "Thể hiện sự sáng tạo khi tham gia các hoạt động nghệ thuật (âm nhạc, tạo hình)",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › V › 3",
+        "sortOrder": 119
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 399,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 479,
+        "previous": [
+          381,
+          423,
+          106
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Nguyên nhân gây ô nhiễm nguồn nước và cách bảo vệ nguồn nước.",
+    "pdfPage": 46,
+    "candidateSources": [
+      {
+        "id": 237,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "4",
+        "category": "Nước",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 4",
+        "sortOrder": 62
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 237,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 31,
+        "previous": null,
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Không khí, các nguồn ánh sáng và sự cần thiết của nó với cuộc sống con người, con vật và cây.",
+    "pdfPage": 46,
+    "candidateSources": [
+      {
+        "id": 238,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "4",
+        "category": "Không khí, ánh sáng,",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 4",
+        "sortOrder": 63
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 238,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 80,
+        "previous": null,
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-4",
+    "text": "Một vài đặc điểm, tính chất của đất, đá, cát, sỏi.",
+    "pdfPage": 46,
+    "candidateSources": [
+      {
+        "id": 220,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "4",
+        "category": "Đất đá, cát, sỏi",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 4",
+        "sortOrder": 54
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 220,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 153,
+        "previous": [
+          80,
+          238,
+          63
+        ],
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Một vài đặc điểm, tính chất của đất, đá, cát, sỏi.",
+    "pdfPage": 46,
+    "candidateSources": [
+      {
+        "id": 220,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá khoa học",
+        "categoryNo": "4",
+        "category": "Đất đá, cát, sỏi",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › a) › 4",
+        "sortOrder": 54
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 220,
+    "sourceAge": "ag-3",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 153,
+        "previous": null,
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Tên gọi, công cụ, sản phẩm, các hoạt động và ý nghĩa của các nghề phổ biến, nghề truyền thống của địa phương.",
+    "pdfPage": 49,
+    "candidateSources": [
+      {
+        "id": 292,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá xã hội",
+        "categoryNo": "2",
+        "category": "Một số nghề trong xã hội",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › c) › 2",
+        "sortOrder": 79
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 292,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 0,
+        "previous": null,
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Đặc điểm nổi bật của một số di tích, danh lam, thắng cảnh, ngày lễ hội, sự kiện văn hóa của quê hương, đất nước.",
+    "pdfPage": 49,
+    "candidateSources": [
+      {
+        "id": 293,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển nhận thức",
+        "subDomain": "Khám phá xã hội",
+        "categoryNo": "3",
+        "category": "Danh lam thắng cảnh, các ngày lễ hội, sự kiện văn hóa",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › II › c) › 3",
+        "sortOrder": 80
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 293,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 87,
+        "previous": null,
+        "next": null,
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "content",
+    "age": "ag-5",
+    "text": "Yêu mến, quan tâm đến người thân trong gia đình.",
+    "pdfPage": 53,
+    "candidateSources": [
+      {
+        "id": 372,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": "2",
+        "category": "Phát triển kỹ năng xã hội - Hành vi và quy tắc ứng xử xã hội - Quan tâm đến môi trường",
+        "groupNo": null,
+        "groupText": null,
+        "goalNo": null,
+        "sectionRef": "Phần ba › C › IV › 2",
+        "sortOrder": 106
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 372,
+    "sourceAge": "ag-4",
+    "needsPlacementReview": true,
+    "pdfCandidates": [
+      {
+        "table": 0,
+        "offset": 186,
+        "previous": [
+          160,
+          385,
+          93
+        ],
+        "next": [
+          232,
+          387,
+          95
+        ],
+        "conflict": false
+      }
+    ]
+  },
+  {
+    "kind": "goal",
+    "age": "ag-5",
+    "text": "Nói được tên một số món ăn hàng ngày và dạng chế biến đơn giản: rau có thể luộc, nấu canh; thịt có thể luộc, rán, kho; gạo nấu cơm, nấu cháo...",
+    "pdfPage": 58,
+    "goalNo": "1.2",
+    "candidateSources": [
+      {
+        "id": 74,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển thể chất",
+        "subDomain": "Giáo dục dinh dưỡng và sức khỏe",
+        "categoryNo": null,
+        "category": null,
+        "groupNo": "1",
+        "groupText": "Biết một số món ăn, thực phẩm thông thường và ích lợi của chúng đối với sức khỏe",
+        "goalNo": "1.2",
+        "sectionRef": "Phần ba › D › I › b) › 1 › 1.2",
+        "sortOrder": 9
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 74,
+    "sourceAge": "ag-4",
+    "anchor": 85,
+    "position": "before"
+  },
+  {
+    "kind": "goal",
+    "age": "ag-5",
+    "text": "Thích chăm sóc cây, con vật thân thuộc.",
+    "pdfPage": 73,
+    "goalNo": "5.1",
+    "candidateSources": [
+      {
+        "id": 260,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển tình cảm và kỹ năng xã hội",
+        "subDomain": null,
+        "categoryNo": null,
+        "category": null,
+        "groupNo": "5",
+        "groupText": "Quan tâm đến môi trường",
+        "goalNo": "5.1",
+        "sectionRef": "Phần ba › D › IV › 5 › 5.1",
+        "sortOrder": 81
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 260,
+    "sourceAge": "ag-4",
+    "anchor": 283,
+    "position": "before"
+  },
+  {
+    "kind": "goal",
+    "age": "ag-5",
+    "text": "Nói lên ý tưởng và tạo ra các sản phẩm tạo hình theo ý thích.",
+    "pdfPage": 76,
+    "goalNo": "3.3",
+    "candidateSources": [
+      {
+        "id": 313,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển thẩm mỹ",
+        "subDomain": null,
+        "categoryNo": null,
+        "category": null,
+        "groupNo": "3",
+        "groupText": "Thể hiện sự sáng tạo khi tham gia các hoạt động nghệ thuật (âm nhạc, tạo hình)",
+        "goalNo": "3.3",
+        "sectionRef": "Phần ba › D › V › 3 › 3.3",
+        "sortOrder": 98
+      }
+    ],
+    "requiresParentReview": false,
+    "sourceId": 313,
+    "sourceAge": "ag-4",
+    "anchor": 327,
+    "position": "after"
+  },
+  {
+    "kind": "goal",
+    "age": "ag-5",
+    "text": "Đặt tên cho sản phẩm tạo hình.",
+    "pdfPage": 76,
+    "goalNo": "3.4",
+    "candidateSources": [
+      {
+        "id": 299,
+        "ageGroup": "ag-3",
+        "domainName": "Phát triển thẩm mỹ",
+        "subDomain": null,
+        "categoryNo": null,
+        "category": null,
+        "groupNo": "3",
+        "groupText": "Thể hiện sự sáng tạo khi tham gia các hoạt động nghệ thuật (âm nhạc, tạo hình)",
+        "goalNo": "3.3",
+        "sectionRef": "Phần ba › D › V › 3 › 3.3",
+        "sortOrder": 84
+      },
+      {
+        "id": 314,
+        "ageGroup": "ag-4",
+        "domainName": "Phát triển thẩm mỹ",
+        "subDomain": null,
+        "categoryNo": null,
+        "category": null,
+        "groupNo": "3",
+        "groupText": "Thể hiện sự sáng tạo khi tham gia các hoạt động nghệ thuật (âm nhạc, tạo hình)",
+        "goalNo": "3.4",
+        "sectionRef": "Phần ba › D › V › 3 › 3.4",
+        "sortOrder": 99
+      }
+    ],
+    "requiresParentReview": true,
+    "sourceId": 314,
+    "sourceAge": "ag-4",
+    "anchor": 327,
+    "position": "after"
+  }
+]

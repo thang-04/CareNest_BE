@@ -4,12 +4,16 @@ import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
+import com.carenest.dto.health.HealthTrendContent;
+import com.carenest.dto.health.PublishedHealthResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.health.HealthCheckCampaign;
+import com.carenest.entity.health.HealthInterpretation;
 import com.carenest.entity.health.HealthMeasurement;
 import com.carenest.entity.health.HealthMeasurementEdit;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.health.HealthCheckCampaignRepository;
+import com.carenest.repository.health.HealthInterpretationRepository;
 import com.carenest.repository.health.HealthMeasurementEditRepository;
 import com.carenest.repository.health.HealthMeasurementRepository;
 import com.carenest.security.CurrentUser;
@@ -21,6 +25,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckStatus;
+import com.carenest.utils.enums.InterpretationStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -32,6 +37,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
@@ -50,6 +57,9 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
     private final ChildService childService;
     private final EnrollmentService enrollmentService;
     private final ClassroomService classroomService;
+    private final HealthNotifier healthNotifier;
+    private final HealthInterpretationRepository interpretationRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -83,16 +93,14 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                         result == null ? null : result.getId(),
                         resultStatus(result));
             }
-            // Phiếu khám nháp chưa công bố, không vào sổ
+            // Phiếu khám nháp chưa công bố, không vào sổ; cảnh báo hiện tại theo bác sĩ và theo BMI (HLT-19)
             ChildHealthRecordResponse record = new ChildHealthRecordResponse(
                     childId,
-                    HealthRecords.headCircumferenceUntil(child.dateOfBirth()),
                     cls.map(c -> rules.canRecord(currentUser, c)).orElse(false),
                     openView,
-                    records.views(s, s.results(childId), child.dateOfBirth(), false),
-                    s.latestHealth(childId),
-                    s.brief(s.openFollowUp(childId)),
-                    records.externalResults(s, childId));
+                    records.views(s, s.results(childId), child.dateOfBirth(), child.gender(), false),
+                    s.latestExam(childId),
+                    s.latestBmi(childId, child.dateOfBirth(), child.gender()));
             log.info("{}|END", logPrefix);
             return record;
         } catch (RuntimeException ex) {
@@ -113,8 +121,11 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     .flatMap(campaignRepository::findById)
                     .filter(c -> c.getKind() == HealthCheckKind.MEASUREMENT)
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_ROUND_REQUIRED));
+            // Ngày đo hệ thống ghi, GV không chọn (HLT-01): ngày nhập, vì kỳ tự đóng sau ngày kết thúc (HLT-17); kẹp
+            // trong kỳ chỉ là chốt chặn khi job chưa chạy. Trẻ có lớp tại ngày đo nên ngày đo không trước ngày sinh
+            LocalDate date = rules.referenceDate(round);
             ClassroomInfoResponse cls =
-                    classOn(childId, request.date()).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_IN_CLASS));
+                    classOn(childId, date).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_IN_CLASS));
             if (!cls.campusId().equals(round.getCampusId())) {
                 throw GlobalException.of(ApiCode.HEALTH_ROUND_REQUIRED);
             }
@@ -122,27 +133,26 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
             }
             ChildBriefResponse child = brief(childId);
-            checkOpenAndDate(round, request.date(), child);
+            checkOpen(round);
             if (measurementRepository.existsByChildIdAndCampaignId(childId, round.getId())) {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_EXISTS);
             }
-            if (measurementRepository
-                    .findByChildIdAndDate(childId, request.date())
-                    .isPresent()) {
-                throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN);
+            if (measurementRepository.findByChildIdAndDate(childId, date).isPresent()) {
+                throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN, date);
             }
             HealthMeasurement saved = measurementRepository.save(HealthMeasurement.builder()
                     .childId(childId)
                     .campaignId(round.getId())
                     .classroomId(cls.id())
-                    .date(request.date())
+                    .date(date)
                     .heightCm(request.heightCm())
                     .weightKg(request.weightKg())
-                    .headCircumferenceCm(headOf(request, child))
                     .note(trimmed(request.note()))
                     .measuredBy(currentUser.userId())
                     .createdAt(rules.now())
                     .build());
+            // HLT-11: lưu là công bố ⇒ báo phụ huynh
+            healthNotifier.resultPublished(childId, child.fullName(), false);
             HealthMeasurementResponse view = view(saved, child);
             log.info("{}|END", logPrefix);
             return view;
@@ -176,20 +186,12 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     .findById(m.getCampaignId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_CHECK_NOT_FOUND));
             ChildBriefResponse child = brief(childId);
-            checkOpenAndDate(round, request.date(), child);
-            measurementRepository
-                    .findByChildIdAndDate(childId, request.date())
-                    .filter(other -> !other.getId().equals(m.getId()))
-                    .ifPresent(other -> {
-                        throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN);
-                    });
-            BigDecimal head = headOf(request, child);
+            checkOpen(round);
+            // Sửa chỉ đổi chiều cao, cân nặng, ghi chú; giữ ngày đo, vòng đầu cũ (user chốt 2026-11-04)
             String note = trimmed(request.note());
             List<HealthMeasurementResponse.HealthMeasurementChange> changes = new ArrayList<>();
-            change(changes, "date", "Ngày đo", m.getDate(), request.date());
             change(changes, "heightCm", "Chiều cao (cm)", m.getHeightCm(), request.heightCm());
             change(changes, "weightKg", "Cân nặng (kg)", m.getWeightKg(), request.weightKg());
-            change(changes, "headCircumferenceCm", "Vòng đầu (cm)", m.getHeadCircumferenceCm(), head);
             change(changes, "note", "Ghi chú khám", m.getNote(), note);
             if (!changes.isEmpty()) {
                 // HLT-13: sửa số đo đã công bố phải ghi lý do, lưu lịch sử; lưu là công bố lại
@@ -199,11 +201,85 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 }
                 editRepository.save(HealthMeasurementEdit.of(
                         m.getId(), currentUser.userId(), reason, records.writeChanges(changes), rules.now()));
-                m.update(request.date(), request.heightCm(), request.weightKg(), head, note, rules.now());
+                m.update(request.heightCm(), request.weightKg(), note, rules.now());
+                healthNotifier.resultPublished(childId, child.fullName(), true);
             }
             HealthMeasurementResponse view = view(m, child);
             log.info("{}|END", logPrefix);
             return view;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private PublishedHealthResponse.ApprovedInterpretation approvedForParent(
+            HealthInterpretation i, List<PublishedHealthResponse.GrowthPoint> growth) {
+        HealthTrendContent content = i.getContent() == null
+                ? null
+                : objectMapper
+                        .readValue(i.getContent(), HealthTrendContent.class)
+                        .forParent();
+        return new PublishedHealthResponse.ApprovedInterpretation(
+                i.getId(),
+                i.getPeriod(),
+                content == null ? i.getSummary() : HealthTrendContentRules.render(content),
+                content,
+                objectMapper.readValue(
+                        i.getWarnings(), new TypeReference<List<PublishedHealthResponse.TrendWarning>>() {}),
+                HealthGrowth.stale(
+                        objectMapper.readValue(i.getMeasurementIds(), new TypeReference<List<Long>>() {}),
+                        HealthGrowth.within(growth, i.getPeriod(), rules.today())),
+                i.getApprovedAt());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PublishedHealthResponse getPublishedHealth(CurrentUser currentUser, Long childId) {
+        String logPrefix = LOG_PREFIX + "|getPublishedHealth|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            // AUTH-04, CHD-04: phụ huynh chỉ trẻ có liên kết và chưa nghỉ học; nhân sự theo phạm vi lớp
+            childAccessPolicy.checkCanReadChild(currentUser, childId);
+            ChildBriefResponse child = brief(childId);
+            HealthRecords.Snapshot s = records.load(List.of(childId));
+            List<HealthMeasurementResponse> published =
+                    records.views(s, s.results(childId), child.dateOfBirth(), child.gender(), false);
+            List<PublishedHealthResponse.PublishedHealthResult> results = published.stream()
+                    .map(m -> new PublishedHealthResponse.PublishedHealthResult(
+                            m.id(),
+                            m.date(),
+                            m.ageMonths(),
+                            m.source(),
+                            m.campaignKind(),
+                            m.campaignName(),
+                            m.heightCm(),
+                            m.weightKg(),
+                            m.headCircumferenceCm(),
+                            m.bmi(),
+                            m.bmiStatus(),
+                            m.bmiZScore(),
+                            m.note(),
+                            m.followUpLevel(),
+                            m.conclusionCategory(),
+                            m.conclusion(),
+                            m.publishedAt()))
+                    .toList();
+            List<PublishedHealthResponse.GrowthPoint> growth = HealthGrowth.points(published, child.gender());
+            // HLT-05, PAR-03: phụ huynh chỉ thấy giải thích đã duyệt; HLT-21: không có gợi ý theo dõi (việc nội bộ)
+            PublishedHealthResponse.ApprovedInterpretation interpretation = interpretationRepository
+                    .findFirstByChildIdAndStatusOrderByApprovedAtDescIdDesc(childId, InterpretationStatus.APPROVED)
+                    .map(i -> approvedForParent(i, growth))
+                    .orElse(null);
+            PublishedHealthResponse response = new PublishedHealthResponse(
+                    childId,
+                    results,
+                    growth,
+                    s.latestExam(childId),
+                    s.latestBmi(childId, child.dateOfBirth(), child.gender()),
+                    interpretation);
+            log.info("{}|results={}|END", logPrefix, results.size());
+            return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -244,23 +320,11 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 .flatMap(classroomService::findClassroomInfo);
     }
 
-    // Kỳ đang diễn ra; ngày đo trong khoảng của kỳ, không ở tương lai, không trước ngày sinh
-    private void checkOpenAndDate(HealthCheckCampaign round, LocalDate date, ChildBriefResponse child) {
+    // Kỳ đã bắt đầu, chưa đóng, chưa hủy
+    private void checkOpen(HealthCheckCampaign round) {
         if (round.statusOn(rules.today()) != HealthCheckStatus.IN_PROGRESS) {
             throw GlobalException.of(ApiCode.HEALTH_ROUND_NOT_OPEN);
         }
-        if (date.isBefore(round.getStartDate())
-                || date.isAfter(round.getEndDate())
-                || date.isAfter(rules.today())
-                || date.isBefore(child.dateOfBirth())) {
-            throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_OUTSIDE);
-        }
-    }
-
-    // Vòng đầu chỉ lưu khi trẻ chưa quá 60 tháng tại ngày đo
-    private static BigDecimal headOf(HealthMeasurementRequest request, ChildBriefResponse child) {
-        boolean applies = !request.date().isAfter(HealthRecords.headCircumferenceUntil(child.dateOfBirth()));
-        return applies ? request.headCircumferenceCm() : null;
     }
 
     /** RECORDED với số đo của kỳ cân đo; DRAFT/CONCLUDED theo phiếu khám; null khi chưa có. */
@@ -273,7 +337,8 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
 
     private HealthMeasurementResponse view(HealthMeasurement m, ChildBriefResponse child) {
         HealthRecords.Snapshot s = records.load(List.of(child.id()));
-        return records.views(s, List.of(m), child.dateOfBirth(), false).getFirst();
+        return records.views(s, List.of(m), child.dateOfBirth(), child.gender(), false)
+                .getFirst();
     }
 
     private static void change(

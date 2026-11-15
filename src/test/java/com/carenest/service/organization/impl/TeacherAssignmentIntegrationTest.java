@@ -16,6 +16,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
@@ -108,8 +109,14 @@ class TeacherAssignmentIntegrationTest {
         teacherOf(teacher2, classA1);
         teacherOf(teacher3, classA2);
         teacherOf(teacherB, classB1);
-        principal =
-                new CurrentUser(principalId, "kc-principal", "principal", "P", null, Set.of(CareNestRole.PRINCIPAL));
+        principal = new CurrentUser(
+                principalId,
+                "kc-principal",
+                "principal",
+                "P",
+                null,
+                Set.of(CareNestRole.PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
     }
 
     @Test
@@ -192,7 +199,26 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    void remainingTeacherBecomesHomeroomWhenNoneChosen() {
+    @DisplayName("SCH-04: năm đang học mỗi lớp đúng 2 GV đứng lớp và có chủ nhiệm (Cần chốt 10/11/2026)")
+    void activeYearNeedsExactlyTwoTeachersAndHomeroom() {
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1), teacher1)),
+                ApiCode.CLASS_NEEDS_TWO_TEACHERS);
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), null)),
+                ApiCode.HOMEROOM_REQUIRED);
+        assertThat(service.assignClassTeachers(
+                                principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher2))
+                        .homeroomTeacherId())
+                .isEqualTo(teacher2);
+    }
+
+    @Test
+    void remainingTeacherBecomesHomeroomWhenNoneChosenInPlannedYear() {
+        // Năm sắp tới HT xếp dần: lưu tạm 1 GV được, người còn lại làm chủ nhiệm
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
         ClassTeachersResponse result =
                 service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(teacher2), null));
 
@@ -235,7 +261,8 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    void oneTeacherIsAllowedWithHomeroom() {
+    void oneTeacherIsAllowedWithHomeroomInPlannedYear() {
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
         ClassTeachersResponse result =
                 service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(teacher1), teacher1));
 
@@ -246,7 +273,8 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    void homeroomIsOptional() {
+    void homeroomIsOptionalInPlannedYear() {
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
         ClassTeachersResponse result = service.assignClassTeachers(
                 principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), null));
 
@@ -335,6 +363,43 @@ class TeacherAssignmentIntegrationTest {
         assertThat(result.homeroomTeacherId()).isEqualTo(teacher2);
     }
 
+    @Test
+    void schoolScopeLetsVicePrincipalAssignEveryCampusAndRevokeBlocksIt() {
+        CurrentUser vpB = vicePrincipalOf("vpB", "CS-B");
+        // AUTH-13: HT cấp STAFF_ASSIGNMENT_MANAGE phạm vi SCHOOL ⇒ PHT cơ sở B phân công được lớp cơ sở A
+        CurrentUser schoolWide = new CurrentUser(
+                vpB.userId(),
+                vpB.keycloakUserId(),
+                vpB.username(),
+                vpB.fullName(),
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
+        assertThat(service.getTeacherAssignments(schoolWide, year, null).classes())
+                .hasSize(3);
+        ClassTeachersResponse result = service.assignClassTeachers(
+                schoolWide, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher1));
+        assertThat(result.teacherIds()).containsExactlyInAnyOrder(teacher1, teacher2);
+        // Phạm vi CAMPUS chỉ thấy lớp cơ sở mình
+        assertThat(service.getTeacherAssignments(vpB, year, null).classes()).hasSize(1);
+
+        // HT thu hồi mã quyền ⇒ còn là PHT vẫn bị chặn
+        CurrentUser revoked = new CurrentUser(
+                vpB.userId(),
+                vpB.keycloakUserId(),
+                vpB.username(),
+                vpB.fullName(),
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of());
+        assertThat(service.getTeacherAssignments(revoked, year, null).classes()).isEmpty();
+        expectError(
+                () -> service.assignClassTeachers(
+                        revoked, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher1)),
+                ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+    }
+
     private CurrentUser vicePrincipalOf(String username, String campusCode) {
         long userId = user(username);
         jdbc.update(
@@ -342,7 +407,14 @@ class TeacherAssignmentIntegrationTest {
                         + "SELECT ?, 'VICE_PRINCIPAL', id, '2026-01-01' FROM campuses WHERE code = ?",
                 userId,
                 campusCode);
-        return new CurrentUser(userId, "kc-" + username, username, "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        return new CurrentUser(
+                userId,
+                "kc-" + username,
+                username,
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
     }
 
     @Test
@@ -388,8 +460,14 @@ class TeacherAssignmentIntegrationTest {
 
     @Test
     void vicePrincipalCannotAssign() {
-        CurrentUser vicePrincipal =
-                new CurrentUser(999L, "kc-vp", "vp", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        CurrentUser vicePrincipal = new CurrentUser(
+                999L,
+                "kc-vp",
+                "vp",
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
 
         expectError(
                 () -> service.assignTeamLeader(vicePrincipal, new TeamLeaderRequest(year, ageGroup3, teacher1)),
@@ -421,6 +499,7 @@ class TeacherAssignmentIntegrationTest {
 
         assertThat(created.validTo()).isEqualTo(TODAY.plusDays(14));
         assertThat(created.substitute()).isTrue();
+        assertThat(created.replacedTeacherId()).isEqualTo(teacher3);
         assertThat(jdbc.queryForObject(
                         "SELECT assigned_by FROM staff_assignments WHERE id = ?", Long.class, created.id()))
                 .isEqualTo(principal.userId());
@@ -430,6 +509,115 @@ class TeacherAssignmentIntegrationTest {
         ClassTeachersResponse a2 = service.assignClassTeachers(
                 principal, classA2, new ClassTeachersRequest(List.of(teacher3, teacher1), teacher3));
         assertThat(a2.teacherIds()).containsExactlyInAnyOrder(teacher3, teacher1);
+    }
+
+    @Test
+    @DisplayName("SCH-04 (Cần chốt 11/11/2026): dạy thay được lấy GV cơ sở khác; dạy chính lẻ vẫn trong cơ sở của lớp")
+    void substituteMayComeFromAnotherCampus() {
+        // GV cơ sở B đã thôi dạy lớp B1 (đang dạy thì bận, SUBSTITUTE_TEACHER_BUSY)
+        endAssignments(teacherB);
+        StaffAssignmentResponse created =
+                staffAssignmentService.createAssignment(substituteAssignment(teacherB, classA2, TODAY.plusDays(7)));
+        assertThat(created.substitute()).isTrue();
+        assertThat(created.userId()).isEqualTo(teacherB);
+    }
+
+    @Test
+    @DisplayName("Cần chốt 14/11/2026: không dạy thay 2 lớp trùng ngày; GV dạy chính lớp khác vẫn được dạy thay")
+    void busyTeacherCannotSubstitute() {
+        // teacher1 dạy chính lớp A1 suốt năm vẫn được dạy thay A2 (nới luật)
+        StaffAssignmentResponse main = staffAssignmentService.createAssignment(new NewStaffAssignment(
+                teacher1,
+                StaffRole.TEACHER,
+                null,
+                classA2,
+                TODAY.plusDays(20),
+                TODAY.plusDays(25),
+                principal.userId(),
+                true,
+                teacher3));
+        assertThat(main.substitute()).isTrue();
+        // free đang dạy thay lớp A1 tới TODAY+3 ⇒ dạy thay A2 từ TODAY bị chặn
+        long free = freeTeacher("teacherFree");
+        staffAssignmentService.createAssignment(new NewStaffAssignment(
+                free, StaffRole.TEACHER, null, classA1, TODAY, TODAY.plusDays(3), principal.userId(), true, teacher1));
+        expectCode(
+                () -> staffAssignmentService.createAssignment(substituteAssignment(free, classA2, TODAY.plusDays(7))),
+                ApiCode.SUBSTITUTE_TEACHER_BUSY);
+        // Khoảng sau khi hết dạy thay A1 thì được
+        StaffAssignmentResponse later = staffAssignmentService.createAssignment(new NewStaffAssignment(
+                free,
+                StaffRole.TEACHER,
+                null,
+                classA2,
+                TODAY.plusDays(4),
+                TODAY.plusDays(7),
+                principal.userId(),
+                true,
+                teacher3));
+        assertThat(later.validFrom()).isEqualTo(TODAY.plusDays(4));
+    }
+
+    @Test
+    @DisplayName("Dạy thay cùng lớp: trùng khoảng ngày bị chặn, hai đợt nối tiếp không giao nhau thì được")
+    void substituteOverlapUsesDateRange() {
+        long free = freeTeacher("teacherFree");
+        // Hai đợt không giao nhau của cùng người, cùng lớp: đều được
+        staffAssignmentService.createAssignment(substituteAssignment(free, classA2, TODAY.plusDays(5)));
+        StaffAssignmentResponse later = staffAssignmentService.createAssignment(new NewStaffAssignment(
+                free,
+                StaffRole.TEACHER,
+                null,
+                classA2,
+                TODAY.plusDays(10),
+                TODAY.plusDays(14),
+                principal.userId(),
+                true,
+                teacher3));
+        assertThat(later.validFrom()).isEqualTo(TODAY.plusDays(10));
+        // Giao với đợt TODAY+10..14 (dạy thay cho GV đứng lớp khác của A2) ⇒ cùng người trùng khoảng ngày
+        long teacherA2 = freeTeacher("teacherA2");
+        teacherOf(teacherA2, classA2);
+        expectCode(
+                () -> staffAssignmentService.createAssignment(new NewStaffAssignment(
+                        free,
+                        StaffRole.TEACHER,
+                        null,
+                        classA2,
+                        TODAY.plusDays(8),
+                        TODAY.plusDays(11),
+                        principal.userId(),
+                        true,
+                        teacherA2)),
+                ApiCode.ASSIGNMENT_OVERLAP);
+    }
+
+    // GV chưa có lớp nào
+    private long freeTeacher(String username) {
+        long id = user(username);
+        jdbc.update("UPDATE user_accounts SET primary_role = 'TEACHER' WHERE id = ?", id);
+        return id;
+    }
+
+    @Test
+    @DisplayName("Dạy thay cùng lớp: đợt trước tạo sau đợt muộn hơn, không giao nhau thì không bị báo trùng")
+    void earlierSubstitutePeriodIsNotBlockedByLaterOne() {
+        staffAssignmentService.createAssignment(new NewStaffAssignment(
+                teacher1,
+                StaffRole.TEACHER,
+                null,
+                classA2,
+                TODAY.plusDays(10),
+                TODAY.plusDays(14),
+                principal.userId(),
+                true,
+                teacher3));
+
+        StaffAssignmentResponse earlier =
+                staffAssignmentService.createAssignment(substituteAssignment(teacher1, classA2, TODAY.plusDays(5)));
+
+        assertThat(earlier.validFrom()).isEqualTo(TODAY);
+        assertThat(earlier.validTo()).isEqualTo(TODAY.plusDays(5));
     }
 
     @Test
@@ -501,14 +689,75 @@ class TeacherAssignmentIntegrationTest {
                 teacherId, StaffRole.TEACHER, null, classroomId, TODAY, validTo, principal.userId(), false);
     }
 
+    // Dạy thay ở lớp A2 cho teacher3 (GV đứng lớp A2)
     private NewStaffAssignment substituteAssignment(long teacherId, long classroomId, LocalDate validTo) {
+        return substituteFor(teacherId, classroomId, validTo, teacher3);
+    }
+
+    private NewStaffAssignment substituteFor(long teacherId, long classroomId, LocalDate validTo, Long replaced) {
         return new NewStaffAssignment(
-                teacherId, StaffRole.TEACHER, null, classroomId, TODAY, validTo, principal.userId(), true);
+                teacherId, StaffRole.TEACHER, null, classroomId, TODAY, validTo, principal.userId(), true, replaced);
+    }
+
+    @Test
+    @DisplayName("AUTH-16, SCH-04: dạy thay phải chọn dạy thay cho GV đứng lớp; mỗi GV một người dạy thay cùng lúc")
+    void substituteMustNameReplacedClassTeacher() {
+        LocalDate end = TODAY.plusDays(7);
+        expectError(
+                () -> staffAssignmentService.createAssignment(substituteFor(teacher1, classA2, end, null)),
+                ApiCode.SUBSTITUTE_REPLACED_REQUIRED);
+        // teacher2 không đứng lớp A2
+        expectError(
+                () -> staffAssignmentService.createAssignment(substituteFor(teacher1, classA2, end, teacher2)),
+                ApiCode.SUBSTITUTE_REPLACED_NOT_IN_CLASS);
+        // GV đứng lớp A2 không dạy thay cho lớp mình
+        long teacher4 = user("teacher4");
+        teacherOf(teacher4, classA2);
+        expectError(
+                () -> staffAssignmentService.createAssignment(substituteFor(teacher4, classA2, end, teacher3)),
+                ApiCode.SUBSTITUTE_IS_CLASS_TEACHER);
+
+        long free = freeTeacher("teacherFree");
+        StaffAssignmentResponse created =
+                staffAssignmentService.createAssignment(substituteFor(free, classA2, end, teacher3));
+        assertThat(created.replacedTeacherId()).isEqualTo(teacher3);
+        // Đã có người dạy thay cho teacher3 trong khoảng này
+        long teacher5 = user("teacher5");
+        jdbc.update("UPDATE user_accounts SET primary_role = 'TEACHER' WHERE id = ?", teacher5);
+        expectError(
+                () -> staffAssignmentService.createAssignment(substituteFor(teacher5, classA2, end, teacher3)),
+                ApiCode.SUBSTITUTE_ALREADY_COVERED);
     }
 
     private long user(String username) {
         return insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + " IT') RETURNING id");
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05: GV và Tổ trưởng năm sau có quyền từ ngày mở chuẩn bị để soạn giáo án")
+    void plannedYearAssignmentsStartFromPreparationDate() {
+        long planned = insertId("INSERT INTO school_years (name, prep_date, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-08-05', '2027-09-06', '2028-05-31', 'PLANNED') RETURNING id");
+        long campusId = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classA1);
+        long plannedClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity)"
+                + " VALUES (" + campusId + ", " + planned + ", 'Lớp A1 năm sau', " + ageGroup4 + ", 25) RETURNING id");
+        LocalDate prep = LocalDate.of(2027, 8, 5);
+
+        service.assignClassTeachers(principal, plannedClass, new ClassTeachersRequest(List.of(teacher1), teacher1));
+        service.assignTeamLeader(principal, new TeamLeaderRequest(planned, ageGroup4, teacher2));
+
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, plannedClass, prep))
+                .isTrue();
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, plannedClass, prep.minusDays(1)))
+                .isFalse();
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, prep))
+                .containsExactly(teacher2);
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, prep.minusDays(1)))
+                .isEmpty();
+        // Năm đang chạy không đổi: GV lớp hiện tại vẫn còn quyền
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, classA1, TODAY))
+                .isTrue();
     }
 
     private long classroom(long campusId, String name) {
@@ -545,5 +794,104 @@ class TeacherAssignmentIntegrationTest {
 
     private long insertId(String sql) {
         return jdbc.queryForObject(sql, Long.class);
+    }
+
+    @Test
+    @DisplayName(
+            "Tổ trưởng chỉ có quyền ở nhóm tuổi mình trong đúng năm được phân công (valid_to trống không tràn năm)")
+    void teamLeaderScopeFollowsSchoolYear() {
+        long closed = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        // Dữ liệu thật hay để trống valid_to: teacher2 tổ trưởng năm nay, teacher1 năm sau, teacher3 năm trước
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-09-01')",
+                teacher2,
+                ageGroup4,
+                year);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2027-09-01')",
+                teacher1,
+                ageGroup4,
+                planned);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from,"
+                        + " valid_to) VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2025-09-01', '2026-05-31')",
+                teacher3,
+                ageGroup4,
+                closed);
+
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, year, TODAY))
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, null, TODAY))
+                .as("null = năm đang hoạt động")
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, planned, TODAY))
+                .isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, closed, TODAY))
+                .isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher1, year, TODAY))
+                .isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher1, planned, TODAY))
+                .as("năm sắp diễn ra: tổ trưởng năm đó (giai đoạn chuẩn bị)")
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, closed, TODAY))
+                .as("năm đã kết thúc: tổ trưởng năm đó vẫn xem lại được")
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, TODAY))
+                .isEmpty();
+
+        // Năm đang chạy: phân công bắt đầu sau hôm nay chưa có quyền
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-11-15')",
+                teacher3,
+                ageGroup4,
+                year);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, TODAY))
+                .isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, LocalDate.of(2026, 11, 15)))
+                .containsExactly(ageGroup4);
+
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, year, TODAY))
+                .containsExactly(teacher2);
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, LocalDate.of(2027, 10, 1)))
+                .containsExactly(teacher1);
+    }
+
+    @Test
+    @DisplayName("Phân công tổ trưởng cũ không ghi năm học, valid_to trống: chỉ thuộc năm đầu tiên tính từ valid_from")
+    void legacyTeamLeaderWithoutYearStaysInItsYear() {
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        // teacher2: tổ trưởng MG lớn 2026-2027 nhập trước khi có school_year_id; teacher1: tổ trưởng 2027-2028
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, '2026-09-01')",
+                teacher2,
+                ageGroup4);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2027-09-01')",
+                teacher1,
+                ageGroup4,
+                planned);
+
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, year, TODAY))
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, planned, TODAY))
+                .as("năm sau không còn là tổ trưởng")
+                .isEmpty();
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, LocalDate.of(2027, 10, 1)))
+                .containsExactly(teacher1);
+        assertThat(service.getTeamLeaders(principal, planned).teamLeaders())
+                .extracting(TeamLeaderResponse.Leader::userId)
+                .containsExactly(teacher1);
+        assertThat(service.getTeamLeaders(principal, year).teamLeaders())
+                .extracting(TeamLeaderResponse.Leader::userId)
+                .containsExactly(teacher2);
     }
 }

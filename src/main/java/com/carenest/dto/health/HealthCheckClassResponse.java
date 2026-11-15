@@ -1,5 +1,6 @@
 package com.carenest.dto.health;
 
+import com.carenest.utils.enums.HealthBmiStatus;
 import com.carenest.utils.enums.HealthCheckResult;
 import com.carenest.utils.enums.HealthConclusionCategory;
 import com.carenest.utils.enums.HealthExamStatus;
@@ -16,7 +17,8 @@ public record HealthCheckClassResponse(
 
     /**
      * Một trẻ trong đợt/kỳ. Phiếu khám nháp: {@code result} IN_PROGRESS (đợt đã đóng: NOT_CONCLUDED), chưa có mức. {@code
-     * previous}: lần khám trước (đợt khám); {@code followUp}: phiếu theo dõi đang mở của trẻ.
+     * previous}: lần khám trước (đợt khám); {@code bmi}, {@code bmiStatus}: BMI và mức BMI theo tuổi của số đo kỳ cân đo
+     * (HLT-18).
      */
     public record HealthCheckChild(
             Long childId,
@@ -30,12 +32,13 @@ public record HealthCheckClassResponse(
             LocalDate date,
             BigDecimal heightCm,
             BigDecimal weightKg,
+            BigDecimal bmi,
+            HealthBmiStatus bmiStatus,
             boolean published,
             HealthExamStatus examStatus,
             String source,
             HealthFollowUpLevel followUpLevel,
             HealthConclusionCategory conclusionCategory,
             HealthMeasurementResponse.HealthConclusionBrief conclusion,
-            HealthExamResponse.HealthPreviousExam previous,
-            HealthFollowUpResponse.HealthFollowUpBrief followUp) {}
+            HealthExamResponse.HealthPreviousExam previous) {}
 }

@@ -171,6 +171,48 @@ class KeycloakIdentityProviderClientTest {
     }
 
     @Test
+    void updatingProfileChangesNameAndEmailAndResetsEmailVerification() {
+        expectAdminToken();
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"id\":\"kc-1\",\"username\":\"0912000001\",\"firstName\":\"Old\","
+                                + "\"email\":\"old@example.test\",\"emailVerified\":true,\"enabled\":true}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(jsonPath("$.firstName").value("Nguyễn Văn B"))
+                .andExpect(jsonPath("$.email").value("new@example.test"))
+                .andExpect(jsonPath("$.emailVerified").value(false))
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+        client.updateUserProfile("kc-1", "Nguyễn Văn B", "new@example.test");
+
+        server.verify();
+    }
+
+    @Test
+    void updatingProfileWithoutEmailKeepsEmail() {
+        expectAdminToken();
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"id\":\"kc-1\",\"firstName\":\"Old\",\"email\":\"old@example.test\",\"emailVerified\":true}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(jsonPath("$.firstName").value("New"))
+                .andExpect(jsonPath("$.email").value("old@example.test"))
+                .andExpect(jsonPath("$.emailVerified").value(true))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+        client.updateUserProfile("kc-1", "New", null);
+
+        server.verify();
+    }
+
+    @Test
     void missingAdminSecretFailsWithoutCallingKeycloak() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer noCallsServer =

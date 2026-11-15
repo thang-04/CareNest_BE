@@ -29,6 +29,7 @@ import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.EatingLevel;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -54,6 +55,7 @@ import tools.jackson.databind.ObjectMapper;
 public class DailyAssessmentServiceImpl implements DailyAssessmentService {
 
     private static final String LOG_PREFIX = "[DailyAssessmentServiceImpl]";
+    private static final int CLASS_COMMENT_MAX = 500;
     // Thuật ngữ chẩn đoán không dùng trong nhận xét / ghi chú (giáo viên mô tả hành vi quan sát được)
     static final List<String> DIAGNOSTIC_TERMS = List.of(
             "tự kỷ",
@@ -85,10 +87,10 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canView(currentUser, cls)) {
+            LocalDate date = day == null ? latestSchoolDay(cls) : day;
+            if (!rules.canViewDay(currentUser, cls, date)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
-            LocalDate date = day == null ? latestSchoolDay(cls) : day;
             checkDate(cls, date);
             List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, date);
             Map<Long, AttendanceStatus> statuses = statusesOf(children, date);
@@ -136,7 +138,9 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                     date,
                     rules.today(),
                     cls.yearStart(),
-                    rules.canRecord(currentUser, cls) && !yearReadOnly,
+                    currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
+                            && rules.canRecordDay(currentUser, cls, date)
+                            && !yearReadOnly,
                     yearReadOnly,
                     baseLocked && unlock == null,
                     unlock,
@@ -144,6 +148,14 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                     cls.mealSessions(),
                     lesson,
                     rows,
+                    // Lớp đã điểm danh: hiện cả trẻ vắng để cô thấy đủ lớp, không chấm được
+                    statuses.isEmpty()
+                            ? List.of()
+                            : children.stream()
+                                    .filter(c -> statuses.get(c.id()) != AttendanceStatus.PRESENT)
+                                    .map(c -> new DailySheetResponse.AbsentChild(
+                                            c.id(), c.fullName(), statuses.get(c.id())))
+                                    .toList(),
                     classCommentRepository
                             .findByClassroomIdAndDate(classId, date)
                             .map(c -> rules.commentViews(List.of(c)).getFirst())
@@ -169,6 +181,10 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             }
             if (request.classComment() != null) {
                 String text = trim(request.classComment());
+                // Cần chốt 14/11/2026: nhận xét chung của lớp tối đa 500 ký tự
+                if (text.length() > CLASS_COMMENT_MAX) {
+                    throw GlobalException.of(ApiCode.CLASS_COMMENT_TOO_LONG);
+                }
                 String lower = text.toLowerCase(java.util.Locale.ROOT);
                 if (DIAGNOSTIC_TERMS.stream().anyMatch(lower::contains)) {
                     throw GlobalException.of(ApiCode.CLASS_COMMENT_DIAGNOSTIC_TERM);
@@ -341,7 +357,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
     /** Thứ tự: quyền (giáo viên lớp) → năm học → ngày → khóa / mở lại. */
     private ClassroomInfoResponse checkWritable(CurrentUser user, Long classId, LocalDate date) {
         ClassroomInfoResponse cls = rules.findClass(classId);
-        if (!rules.canRecord(user, cls)) {
+        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecordDay(user, cls, date)) {
             throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
         }
         // CFG-YR-01: năm đã kết thúc (hoặc chưa kích hoạt) chỉ xem

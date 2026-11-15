@@ -2,12 +2,6 @@ package com.carenest.service.meals.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.carenest.dto.meals.DayBoardResponse;
 import com.carenest.dto.meals.FoodSampleDisposeRequest;
@@ -18,7 +12,7 @@ import com.carenest.dto.meals.MealPhotoResponse;
 import com.carenest.dto.meals.MealPhotoWindowResponse;
 import com.carenest.dto.meals.MealPhotoWindowsRequest;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.StorageService;
+import com.carenest.integration.storage.InMemoryS3;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.DayBoardService;
@@ -39,7 +33,6 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,7 +43,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -60,7 +52,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Bếp hôm nay, lưu/hủy mẫu thức ăn (NUT-21), khung giờ và ảnh bữa (NUT-16), trạng thái lưu mẫu trên trang Bán trú hôm nay. */
-@SpringBootTest
+@SpringBootTest(properties = "carenest.storage.bucket=test-bucket")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class KitchenRecordsIntegrationTest {
@@ -84,8 +76,9 @@ class KitchenRecordsIntegrationTest {
         }
     }
 
-    @MockitoBean
-    private StorageService storageService;
+    // Kho thật trên bucket giả trong bộ nhớ: ảnh bữa ăn đi qua đủ kiểm định dạng/giới hạn của cấu hình
+    @MockitoBean(answers = org.mockito.Answers.CALLS_REAL_METHODS)
+    private software.amazon.awssdk.services.s3.S3Client s3;
 
     @Autowired
     private KitchenDayService kitchenDayService;
@@ -146,9 +139,7 @@ class KitchenRecordsIntegrationTest {
         vpApprover = withPermissions(vp, Set.of(Permission.FOOD_SAFETY_APPROVE));
         kitchen = user("kitchen", CareNestRole.KITCHEN_STAFF, campus);
         otherKitchen = user("kitchen-o", CareNestRole.KITCHEN_STAFF, otherCampus);
-        when(storageService.store(any(), anyLong()))
-                .thenAnswer(call -> UUID.randomUUID().toString());
-        when(storageService.load(anyString())).thenReturn(new ByteArrayResource(new byte[] {1, 2, 3}));
+        InMemoryS3.install(s3);
     }
 
     @Test
@@ -247,6 +238,83 @@ class KitchenRecordsIntegrationTest {
         expectCode(
                 () -> foodSampleService.updateSample(otherKitchen, created.id(), sampleRequest(null)),
                 ApiCode.FOOD_SAMPLE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-21, AC-9: ghi khối lượng, dụng cụ chứa, nhiệt độ từng món; bản không gửi ⇒ rỗng; sửa không gửi ⇒ giữ")
+    void sampleDishDetails() {
+        // Client cũ không gửi ghi chú từng món: đọc về rỗng, không lỗi
+        FoodSampleResponse plain = foodSampleService.createSample(kitchen, sampleRequest(null));
+        assertThat(plain.dishes())
+                .allSatisfy(d -> assertThat(List.of(d.weight(), d.container(), d.temperature()))
+                        .containsOnly(""));
+
+        FoodSampleResponse detailed = foodSampleService.createSample(
+                kitchen,
+                new FoodSampleRequest(
+                        MONDAY,
+                        MealSession.AFTERNOON,
+                        List.of(com, thit),
+                        null,
+                        null,
+                        List.of(
+                                new FoodSampleRequest.DishDetailInput(com, " 100 g ", "Hộp nhựa có nắp", "2-8 °C"),
+                                new FoodSampleRequest.DishDetailInput(thit, "80 g", null, "2-8 °C"))));
+        assertThat(detailed.dishes())
+                .extracting(d -> d.code(), d -> d.weight(), d -> d.container(), d -> d.temperature())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("COM", "100 g", "Hộp nhựa có nắp", "2-8 °C"),
+                        org.assertj.core.groups.Tuple.tuple("THITRIM", "80 g", "", "2-8 °C"));
+        assertThat(jdbc.queryForObject(
+                        "SELECT jsonb_array_length(dish_details) FROM food_samples WHERE id = ?",
+                        Integer.class,
+                        detailed.id()))
+                .isEqualTo(2);
+
+        // Sửa không gửi ghi chú ⇒ giữ; bỏ món ⇒ ghi chú món đó bỏ theo
+        FoodSampleResponse kept = foodSampleService.updateSample(
+                kitchen,
+                detailed.id(),
+                new FoodSampleRequest(MONDAY, MealSession.AFTERNOON, List.of(com), null, "ghi chú"));
+        assertThat(kept.dishes())
+                .singleElement()
+                .satisfies(d -> assertThat(d.weight()).isEqualTo("100 g"));
+
+        // Gửi mảng rỗng ⇒ xóa hết ghi chú
+        FoodSampleResponse cleared = foodSampleService.updateSample(
+                kitchen,
+                detailed.id(),
+                new FoodSampleRequest(MONDAY, MealSession.AFTERNOON, List.of(com), null, null, List.of()));
+        assertThat(cleared.dishes())
+                .singleElement()
+                .satisfies(d -> assertThat(d.weight()).isEmpty());
+
+        // Món không nằm trong mẫu hoặc ghi trùng một món ⇒ 400
+        expectCode(
+                () -> foodSampleService.createSample(
+                        kitchen,
+                        new FoodSampleRequest(
+                                MONDAY,
+                                MealSession.LUNCH,
+                                List.of(com),
+                                null,
+                                null,
+                                List.of(new FoodSampleRequest.DishDetailInput(thit, "80 g", null, null)))),
+                ApiCode.INVALID_VALUE);
+        expectCode(
+                () -> foodSampleService.createSample(
+                        kitchen,
+                        new FoodSampleRequest(
+                                MONDAY,
+                                MealSession.LUNCH,
+                                List.of(com),
+                                null,
+                                null,
+                                List.of(
+                                        new FoodSampleRequest.DishDetailInput(com, "1", null, null),
+                                        new FoodSampleRequest.DishDetailInput(com, "2", null, null)))),
+                ApiCode.INVALID_VALUE);
     }
 
     @Test
@@ -349,7 +417,7 @@ class KitchenRecordsIntegrationTest {
         MealPhotoResponse second = mealPhotoService.uploadPhoto(kitchen, MealSession.LUNCH, jpeg);
         assertThat(second.id()).isEqualTo(first.id());
         assertThat(storageKeyOf(second.id())).isNotEqualTo(firstKey);
-        verify(storageService, times(2)).store(any(), anyLong());
+        assertThat(storageKeyOf(second.id())).startsWith("meals/meal_" + campus + "_");
         assertThat(mealPhotoService.getPhotos(vp, campus, MONDAY))
                 .singleElement()
                 .satisfies(p -> {
@@ -365,7 +433,7 @@ class KitchenRecordsIntegrationTest {
     }
 
     @Test
-    @DisplayName("NUT-16: ảnh sai loại hoặc quá 10 MB ⇒ 400; HT sửa khung giờ, PHT ⇒ 403; khung giờ sai ⇒ 400")
+    @DisplayName("NUT-16: ảnh sai loại ⇒ 415, rỗng ⇒ 400, quá giới hạn kho (5 MB) ⇒ 413; HT sửa khung giờ, PHT ⇒ 403")
     void photoValidationAndWindowPermissions() {
         mealPhotoService.updateWindows(principal, windows(MealSession.LUNCH, "10:00", "11:00"));
         expectCode(
@@ -373,19 +441,19 @@ class KitchenRecordsIntegrationTest {
                         kitchen,
                         MealSession.LUNCH,
                         new MockMultipartFile("file", "a.txt", "image/jpeg", "hello world!".getBytes())),
-                ApiCode.MEAL_PHOTO_INVALID);
+                ApiCode.UNSUPPORTED_MEDIA_TYPE);
         expectCode(
                 () -> mealPhotoService.uploadPhoto(
                         kitchen, MealSession.LUNCH, new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[0])),
                 ApiCode.MEAL_PHOTO_INVALID);
-        byte[] big = new byte[10 * 1024 * 1024 + 1];
+        byte[] big = new byte[5 * 1024 * 1024 + 1];
         big[0] = (byte) 0xFF;
         big[1] = (byte) 0xD8;
         big[2] = (byte) 0xFF;
         expectCode(
                 () -> mealPhotoService.uploadPhoto(
                         kitchen, MealSession.LUNCH, new MockMultipartFile("file", "big.jpg", "image/jpeg", big)),
-                ApiCode.MEAL_PHOTO_INVALID);
+                ApiCode.FILE_TOO_LARGE);
         expectCode(() -> mealPhotoService.uploadPhoto(vp, MealSession.LUNCH, jpeg()), ApiCode.KITCHEN_CAMPUS_DENIED);
 
         expectCode(
@@ -456,11 +524,17 @@ class KitchenRecordsIntegrationTest {
         long week = insertId("INSERT INTO meal_plan_weeks (week_start, status, published_at) VALUES ('" + start + "', '"
                 + status + "', " + ("PUBLISHED".equals(status) ? "now()" : "NULL") + ") RETURNING id");
         for (int i = 0; i < 5; i++) {
-            long day = insertId("INSERT INTO meal_plan_days (week_id, menu_date) VALUES (" + week + ", '"
-                    + start.plusDays(i) + "') RETURNING id");
+            LocalDate day = start.plusDays(i);
+            jdbc.update(
+                    "UPDATE meal_plan_weeks SET days = days || jsonb_build_array("
+                            + "jsonb_build_object('date', ?::date, 'off', false, 'note', '')) WHERE id = ?",
+                    day,
+                    week);
             for (long dish : dishes) {
                 jdbc.update(
-                        "INSERT INTO meal_plan_items (day_id, session, menu_block, dish_id) VALUES (?, 'LUNCH', 'KINDERGARTEN', ?)",
+                        "INSERT INTO meal_plan_items (week_id, menu_date, session, menu_block, dish_id)"
+                                + " VALUES (?, ?, 'LUNCH', 'KINDERGARTEN', ?)",
+                        week,
                         day,
                         dish);
             }

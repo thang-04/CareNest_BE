@@ -2,6 +2,7 @@ package com.carenest.service.attendance;
 
 import com.carenest.dto.attendance.PickupBoardResponse;
 import com.carenest.dto.attendance.PickupChildResponse;
+import com.carenest.dto.attendance.PickupClassResponse;
 import com.carenest.dto.attendance.PickupRecordResponse;
 import com.carenest.dto.attendance.PickupRequest;
 import com.carenest.security.CurrentUser;
@@ -13,6 +14,9 @@ import java.util.List;
  * huynh hoặc phụ huynh xác nhận qua điện thoại; trả xong báo phụ huynh. Chỉ lớp của năm học đang hoạt động.
  */
 public interface PickupService {
+
+    /** Lớp năm học đang hoạt động mà người dùng có quyền đón trẻ và đang được phân công hôm nay; không có ⇒ rỗng. */
+    List<PickupClassResponse> listClasses(CurrentUser currentUser);
 
     PickupBoardResponse getBoard(CurrentUser currentUser, Long classId, LocalDate date);
 

@@ -139,23 +139,11 @@ class HealthCheckRules {
         return teaches(user, cls.id());
     }
 
-    /** GV đang được phân công lớp (nhập phiếu khám, cập nhật phiếu theo dõi của trẻ lớp mình). */
+    /** GV đang được phân công lớp (nhập số đo, phiếu khám cho trẻ lớp mình). */
     boolean teaches(CurrentUser user, Long classId) {
         return classId != null
                 && user.hasRole(CareNestRole.TEACHER)
                 && staffAssignmentService.hasActiveTeacherAssignment(user.userId(), classId, today());
-    }
-
-    /** Điểm trường BGH quản lý (xem phiếu theo dõi của trẻ không còn lớp); null = mọi điểm trường (HT), GV rỗng. */
-    Set<Long> managedCampusIds(CurrentUser user) {
-        LocalDate today = today();
-        if (user.hasRole(CareNestRole.PRINCIPAL)
-                && staffAssignmentService.hasActivePrincipalAssignment(user.userId(), today)) {
-            return null;
-        }
-        return user.hasRole(CareNestRole.VICE_PRINCIPAL)
-                ? Set.copyOf(staffAssignmentService.findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, today))
-                : Set.of();
     }
 
     /**
@@ -206,7 +194,10 @@ class HealthCheckRules {
         return HealthCheckResult.RECORDED;
     }
 
-    /** Ngày lấy sĩ số lớp: hôm nay, kẹp trong khoảng ngày của đợt/kỳ. */
+    /**
+     * Hôm nay, kẹp trong khoảng ngày của đợt/kỳ: ngày lấy sĩ số lớp, cũng là ngày đo/ngày khám hệ thống ghi khi nhập mới
+     * (HLT-01, HLT-08) để trẻ trong danh sách lớp khớp lớp của lần đo.
+     */
     LocalDate referenceDate(HealthCheckCampaign campaign) {
         LocalDate today = today();
         if (today.isBefore(campaign.getStartDate())) {

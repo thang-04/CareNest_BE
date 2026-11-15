@@ -1,30 +1,29 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.meals.MealPhotoResponse;
 import com.carenest.dto.meals.MealPhotoWindowResponse;
 import com.carenest.dto.meals.MealPhotoWindowsRequest;
 import com.carenest.entity.meals.MealPhoto;
+import com.carenest.entity.meals.MealPhotoSettings;
 import com.carenest.entity.meals.MealPhotoWindow;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.StorageService;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.meals.MealPhotoRepository;
-import com.carenest.repository.meals.MealPhotoWindowRepository;
+import com.carenest.repository.meals.MealPhotoSettingsRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.MealPhotoService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.MealSession;
 import java.io.IOException;
-import java.io.InputStream;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,12 +39,10 @@ import org.springframework.web.multipart.MultipartFile;
 @Transactional
 public class MealPhotoServiceImpl implements MealPhotoService {
     private static final String LOG_PREFIX = "[MealPhotoServiceImpl]";
-    private static final long MAX_PHOTO_BYTES = 10L * 1024 * 1024;
-    private static final int SNIFF_BYTES = 12;
 
-    private final MealPhotoWindowRepository windowRepository;
+    private final MealPhotoSettingsRepository settingsRepository;
     private final MealPhotoRepository photoRepository;
-    private final StorageService storageService;
+    private final FileStorage storageService;
     private final StaffAssignmentService staffAssignmentService;
     private final KitchenAccess kitchenAccess;
     private final Clock clock;
@@ -57,7 +54,7 @@ public class MealPhotoServiceImpl implements MealPhotoService {
         log.info("{}|START", logPrefix);
         try {
             kitchenAccess.checkCanRead(currentUser);
-            List<MealPhotoWindowResponse> response = allWindows();
+            List<MealPhotoWindowResponse> response = toResponses(settings());
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -83,20 +80,14 @@ public class MealPhotoServiceImpl implements MealPhotoService {
                     throw GlobalException.of(ApiCode.MEAL_PHOTO_WINDOW_INVALID);
                 }
             }
-            Map<MealSession, MealPhotoWindow> existing = new HashMap<>();
-            windowRepository.findAll().forEach(window -> existing.put(window.getSession(), window));
             var now = clock.instant();
-            for (MealPhotoWindowsRequest.WindowInput input : request.windows()) {
-                MealPhotoWindow window = existing.get(input.session());
-                if (window == null) {
-                    windowRepository.save(MealPhotoWindow.of(
-                            input.session(), input.startTime(), input.endTime(), currentUser.userId(), now));
-                } else {
-                    window.change(input.startTime(), input.endTime(), currentUser.userId(), now);
-                }
-            }
-            windowRepository.flush();
-            List<MealPhotoWindowResponse> response = allWindows();
+            MealPhotoSettings settings = settings();
+            settings.replaceWindows(request.windows().stream()
+                    .map(input -> new MealPhotoWindow(
+                            input.session(), input.startTime(), input.endTime(), currentUser.userId(), now))
+                    .toList());
+            settingsRepository.flush();
+            List<MealPhotoWindowResponse> response = toResponses(settings);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -111,10 +102,10 @@ public class MealPhotoServiceImpl implements MealPhotoService {
         log.info("{}|START", logPrefix);
         try {
             Long campusId = kitchenAccess.resolveWriteCampus(currentUser);
-            String contentType = inspect(file);
+            inspect(file);
             // NUT-16: chỉ đăng ảnh của hôm nay trong khung giờ HT cấu hình; chưa cấu hình thì chưa đăng được
-            MealPhotoWindow window = windowRepository
-                    .findById(session)
+            MealPhotoWindow window = settings()
+                    .window(session)
                     .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PHOTO_WINDOW_NOT_CONFIGURED, label(session)));
             if (!window.contains(LocalTime.now(clock))) {
                 throw GlobalException.of(ApiCode.MEAL_PHOTO_OUT_OF_WINDOW, label(session));
@@ -122,12 +113,13 @@ public class MealPhotoServiceImpl implements MealPhotoService {
             LocalDate today = LocalDate.now(clock);
             // Đăng cùng (điểm trường, ngày, bữa) chạy tuần tự: đăng hai lần không đụng khóa duy nhất
             photoRepository.lockCampus(campusId);
-            String newKey = store(file);
+            FileStorage.StoredFile stored = store(campusId, file);
+            String newKey = stored.key();
             MealPhoto photo = photoRepository
                     .findByCampusIdAndPhotoDateAndSession(campusId, today, session)
                     .orElseGet(() -> MealPhoto.of(campusId, today, session));
             String oldKey = photo.getId() == null ? null : photo.getStorageKey();
-            photo.replaceFile(newKey, contentType, file.getSize(), currentUser.userId(), clock.instant());
+            photo.replaceFile(newKey, stored.contentType(), stored.size(), currentUser.userId(), clock.instant());
             MealPhoto saved = photoRepository.saveAndFlush(photo);
             cleanupAfterCompletion(newKey, oldKey);
             MealPhotoResponse response = toResponse(saved);
@@ -165,11 +157,9 @@ public class MealPhotoServiceImpl implements MealPhotoService {
         String logPrefix = LOG_PREFIX + "|getPhotoContent|userId=" + currentUser.userId() + "|photoId=" + photoId;
         log.info("{}|START", logPrefix);
         try {
-            MealPhoto photo = photoRepository
-                    .findById(photoId)
-                    .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PHOTO_NOT_FOUND));
-            kitchenAccess.resolveReadCampus(currentUser, photo.getCampusId());
-            Content content = new Content(storageService.load(photo.getStorageKey()), photo.getContentType());
+            MealPhoto photo = readablePhoto(currentUser, photoId);
+            Content content =
+                    new Content(storageService.load(FileCategory.MEAL, photo.getStorageKey()), photo.getContentType());
             log.info("{}|END", logPrefix);
             return content;
         } catch (RuntimeException ex) {
@@ -178,10 +168,39 @@ public class MealPhotoServiceImpl implements MealPhotoService {
         }
     }
 
-    private List<MealPhotoWindowResponse> allWindows() {
-        return windowRepository.findAll().stream()
-                .sorted(Comparator.comparing(MealPhotoWindow::getSession))
-                .map(w -> new MealPhotoWindowResponse(w.getSession(), w.getStartTime(), w.getEndTime()))
+    @Override
+    @Transactional(readOnly = true)
+    public FileUrlResponse getPhotoUrl(CurrentUser currentUser, Long photoId) {
+        String logPrefix = LOG_PREFIX + "|getPhotoUrl|userId=" + currentUser.userId() + "|photoId=" + photoId;
+        log.info("{}|START", logPrefix);
+        try {
+            MealPhoto photo = readablePhoto(currentUser, photoId);
+            var url = storageService.presignGet(FileCategory.MEAL, photo.getStorageKey(), photo.getContentType(), null);
+            FileUrlResponse result = new FileUrlResponse(url.url(), url.expiresAt());
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private MealPhoto readablePhoto(CurrentUser currentUser, Long photoId) {
+        MealPhoto photo =
+                photoRepository.findById(photoId).orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PHOTO_NOT_FOUND));
+        kitchenAccess.resolveReadCampus(currentUser, photo.getCampusId());
+        return photo;
+    }
+
+    private MealPhotoSettings settings() {
+        return settingsRepository
+                .findById(MealPhotoSettings.SINGLETON_ID)
+                .orElseThrow(() -> new IllegalStateException("edu_settings singleton row is missing"));
+    }
+
+    private static List<MealPhotoWindowResponse> toResponses(MealPhotoSettings settings) {
+        return settings.getWindows().stream()
+                .map(w -> new MealPhotoWindowResponse(w.session(), w.startTime(), w.endTime()))
                 .toList();
     }
 
@@ -197,48 +216,18 @@ public class MealPhotoServiceImpl implements MealPhotoService {
                 photo.getUploadedAt());
     }
 
-    /** Loại ảnh theo byte đầu tệp (không tin Content-Type client gửi): JPEG, PNG, WebP, tối đa 10 MB. */
-    private static String inspect(MultipartFile file) {
-        if (file == null || file.isEmpty() || file.getSize() > MAX_PHOTO_BYTES) {
+    /** Chặn sớm tệp rỗng/quá lớn trước khi kiểm khung giờ; định dạng kiểm theo nội dung lúc lưu. */
+    private void inspect(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
             throw GlobalException.of(ApiCode.MEAL_PHOTO_INVALID);
         }
-        byte[] head;
-        try (InputStream input = file.getInputStream()) {
-            head = input.readNBytes(SNIFF_BYTES);
-        } catch (IOException ex) {
-            throw GlobalException.withCause(ApiCode.FILE_UNREADABLE, ex);
-        }
-        if (head.length >= 3 && (head[0] & 0xFF) == 0xFF && (head[1] & 0xFF) == 0xD8 && (head[2] & 0xFF) == 0xFF) {
-            return "image/jpeg";
-        }
-        if (head.length >= 8
-                && (head[0] & 0xFF) == 0x89
-                && head[1] == 'P'
-                && head[2] == 'N'
-                && head[3] == 'G'
-                && head[4] == 0x0D
-                && head[5] == 0x0A
-                && head[6] == 0x1A
-                && head[7] == 0x0A) {
-            return "image/png";
-        }
-        if (head.length >= 12
-                && head[0] == 'R'
-                && head[1] == 'I'
-                && head[2] == 'F'
-                && head[3] == 'F'
-                && head[8] == 'W'
-                && head[9] == 'E'
-                && head[10] == 'B'
-                && head[11] == 'P') {
-            return "image/webp";
-        }
-        throw GlobalException.of(ApiCode.MEAL_PHOTO_INVALID);
+        storageService.checkSize(FileCategory.MEAL, null, file.getSize());
     }
 
-    private String store(MultipartFile file) {
-        try (InputStream input = file.getInputStream()) {
-            return storageService.store(input, file.getSize());
+    /** JPEG/PNG/WebP theo byte đầu tệp (không tin Content-Type client gửi), giới hạn theo cấu hình kho. */
+    private FileStorage.StoredFile store(Long campusId, MultipartFile file) {
+        try {
+            return storageService.store(FileCategory.MEAL, campusId, file.getBytes());
         } catch (IOException ex) {
             throw GlobalException.withCause(ApiCode.FILE_UNREADABLE, ex);
         }
@@ -254,7 +243,7 @@ public class MealPhotoServiceImpl implements MealPhotoService {
                     return;
                 }
                 try {
-                    storageService.remove(orphan);
+                    storageService.remove(FileCategory.MEAL, orphan);
                 } catch (RuntimeException ex) {
                     log.warn(
                             "{}|cleanupFile|ERROR|type={}",

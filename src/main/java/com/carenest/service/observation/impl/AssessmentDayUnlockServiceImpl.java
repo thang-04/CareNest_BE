@@ -8,14 +8,18 @@ import com.carenest.exception.GlobalException;
 import com.carenest.repository.observation.AssessmentDayUnlockRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.observation.AssessmentDayUnlockService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +43,7 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
     private final ClassroomService classroomService;
     private final AccountService accountService;
     private final Clock clock;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -47,7 +52,7 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
         String logPrefix = LOG_PREFIX + "|getUnlocks|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!rules.isLeader(currentUser)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_UNLOCK) || !rules.isLeader(currentUser)) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
             }
             if (from != null && to != null && to.isBefore(from)) {
@@ -55,10 +60,13 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             }
             Instant now = rules.now();
             Map<Long, Boolean> campusAllowed = new HashMap<>();
-            // Mới nhất trước; PHT chỉ thấy lớp điểm trường mình
+            // Mới nhất trước; thấy lần mở lại ở cơ sở trong phạm vi quyền Mở lại (để thao tác) hoặc quyền Xem (xem lịch
+            // sử)
             List<AssessmentDayUnlock> unlocks = unlockRepository.findAllByOrderByUnlockedAtDescIdDesc().stream()
-                    .filter(u ->
-                            campusAllowed.computeIfAbsent(u.getCampusId(), id -> rules.readsCampus(currentUser, id)))
+                    .filter(u -> campusAllowed.computeIfAbsent(
+                            u.getCampusId(),
+                            id -> rules.leadsCampus(currentUser, Permission.ASSESSMENT_UNLOCK, id)
+                                    || rules.readsCampus(currentUser, id)))
                     .filter(u -> campusId == null || campusId.equals(u.getCampusId()))
                     .filter(u -> classId == null || classId.equals(u.getClassroomId()))
                     .filter(u -> active == null || active == u.isActiveAt(now))
@@ -97,7 +105,8 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            if (!rules.leadsCampus(currentUser, cls.campusId())) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_UNLOCK)
+                    || !rules.leadsCampus(currentUser, Permission.ASSESSMENT_UNLOCK, cls.campusId())) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -107,7 +116,8 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             LocalDate today = rules.today();
             if (!rules.isSchoolDay(date)
                     || date.isAfter(today)
-                    || (cls.yearStart() != null && date.isBefore(cls.yearStart()))) {
+                    || (cls.yearStart() != null && date.isBefore(cls.yearStart()))
+                    || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_DATE_OUT_OF_RANGE);
             }
             if (!rules.isBaseLocked(date)) {
@@ -115,7 +125,7 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             }
             // Hạn do người mở chọn: sau hiện tại, không quá hết ngày kết thúc năm học (không giới hạn số ngày)
             Instant now = rules.now();
-            Instant yearEndAt = cls.yearEnd() == null
+            Instant yearEndAt = cls.yearEnd() == null || rules.today().isAfter(cls.yearEnd())
                     ? null
                     : cls.yearEnd()
                             .atTime(LocalTime.MAX)
@@ -139,6 +149,7 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
                     currentUser.userId(),
                     now));
             AssessmentDayUnlockResponse response = rules.toView(unlock, cls.name());
+            notifyTeachers(cls, date, unlock.getValidUntil());
             log.info("{}|unlockId={}|END", logPrefix, unlock.getId());
             return response;
         } catch (RuntimeException ex) {
@@ -155,7 +166,8 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             AssessmentDayUnlock unlock = unlockRepository
                     .findById(unlockId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_NOT_FOUND));
-            if (!rules.leadsCampus(currentUser, unlock.getCampusId())) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_UNLOCK)
+                    || !rules.leadsCampus(currentUser, Permission.ASSESSMENT_UNLOCK, unlock.getCampusId())) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
             }
             Instant now = rules.now();
@@ -176,5 +188,25 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // OBS-30: GV lớp biết ngày đánh giá được mở lại tới khi nào
+    private void notifyTeachers(ClassroomInfoResponse cls, LocalDate date, Instant until) {
+        // Việc theo ngày: GV dạy chính và người dạy thay đúng ngày mở lại (Cần chốt 14/11/2026)
+        List<Long> teachers = rules.dayTeacherIds(cls, date);
+        if (teachers.isEmpty()) {
+            return;
+        }
+        String day = DateTimeFormatter.ofPattern("dd/MM/yyyy").format(date);
+        String untilText = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy")
+                .withZone(clock.getZone())
+                .format(until);
+        notificationService.notifyUsers(
+                teachers,
+                NotificationType.ASSESSMENT_REOPENED,
+                "Ngày đánh giá được mở lại",
+                "Đánh giá ngày " + day + " lớp " + cls.name() + " được mở lại đến " + untilText + ".",
+                AssessmentReminderLinks.daily(cls.id(), date),
+                false);
     }
 }

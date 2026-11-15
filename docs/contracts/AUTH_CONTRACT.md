@@ -134,6 +134,12 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 
 `POST {API_PREFIX}/accounts/{userId}/staff-role/revoke` (`ACCOUNT_MANAGE`, phạm vi như khóa/mở) — nhân sự nghỉ việc nhưng con vẫn học: gỡ role nhân sự ở Keycloak, kết thúc mọi phân công chưa hết, tài khoản còn lại là phụ huynh (`primary_role = PARENT`), hủy mọi phiên ⇒ 200 `{ userId, username, fullName, email, status }`. Không còn con đang học ⇒ 400 `errorCode` 1128 (dùng khóa tài khoản); tài khoản không phải nhân sự (phụ huynh, Admin) ⇒ 400 1127; chính mình ⇒ 400 1114; Keycloak lỗi khi gỡ role ⇒ 503, DB chưa đổi, gọi lại được; logout Keycloak lỗi sau khi đã ghi ⇒ vẫn 200 (log lỗi).
 
+Thu hồi vai trò cũng xóa mọi quyền ngoại lệ của tài khoản (ghi `permission-change-logs`) để ngoại lệ cũ không sống lại khi tài khoản được thêm vai trò nhân sự sau này; thêm vai trò nhân sự vào tài khoản phụ huynh (`POST /accounts` + `confirmUserId`) cũng xóa ngoại lệ còn sót. Admin tạo Hiệu trưởng từ SĐT đã là phụ huynh (đã xác nhận) được, không kiểm phạm vi campus.
+
+`PUT {API_PREFIX}/accounts/{userId}/staff-role` (`ACCOUNT_MANAGE`, AUTH-25) — đổi vai trò nhân sự tại chỗ, giữ SĐT/mật khẩu/liên kết con. Body `{ "role": "KITCHEN_STAFF", "assignment": { "campusId": 1, "validFrom": null } }`; `assignment` như lúc tạo tài khoản (PHT/bếp ⇒ tạo phân công campus; GV ⇒ không tạo phân công, `campusId` chỉ để kiểm PHT; PHT người đổi phải gửi). BE thêm role mới, gỡ role cũ ở Keycloak, kết thúc mọi phân công đang mở hôm nay (kể cả Tổ trưởng), xóa mọi quyền ngoại lệ (có log), ghi `primary_role`, tạo phân công mới, hủy mọi phiên ⇒ 200 `{ userId, username, fullName, email, role, status, assignments }` (như `GET /accounts/{userId}`). Phạm vi: HT đổi giữa VICE_PRINCIPAL/TEACHER/KITCHEN_STAFF; PHT chỉ GV↔bếp của người đang phân công trong campus mình (ngoài phạm vi ⇒ 403 1112 hoặc 1113). Lỗi: chính mình ⇒ 400 1114; vai trò đích/hiện tại ngoài 3 vai trò trên (lên/xuống HT do Admin làm trên Keycloak) ⇒ 400 1133; trùng vai trò đang có ⇒ 400 1134; tài khoản khóa ⇒ 409 2326; Keycloak lỗi ⇒ 503, role Keycloak trả về như trước, DB chưa đổi.
+
+`PATCH {API_PREFIX}/accounts/{userId}/profile` (`ACCOUNT_MANAGE`, AUTH-25) — body `{ "fullName": "…", "email": "…" }` (`fullName` bắt buộc ≤150; `email` trống ⇒ giữ email cũ). SĐT là tên đăng nhập nên không sửa (AUTH-18). Sửa Keycloak (email đổi ⇒ `emailVerified=false`) rồi DB; DB lỗi ⇒ trả Keycloak về giá trị cũ ⇒ 200 `{ userId, username, fullName, email, status }`. Phạm vi như khóa/mở; tài khoản không phải nhân sự ⇒ 400 1135; nhân sự kiêm phụ huynh ⇒ người không quản toàn trường phải quản được phụ huynh đó (email dùng để quên mật khẩu — AUTH-19), không thì 403 1112; email trùng trên Keycloak ⇒ 409 1106.
+
 `POST {API_PREFIX}/accounts/{userId}/temporary-password` (`ACCOUNT_MANAGE`; tài khoản nhân sự có liên kết trẻ ⇒ người không quản toàn trường phải quản được phụ huynh đó — AUTH-19, không thì 403 1112) — body `{ "temporaryPassword": "..." }` (8–128) ⇒ 200 `{ userId, username, fullName, email, status }`. Bắt đổi ở lần đăng nhập kế tiếp; hủy mọi phiên web và session Keycloak đang mở.
 
 | Tình huống | HTTP / `code` | `desc` |
@@ -161,9 +167,9 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 
 | Method + path | Quyền | Body / query | `data` |
 | --- | --- | --- | --- |
-| `GET /accounts` | một trong `ACCOUNT_MANAGE`, `ACCOUNT_STATUS_MANAGE`, `STAFF_ASSIGNMENT_MANAGE`, `PERMISSION_MANAGE` | `role`, `status`, `campusId`, `q` (username/họ tên), `page` (0…), `size` (1–100, mặc định 20) | `PageResponse` của `{ userId, username, fullName, email, role, status, activeAssignments[] }` |
+| `GET /accounts` | một trong `ACCOUNT_MANAGE`, `ACCOUNT_STATUS_MANAGE`, `STAFF_ASSIGNMENT_MANAGE`, `PERMISSION_MANAGE` | `role`, `status`, `campusId`, `q` (username/họ tên), `page` (0…), `size` (1–100, mặc định 20) | `PageResponse` của `{ userId, username, fullName, email, role, status, activeAssignments[] }`. Phạm vi: Admin mọi tài khoản; HT chỉ PHT/GV/bếp (AUTH-17, từ 2026-11-02 — trước đó lẫn cả phụ huynh/Admin/HT); PHT GV/bếp đang phân công trong campus mình |
 | `GET /accounts/{userId}` | như trên | — | `{ userId, username, fullName, email, role, status, assignments[] }` (mọi phân công, mới nhất trước) |
-| `POST /staff-assignments` | `STAFF_ASSIGNMENT_MANAGE` | `{ userId, campusId?, classroomId?, validFrom?, validTo? }` — role phân công lấy theo role tài khoản | 201 `{ id, userId, staffRole, campusId, classroomId, validFrom, validTo }` |
+| `POST /staff-assignments` | `STAFF_ASSIGNMENT_MANAGE` | `{ userId, campusId?, classroomId?, validFrom?, validTo? }` — role phân công lấy theo role tài khoản; PHT/bếp đang khóa ⇒ 409 `2326` (GV khóa ⇒ 409 `2305`); điểm trường đã có PHT khác ⇒ 409 `2327` (AUTH-26, áp cả `PUT /school-years/{id}/vice-principal-assignments/{userId}` và tạo tài khoản/đổi vai trò kèm điểm trường) | 201 `{ id, userId, staffRole, campusId, classroomId, validFrom, validTo }` |
 | `PATCH /staff-assignments/{id}/end` | `STAFF_ASSIGNMENT_MANAGE` | `{ validTo }` (ngày cuối còn hiệu lực) | như trên |
 | `GET /campuses/options` | `ACCOUNT_MANAGE` hoặc `STAFF_ASSIGNMENT_MANAGE` | — | `[{ id, code, name }]` — HT/Admin mọi campus, PHT campus mình (tách khỏi `GET /campuses` của màn điểm trường khi merge G94-226) |
 | `GET /classrooms?campusId=` | như trên | `campusId` bắt buộc | `[{ id, campusId, name }]` lớp của năm học đang diễn ra |
@@ -246,6 +252,34 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 | Khóa/mật khẩu: tài khoản không phải phụ huynh / của chính mình | 400 | `This account is not a parent account` / `You cannot manage your own account here` |
 | Khóa/mật khẩu: phụ huynh ngoài phạm vi | 403 | `You cannot manage this account` |
 
+### Mã kích hoạt qua SMS (đã có — AUTH-18, ADR-0026, từ 11/11/2026)
+
+Chỉ áp dụng khi `CARENEST_SMS_PROVIDER` là nhà cung cấp thật (vd. `textbee`); cổng giả `fake` (mặc định) giữ mật khẩu tạm như trên. Khi bật: tài khoản phụ huynh mới tạo ở `POST /children/enrollments` và `POST /children/{childId}/guardians/activate` không có mật khẩu; SMS chứa tên đăng nhập + mã 6 số, hạn 72 giờ, sai 5 lần thì mã hủy, dùng một lần. Response hai API đó không đổi shape. `POST /children/{childId}/guardians` (kiểu cũ) vẫn trả mật khẩu tạm.
+
+| Method + path | Body | `data` |
+| --- | --- | --- |
+| `POST /parent-activation` (công khai, không Bearer/cookie/CSRF — App) | `{ "phone", "code" (6 số), "newPassword", "confirmPassword" }` (mật khẩu 8–128) | `{ username }` ⇒ App đăng nhập PKCE bằng tên này + mật khẩu mới |
+| `POST /parent-accounts/{userId}/activation-code` (`PARENT_ACCOUNT_MANAGE`, phạm vi như trên) | — | `{ userId, username, smsStatus, expiresAt, activationCode }` — `activationCode` chỉ có khi không gửi được SMS thật (cổng giả hoặc `FAILED`) để in phiếu; mã cũ mất hiệu lực |
+
+| Tình huống | HTTP / `errorCode` |
+| --- | --- |
+| SĐT không có mã chờ, mã sai/hết hạn/hết lượt/đã dùng, tài khoản khóa (một lỗi chung) | 400 / 1006 `OTP_INVALID_OR_EXPIRED` |
+| Hai mật khẩu khác nhau | 400 / 9002 `MALFORMED_REQUEST` |
+| Keycloak từ chối mật khẩu (mã giữ nguyên, không tính lần sai) | 400 / 1009 `PASSWORD_POLICY_VIOLATION` |
+| Gửi lại trong 60 giây | 429 / 1007 `OTP_RESEND_TOO_SOON` |
+| Gửi lại cho tài khoản đã kích hoạt hoặc tạo bằng mật khẩu tạm | 409 / 1144 `ACTIVATION_NOT_PENDING` |
+
+### Ảnh đại diện tài khoản (AUTH-27, từ 14/11/2026)
+
+| Endpoint | Ai gọi | Ghi chú |
+| --- | --- | --- |
+| `PUT /accounts/me/photo` (multipart `file`) | mọi tài khoản đăng nhập | JPG/PNG/WEBP ≤ 2 MB, kho `USER_AVATAR` (`avatars/users/`); thay ảnh cũ |
+| `DELETE /accounts/me/photo` | mọi tài khoản đăng nhập | Bỏ ảnh; chưa có ảnh vẫn 200. Tài khoản có role phụ huynh ⇒ 403 / 1145 `ACCOUNT_PHOTO_REQUIRED` |
+| `GET /accounts/me/photo`, `GET /accounts/me/photo/url` | mọi tài khoản đăng nhập | Chưa có ảnh ⇒ 404 / 1132 |
+| `POST /accounts/photos/urls` `{ userIds: [1..100] }` | mọi tài khoản đăng nhập | `[{ userId, url, expiresAt }]` chỉ người có ảnh, là nhân sự (hoặc chính mình) và được xem theo AUTH-27; người khác bị bỏ qua, không báo lỗi. Rỗng/>100/id ≤ 0 ⇒ 400 |
+
+Quyền xem (`AccountPhotoAccessPolicy`): Admin/HT xem mọi nhân sự; PHT/GV/bếp xem nhân sự cùng điểm trường theo phân công hôm nay (GV qua lớp) và mọi HT; phụ huynh xem GV đang dạy lớp con; ai cũng xem ảnh mình. Ảnh phụ huynh vẫn chỉ xem qua `/children/{childId}/guardians/{userId}/photo[/url]`.
+
 ## Tác động FE/APP (BE không sửa repo khác)
 
 Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `FE:docs/integration/AUTH_FLOW.md`, `APP:docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
@@ -260,6 +294,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
 - PHT xem mọi cơ sở (AUTH-20, chốt 31/10): mã `ALL_CAMPUS_VIEW` đã bỏ khỏi `Permission` (V39 xóa dòng ma trận/ngoại lệ cũ; lịch sử giữ chuỗi gốc). FE bỏ mã này ở danh mục quyền/ngoại lệ (`permissionConstants.js`, `permissionCatalog.js`) và luôn hiện bộ lọc điểm trường cho PHT; gửi mã cũ trong `PUT .../permission-overrides` ⇒ 400.
+- Mã kích hoạt (ADR-0026): APP thêm màn "Kích hoạt tài khoản" (chưa đăng nhập) gọi `POST /parent-activation`, xong thì vào đăng nhập PKCE với `username` trả về; 400 1006 ⇒ báo mã sai/hết hạn, liên hệ nhà trường gửi lại. FE màn Tài khoản phụ huynh thêm "Gửi lại mã" (`POST /parent-accounts/{userId}/activation-code`); có `activationCode` ⇒ in phiếu mã (không in mật khẩu); 409 1136 ⇒ dùng "Cấp lại mật khẩu tạm".
 - Types: sinh lại từ `docs/api/openapi.yaml`.
 
 ## Còn chờ

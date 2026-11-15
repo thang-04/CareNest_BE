@@ -68,13 +68,27 @@ class StaffAssignmentServiceImplTest {
     @Test
     void overlappingOpenAssignmentIsConflict() {
         given(campuses.existsById(10L)).willReturn(true);
-        given(repository.existsOverlapping(40L, StaffRole.KITCHEN_STAFF, 10L, null, START))
+        given(repository.existsOverlappingOpenEnded(40L, StaffRole.KITCHEN_STAFF, 10L, null, START, null))
                 .willReturn(true);
 
         assertThatThrownBy(() -> service.createAssignment(
                         new NewStaffAssignment(40L, StaffRole.KITCHEN_STAFF, 10L, null, START, null, 1L, false)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.ASSIGNMENT_OVERLAP);
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void campusWithAnotherVicePrincipalIsConflict() {
+        // AUTH-26: tạo tài khoản/đổi vai trò kèm phân công PHT cũng áp mỗi điểm trường tối đa một PHT
+        given(campuses.existsById(10L)).willReturn(true);
+        given(repository.existsOtherVicePrincipalAtCampusOpenEnded(10L, 41L, START, null))
+                .willReturn(true);
+
+        assertThatThrownBy(() -> service.createAssignment(
+                        new NewStaffAssignment(41L, StaffRole.VICE_PRINCIPAL, 10L, null, START, null, 1L, false)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
         verify(repository, never()).saveAndFlush(any());
     }
 

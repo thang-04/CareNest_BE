@@ -45,6 +45,8 @@ final class EnrollmentFormValidator {
 
     static final int MAX_GUARDIANS = 3;
     static final LocalDate EARLIEST_BIRTH_DATE = LocalDate.of(2018, 1, 1);
+    // Sinh trước 37 tuần là sinh non: "Sinh non" phải khớp tuần thai (G94-180/CHD-05, user chốt 2026-11-04)
+    private static final int FULL_TERM_WEEKS = 37;
 
     // Tài khoản phụ huynh dùng 6 loại quan hệ (D-5a B); OTHER chỉ còn ở dữ liệu cũ
     static final Set<GuardianRelationship> RELATIONSHIPS = EnumSet.of(
@@ -71,9 +73,69 @@ final class EnrollmentFormValidator {
     static Result validate(EnrollChildRequest request, LocalDate today) {
         Map<String, String> errors = new LinkedHashMap<>();
         EnrollmentChildInput child = request == null ? null : request.child();
-        if (child == null) {
-            child = new EnrollmentChildInput(null, null, null, List.of(), null);
+        ChildInfo info = validateChildInfo(child, today, errors, true);
+        HealthDeclarationDraft declaration =
+                validateDeclaration(request == null ? null : request.declaration(), info.dateOfBirth(), today, errors);
+
+        List<FieldErrorResponse> list = toList(errors);
+        if (!list.isEmpty()) {
+            return new Result(list, null);
         }
+        return new Result(
+                List.of(),
+                new EnrollmentDraft(
+                        info.fullName(),
+                        info.dateOfBirth(),
+                        info.gender(),
+                        info.guardians(),
+                        info.profile(),
+                        declaration,
+                        null,
+                        null));
+    }
+
+    /**
+     * Sửa hồ sơ (mục 4.2 plan tiếp nhận): kiểm như tiếp nhận trừ khai báo sức khỏe và người nhận tài khoản (người nhận đổi
+     * ở màn Tài khoản phụ huynh — Spec013). Lỗi đưa vào {@code errors}; draft null khi có lỗi.
+     */
+    static EnrollmentDraft validateEdit(EnrollmentChildInput child, LocalDate today, Map<String, String> errors) {
+        ChildInfo info = validateChildInfo(child, today, errors, false);
+        if (!errors.isEmpty()) {
+            return null;
+        }
+        return new EnrollmentDraft(
+                info.fullName(), info.dateOfBirth(), info.gender(), info.guardians(), info.profile(), null, null, null);
+    }
+
+    /**
+     * Sửa khai báo sức khỏe (mục 4.5): kiểm như tiếp nhận nhưng đường dẫn ô không có tiền tố {@code declaration.} (như
+     * BE giả). Lỗi đưa vào {@code errors}; trả null khi có lỗi.
+     */
+    static HealthDeclarationDraft validateDeclarationOnly(
+            HealthDeclarationInput input, LocalDate dateOfBirth, LocalDate today, Map<String, String> errors) {
+        Map<String, String> prefixed = new LinkedHashMap<>();
+        HealthDeclarationDraft draft = validateDeclaration(input, dateOfBirth, today, prefixed);
+        prefixed.forEach((field, message) -> errors.put(field.replaceFirst("^declaration\\.", ""), message));
+        return prefixed.isEmpty() ? draft : null;
+    }
+
+    static List<FieldErrorResponse> toList(Map<String, String> errors) {
+        return errors.entrySet().stream()
+                .map(e -> new FieldErrorResponse(e.getKey(), e.getValue()))
+                .toList();
+    }
+
+    private record ChildInfo(
+            String fullName,
+            LocalDate dateOfBirth,
+            Gender gender,
+            List<GuardianDraft> guardians,
+            ChildProfileDraft profile) {}
+
+    private static ChildInfo validateChildInfo(
+            EnrollmentChildInput input, LocalDate today, Map<String, String> errors, boolean requireRecipient) {
+        EnrollmentChildInput child =
+                input == null ? new EnrollmentChildInput(null, null, null, List.of(), null) : input;
 
         String fullName = clean(child.fullName());
         if (fullName == null) {
@@ -94,20 +156,9 @@ final class EnrollmentFormValidator {
             errors.put("gender", "Chọn giới tính");
         }
 
-        List<GuardianDraft> guardians = validateGuardians(child.guardians(), errors);
+        List<GuardianDraft> guardians = validateGuardians(child.guardians(), errors, requireRecipient);
         ChildProfileDraft profile = validateProfile(child.profile(), errors);
-        HealthDeclarationDraft declaration =
-                validateDeclaration(request == null ? null : request.declaration(), dateOfBirth, today, errors);
-
-        List<FieldErrorResponse> list = errors.entrySet().stream()
-                .map(e -> new FieldErrorResponse(e.getKey(), e.getValue()))
-                .toList();
-        if (!list.isEmpty()) {
-            return new Result(list, null);
-        }
-        return new Result(
-                List.of(),
-                new EnrollmentDraft(fullName, dateOfBirth, gender, guardians, profile, declaration, null, null));
+        return new ChildInfo(fullName, dateOfBirth, gender, guardians, profile);
     }
 
     /**
@@ -119,7 +170,8 @@ final class EnrollmentFormValidator {
         return cleaned == null ? "" : cleaned.toLowerCase(VIETNAMESE);
     }
 
-    private static List<GuardianDraft> validateGuardians(List<GuardianInput> inputs, Map<String, String> errors) {
+    private static List<GuardianDraft> validateGuardians(
+            List<GuardianInput> inputs, Map<String, String> errors, boolean requireRecipient) {
         List<GuardianInput> guardians = inputs == null ? List.of() : inputs;
         List<GuardianDraft> drafts = new ArrayList<>();
         for (int i = 0; i < guardians.size(); i++) {
@@ -162,7 +214,8 @@ final class EnrollmentFormValidator {
                     relationship,
                     phone.orElse(null),
                     citizenId.orElse(null),
-                    email == null ? null : email.toLowerCase(Locale.ROOT)));
+                    email == null ? null : email.toLowerCase(Locale.ROOT),
+                    guardians.size() == 1 || Boolean.TRUE.equals(g.accountRecipient())));
         }
         // Lỗi chung của danh sách: như BE giả, quá 3 người được báo trước, rồi trùng CCCD, rồi trùng SĐT
         if (guardians.isEmpty()) {
@@ -173,6 +226,10 @@ final class EnrollmentFormValidator {
             errors.put("guardians", "Hai phụ huynh không được dùng chung số CCCD");
         } else if (hasDuplicate(drafts.stream().map(GuardianDraft::phone).toList())) {
             errors.put("guardians", "Hai phụ huynh không được dùng chung số điện thoại");
+        }
+        if (requireRecipient
+                && drafts.stream().filter(GuardianDraft::accountRecipient).count() != 1) {
+            errors.put("accountRecipient", "Chọn đúng một phụ huynh nhận tài khoản");
         }
         return drafts;
     }
@@ -193,13 +250,16 @@ final class EnrollmentFormValidator {
         if (premature == null) {
             errors.put("profile.premature", "Chọn trẻ có sinh non hay không");
         }
+        // Tuần thai bắt buộc với mọi trẻ (user chốt 2026-11-04); chỉ so với "Sinh non" khi cả hai đã hợp lệ
         Integer weeks = p.gestationWeeks();
         if (weeks == null) {
-            if (premature == YesNo.YES) {
-                errors.put("profile.gestationWeeks", "Nhập tuần thai khi sinh của trẻ sinh non");
-            }
+            errors.put("profile.gestationWeeks", "Nhập tuần thai khi sinh");
         } else if (weeks < 20 || weeks > 42) {
             errors.put("profile.gestationWeeks", "Nhập tuần thai từ 20 đến 42");
+        } else if (premature == YesNo.YES && weeks >= FULL_TERM_WEEKS) {
+            errors.put("profile.gestationWeeks", "Trẻ sinh non có tuần thai dưới 37");
+        } else if (premature == YesNo.NO && weeks < FULL_TERM_WEEKS) {
+            errors.put("profile.gestationWeeks", "Dưới 37 tuần là sinh non: chọn Sinh non là Có hoặc sửa tuần thai");
         }
         String ethnicity = required(p.ethnicity(), 100, "profile.ethnicity", "Nhập dân tộc", errors);
         String beneficiary = required(p.beneficiary(), 100, "profile.beneficiary", "Nhập đối tượng", errors);
@@ -211,8 +271,7 @@ final class EnrollmentFormValidator {
                 required(address.province(), 100, "profile.address.province", "Nhập tỉnh/thành nơi ở", errors);
         String ward = required(address.ward(), 100, "profile.address.ward", "Nhập phường/xã nơi ở", errors);
         String street = required(address.street(), 300, "profile.address.street", "Nhập số nhà/thôn/xóm nơi ở", errors);
-        // Tuần thai chỉ ghi cho trẻ sinh non (ô chỉ hiện khi chọn Có)
-        Short gestationWeeks = premature == YesNo.YES && weeks != null ? weeks.shortValue() : null;
+        Short gestationWeeks = weeks == null ? null : weeks.shortValue();
         return new ChildProfileDraft(
                 idNumber, premature, gestationWeeks, ethnicity, beneficiary, bloodType, province, ward, street);
     }

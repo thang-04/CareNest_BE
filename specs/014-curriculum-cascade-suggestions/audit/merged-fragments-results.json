@@ -1,0 +1,118 @@
+[
+  {
+    "pdfPage": 46,
+    "congBaoPage": 58,
+    "age": "ag-4",
+    "text": "Nguyên nhân gây ô nhiễm nguồn nước và cách bảo vệ nguồn nước.",
+    "status": "present",
+    "matchingIds": [
+      237
+    ]
+  },
+  {
+    "pdfPage": 46,
+    "congBaoPage": 58,
+    "age": "ag-5",
+    "text": "Nguyên nhân gây ô nhiễm nguồn nước và cách bảo vệ nguồn nước.",
+    "status": "missing",
+    "matchingIds": []
+  },
+  {
+    "pdfPage": 46,
+    "congBaoPage": 58,
+    "age": "ag-4",
+    "text": "Không khí, các nguồn ánh sáng và sự cần thiết của nó với cuộc sống con người, con vật và cây.",
+    "status": "present",
+    "matchingIds": [
+      238
+    ]
+  },
+  {
+    "pdfPage": 46,
+    "congBaoPage": 58,
+    "age": "ag-5",
+    "text": "Không khí, các nguồn ánh sáng và sự cần thiết của nó với cuộc sống con người, con vật và cây.",
+    "status": "missing",
+    "matchingIds": []
+  },
+  {
+    "pdfPage": 46,
+    "congBaoPage": 58,
+    "age": "ag-3",
+    "text": "Một vài đặc điểm, tính chất của đất, đá, cát, sỏi.",
+    "status": "present",
+    "matchingIds": [
+      220
+    ]
+  },
+  {
+    "pdfPage": 46,
+    "congBaoPage": 58,
+    "age": "ag-4",
+    "text": "Một vài đặc điểm, tính chất của đất, đá, cát, sỏi.",
+    "status": "missing",
+    "matchingIds": []
+  },
+  {
+    "pdfPage": 46,
+    "congBaoPage": 58,
+    "age": "ag-5",
+    "text": "Một vài đặc điểm, tính chất của đất, đá, cát, sỏi.",
+    "status": "missing",
+    "matchingIds": []
+  },
+  {
+    "pdfPage": 49,
+    "congBaoPage": 61,
+    "age": "ag-4",
+    "text": "Tên gọi, công cụ, sản phẩm, các hoạt động và ý nghĩa của các nghề phổ biến, nghề truyền thống của địa phương.",
+    "status": "present",
+    "matchingIds": [
+      292
+    ]
+  },
+  {
+    "pdfPage": 49,
+    "congBaoPage": 61,
+    "age": "ag-5",
+    "text": "Tên gọi, công cụ, sản phẩm, các hoạt động và ý nghĩa của các nghề phổ biến, nghề truyền thống của địa phương.",
+    "status": "missing",
+    "matchingIds": []
+  },
+  {
+    "pdfPage": 49,
+    "congBaoPage": 61,
+    "age": "ag-4",
+    "text": "Đặc điểm nổi bật của một số di tích, danh lam, thắng cảnh, ngày lễ hội, sự kiện văn hóa của quê hương, đất nước.",
+    "status": "present",
+    "matchingIds": [
+      293
+    ]
+  },
+  {
+    "pdfPage": 49,
+    "congBaoPage": 61,
+    "age": "ag-5",
+    "text": "Đặc điểm nổi bật của một số di tích, danh lam, thắng cảnh, ngày lễ hội, sự kiện văn hóa của quê hương, đất nước.",
+    "status": "missing",
+    "matchingIds": []
+  },
+  {
+    "pdfPage": 53,
+    "congBaoPage": 65,
+    "age": "ag-4",
+    "text": "Yêu mến, quan tâm đến người thân trong gia đình.",
+    "status": "present",
+    "matchingIds": [
+      372
+    ]
+  },
+  {
+    "pdfPage": 53,
+    "congBaoPage": 65,
+    "age": "ag-5",
+    "text": "Yêu mến, quan tâm đến người thân trong gia đình.",
+    "status": "missing",
+    "matchingIds": []
+  }
+]

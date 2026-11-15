@@ -65,15 +65,15 @@ class EduClassDocControllerTest {
     }
 
     @Test
-    @DisplayName("EDU-12/47: role khác giáo viên không được gọi preview")
-    void nonTeacherCannotPreview() throws Exception {
+    @DisplayName("EDU-12/47: nhân viên bếp không được gọi preview")
+    void kitchenCannotPreview() throws Exception {
         given(currentUserService.getCurrentUser())
-                .willReturn(new CurrentUser(8L, "kc-8", "vp", "Demo", null, Set.of(CareNestRole.VICE_PRINCIPAL)));
+                .willReturn(new CurrentUser(8L, "kc-8", "vp", "Demo", null, Set.of(CareNestRole.KITCHEN_STAFF)));
         mvc.perform(multipart(PREVIEW)
                         .file(new MockMultipartFile("file", "x.csv", "text/csv", new byte[] {1}))
                         .param("classId", "1")
                         .param("yearPlanId", "2")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_KITCHEN_STAFF"))))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(service);
     }

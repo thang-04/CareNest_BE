@@ -6,10 +6,14 @@ import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.SchoolYear;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import org.springframework.stereotype.Component;
 
 @Component
 public class SchoolStructureMapper {
+
+    private static final ZoneId SCHOOL_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     public SchoolYearResponse toResponse(SchoolYear schoolYear) {
         return new SchoolYearResponse(
@@ -17,6 +21,10 @@ public class SchoolStructureMapper {
     }
 
     public SchoolYearDetailResponse toDetailResponse(SchoolYear schoolYear, long classCount) {
+        return toDetailResponse(schoolYear, classCount, LocalDate.now(SCHOOL_ZONE));
+    }
+
+    public SchoolYearDetailResponse toDetailResponse(SchoolYear schoolYear, long classCount, LocalDate today) {
         return new SchoolYearDetailResponse(
                 schoolYear.getId(),
                 schoolYear.getName(),
@@ -33,7 +41,9 @@ public class SchoolStructureMapper {
                 schoolYear.getClosedAt(),
                 schoolYear.getClosedBy(),
                 schoolYear.getCreatedAt(),
-                schoolYear.getUpdatedAt());
+                schoolYear.getUpdatedAt(),
+                schoolYear.getPrepDate(),
+                schoolYear.isPreparing(today));
     }
 
     public AgeGroupDetailResponse toDetailResponse(AgeGroup ageGroup) {

@@ -4,11 +4,13 @@ import com.carenest.dto.account.AccountCandidateResponse;
 import com.carenest.dto.account.AccountDetailResponse;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.account.AccountSummaryResponse;
+import com.carenest.dto.account.ChangeStaffRoleRequest;
 import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.dto.account.MyAccountResponse;
 import com.carenest.dto.account.PhoneLookupRequest;
 import com.carenest.dto.account.ResetTemporaryPasswordRequest;
+import com.carenest.dto.account.UpdateAccountProfileRequest;
 import com.carenest.dto.account.UpdateAccountStatusRequest;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.security.CurrentUser;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -141,6 +144,32 @@ public class AccountController {
         AccountResponse account = accountProvisioningService.revokeStaffRole(currentUser, userId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Revoke staff role success", account);
+    }
+
+    // AUTH-25: đổi vai trò tại chỗ, giữ SĐT/mật khẩu/liên kết con
+    @PutMapping("/{userId}/staff-role")
+    @PreAuthorize("@permissionGuard.has('ACCOUNT_MANAGE')")
+    public ResponseEntity<ResponseJson<AccountDetailResponse>> changeStaffRole(
+            @PathVariable Long userId, @Valid @RequestBody ChangeStaffRoleRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|changeStaffRole|actorUserId=" + currentUser.userId() + "|userId=" + userId
+                + "|role=" + request.role();
+        log.info("{}|START", logPrefix);
+        AccountDetailResponse account = accountProvisioningService.changeStaffRole(currentUser, userId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Change staff role success", account);
+    }
+
+    @PatchMapping("/{userId}/profile")
+    @PreAuthorize("@permissionGuard.has('ACCOUNT_MANAGE')")
+    public ResponseEntity<ResponseJson<AccountResponse>> updateProfile(
+            @PathVariable Long userId,
+            @Valid @RequestBody UpdateAccountProfileRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|updateProfile|actorUserId=" + currentUser.userId() + "|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        AccountResponse account = accountProvisioningService.updateProfile(currentUser, userId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update account profile success", account);
     }
 
     @PostMapping("/{userId}/temporary-password")

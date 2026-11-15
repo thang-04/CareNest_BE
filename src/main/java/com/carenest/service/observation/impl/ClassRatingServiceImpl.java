@@ -18,8 +18,10 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ClassRatingLevel;
 import com.carenest.utils.enums.ClassRatingPeriod;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -84,7 +86,8 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                 if (!canRate(currentUser, cls)) {
                     throw GlobalException.of(ApiCode.CLASS_RATING_FORBIDDEN, cls.name());
                 }
-                if (cls.yearStatus() == SchoolYearStatus.CLOSED) {
+                // CFG-YR-01: chỉ xếp loại lớp của năm đang hoạt động; năm sắp tới / đã kết thúc chỉ xem
+                if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                     throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
                 }
                 if (yearId != null && !yearId.equals(cls.schoolYearId())) {
@@ -155,7 +158,7 @@ public class ClassRatingServiceImpl implements ClassRatingService {
     }
 
     private ClassRatingResponse listOf(CurrentUser user, Long schoolYearId, ClassRatingPeriod period, Long campusId) {
-        Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(user);
+        Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(user, schoolYearId);
         List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
                 .filter(c -> canRead(user, c) || ledGroups.contains(c.ageGroupId()))
                 .toList();
@@ -206,11 +209,13 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                                 r.ratedAt(),
                                 false))
                         .toList();
-        return new ClassRatingResponse(period, yearId, openFrom, campusIds, result);
+        List<String> principals = accountService.findActiveFullNamesByRole(CareNestRole.PRINCIPAL);
+        return new ClassRatingResponse(
+                period, yearId, openFrom, campusIds, result, principals.size() == 1 ? principals.getFirst() : null);
     }
 
     private ClassRatingRow rowOf(CurrentUser user, ClassroomInfoResponse cls, ClassRating r, Map<Long, String> names) {
-        boolean canEdit = cls.yearStatus() != SchoolYearStatus.CLOSED && canRate(user, cls);
+        boolean canEdit = cls.yearStatus() == SchoolYearStatus.ACTIVE && canRate(user, cls);
         Levels levels = r == null
                 ? new Levels(null, null, null, null, null, null, null, null)
                 : new Levels(
@@ -246,10 +251,12 @@ public class ClassRatingServiceImpl implements ClassRatingService {
 
     // Chấm: HT mọi lớp, PHT lớp điểm trường mình (AUTH-01, AUTH-02)
     private boolean canRate(CurrentUser user, ClassroomInfoResponse cls) {
-        return rules.leadsCampus(user, cls.campusId());
+        return user.hasPermission(Permission.ASSESSMENT_CLASS_REVIEW)
+                && rules.leadsCampus(user, Permission.ASSESSMENT_CLASS_REVIEW, cls.campusId());
     }
 
-    // Xem: HT, PHT mọi điểm trường (AUTH-20); GV lớp đang dạy hoặc từng dạy ở năm đã kết thúc; tổ trưởng thêm các lớp
+    // Xem: HT mọi điểm trường, PHT điểm trường mình hoặc cả trường theo quyền HT cấp (AUTH-20); GV lớp đang dạy hoặc
+    // từng dạy ở năm đã kết thúc; tổ trưởng thêm các lớp
     // nhóm tuổi mình (xem ở listOf, Cần chốt 04/11)
     private boolean canRead(CurrentUser user, ClassroomInfoResponse cls) {
         return rules.readsCampus(user, cls.campusId())

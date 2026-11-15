@@ -28,7 +28,7 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 | Database | PostgreSQL 17 + Spring Data JPA (Hibernate 7); Flyway quản lý migration; pgvector tùy chọn (chỉ khi làm semantic search/RAG) |
 | API docs | springdoc-openapi 3.1.x — Swagger UI tại `/swagger-ui/index.html` |
 | Auth | **Keycloak + Spring Security OAuth2 Resource Server** (ADR-0011, thay định hướng "JWT tự phát hành" của docx). Keycloak lo đăng nhập, mật khẩu, token, realm role; BE chỉ kiểm JWT (JWKS, `iss`, `aud`, `exp`) và phân quyền theo scope. KHÔNG tự viết login/refresh, KHÔNG lưu mật khẩu/refresh token, KHÔNG tự ký JWT. Hướng dẫn: `docs/system/KEYCLOAK.md` |
-| Ảnh/tệp | Object storage S3-compatible (MinIO khi self-host) qua `StorageService` |
+| Ảnh/tệp | Object storage S3-compatible (MinIO khi self-host) qua `FileStorage` |
 | AI | `AiClient` adapter trong backend; luồng nghiệp vụ PHẢI chạy được khi AI unavailable |
 | Test / vận hành | JUnit, Mockito, Testcontainers; Docker Compose (API + PostgreSQL); Actuator; structured logs |
 
@@ -363,7 +363,7 @@ try {
 
 - PostgreSQL, schema quan hệ. Mọi thay đổi schema PHẢI qua Flyway SQL trong `src/main/resources/db/migration`.
 - KHÔNG ĐƯỢC sửa migration đã chạy ở môi trường dùng chung; tạo migration mới để sửa.
-- KHÔNG lưu binary (ảnh/tệp) trong bảng nghiệp vụ; lưu qua `StorageService`, bảng chỉ giữ metadata/key (`MediaAsset`).
+- KHÔNG lưu binary (ảnh/tệp) trong bảng nghiệp vụ; lưu qua `FileStorage`, bảng chỉ giữ metadata/key (`MediaAsset`).
 - pgvector chỉ bật khi làm semantic search/RAG; migration bật extension tách riêng.
 - Ràng buộc nghiệp vụ quan trọng NÊN có ràng buộc DB tương ứng (unique, foreign key, not null).
 

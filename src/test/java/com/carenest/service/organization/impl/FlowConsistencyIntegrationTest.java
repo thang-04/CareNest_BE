@@ -69,9 +69,6 @@ class FlowConsistencyIntegrationTest {
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
     }
 
-    @Autowired
-    private com.carenest.service.observation.ClassMonthlyCommentService monthlyComments;
-
     @Test
     void shouldRejectShrinkingYearPastExistingHoliday() {
         var year = nextYear();
@@ -109,33 +106,6 @@ class FlowConsistencyIntegrationTest {
                 .isTrue();
     }
 
-    @Test
-    void monthlyClassCommentMustRejectMonthOutsideClassYear() {
-        long campus = insertId("INSERT INTO campuses(code,name,is_main) VALUES ('DEEP','Deep',true) RETURNING id");
-        long cls = insertId("INSERT INTO classrooms(campus_id,school_year_id,name) VALUES (" + campus + ","
-                + currentYear + ",'Deep class') RETURNING id");
-        long teacher = insertId(
-                "INSERT INTO user_accounts(keycloak_user_id,username,full_name) VALUES ('deep-teacher','deep-teacher','Deep Teacher') RETURNING id");
-        jdbc.update(
-                "INSERT INTO staff_assignments(user_id,staff_role,classroom_id,valid_from) VALUES (?,'TEACHER',?,'2026-01-01')",
-                teacher,
-                cls);
-        var user = new CurrentUser(
-                teacher, "deep-teacher", "deep-teacher", "Deep Teacher", null, Set.of(CareNestRole.TEACHER));
-        assertThatThrownBy(() -> monthlyComments.get(user, cls, LocalDate.of(2026, 8, 1)))
-                .as("a class year starting September cannot create August class comments")
-                .isInstanceOf(GlobalException.class);
-        var invalid = new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
-                cls, LocalDate.of(2026, 8, 1), "An invalid outside-year monthly comment");
-        assertThatThrownBy(() -> monthlyComments.save(user, invalid)).isInstanceOf(GlobalException.class);
-        assertThatThrownBy(() -> monthlyComments.confirm(user, invalid)).isInstanceOf(GlobalException.class);
-        jdbc.update("UPDATE school_years SET start_date='2026-09-05', end_date='2027-05-15' WHERE id=?", currentYear);
-        assertThat(monthlyComments.get(user, cls, LocalDate.of(2026, 9, 30)).month())
-                .isEqualTo(LocalDate.of(2026, 9, 1));
-        assertThat(monthlyComments.get(user, cls, LocalDate.of(2027, 5, 1)).month())
-                .isEqualTo(LocalDate.of(2027, 5, 1));
-    }
-
     @Autowired
     private com.carenest.service.organization.YearSetupService yearSetup;
 
@@ -164,18 +134,19 @@ class FlowConsistencyIntegrationTest {
                 year,
                 new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 1), LocalDate.of(2028, 6, 15)));
 
+        // CFG-YR-05: năm sắp diễn ra đang chuẩn bị (hôm nay 30/08) ⇒ phân công ở ngày bắt đầu cũ tính từ hôm nay
         for (long id : new long[] {teacherRow, leaderRow}) {
             assertThat(jdbc.queryForObject(
                             "SELECT valid_from || '..' || valid_to FROM staff_assignments WHERE id = ?",
                             String.class,
                             id))
-                    .isEqualTo("2027-09-01..2028-06-15");
+                    .isEqualTo("2027-08-30..2028-06-15");
         }
         assertThat(jdbc.queryForObject(
                         "SELECT valid_from || '..' || valid_to FROM staff_assignments WHERE id = ?",
                         String.class,
                         leftRow))
-                .isEqualTo("2027-09-01..2027-12-31");
+                .isEqualTo("2027-08-30..2027-12-31");
     }
 
     @Test
