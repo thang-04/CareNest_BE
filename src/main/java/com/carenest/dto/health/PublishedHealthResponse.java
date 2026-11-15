@@ -4,6 +4,8 @@ import com.carenest.utils.enums.HealthBmiStatus;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthConclusionCategory;
 import com.carenest.utils.enums.HealthFollowUpLevel;
+import com.carenest.utils.enums.HealthTrendPeriod;
+import com.carenest.utils.enums.HealthTrendWarningCode;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -55,8 +57,19 @@ public record PublishedHealthResponse(
             BigDecimal bmiZScore) {}
 
     /** Giải thích xu hướng đã được nhân sự duyệt (HLT-05); null khi chưa có. */
-    public record ApprovedInterpretation(Long id, String summary, List<TrendWarning> warnings, Instant approvedAt) {}
+    /**
+     * {@code content} bản cho phụ huynh (không có gợi ý theo dõi — HLT-21), null ở bản trước V137; {@code summary} ghép từ
+     * {@code content} đó. {@code stale}: đã có số đo mới hơn lần phân tích, giải thích theo các lần đo trước.
+     */
+    public record ApprovedInterpretation(
+            Long id,
+            HealthTrendPeriod period,
+            String summary,
+            HealthTrendContent content,
+            List<TrendWarning> warnings,
+            boolean stale,
+            Instant approvedAt) {}
 
-    /** Cảnh báo xu hướng tính xác định từ số đo (HLT-02): {@code level} warning | info. */
-    public record TrendWarning(String level, String text) {}
+    /** Cảnh báo xu hướng tính xác định từ số đo (HLT-02): {@code level} warning | info; {@code code} null ở bản lưu trước HLT-21. */
+    public record TrendWarning(HealthTrendWarningCode code, String level, String text) {}
 }

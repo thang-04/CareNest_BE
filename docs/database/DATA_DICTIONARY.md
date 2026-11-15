@@ -355,7 +355,7 @@ Mục đích: thông báo theo người nhận để App/Web hiện danh sách; 
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ; `WEEKLY_COMMENT_SENT` (V129, OBS-29); `ATTENDANCE_REMINDER`, `ASSESSMENT_REMINDER`, `ASSESSMENT_REOPENED`, `LEADER_REMINDER` (V133, OBS-30); `STAFF_ASSIGNED`, `CUTOFF_CHANGED`, `LEAVE_REQUEST_CHANGED`, `MEAL_COUNT_CONFIRMED`, `REWARD_LIST_UPDATED` (V134, OBS-31); `DAILY_HEALTH_NOTED`, `SCHOOL_YEAR_ACTIVATED` (V135, OBS-31 bổ sung 14/11). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08, OBS-29, OBS-30 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ; `WEEKLY_COMMENT_SENT` (V129, OBS-29); `ATTENDANCE_REMINDER`, `ASSESSMENT_REMINDER`, `ASSESSMENT_REOPENED`, `LEADER_REMINDER` (V133, OBS-30); `STAFF_ASSIGNED`, `CUTOFF_CHANGED`, `LEAVE_REQUEST_CHANGED`, `MEAL_COUNT_CONFIRMED`, `REWARD_LIST_UPDATED` (V134, OBS-31); `DAILY_HEALTH_NOTED`, `SCHOOL_YEAR_ACTIVATED` (V135, OBS-31 bổ sung 14/11); `HEALTH_TREND_APPROVED` (V138, HLT-21). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08, OBS-29, OBS-30, HLT-21 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | link | VARCHAR(255) | có | V109: đường dẫn Web mở thẳng hồ sơ kế hoạch giáo dục; nhắc "Gần đến hạn" không tạo trùng cùng người + loại + link | EDU-74 |
@@ -511,15 +511,17 @@ Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
 Index: `(measurement_id, created_at)`.
 
 ## health_interpretations  (module: health, scope: CHILD)
-Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V88.
+Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V88, V137 (`content`), V138 (`period`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | child_id | BIGINT FK children | không | | — |
 | status | VARCHAR(20) | không | `DRAFT` / `APPROVED` (CHECK) | HLT-05, AI-02 |
-| summary | TEXT | không | Đoạn diễn giải (AI viết; người duyệt sửa được, ≤ 2000 ký tự khi duyệt) — không ngôn ngữ chẩn đoán | HLT-03, HLT-04 |
-| warnings | JSONB | không | `[{ level: "warning" hoặc "info", text }]` tính xác định từ số đo lúc phân tích | HLT-02 |
-| measurement_ids | JSONB | không | Id các lần đo đã công bố dùng để phân tích | HLT-02 |
+| summary | TEXT | không | Bản văn: từ V137 ghép từ `content` (khối Tổng quan / Cần chú ý / Điểm tích cực / Gợi ý theo dõi / Lưu ý về dữ liệu); bản trước V137 là đoạn AI viết — không ngôn ngữ chẩn đoán | HLT-03, HLT-04, HLT-21 |
+| content | JSONB | có | `{ overview, attentionPoints: [{ warningCode, text }], positives: [], followUps: [{ type, text }], limitations }`; mã cảnh báo, loại gợi ý do hệ thống cho phép; NULL ở bản trước V137 | HLT-21 |
+| warnings | JSONB | không | `[{ code, level: "warning" hoặc "info", text }]` (`code` từ HLT-21, thiếu ở bản cũ) tính xác định từ số đo lúc phân tích | HLT-02 |
+| period | VARCHAR(20) | không | Khoảng đã phân tích, cùng bộ lọc biểu đồ: `MONTHS_6` / `MONTHS_12` / `ALL` (CHECK `ck_health_interpretations_period`; bản trước V138 = `ALL`) | HLT-21 |
+| measurement_ids | JSONB | không | Id các lần đo đã công bố trong khoảng `period` dùng để phân tích | HLT-02, HLT-21 |
 | source | VARCHAR(10) | không | `AI` / `HUMAN` (người duyệt sửa câu chữ) (CHECK) | AI-01, AI-02 |
 | model | VARCHAR(100) | có | Model AI đã dùng | AI-01 |
 | generated_by, generated_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người bấm phân tích, lúc tạo | AI-01 |

@@ -46,6 +46,24 @@ class HealthNotifier {
                 childId);
     }
 
+    /**
+     * HLT-21: GV duyệt nhận định xu hướng ⇒ mỗi tài khoản phụ huynh liên kết một thông báo, nội dung là tổng quan đã duyệt
+     * (≤ 500 ký tự, vừa cột body). Bản lưu trước khi có tổng quan ⇒ câu chung. Push vẫn che nội dung (PushDispatchListener).
+     */
+    void trendApproved(Long childId, String overview) {
+        Set<Long> parents = guardianChildLinkService.findLinksOfChild(childId).stream()
+                .map(GuardianLinkResponse::userId)
+                .collect(Collectors.toSet());
+        notificationService.notifyUsers(
+                parents,
+                NotificationType.HEALTH_TREND_APPROVED,
+                "Nhận định xu hướng sức khỏe mới",
+                overview == null || overview.isBlank()
+                        ? "Đã có nhận định xu hướng tăng trưởng mới. Mở mục Sức khỏe để xem."
+                        : overview,
+                childId);
+    }
+
     void campaignOpened(HealthCheckCampaign campaign, boolean reopened) {
         List<Long> classIds = rules.classesOf(campaign).stream()
                 .map(ClassroomInfoResponse::id)

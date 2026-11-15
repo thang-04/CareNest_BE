@@ -33,7 +33,8 @@ class PushDispatchListener {
             NotificationType.CHILD_TB_CONTACT,
             NotificationType.CHILD_TB_CONTACT_DATE_CHANGED,
             NotificationType.HEALTH_RESULT_PUBLISHED,
-            NotificationType.HEALTH_RESULT_UPDATED);
+            NotificationType.HEALTH_RESULT_UPDATED,
+            NotificationType.HEALTH_TREND_APPROVED);
 
     private final NotificationRepository notificationRepository;
     private final DeviceTokenRepository deviceTokenRepository;

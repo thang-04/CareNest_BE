@@ -13,9 +13,13 @@ public interface AiClient {
 
     /**
      * {@code task}: tên tác vụ để log metadata (AI-05). Prompt chỉ chứa dữ liệu tối thiểu, không tên, ngày sinh, ảnh trẻ
-     * (AI-04) — service tự bảo đảm.
+     * (AI-04) — service tự bảo đảm. {@code jsonOutput}: yêu cầu nhà cung cấp trả JSON (service vẫn tự kiểm output).
      */
-    record AiRequest(String task, String systemPrompt, String userPrompt, int maxTokens) {
+    record AiRequest(String task, String systemPrompt, String userPrompt, int maxTokens, boolean jsonOutput) {
+        public AiRequest(String task, String systemPrompt, String userPrompt, int maxTokens) {
+            this(task, systemPrompt, userPrompt, maxTokens, false);
+        }
+
         @Override
         public String toString() {
             return "AiRequest[task=" + task + "]";

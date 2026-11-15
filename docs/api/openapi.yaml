@@ -2983,6 +2983,16 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: period
+        required: false
+        schema:
+          type: string
+          default: ALL
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
       responses:
         "200":
           content:
@@ -7637,6 +7647,18 @@ paths:
           description: OK
       tags:
       - pickup-controller
+  /api/pickups/classes:
+    get:
+      operationId: listClasses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListPickupClassResponse"
+          description: OK
+      tags:
+      - pickup-controller
   /api/role-permissions:
     get:
       operationId: getRolePermissions
@@ -9272,9 +9294,19 @@ components:
         approvedAt:
           type: string
           format: date-time
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
         id:
           type: integer
           format: int64
+        period:
+          type: string
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
+        stale:
+          type: boolean
         summary:
           type: string
         warnings:
@@ -9510,6 +9542,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DailyHealthEntryResponse"
+    AttentionPoint:
+      type: object
+      properties:
+        text:
+          type: string
+        warningCode:
+          type: string
+          enum:
+          - WEIGHT_DROP
+          - HEIGHT_STALL
+          - WFA_LOW
+          - HFA_LOW
+          - BMI_OUT_OF_RANGE
+          - BMI_Z_JUMP
+          - NORMAL
     AutoPlaceRequest:
       type: object
       properties:
@@ -12790,6 +12837,17 @@ components:
           format: date-time
         url:
           type: string
+    FollowUp:
+      type: object
+      properties:
+        text:
+          type: string
+        type:
+          type: string
+          enum:
+          - RECHECK_NEXT_ROUND
+          - TALK_TO_PARENT
+          - REMEASURE
     FoodImportRequest:
       type: object
       properties:
@@ -15014,6 +15072,8 @@ components:
           format: int64
         approvedByName:
           type: string
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
         draft:
           type: boolean
         generatedAt:
@@ -15024,8 +15084,16 @@ components:
           format: int64
         model:
           type: string
+        period:
+          type: string
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
         source:
           type: string
+        stale:
+          type: boolean
         status:
           type: string
         summary:
@@ -15037,8 +15105,27 @@ components:
     HealthTrendApproveRequest:
       type: object
       properties:
-        summary:
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
+    HealthTrendContent:
+      type: object
+      properties:
+        attentionPoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttentionPoint"
+        followUps:
+          type: array
+          items:
+            $ref: "#/components/schemas/FollowUp"
+        limitations:
           type: string
+        overview:
+          type: string
+        positives:
+          type: array
+          items:
+            type: string
     History:
       type: object
       properties:
@@ -16377,6 +16464,7 @@ components:
           - HEALTH_RESULT_PUBLISHED
           - HEALTH_RESULT_UPDATED
           - HEALTH_CHECK_OPENED
+          - HEALTH_TREND_APPROVED
           - CHILD_PLACED
           - ATTENDANCE_DAY_UNLOCKED
           - EDU_SUBMITTED
@@ -17074,6 +17162,20 @@ components:
             $ref: "#/components/schemas/PickupGuardian"
         row:
           $ref: "#/components/schemas/PickupRow"
+    PickupClassResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     PickupGuardian:
       type: object
       properties:
@@ -19618,6 +19720,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PermissionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListPickupClassResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupClassResponse"
         desc:
           type: string
         errorCode:
@@ -22623,6 +22740,16 @@ components:
     TrendWarning:
       type: object
       properties:
+        code:
+          type: string
+          enum:
+          - WEIGHT_DROP
+          - HEIGHT_STALL
+          - WFA_LOW
+          - HFA_LOW
+          - BMI_OUT_OF_RANGE
+          - BMI_Z_JUMP
+          - NORMAL
         level:
           type: string
         text:

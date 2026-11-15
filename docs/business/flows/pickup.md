@@ -14,6 +14,7 @@ Module: attendance (→ notification). Rule: PCK-01..04, ATT-10, HLT-15, PAR-01.
 
 ```text
 [B] Người đến đón (lúc nào cũng được — không phân biệt về sớm, đón muộn)                      (PCK-04)
+[S] Danh sách lớp đón trẻ: lớp năm đang hoạt động GV có quyền đón trẻ, đang được phân công    (PCK-01)
 [S] GV lớp mở bảng đón của lớp: trẻ có mặt "Chờ đón"; vắng, chưa điểm danh không trả được
 [S] GV chọn trẻ ⇒ hiện phụ huynh trên hồ sơ trẻ kèm ảnh                                       (PCK-02)
       ├─ khớp ảnh một phụ huynh ⇒ chọn phụ huynh đó, nhập giờ trả ⇒ trả trẻ

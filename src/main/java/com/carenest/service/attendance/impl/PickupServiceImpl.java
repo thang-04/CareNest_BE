@@ -2,6 +2,7 @@ package com.carenest.service.attendance.impl;
 
 import com.carenest.dto.attendance.PickupBoardResponse;
 import com.carenest.dto.attendance.PickupChildResponse;
+import com.carenest.dto.attendance.PickupClassResponse;
 import com.carenest.dto.attendance.PickupRecordResponse;
 import com.carenest.dto.attendance.PickupRequest;
 import com.carenest.dto.child.ChildBriefResponse;
@@ -44,6 +45,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -79,6 +81,28 @@ public class PickupServiceImpl implements PickupService {
     private final NotificationService notificationService;
     private final AccountService accountService;
     private final Clock clock;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PickupClassResponse> listClasses(CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            // PCK-01: cùng điều kiện với bảng đón (quyền PICKUP_RECORD, GV đang phân công, năm học đang hoạt động)
+            List<PickupClassResponse> classes = currentUser.hasPermission(Permission.PICKUP_RECORD)
+                    ? teacherActiveClasses(currentUser, rules.today()).stream()
+                            .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
+                                    .thenComparing(ClassroomInfoResponse::name))
+                            .map(c -> new PickupClassResponse(c.id(), c.name(), c.campusId(), c.ageGroupId()))
+                            .toList()
+                    : List.of();
+            log.info("{}|END", logPrefix);
+            return classes;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -216,12 +240,7 @@ public class PickupServiceImpl implements PickupService {
             }
             LocalDate today = rules.today();
             LocalDate day = date == null ? today : date;
-            List<ClassroomInfoResponse> classes =
-                    staffAssignmentService.findCurrentTeacherClassroomIds(currentUser.userId(), today).stream()
-                            .map(classroomService::findClassroomInfo)
-                            .flatMap(Optional::stream)
-                            .filter(c -> c.yearStatus() == SchoolYearStatus.ACTIVE)
-                            .toList();
+            List<ClassroomInfoResponse> classes = teacherActiveClasses(currentUser, today);
             classes.forEach(c -> checkDay(c, day));
             Map<Long, String> classNames =
                     classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, ClassroomInfoResponse::name));
@@ -237,6 +256,18 @@ public class PickupServiceImpl implements PickupService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /** Lớp năm học đang hoạt động mà GV đang được phân công hôm nay (kể cả dạy thay). */
+    private List<ClassroomInfoResponse> teacherActiveClasses(CurrentUser user, LocalDate today) {
+        if (!user.hasRole(CareNestRole.TEACHER)) {
+            return List.of();
+        }
+        return staffAssignmentService.findCurrentTeacherClassroomIds(user.userId(), today).stream()
+                .map(classroomService::findClassroomInfo)
+                .flatMap(Optional::stream)
+                .filter(c -> c.yearStatus() == SchoolYearStatus.ACTIVE)
+                .toList();
     }
 
     /** Lớp trẻ đang học hôm nay; chỉ GV đang phụ trách lớp, năm học đang hoạt động. Ngoài phạm vi trả 404. */

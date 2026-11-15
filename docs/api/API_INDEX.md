@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 350 endpoint.
+Tổng: 351 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -324,6 +324,7 @@ GET /permissions · src/main/java/com/carenest/controller/account/PermissionCont
 GET /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
 POST /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#recordResult
 GET /pickups/children/{childId} · src/main/java/com/carenest/controller/attendance/PickupController.java#getChild
+GET /pickups/classes · src/main/java/com/carenest/controller/attendance/PickupController.java#listClasses
 GET /role-permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermissions
 GET /role-permissions/{role} · src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermission
 PUT /role-permissions/{role} · src/main/java/com/carenest/controller/account/PermissionController.java#updateRolePermissions

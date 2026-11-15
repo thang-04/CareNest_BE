@@ -1,5 +1,6 @@
 package com.carenest.entity.health;
 
+import com.carenest.utils.enums.HealthTrendPeriod;
 import com.carenest.utils.enums.InterpretationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -45,9 +46,19 @@ public class HealthInterpretation {
     @Column(nullable = false, columnDefinition = "text")
     private String summary;
 
+    /** Nội dung có cấu trúc (HLT-21, V137) dạng JSON của {@code HealthTrendContent}; null ở bản ghi trước V137. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private String content;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, updatable = false, columnDefinition = "jsonb")
     private String warnings;
+
+    // HLT-21: khoảng thời gian đã phân tích (V138; bản cũ = ALL)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, updatable = false, length = 20)
+    private HealthTrendPeriod period;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "measurement_ids", nullable = false, updatable = false, columnDefinition = "jsonb")
@@ -81,7 +92,9 @@ public class HealthInterpretation {
 
     public static HealthInterpretation draft(
             Long childId,
+            HealthTrendPeriod period,
             String summary,
+            String contentJson,
             String warningsJson,
             String measurementIdsJson,
             String model,
@@ -89,8 +102,10 @@ public class HealthInterpretation {
             Instant generatedAt) {
         HealthInterpretation i = new HealthInterpretation();
         i.childId = childId;
+        i.period = period;
         i.status = InterpretationStatus.DRAFT;
         i.summary = summary;
+        i.content = contentJson;
         i.warnings = warningsJson;
         i.measurementIds = measurementIdsJson;
         i.source = SOURCE_AI;
@@ -104,12 +119,15 @@ public class HealthInterpretation {
         return status == InterpretationStatus.APPROVED;
     }
 
-    /** Duyệt (AI-02); {@code editedSummary} khác bản AI ⇒ nhân sự chịu trách nhiệm nội dung ({@code source=HUMAN}). */
-    public void approve(String editedSummary, Long userId, Instant at) {
-        if (editedSummary != null && !editedSummary.equals(summary)) {
-            this.summary = editedSummary;
-            this.source = SOURCE_HUMAN;
-        }
+    /** Nhân sự sửa nội dung trước khi duyệt ⇒ chịu trách nhiệm nội dung ({@code source=HUMAN}, AI-02). */
+    public void editContent(String contentJson, String renderedSummary) {
+        this.content = contentJson;
+        this.summary = renderedSummary;
+        this.source = SOURCE_HUMAN;
+    }
+
+    /** Duyệt (AI-02, HLT-05): từ đây phụ huynh thấy bản này. */
+    public void approve(Long userId, Instant at) {
         this.status = InterpretationStatus.APPROVED;
         this.approvedBy = userId;
         this.approvedAt = at;
