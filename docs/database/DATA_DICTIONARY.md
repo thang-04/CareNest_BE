@@ -72,7 +72,7 @@ Mục đích: đợt nghỉ (lễ, Tết…) của năm học; các ngày trong 
 | name | VARCHAR(100) | không | Tên đợt nghỉ | SCH-05 |
 
 ## class_monthly_comments  (module: learning-observation, scope: CLASS)
-Mục đích: nhận xét chung cả lớp theo tháng. Migration: V72.
+Mục đích: nhận xét chung cả lớp theo tháng. Migration: V72. **Đã bỏ tính năng 14/11/2026 (OBS-26):** bảng giữ dữ liệu cũ, không còn entity / API; xóa bảng bằng migration riêng nếu team chốt.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | classroom_id / campus_id / school_year_id | BIGINT FK | không | Lớp; UNIQUE `(classroom_id, month)` | OBS-26 |
@@ -81,6 +81,50 @@ Mục đích: nhận xét chung cả lớp theo tháng. Migration: V72.
 | content | VARCHAR(3000) | có | Nội dung GV lưu / xác nhận | OBS-26 |
 | confirmed_by / confirmed_at | BIGINT, TIMESTAMPTZ | có | Người, lúc xác nhận; có thì không sửa | OBS-26 |
 | updated_by / updated_at / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Lần lưu gần nhất, khóa lạc quan | OBS-26 |
+
+## weekly_comments  (module: learning-observation, scope: CHILD)
+Mục đích: nhận xét tuần theo trẻ gửi phụ huynh. Migration: V129.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id / classroom_id / campus_id / school_year_id | BIGINT FK | không | Trẻ, lớp viết; UNIQUE `(child_id, week_start)` | OBS-29 |
+| week_start | DATE | không | Thứ Hai của tuần (CHECK ISODOW = 1) | OBS-29 |
+| content | TEXT | không | Nội dung, tối đa 2000 ký tự (CHECK) | OBS-29 |
+| status | VARCHAR(10) | không | `DRAFT` / `SENT`; SENT thì khóa | OBS-29 |
+| draft_source | VARCHAR(10) | không | `TEMPLATE` / `AI` / `MANUAL`: nguồn bản nháp | OBS-29 |
+| sent_by / sent_at | BIGINT, TIMESTAMPTZ | có | Người, lúc gửi; có ⇔ SENT (CHECK) | OBS-29 |
+| created_* / updated_* / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Người tạo, lần lưu gần nhất, khóa lạc quan | OBS-29 |
+
+## weekly_comment_unlocks  (module: learning-observation, scope: CLASS)
+Mục đích: mở lại nhận xét tuần đã khóa của một lớp – tuần tới hạn (HT / PHT có quyền mở lại đánh giá), như `assessment_day_unlocks`. Migration: V131 (thay `weekly_comment_reopens` của V130, đã bỏ).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| classroom_id / campus_id | BIGINT FK | không | Lớp, điểm trường | OBS-29 |
+| week_start | DATE | không | Thứ Hai của tuần (CHECK ISODOW = 1) | OBS-29 |
+| valid_until | TIMESTAMPTZ | không | Mở đến; kết thúc sớm ⇒ = lúc thu hồi | OBS-29 |
+| reason | VARCHAR(300) | không | Lý do, không trống (CHECK) | OBS-29 |
+| unlocked_by / unlocked_at, revoked_by / revoked_at | BIGINT FK, TIMESTAMPTZ | có (revoked) | Người, lúc mở; người, lúc kết thúc sớm | OBS-29 |
+Index: `idx_weekly_comment_unlocks_class_week (classroom_id, week_start)`, `idx_weekly_comment_unlocks_at (unlocked_at DESC)`.
+
+## evaluation_unlocks  (module: learning-observation, scope: CLASS)
+Mục đích: mở lại đánh giá cuối chủ đề / học kỳ / cuối năm đã khóa của một lớp – kỳ tới hạn (HT / PHT có quyền mở lại đánh giá), như `weekly_comment_unlocks`. Migration: V133.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+|---|---|---|---|---|
+| id | BIGSERIAL PK | không | Khóa | OBS-30 |
+| kind | VARCHAR(20) | không | `THEME` / `SEMESTER` / `YEAR` (CHECK) | OBS-30 |
+| classroom_id / campus_id | BIGINT FK | không | Lớp, điểm trường | OBS-30 |
+| period_key | VARCHAR(40) | không | THEME: dòng gốc chủ đề; SEMESTER: `1` / `2`; YEAR: `Y` | OBS-30 |
+| valid_until | TIMESTAMPTZ | không | Mở đến; kết thúc sớm ⇒ = lúc thu hồi | OBS-30 |
+| reason | VARCHAR(300) | không | Lý do, không trống (CHECK) | OBS-30 |
+| unlocked_by / unlocked_at, revoked_by / revoked_at | BIGINT FK, TIMESTAMPTZ | có (revoked) | Người, lúc mở; người, lúc kết thúc sớm | OBS-30 |
+
+## weekly_comment_revisions  (module: learning-observation, scope: CHILD)
+Mục đích: GV sửa bản đã gửi (trong hạn hoặc khi được mở lại) ⇒ lưu nội dung đã gửi trước đó. Migration: V131.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| weekly_comment_id | BIGINT FK weekly_comments | không | Bản nhận xét | OBS-29 |
+| previous_content / previous_sent_at / previous_sent_by | TEXT, TIMESTAMPTZ, BIGINT FK | không | Nội dung, lúc gửi, người gửi trước khi sửa | OBS-29 |
+| changed_by / changed_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người, lúc sửa | OBS-29 |
+Index: `idx_weekly_comment_revisions_comment (weekly_comment_id)`.
 
 ## attendance_cutoffs  (module: school-structure, scope: SCHOOL)
 Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó.
@@ -311,7 +355,7 @@ Mục đích: thông báo theo người nhận để App/Web hiện danh sách; 
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ. CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ; `WEEKLY_COMMENT_SENT` (V129, OBS-29); `ATTENDANCE_REMINDER`, `ASSESSMENT_REMINDER`, `ASSESSMENT_REOPENED`, `LEADER_REMINDER` (V133, OBS-30); `STAFF_ASSIGNED`, `CUTOFF_CHANGED`, `LEAVE_REQUEST_CHANGED`, `MEAL_COUNT_CONFIRMED`, `REWARD_LIST_UPDATED` (V134, OBS-31); `DAILY_HEALTH_NOTED`, `SCHOOL_YEAR_ACTIVATED` (V135, OBS-31 bổ sung 14/11). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08, OBS-29, OBS-30 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | link | VARCHAR(255) | có | V109: đường dẫn Web mở thẳng hồ sơ kế hoạch giáo dục; nhắc "Gần đến hạn" không tạo trùng cùng người + loại + link | EDU-74 |

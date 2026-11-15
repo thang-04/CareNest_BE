@@ -32,5 +32,24 @@ public enum NotificationType {
     EDU_RELEASED,
     EDU_RETURNED,
     EDU_DEADLINE_EXTENDED,
-    EDU_DEADLINE_NEAR
+    EDU_DEADLINE_NEAR,
+    /** GV gửi nhận xét tuần của trẻ, báo phụ huynh đã liên kết với trẻ (OBS-29). */
+    WEEKLY_COMMENT_SENT,
+    // Nhắc việc (OBS-30): GV lớp — sắp tới giờ chốt điểm danh, chưa đánh giá ngày, đánh giá / nhận xét tuần mở,
+    // gần hạn, đã khóa; được mở lại, sắp hết thời gian mở lại. BGH — sổ báo ăn chưa xác nhận, lớp quá hạn đánh giá
+    ATTENDANCE_REMINDER,
+    ASSESSMENT_REMINDER,
+    ASSESSMENT_REOPENED,
+    LEADER_REMINDER,
+    // Thông báo việc (OBS-31): phân công GV / tổ trưởng, đổi giờ chốt, đơn nghỉ của phụ huynh, sổ báo ăn đã xác nhận
+    // (báo bếp), luồng đề xuất khen thưởng
+    STAFF_ASSIGNED,
+    CUTOFF_CHANGED,
+    LEAVE_REQUEST_CHANGED,
+    MEAL_COUNT_CONFIRMED,
+    REWARD_LIST_UPDATED,
+    /** GV ghi sức khỏe đầu ngày "cần lưu ý", báo phụ huynh đã liên kết với trẻ (HLT-15). */
+    DAILY_HEALTH_NOTED,
+    /** Kích hoạt năm học mới: báo GV, PHT, bếp có phân công năm mới (CFG-YR-02). */
+    SCHOOL_YEAR_ACTIVATED
 }

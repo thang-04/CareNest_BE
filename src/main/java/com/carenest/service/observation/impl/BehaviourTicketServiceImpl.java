@@ -26,6 +26,7 @@ import com.carenest.service.observation.BehaviourTicketService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.TicketType;
@@ -80,17 +81,25 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canView(currentUser, cls)) {
-                throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
-            }
+            boolean views = rules.canView(currentUser, cls);
             TicketType t = type == null ? TicketType.WEEKLY : type;
             List<TicketPeriod> periods = endedPeriods(cls, t);
+            // Người dạy thay đã hết đợt: chỉ các kỳ có ngày cuối nằm trong đợt dạy thay (như khi phát phiếu)
+            if (!views) {
+                periods = periods.stream()
+                        .filter(p -> rules.canViewDay(currentUser, cls, p.end()))
+                        .toList();
+                if (periods.isEmpty()) {
+                    throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
+                }
+            }
             TicketPeriod current = periodStart == null
                     ? (periods.isEmpty() ? null : periods.getFirst())
                     : periods.stream()
                             .filter(p -> p.start().equals(periodStart))
                             .findFirst()
-                            .orElseThrow(() -> GlobalException.of(ApiCode.TICKET_PERIOD_INVALID));
+                            .orElseThrow(() -> GlobalException.of(
+                                    views ? ApiCode.TICKET_PERIOD_INVALID : ApiCode.TICKET_VIEW_FORBIDDEN));
             List<TicketBoardRow> rows = current == null ? List.of() : boardRows(currentUser, cls, t, current);
             log.info("{}|rows={}|END", logPrefix, rows.size());
             return new TicketBoardResponse(new TicketClassRef(cls.id(), cls.name()), t, periods, current, rows, RULES);
@@ -108,13 +117,18 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
+                    || !currentUser.hasRole(CareNestRole.TEACHER)) {
                 throw GlobalException.of(ApiCode.TICKET_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
             }
             TicketPeriod period = checkPeriod(cls, request.type(), request.periodStart());
+            // Cần chốt 14/11/2026: xét theo ngày cuối kỳ phát phiếu — GV dạy chính, hoặc người dạy thay ngày đó
+            if (!rules.canRecordDay(currentUser, cls, period.end())) {
+                throw GlobalException.of(ApiCode.TICKET_FORBIDDEN);
+            }
             List<Long> childIds = request.childIds();
             if (childIds == null || childIds.isEmpty()) {
                 throw GlobalException.of(ApiCode.TICKET_NO_CHILDREN);
@@ -419,7 +433,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             t == null ? null : toIssued(t),
                             t != null && !t.getClassroomId().equals(cls.id()),
                             currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
-                                    && rules.canRecord(currentUser, cls)
+                                    && rules.canRecordDay(currentUser, cls, period.end())
                                     && endMembers.contains(c.id()));
                 })
                 .toList();

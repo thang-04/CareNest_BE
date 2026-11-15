@@ -3,6 +3,7 @@ package com.carenest.service.child.impl;
 import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.child.AutoPlaceRequest;
 import com.carenest.dto.child.AutoPlaceResponse;
+import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.child.PlacementBoardResponse;
 import com.carenest.dto.child.PrepClassesResponse;
 import com.carenest.dto.child.SavePlacementsRequest;
@@ -19,13 +20,16 @@ import com.carenest.repository.child.ClassPlacementRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.ProgramCompletionLookup;
 import com.carenest.service.child.YearTransitionService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.service.organization.YearSetupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -70,6 +74,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     private final DevActivationProperties devActivation;
     private final ApplicationEventPublisher eventPublisher;
     private final List<ProgramCompletionLookup> programCompletionLookups;
+    private final GuardianChildLinkService guardianChildLinkService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -377,6 +383,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             SchoolYearDetailResponse activated =
                     schoolYearService.activateSchoolYear(currentUser, schoolYearId, confirmName);
             int moved = applyPlacements(setup, board);
+            notifyGuardiansOfNewClass(setup, board);
             List<Long> leftSchool = board.placements.values().stream()
                     .filter(placement -> !placement.getAction().keepsChildInClass())
                     .map(ClassPlacement::getChildId)
@@ -414,6 +421,34 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         }
         enrollmentRepository.flush();
         return changed;
+    }
+
+    // Báo phụ huynh đã liên kết: trẻ lên lớp / ở lại vào lớp năm mới (Cần chốt 14/11/2026)
+    private void notifyGuardiansOfNewClass(YearSetupResponse setup, Board board) {
+        Map<Long, String> classNames = setup.classes().stream()
+                .collect(Collectors.toMap(YearSetupResponse.SetupClass::id, YearSetupResponse.SetupClass::name));
+        Map<Long, ClassPlacement> moved = board.placements.values().stream()
+                .filter(p -> p.getAction().keepsChildInClass() && classNames.containsKey(p.getToClassroomId()))
+                .collect(Collectors.toMap(ClassPlacement::getChildId, p -> p));
+        if (moved.isEmpty()) {
+            return;
+        }
+        String from = DateTimeFormatter.ofPattern("dd/MM/yyyy").format(transitionStart(setup));
+        Map<Long, List<Long>> guardians = guardianChildLinkService.findLinksOfChildren(moved.keySet()).stream()
+                .collect(Collectors.groupingBy(
+                        GuardianLinkResponse::childId,
+                        Collectors.mapping(GuardianLinkResponse::userId, Collectors.toList())));
+        guardians.forEach((childId, userIds) -> {
+            Child child = board.children.get(childId);
+            String name = child == null ? "Bé" : "Bé " + child.getFullName();
+            notificationService.notifyUsers(
+                    userIds,
+                    NotificationType.CHILD_PLACED,
+                    "Lớp năm học " + setup.year().name(),
+                    name + " học lớp " + classNames.get(moved.get(childId).getToClassroomId()) + " năm học "
+                            + setup.year().name() + " từ ngày " + from + ".",
+                    childId);
+        });
     }
 
     private LocalDate transitionStart(YearSetupResponse setup) {

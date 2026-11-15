@@ -34,6 +34,12 @@ public interface StaffAssignmentService {
     /** Người dùng dạy thay lớp vào đúng ngày này. */
     boolean hasSubstituteAssignmentOn(Long userId, Long classroomId, LocalDate date);
 
+    /** Có đợt dạy thay lớp giao với khoảng [from, to] (danh sách lớp để người dạy thay mở lại ngày của mình). */
+    boolean hasSubstituteAssignmentBetween(Long userId, Long classroomId, LocalDate from, LocalDate to);
+
+    /** GV dạy chính lớp (không tính dạy thay) có phân công hiệu lực ngày date. */
+    boolean hasActiveMainTeacherAssignment(Long userId, Long classroomId, LocalDate date);
+
     /** Có phân công vai trò trong năm học (campusId null = mọi điểm trường); dùng cho xem lại năm đã kết thúc. */
     boolean hadRoleInYear(Long userId, StaffRole staffRole, Long campusId, Long schoolYearId);
 
@@ -62,6 +68,12 @@ public interface StaffAssignmentService {
 
     /** Giáo viên hiện tại của từng lớp (gồm phân công bắt đầu sau ngày date). */
     Map<Long, List<Long>> findCurrentTeacherIds(Collection<Long> classroomIds, LocalDate date);
+
+    /** GV dạy chính của từng lớp có phân công hiệu lực ngày date, không gồm người dạy thay. */
+    Map<Long, List<Long>> findCurrentMainTeacherIds(Collection<Long> classroomIds, LocalDate date);
+
+    /** Người dạy thay của từng lớp có phân công hiệu lực đúng ngày date (việc theo ngày). */
+    Map<Long, List<Long>> findSubstituteTeacherIdsOn(Collection<Long> classroomIds, LocalDate date);
 
     /** Giáo viên chủ nhiệm hiện tại của từng lớp (lớp chưa có chủ nhiệm không có trong map). */
     Map<Long, Long> findHomeroomTeacherIds(Collection<Long> classroomIds, LocalDate date);

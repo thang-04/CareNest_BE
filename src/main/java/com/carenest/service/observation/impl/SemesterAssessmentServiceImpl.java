@@ -98,7 +98,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         // Phân quyền động (Cần chốt 10/11/2026): HT thu hồi quyền Ghi / Xác nhận đánh giá thì GV không lưu / xác nhận
         // được
         Permission needed = confirm ? Permission.ASSESSMENT_CONFIRM : Permission.ASSESSMENT_RECORD;
-        if (!user.hasPermission(needed) || !rules.canRecord(user, cls))
+        if (!user.hasPermission(needed) || !rules.canRecordPeriod(user, cls))
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         rules.lockClassForUpdate(cls.id());
@@ -214,7 +214,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
             }
             rows.add(new Child(child.id(), child.fullName(), domains));
         }
-        boolean edit = rules.canRecord(user, cls)
+        boolean edit = rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && !rules.today().isBefore(from);
         var response = new Response(
