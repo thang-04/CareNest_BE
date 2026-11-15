@@ -46,6 +46,9 @@ final class TestStorageProperties {
                         Set.of("jpg", "png"),
                         null,
                         "meals/inspection-signatures/"));
+        c.put(
+                "announcement",
+                cat(root + "announcements/", "announcement", 10, Set.of("jpg", "jpeg", "png", "pdf"), null, null));
         return new StorageProperties(bucket, Duration.ofMinutes(15), "tmp/", c);
     }
 

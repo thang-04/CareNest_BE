@@ -476,6 +476,21 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Set<Long> findCampusKitchenIds(Long campusId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findCampusKitchenIds|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> result =
+                    Set.copyOf(staffAssignmentRepository.findActiveLeaderIds(StaffRole.KITCHEN_STAFF, campusId, date));
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findPrincipalIds(LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findPrincipalIds";
         log.info("{}|START", logPrefix);

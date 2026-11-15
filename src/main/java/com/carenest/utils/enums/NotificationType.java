@@ -35,6 +35,18 @@ public enum NotificationType {
     EDU_RETURNED,
     EDU_DEADLINE_EXTENDED,
     EDU_DEADLINE_NEAR,
+    /** Thông báo của trường do BGH gửi (PAR-05, spec 019). */
+    SCHOOL_ANNOUNCEMENT,
+    /** Sức khỏe trong ngày có biểu hiện, báo phụ huynh ngay (HLT-14). */
+    DAILY_HEALTH_NOTED,
+    /** Công bố thực đơn tuần, báo phụ huynh (NUT-08). */
+    MENU_PUBLISHED,
+    /** Phụ huynh gửi đơn nghỉ, báo GV lớp (ATT-05). */
+    LEAVE_REQUEST_CREATED,
+    /** Xác nhận đánh giá trẻ, báo phụ huynh (PAR-03). */
+    CHILD_EVALUATION_CONFIRMED,
+    /** Xác nhận đánh giá chủ đề của lớp, báo phụ huynh (PAR-03). */
+    THEME_EVALUATION_CONFIRMED,
     /** GV gửi nhận xét tuần của trẻ, báo phụ huynh đã liên kết với trẻ (OBS-29). */
     WEEKLY_COMMENT_SENT,
     // Nhắc việc (OBS-30): GV lớp — sắp tới giờ chốt điểm danh, chưa đánh giá ngày, đánh giá / nhận xét tuần mở,
@@ -50,8 +62,6 @@ public enum NotificationType {
     LEAVE_REQUEST_CHANGED,
     MEAL_COUNT_CONFIRMED,
     REWARD_LIST_UPDATED,
-    /** GV ghi sức khỏe đầu ngày "cần lưu ý", báo phụ huynh đã liên kết với trẻ (HLT-15). */
-    DAILY_HEALTH_NOTED,
     /** Kích hoạt năm học mới: báo GV, PHT, bếp có phân công năm mới (CFG-YR-02). */
     SCHOOL_YEAR_ACTIVATED
 }

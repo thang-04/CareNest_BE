@@ -1,6 +1,7 @@
 package com.carenest.entity.notification;
 
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.PushState;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -51,6 +52,24 @@ public class Notification {
     @Column(updatable = false, length = 255)
     private String link;
 
+    // Hàng chờ đẩy (spec 019): worker đọc PENDING đến hạn, ghi kết quả
+    @Enumerated(EnumType.STRING)
+    @Column(name = "push_state", nullable = false, length = 10)
+    private PushState pushState;
+
+    @Column(name = "push_attempts", nullable = false)
+    private short pushAttempts;
+
+    @Column(name = "push_next_at")
+    private Instant pushNextAt;
+
+    @Column(name = "push_initialized_at")
+    private Instant pushInitializedAt;
+
+    // Thông báo của trường (spec 019): nội dung đầy đủ, tệp đọc qua /me/announcements/{id}
+    @Column(name = "announcement_id", updatable = false)
+    private Long announcementId;
+
     public static Notification of(
             Long userId, NotificationType type, String title, String body, Long childId, Instant at) {
         Notification n = new Notification();
@@ -60,6 +79,7 @@ public class Notification {
         n.body = body;
         n.childId = childId;
         n.createdAt = at;
+        n.pushState = PushState.PENDING;
         return n;
     }
 
@@ -68,6 +88,35 @@ public class Notification {
         Notification n = of(userId, type, title, body, childId, at);
         n.link = link;
         return n;
+    }
+
+    public static Notification ofAnnouncement(Long userId, Long announcementId, String title, String body, Instant at) {
+        Notification n = of(userId, NotificationType.SCHOOL_ANNOUNCEMENT, title, body, null, at);
+        n.announcementId = announcementId;
+        return n;
+    }
+
+    /** Kết thúc lượt đẩy với trạng thái cuối (SENT, SKIPPED, FAILED). */
+    public void finishPush(PushState state) {
+        pushAttempts++;
+        pushState = state;
+        pushNextAt = null;
+    }
+
+    /** Lỗi tạm thời: giữ PENDING, thử lại từ {@code next}. */
+    public void retryPushAt(Instant next) {
+        pushAttempts++;
+        pushNextAt = next;
+    }
+
+    public void initializePush(Instant now) {
+        pushInitializedAt = now;
+    }
+
+    public void updatePush(PushState state, Instant next, int attempts) {
+        pushState = state;
+        pushNextAt = next;
+        pushAttempts = (short) Math.min(attempts, Short.MAX_VALUE);
     }
 
     public void markRead(Instant at) {
