@@ -392,8 +392,8 @@ class SelectedParentAccountServiceImplTest {
 
             ArgumentCaptor<NewIdentityUser> identity = ArgumentCaptor.forClass(NewIdentityUser.class);
             ArgumentCaptor<UserAccount> saved = ArgumentCaptor.forClass(UserAccount.class);
-            InOrder order =
-                    inOrder(identityProviderClient, userAccountRepository, childIntakeService, activationCodes, smsSender);
+            InOrder order = inOrder(
+                    identityProviderClient, userAccountRepository, childIntakeService, activationCodes, smsSender);
             order.verify(identityProviderClient).createUser(identity.capture());
             order.verify(userAccountRepository).saveAndFlush(saved.capture());
             order.verify(childIntakeService).linkAccountRecipient(CHILD_ID, GUARDIAN_ID, 70L);

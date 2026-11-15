@@ -491,7 +491,8 @@ class ChildEnrollmentServiceImplTest {
         }
 
         @Test
-        @DisplayName("ADR-0011, AUTH-18: chế độ mã, ghi hồ sơ lỗi ⇒ xóa user Keycloak, rollback cả mã đã lưu, không SMS")
+        @DisplayName(
+                "ADR-0011, AUTH-18: chế độ mã, ghi hồ sơ lỗi ⇒ xóa user Keycloak, rollback cả mã đã lưu, không SMS")
         void codeModePersistFailureSendsNoCode() {
             EnrollmentDraft draft = givenDraft(VICE, FILES, recipient(0, MOTHER_PHONE, MOTHER_ID, "Mẹ giả"));
             given(smsSender.activationCodeMode()).willReturn(true);
