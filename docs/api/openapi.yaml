@@ -10789,6 +10789,8 @@ components:
         campusId:
           type: integer
           format: int64
+        canConfirm:
+          type: boolean
         canEdit:
           type: boolean
         id:
@@ -20936,6 +20938,8 @@ components:
         canEdit:
           type: boolean
         canReview:
+          type: boolean
+        canSubmit:
           type: boolean
         children:
           type: array

@@ -805,6 +805,8 @@ public enum ApiCode {
     EVALUATION_UNLOCK_ALREADY_ACTIVE(7406, HttpStatus.CONFLICT, "{0} của lớp này đang được mở lại"),
     EVALUATION_UNLOCK_NOT_FOUND(7407, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại đánh giá"),
     EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
+    SUBMIT_HOMEROOM_ONLY(7409, HttpStatus.FORBIDDEN, "Chỉ GV chủ nhiệm được gửi duyệt"),
+    CONFIRM_HOMEROOM_ONLY(7410, HttpStatus.FORBIDDEN, "Chỉ GV chủ nhiệm được xác nhận đánh giá"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),

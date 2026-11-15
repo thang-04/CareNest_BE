@@ -444,6 +444,25 @@ class ThemeEvaluationIntegrationTest {
     }
 
     @Test
+    @DisplayName("Cần chốt 15/11/2026: GV không chủ nhiệm lưu được bảng chủ đề, chỉ GV chủ nhiệm xác nhận")
+    void onlyHomeroomTeacherConfirmsTheme() {
+        CurrentUser other = user("theme-other", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-09-01', FALSE)",
+                other.userId(),
+                classA);
+        var request = new ThemeEvaluationRequest(classA, 9201L, "Ghi chú", List.of());
+        ThemeEvaluationResponse saved = service.save(other, request);
+        assertThat(saved.canEdit()).isTrue();
+        assertThat(saved.canConfirm()).isFalse();
+        expectCode(() -> service.confirm(other, request), ApiCode.CONFIRM_HOMEROOM_ONLY);
+
+        assertThat(service.get(teacher, classA, 9201L).canConfirm()).isTrue();
+        assertThat(service.confirm(teacher, request).status()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
     void teacherOverridesCellsThenConfirmsAndTheTableIsFrozen() {
         var override = new ThemeEvaluationRequest(
                 classA, 9201L, " Cô chú ý rèn trẻ chạy ", List.of(new CellInput(kid1, oldGoal1, false)));

@@ -214,7 +214,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             teacher,
                             cls.yearStatus() == SchoolYearStatus.ACTIVE
                                     && rules.canRecordPeriod(currentUser, cls)
-                                    && (!year || yearEndOpen(currentUser, cls))),
+                                    && (!year || yearEndOpen(currentUser, cls)),
+                            rules.isHomeroom(currentUser, cls)),
                     data == null ? List.of() : data.days(),
                     cls.mealSessions(),
                     monthly,
@@ -258,6 +259,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         try {
             ChildEvaluation ev = find(id);
             ClassroomInfoResponse cls = checkEditable(currentUser, ev);
+            if (!rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
+            }
             String text = checkContent(content);
             if (ev.getPeriodType() == EvaluationPeriodType.YEAR && !yearEndOpen(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.YEAR_END_NOT_OPEN);
@@ -541,7 +545,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.name(),
                             cls.campusId(),
                             teacher,
-                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordPeriod(currentUser, cls)),
+                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordPeriod(currentUser, cls),
+                            rules.isHomeroom(currentUser, cls)),
                     new DateRange(from, to),
                     data == null ? 0 : data.presentDays(),
                     data == null ? 0 : data.flagCount(),

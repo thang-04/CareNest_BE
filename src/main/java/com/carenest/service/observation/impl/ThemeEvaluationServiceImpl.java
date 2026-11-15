@@ -234,6 +234,9 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
             ThemeEvaluation evaluation = editable(currentUser, cls, theme, Permission.ASSESSMENT_CONFIRM);
+            if (!rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
+            }
             if (rules.today().isBefore(theme.getEndDate())) {
                 throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_ENDED);
             }
@@ -781,6 +784,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 !confirmed
                         && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
                         && rules.canRecordPeriod(user, cls)
+                        && rules.isHomeroom(user, cls)
                         && cls.yearStatus() == SchoolYearStatus.ACTIVE
                         && !today.isBefore(theme.getEndDate()),
                 confirmedByName,

@@ -100,6 +100,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         Permission needed = confirm ? Permission.ASSESSMENT_CONFIRM : Permission.ASSESSMENT_RECORD;
         if (!user.hasPermission(needed) || !rules.canRecordPeriod(user, cls))
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
+        if (confirm && !rules.isHomeroom(user, cls)) throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         rules.lockClassForUpdate(cls.id());
         var board = build(user, cls.id(), req.semester(), null);
@@ -247,7 +248,11 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 columns,
                 rows,
                 edit,
-                edit && !rules.today().isBefore(end) && !incomplete(response),
+                edit
+                        && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
+                        && rules.isHomeroom(user, cls)
+                        && !rules.today().isBefore(end)
+                        && !incomplete(response),
                 null,
                 null,
                 signersOn(classId, end));

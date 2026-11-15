@@ -213,6 +213,18 @@ class ObservationDayRules {
                 .getOrDefault(cls.id(), List.of());
     }
 
+    /**
+     * Cần chốt 15/11/2026: gửi duyệt và xác nhận đánh giá kỳ chỉ GV chủ nhiệm của lớp (xét tới ngày kết thúc năm nếu đã
+     * qua); lớp chưa có chủ nhiệm thì GV lớp nào cũng được. Người gọi vẫn phải qua canRecordPeriod.
+     */
+    boolean isHomeroom(CurrentUser user, ClassroomInfoResponse cls) {
+        if (!user.hasRole(CareNestRole.TEACHER)) return false;
+        Long homeroom = staffAssignmentService
+                .findHomeroomTeacherIds(List.of(cls.id()), teachingDay(cls))
+                .get(cls.id());
+        return homeroom == null || homeroom.equals(user.userId());
+    }
+
     boolean isLeader(CurrentUser user) {
         return user.hasRole(CareNestRole.PRINCIPAL) || user.hasRole(CareNestRole.VICE_PRINCIPAL);
     }

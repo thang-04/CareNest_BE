@@ -208,6 +208,10 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
             }
             List<RewardItemRequest> items = checkItems(cls, request == null ? null : request.items());
+            // Cần chốt 15/11/2026: GV lớp cùng lập / lưu nháp, chỉ GV chủ nhiệm gửi duyệt
+            if (submit && !rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.SUBMIT_HOMEROOM_ONLY);
+            }
             if (submit && items.isEmpty()) {
                 throw GlobalException.of(ApiCode.REWARD_LIST_EMPTY);
             }
@@ -674,6 +678,7 @@ public class RewardListServiceImpl implements RewardListService {
                                 e.getNote()))
                         .toList(),
                 canEdit(user, cls, list),
+                canEdit(user, cls, list) && rules.isHomeroom(user, cls),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE && canReview(user, list),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE && canDecide(user, list),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE ? rules.yearEndOpensOn(user, cls) : null,
