@@ -39,6 +39,7 @@ services:
       # Placeholder trong docker/keycloak/import/carenest-realm.json
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET is required, copy .env.example to .env}
       CARENEST_WEB_ORIGIN: ${CARENEST_WEB_ORIGIN:-http://localhost:3000}
+      CARENEST_SCHOOL_NAME: ${CARENEST_SCHOOL_NAME:-Trường Mầm Non Thượng Hồng}
       CARENEST_MOBILE_REDIRECT_URI: ${CARENEST_MOBILE_REDIRECT_URI:-carenest://oauth/callback}
       # Client carenest-dev (password grant) chỉ bật ở dev; realm import mặc định tắt
       CARENEST_DEV_CLIENT_ENABLED: ${CARENEST_DEV_CLIENT_ENABLED:-true}
