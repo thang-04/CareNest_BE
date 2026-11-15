@@ -48,7 +48,7 @@ export function renderAccountsDoc(d) {
 
 - Đăng nhập bằng tên đăng nhập: 8 tài khoản cố định dùng tên quen thuộc (\`admin\`, \`principal\`, \`viceprincipal\`, \`teacher1\`, \`teacher2\`, \`parent1\`, \`parent2\`, \`kitchen\`), còn lại là **SĐT**; nhân sự đăng nhập được cả bằng email. Mật khẩu:
   - Local (\`compose.yaml\`, file \`docker/keycloak/dev/carenest-users-0.json\`): \`${DEV_PASSWORD}\`.
-  - VPS dev/prod (\`docker/keycloak/vps/carenest-users-0.json\`): giá trị \`KEYCLOAK_DEV_USER_PASSWORD\` trong \`.env\` của VPS (không ghi ở repo).
+  - VPS (\`docker/keycloak/vps/carenest-users-0.json\`): giá trị \`KEYCLOAK_DEV_USER_PASSWORD\` trong \`.env\` của VPS. Dev (\`dev.carenest.edu.vn\`) đang dùng \`demo1234\` — VPS nạp mật khẩu dạng thô nên phải >= 8 ký tự theo chính sách realm, không dùng được \`demo123\` như local.
 - Keycloak chỉ import user khi realm còn mới: đổi bộ dữ liệu ⇒ tạo lại DB \`keycloak\` (local: \`docker compose down -v\`), xem \`docs/system/KEYCLOAK.md\` mục 5.
 - Trường: Trường Mầm non Thượng Hồng, năm học 2026-2027, Cơ sở 1 (\`CS-A\`, điểm chính) và Cơ sở 2 (\`CS-B\`), 10 lớp, ${d.children.length} trẻ, ${d.parentAccounts.length} tài khoản phụ huynh.
 
