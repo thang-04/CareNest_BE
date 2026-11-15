@@ -80,6 +80,10 @@ class ThemeEvaluationIntegrationTest {
         }
     }
 
+    // Hạn / khóa kỳ đánh giá kiểm riêng ở EvaluationDeadlineIntegrationTest; dữ liệu ở đây có kỳ đã qua hạn từ lâu
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.carenest.service.observation.EvaluationDeadlineService evaluationDeadlineService;
+
     @Autowired
     private ThemeEvaluationService service;
 

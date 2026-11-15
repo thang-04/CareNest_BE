@@ -12,6 +12,7 @@ import com.carenest.dto.attendance.DailyHealthResponse.Options;
 import com.carenest.dto.attendance.DailyHealthResponse.Overview;
 import com.carenest.dto.attendance.DailyHealthResponse.Totals;
 import com.carenest.dto.child.ClassChildResponse;
+import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.DailyHealthEntry;
@@ -25,6 +26,8 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.utils.ApiCode;
@@ -33,11 +36,13 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupOutcome;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -70,6 +75,8 @@ public class DailyHealthServiceImpl implements DailyHealthService {
     private final ChildIntakeService childIntakeService;
     private final SchoolStructureService schoolStructureService;
     private final AccountService accountService;
+    private final GuardianChildLinkService guardianChildLinkService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -79,7 +86,13 @@ public class DailyHealthServiceImpl implements DailyHealthService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate day = date == null ? rules.today() : date;
-            ClassroomInfoResponse cls = viewableClass(currentUser, classId);
+            ClassroomInfoResponse cls = classroomService
+                    .findClassroomInfo(classId)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
+            // Người dạy thay xem đúng ngày trong đợt của mình (kể cả đợt đã hết, ngày được mở lại)
+            if (!rules.canViewDay(currentUser, cls, day)) {
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            }
             ClassChildResponse child = childInClass(cls.id(), childId, day);
             List<DailyHealthEntryResponse> entries =
                     toViews(entryRepository.findByChildIdAndDateOrderByRecordedAtDescIdDesc(childId, day).stream()
@@ -121,7 +134,8 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             ClassroomInfoResponse cls = classroomService
                     .findClassroomInfo(request.classId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            if (!currentUser.hasPermission(Permission.DAILY_HEALTH_RECORD) || !rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.DAILY_HEALTH_RECORD)
+                    || !rules.canRecordDay(currentUser, cls, request.date())) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -154,6 +168,12 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                     && (referral == null || blank(referral.place()) || referral.time() == null)) {
                 throw GlobalException.of(ApiCode.HEALTH_REFERRAL_INCOMPLETE);
             }
+            // Báo phụ huynh một lần mỗi ngày: lần ghi "cần lưu ý" đầu tiên của trẻ trong ngày
+            boolean firstNoted = noted
+                    && entryRepository
+                            .findByChildIdAndDateOrderByRecordedAtDescIdDesc(request.childId(), request.date())
+                            .stream()
+                            .noneMatch(e -> e.getObservation() == HealthObservation.NOTED);
             DailyHealthEntry entry = entryRepository.save(DailyHealthEntry.builder()
                     .requestId(request.requestId())
                     .childId(request.childId())
@@ -174,6 +194,9 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                     .recordedBy(currentUser.userId())
                     .recordedAt(rules.now())
                     .build());
+            if (firstNoted) {
+                notifyGuardians(request.childId(), request.date());
+            }
             DailyHealthEntryResponse saved = toViews(List.of(entry)).getFirst();
             log.info("{}|END", logPrefix);
             return saved;
@@ -373,6 +396,25 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 || (date.isBefore(today) && rules.activeUnlock(classId, date).isPresent());
     }
 
+    // HLT-15 (Cần chốt 14/11/2026): sức khỏe "cần lưu ý" báo phụ huynh đã liên kết; nội dung xem trong App, không đưa
+    // triệu chứng vào thông báo
+    private void notifyGuardians(Long childId, LocalDate date) {
+        List<Long> guardians = guardianChildLinkService.findLinksOfChild(childId).stream()
+                .map(GuardianLinkResponse::userId)
+                .toList();
+        if (guardians.isEmpty()) {
+            return;
+        }
+        notificationService.notifyUsers(
+                guardians,
+                NotificationType.DAILY_HEALTH_NOTED,
+                "Sức khỏe của bé cần lưu ý",
+                "Cô giáo ghi nhận sức khỏe của bé ngày "
+                        + DateTimeFormatter.ofPattern("dd/MM/yyyy").format(date)
+                        + " cần lưu ý. Mở ứng dụng để xem chi tiết.",
+                childId);
+    }
+
     private boolean isPresent(Long childId, Long classId, LocalDate date) {
         return recordRepository.findByChildIdInAndDate(List.of(childId), date).stream()
                 .anyMatch(r -> r.getClassroomId().equals(classId) && r.getStatus() == AttendanceStatus.PRESENT);
@@ -382,7 +424,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
         return cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && writableDay(cls.id(), date)
                 && user.hasPermission(Permission.DAILY_HEALTH_RECORD)
-                && rules.canRecord(user, cls)
+                && rules.canRecordDay(user, cls, date)
                 && isPresent(childId, cls.id(), date);
     }
 

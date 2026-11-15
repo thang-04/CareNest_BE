@@ -65,7 +65,9 @@ class SchoolYearServiceImplTest {
             new DevActivationProperties(false, false, false),
             List.of(semesterUsage),
             holidayRepository,
-            List.of(dayUsage));
+            List.of(dayUsage),
+            mock(com.carenest.repository.organization.CampusRepository.class),
+            mock(com.carenest.service.notification.NotificationService.class));
 
     @BeforeEach
     void principalHasActiveAssignment() {
