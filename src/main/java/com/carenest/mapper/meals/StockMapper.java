@@ -35,7 +35,7 @@ public class StockMapper {
     }
 
     public StockReceiptResponse toResponse(
-            StockReceipt receipt, String supplierName, Map<Long, Food> foods, boolean canManage) {
+            StockReceipt receipt, String supplierName, Map<Long, Food> foods, boolean canManage, boolean canCancel) {
         List<StockReceiptResponse.ReceiptLine> lines = receipt.getLines().stream()
                 .map(line -> toLine(line, foods.get(line.getFoodId())))
                 .toList();
@@ -57,7 +57,8 @@ public class StockMapper {
                 receipt.getCancelledAt(),
                 receipt.getCancelReason(),
                 receipt.getCreatedAt(),
-                canManage);
+                canManage,
+                canCancel);
     }
 
     public StockLotResponse toResponse(StockLot lot, Food food, String supplierName, BigDecimal remaining) {

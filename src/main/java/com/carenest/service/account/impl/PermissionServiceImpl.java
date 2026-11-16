@@ -75,6 +75,16 @@ public class PermissionServiceImpl implements PermissionService {
     private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
 
     @Override
+    @Transactional(readOnly = true)
+    public boolean hasEffectivePermission(Long userId, CareNestRole role, Permission permission) {
+        return EffectivePermissionResolver.resolve(
+                        Set.of(role),
+                        rolePermissionRepository.findByRole(role),
+                        userPermissionOverrideRepository.findByUserId(userId))
+                .contains(permission);
+    }
+
+    @Override
     public List<PermissionResponse> getPermissionCatalog() {
         String logPrefix = LOG_PREFIX + "|getPermissionCatalog";
         log.info("{}|START", logPrefix);

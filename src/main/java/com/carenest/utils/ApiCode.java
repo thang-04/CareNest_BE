@@ -320,6 +320,13 @@ public enum ApiCode {
     CHILD_ALREADY_LEFT(3011, HttpStatus.CONFLICT, "Trẻ đã nghỉ học. Mở lại hồ sơ trước khi thay đổi."),
     // G94-180/AUTH-21 (2026-11-11): yêu cầu đổi SĐT cho phụ huynh không có trên hồ sơ trẻ này
     CHILD_GUARDIAN_NOT_FOUND(3012, HttpStatus.NOT_FOUND, "Không tìm thấy phụ huynh trên hồ sơ trẻ. Tải lại hồ sơ."),
+    // CHD-11 (2026-11-15): GV sửa hồ sơ, khai báo sức khỏe ⇒ gửi yêu cầu, HT/PHT điểm trường duyệt mới ghi
+    CHILD_PROFILE_CHANGE_NEEDS_APPROVAL(
+            3013, HttpStatus.CONFLICT, "Giáo viên gửi yêu cầu sửa hồ sơ để Hiệu trưởng hoặc Phó hiệu trưởng duyệt"),
+    CHILD_PROFILE_CHANGE_NOT_FOUND(3014, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu sửa hồ sơ trẻ"),
+    CHILD_PROFILE_CHANGE_NOT_PENDING(3015, HttpStatus.CONFLICT, "Yêu cầu sửa hồ sơ trẻ đã được xử lý"),
+    CHILD_PROFILE_CHANGE_DECIDE_DENIED(
+            3016, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt yêu cầu sửa hồ sơ của trẻ này"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),

@@ -6,7 +6,7 @@ File sinh tự động, không sửa tay. Sinh lại: `node scripts/check-api-co
 - Path đã chuẩn hóa tham số thành `{x}`. `[module: api|demo]` theo `src/config/integrationModules.js`.
 - Lời gọi có đường dẫn không phải chuỗi literal (vd. ghép từ biến) không nằm trong bảng.
 
-Tổng: 380 lời gọi.
+Tổng: 385 lời gọi.
 
 ```text
 DELETE /accounts/me/photo · src/services/account/api/accountPhotoApi.js [account: api] → src/main/java/com/carenest/controller/account/AccountPhotoController.java#deleteMyPhoto
@@ -82,6 +82,7 @@ GET /children/guardian-overview · src/services/account/api/guardianApi.js [guar
 GET /children/parent-accounts · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildController.java#listParentAccounts
 GET /children/parent-accounts/by-citizen-id · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#findParentAccount
 GET /children/placement-classes · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#listPlacementClasses
+GET /children/profile-change-requests · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#listProfileChangeRequests
 GET /children/{x} · src/services/schoolService.js [school-lookup: demo] → src/main/java/com/carenest/controller/child/ChildController.java#getChildProfile
 GET /children/{x}/account-recipient · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#candidates
 GET /children/{x}/daily-health · src/services/daily-health/api/dailyHealthApi.js [daily-health: api] → src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getChildHistory
@@ -90,6 +91,7 @@ GET /children/{x}/guardians/pending · src/services/account/api/guardianApi.js [
 GET /children/{x}/health · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthMeasurementController.java#getHealthRecord
 GET /children/{x}/health/trend-analysis · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthTrendController.java#latestTrend
 GET /children/{x}/profile · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildPhotoController.java#getProfile
+GET /children/{x}/profile-change-requests/latest · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#getLatestProfileChanges
 GET /classes · src/services/schoolService.js [school-lookup: demo] → (BE chưa có)
 GET /classes/{x} · src/services/schoolService.js [school-lookup: demo] → (BE chưa có)
 GET /classes/{x}/attendance · src/services/attendance/api/attendanceApi.js [attendance: api] → src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClassAttendance
@@ -255,6 +257,8 @@ POST /children/enrollments · src/services/children/api/childrenApi.js [children
 POST /children/enrollments/import · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentImportController.java#importRows
 POST /children/enrollments/import/preview · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentImportController.java#preview
 POST /children/guardian-check · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#checkGuardians
+POST /children/profile-change-requests/{x}/approve · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#approveProfileChange
+POST /children/profile-change-requests/{x}/reject · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#rejectProfileChange
 POST /children/{x}/guardians · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/GuardianController.java#addGuardian
 POST /children/{x}/guardians/activate · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#activate
 POST /children/{x}/guardians/lookup · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/GuardianController.java#findGuardianCandidate
@@ -262,6 +266,7 @@ POST /children/{x}/health/measurements · src/services/children/api/childrenApi.
 POST /children/{x}/health/trend-analysis · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthTrendController.java#analyzeTrend
 POST /children/{x}/health/trend-analysis/{x}/approve · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthTrendController.java#approveTrend
 POST /children/{x}/placement · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
+POST /children/{x}/profile-change-requests · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#submitProfileChange
 POST /children/{x}/readmit · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#readmit
 POST /children/{x}/withdraw · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
 POST /classes · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/ClassController.java#createClass

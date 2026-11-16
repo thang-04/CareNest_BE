@@ -707,6 +707,21 @@ Mục đích: yêu cầu đổi SĐT của một phụ huynh trên hồ sơ tr�
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `uq_phone_change_pending_user` (UNIQUE `user_id` khi `PENDING` — mỗi tài khoản tối đa một yêu cầu chờ), `uq_phone_change_pending_guardian` (UNIQUE `guardian_id` khi `PENDING`, V91), `child_id`, `status`.
 
+## child_profile_change_requests  (module: identity-access, scope: CHILD)
+Mục đích: yêu cầu sửa hồ sơ/khai báo sức khỏe trẻ do GV được cấp thêm CHILD_PROFILE_EDIT gửi; HT hoặc PHT điểm trường của trẻ duyệt mới ghi vào hồ sơ. Migration: V139.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | Trẻ cần sửa (người duyệt theo điểm trường hiện tại của trẻ) | CHD-11 |
+| kind | VARCHAR(30) | không | `PROFILE` / `HEALTH_DECLARATION` | CHD-11 |
+| payload | JSONB | không | Nguyên body GV gửi (`UpdateChildRequest` hoặc `HealthDeclarationRequest`); áp khi duyệt | CHD-11 |
+| status | VARCHAR(20) | không | `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED` (yêu cầu mới cùng loại cùng trẻ thay thế) | CHD-11 |
+| requested_by, requested_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | GV gửi, lúc gửi | CHD-11 |
+| decided_by, decided_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Có khi và chỉ khi `APPROVED`/`REJECTED` | CHD-11 |
+| decision_note | VARCHAR(500) | có | Lý do từ chối (bắt buộc khi `REJECTED`) | CHD-11 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `uq_profile_change_pending` (UNIQUE `child_id, kind` khi `PENDING`), `status`, `requested_by`.
+
 ## parent_sms_logs  (module: identity-access, scope: ACCOUNT)
 Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V63.
 | Column | Type | Null | Ý nghĩa | Rule ID |

@@ -53,5 +53,9 @@ public enum NotificationType {
     /** GV ghi sức khỏe đầu ngày "cần lưu ý", báo phụ huynh đã liên kết với trẻ (HLT-15). */
     DAILY_HEALTH_NOTED,
     /** Kích hoạt năm học mới: báo GV, PHT, bếp có phân công năm mới (CFG-YR-02). */
-    SCHOOL_YEAR_ACTIVATED
+    SCHOOL_YEAR_ACTIVATED,
+    /** GV gửi yêu cầu sửa hồ sơ/khai báo sức khỏe trẻ, báo HT và PHT điểm trường có quyền duyệt (CHD-11). */
+    CHILD_PROFILE_CHANGE_REQUESTED,
+    /** Kết quả duyệt/từ chối yêu cầu sửa hồ sơ trẻ, báo GV đã gửi (CHD-11). */
+    CHILD_PROFILE_CHANGE_DECIDED
 }

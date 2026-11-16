@@ -33,6 +33,7 @@ import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.GuardianChildLinkService;
@@ -84,6 +85,7 @@ class ChildRecordServiceImplTest {
     private final ClassroomService classroomService = mock(ClassroomService.class);
     private final StaffAssignmentService assignmentService = mock(StaffAssignmentService.class);
     private final StaffAccessPolicy policy = mock(StaffAccessPolicy.class);
+    private final ChildAccessPolicy childAccessPolicy = mock(ChildAccessPolicy.class);
     private final NotificationService notificationService = mock(NotificationService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final com.carenest.repository.child.ChildHealthDeclarationRepository declarationRepository =
@@ -107,6 +109,7 @@ class ChildRecordServiceImplTest {
             classroomService,
             assignmentService,
             policy,
+            childAccessPolicy,
             notificationService,
             events,
             JsonMapper.builder().build(),
@@ -401,6 +404,55 @@ class ChildRecordServiceImplTest {
                         ex -> assertThat(ex.getFieldErrors())
                                 .extracting(FieldErrorResponse::field)
                                 .containsExactly("allergies", "reason"));
+    }
+
+    @Test
+    @DisplayName("AUTH-10/AUTH-13: GV được cấp thêm CHILD_PROFILE_EDIT sửa khai báo trẻ lớp mình (qua kiểm phạm vi)")
+    void teacherWithGrantPassesScopeForOwnClassChild() {
+        CurrentUser teacher = new CurrentUser(
+                20L,
+                "kc-20",
+                "gv.lop",
+                "GV",
+                null,
+                java.util.Set.of(CareNestRole.TEACHER),
+                java.util.Set.of(com.carenest.utils.enums.Permission.CHILD_PROFILE_EDIT));
+        given(childAccessPolicy.canViewChild(teacher, CHILD_ID)).willReturn(true);
+        given(declarationRepository.findById(CHILD_ID))
+                .willReturn(Optional.of(declaration(com.carenest.utils.enums.DeclarationState.NONE_REPORTED, null)));
+        var request = new com.carenest.dto.child.HealthDeclarationRequest(
+                declarationInput("REPORTED", List.of(), "NONE_REPORTED", null), " ");
+
+        // Qua được phạm vi thì tới bước kiểm nghiệp vụ (thiếu lý do), không bị CHILD_ACCESS_DENIED
+        assertThatThrownBy(() -> service.checkDeclaration(teacher, CHILD_ID, request))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(FieldErrorResponse::field)
+                                .containsExactly("allergies", "reason"));
+        verify(policy, never()).managesWholeSchool(teacher);
+    }
+
+    @Test
+    @DisplayName("AUTH-13: GV có CHILD_PROFILE_EDIT sửa trẻ lớp khác ⇒ CHILD_ACCESS_DENIED")
+    void teacherWithGrantCannotEditChildOutsideAssignedClass() {
+        CurrentUser teacher = new CurrentUser(
+                20L,
+                "kc-20",
+                "gv.lop",
+                "GV",
+                null,
+                java.util.Set.of(CareNestRole.TEACHER),
+                java.util.Set.of(com.carenest.utils.enums.Permission.CHILD_PROFILE_EDIT));
+        given(childAccessPolicy.canViewChild(teacher, CHILD_ID)).willReturn(false);
+        var request = new com.carenest.dto.child.HealthDeclarationRequest(
+                declarationInput("REPORTED", List.of(), "NONE_REPORTED", null), "Phụ huynh bổ sung");
+
+        assertThatThrownBy(() -> service.checkDeclaration(teacher, CHILD_ID, request))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+        verify(declarationRepository, never()).save(any());
     }
 
     @Test
