@@ -49,7 +49,8 @@ class WebSessionRevocationsTest {
     @DisplayName("AUTH-28: khởi động lại API thì nạp lại phiên bị thu hồi còn hiệu lực từ DB")
     void reloadsActiveRevocationsOnStartup() {
         given(repository.findByExpiresAtAfter(clock.now))
-                .willReturn(List.of(new RevokedWebSession("old-sid", "kc-user", clock.now, clock.now.plusSeconds(300))));
+                .willReturn(
+                        List.of(new RevokedWebSession("old-sid", "kc-user", clock.now, clock.now.plusSeconds(300))));
         revocations.loadActive();
         assertThat(revocations.isRevoked("old-sid")).isTrue();
     }

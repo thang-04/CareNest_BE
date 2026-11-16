@@ -67,10 +67,13 @@ public class AuthController {
         }
         if (result.data().takeover() != null) {
             // AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chờ người dùng chọn dùng ở đâu
-            setCookie(servletResponse, Auth.TAKEOVER_COOKIE, result.cookie().value(), result.cookie().maxAgeSeconds());
+            setCookie(
+                    servletResponse,
+                    Auth.TAKEOVER_COOKIE,
+                    result.cookie().value(),
+                    result.cookie().maxAgeSeconds());
             log.info("{}|takeoverPending|END", logPrefix);
-            return response(
-                    ApiCode.WEB_SESSION_CONFLICT, ApiCode.WEB_SESSION_CONFLICT.getDefaultDesc(), result.data());
+            return response(ApiCode.WEB_SESSION_CONFLICT, ApiCode.WEB_SESSION_CONFLICT.getDefaultDesc(), result.data());
         }
         setSessionCookie(
                 servletResponse, result.cookie().value(), result.cookie().maxAgeSeconds());
@@ -93,7 +96,8 @@ public class AuthController {
             // Lượt chờ chỉ dùng một lần dù thành công hay bị từ chối/hết hạn
             setCookie(servletResponse, Auth.TAKEOVER_COOKIE, "", 0);
         }
-        setSessionCookie(servletResponse, result.cookie().value(), result.cookie().maxAgeSeconds());
+        setSessionCookie(
+                servletResponse, result.cookie().value(), result.cookie().maxAgeSeconds());
         log.info("{}|END", logPrefix);
         return response(ApiCode.SUCCESSFUL, "Login successful", result.data());
     }

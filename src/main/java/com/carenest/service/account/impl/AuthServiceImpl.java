@@ -185,8 +185,7 @@ public class AuthServiceImpl implements AuthService {
         String payload = TAKEOVER_VERSION + "|" + id + "|" + remember + "|" + tokens.refreshToken();
         SessionCookie cookie = new SessionCookie(crypto.seal(payload, TAKEOVER_CONTEXT), Auth.TAKEOVER_SECONDS);
         return new LoginResult(
-                new AuthResponses.LoginData(
-                        null, expiresAt, false, null, null, new AuthResponses.Takeover(expiresAt)),
+                new AuthResponses.LoginData(null, expiresAt, false, null, null, new AuthResponses.Takeover(expiresAt)),
                 cookie);
     }
 
@@ -199,8 +198,10 @@ public class AuthServiceImpl implements AuthService {
             TakeoverPayload pending = openTakeover(takeoverCookie);
             Instant now = clock.instant();
             // take() xóa lượt chờ nguyên tử: xác nhận ở đây và từ chối ở phiên kia không cùng thắng
-            WebSessionTakeoverStore.Takeover takeover = takeovers.take(pending.id()).orElse(null);
-            if (takeover != null && takeover.rejected()) throw GlobalException.of(ApiCode.WEB_SESSION_TAKEOVER_REJECTED);
+            WebSessionTakeoverStore.Takeover takeover =
+                    takeovers.take(pending.id()).orElse(null);
+            if (takeover != null && takeover.rejected())
+                throw GlobalException.of(ApiCode.WEB_SESSION_TAKEOVER_REJECTED);
             if (takeover == null || !now.isBefore(takeover.expiresAt())) {
                 keycloak.logout(pending.refreshToken());
                 throw takeoverExpired();

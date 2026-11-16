@@ -92,7 +92,9 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
             }
         } catch (ProviderUnavailable | RestClientException ex) {
             // Best-effort: phiên cũ vẫn tự hết khi idle 30 phút; không chặn lần đăng nhập vừa thành công.
-            log.warn("[authGatewaySessionLimit]|revokeFailed|type={}", ex.getClass().getSimpleName());
+            log.warn(
+                    "[authGatewaySessionLimit]|revokeFailed|type={}",
+                    ex.getClass().getSimpleName());
         }
         return revoked;
     }
@@ -100,9 +102,12 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
     @Override
     public boolean hasOtherWebSessions(String keycloakUserId, String keepSessionId) {
         try {
-            return webSessions(keycloakUserId).stream().anyMatch(session -> !session.id().equals(keepSessionId));
+            return webSessions(keycloakUserId).stream()
+                    .anyMatch(session -> !session.id().equals(keepSessionId));
         } catch (ProviderUnavailable | RestClientException ex) {
-            log.warn("[authGatewaySessionLimit]|lookupFailed|type={}", ex.getClass().getSimpleName());
+            log.warn(
+                    "[authGatewaySessionLimit]|lookupFailed|type={}",
+                    ex.getClass().getSimpleName());
             return false;
         }
     }
@@ -112,7 +117,9 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
         try {
             deleteSession(sessionId);
         } catch (ProviderUnavailable | RestClientException ex) {
-            log.warn("[authGatewaySessionLimit]|revokeFailed|type={}", ex.getClass().getSimpleName());
+            log.warn(
+                    "[authGatewaySessionLimit]|revokeFailed|type={}",
+                    ex.getClass().getSimpleName());
         }
     }
 
@@ -126,7 +133,8 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
 
     @Override
     public boolean replacedByNewerWebSession(String rejectedRefreshToken, Instant loginAt) {
-        // Refresh token đến từ cookie đã niêm phong AES-GCM nên payload là bản Keycloak cấp; chỉ đọc sub/sid, không xác thực lại
+        // Refresh token đến từ cookie đã niêm phong AES-GCM nên payload là bản Keycloak cấp; chỉ đọc sub/sid, không xác
+        // thực lại
         Map<String, Object> claims = unverifiedClaims(rejectedRefreshToken);
         if (!(claims.get("sub") instanceof String userId) || !(claims.get("sid") instanceof String sessionId))
             return false;
@@ -136,7 +144,9 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
                             && session.start() != null
                             && session.start() >= loginAt.toEpochMilli());
         } catch (ProviderUnavailable | RestClientException ex) {
-            log.warn("[authGatewaySessionLimit]|lookupFailed|type={}", ex.getClass().getSimpleName());
+            log.warn(
+                    "[authGatewaySessionLimit]|lookupFailed|type={}",
+                    ex.getClass().getSimpleName());
             return false;
         }
     }
@@ -162,7 +172,8 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
         try {
             String json = new String(
                     java.util.Base64.getUrlDecoder().decode(parts[1]), java.nio.charset.StandardCharsets.UTF_8);
-            return org.springframework.boot.json.JsonParserFactory.getJsonParser().parseMap(json);
+            return org.springframework.boot.json.JsonParserFactory.getJsonParser()
+                    .parseMap(json);
         } catch (IllegalArgumentException ex) {
             return Map.of();
         }

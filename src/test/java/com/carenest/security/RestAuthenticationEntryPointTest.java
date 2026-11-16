@@ -18,8 +18,8 @@ class RestAuthenticationEntryPointTest {
     @Test
     @DisplayName("AUTH-28: token của phiên bị đăng nhập nơi khác thay thế trả 401 mã 1016")
     void replacedSessionGetsItsOwnCode() throws Exception {
-        var invalid = new JwtValidationException(
-                "replaced", List.of(new OAuth2Error(WebSessionRevocations.ERROR_CODE)));
+        var invalid =
+                new JwtValidationException("replaced", List.of(new OAuth2Error(WebSessionRevocations.ERROR_CODE)));
         var response = new MockHttpServletResponse();
         entryPoint.commence(new MockHttpServletRequest(), response, new InvalidBearerTokenException("x", invalid));
         assertThat(response.getStatus()).isEqualTo(401);

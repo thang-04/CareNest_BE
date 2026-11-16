@@ -45,8 +45,7 @@ public class SessionController {
 
     @PostMapping("/takeovers/{takeoverId}/reject")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ResponseJson<Void>> rejectTakeover(
-            CurrentUser currentUser, @PathVariable String takeoverId) {
+    public ResponseEntity<ResponseJson<Void>> rejectTakeover(CurrentUser currentUser, @PathVariable String takeoverId) {
         String logPrefix = LOG_PREFIX + "|rejectTakeover|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         authService.rejectTakeover(currentUser, takeoverId);

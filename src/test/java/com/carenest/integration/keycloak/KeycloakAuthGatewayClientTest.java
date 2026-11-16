@@ -227,7 +227,8 @@ class KeycloakAuthGatewayClientTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("AUTH-28: chỉ phiên Web khác mới tính là xung đột; phiên Mobile không tính, lỗi tra cứu ⇒ không hỏi")
+    @org.junit.jupiter.api.DisplayName(
+            "AUTH-28: chỉ phiên Web khác mới tính là xung đột; phiên Mobile không tính, lỗi tra cứu ⇒ không hỏi")
     void detectsOtherWebSessionsIgnoringMobile() {
         expectAdminToken();
         server.expect(requestTo(BASE + "/admin/realms/carenest/users/kc-unit/sessions"))
@@ -293,8 +294,8 @@ class KeycloakAuthGatewayClientTest {
     private static String refreshToken(String sub, String sid) {
         var encoder = java.util.Base64.getUrlEncoder().withoutPadding();
         String payload = "{\"sub\":\"" + sub + "\",\"sid\":\"" + sid + "\",\"typ\":\"Refresh\"}";
-        return encoder.encodeToString("{\"alg\":\"HS512\"}".getBytes())
-                + "." + encoder.encodeToString(payload.getBytes()) + ".signature";
+        return encoder.encodeToString("{\"alg\":\"HS512\"}".getBytes()) + "."
+                + encoder.encodeToString(payload.getBytes()) + ".signature";
     }
 
     private void expectAdminToken() {

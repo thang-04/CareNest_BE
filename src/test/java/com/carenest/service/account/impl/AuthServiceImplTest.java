@@ -398,7 +398,8 @@ class AuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chưa đá ai, refresh token chỉ nằm trong cookie niêm phong")
+    @DisplayName(
+            "AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chưa đá ai, refresh token chỉ nằm trong cookie niêm phong")
     void loginWithOtherWebSessionWaitsForChoice() {
         var result = pendingLogin();
         assertThat(result.data().takeover()).isNotNull();

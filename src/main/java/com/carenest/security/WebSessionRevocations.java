@@ -28,7 +28,8 @@ public class WebSessionRevocations implements OAuth2TokenValidator<Jwt> {
     public static final String ERROR_CODE = "web_session_replaced";
     // Lâu hơn thời hạn access token (5 phút, realm accessTokenLifespan) để token cũ chắc chắn đã hết hạn
     private static final Duration HOLD = Duration.ofMinutes(10);
-    private static final OAuth2Error REPLACED = new OAuth2Error(ERROR_CODE, "Web session replaced by a newer login", null);
+    private static final OAuth2Error REPLACED =
+            new OAuth2Error(ERROR_CODE, "Web session replaced by a newer login", null);
 
     private final RevokedWebSessionRepository repository;
     private final Clock clock;
@@ -60,7 +61,8 @@ public class WebSessionRevocations implements OAuth2TokenValidator<Jwt> {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional(readOnly = true)
     public void loadActive() {
-        repository.findByExpiresAtAfter(clock.instant())
+        repository
+                .findByExpiresAtAfter(clock.instant())
                 .forEach(row -> revoked.put(row.getSessionId(), row.getExpiresAt()));
     }
 
