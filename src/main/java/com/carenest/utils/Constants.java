@@ -8,6 +8,9 @@ public final class Constants {
     /** Web auth gateway (ADR-0013): cookie phiên, thời hạn phiên/token mật khẩu/OTP và ngưỡng gửi OTP. */
     public static final class Auth {
         public static final String SESSION_COOKIE = "CARENEST_SESSION";
+        // AUTH-28: lượt đăng nhập chờ người dùng chọn dùng ở đâu
+        public static final String TAKEOVER_COOKIE = "CARENEST_TAKEOVER";
+        public static final long TAKEOVER_SECONDS = 120;
         public static final long SETUP_TOKEN_SECONDS = 600;
         public static final long SESSION_SECONDS = 36000;
         public static final long OTP_SECONDS = 300;

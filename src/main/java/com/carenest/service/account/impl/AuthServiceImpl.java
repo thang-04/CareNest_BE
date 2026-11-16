@@ -40,6 +40,8 @@ public class AuthServiceImpl implements AuthService {
     private static final String LOG_PREFIX = "[AuthServiceImpl]";
     private static final String COOKIE_CONTEXT = "session-cookie";
     private static final String COOKIE_VERSION = "s1";
+    private static final String TAKEOVER_CONTEXT = "takeover-cookie";
+    private static final String TAKEOVER_VERSION = "t1";
     private static final int MAX_COOKIE_LENGTH = 4096;
     // AUTH-21: bếp và phụ huynh chỉ dùng App, gateway Web không cấp phiên cho họ
     private static final Set<CareNestRole> WEB_ROLES = ClientPlatform.WEB.allowedRoles();
@@ -55,6 +57,7 @@ public class AuthServiceImpl implements AuthService {
     private final Clock clock;
     private final KeycloakProperties identity;
     private final AuthRefreshCoalescer refreshes;
+    private final WebSessionTakeoverStore takeovers;
 
     public AuthServiceImpl(
             AuthProperties properties,
@@ -67,7 +70,8 @@ public class AuthServiceImpl implements AuthService {
             AccountService accountService,
             Clock clock,
             KeycloakProperties identity,
-            AuthRefreshCoalescer refreshes) {
+            AuthRefreshCoalescer refreshes,
+            WebSessionTakeoverStore takeovers) {
         this.properties = properties;
         this.crypto = crypto;
         this.keycloak = keycloak;
@@ -79,6 +83,7 @@ public class AuthServiceImpl implements AuthService {
         this.clock = clock;
         this.identity = identity;
         this.refreshes = refreshes;
+        this.takeovers = takeovers;
     }
 
     @Override
@@ -115,12 +120,22 @@ public class AuthServiceImpl implements AuthService {
                 MyAccountResponse profile = accountService.getMyAccount(current);
                 if (tokens.refreshToken() == null) throw invalidSession();
                 Instant now = clock.instant();
+                // AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chưa đá ai; chờ người dùng chọn dùng ở đâu
+                String sessionId = jwt.getClaimAsString("sid");
+                if (sessionId == null || sessionId.isBlank()) {
+                    log.warn("{}|sessionLimitSkipped|reason=sidMissing", logPrefix);
+                } else if (keycloak.hasOtherWebSessions(jwt.getSubject(), sessionId)) {
+                    LoginResult pending = startTakeover(jwt.getSubject(), sessionId, request.remember(), tokens, now);
+                    issued = true;
+                    log.info("{}|takeoverPending|END", logPrefix);
+                    return pending;
+                }
                 SessionCookie cookie = sessionCookie(tokens.refreshToken(), request.remember(), now, now);
                 issued = true;
                 log.info("{}|END", logPrefix);
                 return new LoginResult(
                         new AuthResponses.LoginData(
-                                tokens.accessToken(), now.plusSeconds(tokens.expiresIn()), false, null, profile),
+                                tokens.accessToken(), now.plusSeconds(tokens.expiresIn()), false, null, profile, null),
                         cookie);
             } catch (AuthGatewayClient.FirstLoginRequired challenge) {
                 UserAccount account = accounts.findByKeycloakUserId(challenge.userId())
@@ -145,7 +160,7 @@ public class AuthServiceImpl implements AuthService {
                         now));
                 log.info("{}|END", logPrefix);
                 return new LoginResult(
-                        new AuthResponses.LoginData(null, now.plusSeconds(ttl), true, handle, null), null);
+                        new AuthResponses.LoginData(null, now.plusSeconds(ttl), true, handle, null, null), null);
             } catch (AuthGatewayClient.InvalidCredentials ex) {
                 throw GlobalException.of(ApiCode.INVALID_CREDENTIALS);
             } catch (AuthGatewayClient.ProviderUnavailable ex) {
@@ -158,6 +173,168 @@ public class AuthServiceImpl implements AuthService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    // Refresh token của lượt chờ nằm trong cookie niêm phong (security.md: server không lưu refresh token)
+    private LoginResult startTakeover(
+            String userId, String sessionId, boolean remember, AuthGatewayClient.Tokens tokens, Instant now) {
+        String id = crypto.randomToken();
+        Instant expiresAt = now.plusSeconds(Auth.TAKEOVER_SECONDS);
+        takeovers.create(id, userId, sessionId, now, expiresAt);
+        String payload = TAKEOVER_VERSION + "|" + id + "|" + remember + "|" + tokens.refreshToken();
+        SessionCookie cookie = new SessionCookie(crypto.seal(payload, TAKEOVER_CONTEXT), Auth.TAKEOVER_SECONDS);
+        return new LoginResult(
+                new AuthResponses.LoginData(null, expiresAt, false, null, null, new AuthResponses.Takeover(expiresAt)),
+                cookie);
+    }
+
+    @Override
+    public LoginResult confirmTakeover(String takeoverCookie) {
+        String logPrefix = LOG_PREFIX + "|confirmTakeover";
+        log.info("{}|START", logPrefix);
+        try {
+            ensureEnabled();
+            TakeoverPayload pending = openTakeover(takeoverCookie);
+            Instant now = clock.instant();
+            // take() xóa lượt chờ nguyên tử: xác nhận ở đây và từ chối ở phiên kia không cùng thắng
+            WebSessionTakeoverStore.Takeover takeover =
+                    takeovers.take(pending.id()).orElse(null);
+            if (takeover != null && takeover.rejected())
+                throw GlobalException.of(ApiCode.WEB_SESSION_TAKEOVER_REJECTED);
+            if (takeover == null || !now.isBefore(takeover.expiresAt())) {
+                keycloak.logout(pending.refreshToken());
+                throw takeoverExpired();
+            }
+            AuthGatewayClient.Tokens tokens;
+            try {
+                tokens = keycloak.refresh(pending.refreshToken());
+            } catch (AuthGatewayClient.SessionRejected ex) {
+                throw takeoverExpired();
+            } catch (AuthGatewayClient.ProviderUnavailable ex) {
+                throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
+            }
+            boolean issued = false;
+            try {
+                if (tokens.refreshToken() == null) throw takeoverExpired();
+                Jwt jwt = decode(tokens.accessToken());
+                if (!takeover.userId().equals(jwt.getSubject())) throw takeoverExpired();
+                CurrentUser current = currentUsers.getCurrentUser(jwt);
+                ensureWebRole(current.roles());
+                MyAccountResponse profile = accountService.getMyAccount(current);
+                // AUTH-28: người dùng đã chọn dùng ở đây ⇒ giờ mới hủy phiên Web khác (chặn ngay token còn hạn)
+                state.revokeWebSessions(
+                        takeover.userId(), keycloak.revokeOtherWebSessions(takeover.userId(), takeover.sessionId()));
+                takeovers.dropOthers(takeover.userId(), takeover.id());
+                SessionCookie cookie = sessionCookie(tokens.refreshToken(), pending.remember(), now, now);
+                issued = true;
+                log.info("{}|END", logPrefix);
+                return new LoginResult(
+                        new AuthResponses.LoginData(
+                                tokens.accessToken(), now.plusSeconds(tokens.expiresIn()), false, null, profile, null),
+                        cookie);
+            } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
+                throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
+            } finally {
+                if (!issued && tokens.refreshToken() != null) keycloak.logout(tokens.refreshToken());
+            }
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void cancelTakeover(String takeoverCookie) {
+        String logPrefix = LOG_PREFIX + "|cancelTakeover";
+        log.info("{}|START", logPrefix);
+        try {
+            ensureEnabled();
+            TakeoverPayload pending;
+            try {
+                pending = openTakeover(takeoverCookie);
+            } catch (GlobalException ex) {
+                log.info("{}|END", logPrefix);
+                return;
+            }
+            takeovers.take(pending.id());
+            keycloak.logout(pending.refreshToken());
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public AuthResponses.SessionStatus sessionStatus(CurrentUser current) {
+        String logPrefix = LOG_PREFIX + "|sessionStatus|userId=" + current.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            AuthResponses.PendingTakeover pending = takeovers
+                    .pendingFor(current.keycloakUserId(), clock.instant())
+                    .map(t -> new AuthResponses.PendingTakeover(t.id(), t.requestedAt(), t.expiresAt()))
+                    .orElse(null);
+            log.info("{}|END", logPrefix);
+            return new AuthResponses.SessionStatus(pending);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void rejectTakeover(CurrentUser current, String takeoverId) {
+        String logPrefix = LOG_PREFIX + "|rejectTakeover|userId=" + current.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            // Chỉ từ chối được lượt chờ của chính tài khoản mình (không tin id client gửi)
+            WebSessionTakeoverStore.Takeover rejected = takeovers
+                    .reject(takeoverId, current.keycloakUserId(), clock.instant())
+                    .orElseThrow(AuthServiceImpl::takeoverExpired);
+            keycloak.revokeSession(rejected.sessionId());
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void expireTakeovers() {
+        String logPrefix = LOG_PREFIX + "|expireTakeovers";
+        try {
+            for (WebSessionTakeoverStore.Takeover expired : takeovers.drainExpired(clock.instant())) {
+                // Lượt bị từ chối đã hủy phiên lúc từ chối
+                if (!expired.rejected()) keycloak.revokeSession(expired.sessionId());
+            }
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private TakeoverPayload openTakeover(String cookie) {
+        if (cookie == null || cookie.isBlank() || cookie.length() > MAX_COOKIE_LENGTH) throw takeoverExpired();
+        String payload;
+        try {
+            payload = crypto.open(cookie, TAKEOVER_CONTEXT);
+        } catch (GlobalException ex) {
+            throw takeoverExpired();
+        }
+        String[] parts = payload.split("\\|", 4);
+        if (parts.length != 4 || !TAKEOVER_VERSION.equals(parts[0]) || parts[3].isEmpty()) throw takeoverExpired();
+        return new TakeoverPayload(parts[1], Boolean.parseBoolean(parts[2]), parts[3]);
+    }
+
+    private static GlobalException takeoverExpired() {
+        return GlobalException.of(ApiCode.WEB_SESSION_TAKEOVER_EXPIRED);
+    }
+
+    private record TakeoverPayload(String id, boolean remember, String refreshToken) {
+        @Override
+        public String toString() {
+            return "TakeoverPayload[redacted]";
         }
     }
 
@@ -188,6 +365,9 @@ public class AuthServiceImpl implements AuthService {
             // Giữ cookie để client retry; nếu Keycloak đã rotate, token cũ bị Keycloak từ chối (revokeRefreshToken).
             throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
         } catch (AuthGatewayClient.SessionRejected ex) {
+            // AUTH-28: bị đăng nhập Web mới hơn thay thế thì báo đúng lý do, FE không nói nhầm là hết hạn
+            if (keycloak.replacedByNewerWebSession(session.refreshToken(), session.loginAt()))
+                throw GlobalException.of(ApiCode.WEB_SESSION_REPLACED);
             throw invalidSession();
         }
         boolean issued = false;

@@ -5,6 +5,7 @@ import com.carenest.security.CurrentUserService;
 import com.carenest.security.KeycloakRealmRoleConverter;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.security.WebSessionRevocations;
 import com.carenest.security.authorization.PermissionGuard;
 import com.carenest.utils.enums.ClientPlatform;
 import java.util.List;
@@ -132,9 +133,14 @@ public class SecurityConfig {
     public JwtDecoder jwtDecoder(
             @Value("${carenest.security.jwt.jwk-set-uri}") String jwkSetUri,
             @Value("${carenest.security.jwt.issuer-uri}") String issuerUri,
-            @Value("${carenest.security.jwt.audience}") String audience) {
+            @Value("${carenest.security.jwt.audience}") String audience,
+            ObjectProvider<WebSessionRevocations> revocationsProvider) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
-        decoder.setJwtValidator(jwtValidator(issuerUri, audience));
+        OAuth2TokenValidator<Jwt> validator = jwtValidator(issuerUri, audience);
+        // AUTH-28: chặn ngay token của phiên Web đã bị thay thế (WebMvcTest không có bean này)
+        WebSessionRevocations revocations = revocationsProvider.getIfAvailable();
+        decoder.setJwtValidator(
+                revocations == null ? validator : new DelegatingOAuth2TokenValidator<>(validator, revocations));
         return decoder;
     }
 
@@ -214,6 +220,8 @@ public class SecurityConfig {
         var paths = PathPatternRequestMatcher.withDefaults();
         return new OrRequestMatcher(
                 paths.matcher(HttpMethod.POST, prefix + "/auth/login"),
+                paths.matcher(HttpMethod.POST, prefix + "/auth/login/takeover/confirm"),
+                paths.matcher(HttpMethod.POST, prefix + "/auth/login/takeover/cancel"),
                 paths.matcher(HttpMethod.POST, prefix + "/auth/refresh"),
                 paths.matcher(HttpMethod.POST, prefix + "/auth/logout"),
                 paths.matcher(HttpMethod.POST, prefix + "/auth/password/forgot"),

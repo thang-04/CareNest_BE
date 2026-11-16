@@ -49,6 +49,13 @@ public enum ApiCode {
             1013, HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ đăng nhập đang gián đoạn, vui lòng thử lại sau"),
     ACCOUNT_NOT_PROVISIONED(1014, HttpStatus.FORBIDDEN, "Tài khoản chưa được cấp quyền truy cập hệ thống"),
     ACCOUNT_INACTIVE(1015, HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa"),
+    WEB_SESSION_REPLACED(
+            1016, HttpStatus.UNAUTHORIZED, "Tài khoản vừa đăng nhập ở trình duyệt khác, phiên này đã kết thúc"),
+    WEB_SESSION_CONFLICT(1017, HttpStatus.CONFLICT, "Tài khoản đang được dùng ở trình duyệt khác, hãy chọn dùng ở đâu"),
+    WEB_SESSION_TAKEOVER_REJECTED(
+            1018, HttpStatus.CONFLICT, "Trình duyệt đang dùng tài khoản đã chọn tiếp tục, lần đăng nhập này bị hủy"),
+    WEB_SESSION_TAKEOVER_EXPIRED(
+            1019, HttpStatus.CONFLICT, "Lượt đăng nhập đã hết hạn chờ xác nhận, vui lòng đăng nhập lại"),
 
     // ========== 11xx TÀI KHOẢN & PHÂN QUYỀN ==========
     FORBIDDEN(1101, HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này"),

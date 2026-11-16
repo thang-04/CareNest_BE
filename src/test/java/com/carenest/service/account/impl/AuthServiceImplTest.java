@@ -76,6 +76,7 @@ class AuthServiceImplTest {
     private CurrentUser current;
     private MyAccountResponse profile;
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-12T03:00:00Z"), ZoneOffset.UTC);
+    private final WebSessionTakeoverStore takeovers = new WebSessionTakeoverStore();
 
     @BeforeEach
     void setup() throws Exception {
@@ -131,7 +132,8 @@ class AuthServiceImplTest {
                         false,
                         java.time.Duration.ofSeconds(3),
                         java.time.Duration.ofSeconds(5)),
-                new AuthRefreshCoalescer(clock));
+                new AuthRefreshCoalescer(clock),
+                takeovers);
     }
 
     private static String key() {
@@ -367,6 +369,125 @@ class AuthServiceImplTest {
         verifyNoInteractions(state);
     }
 
+    private Jwt sessionJwt(String token, String sid) {
+        return Jwt.withTokenValue(token)
+                .header("alg", "RS256")
+                .subject("kc-user-1")
+                .claim("sid", sid)
+                .issuedAt(clock.instant())
+                .expiresAt(clock.instant().plusSeconds(300))
+                .build();
+    }
+
+    // Đăng nhập ở trình duyệt mới trong khi tài khoản còn phiên Web khác ⇒ lượt chờ xác nhận
+    private com.carenest.service.account.AuthService.LoginResult pendingLogin() {
+        given(keycloak.login("teacher.a", "current-secret"))
+                .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 1800));
+        given(decoder.decode("signed-access")).willReturn(sessionJwt("signed-access", "new-session"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(current);
+        given(accounts.getMyAccount(current)).willReturn(profile);
+        given(keycloak.hasOtherWebSessions("kc-user-1", "new-session")).willReturn(true);
+        return service.login(new AuthRequests.Login("teacher.a", "current-secret", true));
+    }
+
+    private static void assertApiCode(ThrowingCallable call, ApiCode code) {
+        assertThatThrownBy(call)
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(code);
+    }
+
+    @Test
+    @DisplayName(
+            "AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chưa đá ai, refresh token chỉ nằm trong cookie niêm phong")
+    void loginWithOtherWebSessionWaitsForChoice() {
+        var result = pendingLogin();
+        assertThat(result.data().takeover()).isNotNull();
+        assertThat(result.data().accessToken()).isNull();
+        assertThat(result.cookie().value()).doesNotContain("private-refresh");
+        assertThat(crypto.open(result.cookie().value(), "takeover-cookie")).endsWith("|private-refresh");
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+        verify(keycloak, never()).logout(any());
+        verifyNoInteractions(state);
+    }
+
+    @Test
+    @DisplayName("AUTH-28: trình duyệt mới chọn 'Dùng ở đây' ⇒ cấp phiên, giờ mới hủy và chặn ngay phiên cũ")
+    void confirmTakeoverRevokesOtherSessions() {
+        String takeoverCookie = pendingLogin().cookie().value();
+        given(keycloak.refresh("private-refresh"))
+                .willReturn(new AuthGatewayClient.Tokens("fresh-access", "rotated-refresh", 300, 1800));
+        given(decoder.decode("fresh-access")).willReturn(sessionJwt("fresh-access", "new-session"));
+        given(keycloak.revokeOtherWebSessions("kc-user-1", "new-session")).willReturn(List.of("old-session"));
+
+        var result = service.confirmTakeover(takeoverCookie);
+
+        assertThat(result.data().accessToken()).isEqualTo("fresh-access");
+        assertThat(crypto.open(result.cookie().value(), "session-cookie")).endsWith("|true|rotated-refresh");
+        verify(state).revokeWebSessions("kc-user-1", List.of("old-session"));
+        // Lượt chờ dùng một lần
+        assertApiCode(() -> service.confirmTakeover(takeoverCookie), ApiCode.WEB_SESSION_TAKEOVER_EXPIRED);
+    }
+
+    @Test
+    @DisplayName("AUTH-28: phiên đang dùng thấy lượt chờ và chọn ở lại ⇒ trình duyệt mới bị từ chối, phiên chờ bị hủy")
+    void activeSessionKeepsItselfAndRejectsTakeover() {
+        String takeoverCookie = pendingLogin().cookie().value();
+        var pending = service.sessionStatus(current).pendingTakeover();
+        assertThat(pending).isNotNull();
+
+        service.rejectTakeover(current, pending.id());
+
+        verify(keycloak).revokeSession("new-session");
+        assertThat(service.sessionStatus(current).pendingTakeover()).isNull();
+        assertApiCode(() -> service.confirmTakeover(takeoverCookie), ApiCode.WEB_SESSION_TAKEOVER_REJECTED);
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+    }
+
+    @Test
+    @DisplayName("AUTH-28: không từ chối được lượt chờ của tài khoản khác (không tin id client gửi)")
+    void cannotRejectAnotherAccountsTakeover() {
+        pendingLogin();
+        String id = service.sessionStatus(current).pendingTakeover().id();
+        var other = new CurrentUser(
+                92L, "kc-user-2", "teacher.b", "Giáo viên B", "b@example.test", Set.of(CareNestRole.TEACHER));
+        assertThat(service.sessionStatus(other).pendingTakeover()).isNull();
+        assertApiCode(() -> service.rejectTakeover(other, id), ApiCode.WEB_SESSION_TAKEOVER_EXPIRED);
+        verify(keycloak, never()).revokeSession(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-28: trình duyệt mới chọn 'Hủy' ⇒ đăng xuất phiên chờ, phiên đang dùng không bị gì")
+    void cancelTakeoverLogsOutPendingSessionOnly() {
+        String takeoverCookie = pendingLogin().cookie().value();
+        service.cancelTakeover(takeoverCookie);
+        verify(keycloak).logout("private-refresh");
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+        assertThat(service.sessionStatus(current).pendingTakeover()).isNull();
+    }
+
+    @Test
+    @DisplayName("AUTH-28: không còn phiên Web khác ⇒ đăng nhập thẳng như cũ")
+    void loginWithoutOtherSessionsIssuesSessionDirectly() {
+        given(keycloak.login("teacher.a", "current-secret"))
+                .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 1800));
+        given(decoder.decode("signed-access")).willReturn(sessionJwt("signed-access", "new-session"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(current);
+        given(accounts.getMyAccount(current)).willReturn(profile);
+        var result = service.login(new AuthRequests.Login("teacher.a", "current-secret", false));
+        assertThat(result.data().takeover()).isNull();
+        assertThat(result.data().accessToken()).isEqualTo("signed-access");
+    }
+
+    @Test
+    @DisplayName("AUTH-28: token thiếu sid thì không hỏi, không hủy phiên nào (không đoán phiên mới)")
+    void loginWithoutSessionIdRevokesNothing() {
+        stubLogin("private-refresh");
+        service.login(new AuthRequests.Login("teacher.a", "current-secret", false));
+        verify(keycloak, never()).hasOtherWebSessions(any(), any());
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+    }
+
     @Test
     @DisplayName("AUTH-07: không chọn ghi nhớ thì cookie theo phiên trình duyệt")
     void unrememberedLoginUsesBrowserSessionCookie() {
@@ -427,6 +548,30 @@ class AuthServiceImplTest {
         String cookie = sessionCookie(clock.instant(), false, "old-refresh");
         given(keycloak.refresh("old-refresh")).willThrow(mock(AuthGatewayClient.SessionRejected.class));
         assertCode(() -> service.refresh(cookie), ApiCode.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("AUTH-28: phiên bị đăng nhập Web mới hơn thay thế thì refresh trả 401 mã 1016, không phải hết hạn")
+    void replacedSessionReportsWhyItEnded() {
+        String cookie = sessionCookie(clock.instant(), false, "old-refresh");
+        given(keycloak.refresh("old-refresh")).willThrow(mock(AuthGatewayClient.SessionRejected.class));
+        given(keycloak.replacedByNewerWebSession(org.mockito.ArgumentMatchers.eq("old-refresh"), any()))
+                .willReturn(true);
+        assertThatThrownBy(() -> service.refresh(cookie))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.WEB_SESSION_REPLACED);
+    }
+
+    @Test
+    @DisplayName("AUTH-28: phiên hết hạn thường (không có đăng nhập mới hơn) vẫn trả 1003")
+    void expiredSessionWithoutNewerLoginKeepsGenericCode() {
+        String cookie = sessionCookie(clock.instant(), false, "old-refresh");
+        given(keycloak.refresh("old-refresh")).willThrow(mock(AuthGatewayClient.SessionRejected.class));
+        assertThatThrownBy(() -> service.refresh(cookie))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.WEB_SESSION_INVALID);
     }
 
     @Test

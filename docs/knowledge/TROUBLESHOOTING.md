@@ -24,6 +24,7 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Nguyên nhân: realm `carenest` đã có trong DB Keycloak từ base Compose ⇒ `compose.auth.yaml` import bị bỏ qua (`Realm 'carenest' already exists. Import skipped`), client gateway + flow chưa từng được tạo. Token endpoint trả 401 `invalid_client` ⇒ BE map 503.
 - Xử lý: chạy bootstrap theo `docker/keycloak/auth/README.md` mục Opt-in: preview `node docker/keycloak/auth/bootstrap.mjs` (cần `KC_BOOTSTRAP_ADMIN_*`, `KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET` trong env), duyệt rồi `--apply --enable` (chỉ môi trường local/test).
 - Kiểm: `docker logs carenest_be-keycloak-1 2>&1 | grep -E "Import skipped|client_not_found"`.
+- Biến thể Keycloak mới tinh (import thành công): Web báo "Dịch vụ đăng nhập đang gián đoạn" (503 `1013`), API log `[authGatewayToken]|keycloakStatus=401|oauthErrorCode=unknown`, Keycloak `LOGIN_ERROR ... error="client_disabled"`. Realm dẫn xuất (`prepare.mjs`) luôn tạo gateway DISABLED ⇒ vẫn phải chạy bootstrap `--apply --enable` như trên (gặp 16/11/2026 khi dựng stack test riêng `-p carenest-auth27`).
 
 ### Dev user (`teacher.a`…) báo sai mật khẩu — Keycloak `user_not_found`
 - Nguyên nhân: realm `carenest` đã tồn tại trước khi mount `docker/keycloak/dev/carenest-users-0.json`; `--import-realm` dùng `IGNORE_EXISTING` nên log `Realm 'carenest' already exists. Import skipped` và user dev không bao giờ được tạo. DB app vẫn có seed `user_accounts` nên lệch hai bên. API map `invalid_grant` thành 401 sai mật khẩu (không lộ user tồn tại hay không).

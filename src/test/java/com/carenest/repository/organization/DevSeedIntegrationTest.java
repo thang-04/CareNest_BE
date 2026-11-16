@@ -41,6 +41,7 @@ class DevSeedIntegrationTest {
             "flyway_schema_history",
             "password_tokens",
             "otp_send_limits",
+            "revoked_web_sessions",
             "parent_activation_codes",
             "device_tokens",
             // Không tạo tệp S3 hoặc lịch sử giao tới thiết bị khi chưa có token thật.
