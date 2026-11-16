@@ -14,7 +14,7 @@ updated: 2026-11-15
 
 ## Context
 
-Plan chính liên repo; thiết kế chi tiết: plan 902 (`CareNest_CODE/specs/902-notification-client-readiness/plan.md`, ngoài repo).
+Plan chính liên repo; thiết kế chi tiết: plan 902 (`specs/902-notification-client-readiness/plan.md`).
 Source hiện có:
 - PushOutboxWorker.java:76 dùng transaction theo notification, :149 bất kỳ máy thành công đánh SENT, :153 kiểm expiry sau send.
 - DeviceToken.java:55 chuyển user trên cùng token ID; FcmPushGateway.java:78 gửi notification+data, :93 success chỉ là FCM accepted.
@@ -58,7 +58,7 @@ Không còn câu hỏi nghiệp vụ chặn thiết kế sau Q1/Q2. Các điều
 | Mỗi máy một transaction | Chung mọi máy / claim lease | Commit A trước B; đơn giản cho scale trường |
 | Giữ API public | Thêm API device dashboard | Client không cần thay API, ngoài scope |
 
-ADR proposed (`CareNest_CODE/specs/902-notification-client-readiness/adr-per-device-delivery.md`, ngoài repo), schema proposed (`CareNest_CODE/specs/902-notification-client-readiness/data-model.md`, ngoài repo): 1 bảng + 1 cột, chờ duyệt trước viết SQL.
+ADR proposed (`specs/902-notification-client-readiness/adr-per-device-delivery.md`), schema proposed (`specs/902-notification-client-readiness/data-model.md`): 1 bảng + 1 cột, chờ duyệt trước viết SQL.
 
 ## Phases
 
