@@ -6,6 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
@@ -55,6 +56,41 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
         form.add("username", identifier);
         form.add("password", password);
         return exchange(form);
+    }
+
+    @Override
+    public Optional<Instant> loginBlockedUntil(String identifier) {
+        try {
+            String userId = findUserId("username", identifier);
+            if (userId == null && identifier.contains("@")) userId = findUserId("email", identifier);
+            if (userId == null) return Optional.empty();
+            BruteForceStatus status = client.get()
+                    .uri("/admin/realms/{realm}/attack-detection/brute-force/users/{id}", admin.realm(), userId)
+                    .headers(headers -> headers.setBearerAuth(adminToken()))
+                    .retrieve()
+                    .body(BruteForceStatus.class);
+            if (status == null || !Boolean.TRUE.equals(status.disabled()) || status.failedLoginNotBefore() == null)
+                return Optional.empty();
+            return Optional.of(Instant.ofEpochSecond(status.failedLoginNotBefore()));
+        } catch (ProviderUnavailable | RestClientException ex) {
+            log.warn(
+                    "[authGatewayBruteForce]|lookupFailed|type={}",
+                    ex.getClass().getSimpleName());
+            return Optional.empty();
+        }
+    }
+
+    private String findUserId(String field, String value) {
+        List<UserRef> users = client.get()
+                .uri(
+                        "/admin/realms/{realm}/users?{field}={value}&exact=true&briefRepresentation=true&max=2",
+                        admin.realm(),
+                        field,
+                        value)
+                .headers(headers -> headers.setBearerAuth(adminToken()))
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        return users != null && users.size() == 1 ? users.get(0).id() : null;
     }
 
     @Override
@@ -309,7 +345,7 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
                 throw new ProviderUnavailable();
             }
             return response;
-        } catch (FirstLoginRequired | InvalidCredentials | ProviderUnavailable ex) {
+        } catch (FirstLoginRequired | InvalidCredentials | AccountDisabled | ProviderUnavailable ex) {
             throw ex;
         } catch (RestClientResponseException ex) {
             ErrorBody body = null;
@@ -338,7 +374,11 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
             if ("password".equals(form.getFirst("grant_type"))
                     && ex.getStatusCode().value() == 400
                     && body != null
-                    && "invalid_grant".equals(body.error())) throw new InvalidCredentials();
+                    && "invalid_grant".equals(body.error())) {
+                // Keycloak chỉ báo "Account disabled" khi mật khẩu đúng nên không lộ trạng thái cho người đoán mật khẩu
+                if ("Account disabled".equals(body.errorDescription())) throw new AccountDisabled();
+                throw new InvalidCredentials();
+            }
             if ("refresh_token".equals(form.getFirst("grant_type"))
                     && ex.getStatusCode().value() == 400
                     && body != null
@@ -368,9 +408,19 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record ErrorBody(
             @JsonProperty("error") String error,
+            @JsonProperty("error_description") String errorDescription,
             @JsonProperty("user_id") String userId,
             @JsonProperty("setup_token") String setupToken,
             @JsonProperty("expires_in") Long expiresIn) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record UserRef(@JsonProperty("id") String id) {}
+
+    // failedLoginNotBefore: giây epoch Keycloak cho thử lại; disabled = đang bị brute-force chặn tạm
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record BruteForceStatus(
+            @JsonProperty("disabled") Boolean disabled,
+            @JsonProperty("failedLoginNotBefore") Long failedLoginNotBefore) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record UserSession(

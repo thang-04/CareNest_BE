@@ -126,6 +126,8 @@ REVOKE CONNECT ON DATABASE carenest, keycloak, carenest_dev, keycloak_dev FROM P
 
 Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6 nhưng tunnel `ssh -L 18322:127.0.0.1:18322`, `KEYCLOAK_URL=http://localhost:18322` và secret trong `.env` dev; rồi `CARENEST_AUTH_ENABLED=true` trong `.env` dev và `docker compose -f compose.dev.yaml up -d --no-build api` (kèm `API_IMAGE`, `KEYCLOAK_IMAGE` đang chạy).
 
+Dev cho nhiều người test dùng chung tài khoản: `.env` dev đặt `CARENEST_AUTH_SINGLE_WEB_SESSION=false` (tắt giới hạn một phiên Web AUTH-28) rồi tạo lại `api`; production không đặt khóa này (mặc định `true`).
+
 **Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
 
 **Dựng lại bộ dữ liệu dev** (sau khi đổi `scripts/dev/gen-dev-dataset.mjs` và merge; làm 15/11/2026, xem `docs/knowledge/incidents/ENV-261115-dev-keycloak-password-policy.md`). Deploy **không bao giờ xóa DB**: seed `R__` chỉ thêm, không ghi đè dòng có sẵn; file user Keycloak chỉ import khi realm mới ⇒ phải tạo lại **cả DB ứng dụng lẫn DB Keycloak**, mất mọi dữ liệu nhập tay và user tạo tay. Người có quyền VPS chạy theo đúng thứ tự:

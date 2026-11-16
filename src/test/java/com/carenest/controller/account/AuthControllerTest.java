@@ -277,8 +277,8 @@ class AuthControllerTest {
 
     @Test
     void recoveryEndpointsKeepEnvelopeAndAcceptNoBearer() throws Exception {
-        var pending = new AuthResponses.OtpRequest(
-                OPAQUE, Instant.now().plusSeconds(300), Instant.now().plusSeconds(60));
+        Instant now = Instant.now();
+        var pending = AuthResponses.OtpRequest.of(OPAQUE, now.plusSeconds(300), now.plusSeconds(60), now);
         given(service.forgot(any())).willReturn(pending);
         given(service.otpMetadata(OPAQUE)).willReturn(pending);
         given(service.resend(OPAQUE)).willReturn(pending);
@@ -289,6 +289,8 @@ class AuthControllerTest {
                         .content("{\"email\":\"demo@example.test\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.requestId").value(OPAQUE))
+                .andExpect(jsonPath("$.data.expiresInSeconds").value(300))
+                .andExpect(jsonPath("$.data.resendInSeconds").value(60))
                 .andExpect(jsonPath("$.data.otp").doesNotExist());
         mvc.perform(get("/api/auth/password/otp/" + OPAQUE))
                 .andExpect(status().isOk())

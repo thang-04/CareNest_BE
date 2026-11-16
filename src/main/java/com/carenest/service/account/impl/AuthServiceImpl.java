@@ -110,10 +110,11 @@ public class AuthServiceImpl implements AuthService {
             if (request == null) throw malformed();
             AuthGatewayClient.Tokens tokens = null;
             boolean issued = false;
+            // Gõ SĐT kiểu nào (+84, dấu cách) cũng về đúng tên đăng nhập; email/tên cũ giữ nguyên
+            String typed = request.identifier().trim();
+            String username = PhoneNumbers.normalize(typed).orElse(typed);
             try {
-                // Gõ SĐT kiểu nào (+84, dấu cách) cũng về đúng tên đăng nhập; email/tên cũ giữ nguyên
-                String identifier = request.identifier().trim();
-                tokens = keycloak.login(PhoneNumbers.normalize(identifier).orElse(identifier), request.password());
+                tokens = keycloak.login(username, request.password());
                 Jwt jwt = decode(tokens.accessToken());
                 CurrentUser current = currentUsers.getCurrentUser(jwt);
                 ensureWebRole(current.roles());
@@ -122,7 +123,9 @@ public class AuthServiceImpl implements AuthService {
                 Instant now = clock.instant();
                 // AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chưa đá ai; chờ người dùng chọn dùng ở đâu
                 String sessionId = jwt.getClaimAsString("sid");
-                if (sessionId == null || sessionId.isBlank()) {
+                if (!properties.singleWebSession()) {
+                    log.info("{}|sessionLimitSkipped|reason=disabled", logPrefix);
+                } else if (sessionId == null || sessionId.isBlank()) {
                     log.warn("{}|sessionLimitSkipped|reason=sidMissing", logPrefix);
                 } else if (keycloak.hasOtherWebSessions(jwt.getSubject(), sessionId)) {
                     LoginResult pending = startTakeover(jwt.getSubject(), sessionId, request.remember(), tokens, now);
@@ -161,8 +164,10 @@ public class AuthServiceImpl implements AuthService {
                 log.info("{}|END", logPrefix);
                 return new LoginResult(
                         new AuthResponses.LoginData(null, now.plusSeconds(ttl), true, handle, null, null), null);
+            } catch (AuthGatewayClient.AccountDisabled ex) {
+                throw GlobalException.of(ApiCode.ACCOUNT_INACTIVE);
             } catch (AuthGatewayClient.InvalidCredentials ex) {
-                throw GlobalException.of(ApiCode.INVALID_CREDENTIALS);
+                throw loginRejected(username);
             } catch (AuthGatewayClient.ProviderUnavailable ex) {
                 throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
             } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
@@ -480,8 +485,8 @@ public class AuthServiceImpl implements AuthService {
                     now.plusSeconds(Auth.OTP_RESEND_SECONDS)));
             if (account != null) sendOtpQuietly(account.getKeycloakUserId(), code);
             log.info("{}|END", logPrefix);
-            return new AuthResponses.OtpRequest(
-                    requestId, now.plusSeconds(Auth.OTP_SECONDS), now.plusSeconds(Auth.OTP_RESEND_SECONDS));
+            return AuthResponses.OtpRequest.of(
+                    requestId, now.plusSeconds(Auth.OTP_SECONDS), now.plusSeconds(Auth.OTP_RESEND_SECONDS), now);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -498,7 +503,7 @@ public class AuthServiceImpl implements AuthService {
             var result = state.metadata(hash, clock.instant());
             if (result.status() != AuthStateStore.Status.READY) throw notFound();
             log.info("{}|END", logPrefix);
-            return otpResponse(requestId, result.data());
+            return otpResponse(requestId, result.data(), clock.instant());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -528,7 +533,7 @@ public class AuthServiceImpl implements AuthService {
             if (changed.status() != AuthStateStore.Status.READY) throw notFound();
             if (changed.data().userId() != null) sendOtpQuietly(changed.data().subject(), code);
             log.info("{}|END", logPrefix);
-            return otpResponse(raw, changed.data());
+            return otpResponse(raw, changed.data(), now);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -643,6 +648,8 @@ public class AuthServiceImpl implements AuthService {
                 state.revokeAccountAuth(current.userId());
             } catch (AuthGatewayClient.InvalidCredentials | AuthGatewayClient.FirstLoginRequired ex) {
                 throw invalidCredentials();
+            } catch (AuthGatewayClient.AccountDisabled ex) {
+                throw GlobalException.of(ApiCode.ACCOUNT_INACTIVE);
             } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
                 throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
             } catch (AuthGatewayClient.PasswordRejected ex) {
@@ -680,12 +687,35 @@ public class AuthServiceImpl implements AuthService {
         return token;
     }
 
-    private static AuthResponses.OtpRequest otpResponse(String requestId, AuthStateStore.PasswordTokenState state) {
-        return new AuthResponses.OtpRequest(requestId, state.expiry(), state.resendAt());
+    private static AuthResponses.OtpRequest otpResponse(
+            String requestId, AuthStateStore.PasswordTokenState state, Instant now) {
+        return AuthResponses.OtpRequest.of(requestId, state.expiry(), state.resendAt(), now);
     }
 
     private void ensureEnabled() {
         if (!properties.enabled()) throw GlobalException.of(ApiCode.WEB_AUTH_GATEWAY_DISABLED);
+    }
+
+    // AUTH-03 (SRS): Keycloak báo đang khóa tạm giống sai mật khẩu ⇒ hỏi lại để nói rõ thời gian chờ
+    private GlobalException loginRejected(String username) {
+        Instant now = clock.instant();
+        return keycloak.loginBlockedUntil(username)
+                .filter(until -> until.isAfter(now))
+                .map(until -> {
+                    long seconds =
+                            Math.max(1, java.time.Duration.between(now, until).toSeconds());
+                    return GlobalException.withData(
+                            ApiCode.LOGIN_TEMPORARILY_LOCKED,
+                            java.util.Map.of("retryAfterSeconds", seconds, "retryAt", until),
+                            waitText(seconds));
+                })
+                .orElseGet(() -> GlobalException.of(ApiCode.INVALID_CREDENTIALS));
+    }
+
+    private static String waitText(long seconds) {
+        if (seconds < 60) return seconds + " giây";
+        long minutes = (seconds + 59) / 60;
+        return minutes + " phút";
     }
 
     private static void ensureWebRole(Set<CareNestRole> roles) {

@@ -17295,11 +17295,17 @@ components:
         expiresAt:
           type: string
           format: date-time
+        expiresInSeconds:
+          type: integer
+          format: int64
         requestId:
           type: string
         resendAvailableAt:
           type: string
           format: date-time
+        resendInSeconds:
+          type: integer
+          format: int64
     OverdueClassItem:
       type: object
       properties:

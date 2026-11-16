@@ -87,7 +87,8 @@ class AuthServiceImplTest {
                 "carenest-auth-gateway",
                 "gateway-secret-at-least-32-characters",
                 false,
-                List.of("http://localhost:5173"));
+                List.of("http://localhost:5173"),
+                true);
         crypto = new AuthCrypto(properties);
         account = UserAccount.create("kc-user-1", "teacher.a", "teacher@example.test", "Giáo viên Demo");
         Field id = UserAccount.class.getDeclaredField("id");
@@ -107,7 +108,11 @@ class AuthServiceImplTest {
                 List.of(),
                 false,
                 false);
-        service = new AuthServiceImpl(
+        service = newService(true);
+    }
+
+    private AuthServiceImpl newService(boolean singleWebSession) {
+        return new AuthServiceImpl(
                 new AuthProperties(
                         true,
                         key(),
@@ -115,7 +120,8 @@ class AuthServiceImplTest {
                         "carenest-auth-gateway",
                         "gateway-secret-at-least-32-characters",
                         false,
-                        List.of("http://localhost:5173")),
+                        List.of("http://localhost:5173"),
+                        singleWebSession),
                 crypto,
                 keycloak,
                 userAccounts,
@@ -149,6 +155,9 @@ class AuthServiceImplTest {
         var unknown = service.forgot(new com.carenest.dto.account.AuthRequests.Forgot("unknown@example.test"));
         assertThat(known.expiresAt()).isEqualTo(unknown.expiresAt());
         assertThat(known.resendAvailableAt()).isEqualTo(unknown.resendAvailableAt());
+        // Client đếm ngược theo số giây tương đối, không so giờ máy với expiresAt (máy lệch giờ ⇒ báo hết hạn sai)
+        assertThat(known.expiresInSeconds()).isEqualTo(300);
+        assertThat(known.resendInSeconds()).isEqualTo(60);
         assertThat(known.requestId()).hasSize(43);
         assertThat(unknown.requestId()).hasSize(43).isNotEqualTo(known.requestId());
         var saved = ArgumentCaptor.forClass(com.carenest.entity.account.PasswordToken.class);
@@ -225,6 +234,46 @@ class AuthServiceImplTest {
                         new com.carenest.dto.account.AuthRequests.Login(" +84 912 345 678 ", "guess", false)))
                 .hasMessage(ApiCode.INVALID_CREDENTIALS.getDefaultDesc());
         verify(keycloak).login("0912345678", "guess");
+    }
+
+    @Test
+    @DisplayName("Đúng mật khẩu nhưng tài khoản bị vô hiệu hóa ⇒ báo vô hiệu hóa, không báo sai mật khẩu")
+    void disabledAccountWithCorrectPasswordIsReportedAsInactive() {
+        given(keycloak.login("teacher.a", "correct-password")).willThrow(mock(AuthGatewayClient.AccountDisabled.class));
+
+        assertThatThrownBy(() -> service.login(
+                        new com.carenest.dto.account.AuthRequests.Login("teacher.a", "correct-password", false)))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.ACCOUNT_INACTIVE.getDefaultDesc());
+    }
+
+    @Test
+    @DisplayName("Keycloak đang khóa tạm sau 5 lần sai ⇒ 429 kèm thời gian chờ, không báo sai mật khẩu")
+    void temporarilyLockedLoginReportsRemainingWait() {
+        given(keycloak.login("0912345678", "any")).willThrow(mock(AuthGatewayClient.InvalidCredentials.class));
+        given(keycloak.loginBlockedUntil("0912345678"))
+                .willReturn(java.util.Optional.of(clock.instant().plusSeconds(45)));
+
+        assertThatThrownBy(() ->
+                        service.login(new com.carenest.dto.account.AuthRequests.Login("+84 912 345 678", "any", false)))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.LOGIN_TEMPORARILY_LOCKED.format("45 giây"))
+                .extracting(ex -> ((GlobalException) ex).getData())
+                .isEqualTo(java.util.Map.of(
+                        "retryAfterSeconds", 45L, "retryAt", clock.instant().plusSeconds(45)));
+    }
+
+    @Test
+    @DisplayName("Mốc khóa đã qua ⇒ vẫn là sai mật khẩu; chờ dài làm tròn lên theo phút")
+    void expiredLockIsPlainInvalidCredentialsAndLongWaitIsInMinutes() {
+        given(keycloak.login("teacher.a", "wrong")).willThrow(mock(AuthGatewayClient.InvalidCredentials.class));
+        given(keycloak.loginBlockedUntil("teacher.a"))
+                .willReturn(java.util.Optional.of(clock.instant().minusSeconds(1)))
+                .willReturn(java.util.Optional.of(clock.instant().plusSeconds(61)));
+        var login = new com.carenest.dto.account.AuthRequests.Login("teacher.a", "wrong", false);
+
+        assertThatThrownBy(() -> service.login(login)).hasMessage(ApiCode.INVALID_CREDENTIALS.getDefaultDesc());
+        assertThatThrownBy(() -> service.login(login)).hasMessage(ApiCode.LOGIN_TEMPORARILY_LOCKED.format("2 phút"));
     }
 
     @Test
@@ -480,6 +529,24 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("AUTH-28: tắt giới hạn (môi trường test dùng chung tài khoản) ⇒ đăng nhập thẳng, không hỏi, không hủy")
+    void loginWithLimitDisabledIgnoresOtherSessions() {
+        var unlimited = newService(false);
+        given(keycloak.login("teacher.a", "current-secret"))
+                .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 1800));
+        given(decoder.decode("signed-access")).willReturn(sessionJwt("signed-access", "new-session"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(current);
+        given(accounts.getMyAccount(current)).willReturn(profile);
+
+        var result = unlimited.login(new AuthRequests.Login("teacher.a", "current-secret", false));
+
+        assertThat(result.data().takeover()).isNull();
+        assertThat(result.data().accessToken()).isEqualTo("signed-access");
+        verify(keycloak, never()).hasOtherWebSessions(any(), any());
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+    }
+
+    @Test
     @DisplayName("AUTH-28: token thiếu sid thì không hỏi, không hủy phiên nào (không đoán phiên mới)")
     void loginWithoutSessionIdRevokesNothing() {
         stubLogin("private-refresh");
@@ -526,7 +593,8 @@ class AuthServiceImplTest {
                 "carenest-auth-gateway",
                 "gateway-secret-at-least-32-characters",
                 false,
-                List.of("http://localhost:5173")));
+                List.of("http://localhost:5173"),
+                true));
         String foreign = other.seal("s1|" + clock.instant().getEpochSecond() + "|true|old-refresh", "session-cookie");
         for (String cookie : List.of(tampered, foreign, "not-a-cookie", crypto.seal("garbage", "session-cookie")))
             assertCode(() -> service.refresh(cookie), ApiCode.UNAUTHORIZED);

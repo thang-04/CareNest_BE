@@ -42,7 +42,8 @@ class KeycloakAuthGatewayClientTest {
             "carenest-auth-gateway",
             "gateway-secret-unit-test-32chars-min",
             false,
-            java.util.List.of("http://localhost:5173"));
+            java.util.List.of("http://localhost:5173"),
+            true);
     private final KeycloakProperties admin = new KeycloakProperties(
             BASE,
             "carenest",
@@ -112,6 +113,63 @@ class KeycloakAuthGatewayClientTest {
         assertThatThrownBy(() -> client.login("teacher.a", "wrong-value"))
                 .isInstanceOf(AuthGatewayClient.InvalidCredentials.class)
                 .hasMessage("Invalid credentials");
+        server.verify();
+    }
+
+    @Test
+    void disabledAccountIsDistinguishedOnlyByKeycloakDescription() {
+        server.expect(requestTo(TOKEN))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                    {"error":"invalid_grant","error_description":"Account disabled"}
+                    """));
+        assertThatThrownBy(() -> client.login("teacher.a", "correct-value"))
+                .isInstanceOf(AuthGatewayClient.AccountDisabled.class);
+        server.verify();
+    }
+
+    @Test
+    void reportsBruteForceLockUntilFromAttackDetection() {
+        expectAdminToken();
+        server.expect(requestTo(BASE
+                        + "/admin/realms/carenest/users?username=0912345678&exact=true&briefRepresentation=true&max=2"))
+                .andExpect(header("Authorization", "Bearer admin-access-unit"))
+                .andRespond(withSuccess("[{\"id\":\"kc-unit\"}]", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/admin/realms/carenest/attack-detection/brute-force/users/kc-unit"))
+                .andRespond(withSuccess("""
+                    {"failedLoginNotBefore":1794825532,"numFailures":5,"disabled":true}
+                    """, MediaType.APPLICATION_JSON));
+        assertThat(client.loginBlockedUntil("0912345678")).contains(Instant.ofEpochSecond(1794825532));
+        server.verify();
+    }
+
+    @Test
+    void emailFallbackNotLockedUnknownOrLookupFailureMeansNoLock() {
+        expectAdminToken();
+        server.expect(
+                        requestTo(
+                                BASE
+                                        + "/admin/realms/carenest/users?username=a%40example.test&exact=true&briefRepresentation=true&max=2"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+        server.expect(
+                        requestTo(
+                                BASE
+                                        + "/admin/realms/carenest/users?email=a%40example.test&exact=true&briefRepresentation=true&max=2"))
+                .andRespond(withSuccess("[{\"id\":\"kc-mail\"}]", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/admin/realms/carenest/attack-detection/brute-force/users/kc-mail"))
+                .andRespond(withSuccess("""
+                    {"failedLoginNotBefore":0,"numFailures":2,"disabled":false}
+                    """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE
+                        + "/admin/realms/carenest/users?username=nobody&exact=true&briefRepresentation=true&max=2"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE
+                        + "/admin/realms/carenest/users?username=teacher.a&exact=true&briefRepresentation=true&max=2"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+        assertThat(client.loginBlockedUntil("a@example.test")).isEmpty();
+        assertThat(client.loginBlockedUntil("nobody")).isEmpty();
+        assertThat(client.loginBlockedUntil("teacher.a")).isEmpty();
         server.verify();
     }
 
