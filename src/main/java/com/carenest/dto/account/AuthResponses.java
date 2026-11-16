@@ -42,7 +42,24 @@ public final class AuthResponses {
         }
     }
 
-    public record OtpRequest(String requestId, Instant expiresAt, Instant resendAvailableAt) {
+    // *InSeconds tính tại server lúc trả: client đếm ngược theo đồng hồ của mình, không lệ thuộc giờ máy lệch
+    public record OtpRequest(
+            String requestId,
+            Instant expiresAt,
+            Instant resendAvailableAt,
+            long expiresInSeconds,
+            long resendInSeconds) {
+        public static OtpRequest of(String requestId, Instant expiresAt, Instant resendAvailableAt, Instant now) {
+            return new OtpRequest(
+                    requestId,
+                    expiresAt,
+                    resendAvailableAt,
+                    Math.max(0, java.time.Duration.between(now, expiresAt).toSeconds()),
+                    Math.max(
+                            0,
+                            java.time.Duration.between(now, resendAvailableAt).toSeconds()));
+        }
+
         @Override
         public String toString() {
             return "OtpRequest[redacted]";

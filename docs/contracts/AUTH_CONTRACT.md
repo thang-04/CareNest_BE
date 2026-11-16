@@ -46,7 +46,7 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 
 Mọi response thành công dùng `{code,desc,data}` và `Cache-Control: no-store`. Cookie phiên `CARENEST_SESSION`: HttpOnly, SameSite=Lax, path `{API_PREFIX}/auth`, Secure theo cấu hình; remember bật thì Max-Age tối đa 10 giờ, tắt thì session cookie. Idle 30 phút và trần 10 giờ do Keycloak áp (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`); server chặn thêm absolute 10 giờ từ `loginAt` trong cookie. Refresh trả 503 khi provider tạm lỗi thì cookie được giữ, client thử lại được.
 
-OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
+OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; response forgot/metadata/resend có `expiresAt`, `resendAvailableAt` và `expiresInSeconds`, `resendInSeconds` (tính tại server lúc trả) — client đếm ngược theo số giây tương đối, không so `expiresAt` với giờ máy (máy lệch giờ ⇒ báo hết hạn sai); 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
 
 Recovery/current-password dùng assertion HMAC hạn 60 giây, nonce một lần, ràng buộc realm/subject/issuer/audience/purpose để đổi lấy capability provider 10 phút. Không có API đổi mật khẩu chỉ bằng userId. Native MFA/required actions không được bỏ qua; gateway hiện chưa có UI nhận TOTP, tài khoản yêu cầu TOTP sẽ bị từ chối.
 
@@ -87,6 +87,8 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 | --- | --- | --- |
 | Có tài khoản Keycloak nhưng chưa có hồ sơ CareNest | 403 | `errorCode` 1014 `ACCOUNT_NOT_PROVISIONED` |
 | Tài khoản CareNest bị khóa (token còn hạn vẫn bị chặn) | 403 | `errorCode` 1015 `ACCOUNT_INACTIVE` |
+| Login Web: đúng mật khẩu nhưng tài khoản bị vô hiệu hóa (Keycloak `enabled=false`; sai mật khẩu vẫn 1001, không lộ trạng thái) | 403 | `errorCode` 1015 `ACCOUNT_INACTIVE` — "liên hệ Ban Giám hiệu" |
+| Login Web: Keycloak đang khóa tạm sau 5 lần sai liên tiếp (realm brute-force: 60s tăng dần, tối đa 15 phút, tự mở) | 429 | `errorCode` 1020 `LOGIN_TEMPORARILY_LOCKED`, `data.retryAfterSeconds`, `data.retryAt`; BE hỏi admin API `attack-detection` sau `invalid_grant`, tra cứu lỗi ⇒ 1001 |
 | Login Web: tài khoản còn phiên Web khác (AUTH-28) | 409 | `errorCode` 1017 `WEB_SESSION_CONFLICT`, `data.takeover.expiresAt`, cookie `CARENEST_TAKEOVER` — hỏi "Dùng ở đây / Hủy" |
 | Confirm takeover: phiên đang dùng đã chọn ở lại | 409 | `errorCode` 1018 `WEB_SESSION_TAKEOVER_REJECTED` |
 | Confirm takeover / reject: lượt chờ hết hạn, không tồn tại, đã dùng | 409 | `errorCode` 1019 `WEB_SESSION_TAKEOVER_EXPIRED` — đăng nhập lại |

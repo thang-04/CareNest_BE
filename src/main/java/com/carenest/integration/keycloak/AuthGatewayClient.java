@@ -8,6 +8,13 @@ public interface AuthGatewayClient {
 
     Tokens login(String identifier, String password);
 
+    /**
+     * Keycloak brute-force đang chặn tài khoản của {@code identifier} tới mốc nào (AUTH-03 đăng nhập).
+     * Keycloak trả lỗi giống sai mật khẩu khi đang chặn nên phải hỏi admin API; không tìm thấy, không bị chặn
+     * hoặc lỗi tra cứu ⇒ rỗng (giữ thông báo sai mật khẩu, không chặn đăng nhập).
+     */
+    java.util.Optional<java.time.Instant> loginBlockedUntil(String identifier);
+
     Tokens refresh(String refreshToken);
 
     void logout(String refreshToken);
@@ -77,6 +84,13 @@ public interface AuthGatewayClient {
     final class InvalidCredentials extends RuntimeException {
         InvalidCredentials() {
             super("Invalid credentials");
+        }
+    }
+
+    /** Đúng mật khẩu nhưng tài khoản đã bị vô hiệu hóa (Keycloak chỉ báo khi mật khẩu đúng). */
+    final class AccountDisabled extends RuntimeException {
+        AccountDisabled() {
+            super("Account disabled");
         }
     }
 
