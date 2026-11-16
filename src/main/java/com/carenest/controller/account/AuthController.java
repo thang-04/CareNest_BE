@@ -65,10 +65,52 @@ public class AuthController {
             return response(
                     ApiCode.PASSWORD_CHANGE_REQUIRED, ApiCode.PASSWORD_CHANGE_REQUIRED.getDefaultDesc(), result.data());
         }
+        if (result.data().takeover() != null) {
+            // AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chờ người dùng chọn dùng ở đâu
+            setCookie(servletResponse, Auth.TAKEOVER_COOKIE, result.cookie().value(), result.cookie().maxAgeSeconds());
+            log.info("{}|takeoverPending|END", logPrefix);
+            return response(
+                    ApiCode.WEB_SESSION_CONFLICT, ApiCode.WEB_SESSION_CONFLICT.getDefaultDesc(), result.data());
+        }
         setSessionCookie(
                 servletResponse, result.cookie().value(), result.cookie().maxAgeSeconds());
         log.info("{}|END", logPrefix);
         return response(ApiCode.SUCCESSFUL, "Login successful", result.data());
+    }
+
+    @PostMapping("/login/takeover/confirm")
+    @ApiResponse(responseCode = "200", description = "Session issued here; other Web sessions revoked")
+    @ApiResponse(responseCode = "409", description = "Takeover rejected by the active session or expired")
+    public ResponseEntity<ResponseJson<AuthResponses.LoginData>> confirmTakeover(
+            @CookieValue(name = Auth.TAKEOVER_COOKIE, required = false) String takeoverCookie,
+            HttpServletResponse servletResponse) {
+        String logPrefix = LOG_PREFIX + "|confirmTakeover";
+        log.info("{}|START", logPrefix);
+        AuthService.LoginResult result;
+        try {
+            result = service.confirmTakeover(takeoverCookie);
+        } finally {
+            // Lượt chờ chỉ dùng một lần dù thành công hay bị từ chối/hết hạn
+            setCookie(servletResponse, Auth.TAKEOVER_COOKIE, "", 0);
+        }
+        setSessionCookie(servletResponse, result.cookie().value(), result.cookie().maxAgeSeconds());
+        log.info("{}|END", logPrefix);
+        return response(ApiCode.SUCCESSFUL, "Login successful", result.data());
+    }
+
+    @PostMapping("/login/takeover/cancel")
+    public ResponseEntity<ResponseJson<Void>> cancelTakeover(
+            @CookieValue(name = Auth.TAKEOVER_COOKIE, required = false) String takeoverCookie,
+            HttpServletResponse servletResponse) {
+        String logPrefix = LOG_PREFIX + "|cancelTakeover";
+        log.info("{}|START", logPrefix);
+        try {
+            service.cancelTakeover(takeoverCookie);
+        } finally {
+            setCookie(servletResponse, Auth.TAKEOVER_COOKIE, "", 0);
+        }
+        log.info("{}|END", logPrefix);
+        return response(ApiCode.SUCCESSFUL, "Login cancelled", null);
     }
 
     @PostMapping("/refresh")
@@ -159,9 +201,13 @@ public class AuthController {
     }
 
     private void setSessionCookie(HttpServletResponse servletResponse, String value, long maxAge) {
+        setCookie(servletResponse, Auth.SESSION_COOKIE, value, maxAge);
+    }
+
+    private void setCookie(HttpServletResponse servletResponse, String name, String value, long maxAge) {
         servletResponse.addHeader(
                 HttpHeaders.SET_COOKIE,
-                ResponseCookie.from(Auth.SESSION_COOKIE, value)
+                ResponseCookie.from(name, value)
                         .httpOnly(true)
                         .secure(properties.secureCookies())
                         .sameSite("Lax")

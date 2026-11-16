@@ -835,6 +835,9 @@ Hàng tươi (`foods.storage = FRESH`) không vào kho (NUT-12): chỉ có bản
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
 
+## revoked_web_sessions (module: identity-access, scope: SYSTEM) — V143
+AUTH-28: phiên Web Keycloak bị đăng nhập mới hơn thay thế, để chặn ngay access token còn hạn của phiên đó. PK session_id VARCHAR(64) (claim `sid`); keycloak_user_id VARCHAR(36) NOT NULL; revoked_at, expires_at TIMESTAMPTZ NOT NULL, CHECK expires_at > revoked_at; index `expires_at` cho dọn. Giữ 10 phút (> tuổi access token 5 phút) rồi xóa. Không lưu token.
+
 ## otp_send_limits (module: identity-access, scope: SYSTEM)
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
 

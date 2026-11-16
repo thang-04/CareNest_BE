@@ -12,6 +12,18 @@ public interface AuthGatewayClient {
 
     void logout(String refreshToken);
 
+    /** Hủy mọi phiên Web gateway khác của user, giữ {@code keepSessionId}; trả id phiên đã hủy. Best-effort, không ném lỗi. */
+    java.util.List<String> revokeOtherWebSessions(String keycloakUserId, String keepSessionId);
+
+    /** User còn phiên Web gateway nào khác {@code keepSessionId} không; lỗi tra cứu ⇒ false (không chặn đăng nhập). */
+    boolean hasOtherWebSessions(String keycloakUserId, String keepSessionId);
+
+    /** Hủy một phiên Keycloak theo id; best-effort, không ném lỗi. */
+    void revokeSession(String sessionId);
+
+    /** Phiên của refresh token bị từ chối có phiên Web mới hơn (từ {@code loginAt}) thay thế không; lỗi tra cứu ⇒ false. */
+    boolean replacedByNewerWebSession(String rejectedRefreshToken, java.time.Instant loginAt);
+
     String verifiedCapability(String assertion);
 
     void changePassword(String capability, String newPassword, String confirmation);

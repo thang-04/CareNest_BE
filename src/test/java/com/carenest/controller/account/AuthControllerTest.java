@@ -86,7 +86,7 @@ class AuthControllerTest {
         given(service.login(any()))
                 .willReturn(new AuthService.LoginResult(
                         new AuthResponses.LoginData(
-                                "access-token", Instant.now().plusSeconds(300), false, null, null),
+                                "access-token", Instant.now().plusSeconds(300), false, null, null, null),
                         new AuthService.SessionCookie(OPAQUE, 36000)));
         mvc.perform(csrf(post("/api/auth/login"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -106,7 +106,7 @@ class AuthControllerTest {
     void unrememberedLoginUsesBrowserSessionCookie() throws Exception {
         given(service.login(any()))
                 .willReturn(new AuthService.LoginResult(
-                        new AuthResponses.LoginData("access-token", Instant.now(), false, null, null),
+                        new AuthResponses.LoginData("access-token", Instant.now(), false, null, null, null),
                         new AuthService.SessionCookie(OPAQUE, -1)));
         mvc.perform(csrf(post("/api/auth/login"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -119,7 +119,7 @@ class AuthControllerTest {
     void firstLoginReturns428WithoutSessionOrAccessToken() throws Exception {
         given(service.login(any()))
                 .willReturn(new AuthService.LoginResult(
-                        new AuthResponses.LoginData(null, Instant.now(), true, OPAQUE, null), null));
+                        new AuthResponses.LoginData(null, Instant.now(), true, OPAQUE, null, null), null));
         mvc.perform(csrf(post("/api/auth/login"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(LOGIN))
@@ -128,6 +128,55 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.passwordChangeRequired").value(true))
                 .andExpect(jsonPath("$.data.changeToken").value(OPAQUE))
                 .andExpect(jsonPath("$.data.accessToken").doesNotExist())
+                .andExpect(cookie().doesNotExist("CARENEST_SESSION"));
+    }
+
+    @Test
+    @DisplayName("AUTH-28: còn phiên Web khác ⇒ 409 1017, chỉ đặt cookie lượt chờ, chưa có cookie phiên")
+    void loginWithOtherWebSessionReturnsConflictAndTakeoverCookie() throws Exception {
+        Instant expiresAt = Instant.now().plusSeconds(120);
+        given(service.login(any()))
+                .willReturn(new AuthService.LoginResult(
+                        new AuthResponses.LoginData(
+                                null, expiresAt, false, null, null, new AuthResponses.Takeover(expiresAt)),
+                        new AuthService.SessionCookie(OPAQUE, 120)));
+        mvc.perform(csrf(post("/api/auth/login"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(LOGIN))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value(1017))
+                .andExpect(jsonPath("$.data.takeover.expiresAt").exists())
+                .andExpect(jsonPath("$.data.accessToken").doesNotExist())
+                .andExpect(cookie().value("CARENEST_TAKEOVER", OPAQUE))
+                .andExpect(cookie().httpOnly("CARENEST_TAKEOVER", true))
+                .andExpect(cookie().path("CARENEST_TAKEOVER", "/api/auth"))
+                .andExpect(cookie().doesNotExist("CARENEST_SESSION"));
+    }
+
+    @Test
+    @DisplayName("AUTH-28: 'Dùng ở đây' cần CSRF, cấp cookie phiên và xóa cookie lượt chờ")
+    void confirmTakeoverIssuesSessionAndClearsTakeoverCookie() throws Exception {
+        mvc.perform(post("/api/auth/login/takeover/confirm").cookie(new Cookie("CARENEST_TAKEOVER", OPAQUE)))
+                .andExpect(status().isForbidden());
+        given(service.confirmTakeover(OPAQUE))
+                .willReturn(new AuthService.LoginResult(
+                        new AuthResponses.LoginData("access-token", Instant.now(), false, null, null, null),
+                        new AuthService.SessionCookie("sealed-session", -1)));
+        mvc.perform(csrf(post("/api/auth/login/takeover/confirm")).cookie(new Cookie("CARENEST_TAKEOVER", OPAQUE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken").value("access-token"))
+                .andExpect(cookie().value("CARENEST_SESSION", "sealed-session"))
+                .andExpect(cookie().maxAge("CARENEST_TAKEOVER", 0));
+    }
+
+    @Test
+    @DisplayName("AUTH-28: phiên kia đã chọn ở lại ⇒ 409 1018 và cookie lượt chờ vẫn bị xóa")
+    void rejectedTakeoverStillClearsTakeoverCookie() throws Exception {
+        given(service.confirmTakeover(OPAQUE)).willThrow(GlobalException.of(ApiCode.WEB_SESSION_TAKEOVER_REJECTED));
+        mvc.perform(csrf(post("/api/auth/login/takeover/confirm")).cookie(new Cookie("CARENEST_TAKEOVER", OPAQUE)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value(1018))
+                .andExpect(cookie().maxAge("CARENEST_TAKEOVER", 0))
                 .andExpect(cookie().doesNotExist("CARENEST_SESSION"));
     }
 
