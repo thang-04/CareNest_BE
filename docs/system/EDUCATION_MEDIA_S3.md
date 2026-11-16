@@ -84,7 +84,7 @@ expiresAt}`; client `PUT` tệp lên `url` với đúng `headers`; rồi `POST .
 1. **S3 › bucket › Permissions › Block public access:** bật cả 4 ô. Không cấp public ACL/bucket policy.
 2. **Permissions › CORS:**
    ```json
-   [{"AllowedOrigins":["http://localhost:5173","https://dev.carenest.edu.vn","https://web.carenest.edu.vn"],
+   [{"AllowedOrigins":["http://localhost:5173","https://dev.carenest.edu.vn","https://thuonghong.carenest.edu.vn"],
      "AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3000}]
    ```
    App mobile không cần CORS. Không dùng `"*"` cho origin.

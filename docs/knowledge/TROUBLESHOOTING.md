@@ -64,7 +64,7 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Xử lý: mọi service CareNest chạy `network_mode: host`, bind `127.0.0.1:<port>`, gọi nhau qua `127.0.0.1` (`compose.vps.yaml`); image build ở GitHub Actions, VPS chỉ pull. Chi tiết chẩn đoán: `FE:docs/knowledge/TROUBLESHOOTING.md`.
 - Nguồn: user chạy lệnh trên VPS, 2026-10-21 (FE) và 2026-10-30.
 
-### VPS: cổng `8080` / `18080` đã bị chiếm; `web.carenest.edu.vn/api/*` trả nội dung lạ
+### VPS: cổng `8080` / `18080` đã bị chiếm; `thuonghong.carenest.edu.vn/api/*` trả nội dung lạ
 - Nguyên nhân: `*:8080` và `127.0.0.1:18080` là `java` của app khác trên server chung (`ss -ltnp`, 2026-10-30). Caddy FE ban đầu proxy `/api/*` ⇒ `127.0.0.1:8080` nên đi vào app đó.
 - Xử lý: API CareNest nghe `127.0.0.1:18310`; Caddy FE phải trỏ `/api/*` ⇒ `127.0.0.1:18310` (`FE:deploy/caddy/carenest-web.caddy`). Chọn cổng mới: `sudo ss -ltnp | grep :<port>` rỗng rồi ghi bảng cổng `docs/system/DEPLOYMENT.md`.
 

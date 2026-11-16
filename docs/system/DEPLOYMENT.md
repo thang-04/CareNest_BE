@@ -6,9 +6,9 @@ Luồng: push `main` (merge PR từ `release/*`; PR vào `main` chỉ verify, pu
 
 ```
 Trình duyệt ─HTTPS─▶ Caddy host (giữ 80/443 của server)
-  web.carenest.edu.vn   ├─ /api/* ─▶ 127.0.0.1:18310  api (Spring Boot; /api/auth/* = gateway ADR-0013)
-                        └─ /      ─▶ 127.0.0.1:18300  FE
-  auth.carenest.edu.vn  ───────────▶ 127.0.0.1:18320  Keycloak (chặn /admin, /realms/master)
+  thuonghong.carenest.edu.vn  ├─ /api/* ─▶ 127.0.0.1:18310  api (Spring Boot; /api/auth/* = gateway ADR-0013)
+                              └─ /      ─▶ 127.0.0.1:18300  FE
+  auth.carenest.edu.vn  ─────────────────▶ 127.0.0.1:18320  Keycloak (chặn /admin, /realms/master)
   không ra ngoài:  Postgres 127.0.0.1:18330 · Keycloak management 18321 · Mailpit SMTP 18340 / UI 18341
 ```
 
@@ -55,6 +55,8 @@ Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'
 6. **Bật gateway auth** (ADR-0013, quyết định demo trong plan): từ máy dev mở tunnel `ssh -L 18320:127.0.0.1:18320 thangnd@<VPS>`, đặt `KEYCLOAK_URL=http://localhost:18320`, `KEYCLOAK_REALM=carenest`, `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` trong shell rồi `node docker/keycloak/auth/bootstrap.mjs` (preview, chỉ đọc) ⇒ duyệt ⇒ chạy lại với `--apply --enable`. Sau đó trên VPS sửa `.env` `CARENEST_AUTH_ENABLED=true` và `docker compose -f compose.vps.yaml up -d --no-build api` (cần `API_IMAGE`, xem Rollback).
 7. **FE:** Caddy `/api/*` ⇒ `127.0.0.1:18310`; build với `VITE_AUTH_MODE=gateway`, `VITE_USE_MOCK=false` (repo FE).
 
+**Đổi domain web** (16/11/2026: `web` ⇒ `thuonghong.carenest.edu.vn`): sửa cùng lúc `compose.vps.yaml` (`CARENEST_WEB_ORIGIN`, `CARENEST_AUTH_WEB_ORIGIN`, `CARENEST_CORS_ALLOWED_ORIGINS`) và FE (`deploy/caddy/carenest-web.caddy`, `SITE_URL` trong `deploy.yml`); sửa tay trên VPS sẽ bị deploy `main` sau ghi đè. Realm đã có thì `--import-realm` bỏ qua ⇒ client web trong realm `carenest` vẫn giữ origin cũ: thêm domain mới vào Valid redirect URIs, Post logout redirect URIs, Web origins ở Admin Console. Bucket S3 có CORS theo origin ⇒ thêm domain mới.
+
 ## Quản trị qua SSH tunnel
 
 - Keycloak admin console: `ssh -L 18320:127.0.0.1:18320 thangnd@<VPS>` ⇒ `http://localhost:18320/admin/` (`KC_HOSTNAME_ADMIN`).
@@ -65,7 +67,7 @@ Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'
 
 - Actions: job `verify`, `deploy` xanh; bước smoke thấy issuer `https://auth.carenest.edu.vn/realms/carenest`.
 - `curl -I https://auth.carenest.edu.vn/admin/` ⇒ 404.
-- Sau bước FE: `curl -s https://web.carenest.edu.vn/api/auth/csrf` ⇒ 200 từ CareNest.
+- Sau bước FE: `curl -s https://thuonghong.carenest.edu.vn/api/auth/csrf` ⇒ 200 từ CareNest.
 - Lỗi: `cd /data/thangnd/CAPSTONE/CareNest_BE && docker compose -f compose.vps.yaml logs --tail 100 api keycloak`.
 
 ## Rollback
