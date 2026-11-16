@@ -123,7 +123,9 @@ public class AuthServiceImpl implements AuthService {
                 Instant now = clock.instant();
                 // AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chưa đá ai; chờ người dùng chọn dùng ở đâu
                 String sessionId = jwt.getClaimAsString("sid");
-                if (sessionId == null || sessionId.isBlank()) {
+                if (!properties.singleWebSession()) {
+                    log.info("{}|sessionLimitSkipped|reason=disabled", logPrefix);
+                } else if (sessionId == null || sessionId.isBlank()) {
                     log.warn("{}|sessionLimitSkipped|reason=sidMissing", logPrefix);
                 } else if (keycloak.hasOtherWebSessions(jwt.getSubject(), sessionId)) {
                     LoginResult pending = startTakeover(jwt.getSubject(), sessionId, request.remember(), tokens, now);

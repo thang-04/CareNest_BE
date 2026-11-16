@@ -42,7 +42,8 @@ class KeycloakAuthGatewayClientTest {
             "carenest-auth-gateway",
             "gateway-secret-unit-test-32chars-min",
             false,
-            java.util.List.of("http://localhost:5173"));
+            java.util.List.of("http://localhost:5173"),
+            true);
     private final KeycloakProperties admin = new KeycloakProperties(
             BASE,
             "carenest",

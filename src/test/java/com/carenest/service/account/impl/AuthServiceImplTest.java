@@ -87,7 +87,8 @@ class AuthServiceImplTest {
                 "carenest-auth-gateway",
                 "gateway-secret-at-least-32-characters",
                 false,
-                List.of("http://localhost:5173"));
+                List.of("http://localhost:5173"),
+                true);
         crypto = new AuthCrypto(properties);
         account = UserAccount.create("kc-user-1", "teacher.a", "teacher@example.test", "Giáo viên Demo");
         Field id = UserAccount.class.getDeclaredField("id");
@@ -107,7 +108,11 @@ class AuthServiceImplTest {
                 List.of(),
                 false,
                 false);
-        service = new AuthServiceImpl(
+        service = newService(true);
+    }
+
+    private AuthServiceImpl newService(boolean singleWebSession) {
+        return new AuthServiceImpl(
                 new AuthProperties(
                         true,
                         key(),
@@ -115,7 +120,8 @@ class AuthServiceImplTest {
                         "carenest-auth-gateway",
                         "gateway-secret-at-least-32-characters",
                         false,
-                        List.of("http://localhost:5173")),
+                        List.of("http://localhost:5173"),
+                        singleWebSession),
                 crypto,
                 keycloak,
                 userAccounts,
@@ -523,6 +529,24 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("AUTH-28: tắt giới hạn (môi trường test dùng chung tài khoản) ⇒ đăng nhập thẳng, không hỏi, không hủy")
+    void loginWithLimitDisabledIgnoresOtherSessions() {
+        var unlimited = newService(false);
+        given(keycloak.login("teacher.a", "current-secret"))
+                .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 1800));
+        given(decoder.decode("signed-access")).willReturn(sessionJwt("signed-access", "new-session"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(current);
+        given(accounts.getMyAccount(current)).willReturn(profile);
+
+        var result = unlimited.login(new AuthRequests.Login("teacher.a", "current-secret", false));
+
+        assertThat(result.data().takeover()).isNull();
+        assertThat(result.data().accessToken()).isEqualTo("signed-access");
+        verify(keycloak, never()).hasOtherWebSessions(any(), any());
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+    }
+
+    @Test
     @DisplayName("AUTH-28: token thiếu sid thì không hỏi, không hủy phiên nào (không đoán phiên mới)")
     void loginWithoutSessionIdRevokesNothing() {
         stubLogin("private-refresh");
@@ -569,7 +593,8 @@ class AuthServiceImplTest {
                 "carenest-auth-gateway",
                 "gateway-secret-at-least-32-characters",
                 false,
-                List.of("http://localhost:5173")));
+                List.of("http://localhost:5173"),
+                true));
         String foreign = other.seal("s1|" + clock.instant().getEpochSecond() + "|true|old-refresh", "session-cookie");
         for (String cookie : List.of(tampered, foreign, "not-a-cookie", crypto.seal("garbage", "session-cookie")))
             assertCode(() -> service.refresh(cookie), ApiCode.UNAUTHORIZED);
