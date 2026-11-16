@@ -168,7 +168,7 @@ class LeaveRequestIntegrationTest {
         assertThat(leave.status()).isEqualTo("ACTIVE");
         // OBS-31: GV lớp nhận thông báo đơn nghỉ
         assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM notifications WHERE type = 'LEAVE_REQUEST_CHANGED' AND user_id = ?",
+                        "SELECT count(*) FROM notifications WHERE type = 'LEAVE_REQUEST_CREATED' AND user_id = ?",
                         Integer.class,
                         teacherA.userId()))
                 .isEqualTo(1);

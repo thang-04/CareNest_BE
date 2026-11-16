@@ -43,6 +43,9 @@ class DevSeedIntegrationTest {
             "otp_send_limits",
             "parent_activation_codes",
             "device_tokens",
+            // Không tạo tệp S3 hoặc lịch sử giao tới thiết bị khi chưa có token thật.
+            "announcement_attachments",
+            "notification_push_deliveries",
             "user_signatures",
             "meal_photos",
             "inspection_sheets",
@@ -98,6 +101,8 @@ class DevSeedIntegrationTest {
                 .toList();
 
         assertThat(empty).isEmpty();
+        assertThat(count("announcement_attachments")).isZero();
+        assertThat(count("notification_push_deliveries")).isZero();
         assertThat(count("user_accounts")).isGreaterThan(200);
         assertThat(count("children")).isGreaterThan(200);
     }

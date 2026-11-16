@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 351 endpoint.
+Tổng: 370 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -33,6 +33,21 @@ POST /age-groups · src/main/java/com/carenest/controller/organization/AgeGroupC
 DELETE /age-groups/{ageGroupId} · src/main/java/com/carenest/controller/organization/AgeGroupController.java#deleteAgeGroup
 PUT /age-groups/{ageGroupId} · src/main/java/com/carenest/controller/organization/AgeGroupController.java#updateAgeGroup
 GET /age-groups/{ageGroupId}/team-leader-assignments/history · src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#getTeamLeaderHistory
+GET /announcement-attachments/{attachmentId}/content · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#downloadAttachment
+GET /announcement-schedules · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#listSchedules
+POST /announcement-schedules · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#createSchedule
+DELETE /announcement-schedules/{scheduleId} · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#deleteSchedule
+PUT /announcement-schedules/{scheduleId} · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#updateSchedule
+GET /announcement-templates · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#listTemplates
+POST /announcement-templates · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#createTemplate
+DELETE /announcement-templates/{templateId} · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#deleteTemplate
+PUT /announcement-templates/{templateId} · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#updateTemplate
+GET /announcements · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#listAnnouncements
+POST /announcements · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#createAnnouncement
+GET /announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#getAnnouncement
+PUT /announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#updateAnnouncement
+POST /announcements/{announcementId}/cancel · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#cancelAnnouncement
+POST /announcements/recipient-preview · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#previewRecipients
 POST /assessment/behaviour-tickets · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#issue
 GET /assessment/behaviour-tickets/board · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#getBoard
 GET /assessment/behaviour-tickets/overview · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#getOverview
@@ -236,9 +251,11 @@ POST /locations · src/main/java/com/carenest/controller/organization/RoomContro
 DELETE /locations/{roomId} · src/main/java/com/carenest/controller/organization/RoomController.java#deleteRoom
 PUT /locations/{roomId} · src/main/java/com/carenest/controller/organization/RoomController.java#updateRoom
 PATCH /locations/{roomId}/status · src/main/java/com/carenest/controller/organization/RoomController.java#changeRoomStatus
+GET /me/announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#getMyAnnouncement
 DELETE /me/devices · src/main/java/com/carenest/controller/notification/NotificationController.java#unregisterDevice
 PUT /me/devices · src/main/java/com/carenest/controller/notification/NotificationController.java#registerDevice
 GET /me/notifications · src/main/java/com/carenest/controller/notification/NotificationController.java#listMyNotifications
+GET /me/notifications/{notificationId} · src/main/java/com/carenest/controller/notification/NotificationController.java#getMyNotification
 POST /me/notifications/{notificationId}/read · src/main/java/com/carenest/controller/notification/NotificationController.java#markRead
 POST /me/notifications/read-all · src/main/java/com/carenest/controller/notification/NotificationController.java#markAllRead
 PUT /me/password · src/main/java/com/carenest/controller/account/PasswordController.java#changePassword
@@ -246,6 +263,8 @@ GET /meal-counts · src/main/java/com/carenest/controller/meals/MealCountControl
 POST /meal-counts/{mealCountId}/confirm · src/main/java/com/carenest/controller/meals/MealCountController.java#confirm
 POST /meal-counts/adjustments · src/main/java/com/carenest/controller/meals/MealCountController.java#adjust
 GET /meal-counts/class · src/main/java/com/carenest/controller/meals/MealCountController.java#getClassMealCount
+GET /notification-rules · src/main/java/com/carenest/controller/notification/NotificationRuleController.java#listRules
+PUT /notification-rules/{type} · src/main/java/com/carenest/controller/notification/NotificationRuleController.java#updateRule
 GET /nutrition/age-group-configs · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#getEffectiveConfigs
 POST /nutrition/age-group-configs · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#createConfig
 GET /nutrition/age-group-configs/{ageGroupId}/versions · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#getConfigVersions

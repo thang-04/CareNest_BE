@@ -141,7 +141,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.HEALTH_YEAR_NOT_ACTIVE);
             }
-            childInClass(cls.id(), request.childId(), request.date());
+            ClassChildResponse child = childInClass(cls.id(), request.childId(), request.date());
             // HLT-15: ghi cả sau giờ chốt, khóa khi hết ngày; ngày cũ đang được mở lại điểm danh (ATT-08) thì ghi được
             if (!writableDay(cls.id(), request.date())) {
                 throw GlobalException.of(ApiCode.HEALTH_TODAY_ONLY);
@@ -195,7 +195,18 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                     .recordedAt(rules.now())
                     .build());
             if (firstNoted) {
-                notifyGuardians(request.childId(), request.date());
+                // HLT-14: có biểu hiện ⇒ báo phụ huynh ngay; câu chữ không chứa triệu chứng, banner chỉ câu chung
+                notificationService.notifyEvent(
+                        guardianChildLinkService.findLinksOfChild(request.childId()).stream()
+                                .map(GuardianLinkResponse::userId)
+                                .toList(),
+                        NotificationType.DAILY_HEALTH_NOTED,
+                        Map.of(
+                                "tenTre",
+                                "Bé " + child.fullName(),
+                                "ngay",
+                                DateTimeFormatter.ofPattern("dd/MM/yyyy").format(request.date())),
+                        request.childId());
             }
             DailyHealthEntryResponse saved = toViews(List.of(entry)).getFirst();
             log.info("{}|END", logPrefix);

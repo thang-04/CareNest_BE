@@ -6,9 +6,11 @@ import com.carenest.dto.notification.NotificationListResponse;
 import com.carenest.dto.notification.NotificationResponse;
 import com.carenest.entity.notification.DeviceToken;
 import com.carenest.entity.notification.Notification;
+import com.carenest.entity.notification.NotificationRule;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.notification.DeviceTokenRepository;
 import com.carenest.repository.notification.NotificationRepository;
+import com.carenest.repository.notification.NotificationRuleRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.utils.ApiCode;
@@ -17,12 +19,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +43,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final DeviceTokenRepository deviceTokenRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final NotificationRuleRepository ruleRepository;
     private final Clock clock;
 
     @Override
@@ -75,16 +79,62 @@ public class NotificationServiceImpl implements NotificationService {
                 created.add(notificationRepository.save(
                         Notification.of(userId, type, truncate(title, 150), truncate(body, 500), childId, now, link)));
             }
-            if (!created.isEmpty()) {
-                // Đẩy tới thiết bị sau khi giao dịch tạo thông báo đã lưu (PushDispatchListener)
-                eventPublisher.publishEvent(new NotificationsCreatedEvent(
-                        created.stream().map(Notification::getId).toList()));
-            }
             log.info("{}|created={}|END", logPrefix, created.size());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public void notifyEvent(Collection<Long> userIds, NotificationType type, Map<String, String> values, Long childId) {
+        NotificationRuleCatalog.Rule rule = NotificationRuleCatalog.of(type);
+        NotificationRule saved = ruleRepository.findById(type).orElse(null);
+        // Loại tắt được mà HT đã tắt ⇒ không tạo thông báo (PAR-09)
+        if (saved != null && !saved.isEnabled() && !rule.mandatory()) {
+            log.info("{}|notifyEvent|type={}|disabled", LOG_PREFIX, type);
+            return;
+        }
+        String title =
+                saved != null && saved.getTitleTemplate() != null ? saved.getTitleTemplate() : rule.defaultTitle();
+        String body = saved != null && saved.getBodyTemplate() != null ? saved.getBodyTemplate() : rule.defaultBody();
+        save(
+                userIds,
+                type,
+                NotificationRuleCatalog.render(title, values),
+                NotificationRuleCatalog.render(body, values),
+                childId,
+                null,
+                false);
+    }
+
+    @Override
+    public int notifyAnnouncement(Long announcementId, Collection<Long> userIds, String title, String body) {
+        String logPrefix =
+                LOG_PREFIX + "|notifyAnnouncement|announcementId=" + announcementId + "|users=" + userIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Instant now = clock.instant();
+            Set<Long> done = new HashSet<>(notificationRepository.findUserIdsByAnnouncementId(announcementId));
+            int created = 0;
+            for (Long userId : new LinkedHashSet<>(userIds)) {
+                if (userId == null || !done.add(userId)) continue;
+                notificationRepository.save(Notification.ofAnnouncement(
+                        userId, announcementId, truncate(title, 150), truncate(body, 500), now));
+                created++;
+            }
+            log.info("{}|created={}|END", logPrefix, created);
+            return done.size();
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isAnnouncementRecipient(Long userId, Long announcementId) {
+        return notificationRepository.existsByUserIdAndAnnouncementId(userId, announcementId);
     }
 
     @Override
@@ -96,6 +146,25 @@ public class NotificationServiceImpl implements NotificationService {
             NotificationListResponse list = listOf(currentUser.userId(), limit);
             log.info("{}|END", logPrefix);
             return list;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public NotificationResponse getMyNotification(CurrentUser currentUser, Long notificationId) {
+        String logPrefix =
+                LOG_PREFIX + "|getMyNotification|userId=" + currentUser.userId() + "|notificationId=" + notificationId;
+        log.info("{}|START", logPrefix);
+        try {
+            NotificationResponse view = notificationRepository
+                    .findByIdAndUserId(notificationId, currentUser.userId())
+                    .map(NotificationServiceImpl::toView)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.NOTIFICATION_NOT_FOUND));
+            log.info("{}|END", logPrefix);
+            return view;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -212,7 +281,8 @@ public class NotificationServiceImpl implements NotificationService {
                 n.getChildId(),
                 n.getCreatedAt(),
                 n.getReadAt(),
-                n.getLink());
+                n.getLink(),
+                n.getAnnouncementId());
     }
 
     private static String truncate(String text, int max) {

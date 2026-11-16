@@ -37,6 +37,7 @@ class EvaluationLockOrderTest {
                 mock(DailyObservationRepository.class),
                 mock(BehaviourTicketRepository.class),
                 mock(YearEndSheetService.class),
+                mock(EvaluationNotifier.class),
                 mock(com.carenest.service.observation.EvaluationDeadlineService.class));
         var user = new CurrentUser(1L, "demo", "demo", "Demo", null, Set.of(CareNestRole.TEACHER));
         when(classes.findYearClassrooms(null)).thenReturn(List.of(cls(20L, "A"), cls(10L, "Z")));

@@ -42,6 +42,18 @@ public class NotificationController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get notifications success", list);
     }
 
+    @GetMapping("/notifications/{notificationId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ResponseJson<NotificationResponse>> getMyNotification(
+            @PathVariable Long notificationId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getMyNotification|userId=" + currentUser.userId() + "|notificationId=" + notificationId;
+        log.info("{}|START", logPrefix);
+        NotificationResponse notification = notificationService.getMyNotification(currentUser, notificationId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get notification success", notification);
+    }
+
     @PostMapping("/notifications/{notificationId}/read")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ResponseJson<NotificationResponse>> markRead(
