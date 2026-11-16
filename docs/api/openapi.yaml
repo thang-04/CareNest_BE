@@ -17088,6 +17088,8 @@ components:
           - MEAL_COUNT_CONFIRMED
           - REWARD_LIST_UPDATED
           - SCHOOL_YEAR_ACTIVATED
+        typeLabel:
+          type: string
     NotificationRuleRequest:
       type: object
       properties:

@@ -15,4 +15,5 @@ public record NotificationResponse(
         // Web mở thẳng hồ sơ kế hoạch giáo dục (spec 003)
         String link,
         // Thông báo của trường: mở /me/announcements/{id} xem nội dung đầy đủ, tệp (spec 019)
-        Long announcementId) {}
+        Long announcementId,
+        String typeLabel) {}

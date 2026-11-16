@@ -19,6 +19,8 @@ PAR-05 (BGH gửi; push + trong App; không theo dõi đã đọc), PAR-06 (mộ
 - Domain gọi `NotificationService` (interface) để tạo thông báo; notification không gọi ngược domain.
 
 ## API & bảng
+
+- Nhãn loại (Tiền yêu cầu 17/11/2026): `NotificationResponse.typeLabel` là tên nhóm tiếng Việt tính từ `NotificationType.typeLabel()`, có trong danh sách/chi tiết/đánh dấu đã đọc. Giữ `type` để client điều hướng; không lưu nhãn vào DB hoặc đổi payload push. Web hiển thị nhãn ở danh sách, chuông và chi tiết; App đang đọc JSON theo key nên trường bổ sung không buộc đổi App. OpenAPI đã bổ sung field, snapshot test đạt.
 Plan `docs/plans/completed/2026-10-31-child-pickup.md`.
 - Bảng (V66): `notifications` (theo người nhận, `read_at` chỉ cho badge của chính người đó), `device_tokens` (`docs/database/DATA_DICTIONARY.md`).
 - `NotificationService.notifyUsers(...)` — module khác gọi trong giao dịch của mình; dòng lưu ở `push_state = PENDING` (outbox, V139). Không còn event/listener after-commit.

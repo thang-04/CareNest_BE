@@ -2,6 +2,7 @@ package com.carenest.service.notification.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -12,6 +13,8 @@ import com.carenest.entity.notification.NotificationRule;
 import com.carenest.repository.notification.DeviceTokenRepository;
 import com.carenest.repository.notification.NotificationRepository;
 import com.carenest.repository.notification.NotificationRuleRepository;
+import com.carenest.security.CurrentUser;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.PushState;
 import java.time.Clock;
@@ -20,6 +23,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -78,5 +82,24 @@ class NotificationServiceImplTest {
         ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
         verify(notifications).save(saved.capture());
         assertThat(saved.getValue().getBody()).contains("16/11 – 20/11");
+    }
+
+    @Test
+    void readApisIncludeTypeLabelWithoutChangingReadStateOrType() {
+        CurrentUser user = new CurrentUser(5L, "kc-5", "parent", "Test", null, Set.of(CareNestRole.PARENT), Set.of());
+        Notification n = Notification.of(5L, NotificationType.SCHOOL_ANNOUNCEMENT, "Tiêu đề", "Nội dung", null, NOW);
+        given(notifications.findByUserIdOrderByCreatedAtDescIdDesc(eq(5L), any()))
+                .willReturn(List.of(n));
+        given(notifications.countByUserIdAndReadAtIsNull(5L)).willReturn(1L);
+        given(notifications.findByIdAndUserId(11L, 5L)).willReturn(Optional.of(n));
+
+        var feed = service.listMyNotifications(user, 50);
+        assertThat(feed.items().getFirst().typeLabel()).isEqualTo("Thông báo nhà trường");
+        assertThat(feed.unreadCount()).isEqualTo(1);
+        assertThat(service.getMyNotification(user, 11L).readAt()).isNull();
+        var read = service.markRead(user, 11L);
+        assertThat(read.typeLabel()).isEqualTo("Thông báo nhà trường");
+        assertThat(read.type()).isEqualTo(NotificationType.SCHOOL_ANNOUNCEMENT);
+        assertThat(read.readAt()).isEqualTo(NOW);
     }
 }
