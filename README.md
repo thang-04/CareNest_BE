@@ -171,7 +171,7 @@ Workflow [`deploy.yml`](.github/workflows/deploy.yml) chỉ chạy trên `main`,
 - PR vào `main`: verify API, build và test extension Keycloak.
 - Push vào `main`: thêm bước đẩy image lên Docker Hub, đồng bộ lên VPS, `docker compose up`, reload Caddy, kiểm tra HTTPS.
 
-Trên VPS mọi service chỉ nghe localhost; Caddy phục vụ `auth.carenest.edu.vn` (Keycloak) và chuyển `/api/*` của `web.carenest.edu.vn` vào API. Cài đặt, cổng, rollback: [DEPLOYMENT](docs/system/DEPLOYMENT.md).
+Trên VPS mọi service chỉ nghe localhost; Caddy phục vụ `auth.carenest.edu.vn` (Keycloak) và chuyển `/api/*` của `thuonghong.carenest.edu.vn` vào API. Cài đặt, cổng, rollback: [DEPLOYMENT](docs/system/DEPLOYMENT.md).
 
 ## Cấu trúc repo
 
