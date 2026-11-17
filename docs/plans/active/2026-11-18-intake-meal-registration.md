@@ -233,8 +233,8 @@ Hiện trạng code:
 | AC-3 | CHD-13 | `EnrollmentFormValidatorTest#missingMealFlagMeansRegistered` (unit) | 1 | Pass |
 | AC-4 | CHD-13, HLT-06 | `ChildRecordServiceImplTest#saveDeclarationWithoutMealsKeepsAllergiesAndDiet`, `ChildRecordIntegrationTest#unregisterKeepsAllergiesAndReregisterShowsThem` | 1 | Pass |
 | AC-5 | CHD-13 | `ChildEnrollmentImportMealColumnTest` (5 test Task 4) | 1 | Pass |
-| AC-6 | ATT-02a, CHD-13 | `AttendanceIntegrationTest#childWithoutMealsNeverGetsMeals` | 2 | |
-| AC-7 | NUT-07, CHD-13 | `FreshGoodsIntegrationTest#previewCountsOnlyMealRegisteredChildren`, `MenuStatisticsIntegrationTest#enrolledHeadcountSkipsChildrenWithoutMeals` | 2 | |
+| AC-6 | ATT-02a, CHD-13 | `AttendanceIntegrationTest#childWithoutMealsNeverGetsMeals` | 2 | Pass |
+| AC-7 | NUT-07, CHD-13 | `FreshGoodsIntegrationTest#previewCountsOnlyMealRegisteredChildren`, `MenuStatisticsIntegrationTest#enrolledHeadcountSkipsChildrenWithoutMeals` | 2 | Pass |
 
 ## Rủi ro & rollback
 
@@ -264,3 +264,10 @@ Hiện trạng code:
 - Verify: `mvnw.cmd -B clean spotless:check verify` → `Tests run: 1983, Failures: 0, Errors: 0, Skipped: 0` · `Spotless.Java is keeping 168 files clean` · `BUILD SUCCESS` (baseline dev: 1972 test)
 - Khác plan: test nhập Excel đặt ở `ChildEnrollmentImportMealColumnTest` vì `ChildEnrollmentImportServiceImplTest`, `EnrollmentImportAccountServiceImplTest`, `ChildEnrollmentServiceImplTest` chỉ có ở nhánh G94-329, chưa có trên dev (tránh xung đột add/add); lỗi ô "Báo ăn" ở BE chỉ có câu `Báo ăn ghi Có hoặc Không` vì lỗi xem trước của BE là chuỗi, không có khóa (khóa `declaration.mealRegistered` chỉ ở BE giả Web); thêm commit `616e7c2b` format Spotless cho code Task 2–3.
 - Tiếp: Phase 2 (Task 5, 6) sau khi user review.
+
+### 2026-11-18 — Phase 2 (chờ review)
+- Commit: `3201090c`, `03b20fad` (Task 5) · `b517ac5f`, `6c9304e3` (Task 6)
+- Verify: `mvnw.cmd -B clean spotless:check verify` → `Tests run: 1986, Failures: 0, Errors: 0, Skipped: 0` · `Spotless.Java is keeping 177 files clean` · `BUILD SUCCESS`
+- `grep -rn countActiveChildren src/main`: chỉ còn 4 chỗ sĩ số lớp (`AgeGroupServiceImpl:151`, `CampusServiceImpl:119`, `ClassManagementServiceImpl:509`, `TeacherAssignmentServiceImpl:486`); dự trù (`MealDemandCalculator:99`) và thống kê thực đơn (`MealPlanServiceImpl:361`) gọi `countMealRegisteredChildren`.
+- Khác plan: mỗi task tách 2 commit nhỏ theo yêu cầu user (Task 5: bảng điểm danh trả cờ; bỏ suất của trẻ không báo ăn. Task 6: dự trù; thống kê thực đơn), nên tên commit khác Step 5. `FreshGoodsIntegrationTest#previewCountsOnlyMealRegisteredChildren` dùng lớp 2 trẻ (2 → 1) thay cho 3 → 2; vẫn chứng minh AC-7.
+- Tiếp: review toàn nhánh BE, sau đó plan Web.
