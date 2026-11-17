@@ -119,6 +119,9 @@ class EvaluationDeadlineIntegrationTest {
     private ObservationDayRules rules;
 
     @Autowired
+    private com.carenest.service.observation.SemesterAssessmentService semesterAssessments;
+
+    @Autowired
     private jakarta.persistence.EntityManager entityManager;
 
     @Autowired
@@ -219,6 +222,22 @@ class EvaluationDeadlineIntegrationTest {
         EvaluationPeriod y = period(EvaluationLockKind.YEAR, "Y");
         assertThat(y.openFrom()).isEqualTo(LocalDate.of(2027, 5, 28));
         assertThat(y.deadline()).isEqualTo(LocalDate.of(2027, 6, 4));
+    }
+
+    @Test
+    @DisplayName("Cần chốt 18/11/2026: màn đánh giá học kỳ theo lớp quá hạn thì báo đỏ khi lưu, mở lại thì lưu được")
+    void semesterBoardLocksAfterDeadline() {
+        var req = new com.carenest.dto.observation.SemesterAssessmentDtos.Request(classA, 1, "Lưu ý");
+        semesterAssessments.save(teacherA, req);
+
+        CLOCK.set(at(LocalDate.of(2026, 11, 2), 8));
+        assertThatThrownBy(() -> semesterAssessments.save(teacherA, req))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Đánh giá học kỳ I đã khóa từ ngày 31/10/2026. Liên hệ PHT hoặc Hiệu trưởng để mở lại.");
+        expectCode(() -> semesterAssessments.confirm(teacherA, req), ApiCode.EVALUATION_LOCKED);
+
+        service.unlock(vpA, request(EvaluationLockKind.SEMESTER, "1", at(LocalDate.of(2026, 11, 3), 17)));
+        assertThat(semesterAssessments.save(teacherA, req).status()).isEqualTo("DRAFT");
     }
 
     @Test
