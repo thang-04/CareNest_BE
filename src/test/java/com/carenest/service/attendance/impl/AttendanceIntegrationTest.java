@@ -402,6 +402,15 @@ class AttendanceIntegrationTest {
         long noMeal = insertId(
                 "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, meal_registered) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Dũng', '2023-04-01', 'MALE', 'ACTIVE', CURRENT_DATE, FALSE) RETURNING id");
         enroll(noMeal, classA);
+        // Trẻ không báo ăn nhưng còn dị ứng đã lưu (CHD-13): không được tính suất thay thế
+        jdbc.update(
+                "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
+                        + " self_history_state, family_history_state, tb_contact_state, declared_by)"
+                        + " VALUES (?, 'REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED',"
+                        + " 'NONE_REPORTED', ?)",
+                noMeal,
+                principal.userId());
+        jdbc.update("INSERT INTO child_allergies (child_id, name) VALUES (?, 'Tôm')", noMeal);
 
         // meals null: mặc định ăn đủ bữa nhưng trẻ không báo ăn thì không có bữa nào
         service.saveClassAttendance(teacherA, classA, request(TODAY, present(noMeal)));

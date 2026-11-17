@@ -297,6 +297,29 @@ class ChildEnrollmentControllerTest {
         verify(childRecordService).saveDeclaration(eq(actor), eq(301L), request.capture());
         assertThat(request.getValue().reason()).isEqualTo("Phụ huynh bổ sung");
         assertThat(request.getValue().declaration().allergies().state()).isEqualTo("NONE_REPORTED");
+        // CHD-13: thiếu mealRegistered ⇒ null ở DTO, EnrollmentFormValidator chuẩn hóa thành true
+        assertThat(request.getValue().declaration().mealRegistered()).isNull();
+    }
+
+    @Test
+    @DisplayName("CHD-13: declaration.mealRegistered=false trong JSON tới được service")
+    void healthDeclarationBindsMealRegisteredFalse() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);
+        given(childRecordService.saveDeclaration(eq(actor), eq(301L), any()))
+                .willReturn(new com.carenest.dto.child.HealthDeclarationResponse(
+                        301L, null, null, null, null, 2L, "Demo", null, List.of()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                                "/api/children/301/health-declaration")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"declaration\":{\"mealRegistered\":false},\"reason\":\"Trẻ ăn ở nhà\"}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<com.carenest.dto.child.HealthDeclarationRequest> request =
+                ArgumentCaptor.forClass(com.carenest.dto.child.HealthDeclarationRequest.class);
+        verify(childRecordService).saveDeclaration(eq(actor), eq(301L), request.capture());
+        assertThat(request.getValue().declaration().mealRegistered()).isFalse();
     }
 
     @Test
