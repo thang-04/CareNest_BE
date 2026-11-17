@@ -43,15 +43,15 @@ services:
       CARENEST_MOBILE_REDIRECT_URI: ${CARENEST_MOBILE_REDIRECT_URI:-carenest://oauth/callback}
       # Client carenest-dev (password grant) chỉ bật ở dev; realm import mặc định tắt
       CARENEST_DEV_CLIENT_ENABLED: ${CARENEST_DEV_CLIENT_ENABLED:-true}
-      # Email Keycloak (đặt mật khẩu, OTP) gửi thật qua Gmail, dùng chung tài khoản/App Password với email BE
-      CARENEST_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.gmail.com}
+      # Email Keycloak (đặt mật khẩu, OTP) gửi thật qua Resend SMTP, dùng chung API key/From với email BE
+      CARENEST_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.resend.com}
       CARENEST_SMTP_PORT: ${CARENEST_EMAIL_SMTP_PORT:-587}
       CARENEST_SMTP_STARTTLS: ${CARENEST_EMAIL_SMTP_STARTTLS:-true}
       CARENEST_SMTP_AUTH: "true"
       # Để trống vẫn khởi động được, chỉ là Keycloak gửi email thất bại (setupEmailSent=false)
-      CARENEST_SMTP_USER: ${CARENEST_EMAIL_SMTP_USERNAME:-}
+      CARENEST_SMTP_USER: ${CARENEST_EMAIL_SMTP_USERNAME:-resend}
       CARENEST_SMTP_PASSWORD: ${CARENEST_EMAIL_SMTP_PASSWORD:-}
-      CARENEST_SMTP_FROM: ${CARENEST_EMAIL_FROM:-${CARENEST_EMAIL_SMTP_USERNAME}}
+      CARENEST_SMTP_FROM: ${CARENEST_EMAIL_FROM:-}
     ports:
       - "${KEYCLOAK_PORT:-8180}:8080"
     volumes:
@@ -91,7 +91,7 @@ services:
       # Cấp/khóa tài khoản qua Keycloak Admin API (service account carenest-backend)
       KEYCLOAK_BASE_URL: http://keycloak:8080
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
-      # Keycloak đã có SMTP Gmail nên bật gửi email đặt mật khẩu
+      # Keycloak đã có SMTP Resend nên bật gửi email đặt mật khẩu
       KEYCLOAK_ACTIONS_EMAIL_ENABLED: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:-true}
       # Trợ lý AI (AI-09); khóa trống ⇒ AI tắt (AI-03)
       CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
@@ -101,13 +101,13 @@ services:
       CARENEST_SMS_PROVIDER: ${CARENEST_SMS_PROVIDER:-fake}
       TEXTBEE_API_KEY: ${TEXTBEE_API_KEY:-}
       TEXTBEE_DEVICE_ID: ${TEXTBEE_DEVICE_ID:-}
-      # Email từ BE: mặc định log (không gửi); smtp = Gmail (App Password), thiếu biến thì API dừng lúc khởi động
+      # Email từ BE: mặc định log (không gửi); smtp = Resend SMTP, thiếu biến thì API dừng lúc khởi động
       CARENEST_EMAIL_PROVIDER: ${CARENEST_EMAIL_PROVIDER:-log}
       CARENEST_EMAIL_FROM: ${CARENEST_EMAIL_FROM:-}
       CARENEST_EMAIL_FROM_NAME: ${CARENEST_EMAIL_FROM_NAME:-CareNest}
-      CARENEST_EMAIL_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.gmail.com}
+      CARENEST_EMAIL_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.resend.com}
       CARENEST_EMAIL_SMTP_PORT: ${CARENEST_EMAIL_SMTP_PORT:-587}
-      CARENEST_EMAIL_SMTP_USERNAME: ${CARENEST_EMAIL_SMTP_USERNAME:-}
+      CARENEST_EMAIL_SMTP_USERNAME: ${CARENEST_EMAIL_SMTP_USERNAME:-resend}
       CARENEST_EMAIL_SMTP_PASSWORD: ${CARENEST_EMAIL_SMTP_PASSWORD:-}
       CARENEST_EMAIL_SMTP_STARTTLS: ${CARENEST_EMAIL_SMTP_STARTTLS:-true}
     volumes:
