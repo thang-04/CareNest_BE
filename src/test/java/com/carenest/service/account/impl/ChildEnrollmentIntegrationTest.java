@@ -292,6 +292,27 @@ class ChildEnrollmentIntegrationTest {
         return new org.springframework.mock.web.MockMultipartFile(part, "fake.png", "image/png", bytes.toByteArray());
     }
 
+    @Autowired
+    private com.carenest.service.child.ChildListService childListService;
+
+    @Test
+    @DisplayName("CHD-13: trẻ tiếp nhận không gửi cờ thì báo ăn")
+    void enrolledChildIsMealRegisteredByDefault() {
+        ChildEnrollmentResponse response = enrollmentService.enroll(
+                principal,
+                request("Nguyễn Minh An", "2023-03-01", null, campusA, newGuardian("0912345678", "001234567890")));
+
+        assertThat(response.child().mealRegistered()).isTrue();
+        var items = childListService
+                .searchChildren(
+                        principal, new com.carenest.dto.child.ChildListFilter(null, campusA, null, null, null, 0, 100))
+                .items();
+        assertThat(items)
+                .filteredOn(i -> i.id().equals(response.child().id()))
+                .singleElement()
+                .satisfies(i -> assertThat(i.mealRegistered()).isTrue());
+    }
+
     @Test
     @DisplayName(
             "CHD-02, AUTH-20: HT tiếp nhận không chọn lớp ⇒ Chờ xếp lớp ở điểm trường tiếp nhận, tạo tài khoản, SMS")

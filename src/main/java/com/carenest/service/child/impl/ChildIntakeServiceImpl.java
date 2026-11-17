@@ -410,6 +410,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     child.getReadmittedOn(),
                     allergies,
                     declarationRepository.existsById(childId),
+                    child.isMealRegistered(),
                     profile,
                     guardiansOf(childId),
                     historyOf(childId),

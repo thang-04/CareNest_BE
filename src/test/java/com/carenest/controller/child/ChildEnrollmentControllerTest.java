@@ -1093,6 +1093,7 @@ class ChildEnrollmentControllerTest {
                 null,
                 List.of(),
                 true,
+                true,
                 null,
                 List.of(),
                 List.of(),

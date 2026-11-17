@@ -278,6 +278,7 @@ class ChildPhotoServiceImplTest {
                 null,
                 List.of(),
                 false,
+                true,
                 null,
                 List.of(guardian),
                 List.of(),

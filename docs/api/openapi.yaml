@@ -10682,6 +10682,8 @@ components:
           format: date
         leftReason:
           type: string
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         profile:
@@ -10853,6 +10855,8 @@ components:
         leftAt:
           type: string
           format: date
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         readmittedAt:
@@ -11098,6 +11102,8 @@ components:
           format: date
         leftReason:
           type: string
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         profile:

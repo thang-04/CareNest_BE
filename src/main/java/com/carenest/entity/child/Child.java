@@ -72,8 +72,16 @@ public class Child {
     @Column(name = "photo_size_bytes")
     private Integer photoSizeBytes;
 
+    // CHD-13: trẻ ăn ở trường, mặc định có
+    @Column(name = "meal_registered", nullable = false)
+    private boolean mealRegistered = true;
+
     @Column(name = "photo_updated_at")
     private Instant photoUpdatedAt;
+
+    public void changeMealRegistration(boolean mealRegistered) {
+        this.mealRegistered = mealRegistered;
+    }
 
     public void assignEnrollmentPhoto(String key, String contentType, int size, Instant at) {
         this.photoKey = key;
