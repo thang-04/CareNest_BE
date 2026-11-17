@@ -27,6 +27,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
+import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -739,9 +740,16 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         return today.isAfter(prep) ? today : prep;
     }
 
-    // HT, PHT thấy mọi năm (cấu hình, xếp lớp); người khác không thấy năm sắp diễn ra chưa tới ngày mở chuẩn bị
-    private static boolean isSchoolLeader(CurrentUser currentUser) {
-        return currentUser.hasRole(CareNestRole.PRINCIPAL) || currentUser.hasRole(CareNestRole.VICE_PRINCIPAL);
+    // HT, PHT thấy mọi năm (cấu hình, xếp lớp); người khác không thấy năm sắp diễn ra chưa tới ngày mở chuẩn bị.
+    // PHT chỉ khi còn phân công điểm trường (Cần chốt 17/11/2026, khớp danh sách lớp — AUTH-20)
+    private boolean isSchoolLeader(CurrentUser currentUser) {
+        if (currentUser.hasRole(CareNestRole.PRINCIPAL)) {
+            return true;
+        }
+        return currentUser.hasRole(CareNestRole.VICE_PRINCIPAL)
+                && !staffAssignmentService
+                        .findActiveCampusIds(currentUser.userId(), StaffRole.VICE_PRINCIPAL, LocalDate.now(clock))
+                        .isEmpty();
     }
 
     // CFG-YR-05: năm sắp diễn ra chỉ hiện cho GV / Tổ trưởng được phân công năm đó, từ ngày mở chuẩn bị

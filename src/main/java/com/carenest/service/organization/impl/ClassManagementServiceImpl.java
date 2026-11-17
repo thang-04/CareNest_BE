@@ -26,6 +26,7 @@ import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CampusStatus;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,7 +80,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                             .orElseThrow(() -> GlobalException.of(ApiCode.NO_ACTIVE_SCHOOL_YEAR))
                     : findYear(schoolYearId);
             List<Classroom> classes = classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId());
-            classes = filterVisible(currentUser, classes, year.isPreparing(schoolConfigAccess.today()));
+            classes = filterVisible(currentUser, classes, year);
             if (campusId != null) {
                 classes = classes.stream()
                         .filter(c -> c.getCampusId().equals(campusId))
@@ -369,15 +371,36 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         return name;
     }
 
-    private List<Classroom> filterVisible(CurrentUser currentUser, List<Classroom> classes, boolean upcoming) {
+    private List<Classroom> filterVisible(CurrentUser currentUser, List<Classroom> classes, SchoolYear year) {
         if (schoolConfigAccess.canViewSchool(currentUser)) {
             return classes;
         }
-        Set<Long> classIds = schoolConfigAccess.teacherClassroomIds(currentUser, upcoming);
+        Set<Long> classIds = teacherClassIds(currentUser, classes, year);
         if (classIds.isEmpty()) {
             throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
         }
         return classes.stream().filter(c -> classIds.contains(c.getId())).toList();
+    }
+
+    /**
+     * Lớp GV xem được ở Cấu hình trường. CFG-YR-05 (Cần chốt 17/11/2026): năm đã qua ngày kết thúc mà HT chưa đóng ⇒ GV
+     * dạy chính năm đó vẫn xem lớp mình đã dạy (chỉ xem) tới khi HT đóng năm.
+     */
+    private Set<Long> teacherClassIds(CurrentUser currentUser, List<Classroom> classes, SchoolYear year) {
+        LocalDate today = schoolConfigAccess.today();
+        Set<Long> ids = new HashSet<>(schoolConfigAccess.teacherClassroomIds(currentUser, year.isPreparing(today)));
+        if (currentUser.hasRole(CareNestRole.TEACHER)
+                && year.getStatus() != SchoolYearStatus.CLOSED
+                && today.isAfter(year.getEndDate())
+                && !classes.isEmpty()) {
+            staffAssignmentRepository
+                    .findCurrentTeachers(classes.stream().map(Classroom::getId).toList(), year.getStartDate())
+                    .stream()
+                    .filter(a -> a.getUserId().equals(currentUser.userId()) && !a.isSubstitute())
+                    .filter(a -> a.getValidTo() == null || !a.getValidTo().isBefore(a.getValidFrom()))
+                    .forEach(a -> ids.add(a.getClassroomId()));
+        }
+        return ids;
     }
 
     private List<ClassResponse> toResponses(List<Classroom> classes) {

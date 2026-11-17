@@ -193,7 +193,7 @@ class YearTransitionIntegrationTest {
         jdbc.update("DELETE FROM staff_assignments WHERE classroom_id = ? AND is_homeroom", newClass3);
         YearReadinessResponse noHomeroom = service.getReadiness(principal, newYear);
         assertThat(teacherStep(noHomeroom).ok()).isFalse();
-        assertThat(teacherStep(noHomeroom).detail()).isEqualTo("1 lớp chưa có chủ nhiệm");
+        assertThat(teacherStep(noHomeroom).detail()).isEqualTo("1 lớp chưa có GV phụ trách chính");
         assertThat(noHomeroom.blockers()).anyMatch(b -> b.startsWith("Giáo viên lớp"));
 
         // Người còn lại làm chủ nhiệm ⇒ chỉ cảnh báo thiếu 1 GV
@@ -203,7 +203,7 @@ class YearTransitionIntegrationTest {
         YearReadinessResponse.Step warn = teacherStep(service.getReadiness(principal, newYear));
         assertThat(warn.ok()).isTrue();
         assertThat(warn.warning()).isTrue();
-        assertThat(warn.detail()).isEqualTo("Tất cả lớp có GV và chủ nhiệm · 1 lớp thiếu 1 GV");
+        assertThat(warn.detail()).isEqualTo("Tất cả lớp có GV và GV phụ trách chính · 1 lớp thiếu 1 GV");
 
         // Lớp không còn giáo viên ⇒ chặn
         jdbc.update("DELETE FROM staff_assignments WHERE classroom_id = ?", newClass3);
@@ -280,8 +280,10 @@ class YearTransitionIntegrationTest {
                 .contains(newClass4, newClass3);
         CurrentUser vpWithoutAssignment =
                 new CurrentUser(user("vp-old"), "kc-vp-old", "vp-old", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
-        assertThat(service.getPrepClasses(vpWithoutAssignment, newYear).classes())
-                .isEmpty();
+        // PHT hết phân công không thấy năm sắp diễn ra (Cần chốt 17/11/2026, khớp danh sách lớp)
+        assertThatThrownBy(() -> service.getPrepClasses(vpWithoutAssignment, newYear))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
 
         // Chưa tới ngày mở chuẩn bị: GV không thấy năm
         jdbc.update("UPDATE school_years SET prep_date = '2027-09-01' WHERE id = ?", newYear);
