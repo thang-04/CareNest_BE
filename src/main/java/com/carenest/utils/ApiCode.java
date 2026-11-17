@@ -98,6 +98,10 @@ public enum ApiCode {
     PERMISSION_DUPLICATED(1122, HttpStatus.BAD_REQUEST, "Quyền {0} bị chọn trùng"),
     PERMISSION_NOT_CONFIGURABLE_FOR_ACCOUNT(
             1123, HttpStatus.BAD_REQUEST, "Quyền {0} không cấu hình được cho tài khoản này"),
+    PERMISSION_SCOPE_NOT_ALLOWED(
+            1125,
+            HttpStatus.BAD_REQUEST,
+            "Việc được giao có nơi áp dụng không phù hợp. Vui lòng tải lại trang rồi giao lại việc"),
     PHONE_NUMBER_INVALID(
             1124, HttpStatus.BAD_REQUEST, "Số điện thoại di động gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09"),
     NOT_PARENT_ACCOUNT(1126, HttpStatus.BAD_REQUEST, "Tài khoản này không phải tài khoản phụ huynh"),
