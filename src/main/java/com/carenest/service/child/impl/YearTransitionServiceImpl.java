@@ -530,12 +530,12 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         } else if (!teachersOk) {
             teachersDetail = Stream.of(
                             noTeacher > 0 ? noTeacher + " lớp chưa có giáo viên" : null,
-                            noHomeroom > 0 ? noHomeroom + " lớp chưa có chủ nhiệm" : null)
+                            noHomeroom > 0 ? noHomeroom + " lớp chưa có GV phụ trách chính" : null)
                     .filter(Objects::nonNull)
                     .collect(Collectors.joining(" · "));
         } else {
-            teachersDetail =
-                    "Tất cả lớp có GV và chủ nhiệm" + (shortOne > 0 ? " · " + shortOne + " lớp thiếu 1 GV" : "");
+            teachersDetail = "Tất cả lớp có GV và GV phụ trách chính"
+                    + (shortOne > 0 ? " · " + shortOne + " lớp thiếu 1 GV" : "");
         }
         steps.add(new YearReadinessResponse.Step(
                 "teachers", STEP_LABELS.get("teachers"), true, teachersOk, teachersOk && shortOne > 0, teachersDetail));

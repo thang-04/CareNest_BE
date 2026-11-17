@@ -23,6 +23,7 @@ import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.RoomType;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -74,6 +75,9 @@ class ClassStructureIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private CurrentUser principal;
     private CurrentUser vicePrincipal;
@@ -402,6 +406,35 @@ class ClassStructureIntegrationTest {
         assertThat(classService.getSchoolStructure(teacher, planned, null).classes())
                 .extracting(ClassResponse::id)
                 .containsExactly(cls);
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05: GV năm cũ vẫn xem lớp mình đã dạy tới khi HT đóng năm (Cần chốt 17/11/2026)")
+    void oldYearTeacherSeesOwnClassUntilYearClosed() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-old', 'old.it', 'GV cũ') RETURNING id");
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-old", "old.it", "GV", null, Set.of(CareNestRole.TEACHER), Set.of());
+        // Hôm nay 22/10/2026: năm 2025-2026 đã qua ngày kết thúc nhưng HT chưa đóng (năm 2026-2027 chưa kích hoạt)
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
+        long oldYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'ACTIVE') RETURNING id");
+        long cls = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
+                + campusA + ", " + oldYear + ", 'Lớp năm cũ', " + ageGroup3 + ", 25) RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to)"
+                        + " VALUES (?, 'TEACHER', ?, '2025-09-01', '2026-05-31')",
+                teacherId,
+                cls);
+
+        assertThat(classService.getSchoolStructure(teacher, oldYear, null).classes())
+                .extracting(ClassResponse::id)
+                .containsExactly(cls);
+
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", oldYear);
+        entityManager.clear();
+        assertThatThrownBy(() -> classService.getSchoolStructure(teacher, oldYear, null))
+                .isInstanceOf(GlobalException.class);
     }
 
     private RoomResponse createRoom(long campusId, String code, int capacity) {
