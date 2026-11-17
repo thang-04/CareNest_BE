@@ -39,6 +39,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private final ObjectMapper mapper;
     private final ThemeEvaluationService themeEvaluationService;
     private final EduPlanCalendarQueryService calendar;
+    private final EvaluationNotifier evaluationNotifier;
 
     @Override
     @Transactional(readOnly = true)
@@ -124,6 +125,8 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
             entity.confirm(mapper.writeValueAsString(snapshot), user.userId(), rules.now());
         }
         repository.saveAndFlush(entity);
+        // Cần chốt 17/11/2026: xác nhận đánh giá học kỳ ⇒ báo phụ huynh từng trẻ (mẫu "Đánh giá mới của bé")
+        if (confirm) board.rows().forEach(c -> evaluationNotifier.childEvaluationConfirmed(c.childId()));
         return build(user, cls.id(), req.semester(), entity);
     }
 

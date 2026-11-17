@@ -71,6 +71,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
     private final AttendanceService attendanceService;
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
+    private final TicketParentNotifier ticketParentNotifier;
 
     /** Số ngày có mặt và số cờ (chỉ ngày có mặt) của từng trẻ trong một tuần. */
     private record WeekStats(Map<Long, Integer> present, Map<Long, Integer> flags) {}
@@ -180,6 +181,11 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                 // Hai cô cùng phát một lúc: phiếu đã có
                 throw GlobalException.of(ApiCode.TICKET_ALREADY_ISSUED, "Trẻ");
             }
+            ticketParentNotifier.ticketsIssued(
+                    childIds.stream().collect(Collectors.toMap(id -> id, id -> byId.get(id).fullName())),
+                    request.type(),
+                    period.start(),
+                    period.end());
             log.info("{}|issued={}|END", logPrefix, saved.size());
             return saved.stream().map(BehaviourTicketServiceImpl::toIssued).toList();
         } catch (RuntimeException ex) {

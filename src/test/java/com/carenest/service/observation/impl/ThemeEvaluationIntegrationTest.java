@@ -84,6 +84,9 @@ class ThemeEvaluationIntegrationTest {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.carenest.service.observation.EvaluationDeadlineService evaluationDeadlineService;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private EvaluationNotifier evaluationNotifier;
+
     @Autowired
     private ThemeEvaluationService service;
 
@@ -358,6 +361,9 @@ class ThemeEvaluationIntegrationTest {
         var confirmed = semesters.confirm(teacher, req);
         assertThat(confirmed.status()).isEqualTo("CONFIRMED");
         assertThat(confirmed.canEdit()).isFalse();
+        // Xác nhận học kỳ báo phụ huynh từng trẻ (lưu nháp ở trên không báo)
+        confirmed.rows().forEach(c -> org.mockito.Mockito.verify(evaluationNotifier, org.mockito.Mockito.times(1))
+                .childEvaluationConfirmed(c.childId()));
         result(kid2, classA, "2026-09-22", "extra-fail", "", String.valueOf(oldGoal1));
         result(kid2, classA, "2026-09-23", "extra-fail-2", "", String.valueOf(oldGoal1));
         assertThat(semesters.get(principal, classA, 1).rows()).isEqualTo(confirmed.rows());
@@ -546,6 +552,14 @@ class ThemeEvaluationIntegrationTest {
         // Lần cân đo gần nhất tới hôm nay (21/10): lần 30/10 chưa tới nên chưa lấy
         assertThat(sheet.measurement().weightKg()).isEqualByComparingTo("15.2");
         assertThat(sheet.teachers()).containsExactly("teacher-t");
+        // Mẫu phiếu cuối năm (Cần chốt 17/11/2026): chỉ GV phụ trách chính ký, GV phụ trách lớp thứ hai không in
+        CurrentUser coTeacher = user("year-co-teacher", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-09-01', FALSE)",
+                coTeacher.userId(),
+                classA);
+        assertThat(sheetService.get(teacher, yearEval).teachers()).containsExactly("teacher-t");
 
         // Phiếu năm lấy kết quả cuối chủ đề, gồm cả ô giáo viên sửa tay khi bảng chủ đề chưa xác nhận
         themeService()
