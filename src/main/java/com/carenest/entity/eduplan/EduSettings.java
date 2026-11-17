@@ -58,6 +58,10 @@ public class EduSettings {
     @Column(name = "week_rows", nullable = false)
     private String weekRows;
 
+    /** Số ngày lịch được gửi lại sau lần trả lại trễ đầu tiên (Tiền 18/11/2026). */
+    @Column(name = "late_return_grace_days", nullable = false)
+    private short lateReturnGraceDays = 2;
+
     @Column(name = "updated_by")
     private Long updatedBy;
 
@@ -69,6 +73,10 @@ public class EduSettings {
         this.weekRows = weekRows;
         this.updatedBy = userId;
         this.updatedAt = now;
+    }
+
+    public void updateLateReturnGraceDays(short days) {
+        this.lateReturnGraceDays = days;
     }
 
     public void updateWorkflowPolicy(String workflowPolicy, Long userId, Instant now) {

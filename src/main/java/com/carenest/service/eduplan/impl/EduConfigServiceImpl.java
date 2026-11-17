@@ -123,6 +123,8 @@ public class EduConfigServiceImpl implements EduConfigService {
                     objectMapper.writeValueAsString(weekRows),
                     currentUser.userId(),
                     clock.instant());
+            if (request.lateReturnGraceDays() != null)
+                settings.updateLateReturnGraceDays(request.lateReturnGraceDays().shortValue());
 
             EduConfigResponse config = toConfig(currentUser);
             log.info("{}|END", logPrefix);
@@ -170,7 +172,8 @@ public class EduConfigServiceImpl implements EduConfigService {
                                 .filter(age -> accessPolicy.canAuthorYearPlan(
                                         currentUser, workflowService.loadPolicy("schoolYear"), age.id()))
                                 .map(AgeGroupResponse::id)
-                                .toList());
+                                .toList(),
+                settings.getLateReturnGraceDays());
     }
 
     // EDU-21: họ tên in dưới chỗ ký; Tổ trưởng của từng nhóm tuổi theo năm học (hôm nay nếu thuộc năm đó, không thì đầu

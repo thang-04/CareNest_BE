@@ -13163,6 +13163,11 @@ components:
             type: string
             maxLength: 150
             minLength: 0
+        lateReturnGraceDays:
+          type: integer
+          format: int32
+          maximum: 30
+          minimum: 0
         signers:
           $ref: "#/components/schemas/Signers"
         weekRows:
@@ -13189,6 +13194,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EduConfigDomainResponse"
+        lateReturnGraceDays:
+          type: integer
+          format: int32
         schoolYearCreationScopes:
           type: array
           items:

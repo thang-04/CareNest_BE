@@ -14,6 +14,7 @@ import com.carenest.entity.eduplan.EduBreak;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduClassDocRelease;
 import com.carenest.entity.eduplan.EduPlan;
+import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduBreakRepository;
@@ -2078,6 +2079,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     info.deadline().extendedTo() == null
                             ? null
                             : info.deadline().extendedTo().toString());
+            // Hạn gửi lại sau lần trả lại trễ đầu tiên (Tiền 18/11/2026)
+            node.put(
+                    "graceTo",
+                    info.deadline().graceTo() == null
+                            ? null
+                            : info.deadline().graceTo().toString());
             if (info.deadline().daysLeft() != null)
                 node.put("daysLeft", info.deadline().daysLeft());
             node.put("deadlineState", info.deadline().state());
@@ -2363,6 +2370,15 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .orElse(false);
     }
 
+    /** Số ngày gửi lại sau lần trả lại trễ đầu tiên (HT cấu hình); cache cấp 1 của Hibernate giữ trong giao dịch. */
+    private int graceDays() {
+        return settingsRepository
+                .findById(EduSettings.SINGLETON_ID)
+                .map(EduSettings::getLateReturnGraceDays)
+                .map(Short::intValue)
+                .orElse(2);
+    }
+
     private RootInfo rootInfo(
             EduClassDoc root,
             List<EduClassDoc> docs,
@@ -2377,9 +2393,18 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 ? semesterThemes(root.getYearPlanId(), root.getSemesterNo(), docs, year)
                 : List.of(root.getThemeId());
         LocalDate extended = null;
-        for (JsonNode e : readArray(root.getHistory()))
-            if (ACTION_EXTEND.equals(e.path("action").asString("")))
+        List<EduDeadline.Event> events = new ArrayList<>();
+        for (JsonNode e : readArray(root.getHistory())) {
+            String action = e.path("action").asString("");
+            if (ACTION_EXTEND.equals(action)) {
                 extended = LocalDate.parse(e.path("deadline").asString(""));
+                events.add(new EduDeadline.Event(null, false, extended));
+            } else if (ACTION_REJECT.equals(action)
+                    && !e.path("at").asString("").isBlank())
+                events.add(new EduDeadline.Event(
+                        LocalDate.ofInstant(Instant.parse(e.path("at").asString()), SCHOOL_ZONE), true, null));
+        }
+        LocalDate grace = EduDeadline.graceTo(deadline, events, graceDays());
         LocalDate firstRelease = releases.isEmpty()
                 ? null
                 : LocalDate.ofInstant(releases.getFirst().getReleasedAt(), SCHOOL_ZONE);
@@ -2387,6 +2412,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 EduDeadline.of(
                         deadline,
                         extended,
+                        grace,
                         today,
                         root.getStatus() == EduClassDocStatus.APPROVED,
                         firstRelease,

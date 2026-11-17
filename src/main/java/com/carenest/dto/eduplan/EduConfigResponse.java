@@ -19,7 +19,33 @@ public record EduConfigResponse(
         EduWorkflowPolicyResponse workflow,
         boolean canConfigure,
         List<Long> yearCreationScopes,
-        List<Long> schoolYearCreationScopes) {
+        List<Long> schoolYearCreationScopes,
+        int lateReturnGraceDays) {
+    public EduConfigResponse(
+            List<Domain> domains,
+            List<SchoolYearResponse> schoolYears,
+            List<AgeGroupResponse> ageGroups,
+            Signers signers,
+            List<WeekRow> weekRows,
+            SignerNames signerNames,
+            EduWorkflowPolicyResponse workflow,
+            boolean canConfigure,
+            List<Long> yearCreationScopes,
+            List<Long> schoolYearCreationScopes) {
+        this(
+                domains,
+                schoolYears,
+                ageGroups,
+                signers,
+                weekRows,
+                signerNames,
+                workflow,
+                canConfigure,
+                yearCreationScopes,
+                schoolYearCreationScopes,
+                2);
+    }
+
     public EduConfigResponse(
             List<Domain> domains,
             List<SchoolYearResponse> schoolYears,
