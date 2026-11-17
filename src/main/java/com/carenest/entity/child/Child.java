@@ -109,7 +109,8 @@ public class Child {
             Gender gender,
             boolean placed,
             Long intakeCampusId,
-            LocalDate enrolledOn) {
+            LocalDate enrolledOn,
+            boolean mealRegistered) {
         Child child = new Child();
         child.code = code;
         child.fullName = fullName;
@@ -118,6 +119,7 @@ public class Child {
         child.status = placed ? ChildStatus.ACTIVE : ChildStatus.PENDING_PLACEMENT;
         child.intakeCampusId = placed ? null : intakeCampusId;
         child.enrolledOn = enrolledOn;
+        child.mealRegistered = mealRegistered;
         return child;
     }
 

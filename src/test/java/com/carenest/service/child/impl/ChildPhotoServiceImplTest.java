@@ -143,7 +143,7 @@ class ChildPhotoServiceImplTest {
     @DisplayName("CHD-02: ảnh gắn đúng vị trí trong cùng request và dọn tất cả object mới khi rollback")
     void attachesCorrectGuardianAndCleansRollback() throws Exception {
         Child child = Child.enroll(
-                "TEST", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 1L, LocalDate.of(2026, 11, 5));
+                "TEST", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 1L, LocalDate.of(2026, 11, 5), true);
         ChildGuardian first = guardian(10L, 1L, 0), second = guardian(11L, 1L, 1);
         when(children.findById(1L)).thenReturn(Optional.of(child));
         when(guardians.findAllByChildIdOrderByPositionAsc(1L)).thenReturn(List.of(first, second));
@@ -198,7 +198,7 @@ class ChildPhotoServiceImplTest {
     @DisplayName("CHD-02: giữ ảnh của trẻ khi mở lại hồ sơ, không thay ảnh tài khoản")
     void preservesPortraitOnReadmission() {
         Child child = Child.enroll(
-                "TEST", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 7L, LocalDate.of(2026, 11, 5));
+                "TEST", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 7L, LocalDate.of(2026, 11, 5), true);
         child.assignEnrollmentPhoto("existing", "image/png", 10, NOW);
         child.readmit(8L, LocalDate.of(2026, 11, 6));
         assertThat(child.getPhotoKey()).isEqualTo("existing");

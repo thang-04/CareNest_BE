@@ -124,7 +124,14 @@ class ChildRecordServiceImplTest {
     @BeforeEach
     void setUp() {
         child = Child.enroll(
-                "HS26001", "Bé An", LocalDate.of(2022, 3, 1), Gender.FEMALE, true, null, LocalDate.of(2026, 9, 1));
+                "HS26001",
+                "Bé An",
+                LocalDate.of(2022, 3, 1),
+                Gender.FEMALE,
+                true,
+                null,
+                LocalDate.of(2026, 9, 1),
+                true);
         ReflectionTestUtils.setField(child, "id", CHILD_ID);
         enrollment = Enrollment.start(CHILD_ID, CLASS_ID, LocalDate.of(2026, 9, 1));
         given(childRepository.findById(CHILD_ID)).willReturn(Optional.of(child));
@@ -166,8 +173,8 @@ class ChildRecordServiceImplTest {
     @Test
     @DisplayName("CHD-10: trẻ chờ xếp lớp ⇒ không cần lý do, thành Đang học, bỏ điểm trường tiếp nhận")
     void placingPendingChildNeedsNoReason() {
-        Child pending =
-                Child.enroll("HS26002", "Bé Bình", LocalDate.of(2022, 5, 1), Gender.MALE, false, CAMPUS_ID, TODAY);
+        Child pending = Child.enroll(
+                "HS26002", "Bé Bình", LocalDate.of(2022, 5, 1), Gender.MALE, false, CAMPUS_ID, TODAY, true);
         ReflectionTestUtils.setField(pending, "id", 2L);
         ClassroomInfoResponse target = classroom(11L, "Lớp Chồi 2");
         given(childRepository.findById(2L)).willReturn(Optional.of(pending));
