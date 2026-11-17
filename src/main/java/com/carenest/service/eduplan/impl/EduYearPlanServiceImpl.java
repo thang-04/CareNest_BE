@@ -213,7 +213,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                                     Pageable.unpaged())
                             .getContent()
                             .stream())
-                    .filter(plan -> isCurrentApprover(currentUser, plan))
+                    // EDU-93: người duyệt bước khác của chuỗi cũng thấy (chỉ xem, không có canApprove)
+                    .filter(plan -> isCurrentApprover(currentUser, plan) || isChainReviewer(currentUser, plan))
                     .sorted(Comparator.comparing(EduPlan::getSentAt, Comparator.nullsLast(Comparator.naturalOrder())))
                     .toList();
             List<YearPlanSummaryResponse> response =
@@ -1054,8 +1055,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     /**
-     * Người phụ trách thấy mọi trạng thái; người duyệt của bước đang chờ thấy bản Chờ duyệt; người khác trong phạm vi
-     * chỉ thấy bản đã ban hành (spec 002 FR-007).
+     * Người phụ trách thấy mọi trạng thái; người duyệt của chuỗi (đúng lượt hoặc bước khác, EDU-93) thấy bản Chờ duyệt;
+     * người khác trong phạm vi chỉ thấy bản đã ban hành (spec 002 FR-007).
      */
     private boolean canView(CurrentUser user, EduPlan plan) {
         if (isAuthor(user, plan)) return true;
@@ -1066,7 +1067,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         if (status == EduPlanStatus.APPROVED)
             return listScope(user, plan.getPlanLevel(), plan.getSchoolYearId())
                     .allows(plan.getAgeGroupId(), EduPlanStatus.APPROVED);
-        return status == EduPlanStatus.REVIEW && isCurrentApprover(user, plan);
+        return status == EduPlanStatus.REVIEW && (isCurrentApprover(user, plan) || isChainReviewer(user, plan));
     }
 
     // Người phụ trách: đủ điều kiện soạn theo cấu hình (với kế hoạch tổ là Tổ trưởng hiện hành); không xét trạng thái
@@ -1079,6 +1080,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         return plan.publicStatus() == EduPlanStatus.REVIEW
                 && !eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId()).contains(user.userId())
                 && isUserWaitingRole(user, plan);
+    }
+
+    // EDU-93: thuộc một vai trò duyệt bất kỳ của chuỗi, đúng phạm vi ⇒ xem bản Chờ duyệt; duyệt vẫn chỉ người đúng lượt
+    private boolean isChainReviewer(CurrentUser user, EduPlan plan) {
+        return plan.publicStatus() == EduPlanStatus.REVIEW
+                && eduWorkflowService.loadPolicy(plan.workflowKey()).reviewers().stream()
+                        .anyMatch(role -> isRoleMatch(user, role, plan.getSchoolYearId(), plan.getAgeGroupId()));
     }
 
     /** Danh sách: người phụ trách thấy mọi trạng thái nhóm tuổi mình; người khác chỉ bản đã ban hành. */
@@ -1872,6 +1880,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         // Lịch sử duyệt chỉ cho người phụ trách và người duyệt; người chỉ xem thấy danh sách bản ban hành (FR-019)
         boolean seesHistory = isAuthor(user, plan)
                 || isCurrentApprover(user, plan)
+                || isChainReviewer(user, plan)
                 || events.stream().anyMatch(e -> user.userId().equals(e.getActorId()));
         String lastReturnNote = events.stream()
                 .filter(e -> ACTION_RETURN.equals(e.getAction()))

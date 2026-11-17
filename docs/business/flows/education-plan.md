@@ -48,6 +48,9 @@ Chỉ HT có quyền cấu hình người soạn/duyệt theo loại hồ sơ. P
                            └── trả lại + lý do → DRAFT (UI: Trả lại) → sửa/gửi lại
   ```
 - `REVIEW` cấm sửa đối với tất cả mọi người (kể cả PHT). Muốn sửa phải Trả lại về `DRAFT` kèm lý do.
+- **Chuỗi nhiều người duyệt (EDU-93, Tiền 18/11/2026):** người đúng lượt thấy "Chờ duyệt" và có nút Duyệt/Ban hành + Trả lại;
+  người khác thấy "Đang chờ <vai trò bước hiện tại> duyệt" và chỉ xem. Người duyệt bước khác của chuỗi vẫn thấy hồ sơ ở trang Duyệt
+  (nút Xem, mở chỉ đọc). Hồ sơ chủ đề duyệt ở trang xem giáo án ngày của chủ đề; thẻ chủ đề ở trang danh sách không có nút duyệt.
 
 ## 3. Cấu hình người tạo độc quyền & Bỏ khóa 90s
 
