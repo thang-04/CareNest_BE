@@ -178,15 +178,15 @@ carenest:
       connect-timeout: 5s
       read-timeout: 10s
   email:
-    # Mặc định log (không gửi thật); smtp = gửi qua SMTP, mặc định Gmail (cần App Password, xem DEPLOYMENT.md mục Email)
+    # Mặc định log (không gửi thật); smtp = gửi qua SMTP, mặc định Resend (password = API key, xem DEPLOYMENT.md mục Email)
     provider: ${CARENEST_EMAIL_PROVIDER:log}
-    # Trống ⇒ dùng username SMTP; Gmail chỉ cho gửi từ chính tài khoản hoặc alias đã xác minh
+    # Resend bắt buộc địa chỉ thuộc domain đã xác minh; trống ⇒ dùng username SMTP (chỉ hợp SMTP có username là email)
     from: ${CARENEST_EMAIL_FROM:}
     from-name: ${CARENEST_EMAIL_FROM_NAME:CareNest}
     smtp:
-      host: ${CARENEST_EMAIL_SMTP_HOST:smtp.gmail.com}
+      host: ${CARENEST_EMAIL_SMTP_HOST:smtp.resend.com}
       port: ${CARENEST_EMAIL_SMTP_PORT:587}
-      username: ${CARENEST_EMAIL_SMTP_USERNAME:}
+      username: ${CARENEST_EMAIL_SMTP_USERNAME:resend}
       password: ${CARENEST_EMAIL_SMTP_PASSWORD:}
       starttls: ${CARENEST_EMAIL_SMTP_STARTTLS:true}
       connect-timeout: 5s

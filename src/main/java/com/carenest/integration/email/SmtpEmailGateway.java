@@ -18,9 +18,9 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
 /**
- * Gửi email qua SMTP (mặc định Gmail smtp.gmail.com:587 STARTTLS). Bật khi {@code carenest.email.provider=smtp}.
+ * Gửi email qua SMTP (mặc định Resend smtp.resend.com:587 STARTTLS). Bật khi {@code carenest.email.provider=smtp}.
  * Tự tạo {@link JavaMailSenderImpl} thay vì bean {@code spring.mail.*}: không sinh health check SMTP làm actuator DOWN
- * khi Gmail chậm, và báo thiếu cấu hình ngay lúc khởi động. Không log địa chỉ, tiêu đề, nội dung, mật khẩu.
+ * khi SMTP chậm, và báo thiếu cấu hình ngay lúc khởi động. Không log địa chỉ, tiêu đề, nội dung, mật khẩu.
  */
 @Slf4j
 @Component
@@ -65,8 +65,8 @@ public class SmtpEmailGateway implements EmailGateway {
             sender.send(mime);
         } catch (MailAuthenticationException ex) {
             log.warn("[SmtpEmailGateway]|send|type=MailAuthenticationException|FAILED");
-            // Gmail trả 535 khi dùng mật khẩu đăng nhập thay vì App Password
-            throw new EmailDeliveryException("SMTP từ chối đăng nhập: kiểm tra username và App Password");
+            // 535: sai username/password (Resend: username "resend", password = API key còn hiệu lực)
+            throw new EmailDeliveryException("SMTP từ chối đăng nhập: kiểm tra username và API key/mật khẩu");
         } catch (MailException | MessagingException | UnsupportedEncodingException ex) {
             log.warn("[SmtpEmailGateway]|send|type={}|FAILED", ex.getClass().getSimpleName());
             // Không giữ cause: thông báo lỗi SMTP có thể chứa địa chỉ người nhận

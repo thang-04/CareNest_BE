@@ -40,9 +40,15 @@ services:
       CARENEST_SCHOOL_NAME: ${CARENEST_SCHOOL_NAME:-Trường Mầm Non Thượng Hồng}
       CARENEST_MOBILE_REDIRECT_URI: ${CARENEST_MOBILE_REDIRECT_URI:-carenest://oauth/callback}
       CARENEST_DEV_CLIENT_ENABLED: "false"
-      # Mailpit của stack production (xem email qua tunnel 18341)
-      CARENEST_SMTP_HOST: ${CARENEST_SMTP_HOST:-127.0.0.1}
-      CARENEST_SMTP_PORT: ${CARENEST_SMTP_PORT:-18340}
+      # Email Keycloak dev qua Resend SMTP, dùng chung CARENEST_EMAIL_SMTP_* với BE dev.
+      # Chỉ áp khi import realm lần đầu; realm đã có thì đổi ở Admin Console (docs/system/DEPLOYMENT.md mục Email)
+      CARENEST_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.resend.com}
+      CARENEST_SMTP_PORT: ${CARENEST_EMAIL_SMTP_PORT:-587}
+      CARENEST_SMTP_STARTTLS: ${CARENEST_EMAIL_SMTP_STARTTLS:-true}
+      CARENEST_SMTP_AUTH: "true"
+      CARENEST_SMTP_USER: ${CARENEST_EMAIL_SMTP_USERNAME:-resend}
+      CARENEST_SMTP_PASSWORD: ${CARENEST_EMAIL_SMTP_PASSWORD:-}
+      CARENEST_SMTP_FROM: ${CARENEST_EMAIL_FROM:-}
       # Placeholder mật khẩu user demo trong docker/keycloak/vps/carenest-users-0.json (chỉ áp lần import đầu)
       KEYCLOAK_DEV_USER_PASSWORD: ${KEYCLOAK_DEV_USER_PASSWORD:?KEYCLOAK_DEV_USER_PASSWORD is required while dev users are imported}
     volumes:
@@ -88,10 +94,13 @@ services:
       CARENEST_SMS_PROVIDER: ${CARENEST_SMS_PROVIDER:-fake}
       TEXTBEE_API_KEY: ${TEXTBEE_API_KEY:-}
       TEXTBEE_DEVICE_ID: ${TEXTBEE_DEVICE_ID:-}
-      # Email từ BE mặc định log (không gửi); smtp = Gmail App Password
+      # Email từ BE mặc định log (không gửi); smtp = Resend SMTP
       CARENEST_EMAIL_PROVIDER: ${CARENEST_EMAIL_PROVIDER:-log}
-      CARENEST_EMAIL_SMTP_USERNAME: ${CARENEST_EMAIL_SMTP_USERNAME:-}
+      CARENEST_EMAIL_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.resend.com}
+      CARENEST_EMAIL_SMTP_PORT: ${CARENEST_EMAIL_SMTP_PORT:-587}
+      CARENEST_EMAIL_SMTP_USERNAME: ${CARENEST_EMAIL_SMTP_USERNAME:-resend}
       CARENEST_EMAIL_SMTP_PASSWORD: ${CARENEST_EMAIL_SMTP_PASSWORD:-}
+      CARENEST_EMAIL_SMTP_STARTTLS: ${CARENEST_EMAIL_SMTP_STARTTLS:-true}
       CARENEST_EMAIL_FROM: ${CARENEST_EMAIL_FROM:-}
       CARENEST_EMAIL_FROM_NAME: ${CARENEST_EMAIL_FROM_NAME:-CareNest}
       # Trợ lý AI; khóa trống ⇒ AI tắt (AI-03)
