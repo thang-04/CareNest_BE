@@ -216,6 +216,13 @@ Mục đích: bản chụp phòng, điểm trường, nhóm tuổi lúc năm h�
 | các cột còn lại | như bảng gốc | | Giá trị lúc kết thúc năm (mã, tên, loại, sức chứa, người phụ trách, trạng thái, địa chỉ, bữa ăn, sĩ số tối đa…) | — |
 Ghi khi năm chuyển CLOSED (kết thúc tay hoặc tự đóng khi kích hoạt năm mới), trong cùng transaction.
 
+## school_year_age_group_members  (module: school-structure, scope: SCHOOL)
+Mục đích: danh sách nhóm tuổi riêng của từng năm học (Cần chốt 22/10/2026). Thêm, xóa nhóm tuổi ở năm nào chỉ đổi năm đó; mã nhóm (`age_groups.id`) giữ nguyên cho kế hoạch giáo dục, thực đơn, sức khỏe. Tạo năm mới sao chép danh sách của năm gần nhất; sao chép lớp mang nhóm tuổi sang năm đích; bản chụp lúc đóng năm chỉ chụp nhóm của năm. Năm chưa có dòng nào thấy cả danh mục. Migration: `V144__school_year_age_group_members.sql` (năm đã đóng theo bản chụp, năm còn mở nhận cả danh mục).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng age_group_id | CFG-YR-02 |
+| age_group_id | BIGINT FK age_groups (ON DELETE CASCADE) | không | Nhóm tuổi dùng trong năm | — |
+
 ## children  (module: child, scope: CHILD)
 Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
 | Column | Type | Null | Ý nghĩa | Rule ID |

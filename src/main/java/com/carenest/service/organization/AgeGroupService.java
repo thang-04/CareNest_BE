@@ -15,4 +15,16 @@ public interface AgeGroupService {
     AgeGroupDetailResponse updateAgeGroup(CurrentUser currentUser, Long ageGroupId, AgeGroupRequest request);
 
     void deleteAgeGroup(CurrentUser currentUser, Long ageGroupId);
+
+    /** Nhóm tuổi của một năm học (Cần chốt 22/10/2026: mỗi năm danh sách riêng, mã nhóm giữ nguyên). */
+    List<AgeGroupDetailResponse> getYearAgeGroups(Long schoolYearId);
+
+    /** Thêm nhóm tuổi chỉ vào năm học đang chọn; trùng tên nhóm có ở năm khác ⇒ dùng lại nhóm đó. */
+    AgeGroupDetailResponse createAgeGroup(CurrentUser currentUser, AgeGroupRequest request, Long schoolYearId);
+
+    /** Bỏ nhóm tuổi khỏi năm học đang chọn; chỉ xét lớp, tổ trưởng của năm đó. */
+    void deleteAgeGroup(CurrentUser currentUser, Long ageGroupId, Long schoolYearId);
+
+    /** Năm học mới lấy danh sách nhóm tuổi của năm nguồn (hoặc năm gần nhất). */
+    void copyYearAgeGroups(Long sourceYearId, Long targetYearId);
 }

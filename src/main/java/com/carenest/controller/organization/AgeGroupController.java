@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -36,10 +37,14 @@ public class AgeGroupController {
     // Bếp cần bữa ăn theo nhóm tuổi; danh mục không chứa dữ liệu trẻ
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'KITCHEN_STAFF')")
-    public ResponseEntity<ResponseJson<List<AgeGroupDetailResponse>>> getAgeGroups(CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getAgeGroups|userId=" + currentUser.userId();
+    public ResponseEntity<ResponseJson<List<AgeGroupDetailResponse>>> getAgeGroups(
+            @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getAgeGroups|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        List<AgeGroupDetailResponse> ageGroups = ageGroupService.getAgeGroups();
+        // Có năm học: nhóm tuổi của năm đó; không có: cả danh mục (bếp, kế hoạch dùng mã chung)
+        List<AgeGroupDetailResponse> ageGroups = schoolYearId == null
+                ? ageGroupService.getAgeGroups()
+                : ageGroupService.getYearAgeGroups(schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get age groups success", ageGroups);
     }
@@ -49,10 +54,15 @@ public class AgeGroupController {
     // Để OpenAPI ghi 201 khớp ApiCode.CREATED
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<AgeGroupDetailResponse>> createAgeGroup(
-            @Valid @RequestBody AgeGroupRequest request, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|createAgeGroup|userId=" + currentUser.userId();
+            @Valid @RequestBody AgeGroupRequest request,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|createAgeGroup|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        AgeGroupDetailResponse ageGroup = ageGroupService.createAgeGroup(currentUser, request);
+        AgeGroupDetailResponse ageGroup = schoolYearId == null
+                ? ageGroupService.createAgeGroup(currentUser, request)
+                : ageGroupService.createAgeGroup(currentUser, request, schoolYearId);
         log.info("{}|ageGroupId={}|END", logPrefix, ageGroup.id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create age group success", ageGroup);
     }
@@ -70,10 +80,17 @@ public class AgeGroupController {
 
     @DeleteMapping("/{ageGroupId}")
     @PreAuthorize("hasRole('PRINCIPAL')")
-    public ResponseEntity<ResponseJson<Void>> deleteAgeGroup(@PathVariable Long ageGroupId, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|deleteAgeGroup|userId=" + currentUser.userId() + "|ageGroupId=" + ageGroupId;
+    public ResponseEntity<ResponseJson<Void>> deleteAgeGroup(
+            @PathVariable Long ageGroupId, @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|deleteAgeGroup|userId=" + currentUser.userId() + "|ageGroupId=" + ageGroupId
+                + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        ageGroupService.deleteAgeGroup(currentUser, ageGroupId);
+        // Có năm học: chỉ bỏ nhóm khỏi năm đó (Cần chốt 22/10/2026)
+        if (schoolYearId == null) {
+            ageGroupService.deleteAgeGroup(currentUser, ageGroupId);
+        } else {
+            ageGroupService.deleteAgeGroup(currentUser, ageGroupId, schoolYearId);
+        }
         log.info("{}|END", logPrefix);
         return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Delete age group success");
     }

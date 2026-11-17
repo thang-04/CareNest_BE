@@ -380,6 +380,13 @@ paths:
   /api/age-groups:
     get:
       operationId: getAgeGroups
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -391,6 +398,13 @@ paths:
       - age-group-controller
     post:
       operationId: createAgeGroup
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -413,6 +427,12 @@ paths:
       - in: path
         name: ageGroupId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64

@@ -12,6 +12,7 @@ import com.carenest.entity.organization.SchoolHoliday;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
+import com.carenest.repository.organization.AgeGroupRepository;
 import com.carenest.repository.organization.AttendanceCutoffRepository;
 import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
@@ -60,6 +61,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
 
     private final SchoolYearRepository schoolYearRepository;
     private final ClassroomRepository classroomRepository;
+    private final AgeGroupRepository ageGroupRepository;
     private final AttendanceCutoffRepository attendanceCutoffRepository;
     private final StaffAssignmentService staffAssignmentService;
     private final SchoolStructureMapper schoolStructureMapper;
@@ -133,8 +135,17 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             String name = validateYearInfo(request, null);
             checkFollowsLatest(name, request);
             LocalDate prepDate = resolvePrepDate(request, null);
+            SchoolYear latest = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
+                    .findFirst()
+                    .orElse(null);
             SchoolYear schoolYear =
                     schoolYearRepository.save(SchoolYear.plan(name, request.startDate(), request.endDate(), prepDate));
+            // Cần chốt 22/10/2026: năm mới có danh sách nhóm tuổi riêng, lấy từ năm gần nhất (chưa có thì cả danh mục)
+            if (latest == null || ageGroupRepository.findYearAgeGroupIds(latest.getId()).isEmpty()) {
+                ageGroupRepository.addAllToYear(schoolYear.getId());
+            } else {
+                ageGroupRepository.copyYearAgeGroups(latest.getId(), schoolYear.getId());
+            }
             log.info("{}|schoolYearId={}|END", logPrefix, schoolYear.getId());
             return schoolStructureMapper.toDetailResponse(schoolYear, 0, LocalDate.now(clock));
         } catch (RuntimeException ex) {
