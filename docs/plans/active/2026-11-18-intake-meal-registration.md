@@ -228,11 +228,11 @@ Hiện trạng code:
 
 | AC | Rule | Test (tầng) | Phase | Kết quả |
 | --- | --- | --- | --- | --- |
-| AC-1 | CHD-13 | `ChildEnrollmentIntegrationTest#enrolledChildIsMealRegisteredByDefault` (tích hợp) | 1 | |
-| AC-2 | CHD-13 | `EnrollmentFormValidatorTest#mealNotRegisteredSkipsAllergyAndDiet` (unit), `ChildEnrollmentIntegrationTest#enrollWithoutMealsStoresFlagAndNoAllergies` | 1 | |
-| AC-3 | CHD-13 | `EnrollmentFormValidatorTest#missingMealFlagMeansRegistered` (unit) | 1 | |
-| AC-4 | CHD-13, HLT-06 | `ChildRecordServiceImplTest#saveDeclarationWithoutMealsKeepsAllergiesAndDiet`, `ChildRecordIntegrationTest#unregisterKeepsAllergiesAndReregisterShowsThem` | 1 | |
-| AC-5 | CHD-13 | `ChildEnrollmentImportServiceImplTest` (5 test Task 4) | 1 | |
+| AC-1 | CHD-13 | `ChildEnrollmentIntegrationTest#enrolledChildIsMealRegisteredByDefault` (tích hợp) | 1 | Pass |
+| AC-2 | CHD-13 | `EnrollmentFormValidatorTest#mealNotRegisteredSkipsAllergyAndDiet` (unit), `ChildEnrollmentIntegrationTest#enrollWithoutMealsStoresFlagAndNoAllergies` | 1 | Pass |
+| AC-3 | CHD-13 | `EnrollmentFormValidatorTest#missingMealFlagMeansRegistered` (unit) | 1 | Pass |
+| AC-4 | CHD-13, HLT-06 | `ChildRecordServiceImplTest#saveDeclarationWithoutMealsKeepsAllergiesAndDiet`, `ChildRecordIntegrationTest#unregisterKeepsAllergiesAndReregisterShowsThem` | 1 | Pass |
+| AC-5 | CHD-13 | `ChildEnrollmentImportMealColumnTest` (5 test Task 4) | 1 | Pass |
 | AC-6 | ATT-02a, CHD-13 | `AttendanceIntegrationTest#childWithoutMealsNeverGetsMeals` | 2 | |
 | AC-7 | NUT-07, CHD-13 | `FreshGoodsIntegrationTest#previewCountsOnlyMealRegisteredChildren`, `MenuStatisticsIntegrationTest#enrolledHeadcountSkipsChildrenWithoutMeals` | 2 | |
 
@@ -258,3 +258,9 @@ Hiện trạng code:
 - Commit: chưa commit
 - Verify: chưa chạy (plan)
 - User trả lời "Câu hỏi mở", duyệt plan, chọn Subagent-driven. Tiếp: Phase 1.
+
+### 2026-11-18 — Phase 1 (chờ review)
+- Commit: `d5582c45`, `752885e7` (Task 1) · `82ddc37c` (Task 2) · `59255eea` (Task 3) · `759c6c4e`, `0cdde43c`, `616e7c2b` (Task 4)
+- Verify: `mvnw.cmd -B clean spotless:check verify` → `Tests run: 1983, Failures: 0, Errors: 0, Skipped: 0` · `Spotless.Java is keeping 168 files clean` · `BUILD SUCCESS` (baseline dev: 1972 test)
+- Khác plan: test nhập Excel đặt ở `ChildEnrollmentImportMealColumnTest` vì `ChildEnrollmentImportServiceImplTest`, `EnrollmentImportAccountServiceImplTest`, `ChildEnrollmentServiceImplTest` chỉ có ở nhánh G94-329, chưa có trên dev (tránh xung đột add/add); lỗi ô "Báo ăn" ở BE chỉ có câu `Báo ăn ghi Có hoặc Không` vì lỗi xem trước của BE là chuỗi, không có khóa (khóa `declaration.mealRegistered` chỉ ở BE giả Web); thêm commit `616e7c2b` format Spotless cho code Task 2–3.
+- Tiếp: Phase 2 (Task 5, 6) sau khi user review.
