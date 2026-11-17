@@ -392,6 +392,68 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("ATT-02a/CHD-13: trẻ không báo ăn không có suất")
+    void childWithoutMealsNeverGetsMeals() {
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), present(child2)));
+        entityManager.flush();
+        entityManager.clear();
+        AttendanceService.ClassMealTally before = tallyOf(classA);
+
+        long noMeal = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, meal_registered) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Dũng', '2023-04-01', 'MALE', 'ACTIVE', CURRENT_DATE, FALSE) RETURNING id");
+        enroll(noMeal, classA);
+
+        // meals null: mặc định ăn đủ bữa nhưng trẻ không báo ăn thì không có bữa nào
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(noMeal)));
+        assertThat(mealsOfChild(noMeal)).doesNotContainValue(true);
+
+        // Gửi mọi bữa true: bị bỏ qua, không lỗi
+        service.saveClassAttendance(
+                teacherA,
+                classA,
+                request(
+                        TODAY,
+                        new Entry(
+                                noMeal,
+                                AttendanceStatus.PRESENT,
+                                Map.of(MealSession.LUNCH, true, MealSession.AFTERNOON, true))));
+        assertThat(mealsOfChild(noMeal)).doesNotContainValue(true);
+
+        AttendanceService.ClassMealTally after = tallyOf(classA);
+        assertThat(after.present()).isEqualTo(before.present() + 1);
+        assertThat(after.meals()).isEqualTo(before.meals());
+        assertThat(after.substitutes()).isEqualTo(before.substitutes());
+
+        var sheet = service.getClassAttendance(teacherA, classA, TODAY).children();
+        assertThat(sheet)
+                .filteredOn(r -> r.child().id() == noMeal)
+                .singleElement()
+                .satisfies(r -> assertThat(r.child().mealRegistered()).isFalse());
+        assertThat(sheet)
+                .filteredOn(r -> r.child().id() == child1)
+                .singleElement()
+                .satisfies(r -> assertThat(r.child().mealRegistered()).isTrue());
+    }
+
+    private AttendanceService.ClassMealTally tallyOf(long classId) {
+        return service.tallyMeals(TODAY, classCampus(classId), classYear(classId)).stream()
+                .filter(t -> t.classroomId() == classId)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private Map<MealSession, Boolean> mealsOfChild(long childId) {
+        entityManager.flush();
+        entityManager.clear();
+        return service.getClassAttendance(teacherA, classA, TODAY).children().stream()
+                .filter(r -> r.child().id() == childId)
+                .findFirst()
+                .orElseThrow()
+                .record()
+                .meals();
+    }
+
+    @Test
     @DisplayName(
             "ATT-09: GV không tự chọn Vắng có phép; trạng thái có phép đã có (từ đơn nghỉ) vẫn đọc và gửi lại được")
     void teacherCannotSetExcusedButKeepsExistingExcused() {

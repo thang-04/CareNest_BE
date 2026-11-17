@@ -249,9 +249,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (info.locked()) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
             }
-            Set<Long> classChildIds = enrollmentService.findChildrenInClassroom(classId, date).stream()
-                    .map(ClassChildResponse::id)
-                    .collect(Collectors.toSet());
+            List<ClassChildResponse> classChildren = enrollmentService.findChildrenInClassroom(classId, date);
+            Set<Long> classChildIds =
+                    classChildren.stream().map(ClassChildResponse::id).collect(Collectors.toSet());
             Set<Long> seen = new HashSet<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 if (!classChildIds.contains(entry.childId()) || !seen.add(entry.childId())) {
@@ -271,9 +271,14 @@ public class AttendanceServiceImpl implements AttendanceService {
                     throw GlobalException.of(ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
                 }
             }
+            // CHD-13: trẻ không báo ăn không bao giờ có suất, bỏ qua meals gửi lên
+            Map<Long, Boolean> mealRegisteredByChild = classChildren.stream()
+                    .collect(Collectors.toMap(ClassChildResponse::id, ClassChildResponse::mealRegistered));
             Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
-                mealsByChild.put(entry.childId(), mealsOf(entry, cls.mealSessions()));
+                mealsByChild.put(
+                        entry.childId(),
+                        mealsOf(entry, cls.mealSessions(), mealRegisteredByChild.getOrDefault(entry.childId(), true)));
             }
             Instant at = rules.now();
             Long unlockId = info.unlock() == null ? null : info.unlock().id();
@@ -498,8 +503,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         return cls;
     }
 
-    /** ATT-02: Có mặt mặc định ăn đủ bữa; giáo viên được tắt. Trẻ vắng không được đăng ký suất. */
-    private static List<MealSession> mealsOf(SaveAttendanceRequest.Entry entry, List<MealSession> classSessions) {
+    /** ATT-02: Có mặt mặc định ăn đủ bữa; giáo viên được tắt. Trẻ vắng không được đăng ký suất. ATT-02a: trẻ không báo ăn luôn không có bữa. */
+    private static List<MealSession> mealsOf(
+            SaveAttendanceRequest.Entry entry, List<MealSession> classSessions, boolean mealRegistered) {
+        if (!mealRegistered) {
+            return List.of();
+        }
         Map<MealSession, Boolean> requested = entry.meals();
         List<MealSession> taken = requested == null || requested.isEmpty()
                 ? (entry.status().isAbsent()
