@@ -444,7 +444,7 @@ class ThemeEvaluationIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cần chốt 15/11/2026: GV không chủ nhiệm lưu được bảng chủ đề, chỉ GV chủ nhiệm xác nhận")
+    @DisplayName("Cần chốt 15/11/2026: GV phụ trách lớp lưu được bảng chủ đề, chỉ GV phụ trách chính xác nhận")
     void onlyHomeroomTeacherConfirmsTheme() {
         CurrentUser other = user("theme-other", CareNestRole.TEACHER);
         jdbc.update(
@@ -875,8 +875,15 @@ class ThemeEvaluationIntegrationTest {
         assertThat(service.listClasses(principal, null))
                 .extracting(c -> c.classId())
                 .containsExactlyInAnyOrder(classA, classB, nurseryClass);
-        // Tên in dưới chỗ ký: GV lớp, tổ trưởng nhóm tuổi, PHT phụ trách điểm trường của lớp (không có thì để trống)
-        assertThat(service.get(principal, classA, 9201L).signers().teachers()).containsExactly("teacher-t");
+        // Tên in dưới chỗ ký: tất cả GV phụ trách lớp, tổ trưởng nhóm tuổi, PHT phụ trách điểm trường của lớp.
+        CurrentUser secondClassTeacher = user("teacher-t2", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-09-01', FALSE)",
+                secondClassTeacher.userId(),
+                classA);
+        assertThat(service.get(principal, classA, 9201L).signers().teachers())
+                .containsExactly("teacher-t", "teacher-t2");
         assertThat(service.get(principal, classA, 9201L).signers().teamLeaders())
                 .containsExactly("teacher-b");
         assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())

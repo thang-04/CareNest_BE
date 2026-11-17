@@ -174,7 +174,7 @@ class RewardListIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cần chốt 15/11/2026: GV lớp cùng lưu nháp, chỉ GV chủ nhiệm gửi duyệt")
+    @DisplayName("Cần chốt 15/11/2026: GV lớp cùng lưu nháp, chỉ GV phụ trách chính gửi duyệt")
     void onlyHomeroomTeacherSubmits() {
         CurrentUser other = user("teacher-ra2", CareNestRole.TEACHER);
         jdbc.update(
