@@ -816,15 +816,10 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     }
 
     private ThemeSigners signersOf(ClassroomInfoResponse cls, LocalDate at) {
-        // Mẫu ký "Giáo viên chủ nhiệm": GV chủ nhiệm của lớp, lớp chưa có chủ nhiệm thì các GV lớp
-        Long homeroom = staffAssignmentService
-                .findHomeroomTeacherIds(List.of(cls.id()), at)
-                .get(cls.id());
-        List<Long> teacherIds = homeroom != null
-                ? List.of(homeroom)
-                : staffAssignmentService
-                        .findCurrentMainTeacherIds(List.of(cls.id()), at)
-                        .getOrDefault(cls.id(), List.of());
+        // Mẫu ký "Giáo viên": điền tất cả giáo viên phụ trách lớp tại thời điểm của phiếu.
+        List<Long> teacherIds = staffAssignmentService
+                .findCurrentMainTeacherIds(List.of(cls.id()), at)
+                .getOrDefault(cls.id(), List.of());
         Set<Long> leaderIds = cls.ageGroupId() == null
                 ? Set.of()
                 : staffAssignmentService.findYearTeamLeaderIds(cls.ageGroupId(), cls.schoolYearId(), at);

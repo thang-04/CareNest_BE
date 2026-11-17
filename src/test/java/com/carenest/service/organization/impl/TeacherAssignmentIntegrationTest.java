@@ -199,7 +199,7 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("SCH-04: năm đang học mỗi lớp đúng 2 GV đứng lớp và có chủ nhiệm (Cần chốt 10/11/2026)")
+    @DisplayName("SCH-04: năm đang học mỗi lớp đúng 2 GV đứng lớp và có GV phụ trách chính (Cần chốt 10/11/2026)")
     void activeYearNeedsExactlyTwoTeachersAndHomeroom() {
         expectError(
                 () -> service.assignClassTeachers(

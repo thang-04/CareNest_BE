@@ -2,6 +2,7 @@ package com.carenest.service.account.impl;
 
 import com.carenest.entity.account.PasswordToken;
 import com.carenest.repository.account.*;
+import com.carenest.security.WebSessionRevocations;
 import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.enums.PasswordTokenPurpose;
 import java.time.Instant;
@@ -15,6 +16,7 @@ public class AuthStateStoreImpl implements AuthStateStore {
     private final PasswordTokenRepository passwordTokens;
     private final OtpSendLimitRepository otpSendLimits;
     private final UserAccountRepository accounts;
+    private final WebSessionRevocations webSessions;
 
     @Override
     @Transactional
@@ -120,6 +122,12 @@ public class AuthStateStoreImpl implements AuthStateStore {
     public void cleanup(Instant now) {
         passwordTokens.deleteExpired(now.minusSeconds(3600));
         otpSendLimits.deleteExpired(now);
+        webSessions.purgeExpired();
+    }
+
+    @Override
+    public void revokeWebSessions(String keycloakUserId, java.util.List<String> sessionIds) {
+        if (!sessionIds.isEmpty()) webSessions.revoke(keycloakUserId, sessionIds);
     }
 
     private boolean active(Long id) {

@@ -48,7 +48,21 @@ public enum ApiCode {
     AUTH_SERVICE_UNAVAILABLE(
             1013, HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ đăng nhập đang gián đoạn, vui lòng thử lại sau"),
     ACCOUNT_NOT_PROVISIONED(1014, HttpStatus.FORBIDDEN, "Tài khoản chưa được cấp quyền truy cập hệ thống"),
-    ACCOUNT_INACTIVE(1015, HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa"),
+    ACCOUNT_INACTIVE(
+            1015,
+            HttpStatus.FORBIDDEN,
+            "Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Ban Giám hiệu để được hỗ trợ mở lại."),
+    WEB_SESSION_REPLACED(
+            1016, HttpStatus.UNAUTHORIZED, "Tài khoản vừa đăng nhập ở trình duyệt khác, phiên này đã kết thúc"),
+    WEB_SESSION_CONFLICT(1017, HttpStatus.CONFLICT, "Tài khoản đang được dùng ở trình duyệt khác, hãy chọn dùng ở đâu"),
+    WEB_SESSION_TAKEOVER_REJECTED(
+            1018, HttpStatus.CONFLICT, "Trình duyệt đang dùng tài khoản đã chọn tiếp tục, lần đăng nhập này bị hủy"),
+    WEB_SESSION_TAKEOVER_EXPIRED(
+            1019, HttpStatus.CONFLICT, "Lượt đăng nhập đã hết hạn chờ xác nhận, vui lòng đăng nhập lại"),
+    LOGIN_TEMPORARILY_LOCKED(
+            1020,
+            HttpStatus.TOO_MANY_REQUESTS,
+            "Tài khoản tạm bị khóa do nhập sai mật khẩu nhiều lần. Vui lòng thử lại sau {0}"),
 
     // ========== 11xx TÀI KHOẢN & PHÂN QUYỀN ==========
     FORBIDDEN(1101, HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này"),
@@ -84,6 +98,10 @@ public enum ApiCode {
     PERMISSION_DUPLICATED(1122, HttpStatus.BAD_REQUEST, "Quyền {0} bị chọn trùng"),
     PERMISSION_NOT_CONFIGURABLE_FOR_ACCOUNT(
             1123, HttpStatus.BAD_REQUEST, "Quyền {0} không cấu hình được cho tài khoản này"),
+    PERMISSION_SCOPE_NOT_ALLOWED(
+            1125,
+            HttpStatus.BAD_REQUEST,
+            "Việc được giao có nơi áp dụng không phù hợp. Vui lòng tải lại trang rồi giao lại việc"),
     PHONE_NUMBER_INVALID(
             1124, HttpStatus.BAD_REQUEST, "Số điện thoại di động gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09"),
     NOT_PARENT_ACCOUNT(1126, HttpStatus.BAD_REQUEST, "Tài khoản này không phải tài khoản phụ huynh"),
@@ -253,7 +271,7 @@ public enum ApiCode {
     // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
     REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),
     TEACHERS_MUST_DIFFER(2302, HttpStatus.BAD_REQUEST, "Chọn 2 giáo viên khác nhau cho lớp"),
-    HOMEROOM_NOT_IN_CLASS(2303, HttpStatus.BAD_REQUEST, "Giáo viên chủ nhiệm phải là một trong các giáo viên của lớp"),
+    HOMEROOM_NOT_IN_CLASS(2303, HttpStatus.BAD_REQUEST, "GV phụ trách chính phải là một trong các giáo viên của lớp"),
     TEACHER_WRONG_CAMPUS(2304, HttpStatus.BAD_REQUEST, "Chỉ phân công giáo viên thuộc điểm trường của lớp"),
     TEACHER_ACCOUNT_LOCKED(2305, HttpStatus.CONFLICT, "Tài khoản giáo viên đã bị khóa"),
     TEACHER_ALREADY_ASSIGNED(2306, HttpStatus.CONFLICT, "Giáo viên {0} đang dạy lớp {1}, gỡ ở lớp đó trước"),
@@ -284,7 +302,7 @@ public enum ApiCode {
     STAFF_ACCOUNT_LOCKED(2326, HttpStatus.CONFLICT, "Tài khoản nhân sự đã bị khóa"),
     CLASS_NEEDS_TWO_TEACHERS(
             2328, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: mỗi lớp phải có đúng 2 giáo viên đứng lớp"),
-    HOMEROOM_REQUIRED(2329, HttpStatus.BAD_REQUEST, "Chọn giáo viên chủ nhiệm trong 2 giáo viên của lớp"),
+    HOMEROOM_REQUIRED(2329, HttpStatus.BAD_REQUEST, "Chọn GV phụ trách chính trong 2 giáo viên của lớp"),
     SUBSTITUTE_REPLACED_REQUIRED(2330, HttpStatus.BAD_REQUEST, "Chọn giáo viên được dạy thay"),
     SUBSTITUTE_REPLACED_NOT_IN_CLASS(
             2331, HttpStatus.BAD_REQUEST, "Giáo viên được dạy thay phải đang đứng lớp này vào ngày bắt đầu"),
@@ -822,8 +840,8 @@ public enum ApiCode {
     EVALUATION_UNLOCK_ALREADY_ACTIVE(7406, HttpStatus.CONFLICT, "{0} của lớp này đang được mở lại"),
     EVALUATION_UNLOCK_NOT_FOUND(7407, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại đánh giá"),
     EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
-    SUBMIT_HOMEROOM_ONLY(7409, HttpStatus.FORBIDDEN, "Chỉ GV chủ nhiệm được gửi duyệt"),
-    CONFIRM_HOMEROOM_ONLY(7410, HttpStatus.FORBIDDEN, "Chỉ GV chủ nhiệm được xác nhận đánh giá"),
+    SUBMIT_HOMEROOM_ONLY(7409, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được gửi duyệt"),
+    CONFIRM_HOMEROOM_ONLY(7410, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được xác nhận đánh giá"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),

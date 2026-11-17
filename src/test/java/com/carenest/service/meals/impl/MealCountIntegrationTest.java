@@ -152,6 +152,18 @@ class MealCountIntegrationTest {
     }
 
     @Test
+    @DisplayName("CFG-YR-05: năm kích hoạt sớm, ngày trước ngày bắt đầu chưa có sổ suất ăn (Cần chốt 17/11/2026)")
+    void earlyActivatedYearHasNoMealCountBeforeStartDate() {
+        jdbc.update("UPDATE school_years SET start_date = '2026-10-26'");
+        clock.now = AFTER_CUTOFF;
+
+        assertThat(service.getMealCounts(vpA, TODAY, null).counts()).isEmpty();
+        service.aggregateLockedDay();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_counts", Integer.class))
+                .isZero();
+    }
+
+    @Test
     void aggregatesAtCutoffAndKitchenSeesOnlyConfirmedCounts() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         // Trước giờ chốt: PHT xem số tạm tính, bếp chưa thấy gì

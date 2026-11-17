@@ -2309,6 +2309,50 @@ paths:
       security: []
       tags:
       - auth-controller
+  /api/auth/login/takeover/cancel:
+    post:
+      operationId: cancelTakeover
+      parameters:
+      - in: cookie
+        name: CARENEST_TAKEOVER
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/login/takeover/confirm:
+    post:
+      operationId: confirmTakeover
+      parameters:
+      - in: cookie
+        name: CARENEST_TAKEOVER
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLoginData"
+          description: Session issued here; other Web sessions revoked
+        "409":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLoginData"
+          description: Takeover rejected by the active session or expired
+      security: []
+      tags:
+      - auth-controller
   /api/auth/logout:
     post:
       operationId: logout
@@ -6261,6 +6305,36 @@ paths:
           description: OK
       tags:
       - password-controller
+  /api/me/session:
+    get:
+      operationId: checkSession
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSessionStatus"
+          description: OK
+      tags:
+      - session-controller
+  /api/me/session/takeovers/{takeoverId}/reject:
+    post:
+      operationId: rejectTakeover
+      parameters:
+      - in: path
+        name: takeoverId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - session-controller
   /api/meal-counts:
     get:
       operationId: getMealCounts
@@ -16623,6 +16697,8 @@ components:
           format: date-time
         passwordChangeRequired:
           type: boolean
+        takeover:
+          $ref: "#/components/schemas/Takeover"
     Match:
       type: object
       properties:
@@ -17451,11 +17527,17 @@ components:
         expiresAt:
           type: string
           format: date-time
+        expiresInSeconds:
+          type: integer
+          format: int64
         requestId:
           type: string
         resendAvailableAt:
           type: string
           format: date-time
+        resendInSeconds:
+          type: integer
+          format: int64
     OverdueClassItem:
       type: object
       properties:
@@ -17811,6 +17893,17 @@ components:
         weekStart:
           type: string
           format: date
+    PendingTakeover:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
     PermissionChangeLogResponse:
       type: object
       properties:
@@ -21677,6 +21770,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonSessionStatus:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SessionStatus"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonStaffAssignmentResponse:
       type: object
       properties:
@@ -22780,6 +22886,11 @@ components:
           - MORNING
           - LUNCH
           - AFTERNOON
+    SessionStatus:
+      type: object
+      properties:
+        pendingTakeover:
+          $ref: "#/components/schemas/PendingTakeover"
     Setting:
       type: object
       properties:
@@ -23355,6 +23466,12 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    Takeover:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
     TargetClass:
       type: object
       properties:

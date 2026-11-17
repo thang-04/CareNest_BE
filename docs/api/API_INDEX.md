@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 376 endpoint.
+Tổng: 380 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -111,6 +111,8 @@ POST /attendance/day-unlocks/{unlockId}/revoke · src/main/java/com/carenest/con
 GET /attendance/summary · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getSummary
 GET /auth/csrf · src/main/java/com/carenest/controller/account/AuthController.java#csrf
 POST /auth/login · src/main/java/com/carenest/controller/account/AuthController.java#login
+POST /auth/login/takeover/cancel · src/main/java/com/carenest/controller/account/AuthController.java#cancelTakeover
+POST /auth/login/takeover/confirm · src/main/java/com/carenest/controller/account/AuthController.java#confirmTakeover
 POST /auth/logout · src/main/java/com/carenest/controller/account/AuthController.java#logout
 POST /auth/password/forgot · src/main/java/com/carenest/controller/account/AuthController.java#forgot
 GET /auth/password/otp/{requestId} · src/main/java/com/carenest/controller/account/AuthController.java#otpMetadata
@@ -265,6 +267,8 @@ GET /me/notifications/{notificationId} · src/main/java/com/carenest/controller/
 POST /me/notifications/{notificationId}/read · src/main/java/com/carenest/controller/notification/NotificationController.java#markRead
 POST /me/notifications/read-all · src/main/java/com/carenest/controller/notification/NotificationController.java#markAllRead
 PUT /me/password · src/main/java/com/carenest/controller/account/PasswordController.java#changePassword
+GET /me/session · src/main/java/com/carenest/controller/account/SessionController.java#checkSession
+POST /me/session/takeovers/{takeoverId}/reject · src/main/java/com/carenest/controller/account/SessionController.java#rejectTakeover
 GET /meal-counts · src/main/java/com/carenest/controller/meals/MealCountController.java#getMealCounts
 POST /meal-counts/{mealCountId}/confirm · src/main/java/com/carenest/controller/meals/MealCountController.java#confirm
 POST /meal-counts/adjustments · src/main/java/com/carenest/controller/meals/MealCountController.java#adjust

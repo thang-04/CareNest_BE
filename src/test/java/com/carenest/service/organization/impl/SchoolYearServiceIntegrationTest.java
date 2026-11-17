@@ -186,6 +186,32 @@ class SchoolYearServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("CFG-YR-05: PHT thấy năm sắp diễn ra khi còn phân công điểm trường (Cần chốt 17/11/2026)")
+    void vicePrincipalSeesPlannedYearOnlyWhileAssigned() {
+        SchoolYearDetailResponse next = service.createSchoolYear(principal, request(LocalDate.of(2027, 9, 1)));
+        long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-P', 'Campus P') RETURNING id");
+        long vpId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-vp', 'vp.it', 'VP') RETURNING id");
+        CurrentUser vp = new CurrentUser(vpId, "kc-vp", "vp.it", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-09-01')",
+                vpId,
+                campus);
+        assertThat(service.getSchoolYears(vp, null)).hasSize(2);
+        assertThat(service.getSchoolYear(vp, next.id()).id()).isEqualTo(next.id());
+
+        // Phân công PHT đã kết thúc ⇒ chỉ còn thấy năm không phải năm sắp diễn ra, như danh sách lớp
+        jdbc.update("UPDATE staff_assignments SET valid_to = '2027-08-01' WHERE user_id = ?", vpId);
+        assertThat(service.getSchoolYears(vp, null))
+                .extracting(SchoolYearDetailResponse::name)
+                .containsExactly("2026-2027");
+        assertThatThrownBy(() -> service.getSchoolYear(vp, next.id()))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
+    }
+
+    @Test
     @DisplayName("CFG-YR-05: đổi ngày bắt đầu năm sắp diễn ra giữ phân công tính từ ngày mở chuẩn bị")
     void movingPlannedYearStartKeepsPreparationAssignments() {
         SchoolYearDetailResponse next = service.createSchoolYear(
