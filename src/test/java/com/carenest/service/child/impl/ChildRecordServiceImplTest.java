@@ -448,6 +448,50 @@ class ChildRecordServiceImplTest {
         verify(tbNotifier, never()).contactReported(any(), any(), any(), any(), any());
     }
 
+    @Test
+    @DisplayName("CHD-13: bỏ báo ăn giữ dị ứng, chế độ ăn đã khai")
+    void saveDeclarationWithoutMealsKeepsAllergiesAndDiet() {
+        var reported = com.carenest.utils.enums.DeclarationState.REPORTED;
+        var none = new com.carenest.entity.child.ChildHealthDeclaration.Answer(
+                com.carenest.utils.enums.DeclarationState.NONE_REPORTED, null);
+        var existing = com.carenest.entity.child.ChildHealthDeclaration.declare(
+                CHILD_ID,
+                reported,
+                new com.carenest.entity.child.ChildHealthDeclaration.Answer(reported, "Ăn chay"),
+                new com.carenest.entity.child.ChildHealthDeclaration.Answer(
+                        com.carenest.utils.enums.DeclarationState.NOT_PROVIDED, null),
+                none,
+                none,
+                com.carenest.utils.enums.DeclarationState.NONE_REPORTED,
+                null,
+                9L,
+                Instant.parse("2026-09-01T03:00:00Z"));
+        given(declarationRepository.findById(CHILD_ID)).willReturn(Optional.of(existing));
+        given(allergyRepository.findAllByChildIdOrderByIdAsc(CHILD_ID))
+                .willReturn(List.of(com.carenest.entity.child.ChildAllergy.of(CHILD_ID, "Sữa")));
+        var noneInput = new com.carenest.dto.child.DeclarationAnswerInput("NONE_REPORTED", null);
+        var input = new com.carenest.dto.child.HealthDeclarationInput(
+                new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Tôm")),
+                noneInput,
+                new com.carenest.dto.child.DeclarationAnswerInput("REPORTED", "Ghi chú mới"),
+                new com.carenest.dto.child.MedicalHistoryInput(
+                        noneInput,
+                        noneInput,
+                        new com.carenest.dto.child.TbContactInput("NONE_REPORTED", null)),
+                false);
+
+        service.saveDeclaration(
+                PRINCIPAL, CHILD_ID, new com.carenest.dto.child.HealthDeclarationRequest(input, "Ngừng ăn bán trú"));
+
+        verify(allergyRepository, never()).deleteByChildId(any());
+        verify(allergyRepository, never()).saveAll(any());
+        assertThat(existing.getAllergiesState()).isEqualTo(reported);
+        assertThat(existing.getDietState()).isEqualTo(reported);
+        assertThat(existing.getDietText()).isEqualTo("Ăn chay");
+        assertThat(existing.getOtherNotesText()).isEqualTo("Ghi chú mới");
+        assertThat(child.isMealRegistered()).isFalse();
+    }
+
     private static com.carenest.entity.child.ChildHealthDeclaration declaration(
             com.carenest.utils.enums.DeclarationState tb, LocalDate tbDate) {
         var none = new com.carenest.entity.child.ChildHealthDeclaration.Answer(
