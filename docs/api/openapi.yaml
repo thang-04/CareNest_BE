@@ -14844,6 +14844,8 @@ components:
           $ref: "#/components/schemas/AllergiesInput"
         diet:
           $ref: "#/components/schemas/DeclarationAnswerInput"
+        mealRegistered:
+          type: boolean
         medicalHistory:
           $ref: "#/components/schemas/MedicalHistoryInput"
         otherNotes:

@@ -314,6 +314,34 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("CHD-13: tiếp nhận không báo ăn ⇒ lưu cờ, khai báo dị ứng Chưa cung cấp, không có dòng dị ứng")
+    void enrollWithoutMealsStoresFlagAndNoAllergies() {
+        EnrollChildRequest base =
+                request("Trẻ Không Ăn", "2023-03-01", null, campusA, newGuardian("0912345680", "001234567892"));
+        HealthDeclarationInput d = base.declaration();
+        EnrollChildRequest noMeal = new EnrollChildRequest(
+                base.child(),
+                new HealthDeclarationInput(d.allergies(), d.diet(), d.otherNotes(), d.medicalHistory(), false),
+                null,
+                campusA);
+
+        ChildEnrollmentResponse response = enrollmentService.enroll(principal, noMeal);
+        entityManager.flush();
+
+        Long childId = response.child().id();
+        assertThat(response.child().mealRegistered()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT meal_registered FROM children WHERE id = ?", Boolean.class, childId))
+                .isFalse();
+        assertThat(jdbc.queryForObject(
+                        "SELECT allergies_state FROM child_health_declarations WHERE child_id = ?",
+                        String.class,
+                        childId))
+                .isEqualTo("NOT_PROVIDED");
+        assertThat(count("SELECT count(*) FROM child_allergies WHERE child_id = ?", childId))
+                .isZero();
+    }
+
+    @Test
     @DisplayName(
             "CHD-02, AUTH-20: HT tiếp nhận không chọn lớp ⇒ Chờ xếp lớp ở điểm trường tiếp nhận, tạo tài khoản, SMS")
     void principalEnrollsPendingChildAndCreatesAccount() {
