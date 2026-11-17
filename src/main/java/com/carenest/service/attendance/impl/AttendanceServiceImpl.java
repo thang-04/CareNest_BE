@@ -609,7 +609,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     private static ChildBrief toBrief(ClassChildResponse ch) {
-        return new ChildBrief(ch.id(), ch.fullName(), ch.dateOfBirth());
+        return new ChildBrief(ch.id(), ch.fullName(), ch.dateOfBirth(), ch.mealRegistered());
     }
 
     private static RecordView toView(AttendanceRecord r, List<MealSession> sessions, Map<Long, String> names) {
