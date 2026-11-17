@@ -38,7 +38,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 /** Unit test service bằng Mockito (không DB): cột "Báo ăn" khi xem trước và nhập trẻ từ file CSV. Dữ liệu giả. */
 @ExtendWith(MockitoExtension.class)
-class ChildEnrollmentImportServiceImplTest {
+class ChildEnrollmentImportMealColumnTest {
 
     private static final Clock CLOCK =
             Clock.fixed(Instant.parse("2026-11-13T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh"));
