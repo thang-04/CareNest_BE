@@ -513,20 +513,75 @@ paths:
       tags:
       - announcement-schedule-controller
     post:
-      operationId: createSchedule
+      operationId: createScheduleWithFiles
       requestBody:
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/AnnouncementScheduleRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/AnnouncementScheduleRequest"
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - data
         required: true
       responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
+          description: OK
         "201":
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
           description: Created
+      tags:
+      - announcement-schedule-controller
+  /api/announcement-schedules/activation:
+    post:
+      operationId: activateSchedules
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleActivationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInteger"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+  /api/announcement-schedules/delete-selection:
+    post:
+      operationId: deleteSchedules
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleSelectionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInteger"
+          description: OK
       tags:
       - announcement-schedule-controller
   /api/announcement-schedules/{scheduleId}:
@@ -548,8 +603,26 @@ paths:
           description: OK
       tags:
       - announcement-schedule-controller
+    get:
+      operationId: getSchedule
+      parameters:
+      - in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
+          description: OK
+      tags:
+      - announcement-schedule-controller
     put:
-      operationId: updateSchedule
+      operationId: updateScheduleWithFiles
       parameters:
       - in: path
         name: scheduleId
@@ -562,6 +635,19 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/AnnouncementScheduleRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/AnnouncementScheduleRequest"
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - data
         required: true
       responses:
         "200":
@@ -662,12 +748,27 @@ paths:
           type: integer
           format: int32
           default: 20
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - SCHEDULED
+          - SENDING
+          - SENT
+          - CANCELLED
       responses:
         "200":
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResponseJsonPageResponseAnnouncementResponse"
+                $ref: "#/components/schemas/ResponseJsonAnnouncementListResponse"
           description: OK
       tags:
       - announcement-controller
@@ -697,6 +798,52 @@ paths:
           description: Created
       tags:
       - announcement-controller
+  /api/announcements/cancelled:
+    delete:
+      operationId: deleteCancelledAnnouncements
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - SCHEDULED
+          - SENDING
+          - SENT
+          - CANCELLED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInteger"
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcements/delete-selection:
+    post:
+      operationId: deleteSelectedAnnouncements
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementSelectionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInteger"
+          description: OK
+      tags:
+      - announcement-controller
   /api/announcements/recipient-preview:
     post:
       operationId: previewRecipients
@@ -716,6 +863,24 @@ paths:
       tags:
       - announcement-controller
   /api/announcements/{announcementId}:
+    delete:
+      operationId: deleteAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - announcement-controller
     get:
       operationId: getAnnouncement
       parameters:
@@ -9682,6 +9847,28 @@ components:
         sizeBytes:
           type: integer
           format: int64
+    AnnouncementListResponse:
+      type: object
+      properties:
+        cancelledCount:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
     AnnouncementRequest:
       type: object
       properties:
@@ -9708,6 +9895,8 @@ components:
             $ref: "#/components/schemas/AnnouncementAttachmentResponse"
         body:
           type: string
+        canDelete:
+          type: boolean
         canEdit:
           type: boolean
         id:
@@ -9743,6 +9932,8 @@ components:
       properties:
         active:
           type: boolean
+        body:
+          type: string
         dayOfMonth:
           type: integer
           format: int32
@@ -9754,6 +9945,11 @@ components:
           enum:
           - WEEKLY
           - MONTHLY
+        keepAttachmentIds:
+          type: array
+          items:
+            type: integer
+            format: int64
         sendTime:
           type: string
           format: time-local
@@ -9762,11 +9958,19 @@ components:
         templateId:
           type: integer
           format: int64
+        title:
+          type: string
     AnnouncementScheduleResponse:
       type: object
       properties:
         active:
           type: boolean
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementAttachmentResponse"
+        body:
+          type: string
         dayOfMonth:
           type: integer
           format: int32
@@ -9794,6 +9998,32 @@ components:
           format: int64
         templateName:
           type: string
+        title:
+          type: string
+    AnnouncementSelectionRequest:
+      type: object
+      properties:
+        allMatching:
+          type: boolean
+        excludedIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+        q:
+          type: string
+        status:
+          type: string
+          enum:
+          - SCHEDULED
+          - SENDING
+          - SENT
+          - CANCELLED
     AnnouncementTemplateRequest:
       type: object
       properties:
@@ -17341,25 +17571,6 @@ components:
         totalPages:
           type: integer
           format: int32
-    PageResponseAnnouncementResponse:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/AnnouncementResponse"
-        page:
-          type: integer
-          format: int32
-        size:
-          type: integer
-          format: int32
-        totalElements:
-          type: integer
-          format: int64
-        totalPages:
-          type: integer
-          format: int32
     PageResponseChildGuardianOverviewResponse:
       type: object
       properties:
@@ -19002,6 +19213,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonAnnouncementListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AnnouncementListResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAnnouncementResponse:
       type: object
       properties:
@@ -19855,6 +20079,20 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/InspectionSheetResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonInteger:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: integer
+          format: int32
         desc:
           type: string
         errorCode:
@@ -21018,19 +21256,6 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/PageResponseAccountSummaryResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonPageResponseAnnouncementResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/PageResponseAnnouncementResponse"
         desc:
           type: string
         errorCode:
@@ -22209,6 +22434,24 @@ components:
           minItems: 1
       required:
       - items
+    ScheduleActivationRequest:
+      type: object
+      properties:
+        active:
+          type: boolean
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+    ScheduleSelectionRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
     SchoolHolidayItem:
       type: object
       properties:

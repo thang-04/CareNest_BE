@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 370 endpoint.
+Tổng: 376 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -35,18 +35,24 @@ PUT /age-groups/{ageGroupId} · src/main/java/com/carenest/controller/organizati
 GET /age-groups/{ageGroupId}/team-leader-assignments/history · src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#getTeamLeaderHistory
 GET /announcement-attachments/{attachmentId}/content · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#downloadAttachment
 GET /announcement-schedules · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#listSchedules
-POST /announcement-schedules · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#createSchedule
+POST /announcement-schedules · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#createScheduleWithFiles
 DELETE /announcement-schedules/{scheduleId} · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#deleteSchedule
-PUT /announcement-schedules/{scheduleId} · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#updateSchedule
+GET /announcement-schedules/{scheduleId} · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#getSchedule
+PUT /announcement-schedules/{scheduleId} · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#updateScheduleWithFiles
+POST /announcement-schedules/activation · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#activateSchedules
+POST /announcement-schedules/delete-selection · src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#deleteSchedules
 GET /announcement-templates · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#listTemplates
 POST /announcement-templates · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#createTemplate
 DELETE /announcement-templates/{templateId} · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#deleteTemplate
 PUT /announcement-templates/{templateId} · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#updateTemplate
 GET /announcements · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#listAnnouncements
 POST /announcements · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#createAnnouncement
+DELETE /announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#deleteAnnouncement
 GET /announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#getAnnouncement
 PUT /announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#updateAnnouncement
 POST /announcements/{announcementId}/cancel · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#cancelAnnouncement
+DELETE /announcements/cancelled · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#deleteCancelledAnnouncements
+POST /announcements/delete-selection · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#deleteSelectedAnnouncements
 POST /announcements/recipient-preview · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#previewRecipients
 POST /assessment/behaviour-tickets · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#issue
 GET /assessment/behaviour-tickets/board · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#getBoard

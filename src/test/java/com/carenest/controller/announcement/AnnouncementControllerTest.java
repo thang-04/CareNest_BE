@@ -46,6 +46,71 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @Import({WebMvcConfig.class, SecurityConfig.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
 class AnnouncementControllerTest {
 
+    @Test
+    void selectionBodyBindsAndTeacherCannotUseIt() throws Exception {
+        CurrentUser principal = as(CareNestRole.PRINCIPAL);
+        given(announcementService.deleteSelectedAnnouncements(eq(principal), any()))
+                .willReturn(24);
+        String body = "{\"allMatching\":true,\"ids\":[],\"excludedIds\":[8],\"q\":\"hop\",\"status\":\"CANCELLED\"}";
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                                "/api/announcements/delete-selection")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(24));
+        verify(announcementService)
+                .deleteSelectedAnnouncements(
+                        principal,
+                        new com.carenest.dto.announcement.AnnouncementSelectionRequest(
+                                true, List.of(), List.of(8L), "hop", AnnouncementStatus.CANCELLED));
+        as(CareNestRole.TEACHER);
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                                "/api/announcements/delete-selection")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deleteCancelledUsesFilterAndTeacherCannotDelete() throws Exception {
+        CurrentUser principal = as(CareNestRole.PRINCIPAL);
+        given(announcementService.deleteCancelledAnnouncements(principal, "hop", AnnouncementStatus.CANCELLED))
+                .willReturn(25);
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                                "/api/announcements/cancelled")
+                        .param("q", "hop")
+                        .param("status", "CANCELLED")
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(25));
+        as(CareNestRole.TEACHER);
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                                "/api/announcements/9")
+                        .with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(
+                                "/api/announcements/cancelled")
+                        .with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listPassesSearchStatusAndPagingToService() throws Exception {
+        CurrentUser principal = as(CareNestRole.PRINCIPAL);
+        given(announcementService.listAnnouncements(principal, "hop", AnnouncementStatus.CANCELLED, 1, 20))
+                .willReturn(new com.carenest.dto.announcement.AnnouncementListResponse(List.of(), 1, 20, 0, 0, 0));
+        mockMvc.perform(get("/api/announcements")
+                        .param("q", "hop")
+                        .param("status", "CANCELLED")
+                        .param("page", "1")
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.page").value(1));
+        verify(announcementService).listAnnouncements(principal, "hop", AnnouncementStatus.CANCELLED, 1, 20);
+    }
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -81,6 +146,7 @@ class AnnouncementControllerTest {
                         7L,
                         "Demo",
                         List.of(),
+                        false,
                         false));
         MockMultipartFile data = new MockMultipartFile(
                 "data",

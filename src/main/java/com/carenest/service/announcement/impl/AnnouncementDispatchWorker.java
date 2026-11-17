@@ -18,8 +18,8 @@ public class AnnouncementDispatchWorker {
     private final AnnouncementService announcementService;
 
     @Scheduled(
-            fixedDelayString = "${carenest.announcement.worker-delay:30s}",
-            initialDelayString = "${carenest.announcement.worker-delay:30s}")
+            fixedDelayString = "${carenest.announcement.worker-delay}",
+            initialDelayString = "${carenest.announcement.worker-delay}")
     public void dispatchDue() {
         List<Long> ids = announcementService.findDueAnnouncementIds(BATCH);
         for (Long id : ids) {

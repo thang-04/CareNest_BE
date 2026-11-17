@@ -1,5 +1,6 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.config.NotificationTimingProperties;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.meals.MealCount;
@@ -12,7 +13,6 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -31,7 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class MealBookReminderServiceImpl implements MealBookReminderService {
     private static final String LOG_PREFIX = "[MealBookReminderServiceImpl]";
-    private static final Duration AFTER_CUTOFF = Duration.ofMinutes(30);
 
     private final AttendanceService attendanceService;
     private final ClassroomService classroomService;
@@ -39,10 +38,11 @@ public class MealBookReminderServiceImpl implements MealBookReminderService {
     private final StaffAssignmentService staffAssignmentService;
     private final NotificationService notificationService;
     private final Clock clock;
+    private final NotificationTimingProperties timing;
 
     @Override
     @Transactional
-    @Scheduled(cron = "0 */10 7-14 * * MON-FRI", zone = "${carenest.time-zone}")
+    @Scheduled(cron = "${carenest.notification-reminders.meal-book-cron}", zone = "${carenest.time-zone}")
     public int remindUnconfirmedMealBook() {
         String logPrefix = LOG_PREFIX + "|remindUnconfirmedMealBook";
         log.info("{}|START", logPrefix);
@@ -51,8 +51,8 @@ public class MealBookReminderServiceImpl implements MealBookReminderService {
             DayInfoResponse info = attendanceService.getActiveYearDayInfo(today);
             int sent = 0;
             if (info != null && info.schoolDay() && info.cutoff() != null) {
-                LocalDateTime remindAt =
-                        today.atTime(LocalTime.parse(info.cutoff())).plus(AFTER_CUTOFF);
+                LocalDateTime remindAt = today.atTime(LocalTime.parse(info.cutoff()))
+                        .plus(timing.notificationReminders().mealBookAfterCutoff());
                 if (!LocalDateTime.now(clock).isBefore(remindAt)) {
                     List<Long> campusIds = classroomService.findActiveYearClassrooms().stream()
                             .filter(c -> c.yearStatus() == SchoolYearStatus.ACTIVE)

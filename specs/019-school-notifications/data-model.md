@@ -122,3 +122,10 @@ Ba migration, mỗi subtask một file (số chốt lúc làm, sau V129): V130 (
 | BGH | HT (`findPrincipalIds`) + PHT các điểm trường của phạm vi (`findCampusVicePrincipalIds`); toàn trường ⇒ PHT mọi điểm trường |
 
 Bỏ trùng toàn bộ; bỏ người gửi (clarify Q4).
+
+## Delta Tiền chốt 17/11/2026 — PAR-13, OBS-30
+
+Yêu cầu/14 mục domain, AC, contract, dữ liệu không migration, kế hoạch, tasks và analyze/converge tại [bổ sung dọn thông báo đã hủy](domain-spec.md). Bộ lọc q/status, DELETE một hoặc mọi CANCELLED khớp filter+scope trên mọi trang, canDelete; PAR-07 không tự nhận giữ nguyên. Nhắc điểm danh mỗi 5 phút từ 08:00 đến trước giờ khóa cấu hình, thay một lần trong 30 phút trước khóa.
+
+### Điều chỉnh tiếp — timing tập trung và chọn dòng
+Theo domain-spec.md AC7–9/T7–T10: giữ DB hiện có, timing defaults/cron về YAML + properties, GET cancelledCount, POST delete-selection (ids hoặc allMatching/excludedIds/filter), UI checkbox thay nút xóa tất cả. User chốt chọn tất cả mọi trang; không đổi scope và mặc định giờ.

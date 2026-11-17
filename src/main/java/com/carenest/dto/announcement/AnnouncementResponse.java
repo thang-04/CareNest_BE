@@ -18,4 +18,5 @@ public record AnnouncementResponse(
         String senderName,
         List<AnnouncementAttachmentResponse> attachments,
         // Còn hẹn giờ và người xem được sửa/hủy
-        boolean canEdit) {}
+        boolean canEdit,
+        boolean canDelete) {}

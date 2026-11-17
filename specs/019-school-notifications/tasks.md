@@ -85,3 +85,22 @@ Setup → Foundational → US1 → US2 → US3 (US2 dùng outbox US1; US3 dùng 
 ## Implementation Strategy
 
 MVP = US1 (mọi thông báo hiện có lên điện thoại). Sau đó US2, US3; mỗi story commit riêng mã Jira, verify trước mỗi commit.
+
+## Delta Tiền chốt 17/11/2026 — PAR-13, OBS-30
+
+Yêu cầu/14 mục domain, AC, contract, dữ liệu không migration, kế hoạch, tasks và analyze/converge tại [bổ sung dọn thông báo đã hủy](domain-spec.md). Bộ lọc q/status, DELETE một hoặc mọi CANCELLED khớp filter+scope trên mọi trang, canDelete; PAR-07 không tự nhận giữ nguyên. Nhắc điểm danh mỗi 5 phút từ 08:00 đến trước giờ khóa cấu hình, thay một lần trong 30 phút trước khóa.
+
+- [x] T038 Query/filter/canDelete, khóa và xóa/afterCommit cleanup (AC1–4); bằng chứng tại domain-spec.md.
+
+- [x] T039 Controller DELETE, GET filter, OpenAPI và API index (AC1–4); bằng chứng tại domain-spec.md.
+
+- [x] T040 FE/API/mock bộ lọc, xóa một/tất cả và xác nhận (AC1–4); bằng chứng tại domain-spec.md.
+
+- [x] T041 Nhắc điểm danh [08:00,cutoff), slot 5 phút và test biên (AC6); bằng chứng tại domain-spec.md.
+
+- [x] T042 Regression không tự nhận ở resolver/mock và giữ gửi hẹn/lặp (AC5); bằng chứng tại domain-spec.md.
+
+- [x] T043 Analyze/converge cuối, targeted tests và cập nhật tài liệu/giới hạn; bằng chứng tại domain-spec.md.
+
+### Điều chỉnh tiếp — timing tập trung và chọn dòng
+Theo domain-spec.md AC7–9/T7–T10: giữ DB hiện có, timing defaults/cron về YAML + properties, GET cancelledCount, POST delete-selection (ids hoặc allMatching/excludedIds/filter), UI checkbox thay nút xóa tất cả. User chốt chọn tất cả mọi trang; không đổi scope và mặc định giờ.

@@ -1,12 +1,14 @@
 package com.carenest.service.announcement;
 
+import com.carenest.dto.announcement.AnnouncementListResponse;
 import com.carenest.dto.announcement.AnnouncementRequest;
 import com.carenest.dto.announcement.AnnouncementResponse;
+import com.carenest.dto.announcement.AnnouncementSelectionRequest;
 import com.carenest.dto.announcement.MyAnnouncementResponse;
 import com.carenest.dto.announcement.RecipientPreviewResponse;
 import com.carenest.dto.announcement.RecipientTargetRequest;
-import com.carenest.dto.common.PageResponse;
 import com.carenest.security.CurrentUser;
+import com.carenest.utils.enums.AnnouncementStatus;
 import java.util.List;
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,7 +28,18 @@ public interface AnnouncementService {
 
     AnnouncementResponse cancelAnnouncement(CurrentUser user, Long announcementId);
 
-    PageResponse<AnnouncementResponse> listAnnouncements(CurrentUser user, int page, int size);
+    default AnnouncementListResponse listAnnouncements(CurrentUser user, int page, int size) {
+        return listAnnouncements(user, null, null, page, size);
+    }
+
+    AnnouncementListResponse listAnnouncements(
+            CurrentUser user, String q, AnnouncementStatus status, int page, int size);
+
+    void deleteAnnouncement(CurrentUser user, Long announcementId);
+
+    int deleteCancelledAnnouncements(CurrentUser user, String q, AnnouncementStatus status);
+
+    int deleteSelectedAnnouncements(CurrentUser user, AnnouncementSelectionRequest selection);
 
     AnnouncementResponse getAnnouncement(CurrentUser user, Long announcementId);
 

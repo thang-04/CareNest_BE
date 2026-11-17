@@ -17,8 +17,8 @@ public class AnnouncementScheduleWorker {
     private final AnnouncementScheduleService scheduleService;
 
     @Scheduled(
-            fixedDelayString = "${carenest.announcement.schedule-delay:60s}",
-            initialDelayString = "${carenest.announcement.schedule-delay:60s}")
+            fixedDelayString = "${carenest.announcement.schedule-delay}",
+            initialDelayString = "${carenest.announcement.schedule-delay}")
     public void runDue() {
         for (Long id : scheduleService.findDueScheduleIds(BATCH)) {
             try {

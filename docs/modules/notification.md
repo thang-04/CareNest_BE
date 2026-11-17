@@ -47,3 +47,11 @@ Chưa có.
 
 ## Đọc thêm khi
 Thêm kênh gửi mới ⇒ ADR-0004 (communication).
+
+## Dọn thông báo đã hủy — PAR-13 (Tiền 17/11/2026)
+
+GET /announcements thêm q (tiêu đề/nội dung, tìm không phân biệt hoa/thường, ký tự LIKE được escape) và status, lọc trước phân trang, giữ scope HT/PHT hiện có. AnnouncementResponse thêm canDelete chỉ CANCELLED trong phạm vi được xem. DELETE /announcements/{id} chỉ CANCELLED; ngoài scope 404, trạng thái khác 409/1214. DELETE /announcements/cancelled?q=&status= trả số bản ghi xóa, áp toàn bộ kết quả phù hợp trên mọi trang; status khác CANCELLED trả 0. Role hai API: HT/PHT. Khóa pessimistic, transaction DB, CASCADE attachment; FileStorage.removeQuietly chỉ afterCommit. Không xóa mẫu/lịch, không đụng thông báo đã gửi; không migration. PAR-07 đã loại sender ở mỗi vai trò trước đếm, dùng chung preview/gửi ngay/hẹn/lặp. OpenAPI phản ánh endpoint/field mới; App không dùng API quản trị này, không cần đổi.
+
+## Timing tập trung và chọn dòng — Tiền chốt tiếp 17/11/2026
+Mặc định thời gian/cron chỉ khai báo tại application.yml (push, announcement, notification-reminders), có comment chi tiết. NotificationTimingProperties bind/kiểm tra, NotificationSchedules sinh cron điểm danh từ cùng start/interval/days dùng trong window và dedupe. Giữ các key push cũ, mặc định không đổi; đổi cấu hình cần restart, giờ gửi/cutoff người dùng vẫn ở DB. Cron sai, interval không là ước số 60, duration <=0 hoặc giới hạn hẹn >30 ngày fail-fast.
+GET /announcements bổ sung cancelledCount trên toàn filter/scope, không chỉ page. POST /announcements/delete-selection nhận allMatching, ids, excludedIds, q, status, trả count. Chọn riêng: kiểm mọi id trong scope và CANCELLED trước xóa, không thành công một phần. Chọn tất cả: filter CANCELLED trừ excludedIds; cùng khóa/cleanup sau commit. Giữ API xóa cũ tương thích, UI không còn nút Xóa tất cả.

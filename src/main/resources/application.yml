@@ -110,16 +110,53 @@ carenest:
         code: announcement
         max-size: ${CARENEST_STORAGE_MAX_ANNOUNCEMENT:10MB}
         types: [jpg, jpeg, png, pdf]
-  # Thông báo đẩy (spec 019): hàng chờ trong bảng notifications; thiếu file khóa FCM ⇒ chỉ ghi log
+  # ===== THỜI GIAN THÔNG BÁO — sửa tại nhóm này, không sửa literal trong service =====
+  # s = giây, m = phút, h = giờ, d = ngày. Cron Spring có 6 phần: giây phút giờ ngày-tháng tháng thứ.
+  # Tất cả cron dùng carenest.time-zone bên dưới (mặc định giờ Việt Nam).
+  # Đổi YAML/biến môi trường cần restart BE; không làm thay đổi giờ gửi/giờ khóa đã lưu trong DB.
   push:
+    # Sau khi quét/gửi xong một lượt, đợi khoảng này rồi quét outbox tiếp; không phải giờ người dùng hẹn gửi.
     worker-delay: ${CARENEST_PUSH_WORKER_DELAY:5s}
     batch-size: ${CARENEST_PUSH_BATCH_SIZE:300}
     worker-enabled: ${CARENEST_PUSH_WORKER_ENABLED:true}
     worker-threads: ${CARENEST_PUSH_WORKER_THREADS:4}
-    max-age: 60m
-    device-max-idle: 270d
+    # Cửa sổ thử lại push tính từ lúc tạo thông báo; hết hạn thì ngừng đẩy, tin trong ứng dụng vẫn còn.
+    max-age: ${CARENEST_PUSH_MAX_AGE:60m}
+    # Khoảng đợi lỗi tạm thời: bắt đầu 1 phút, tăng gấp đôi, chặn ở 30 phút; jitter ±20% tránh dồn tải.
+    retry-initial-delay: ${CARENEST_PUSH_RETRY_INITIAL_DELAY:1m}
+    retry-max-delay: ${CARENEST_PUSH_RETRY_MAX_DELAY:30m}
+    # Thiết bị không cập nhật quá thời gian này sẽ được dọn vào cron dưới; không xóa nội dung thông báo.
+    device-max-idle: ${CARENEST_PUSH_DEVICE_MAX_IDLE:270d}
+    device-cleanup-cron: ${CARENEST_PUSH_DEVICE_CLEANUP_CRON:0 10 3 * * *}
     fcm:
       credentials-file: ${CARENEST_PUSH_FCM_CREDENTIALS_FILE:}
+  announcement:
+    # Quét thông báo hẹn một lần đã đến sendAt; lượt đầu cũng chờ khoảng này sau khi BE khởi động.
+    worker-delay: ${CARENEST_ANNOUNCEMENT_WORKER_DELAY:30s}
+    # Quét lịch lặp đã đến nextRunAt; lịch/thứ/ngày/giờ cụ thể do người dùng thiết lập trong DB.
+    schedule-delay: ${CARENEST_ANNOUNCEMENT_SCHEDULE_DELAY:60s}
+    # PAR-08: không vượt 30 ngày. Đây là giới hạn hẹn trước, không phải chu kỳ quét.
+    max-schedule-days: ${CARENEST_ANNOUNCEMENT_MAX_SCHEDULE_DAYS:30}
+  notification-reminders:
+    # Điểm danh: chỉ nhắc trong [giờ bắt đầu, giờ khóa cấu hình của ngày); lớp đã điểm danh thì dừng.
+    # Chỉ sửa interval-minutes một chỗ: cả cron quét và khóa chống trùng cùng dùng giá trị này.
+    # Chu kỳ hợp lệ là ước số của 60 phút (1,2,3,4,5,6,10,12,15,20,30,60); tránh 7 gây lệch slot qua giờ.
+    attendance-start: ${CARENEST_ATTENDANCE_REMINDER_START:08:00}
+    attendance-interval-minutes: ${CARENEST_ATTENDANCE_REMINDER_INTERVAL_MINUTES:5}
+    attendance-days: ${CARENEST_ATTENDANCE_REMINDER_DAYS:MON-FRI}
+    # 20:00 thứ Hai–Sáu: kiểm lớp còn trẻ có mặt chưa được đánh giá ngày.
+    daily-assessment-cron: ${CARENEST_DAILY_ASSESSMENT_REMINDER_CRON:0 0 20 * * MON-FRI}
+    # 07:00 thứ Hai–Sáu: kiểm các kỳ đánh giá/nhận xét tuần vừa mở, gần hạn hoặc quá hạn.
+    evaluation-deadline-cron: ${CARENEST_EVALUATION_DEADLINE_REMINDER_CRON:0 0 7 * * MON-FRI}
+    # Quét mỗi 10 phút; lead = cửa sổ nhắc trước khi lần mở lại đánh giá/nhận xét hết hạn.
+    unlock-ending-cron: ${CARENEST_UNLOCK_ENDING_REMINDER_CRON:0 */10 * * * *}
+    unlock-ending-lead: ${CARENEST_UNLOCK_ENDING_REMINDER_LEAD:1h}
+    # 07:30 thứ Hai–Sáu: kiểm và tóm tắt việc quá hạn cho HT/PHT đúng phạm vi.
+    leader-overdue-cron: ${CARENEST_LEADER_OVERDUE_REMINDER_CRON:0 30 7 * * MON-FRI}
+    # Sổ báo ăn: quét mỗi 10 phút trong 07:00–14:50; chỉ nhắc từ cutoff + khoảng đợi dưới đây.
+    meal-book-cron: ${CARENEST_MEAL_BOOK_REMINDER_CRON:0 */10 7-14 * * MON-FRI}
+    meal-book-after-cutoff: ${CARENEST_MEAL_BOOK_REMINDER_AFTER_CUTOFF:30m}
+  # ===== HẾT NHÓM THỜI GIAN THÔNG BÁO =====
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}

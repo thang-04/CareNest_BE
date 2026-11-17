@@ -55,6 +55,8 @@ class AnnouncementScheduleServiceImplTest {
     private RecipientResolver resolver;
     private NotificationService notifications;
     private SchoolYearService schoolYears;
+    private com.carenest.repository.announcement.AnnouncementAttachmentRepository attachments;
+    private com.carenest.integration.storage.FileStorage storage;
     private AnnouncementScheduleServiceImpl service;
     private AnnouncementSchedule schedule;
 
@@ -66,8 +68,18 @@ class AnnouncementScheduleServiceImplTest {
         resolver = mock(RecipientResolver.class);
         notifications = mock(NotificationService.class);
         schoolYears = mock(SchoolYearService.class);
+        attachments = mock(com.carenest.repository.announcement.AnnouncementAttachmentRepository.class);
+        storage = mock(com.carenest.integration.storage.FileStorage.class);
         service = new AnnouncementScheduleServiceImpl(
-                schedules, templates, announcements, resolver, notifications, schoolYears, Clock.fixed(NOW, VN));
+                schedules,
+                templates,
+                announcements,
+                resolver,
+                notifications,
+                schoolYears,
+                Clock.fixed(NOW, VN),
+                attachments,
+                storage);
         AnnouncementTemplate template =
                 AnnouncementTemplate.create("Nhắc học phí", "Học phí", "Nội dung", null, 1L, NOW);
         ReflectionTestUtils.setField(template, "id", 3L);
@@ -142,6 +154,117 @@ class AnnouncementScheduleServiceImplTest {
 
         assertThat(created.nextRunAt()).isEqualTo(Instant.parse("2026-11-30T01:00:00Z"));
         assertThat(created.active()).isTrue();
+        assertThat(created.title()).isEqualTo("Học phí");
+    }
+
+    private AnnouncementScheduleRequest ownRequest(Long templateId) {
+        return new AnnouncementScheduleRequest(
+                templateId,
+                new RecipientTargetRequest(
+                        AnnouncementScopeType.SCHOOL, null, null, null, Set.of(RecipientRole.PARENT)),
+                ScheduleFrequency.WEEKLY,
+                1,
+                null,
+                LocalTime.of(8, 0),
+                true,
+                "Nội dung riêng",
+                "Bản lưu độc lập",
+                java.util.List.of());
+    }
+
+    @Test
+    void directContentDoesNotRequireTemplateAndUploadsLikeCompose() {
+        given(schedules.save(any())).willAnswer(inv -> {
+            AnnouncementSchedule s = inv.getArgument(0);
+            ReflectionTestUtils.setField(s, "id", 8L);
+            return s;
+        });
+        given(storage.store(any(), any(), anyString(), any(), anyLong()))
+                .willReturn(
+                        new com.carenest.integration.storage.FileStorage.StoredFile("own.pdf", "application/pdf", 3));
+        var result = service.createSchedule(
+                HT,
+                ownRequest(null),
+                java.util.List.of(new org.springframework.mock.web.MockMultipartFile(
+                        "files", "demo.pdf", "application/pdf", new byte[] {1, 2, 3})));
+        assertThat(result.templateId()).isNull();
+        assertThat(result.title()).isEqualTo("Nội dung riêng");
+        var file = org.mockito.ArgumentCaptor.forClass(com.carenest.entity.announcement.AnnouncementAttachment.class);
+        verify(attachments).save(file.capture());
+        assertThat(file.getValue().getScheduleId()).isEqualTo(8L);
+        assertThat(file.getValue().getAnnouncementId()).isNull();
+        verify(templates, never()).findById(any());
+    }
+
+    @Test
+    void workerUsesSnapshotEvenWhenTemplateChangesAndClonesAttachments() {
+        schedule.content("Bản cũ", "Nội dung đã lưu");
+        given(schoolYears.isSchoolDay(any())).willReturn(true);
+        given(attachments.findByScheduleIdOrderByIdAsc(4L))
+                .willReturn(java.util.List.of(com.carenest.entity.announcement.AnnouncementAttachment.forSchedule(
+                        4L, "shared.pdf", "demo.pdf", "application/pdf", 3, NOW)));
+        service.runDue(4L);
+        verify(notifications).notifyAnnouncement(9L, Set.of(500L), "Bản cũ", "Nội dung đã lưu");
+        var file = org.mockito.ArgumentCaptor.forClass(com.carenest.entity.announcement.AnnouncementAttachment.class);
+        verify(attachments).save(file.capture());
+        assertThat(file.getValue().getAnnouncementId()).isEqualTo(9L);
+        assertThat(file.getValue().getScheduleId()).isNull();
+        assertThat(file.getValue().getFileKey()).isEqualTo("shared.pdf");
+    }
+
+    @Test
+    void bulkActivationOnlyChangesSelectedAndRejectsMissingIdBeforeMutation() {
+        given(schedules.lockByIds(Set.of(4L, 999L))).willReturn(java.util.List.of(schedule));
+        assertThatThrownBy(() -> service.activateSchedules(
+                        HT,
+                        new com.carenest.dto.announcement.ScheduleActivationRequest(
+                                java.util.List.of(4L, 999L), false)))
+                .isInstanceOf(GlobalException.class);
+        assertThat(schedule.isActive()).isTrue();
+        given(schedules.lockByIds(Set.of(4L))).willReturn(java.util.List.of(schedule));
+        assertThat(service.activateSchedules(
+                        HT, new com.carenest.dto.announcement.ScheduleActivationRequest(java.util.List.of(4L), false)))
+                .isEqualTo(1);
+        assertThat(schedule.isActive()).isFalse();
+        assertThat(service.activateSchedules(
+                        HT, new com.carenest.dto.announcement.ScheduleActivationRequest(java.util.List.of(4L), true)))
+                .isEqualTo(1);
+        assertThat(schedule.isActive()).isTrue();
+        assertThat(schedule.getNextRunAt()).isAfter(NOW);
+    }
+
+    @Test
+    void deletingScheduleKeepsFileUsedBySentAnnouncement() {
+        schedule.activate(false, schedule.getNextRunAt(), NOW);
+        given(schedules.lockByIds(Set.of(4L))).willReturn(java.util.List.of(schedule));
+        given(attachments.findByScheduleIdIn(Set.of(4L)))
+                .willReturn(java.util.List.of(com.carenest.entity.announcement.AnnouncementAttachment.forSchedule(
+                        4L, "shared.pdf", "demo.pdf", "application/pdf", 3, NOW)));
+        given(attachments.existsByFileKey("shared.pdf")).willReturn(true);
+        service.deleteSchedule(HT, 4L);
+        verify(storage, never()).removeQuietly(any(), any());
+    }
+
+    @Test
+    void activeScheduleCannotBeDeleted() {
+        given(schedules.lockByIds(Set.of(4L))).willReturn(java.util.List.of(schedule));
+
+        assertThatThrownBy(() -> service.deleteSchedule(HT, 4L))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.ANNOUNCEMENT_SCHEDULE_ACTIVE));
+        verify(schedules, never()).deleteAll(any());
+    }
+
+    @Test
+    void deletingSelectionWithMissingIdDeletesNothing() {
+        given(schedules.lockByIds(Set.of(4L, 99L))).willReturn(java.util.List.of(schedule));
+
+        assertThatThrownBy(() -> service.deleteSchedules(HT, java.util.List.of(4L, 99L)))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.ANNOUNCEMENT_SCHEDULE_NOT_FOUND));
+        verify(schedules, never()).deleteAll(any());
     }
 
     @Test

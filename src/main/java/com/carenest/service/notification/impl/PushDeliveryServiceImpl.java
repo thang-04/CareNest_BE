@@ -1,5 +1,6 @@
 package com.carenest.service.notification.impl;
 
+import com.carenest.config.NotificationTimingProperties;
 import com.carenest.entity.notification.DeviceToken;
 import com.carenest.entity.notification.Notification;
 import com.carenest.entity.notification.NotificationPushDelivery;
@@ -18,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +31,7 @@ public class PushDeliveryServiceImpl implements PushDeliveryService {
     private final PushGateway gateway;
     private final Clock clock;
     private final Duration maxAge;
+    private final NotificationTimingProperties.Push timing;
 
     public PushDeliveryServiceImpl(
             NotificationRepository notifications,
@@ -38,13 +39,14 @@ public class PushDeliveryServiceImpl implements PushDeliveryService {
             NotificationPushDeliveryRepository deliveries,
             PushGateway gateway,
             Clock clock,
-            @Value("${carenest.push.max-age:60m}") Duration maxAge) {
+            NotificationTimingProperties timing) {
         this.notifications = notifications;
         this.devices = devices;
         this.deliveries = deliveries;
         this.gateway = gateway;
         this.clock = clock;
-        this.maxAge = maxAge;
+        this.timing = timing.push();
+        this.maxAge = this.timing.maxAge();
     }
 
     @Override
@@ -122,7 +124,7 @@ public class PushDeliveryServiceImpl implements PushDeliveryService {
                 }
                 case PERMANENT -> row.failedAttempt("PERMANENT", now);
                 case RETRYABLE -> {
-                    Duration wait = backoff(row.getAttempts() + 1);
+                    Duration wait = backoff(row.getAttempts() + 1, timing.retryInitialDelay(), timing.retryMaxDelay());
                     if (ex.retryAfter() != null && ex.retryAfter().compareTo(wait) > 0) wait = ex.retryAfter();
                     Instant next = now.plus(wait);
                     if (!next.isBefore(deadline)) row.failedAttempt("EXPIRED", now);
@@ -153,10 +155,11 @@ public class PushDeliveryServiceImpl implements PushDeliveryService {
         else n.updatePush(PushState.SKIPPED, null, attempts);
     }
 
-    static Duration backoff(int attempt) {
-        long base = Duration.ofMinutes(1).toMillis() << Math.min(attempt - 1, 10);
-        long capped = Math.min(base, Duration.ofMinutes(30).toMillis());
-        return Duration.ofMillis(
-                (long) (capped * (0.8 + ThreadLocalRandom.current().nextDouble() * 0.4)));
+    static Duration backoff(int attempt, Duration initialDelay, Duration maxDelay) {
+        // Tăng gấp đôi theo lần thử, chặn trần trước khi thêm jitter ±20%; dùng double để không tràn phép dịch bit.
+        double base = initialDelay.toMillis() * Math.pow(2, Math.min(Math.max(attempt - 1, 0), 30));
+        long capped = (long) Math.min(base, maxDelay.toMillis());
+        return Duration.ofMillis(Math.max(
+                1L, (long) (capped * (0.8 + ThreadLocalRandom.current().nextDouble() * 0.4))));
     }
 }
