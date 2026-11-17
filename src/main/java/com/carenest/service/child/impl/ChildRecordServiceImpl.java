@@ -199,8 +199,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
 
             // CHD-13: không báo ăn ⇒ giữ dị ứng, chế độ ăn đã khai; chưa có khai báo thì dùng giá trị của form
             boolean keepStored = !d.mealRegistered() && existing.isPresent();
-            DeclarationState allergiesState =
-                    keepStored ? existing.get().getAllergiesState() : d.allergiesState();
+            DeclarationState allergiesState = keepStored ? existing.get().getAllergiesState() : d.allergiesState();
             List<String> allergyItems = keepStored ? allergyNames(childId) : d.allergies();
             ChildHealthDeclaration.Answer diet = keepStored
                     ? new ChildHealthDeclaration.Answer(

@@ -475,9 +475,7 @@ class ChildRecordServiceImplTest {
                 noneInput,
                 new com.carenest.dto.child.DeclarationAnswerInput("REPORTED", "Ghi chú mới"),
                 new com.carenest.dto.child.MedicalHistoryInput(
-                        noneInput,
-                        noneInput,
-                        new com.carenest.dto.child.TbContactInput("NONE_REPORTED", null)),
+                        noneInput, noneInput, new com.carenest.dto.child.TbContactInput("NONE_REPORTED", null)),
                 false);
 
         service.saveDeclaration(

@@ -300,7 +300,8 @@ final class EnrollmentFormValidator {
                 errors.put("declaration.allergies", "Chọn tình trạng dị ứng");
             } else if (allergiesState == DeclarationState.REPORTED && items.isEmpty()) {
                 errors.put("declaration.allergies", "Nhập ít nhất một thực phẩm/chất gây dị ứng");
-            } else if (allergiesState == DeclarationState.REPORTED && items.stream().anyMatch(s -> s.length() > 100)) {
+            } else if (allergiesState == DeclarationState.REPORTED
+                    && items.stream().anyMatch(s -> s.length() > 100)) {
                 errors.put("declaration.allergies", "Tên chất gây dị ứng tối đa 100 ký tự");
             }
             diet = answer(
@@ -372,7 +373,8 @@ final class EnrollmentFormValidator {
         if (allergiesState != DeclarationState.REPORTED) {
             items = List.of();
         }
-        return new HealthDeclarationDraft(allergiesState, items, diet, otherNotes, self, family, tbState, tbDate, mealRegistered);
+        return new HealthDeclarationDraft(
+                allergiesState, items, diet, otherNotes, self, family, tbState, tbDate, mealRegistered);
     }
 
     private static HealthDeclarationDraft.Answer answer(
