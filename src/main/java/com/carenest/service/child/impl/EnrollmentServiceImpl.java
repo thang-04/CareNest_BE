@@ -88,8 +88,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                     .collect(Collectors.toSet());
             List<ClassChildResponse> children = childRepository.findAllById(childIds).stream()
                     .sorted(Comparator.comparing(Child::getFullName).thenComparing(Child::getId))
-                    .map(c -> new ClassChildResponse(
-                            c.getId(), c.getFullName(), c.getDateOfBirth(), c.isMealRegistered()))
+                    .map(c -> new ClassChildResponse(c.getId(), c.getFullName(), c.getDateOfBirth()))
                     .toList();
             log.info("{}|END", logPrefix);
             return children;
@@ -109,8 +108,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                     .collect(Collectors.toSet());
             List<ClassChildResponse> children = childRepository.findAllById(ids).stream()
                     .sorted(Comparator.comparing(Child::getFullName).thenComparing(Child::getId))
-                    .map(c -> new ClassChildResponse(
-                            c.getId(), c.getFullName(), c.getDateOfBirth(), c.isMealRegistered()))
+                    .map(c -> new ClassChildResponse(c.getId(), c.getFullName(), c.getDateOfBirth()))
                     .toList();
             log.info("{}|END", logPrefix);
             return children;

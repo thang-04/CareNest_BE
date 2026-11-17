@@ -69,9 +69,8 @@ class RecipientResolverTest {
     @Test
     void parentWithTwoChildrenInScopeIsCountedOnce() {
         given(enrollments.findChildrenInClassroom(10L, DAY))
-                .willReturn(List.of(
-                        new ClassChildResponse(100L, "An", null, true),
-                        new ClassChildResponse(101L, "Bình", null, true)));
+                .willReturn(
+                        List.of(new ClassChildResponse(100L, "An", null), new ClassChildResponse(101L, "Bình", null)));
         given(guardians.findLinksOfChildren(anyCollection()))
                 .willReturn(List.of(
                         new GuardianLinkResponse(500L, 100L, null, null),

@@ -193,9 +193,11 @@ public class AttendanceServiceImpl implements AttendanceService {
                             .collect(Collectors.groupingBy(DailyHealthEntry::getChildId));
             Map<Long, LeaveTag> leaves =
                     leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day, cls);
+            Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(
+                    children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()));
             List<ChildRow> rows = children.stream()
                     .map(ch -> new ChildRow(
-                            toBrief(ch),
+                            toBrief(ch, withoutMeals),
                             toView(records.get(ch.id()), cls.mealSessions(), names),
                             toHealth(health.getOrDefault(ch.id(), List.of())),
                             leaves.get(ch.id())))
@@ -272,13 +274,11 @@ public class AttendanceServiceImpl implements AttendanceService {
                 }
             }
             // CHD-13: trẻ không báo ăn không bao giờ có suất, bỏ qua meals gửi lên
-            Map<Long, Boolean> mealRegisteredByChild = classChildren.stream()
-                    .collect(Collectors.toMap(ClassChildResponse::id, ClassChildResponse::mealRegistered));
+            Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(classChildIds);
             Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 mealsByChild.put(
-                        entry.childId(),
-                        mealsOf(entry, cls.mealSessions(), mealRegisteredByChild.getOrDefault(entry.childId(), true)));
+                        entry.childId(), mealsOf(entry, cls.mealSessions(), !withoutMeals.contains(entry.childId())));
             }
             Instant at = rules.now();
             Long unlockId = info.unlock() == null ? null : info.unlock().id();
@@ -503,7 +503,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         return cls;
     }
 
-    /** ATT-02: Có mặt mặc định ăn đủ bữa; giáo viên được tắt. Trẻ vắng không được đăng ký suất. ATT-02a: trẻ không báo ăn luôn không có bữa. */
+    /** ATT-02: Có mặt mặc định ăn đủ bữa, GV được tắt; trẻ vắng không có suất. CHD-13: trẻ không báo ăn luôn không có bữa. */
     private static List<MealSession> mealsOf(
             SaveAttendanceRequest.Entry entry, List<MealSession> classSessions, boolean mealRegistered) {
         if (!mealRegistered) {
@@ -554,6 +554,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroomDuring(cls.id(), from, to);
         List<Long> childIds = children.stream().map(ClassChildResponse::id).toList();
+        Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(childIds);
         Map<String, AttendanceRecord> records =
                 recordRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
                         .filter(r -> r.getClassroomId().equals(cls.id()))
@@ -602,7 +603,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<ChildTotal> childTotals = children.stream()
                 .map(ch -> {
                     int[] c = perChild.get(ch.id());
-                    return new ChildTotal(toBrief(ch), c[0], c[1], c[2], c[3]);
+                    return new ChildTotal(toBrief(ch, withoutMeals), c[0], c[1], c[2], c[3]);
                 })
                 .toList();
         return new ClassSummary(
@@ -617,8 +618,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         return rows.stream().mapToInt(field).sum();
     }
 
-    private static ChildBrief toBrief(ClassChildResponse ch) {
-        return new ChildBrief(ch.id(), ch.fullName(), ch.dateOfBirth(), ch.mealRegistered());
+    private static ChildBrief toBrief(ClassChildResponse ch, Set<Long> withoutMeals) {
+        return new ChildBrief(ch.id(), ch.fullName(), ch.dateOfBirth(), !withoutMeals.contains(ch.id()));
     }
 
     private static RecordView toView(AttendanceRecord r, List<MealSession> sessions, Map<Long, String> names) {
