@@ -32,7 +32,6 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -87,15 +86,8 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                         .toList();
             }
             List<ClassResponse> classResponses = toResponses(classes);
-            // CFG-YR-02: năm đã kết thúc ⇒ nhóm tuổi như lúc kết thúc năm
-            List<AgeGroupDetailResponse> ageGroups = yearSnapshotReader
-                    .ageGroups(year.getId())
-                    .orElseGet(() -> ageGroupRepository.findAll().stream()
-                            .sorted(Comparator.comparing((AgeGroup g) ->
-                                            g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
-                                    .thenComparing(AgeGroup::getSortOrder))
-                            .map(schoolStructureMapper::toDetailResponse)
-                            .toList());
+            // CFG-YR-02: năm đã kết thúc ⇒ nhóm tuổi như lúc kết thúc năm; năm còn mở ⇒ nhóm tuổi của năm đó
+            List<AgeGroupDetailResponse> ageGroups = yearSnapshotReader.yearAgeGroups(year.getId());
             Map<Long, TeacherCandidateResponse> teachersById =
                     teacherDirectory.findTeachers(schoolConfigAccess.today()).stream()
                             .collect(Collectors.toMap(TeacherCandidateResponse::id, t -> t));
@@ -316,6 +308,11 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                 copy.changeInfo(
                         c.getName(), c.getCampusId(), group.getId(), roomFree ? room.getId() : null, (short) capacity);
                 classroomRepository.saveAndFlush(copy);
+                // Sao chép lớp mang nhóm tuổi sang năm đích nếu năm đó chưa có nhóm này
+                if (ageGroupRepository.findYearAgeGroupIds(target.getId()).isEmpty()) {
+                    ageGroupRepository.addAllToYear(target.getId());
+                }
+                ageGroupRepository.addToYear(target.getId(), group.getId());
                 copied.add(c.getName());
             }
             CopyClassesResponse response = new CopyClassesResponse(copied, skipped, withoutRoom);
@@ -340,6 +337,11 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         AgeGroup ageGroup = ageGroupRepository
                 .findById(request.ageGroupId())
                 .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
+        // Lớp chỉ thuộc nhóm tuổi có trong năm học của lớp (năm chưa có danh sách riêng thì mọi nhóm)
+        List<Long> yearGroups = ageGroupRepository.findYearAgeGroupIds(request.schoolYearId());
+        if (!yearGroups.isEmpty() && !yearGroups.contains(ageGroup.getId())) {
+            throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
+        }
         Room room = roomRepository
                 .findById(request.locationId())
                 .filter(r -> r.getStatus() != RoomStatus.DELETED)

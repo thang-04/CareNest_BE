@@ -380,6 +380,13 @@ paths:
   /api/age-groups:
     get:
       operationId: getAgeGroups
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -391,6 +398,13 @@ paths:
       - age-group-controller
     post:
       operationId: createAgeGroup
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -413,6 +427,12 @@ paths:
       - in: path
         name: ageGroupId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -2961,6 +2981,13 @@ paths:
   /api/children/placement-classes:
     get:
       operationId: listPlacementClasses
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -10846,6 +10873,8 @@ components:
         id:
           type: integer
           format: int64
+        mealRegistered:
+          type: boolean
     ChildClassResponse:
       type: object
       properties:
@@ -10963,6 +10992,8 @@ components:
           format: date
         leftReason:
           type: string
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         profile:
@@ -11134,6 +11165,8 @@ components:
         leftAt:
           type: string
           format: date
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         readmittedAt:
@@ -11379,6 +11412,8 @@ components:
           format: date
         leftReason:
           type: string
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         profile:
@@ -11907,7 +11942,7 @@ components:
           items:
             type: integer
             format: int64
-          maxItems: 2
+          maxItems: 3
           minItems: 0
       required:
       - teacherIds
@@ -13375,6 +13410,12 @@ components:
           format: int64
         declaration:
           $ref: "#/components/schemas/HealthDeclarationInput"
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
     EnrollmentChildInput:
       type: object
       properties:
@@ -15121,6 +15162,8 @@ components:
           $ref: "#/components/schemas/AllergiesInput"
         diet:
           $ref: "#/components/schemas/DeclarationAnswerInput"
+        mealRegistered:
+          type: boolean
         medicalHistory:
           $ref: "#/components/schemas/MedicalHistoryInput"
         otherNotes:
@@ -17384,6 +17427,40 @@ components:
           format: date-time
         title:
           type: string
+    NewAdmission:
+      type: object
+      properties:
+        admissionId:
+          type: integer
+          format: int64
+        birthDate:
+          type: string
+          format: date
+        campusId:
+          type: integer
+          format: int64
+        childId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        targetClassId:
+          type: integer
+          format: int64
+    NewAdmissionItem:
+      type: object
+      properties:
+        admissionId:
+          type: integer
+          format: int64
+        toClassId:
+          type: integer
+          format: int64
+      required:
+      - admissionId
     NewItem:
       type: object
       properties:
@@ -18459,6 +18536,10 @@ components:
             $ref: "#/components/schemas/SourceClass"
         editable:
           type: boolean
+        newAdmissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewAdmission"
         sourceYear:
           $ref: "#/components/schemas/YearBrief"
         targets:
@@ -22691,9 +22772,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Item"
-          minItems: 1
-      required:
-      - items
+        newAdmissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewAdmissionItem"
     ScheduleActivationRequest:
       type: object
       properties:

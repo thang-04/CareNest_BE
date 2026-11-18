@@ -31,6 +31,7 @@ public record ChildListItemResponse(
         LocalDate readmittedAt,
         List<String> allergies,
         boolean hasDeclaration,
+        boolean mealRegistered,
         List<ChildGuardianResponse> guardians,
         boolean canManage,
         String photoUrl,

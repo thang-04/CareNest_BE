@@ -154,6 +154,129 @@ class ClassStructureIntegrationTest {
     }
 
     @Test
+    @DisplayName("Lỗi xóa nhóm tuổi nêu năm học và tổ trưởng đang giữ nhóm (nhóm tuổi dùng chung mọi năm)")
+    void deleteAgeGroupNamesYearAndLeader() {
+        AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
+                principal, new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 12, 24, List.of(MealSession.LUNCH), 15, ""));
+        long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-leader', 'leader.it', 'Cô Tổ Trưởng') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
+                        + "VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-09-01')",
+                leaderId,
+                created.id(),
+                year);
+
+        assertThatThrownBy(() -> ageGroupService.deleteAgeGroup(principal, created.id()))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Nhóm tuổi đã có tổ trưởng Cô Tổ Trưởng ở năm học 2026-2027, không xóa được");
+    }
+
+    @Test
+    @DisplayName("Cần chốt 22/10/2026: nhóm tuổi theo từng năm học, thêm / xóa ở năm nào chỉ năm đó đổi")
+    void ageGroupsArePerSchoolYear() {
+        long nextYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        ageGroupService.copyYearAgeGroups(null, year);
+        ageGroupService.copyYearAgeGroups(year, nextYear);
+        long ag5 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-5'", Long.class);
+        long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-leader5', 'leader5.it', 'Cô Lớp Lớn') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
+                        + "VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-09-01')",
+                leaderId,
+                ag5,
+                year);
+
+        // Lỗi 2: thêm ở 2027-2028 không hiện ở 2026-2027
+        AgeGroupDetailResponse added = ageGroupService.createAgeGroup(
+                principal,
+                new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 12, 24, List.of(MealSession.LUNCH), 15, ""),
+                nextYear);
+        assertThat(ids(ageGroupService.getYearAgeGroups(nextYear))).contains(added.id());
+        assertThat(ids(ageGroupService.getYearAgeGroups(year))).doesNotContain(added.id());
+
+        // Lỗi 1: 2027-2028 chưa có tổ trưởng, lớp ⇒ xóa được; 2026-2027 vẫn giữ nhóm và tổ trưởng
+        ageGroupService.deleteAgeGroup(principal, ag5, nextYear);
+        assertThat(ids(ageGroupService.getYearAgeGroups(nextYear))).doesNotContain(ag5);
+        assertThat(ids(ageGroupService.getYearAgeGroups(year))).contains(ag5);
+        assertThatThrownBy(() -> ageGroupService.deleteAgeGroup(principal, ag5, year))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Nhóm tuổi đã có tổ trưởng Cô Lớp Lớn ở năm học 2026-2027, không xóa được");
+
+        // Thêm lại đúng tên nhóm đã có ở năm khác: dùng lại nhóm đó (giữ mã cho kế hoạch, thực đơn)
+        String ag5Name = jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, ag5);
+        AgeGroupDetailResponse reused = ageGroupService.createAgeGroup(
+                principal, new AgeGroupRequest(ag5Name, "x", 60, 72, List.of(MealSession.LUNCH), 30, ""), nextYear);
+        assertThat(reused.id()).isEqualTo(ag5);
+        expectError(
+                () -> ageGroupService.createAgeGroup(
+                        principal,
+                        new AgeGroupRequest(ag5Name, "x", 60, 72, List.of(MealSession.LUNCH), 30, ""),
+                        nextYear),
+                ApiCode.CONFLICT);
+    }
+
+    private static List<Long> ids(List<AgeGroupDetailResponse> groups) {
+        return groups.stream().map(AgeGroupDetailResponse::id).toList();
+    }
+
+    @Test
+    @DisplayName("Cần chốt 18/11/2026: phụ trách bếp chỉ là nhân viên bếp, PHT của điểm trường hoặc Hiệu trưởng")
+    void kitchenManagerMustBeKitchenStaffViceOrPrincipal() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-t-k', 'teacher.k', 'GV Bếp') RETURNING id");
+        long kitchenClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
+                + campusA + ", " + year + ", 'Lớp bếp', " + ageGroup3 + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-01-01')",
+                teacherId,
+                kitchenClass);
+        long cookId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-cook', 'cook.k', 'Cô Bếp') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'KITCHEN_STAFF', ?, '2026-01-01')",
+                cookId,
+                campusA);
+
+        assertThatThrownBy(() -> roomService.createRoom(
+                        principal, new RoomRequest(campusA, "B.1", "Bếp 1", RoomType.KITCHEN, null, teacherId, null)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ROOM_KITCHEN_MANAGER_INVALID);
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(campusA, "B.1", "Bếp 1", RoomType.KITCHEN, null, cookId, null))
+                        .id())
+                .isNotNull();
+        // PHT của điểm trường và Hiệu trưởng cũng được; phòng loại khác vẫn nhận GV của điểm trường
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(
+                                        campusA, "B.2", "Bếp 2", RoomType.KITCHEN, null, vicePrincipal.userId(), null))
+                        .id())
+                .isNotNull();
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(
+                                        campusA, "B.3", "Bếp 3", RoomType.KITCHEN, null, principal.userId(), null))
+                        .id())
+                .isNotNull();
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(campusA, "K.1", "Kho 1", RoomType.STORAGE, null, teacherId, null))
+                        .id())
+                .isNotNull();
+    }
+
+    @Test
     void classSizeLimitedByAgeGroupAndRoom() {
         RoomResponse room = createRoom(campusA, "P.101", 20);
 

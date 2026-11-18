@@ -152,8 +152,10 @@ public class QualityReportServiceImpl implements QualityReportService {
                                     visible.stream()
                                             .map(ClassroomInfoResponse::id)
                                             .toList(),
-                                    m.atDay(1),
-                                    m.atEndOfMonth())
+                                    // Tuần thuộc tháng chứa thứ Sáu (OBS-10, Cần chốt 18/11/2026); phiếu tháng là ngày
+                                    // 1
+                                    BehaviourTicketServiceImpl.weekMondayFrom(m.atDay(1)),
+                                    BehaviourTicketServiceImpl.weekMondayTo(m.atDay(1)))
                             .stream()
                             .collect(Collectors.groupingBy(BehaviourTicket::getClassroomId));
             List<ClassResult> results = visible.stream()

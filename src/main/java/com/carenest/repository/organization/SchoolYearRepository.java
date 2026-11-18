@@ -91,7 +91,11 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
                     "insert into school_year_age_groups (school_year_id, age_group_id, code, name, short_name, sort_order,"
                             + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
                             + " select :yearId, g.id, g.code, g.name, g.short_name, g.sort_order, g.age_from_months,"
-                            + " g.age_to_months, g.meal_sessions, g.max_class_size, g.nutrition_note from age_groups g",
+                            + " g.age_to_months, g.meal_sessions, g.max_class_size, g.nutrition_note from age_groups g"
+                            // Chỉ nhóm tuổi của năm đó (V148); năm chưa có danh sách riêng thì cả danh mục
+                            + " where not exists (select 1 from school_year_age_group_members m"
+                            + " where m.school_year_id = :yearId) or g.id in (select m.age_group_id"
+                            + " from school_year_age_group_members m where m.school_year_id = :yearId)",
             nativeQuery = true)
     void snapshotAgeGroups(@Param("yearId") Long yearId);
 

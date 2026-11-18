@@ -4,7 +4,6 @@ import com.carenest.dto.organization.CampusDetailResponse;
 import com.carenest.dto.organization.CampusRequest;
 import com.carenest.dto.organization.CampusResponse;
 import com.carenest.dto.organization.StaffBriefResponse;
-import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.Campus;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
@@ -31,7 +30,6 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -180,15 +178,7 @@ public class CampusServiceImpl implements CampusService {
                             campusSnapshot(yearId)),
                     yearId,
                     classes,
-                    yearSnapshotReader
-                            .ageGroups(yearId)
-                            .orElseGet(() -> ageGroupRepository.findAll().stream()
-                                    .sorted(Comparator.comparing((AgeGroup g) -> g.getAgeFromMonths() == null
-                                                    ? Short.MAX_VALUE
-                                                    : g.getAgeFromMonths())
-                                            .thenComparing(AgeGroup::getSortOrder))
-                                    .map(schoolStructureMapper::toDetailResponse)
-                                    .toList()),
+                    yearSnapshotReader.yearAgeGroups(yearId),
                     vicePrincipals,
                     teachers,
                     new CampusDetailResponse.Kitchen(kitchenRooms, kitchenStaff));

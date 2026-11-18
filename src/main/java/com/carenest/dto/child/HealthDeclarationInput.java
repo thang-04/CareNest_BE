@@ -5,4 +5,15 @@ public record HealthDeclarationInput(
         AllergiesInput allergies,
         DeclarationAnswerInput diet,
         DeclarationAnswerInput otherNotes,
-        MedicalHistoryInput medicalHistory) {}
+        MedicalHistoryInput medicalHistory,
+        Boolean mealRegistered) {
+
+    /** Không gửi cờ báo ăn ⇒ coi như có báo ăn (CHD-13). */
+    public HealthDeclarationInput(
+            AllergiesInput allergies,
+            DeclarationAnswerInput diet,
+            DeclarationAnswerInput otherNotes,
+            MedicalHistoryInput medicalHistory) {
+        this(allergies, diet, otherNotes, medicalHistory, null);
+    }
+}

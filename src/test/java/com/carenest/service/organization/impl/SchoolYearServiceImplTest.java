@@ -58,6 +58,7 @@ class SchoolYearServiceImplTest {
     private final SchoolYearServiceImpl service = new SchoolYearServiceImpl(
             schoolYearRepository,
             classroomRepository,
+            mock(com.carenest.repository.organization.AgeGroupRepository.class),
             mock(AttendanceCutoffRepository.class),
             staffAssignmentService,
             new SchoolStructureMapper(),

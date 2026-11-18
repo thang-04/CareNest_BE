@@ -13,7 +13,8 @@ public record HealthDeclarationDraft(
         Answer selfHistory,
         Answer familyHistory,
         DeclarationState tbContactState,
-        LocalDate tbContactDate) {
+        LocalDate tbContactDate,
+        boolean mealRegistered) {
 
     public HealthDeclarationDraft {
         allergies = List.copyOf(allergies);

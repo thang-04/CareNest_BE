@@ -546,7 +546,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .toList();
         long enrolled = classIds.isEmpty()
                 ? 0
-                : classroomService.countActiveChildren(classIds, date).values().stream()
+                : classroomService.countMealRegisteredChildren(classIds, date).values().stream()
                         .mapToLong(Long::longValue)
                         .sum();
         return new Headcount((int) enrolled, "ENROLLED");
