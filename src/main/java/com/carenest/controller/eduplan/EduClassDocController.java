@@ -108,6 +108,19 @@ public class EduClassDocController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class document release success", release);
     }
 
+    /** EDU-96: tiêu chí gửi duyệt đạt / chưa đạt của gói học kỳ / hồ sơ chủ đề (khung Kiểm tra). */
+    @GetMapping("/{kind}/{docKey}/checks")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<ObjectNode>> getClassDocChecks(
+            @PathVariable String kind, @PathVariable String docKey, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getClassDocChecks|userId=" + currentUser.userId() + "|kind=" + kind
+                + "|docKey=" + docKey;
+        log.info("{}|START", logPrefix);
+        ObjectNode checks = classDocService.getClassDocChecks(currentUser, kind, docKey);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class document checks success", checks);
+    }
+
     @PostMapping("/{kind}/{docKey}/actions")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ObjectNode>> actOnClassDoc(
