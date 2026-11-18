@@ -328,6 +328,10 @@ public enum ApiCode {
     PREP_YEAR_NOT_OPEN(2412, HttpStatus.CONFLICT, "Năm học {0} chưa tới ngày mở chuẩn bị ({1})"),
     NO_ACTIVE_YEAR_TO_MOVE_FROM(2410, HttpStatus.CONFLICT, "Không có năm học đang hoạt động để chuyển trẻ"),
     PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
+    PLACEMENT_CHILD_ALREADY_ENROLLED(
+            2413, HttpStatus.CONFLICT, "{0} đang có lớp, không vào lớp năm học mới theo đăng ký tiếp nhận được"),
+    CHILD_PLANNED_FOR_NEXT_YEAR(
+            2414, HttpStatus.CONFLICT, "{0} đã đăng ký cho năm học sắp tới, xếp lớp tại màn Xếp lớp năm học mới"),
 
     // ========== 30xx HỒ SƠ TRẺ ==========
     CHILD_ACCESS_DENIED(3001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem thông tin trẻ này"),

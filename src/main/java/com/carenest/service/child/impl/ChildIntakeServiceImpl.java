@@ -20,6 +20,7 @@ import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildAllergy;
 import com.carenest.entity.child.ChildGuardian;
@@ -28,6 +29,7 @@ import com.carenest.entity.child.ChildHealthDeclarationHistory;
 import com.carenest.entity.child.ChildHistory;
 import com.carenest.entity.child.ChildProfile;
 import com.carenest.entity.child.Enrollment;
+import com.carenest.entity.child.PlannedAdmission;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.child.ChildAllergyRepository;
 import com.carenest.repository.child.ChildCodeSequenceRepository;
@@ -37,12 +39,15 @@ import com.carenest.repository.child.ChildHealthDeclarationRepository;
 import com.carenest.repository.child.ChildHistoryRepository;
 import com.carenest.repository.child.ChildProfileRepository;
 import com.carenest.repository.child.ChildRepository;
+import com.carenest.repository.child.ClassPlacementRepository;
 import com.carenest.repository.child.EnrollmentRepository;
+import com.carenest.repository.child.PlannedAdmissionRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.CitizenIds;
@@ -54,6 +59,7 @@ import com.carenest.utils.enums.DeclarationState;
 import com.carenest.utils.enums.DuplicateChildKind;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
+import com.carenest.utils.enums.PlannedAdmissionStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -95,7 +101,10 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     private final ChildHistoryRepository childHistoryRepository;
     private final ChildCodeSequenceRepository codeSequenceRepository;
     private final EnrollmentRepository enrollmentRepository;
+    private final PlannedAdmissionRepository plannedAdmissionRepository;
+    private final ClassPlacementRepository classPlacementRepository;
     private final ClassroomService classroomService;
+    private final SchoolYearService schoolYearService;
     private final CampusService campusService;
     private final StaffAssignmentService staffAssignmentService;
     private final StaffAccessPolicy staffAccessPolicy;
@@ -159,19 +168,34 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PlacementClassResponse> listPlacementClasses(CurrentUser actor) {
+    public List<PlacementClassResponse> listPlacementClasses(CurrentUser actor, Long schoolYearId) {
         String logPrefix = LOG_PREFIX + "|listPlacementClasses|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
             boolean wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
             Set<Long> managed = wholeSchool ? Set.of() : staffAccessPolicy.managedCampusIds(actor);
-            List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
-                    .filter(ChildIntakeServiceImpl::isOpenForPlacement)
-                    .filter(c -> wholeSchool || managed.contains(c.campusId()))
-                    .toList();
+            SchoolYearDetailResponse requestedYear = schoolYearId == null
+                    ? null
+                    : schoolYearService
+                            .findSchoolYearDetail(schoolYearId)
+                            .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+            if (requestedYear != null
+                    && requestedYear.status() != SchoolYearStatus.ACTIVE
+                    && requestedYear.status() != SchoolYearStatus.PLANNED) {
+                throw fieldError("schoolYearId", "Năm học đã kết thúc, không thể tiếp nhận trẻ");
+            }
+            List<ClassroomInfoResponse> classes = (schoolYearId == null
+                            ? classroomService.findActiveYearClassrooms()
+                            : classroomService.findYearClassrooms(schoolYearId))
+                    .stream()
+                            .filter(c -> c.status() == ClassroomStatus.ACTIVE)
+                            .filter(c -> wholeSchool || managed.contains(c.campusId()))
+                            .toList();
             List<Long> ids = classes.stream().map(ClassroomInfoResponse::id).toList();
-            Map<Long, Long> enrolled = enrolledCounts(ids, today);
+            Map<Long, Long> enrolled = requestedYear != null && requestedYear.status() == SchoolYearStatus.PLANNED
+                    ? plannedCounts(ids, requestedYear.id())
+                    : enrolledCounts(ids, today);
             Map<Long, Long> homeroom =
                     ids.isEmpty() ? Map.of() : staffAssignmentService.findHomeroomTeacherIds(ids, today);
             List<PlacementClassResponse> response = classes.stream()
@@ -248,7 +272,14 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             if (!result.errors().isEmpty()) {
                 throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, result.errors());
             }
-            EnrollmentDraft draft = placeOf(actor, request.classId(), request.campusId(), today, result.draft());
+            EnrollmentDraft draft = placeOf(
+                    actor,
+                    request.classId(),
+                    request.campusId(),
+                    request.schoolYearId(),
+                    request.startDate(),
+                    today,
+                    result.draft());
             Set<String> citizenIds =
                     draft.guardians().stream().map(GuardianDraft::citizenId).collect(Collectors.toSet());
             // CHD-04: trùng trẻ đang học / chờ xếp lớp thì không tiếp nhận; trùng trẻ đã nghỉ thì FE gợi ý mở lại
@@ -285,7 +316,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         try {
             LocalDate today = LocalDate.now(clock);
             Instant now = clock.instant();
-            boolean placed = draft.classroomId() != null;
+            boolean planned = draft.schoolYearId() != null;
+            boolean placed = !planned && draft.classroomId() != null;
             Child child = childRepository.save(Child.enroll(
                     nextCode(today),
                     draft.fullName(),
@@ -345,6 +377,14 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                 placementRules.startEnrollment(childId, classroom, actor.userId(), today);
                 placementRules.recordPlacement(
                         childId, draft.fullName(), null, classroom, actor.userId(), null, now, today);
+            } else if (planned) {
+                plannedAdmissionRepository.save(PlannedAdmission.create(
+                        childId,
+                        draft.schoolYearId(),
+                        draft.campusId(),
+                        draft.classroomId(),
+                        draft.startDate(),
+                        actor.userId()));
             }
 
             int linked = 0;
@@ -516,20 +556,49 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
      * chưa đủ sĩ số; không có lớp ⇒ điểm trường tiếp nhận (PHT một điểm trường bỏ trống = điểm trường của mình).
      */
     private EnrollmentDraft placeOf(
-            CurrentUser actor, Long classId, Long campusId, LocalDate today, EnrollmentDraft draft) {
+            CurrentUser actor,
+            Long classId,
+            Long campusId,
+            Long schoolYearId,
+            LocalDate requestedStartDate,
+            LocalDate today,
+            EnrollmentDraft draft) {
         boolean wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
         Set<Long> managed = wholeSchool ? Set.of() : staffAccessPolicy.managedCampusIds(actor);
+        SchoolYearDetailResponse targetYear = schoolYearId == null
+                ? null
+                : schoolYearService
+                        .findSchoolYearDetail(schoolYearId)
+                        .orElseThrow(() -> fieldError("schoolYearId", "Năm học không tồn tại"));
+        boolean planned = targetYear != null && targetYear.status() == SchoolYearStatus.PLANNED;
+        if (targetYear != null && targetYear.status() == SchoolYearStatus.CLOSED) {
+            throw fieldError("schoolYearId", "Năm học đã kết thúc, không thể tiếp nhận trẻ");
+        }
+        if (planned) {
+            SchoolYearDetailResponse next = schoolYearService.findNextPlannedYear();
+            if (next == null || !next.id().equals(targetYear.id())) {
+                throw fieldError("schoolYearId", "Chỉ được đăng ký cho năm học sắp diễn ra gần nhất");
+            }
+        }
+        LocalDate startDate =
+                planned ? (requestedStartDate == null ? targetYear.startDate() : requestedStartDate) : today;
+        if (planned && (startDate.isBefore(targetYear.startDate()) || startDate.isAfter(targetYear.endDate()))) {
+            throw fieldError("startDate", "Ngày bắt đầu phải nằm trong thời gian năm học đã chọn");
+        }
         if (classId != null) {
             ClassroomInfoResponse classroom =
                     classroomService.findClassroomInfo(classId).orElse(null);
-            String problem = placementRules.classProblem(actor, classroom, today);
+            String problem = planned
+                    ? plannedClassProblem(actor, classroom, targetYear.id())
+                    : placementRules.classProblem(actor, classroom, today);
             if (problem != null) {
                 throw fieldError("classId", problem);
             }
             if (campusId != null && !campusId.equals(classroom.campusId())) {
                 throw fieldError("classId", "Lớp không thuộc điểm trường đã chọn");
             }
-            return draft.withPlacement(classroom.id(), classroom.campusId());
+            EnrollmentDraft placed = draft.withPlacement(classroom.id(), classroom.campusId());
+            return planned ? placed.withAdmission(targetYear.id(), startDate) : placed;
         }
         Long target = campusId != null
                 ? campusId
@@ -543,7 +612,41 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (!wholeSchool && !managed.contains(target)) {
             throw fieldError("campusId", "Chỉ tiếp nhận trẻ vào điểm trường bạn được giao");
         }
-        return draft.withPlacement(null, target);
+        EnrollmentDraft pending = draft.withPlacement(null, target);
+        return planned ? pending.withAdmission(targetYear.id(), startDate) : pending;
+    }
+
+    private String plannedClassProblem(CurrentUser actor, ClassroomInfoResponse classroom, Long schoolYearId) {
+        if (classroom == null || classroom.status() != ClassroomStatus.ACTIVE) {
+            return "Lớp không tồn tại hoặc đã ngừng hoạt động";
+        }
+        if (!schoolYearId.equals(classroom.schoolYearId()) || classroom.yearStatus() != SchoolYearStatus.PLANNED) {
+            return "Lớp không thuộc năm học sắp diễn ra đã chọn";
+        }
+        if (!staffAccessPolicy.managesWholeSchool(actor)
+                && !staffAccessPolicy.managedCampusIds(actor).contains(classroom.campusId())) {
+            return "Chỉ xếp được vào lớp thuộc điểm trường bạn được giao";
+        }
+        long taken = plannedCount(classroom.id(), schoolYearId);
+        if (classroom.capacity() != null && taken >= classroom.capacity()) {
+            return classroom.name() + " đã đủ " + classroom.capacity() + " trẻ. Chọn lớp khác.";
+        }
+        return null;
+    }
+
+    private Map<Long, Long> plannedCounts(List<Long> classroomIds, Long schoolYearId) {
+        Map<Long, Long> counts = new HashMap<>();
+        classroomIds.forEach(id -> counts.put(id, plannedCount(id, schoolYearId)));
+        return counts;
+    }
+
+    private long plannedCount(Long classroomId, Long schoolYearId) {
+        long newChildren = plannedAdmissionRepository.countByClassroomIdAndStatusIn(
+                classroomId, List.of(PlannedAdmissionStatus.PLACED));
+        long continuing = classPlacementRepository.findAllBySchoolYearId(schoolYearId).stream()
+                .filter(p -> p.getAction().keepsChildInClass() && classroomId.equals(p.getToClassroomId()))
+                .count();
+        return newChildren + continuing;
     }
 
     private List<Child> sameChildren(String nameKey, LocalDate birthDate, Set<String> citizenIds, Long excludeId) {

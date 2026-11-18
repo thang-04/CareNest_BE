@@ -358,6 +358,61 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
+    @DisplayName("Trẻ mới đăng ký năm sau: đúng nhóm tuổi; kích hoạt vào lớp đã xếp, chưa có lớp thì Chờ xếp lớp")
+    void plannedAdmissionsEnterNewYearOnActivation() {
+        long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, newClass3);
+        long placedChild = newChild("Trẻ mới có lớp", "2024-06-01", campus);
+        long waitingChild = newChild("Trẻ mới chờ lớp", "2024-06-01", campus);
+        long placedAdmission = admission(placedChild, campus);
+        admission(waitingChild, campus);
+
+        // Lớp nhỡ (48–60 tháng) sai nhóm tuổi với trẻ 39 tháng lúc khai giảng
+        expectError(
+                () -> service.savePlacements(
+                        principal,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(),
+                                List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass4)))),
+                ApiCode.PLACEMENT_WRONG_AGE_GROUP);
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(
+                                new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass4),
+                                new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass4)),
+                        List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass3))));
+
+        service.activateSchoolYear(principal, newYear, "2027-2028");
+
+        LocalDate firstDay = LocalDate.of(2027, 9, 5);
+        assertThat(enrollmentService.findActiveClassroomIds(placedChild, firstDay))
+                .containsExactly(newClass3);
+        assertThat(jdbc.queryForObject("SELECT status FROM children WHERE id = ?", String.class, waitingChild))
+                .isEqualTo("PENDING_PLACEMENT");
+        assertThat(jdbc.queryForObject("SELECT intake_campus_id FROM children WHERE id = ?", Long.class, waitingChild))
+                .isEqualTo(campus);
+        assertThat(jdbc.queryForList(
+                        "SELECT DISTINCT status FROM planned_admissions WHERE school_year_id = ?",
+                        String.class,
+                        newYear))
+                .containsExactly("ACTIVATED");
+    }
+
+    private long newChild(String name, String dateOfBirth, long campusId) {
+        return insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on,"
+                + " intake_campus_id) VALUES ("
+                + "'IT' || substr(md5(random()::text), 1, 12), '" + name + "', '" + dateOfBirth
+                + "', 'MALE', 'PENDING_PLACEMENT', CURRENT_DATE, " + campusId + ") RETURNING id");
+    }
+
+    private long admission(long childId, long campusId) {
+        return insertId("INSERT INTO planned_admissions (child_id, school_year_id, campus_id, start_date) VALUES ("
+                + childId + ", " + newYear + ", " + campusId + ", '2027-09-05') RETURNING id");
+    }
+
+    @Test
     void activationRefusedWhenNotReady() {
         expectError(() -> service.activateSchoolYear(principal, newYear, "2027-2028"), ApiCode.CONFLICT);
     }

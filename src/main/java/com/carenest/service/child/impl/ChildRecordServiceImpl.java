@@ -107,6 +107,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final TbContactNotifier tbContactNotifier;
     private final ChildPlacementRepository placementRepository;
     private final PlacementRules placementRules;
+    private final com.carenest.repository.child.PlannedAdmissionRepository plannedAdmissionRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -328,6 +329,16 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             Child child = loadInScope(actor, childId, today);
             if (child.getStatus() == ChildStatus.LEFT) {
                 throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            }
+            // Trẻ đăng ký cho năm học sắp tới: không xếp vào lớp năm đang học (xếp ở Xếp lớp năm học mới)
+            if (plannedAdmissionRepository
+                    .findFirstByChildIdAndStatusIn(
+                            childId,
+                            List.of(
+                                    com.carenest.utils.enums.PlannedAdmissionStatus.PENDING,
+                                    com.carenest.utils.enums.PlannedAdmissionStatus.PLACED))
+                    .isPresent()) {
+                throw GlobalException.of(ApiCode.CHILD_PLANNED_FOR_NEXT_YEAR, child.getFullName());
             }
             Optional<Enrollment> current = enrollmentRepository.findActiveByChildIdIn(List.of(childId), today).stream()
                     .findFirst();

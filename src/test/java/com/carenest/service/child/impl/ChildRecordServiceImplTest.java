@@ -116,7 +116,8 @@ class ChildRecordServiceImplTest {
             declarationHistoryRepository,
             tbNotifier,
             placementRepository,
-            placementRules);
+            placementRules,
+            org.mockito.Mockito.mock(com.carenest.repository.child.PlannedAdmissionRepository.class));
 
     private Child child;
     private Enrollment enrollment;

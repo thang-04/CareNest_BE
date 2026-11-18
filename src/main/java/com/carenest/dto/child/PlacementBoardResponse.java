@@ -16,7 +16,19 @@ public record PlacementBoardResponse(
         List<AgeGroupBrief> ageGroups,
         List<CampusBrief> campuses,
         List<SourceClass> classes,
-        List<TargetClass> targets) {
+        List<TargetClass> targets,
+        List<NewAdmission> newAdmissions) {
+
+    public PlacementBoardResponse(
+            YearBrief year,
+            YearBrief sourceYear,
+            boolean editable,
+            List<AgeGroupBrief> ageGroups,
+            List<CampusBrief> campuses,
+            List<SourceClass> classes,
+            List<TargetClass> targets) {
+        this(year, sourceYear, editable, ageGroups, campuses, classes, targets, List.of());
+    }
 
     public record YearBrief(Long id, String name) {}
 
@@ -57,4 +69,13 @@ public record PlacementBoardResponse(
             Instant updatedAt) {}
 
     public record TargetClass(Long id, String name, Long campusId, Long ageGroupId, Integer capacity, long taken) {}
+
+    public record NewAdmission(
+            Long admissionId,
+            Long childId,
+            String fullName,
+            LocalDate birthDate,
+            Long campusId,
+            Long targetClassId,
+            LocalDate startDate) {}
 }
