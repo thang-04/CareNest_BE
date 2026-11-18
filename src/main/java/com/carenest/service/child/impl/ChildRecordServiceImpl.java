@@ -559,6 +559,17 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             });
             child.withdraw(leftAt, reason);
             childRepository.save(child);
+            // CHD-11: trẻ đã đăng ký năm sau mà nghỉ học ⇒ hủy đăng ký, kẻo kích hoạt năm mới vẫn nhận trẻ
+            plannedAdmissionRepository
+                    .findFirstByChildIdAndStatusIn(
+                            childId,
+                            List.of(
+                                    com.carenest.utils.enums.PlannedAdmissionStatus.PENDING,
+                                    com.carenest.utils.enums.PlannedAdmissionStatus.PLACED))
+                    .ifPresent(admission -> {
+                        admission.cancel();
+                        plannedAdmissionRepository.save(admission);
+                    });
             childHistoryRepository.save(ChildHistory.record(
                     childId, ChildHistoryAction.WITHDRAWN, actor.userId(), reason, clock.instant()));
             if (classroomId != null) {

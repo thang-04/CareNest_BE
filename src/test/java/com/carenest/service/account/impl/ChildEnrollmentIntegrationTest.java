@@ -1228,6 +1228,37 @@ class ChildEnrollmentIntegrationTest {
         assertThat(linked.guardianAccounts()).extracting(g -> g.result()).containsExactly(GuardianAccountResult.LINKED);
     }
 
+    @Test
+    @DisplayName("CHD-11, CHD-03: cho nghỉ học trẻ năm sau ⇒ đăng ký CANCELLED")
+    void withdrawCancelsPlannedAdmission() {
+        openPrep("2026-10-29");
+        long childId = enrollmentService
+                .enroll(
+                        principal,
+                        plannedRequest(
+                                "Trẻ Năm Sau Nghỉ",
+                                plannedClass,
+                                campusA,
+                                "2027-09-05",
+                                newGuardian("0915000005", "001500000005")))
+                .child()
+                .id();
+
+        recordService.withdraw(
+                principal,
+                childId,
+                new com.carenest.dto.child.WithdrawChildRequest("2026-10-29", "Gia đình chuyển nhà"));
+
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status = 'CANCELLED'", childId))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ?"
+                                + " AND status IN ('PENDING', 'PLACED')",
+                        childId))
+                .isZero();
+    }
+
     private void openPrep(String date) {
         jdbc.update("UPDATE school_years SET prep_date = ?::date WHERE id = ?", date, plannedYear);
     }

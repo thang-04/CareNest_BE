@@ -75,6 +75,10 @@ public class PlannedAdmission {
         this.status = classroomId == null ? PlannedAdmissionStatus.PENDING : PlannedAdmissionStatus.PLACED;
     }
 
+    public void cancel() {
+        this.status = PlannedAdmissionStatus.CANCELLED;
+    }
+
     public void activate() {
         this.status = PlannedAdmissionStatus.ACTIVATED;
     }
