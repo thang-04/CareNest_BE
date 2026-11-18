@@ -1,6 +1,6 @@
 ---
 title: Tiếp nhận trẻ cho năm học sắp tới từ ngày mở chuẩn bị
-status: approved     # user duyệt 2026-11-18 kèm trả lời Q1–Q5, chạy Subagent-driven
+status: done         # xong 2026-11-18: Phase 1 + Phase 2, verify full exit 0 tại 65687f4b
 owner: Giáp
 jira: G94-180 / BE-FEAT-43
 branch: feature/G94-180-BE-FEAT-43-new-year-intake   # worktree D:\project_capstone\project\web\be-new-year-intake, tạo từ 39d09bf3 (nhánh G94-236 của Cần)
@@ -258,3 +258,19 @@ Trường hợp (dữ liệu giả nhìn như thật, mã HS26311–HS26314, nă
 ### 2026-11-18 — Plan approved
 
 - User duyệt, chọn Subagent-driven; trả lời Q1 đề xuất, Q2 = b (tạo tài khoản như thường, phụ huynh chỉ thấy thông tin đã khai), Q3 có, Q4 nhánh mới, Q5 làm BE + dữ liệu dev đủ trường hợp; nhắc chia commit nhỏ. Plan sửa theo trả lời: bỏ task chặn tài khoản (mã 3013), thêm Task 4 dữ liệu dev. Nhánh `feature/G94-180-BE-FEAT-43-new-year-intake` tạo từ `39d09bf3` ở worktree `be-new-year-intake`.
+
+### 2026-11-18 — Phase 1 và Phase 2 xong
+
+- Chạy Subagent-driven: mỗi task một implementer và một reviewer (sonnet). Review cuối toàn nhánh chạy trên sonnet vì opus hết hạn mức 5 giờ và fable cần credit trả phí.
+- Không dừng chờ review sau Phase 1 vì user đã trả lời Q3 "có" (làm luôn Phase 2).
+- 12 commit code chia nhỏ theo task, từ `bfa9ab35` đến `65687f4b`.
+- Phase 1 (Task 1–4): `.\mvnw.cmd -q clean spotless:check verify` exit 0 tại `54485052`, 2030 test, 0 lỗi, skip 0.
+- Phase 2 (Task 5–6) và đợt sửa sau review cuối: verify full exit 0 tại `65687f4b`, 2035 test, 0 lỗi, skip 0.
+- Khác plan: readmit vào năm mà trẻ đã có dòng `planned_admissions` (ví dụ đã rút hồ sơ nên dòng là CANCELLED) thì mở lại dòng đó bằng `PlannedAdmission.reopen`, không thêm dòng mới, vì unique key `uk_planned_admissions_child_year` (trước khi sửa trả 500). Dòng mở lại có `created_by` là người readmit.
+
+## Kết quả
+
+- Xong 6 task theo plan. Mỗi task qua review spec và chất lượng. Review cuối toàn nhánh có 1 lỗi Important (readmit trả 500), đã sửa và review lại đạt.
+- Không migration, không ApiCode mới. Dữ liệu dev `R__dev_11_new_year_intake.sql` có test `DevSeedIntegrationTest#datasetCoversNextYearIntakeCases`.
+- Chưa kiểm: chạy tay với FE và BE thật. Không đụng DB dùng chung.
+- Còn mở, đã báo user: HT dời ngày chuẩn bị ra sau khi đã tiếp nhận trẻ (module của Cần); trẻ LEFT cũ còn suất năm sau đang mở trên DB dùng chung cần kiểm một lần; dashboard PHT tính trẻ năm sau là "chờ xếp lớp" khi header chọn năm kế hoạch; migration V145 trùng giữa G94-346 và G94-414.
