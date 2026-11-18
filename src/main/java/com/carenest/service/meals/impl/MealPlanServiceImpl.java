@@ -1,8 +1,8 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.GuardianLinkResponse;
-import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.meals.MealPlanAmendRequest;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
@@ -288,9 +288,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     .findByWeekStart(weekStart)
                     .map(w -> revisionRepository.findByWeekIdOrderByChangedAtDescIdDesc(w.getId()))
                     .orElse(List.of());
-            Map<Long, String> names = accountService.findFullNames(revisions.stream()
-                    .map(MealPlanDayRevision::getChangedBy)
-                    .collect(Collectors.toSet()));
+            Map<Long, String> names = accountService.findFullNames(
+                    revisions.stream().map(MealPlanDayRevision::getChangedBy).collect(Collectors.toSet()));
             List<MealPlanRevisionResponse> response = revisions.stream()
                     .map(r -> new MealPlanRevisionResponse(
                             r.getId(),
@@ -299,7 +298,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                             dayContent(r.getAfterNote(), r.getAfterItems()),
                             r.getReason(),
                             r.getIssues().stream()
-                                    .map(i -> new MealPlanRevisionResponse.RevisionIssue(i.severity(), i.code(), i.message()))
+                                    .map(i -> new MealPlanRevisionResponse.RevisionIssue(
+                                            i.severity(), i.code(), i.message()))
                                     .toList(),
                             r.getChangedBy(),
                             names.get(r.getChangedBy()),
@@ -317,7 +317,8 @@ public class MealPlanServiceImpl implements MealPlanService {
         return new MealPlanRevisionResponse.RevisionDay(
                 note,
                 items.stream()
-                        .map(i -> new MealPlanRevisionResponse.RevisionItem(i.session(), i.block(), i.dishId(), i.dishName()))
+                        .map(i -> new MealPlanRevisionResponse.RevisionItem(
+                                i.session(), i.block(), i.dishId(), i.dishName()))
                         .toList());
     }
 
@@ -348,10 +349,11 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private List<MealPlanDayRevision.Item> revisionItems(List<MealPlanItem> items) {
-        Map<Long, String> names = dishRepository
-                .findAllById(items.stream().map(MealPlanItem::getDishId).collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(Dish::getId, Dish::getName));
+        Map<Long, String> names =
+                dishRepository
+                        .findAllById(items.stream().map(MealPlanItem::getDishId).collect(Collectors.toSet()))
+                        .stream()
+                        .collect(Collectors.toMap(Dish::getId, Dish::getName));
         return items.stream()
                 .map(i -> new MealPlanDayRevision.Item(
                         i.getSession(), i.getMenuBlock(), i.getDishId(), names.get(i.getDishId())))
