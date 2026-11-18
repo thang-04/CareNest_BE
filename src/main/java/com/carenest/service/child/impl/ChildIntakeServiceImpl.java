@@ -259,8 +259,17 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             childRepository.save(child);
             if (target != null) {
                 // Đăng ký chờ xếp lớp ở điểm trường cũ cho năm sau (CHD-03, CHD-11)
-                plannedAdmissionRepository.save(PlannedAdmission.create(
-                        childId, target.year().id(), campusId, null, target.startDate(), actor.userId()));
+                // Unique (trẻ, năm): đã có dòng (đã hủy khi nghỉ) thì mở lại thay vì thêm mới
+                PlannedAdmission admission = plannedAdmissionRepository
+                        .findByChildIdAndSchoolYearId(childId, target.year().id())
+                        .orElse(null);
+                if (admission == null) {
+                    admission = PlannedAdmission.create(
+                            childId, target.year().id(), campusId, null, target.startDate(), actor.userId());
+                } else {
+                    admission.reopen(campusId, target.startDate(), actor.userId());
+                }
+                plannedAdmissionRepository.save(admission);
             }
             childHistoryRepository.save(ChildHistory.record(
                     childId, ChildHistoryAction.READMITTED, actor.userId(), reason, clock.instant()));

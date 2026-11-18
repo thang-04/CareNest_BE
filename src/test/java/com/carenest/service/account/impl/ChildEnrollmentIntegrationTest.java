@@ -1311,6 +1311,44 @@ class ChildEnrollmentIntegrationTest {
                 .isZero();
     }
 
+    private long withdrawnPlannedChild(String name, String phone, String citizenId) {
+        openPrep("2026-10-29");
+        long childId = enrollmentService
+                .enroll(
+                        principal,
+                        plannedRequest(name, plannedClass, campusA, "2027-09-05", newGuardian(phone, citizenId)))
+                .child()
+                .id();
+        recordService.withdraw(
+                principal,
+                childId,
+                new com.carenest.dto.child.WithdrawChildRequest("2026-10-29", "Gia đình chuyển nhà"));
+        entityManager.clear();
+        return childId;
+    }
+
+    @Test
+    @DisplayName("CHD-03, CHD-11: nghỉ rồi mở lại cùng năm sau ⇒ mở lại đăng ký đã hủy, không trùng dòng")
+    void readmitReopensCancelledAdmission() {
+        long childId = withdrawnPlannedChild("Trẻ Đổi Ý", "0915000006", "001500000006");
+
+        ChildViewResponse view = intakeService.readmit(
+                principal, childId, new ReadmitChildRequest("Gia đình đổi ý", plannedYear, LocalDate.of(2027, 9, 10)));
+
+        assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?",
+                        childId,
+                        plannedYear))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?"
+                                + " AND status = 'PENDING' AND classroom_id IS NULL AND start_date = '2027-09-10'",
+                        childId,
+                        plannedYear))
+                .isEqualTo(1);
+    }
+
     @Test
     @DisplayName("CHD-11: hồ sơ trẻ năm sau có đăng ký; trẻ thường không có")
     void childViewCarriesPlannedAdmission() {
