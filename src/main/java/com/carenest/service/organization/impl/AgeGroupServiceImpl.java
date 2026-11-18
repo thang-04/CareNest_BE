@@ -88,11 +88,14 @@ public class AgeGroupServiceImpl implements AgeGroupService {
             if (request.ageToMonths() <= request.ageFromMonths()) {
                 throw GlobalException.of(ApiCode.AGE_RANGE_INVALID);
             }
-            var existing = ageGroupRepository.findFirstByNameIgnoreCase(request.name().trim());
-            if (existing.isPresent() && ageGroupRepository.isInYear(schoolYearId, existing.get().getId())) {
+            var existing =
+                    ageGroupRepository.findFirstByNameIgnoreCase(request.name().trim());
+            if (existing.isPresent()
+                    && ageGroupRepository.isInYear(schoolYearId, existing.get().getId())) {
                 throw GlobalException.of(ApiCode.AGE_GROUP_NAME_EXISTS);
             }
-            // Trùng tên nhóm có ở năm khác: dùng lại nhóm đó (giữ mã cho kế hoạch, thực đơn); trùng tuổi chỉ xét năm này
+            // Trùng tên nhóm có ở năm khác: dùng lại nhóm đó (giữ mã cho kế hoạch, thực đơn); trùng tuổi chỉ xét năm
+            // này
             AgeGroup ageGroup = existing.orElse(null);
             int from = ageGroup == null ? request.ageFromMonths() : ageGroup.getAgeFromMonths();
             int to = ageGroup == null ? request.ageToMonths() : ageGroup.getAgeToMonths();
@@ -149,7 +152,8 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                 LOG_PREFIX + "|copyYearAgeGroups|sourceYearId=" + sourceYearId + "|targetYearId=" + targetYearId;
         log.info("{}|START", logPrefix);
         try {
-            if (sourceYearId == null || ageGroupRepository.findYearAgeGroupIds(sourceYearId).isEmpty()) {
+            if (sourceYearId == null
+                    || ageGroupRepository.findYearAgeGroupIds(sourceYearId).isEmpty()) {
                 ageGroupRepository.addAllToYear(targetYearId);
             } else {
                 ageGroupRepository.copyYearAgeGroups(sourceYearId, targetYearId);
@@ -216,14 +220,18 @@ public class AgeGroupServiceImpl implements AgeGroupService {
             if (classroomRepository.countByAgeGroupId(ageGroupId) > 0) {
                 throw GlobalException.of(
                         ApiCode.AGE_GROUP_HAS_DEPENDENTS,
-                        "lớp" + inYear(ageGroupRepository.findLatestClassYearId(ageGroupId).orElse(null)));
+                        "lớp"
+                                + inYear(ageGroupRepository
+                                        .findLatestClassYearId(ageGroupId)
+                                        .orElse(null)));
             }
             var leader = ageGroupRepository.findLatestLeader(ageGroupId);
             if (leader.isPresent()) {
                 String name = fullName(leader.get().getUserId());
                 throw GlobalException.of(
                         ApiCode.AGE_GROUP_HAS_DEPENDENTS,
-                        "tổ trưởng" + (name == null ? "" : " " + name) + inYear(leader.get().getSchoolYearId()));
+                        "tổ trưởng" + (name == null ? "" : " " + name)
+                                + inYear(leader.get().getSchoolYearId()));
             }
             try {
                 ageGroupRepository.delete(ageGroup);
@@ -278,8 +286,7 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                 .ifPresent(g -> {
                     throw GlobalException.of(
                             ApiCode.AGE_RANGE_OVERLAP,
-                            g.getShortName() + " (" + g.getAgeFromMonths() + "–" + g.getAgeToMonths()
-                                    + " tháng)");
+                            g.getShortName() + " (" + g.getAgeFromMonths() + "–" + g.getAgeToMonths() + " tháng)");
                 });
     }
 

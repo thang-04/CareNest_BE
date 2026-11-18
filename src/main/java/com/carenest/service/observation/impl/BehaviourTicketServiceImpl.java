@@ -182,7 +182,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                 throw GlobalException.of(ApiCode.TICKET_ALREADY_ISSUED, "Trẻ");
             }
             ticketParentNotifier.ticketsIssued(
-                    childIds.stream().collect(Collectors.toMap(id -> id, id -> byId.get(id).fullName())),
+                    childIds.stream()
+                            .collect(Collectors.toMap(
+                                    id -> id, id -> byId.get(id).fullName())),
                     request.type(),
                     period.start(),
                     period.end());

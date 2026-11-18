@@ -362,8 +362,10 @@ class ThemeEvaluationIntegrationTest {
         assertThat(confirmed.status()).isEqualTo("CONFIRMED");
         assertThat(confirmed.canEdit()).isFalse();
         // Xác nhận học kỳ báo phụ huynh từng trẻ (lưu nháp ở trên không báo)
-        confirmed.rows().forEach(c -> org.mockito.Mockito.verify(evaluationNotifier, org.mockito.Mockito.times(1))
-                .childEvaluationConfirmed(c.childId()));
+        confirmed
+                .rows()
+                .forEach(c -> org.mockito.Mockito.verify(evaluationNotifier, org.mockito.Mockito.times(1))
+                        .childEvaluationConfirmed(c.childId()));
         result(kid2, classA, "2026-09-22", "extra-fail", "", String.valueOf(oldGoal1));
         result(kid2, classA, "2026-09-23", "extra-fail-2", "", String.valueOf(oldGoal1));
         assertThat(semesters.get(principal, classA, 1).rows()).isEqualTo(confirmed.rows());

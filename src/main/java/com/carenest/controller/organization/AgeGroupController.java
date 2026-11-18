@@ -39,12 +39,12 @@ public class AgeGroupController {
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'KITCHEN_STAFF')")
     public ResponseEntity<ResponseJson<List<AgeGroupDetailResponse>>> getAgeGroups(
             @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getAgeGroups|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        String logPrefix =
+                LOG_PREFIX + "|getAgeGroups|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         // Có năm học: nhóm tuổi của năm đó; không có: cả danh mục (bếp, kế hoạch dùng mã chung)
-        List<AgeGroupDetailResponse> ageGroups = schoolYearId == null
-                ? ageGroupService.getAgeGroups()
-                : ageGroupService.getYearAgeGroups(schoolYearId);
+        List<AgeGroupDetailResponse> ageGroups =
+                schoolYearId == null ? ageGroupService.getAgeGroups() : ageGroupService.getYearAgeGroups(schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get age groups success", ageGroups);
     }

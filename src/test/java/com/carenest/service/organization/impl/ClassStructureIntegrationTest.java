@@ -264,7 +264,8 @@ class ClassStructureIntegrationTest {
         assertThat(roomService
                         .createRoom(
                                 principal,
-                                new RoomRequest(campusA, "B.3", "Bếp 3", RoomType.KITCHEN, null, principal.userId(), null))
+                                new RoomRequest(
+                                        campusA, "B.3", "Bếp 3", RoomType.KITCHEN, null, principal.userId(), null))
                         .id())
                 .isNotNull();
         assertThat(roomService
