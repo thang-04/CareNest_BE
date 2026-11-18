@@ -25,7 +25,7 @@ updated: 2026-11-18
 ## Global Constraints
 
 - JDK 21: trước mọi lệnh Maven đặt `JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot` và đưa `%JAVA_HOME%\bin` lên đầu PATH (máy còn JDK 25).
-- Không thêm/nâng dependency; không sửa migration đã commit; migration mới là `V144__child_meal_registered.sql` (đỉnh dev hiện tại V143 — chạy lại `git ls-tree --name-only origin/dev src/main/resources/db/migration/` trước khi commit).
+- Không thêm/nâng dependency; không sửa migration đã commit; migration mới là `V146__child_meal_registered.sql` (ban đầu là V144; đổi số 18/11 vì `dev` đã có V144 của G94-288 và nhánh G94-346 dùng V145 — chạy lại `git ls-tree --name-only origin/dev src/main/resources/db/migration/` trước khi commit).
 - Không thêm `ApiCode`: điểm danh bỏ qua `meals` của trẻ không báo ăn, không báo lỗi.
 - Field JSON đúng tên: `mealRegistered` (boolean) ở mọi nơi. Thiếu field trong request ⇒ `true`.
 - Nhãn cột Excel đúng chữ: `Báo ăn (Có/Không, để trống = Có)`; key `mealRegistered`; FE dùng cùng nhãn (`FE:src/models/children/childrenConstants.js` `IMPORT_COLUMNS`).
@@ -117,7 +117,7 @@ Hiện trạng code:
 
 **Files:**
 - Modify: `docs/business/BUSINESS_RULES.md` (thêm dòng CHD-13 sau CHD-05 :65; ghi chú CHD-13 vào ATT-02a :85, HLT-06 :150, NUT-07 :116)
-- Create: `src/main/resources/db/migration/V144__child_meal_registered.sql`
+- Create: `src/main/resources/db/migration/V146__child_meal_registered.sql`
 - Modify: `src/main/java/com/carenest/entity/child/Child.java`
 - Modify: `src/main/java/com/carenest/dto/child/ChildViewResponse.java`, `src/main/java/com/carenest/service/child/impl/ChildIntakeServiceImpl.java:395-416`
 - Modify: `src/main/java/com/carenest/dto/child/ChildListItemResponse.java`, `src/main/java/com/carenest/service/child/impl/ChildListServiceImpl.java:253-274`
@@ -278,3 +278,8 @@ Hiện trạng code:
 - Verify: `mvnw.cmd -B clean spotless:check verify` → `Tests run: 1988, Failures: 0, Errors: 0, Skipped: 0` · `BUILD SUCCESS`; review lại phần sửa: đạt, không lỗi mới.
 - Khác plan: `ClassChildResponse` giữ 3 trường; điểm danh đọc cờ qua `ChildService.findChildIdsWithoutMeals` (plan Task 5 ghi thêm field vào `ClassChildResponse`).
 - Chờ user: (1) đổi số migration V144 (sửa migration đã commit cần user cho phép; thứ tự merge với G94-288); (2) PUT khai báo thiếu `mealRegistered` hiện coi là báo ăn (trẻ đang không báo ăn sẽ thành báo ăn) — giữ hay đổi thành "giữ cờ cũ".
+
+### 2026-11-18 — Đổi số migration V144 → V146 (user cho phép)
+- `origin/dev` (696051b0, PR #76 G94-288) đã có `V144__announcement_schedule_content_attachments.sql`; nhánh đã push `feature/G94-346-BE-FEAT-30-edu-plan-ai` có `V145__edu_late_return_grace_days.sql` ⇒ đổi file của nhánh này thành `V146__child_meal_registered.sql`, nội dung SQL giữ nguyên.
+- Nhánh chưa push, chưa chạy trên DB dùng chung nên không DB nào đã ghi V144 của nhánh này.
+- Flyway không bật `out-of-order`: nếu nhánh này vào `dev` trước G94-346 thì G94-346 phải đổi V145 lên số lớn hơn V146.
