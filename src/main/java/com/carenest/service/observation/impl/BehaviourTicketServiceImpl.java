@@ -32,6 +32,7 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.TicketType;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +63,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
     // phiếu tháng cần ≥3 phiếu tuần
     static final int WEEK_MIN_FLAGS = 3;
     static final int MONTH_MIN_WEEKLY_TICKETS = 3;
+    private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final Map<String, Integer> RULES = Map.of(
             "WEEK_MIN_FLAGS", WEEK_MIN_FLAGS,
             "MONTH_MIN_WEEKLY_TICKETS", MONTH_MIN_WEEKLY_TICKETS);
@@ -213,8 +216,11 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
             List<Long> ids = children.stream().map(ClassChildResponse::id).toList();
             List<BehaviourTicket> tickets = ids.isEmpty()
                     ? List.of()
-                    : ticketRepository.findByChildIdInAndPeriodStartBetween(ids, from, to).stream()
+                    : ticketRepository
+                            .findByChildIdInAndPeriodStartBetween(ids, month != null ? weekMondayFrom(month) : from, to)
+                            .stream()
                             .filter(t -> t.getClassroomId().equals(cls.id()))
+                            .filter(t -> month == null || inMonth(t, month))
                             .toList();
             Map<Long, Integer> flags = flagCounts(cls.id(), ids, from, minDate(to, rules.today()));
             List<TicketSummaryRow> rows = children.stream()
@@ -344,7 +350,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
 
     // ---------- kỳ ----------
 
-    // Kỳ đã kết thúc (ngày cuối trước hôm nay) trong năm học của lớp, mới nhất trước.
+    // Kỳ đã mở phát (hôm nay từ ngày mở phát) trong năm học của lớp, mới nhất trước.
     // Tuần thứ 2–6 tính từ tuần chứa ngày bắt đầu năm; tháng tính từ tháng bắt đầu năm.
     private List<TicketPeriod> endedPeriods(ClassroomInfoResponse cls, TicketType type) {
         LocalDate today = rules.today();
@@ -352,7 +358,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         if (type == TicketType.WEEKLY) {
             LocalDate firstMonday = cls.yearStart().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
             for (LocalDate m = firstMonday; !m.isAfter(cls.yearEnd()); m = m.plusWeeks(1)) {
-                if (!m.plusDays(4).isBefore(today)) {
+                if (today.isBefore(issueFrom(TicketType.WEEKLY, m, rules::isSchoolDay))) {
                     break;
                 }
                 list.add(new TicketPeriod(m, m.plusDays(4), (int) ChronoUnit.WEEKS.between(firstMonday, m) + 1));
@@ -360,7 +366,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         } else {
             for (LocalDate m = cls.yearStart().withDayOfMonth(1); !m.isAfter(cls.yearEnd()); m = m.plusMonths(1)) {
                 LocalDate end = m.with(TemporalAdjusters.lastDayOfMonth());
-                if (!end.isBefore(today)) {
+                if (today.isBefore(issueFrom(TicketType.MONTHLY, m, rules::isSchoolDay))) {
                     break;
                 }
                 list.add(new TicketPeriod(m, end, null));
@@ -369,7 +375,24 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         return list.reversed();
     }
 
-    // Kỳ hợp lệ để phát: đúng đầu kỳ, trong năm học, đã kết thúc
+    /**
+     * OBS-10 (Cần chốt 18/11/2026): phiếu tuần phát từ thứ Sáu của tuần, phiếu toàn diện từ thứ Sáu cuối cùng của tháng;
+     * thứ Sáu là ngày nghỉ thì lùi về ngày học cuối của tuần đó (cờ, phiếu tuần của chính tuần đó vẫn tính).
+     */
+    static LocalDate issueFrom(TicketType type, LocalDate start, Predicate<LocalDate> isSchoolDay) {
+        LocalDate friday = type == TicketType.WEEKLY
+                ? start.plusDays(4)
+                : start.with(TemporalAdjusters.lastInMonth(DayOfWeek.FRIDAY));
+        LocalDate monday = friday.minusDays(4);
+        for (LocalDate d = friday; !d.isBefore(monday); d = d.minusDays(1)) {
+            if (isSchoolDay.test(d)) {
+                return d;
+            }
+        }
+        return friday;
+    }
+
+    // Kỳ hợp lệ để phát: đúng đầu kỳ, trong năm học, đã tới ngày mở phát
     private TicketPeriod checkPeriod(ClassroomInfoResponse cls, TicketType type, LocalDate start) {
         boolean aligned =
                 type == TicketType.WEEKLY ? start.getDayOfWeek() == DayOfWeek.MONDAY : start.getDayOfMonth() == 1;
@@ -377,8 +400,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         if (!aligned || end.isBefore(cls.yearStart()) || start.isAfter(cls.yearEnd())) {
             throw GlobalException.of(ApiCode.TICKET_PERIOD_INVALID);
         }
-        if (!end.isBefore(rules.today())) {
-            throw GlobalException.of(ApiCode.TICKET_PERIOD_NOT_ENDED, end);
+        LocalDate issueFrom = issueFrom(type, start, rules::isSchoolDay);
+        if (rules.today().isBefore(issueFrom)) {
+            throw GlobalException.of(ApiCode.TICKET_PERIOD_NOT_ENDED, DMY.format(issueFrom));
         }
         return endedPeriods(cls, type).stream()
                 .filter(p -> p.start().equals(start))
@@ -501,15 +525,31 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         return flags;
     }
 
-    // Phiếu Bé ngoan đã phát của các tuần có thứ Hai trong tháng
+    // Phiếu Bé ngoan đã phát của các tuần có thứ Sáu trong tháng
     private Map<Long, Integer> weeklyTicketCounts(Collection<Long> childIds, LocalDate month) {
         Map<Long, Integer> result = new LinkedHashMap<>();
         ticketRepository
-                .findByChildIdInAndPeriodStartBetween(childIds, month, month.with(TemporalAdjusters.lastDayOfMonth()))
+                .findByChildIdInAndPeriodStartBetween(childIds, weekMondayFrom(month), weekMondayTo(month))
                 .stream()
                 .filter(t -> t.getType() == TicketType.WEEKLY)
                 .forEach(t -> result.merge(t.getChildId(), 1, Integer::sum));
         return result;
+    }
+
+    // OBS-10 (Cần chốt 18/11/2026): tuần thuộc tháng chứa thứ Sáu của tuần ⇒ thứ Hai từ ngày 1 − 4 tới ngày cuối − 4
+    static LocalDate weekMondayFrom(LocalDate month) {
+        return month.withDayOfMonth(1).minusDays(4);
+    }
+
+    static LocalDate weekMondayTo(LocalDate month) {
+        return month.with(TemporalAdjusters.lastDayOfMonth()).minusDays(4);
+    }
+
+    static boolean inMonth(BehaviourTicket ticket, LocalDate month) {
+        LocalDate start = ticket.getPeriodStart();
+        return ticket.getType() == TicketType.WEEKLY
+                ? !start.isBefore(weekMondayFrom(month)) && !start.isAfter(weekMondayTo(month))
+                : start.equals(month.withDayOfMonth(1));
     }
 
     static boolean eligible(TicketType type, Integer present, Integer flags, Integer weeklyCount) {

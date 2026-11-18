@@ -336,6 +336,33 @@ class EvaluationDeadlineIntegrationTest {
     }
 
     @Test
+    @DisplayName("Cần chốt 18/11/2026: hạn cuối năm sau ngày kết thúc năm vẫn nhắc GV, BGH tới khi HT đóng năm")
+    void remindsYearEndAfterYearEndUntilClosed() {
+        // HK II kết thúc 28/05, năm kết thúc 31/05 ⇒ hạn cuối năm 04/06/2027
+        CLOCK.set(at(LocalDate.of(2027, 6, 3), 7));
+        reminderService.remindEvaluationDeadlines();
+        assertThat(titles(teacherA)).contains("Đánh giá cuối năm sắp hết hạn");
+
+        CLOCK.set(at(LocalDate.of(2027, 6, 7), 7));
+        reminderService.remindEvaluationDeadlines();
+        assertThat(titles(teacherA)).contains("Đánh giá cuối năm đã khóa");
+        assertThat(service.getOverdue(vpA, null))
+                .extracting(OverdueClassItem::kind)
+                .contains("YEAR");
+        reminderService.remindLeadersOverdue();
+        assertThat(notifications(vpA, "LEADER_REMINDER")).isEqualTo(1);
+
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", year);
+        entityManager.clear();
+        CLOCK.set(at(LocalDate.of(2027, 6, 8), 7));
+        long before = notifications(teacherA, "ASSESSMENT_REMINDER") + notifications(vpA, "LEADER_REMINDER");
+        reminderService.remindEvaluationDeadlines();
+        reminderService.remindLeadersOverdue();
+        assertThat(notifications(teacherA, "ASSESSMENT_REMINDER") + notifications(vpA, "LEADER_REMINDER"))
+                .isEqualTo(before);
+    }
+
+    @Test
     @DisplayName(
             "Sau ngày kết thúc năm (chưa đóng): mở lại ngày đánh giá được hạn sau ngày kết thúc, GV năm đó ghi được")
     void dayUnlockAfterYearEndBeforeClose() {

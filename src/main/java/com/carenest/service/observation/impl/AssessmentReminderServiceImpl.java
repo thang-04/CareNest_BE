@@ -35,11 +35,13 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -177,8 +179,8 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
             int sent = 0;
             if (rules.isSchoolDay(today)) {
                 LocalDate nextSchoolDay = nextSchoolDay(today);
-                List<ClassroomInfoResponse> classes = activeClasses(today);
-                Map<Long, List<Long>> teachers = periodTeachersOf(classes, today);
+                List<ClassroomInfoResponse> classes = unclosedClasses(today);
+                Map<Long, List<Long>> teachers = periodTeachersOf(classes, teachingDay(classes, today));
                 for (ClassroomInfoResponse cls : classes) {
                     List<Long> to = teachers.getOrDefault(cls.id(), List.of());
                     if (to.isEmpty()) {
@@ -356,7 +358,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
             LocalDate today = rules.today();
             int sent = 0;
             if (rules.isSchoolDay(today)) {
-                List<ClassroomInfoResponse> classes = activeClasses(today);
+                List<ClassroomInfoResponse> classes = unclosedClasses(today);
                 List<OverdueClassItem> overdue = new ArrayList<>(evaluationDeadlineService.overdueOf(classes));
                 LocalDate lastMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                         .minusWeeks(1);
@@ -418,6 +420,24 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                 .filter(c -> c.yearStart() == null || !today.isBefore(c.yearStart()))
                 .filter(c -> c.yearEnd() == null || !today.isAfter(c.yearEnd()))
                 .toList();
+    }
+
+    // Cần chốt 18/11/2026: hạn cuối năm có thể sau ngày kết thúc năm ⇒ việc theo kỳ vẫn nhắc tới khi HT đóng năm
+    private List<ClassroomInfoResponse> unclosedClasses(LocalDate today) {
+        return classroomService.findActiveYearClassrooms().stream()
+                .filter(c -> c.yearStatus() == SchoolYearStatus.ACTIVE)
+                .filter(c -> c.yearStart() == null || !today.isBefore(c.yearStart()))
+                .toList();
+    }
+
+    // Sau ngày kết thúc năm: GV dạy chính tính tới ngày kết thúc năm (như ObservationDayRules.teachingDay)
+    private static LocalDate teachingDay(List<ClassroomInfoResponse> classes, LocalDate today) {
+        return classes.stream()
+                .map(ClassroomInfoResponse::yearEnd)
+                .filter(Objects::nonNull)
+                .filter(today::isAfter)
+                .max(Comparator.naturalOrder())
+                .orElse(today);
     }
 
     // Cần chốt 14/11/2026: việc theo kỳ chỉ nhắc GV dạy chính
