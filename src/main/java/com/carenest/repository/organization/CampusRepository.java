@@ -81,6 +81,29 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
     @Query(value = "select count(*) from staff_assignments where campus_id = :campusId", nativeQuery = true)
     long countStaffAssignments(@Param("campusId") Long campusId);
 
+    /** Trẻ gắn với điểm trường ở bất kỳ năm nào: đăng ký vào, từng học lớp, hoặc đã xếp cho năm sau. */
+    @Query(
+            value = "select count(*) from (select id from children where intake_campus_id = :campusId"
+                    + " union select e.child_id from enrollments e join classrooms c on c.id = e.classroom_id"
+                    + " where c.campus_id = :campusId"
+                    + " union select child_id from planned_admissions where campus_id = :campusId) t",
+            nativeQuery = true)
+    long countChildrenEver(@Param("campusId") Long campusId);
+
+    /** Nhân sự từng/đang phân công ở điểm trường (cả lịch sử), kèm vai trò. */
+    @Query(
+            value = "select distinct u.full_name as fullName, s.staff_role as staffRole from staff_assignments s"
+                    + " join user_accounts u on u.id = s.user_id where s.campus_id = :campusId"
+                    + " order by s.staff_role, u.full_name",
+            nativeQuery = true)
+    List<StaffName> findStaffNamesEver(@Param("campusId") Long campusId);
+
+    interface StaffName {
+        String getFullName();
+
+        String getStaffRole();
+    }
+
     interface CampusCount {
         Long getCampusId();
 

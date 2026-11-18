@@ -169,6 +169,57 @@ class CampusServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Cần chốt 19/11/2026: chỉ HT xóa điểm trường trống; còn dữ liệu thì báo đủ lý do (2124)")
+    void campusWithDataCannotBeDeletedAndListShowsReason() {
+        assertThat(service.getCampuses(principal, null))
+                .extracting(CampusResponse::deleteBlockedReason)
+                .containsExactly("Điểm trường chính, không xóa được", null);
+        assertThatThrownBy(() -> service.deleteCampus(vicePrincipal, campusB))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
+
+        jdbc.update(
+                "INSERT INTO rooms (campus_id, code, name, room_type, capacity) VALUES (?, 'P.1', 'Phòng 1', 'CLASS', 20)",
+                campusB);
+        expectNotEmpty("1 phòng");
+        jdbc.update("DELETE FROM rooms WHERE campus_id = ?", campusB);
+
+        long year = jdbc.queryForObject("SELECT id FROM school_years LIMIT 1", Long.class);
+        jdbc.update("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (?, ?, 'Lớp B1')", campusB, year);
+        expectNotEmpty("1 lớp");
+        jdbc.update("DELETE FROM classrooms WHERE campus_id = ?", campusB);
+
+        jdbc.update(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, intake_campus_id)"
+                        + " VALUES ('IT-B1', 'Trẻ B', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE, ?)",
+                campusB);
+        expectNotEmpty("1 trẻ");
+        jdbc.update("DELETE FROM children WHERE code = 'IT-B1'");
+
+        // Phân công đã kết thúc vẫn tính (lịch sử)
+        long vp = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-vp2', 'vp2.it', 'Phó HT Cũ') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2025-01-01', '2025-12-31')",
+                vp,
+                campusB);
+        expectNotEmpty("PHT Phó HT Cũ");
+        assertThat(service.getCampuses(principal, null).get(1).deleteBlockedReason())
+                .isEqualTo("PHT Phó HT Cũ");
+    }
+
+    private void expectNotEmpty(String part) {
+        assertThatThrownBy(() -> service.deleteCampus(principal, campusB))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.CAMPUS_NOT_EMPTY);
+                    assertThat(ex.getMessage()).contains("Campus B còn " + part);
+                });
+    }
+
+    @Test
     void emptyCampusCanBeDeleted() {
         service.deleteCampus(principal, campusB);
 

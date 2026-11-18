@@ -31,6 +31,8 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -84,12 +86,13 @@ public class CampusServiceImpl implements CampusService {
                     // Năm đã kết thúc: chỉ điểm trường có lúc kết thúc năm, thông tin như bản chụp
                     .filter(c -> snapshot == null || snapshot.containsKey(c.getId()))
                     .map(c -> withSnapshot(
-                            campusMapper.toResponse(
-                                    c,
-                                    classCounts.getOrDefault(c.getId(), 0L),
-                                    childCounts.getOrDefault(c.getId(), 0L),
-                                    vicePrincipals.getOrDefault(c.getId(), List.of())),
-                            snapshot))
+                                    campusMapper.toResponse(
+                                            c,
+                                            classCounts.getOrDefault(c.getId(), 0L),
+                                            childCounts.getOrDefault(c.getId(), 0L),
+                                            vicePrincipals.getOrDefault(c.getId(), List.of())),
+                                    snapshot)
+                            .withDeleteBlockedReason(deleteBlockedReason(c)))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -262,14 +265,10 @@ public class CampusServiceImpl implements CampusService {
             if (campus.isMain()) {
                 throw GlobalException.of(ApiCode.MAIN_CAMPUS_NOT_DELETABLE);
             }
-            if (classroomRepository.countByCampusId(campusId) > 0) {
-                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "lớp");
-            }
-            if (roomRepository.countByCampusIdAndStatusNot(campusId, RoomStatus.DELETED) > 0) {
-                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "phòng");
-            }
-            if (campusRepository.countStaffAssignments(campusId) > 0) {
-                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "nhân sự");
+            // Cần chốt 19/11/2026: chỉ xóa điểm trường chưa có dữ liệu; còn gì thì báo đủ để HT biết
+            String blockers = dataBlockers(campusId);
+            if (blockers != null) {
+                throw GlobalException.of(ApiCode.CAMPUS_NOT_EMPTY, campus.getName(), blockers);
             }
             try {
                 campusRepository.delete(campus);
@@ -401,6 +400,42 @@ public class CampusServiceImpl implements CampusService {
                         CampusRepository.CampusStaff::getCampusId,
                         Collectors.mapping(
                                 s -> new StaffBriefResponse(s.getUserId(), s.getFullName()), Collectors.toList())));
+    }
+
+    /** Lý do chưa xóa được điểm trường (để web làm mờ mục Xóa); null = xóa được. */
+    private String deleteBlockedReason(Campus campus) {
+        return campus.isMain() ? "Điểm trường chính, không xóa được" : dataBlockers(campus.getId());
+    }
+
+    // Lớp (mọi năm), phòng, trẻ (đăng ký / từng học / xếp năm sau), nhân sự (cả lịch sử); null = trống
+    private String dataBlockers(Long campusId) {
+        List<String> parts = new ArrayList<>();
+        long classes = classroomRepository.countByCampusId(campusId);
+        if (classes > 0) {
+            parts.add(classes + " lớp");
+        }
+        long rooms = roomRepository.countByCampusIdAndStatusNot(campusId, RoomStatus.DELETED);
+        if (rooms > 0) {
+            parts.add(rooms + " phòng");
+        }
+        long children = campusRepository.countChildrenEver(campusId);
+        if (children > 0) {
+            parts.add(children + " trẻ");
+        }
+        Map<String, List<String>> staff = new LinkedHashMap<>();
+        campusRepository
+                .findStaffNamesEver(campusId)
+                .forEach(s -> staff.computeIfAbsent(
+                                "VICE_PRINCIPAL".equals(s.getStaffRole())
+                                        ? "PHT"
+                                        : "TEACHER".equals(s.getStaffRole()) ? "GV" : "nhân sự",
+                                k -> new ArrayList<>())
+                        .add(s.getFullName()));
+        staff.forEach((role, names) -> parts.add(role + " "
+                + (names.size() > 3
+                        ? String.join(", ", names.subList(0, 3)) + " và " + (names.size() - 3) + " người khác"
+                        : String.join(", ", names))));
+        return parts.isEmpty() ? null : String.join(", ", parts);
     }
 
     private CampusResponse toResponseWithStats(Campus campus) {

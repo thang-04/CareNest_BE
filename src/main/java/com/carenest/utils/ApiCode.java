@@ -227,6 +227,9 @@ public enum ApiCode {
             2107, HttpStatus.CONFLICT, "Trường cần một điểm trường chính, chọn điểm trường chính khác trước"),
     MAIN_CAMPUS_NOT_DELETABLE(2108, HttpStatus.CONFLICT, "Không xóa được điểm trường chính"),
     CAMPUS_HAS_DEPENDENTS(2109, HttpStatus.CONFLICT, "Điểm trường đã có {0}, không xóa được"),
+    // Cần chốt 19/11/2026: chỉ xóa điểm trường chưa có dữ liệu, báo rõ còn gì và gợi ý ngừng hoạt động
+    CAMPUS_NOT_EMPTY(
+            2124, HttpStatus.CONFLICT, "{0} còn {1}, không xóa được. Nếu không dùng nữa, chọn Ngừng hoạt động"),
     MAIN_CAMPUS_NOT_DEACTIVATABLE(2110, HttpStatus.CONFLICT, "Không ngừng hoạt động được điểm trường chính"),
     CAMPUS_HAS_ACTIVE_CLASSES(
             2111,
