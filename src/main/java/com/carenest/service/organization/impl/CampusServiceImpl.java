@@ -22,6 +22,7 @@ import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.DisplayNames;
 import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.RoomStatus;
@@ -441,7 +442,7 @@ public class CampusServiceImpl implements CampusService {
                 : request.phone().replaceAll("[\\s.\\-]", "").replaceFirst("^\\+?84", "0");
         return new CampusRequest(
                 request.code().trim(),
-                request.name().trim(),
+                DisplayNames.normalize(request.name()),
                 request.shortName().trim(),
                 request.address().trim(),
                 phone,

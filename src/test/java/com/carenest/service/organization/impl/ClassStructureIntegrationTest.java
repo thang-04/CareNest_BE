@@ -289,6 +289,27 @@ class ClassStructureIntegrationTest {
     }
 
     @Test
+    void classNameDuplicateIgnoresSpacesAccentFormAndCaseWithinYearAndCampus() {
+        RoomResponse room = createRoom(campusA, "P.101", 25);
+        ClassResponse created =
+                classService.createClass(principal, classRequest("  Lớp   Mầm 1 ", campusA, room.id(), 25));
+        assertThat(created.name()).isEqualTo("Lớp Mầm 1");
+        String decomposed = java.text.Normalizer.normalize("LỚP MẦM 1", java.text.Normalizer.Form.NFD);
+        for (String name : List.of("Lớp  Mầm 1", decomposed)) {
+            assertThatThrownBy(() -> classService.createClass(principal, classRequest(name, campusA, room.id(), 25)))
+                    .isInstanceOf(GlobalException.class)
+                    .extracting(ex -> ((GlobalException) ex).getApiCode())
+                    .isEqualTo(ApiCode.CLASS_NAME_EXISTS);
+        }
+        // Điểm trường khác cùng năm vẫn được dùng tên này
+        RoomResponse roomB = createRoom(campusB, "P.201", 25);
+        assertThat(classService
+                        .createClass(principal, classRequest("Lớp Mầm 1", campusB, roomB.id(), 25))
+                        .name())
+                .isEqualTo("Lớp Mầm 1");
+    }
+
+    @Test
     void roomUsedOnceForEachYearAndCampusMustMatch() {
         RoomResponse room = createRoom(campusA, "P.101", 25);
         classService.createClass(principal, classRequest("Lớp Mầm 1", campusA, room.id(), 25));

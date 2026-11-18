@@ -128,6 +128,29 @@ class CampusServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Tên điểm trường chuẩn hóa: 2 dấu cách, kiểu gõ dấu khác, hoa thường vẫn tính là trùng (2106)")
+    void campusNameDuplicateIgnoresSpacesAccentFormAndCase() {
+        service.updateCampus(
+                principal, campusB, new CampusRequest("CS-B", "  Cơ   sở 2 ", "B", "Địa chỉ B", null, false));
+        assertThat(jdbc.queryForObject("SELECT name FROM campuses WHERE id = ?", String.class, campusB))
+                .isEqualTo("Cơ sở 2");
+        // "Cơ sở 2" gõ dấu tổ hợp (NFD) và viết hoa
+        String decomposed = java.text.Normalizer.normalize("CƠ SỞ 2", java.text.Normalizer.Form.NFD);
+        for (String name : List.of("Cơ  sở 2", decomposed)) {
+            assertThatThrownBy(() -> service.createCampus(
+                            principal, new CampusRequest("CS-C", name, "C", "Địa chỉ C", null, false)))
+                    .isInstanceOf(GlobalException.class)
+                    .extracting(ex -> ((GlobalException) ex).getApiCode())
+                    .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+        }
+        assertThatThrownBy(() -> service.updateCampus(
+                        principal, campusA, new CampusRequest("CS-A", decomposed, "A", "Địa chỉ A", null, true)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+    }
+
+    @Test
     void switchingMainKeepsOneMainCampus() {
         service.updateCampus(principal, campusB, new CampusRequest("CS-B", "Campus B", "B", "Địa chỉ B", null, true));
 
