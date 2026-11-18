@@ -1,4 +1,4 @@
--- Dữ liệu dev: danh sách nhóm tuổi của từng năm học (V144, Cần chốt 22/10/2026). Năm đã kết thúc theo bản chụp lúc
+-- Dữ liệu dev: danh sách nhóm tuổi của từng năm học (V148, Cần chốt 22/10/2026). Năm đã kết thúc theo bản chụp lúc
 -- đóng năm, năm còn mở dùng cả danh mục; chạy lại không nhân đôi.
 INSERT INTO school_year_age_group_members (school_year_id, age_group_id)
 SELECT s.school_year_id, s.age_group_id

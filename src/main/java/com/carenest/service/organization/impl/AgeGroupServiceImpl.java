@@ -256,7 +256,7 @@ public class AgeGroupServiceImpl implements AgeGroupService {
         return year;
     }
 
-    // Năm chưa có danh sách riêng (tạo trước V144 hoặc dữ liệu thử) thấy cả danh mục
+    // Năm chưa có danh sách riêng (tạo trước V148 hoặc dữ liệu thử) thấy cả danh mục
     private List<AgeGroup> yearGroups(Long schoolYearId) {
         List<Long> ids = ageGroupRepository.findYearAgeGroupIds(schoolYearId);
         return ids.isEmpty() ? ageGroupRepository.findAll() : ageGroupRepository.findAllById(ids);

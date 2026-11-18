@@ -39,7 +39,7 @@ public interface AgeGroupRepository extends JpaRepository<AgeGroup, Long> {
             nativeQuery = true)
     Optional<Long> findLatestClassYearId(@Param("ageGroupId") Long ageGroupId);
 
-    // Nhóm tuổi của từng năm học (V144): danh mục chung giữ mã, mỗi năm có danh sách riêng
+    // Nhóm tuổi của từng năm học (V148): danh mục chung giữ mã, mỗi năm có danh sách riêng
     @Query(
             value = "select age_group_id from school_year_age_group_members where school_year_id = :yearId",
             nativeQuery = true)
