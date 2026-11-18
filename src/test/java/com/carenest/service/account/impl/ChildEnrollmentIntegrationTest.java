@@ -803,6 +803,58 @@ class ChildEnrollmentIntegrationTest {
                 ApiCode.CHILD_NOT_LEFT);
     }
 
+    @Test
+    @DisplayName("CHD-03, CHD-11: mở lại hồ sơ cho năm sau ⇒ Chờ xếp lớp, có đăng ký")
+    void readmitIntoPlannedYear() {
+        long left = child("Trẻ Quay Lại Năm Sau", "2021-02-01", "ACTIVE", null);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01', '2026-10-15')",
+                left,
+                classA);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = '2026-10-16', left_reason = 'Chuyển' WHERE id = ?",
+                left);
+        long plain = child("Trẻ Quay Lại Như Cũ", "2021-02-02", "ACTIVE", null);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01', '2026-10-15')",
+                plain,
+                classA);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = '2026-10-16', left_reason = 'Chuyển' WHERE id = ?",
+                plain);
+        entityManager.clear();
+
+        // Trước ngày mở chuẩn bị ⇒ 2412, hồ sơ giữ nguyên
+        expectCode(
+                () -> intakeService.readmit(
+                        principal,
+                        left,
+                        new ReadmitChildRequest("Gia đình quay lại", plannedYear, LocalDate.of(2027, 9, 5))),
+                ApiCode.PREP_YEAR_NOT_OPEN);
+        assertThat(count("SELECT count(*) FROM children WHERE id = ? AND status = 'LEFT'", left))
+                .isEqualTo(1);
+
+        openPrep("2026-10-29");
+        entityManager.clear();
+        ChildViewResponse view = intakeService.readmit(
+                principal, left, new ReadmitChildRequest("Gia đình quay lại", plannedYear, LocalDate.of(2027, 9, 5)));
+        assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+        assertThat(view.campusId()).isEqualTo(campusA);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status = 'PENDING'"
+                                + " AND campus_id = ? AND school_year_id = ? AND classroom_id IS NULL"
+                                + " AND start_date = '2027-09-05'",
+                        left,
+                        campusA,
+                        plannedYear))
+                .isEqualTo(1);
+
+        // Không gửi schoolYearId ⇒ như cũ, không có đăng ký
+        intakeService.readmit(principal, plain, new ReadmitChildRequest("Gia đình quay lại"));
+        assertThat(count("SELECT count(*) FROM planned_admissions WHERE child_id = ?", plain))
+                .isZero();
+    }
+
     @Autowired
     private com.carenest.service.child.ChildRecordService recordService;
 

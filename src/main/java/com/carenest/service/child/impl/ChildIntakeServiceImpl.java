@@ -252,8 +252,16 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             if (reason.length() > 300) {
                 throw fieldError("reason", "Lý do tối đa 300 ký tự");
             }
+            // Mở lại cho năm sau: kiểm năm/ngày mở chuẩn bị trước khi đổi hồ sơ (CHD-11, 2412)
+            PlannedTarget target =
+                    request.schoolYearId() == null ? null : plannedTarget(request.schoolYearId(), request.startDate());
             child.readmit(campusId, today);
             childRepository.save(child);
+            if (target != null) {
+                // Đăng ký chờ xếp lớp ở điểm trường cũ cho năm sau (CHD-03, CHD-11)
+                plannedAdmissionRepository.save(PlannedAdmission.create(
+                        childId, target.year().id(), campusId, null, target.startDate(), actor.userId()));
+            }
             childHistoryRepository.save(ChildHistory.record(
                     childId, ChildHistoryAction.READMITTED, actor.userId(), reason, clock.instant()));
             // Feature account mở lại tài khoản phụ huynh hệ thống đã khóa khi trẻ nghỉ (sau commit; CHD-04, V90)

@@ -18943,6 +18943,12 @@ components:
       properties:
         reason:
           type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
     ReceiptLine:
       type: object
       properties:
