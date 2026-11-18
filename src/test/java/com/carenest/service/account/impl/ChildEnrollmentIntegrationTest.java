@@ -1271,6 +1271,47 @@ class ChildEnrollmentIntegrationTest {
         assertThat(intakeService.getChildView(siblingA).plannedAdmission()).isNull();
     }
 
+    @Test
+    @DisplayName("CHD-09, CHD-11: trẻ năm sau chỉ ở danh sách năm đó, kèm đăng ký")
+    void plannedChildListedUnderPlannedYearOnly() {
+        long childId = enrollPlannedAn();
+
+        var underPlanned = childListService
+                .searchChildren(
+                        principal,
+                        new com.carenest.dto.child.ChildListFilter(plannedYear, null, null, null, null, 0, 100))
+                .items();
+        assertThat(underPlanned)
+                .filteredOn(i -> i.id().equals(childId))
+                .singleElement()
+                .satisfies(i -> {
+                    assertThat(i.plannedAdmission().classId()).isEqualTo(plannedClass);
+                    assertThat(i.plannedAdmission().className()).isEqualTo("Lớp A năm sau");
+                    assertThat(i.plannedAdmission().startDate()).isEqualTo(LocalDate.of(2027, 9, 5));
+                    assertThat(i.plannedAdmission().status())
+                            .isEqualTo(com.carenest.utils.enums.PlannedAdmissionStatus.PLACED);
+                });
+        var underActive = childListService
+                .searchChildren(
+                        principal,
+                        new com.carenest.dto.child.ChildListFilter(activeYear, null, null, null, null, 0, 100))
+                .items();
+        assertThat(underActive).extracting(i -> i.id()).doesNotContain(childId);
+    }
+
+    @Test
+    @DisplayName("CHD-11, AUTH-02: PHT điểm trường B không thấy trẻ năm sau của A")
+    void plannedListFollowsCampusScope() {
+        long childId = enrollPlannedAn();
+
+        var items = childListService
+                .searchChildren(
+                        vicePrincipalOfB,
+                        new com.carenest.dto.child.ChildListFilter(plannedYear, null, null, null, null, 0, 100))
+                .items();
+        assertThat(items).extracting(i -> i.id()).doesNotContain(childId);
+    }
+
     private long enrollPlannedAn() {
         openPrep("2026-10-29");
         return enrollmentService
