@@ -8,6 +8,7 @@ import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.DayPart;
 import com.carenest.utils.enums.MealSession;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -45,24 +46,63 @@ public interface AttendanceService {
 
     SaveAttendanceResponse saveClassAttendance(CurrentUser currentUser, Long classId, SaveAttendanceRequest request);
 
+    /** ATT-13: trẻ nghỉ sáng đã đến buổi chiều (từ giờ chốt tới giờ đến muộn nhất); không đổi sổ báo ăn. */
+    SaveAttendanceResponse markArrived(CurrentUser currentUser, Long classId, Long childId, LocalDate date);
+
+    /** ATT-13: qua giờ đến muộn nhất mà trẻ nghỉ sáng chưa đến ⇒ Vắng cả ngày, báo GV và phụ huynh; trả số trẻ. */
+    int closeMorningLeaves();
+
     AttendanceSummaryResponse.ClassSummary getClassSummary(
             CurrentUser currentUser, Long classId, LocalDate from, LocalDate to);
 
+    default AttendanceSummaryResponse.MultiSummary getSummary(
+            CurrentUser currentUser, Long campusId, Long schoolYearId, LocalDate from, LocalDate to) {
+        return getSummary(currentUser, campusId, schoolYearId, null, from, to);
+    }
+
+    /** ageGroupId: chỉ các lớp của nhóm tuổi (ATT-14, lọc nhóm tuổi); null = mọi nhóm. */
     AttendanceSummaryResponse.MultiSummary getSummary(
-            CurrentUser currentUser, Long campusId, Long schoolYearId, LocalDate from, LocalDate to);
+            CurrentUser currentUser, Long campusId, Long schoolYearId, Long ageGroupId, LocalDate from, LocalDate to);
 
     /** Lớp của năm học tại một điểm trường (chỉ dùng nội bộ: module suất ăn tự kiểm quyền). */
     List<ClassMealTally> tallyMeals(LocalDate date, Long campusId, Long schoolYearId);
 
     /** Trạng thái điểm danh của một trẻ trong một ngày (chỉ dùng nội bộ, module gọi tự kiểm quyền). */
-    record ChildDayStatus(Long childId, LocalDate date, AttendanceStatus status) {}
+    /** absentPart: buổi nghỉ theo đơn nửa buổi, status là của buổi còn lại (ATT-13). */
+    record ChildDayStatus(Long childId, LocalDate date, AttendanceStatus status, DayPart absentPart) {
+
+        public ChildDayStatus(Long childId, LocalDate date, AttendanceStatus status) {
+            this(childId, date, status, null);
+        }
+
+        /** ATT-14: ngày có mặt quy đổi, nửa buổi 0,5. */
+        public double presentDays() {
+            return status != AttendanceStatus.PRESENT ? 0 : absentPart == null ? 1 : 0.5;
+        }
+    }
 
     /** Điểm danh của các trẻ trong khoảng ngày; ngày chưa điểm danh thì không có dòng (đánh giá trẻ đọc, EDU-19). */
     List<ChildDayStatus> findDayStatuses(Collection<Long> childIds, LocalDate from, LocalDate to);
 
     /** Một dòng điểm danh của lớp: trạng thái và các bữa trẻ ăn (chỉ dùng nội bộ, module gọi tự kiểm quyền). */
     record ClassChildDay(
-            Long classroomId, Long childId, LocalDate date, AttendanceStatus status, List<MealSession> meals) {}
+            Long classroomId,
+            Long childId,
+            LocalDate date,
+            AttendanceStatus status,
+            List<MealSession> meals,
+            DayPart absentPart) {
+
+        public ClassChildDay(
+                Long classroomId, Long childId, LocalDate date, AttendanceStatus status, List<MealSession> meals) {
+            this(classroomId, childId, date, status, meals, null);
+        }
+
+        /** ATT-14: ngày có mặt quy đổi, nửa buổi 0,5. */
+        public double presentDays() {
+            return status != AttendanceStatus.PRESENT ? 0 : absentPart == null ? 1 : 0.5;
+        }
+    }
 
     /** Điểm danh của các lớp trong khoảng ngày (báo cáo chất lượng tháng đọc); ngày chưa điểm danh thì không có dòng. */
     List<ClassChildDay> findClassDays(Collection<Long> classroomIds, LocalDate from, LocalDate to);

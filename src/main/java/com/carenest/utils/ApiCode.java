@@ -395,6 +395,11 @@ public enum ApiCode {
     LEAVE_NOT_FOUND(4023, HttpStatus.NOT_FOUND, "Không tìm thấy đơn nghỉ"),
     LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
     LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
+    // ATT-12, ATT-13 (Cần chốt 18/11/2026): nghỉ nửa buổi
+    LEAVE_HALF_DAY_SINGLE_DAY(4031, HttpStatus.BAD_REQUEST, "Nghỉ buổi sáng hoặc buổi chiều chỉ chọn cho một ngày"),
+    CUTOFF_LATEST_ARRIVAL_INVALID(4030, HttpStatus.BAD_REQUEST, "Giờ đến muộn nhất buổi chiều phải sau giờ chốt {0}"),
+    ATTENDANCE_ARRIVAL_NOT_ALLOWED(
+            4033, HttpStatus.CONFLICT, "Chỉ ghi Đã đến cho trẻ nghỉ buổi sáng chưa đến, từ giờ chốt tới {0}"),
     ATTENDANCE_EXCUSED_NOT_ALLOWED(
             4018,
             HttpStatus.BAD_REQUEST,
