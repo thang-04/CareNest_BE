@@ -122,6 +122,43 @@ class DevSeedIntegrationTest {
     }
 
     @Test
+    @DisplayName("Chạy lại seed giữ bản đang chờ khác phiên bản mẫu, không tạo lịch sử thiếu chủ sở hữu")
+    void rerunWithDifferentOpenYearPlanKeepsExistingPlan() throws IOException {
+        String sql = new ClassPathResource("db/dev/R__dev_04_education.sql").getContentAsString(StandardCharsets.UTF_8);
+        jdbc.execute((ConnectionCallback<Void>) connection -> {
+            boolean autoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try (Statement st = connection.createStatement()) {
+                st.execute("set local search_path to " + SCHEMA);
+                long planId;
+                try (ResultSet rs = st.executeQuery("update edu_year_plans set version_no = 3"
+                        + " where code = 'KHN-KHNH-2627-NT-V2' and status = 'REVIEW' returning id")) {
+                    assertThat(rs.next()).isTrue();
+                    planId = rs.getLong(1);
+                }
+                st.execute(sql);
+                try (ResultSet rs =
+                        st.executeQuery("select version_no, status from edu_year_plans where id = " + planId)) {
+                    assertThat(rs.next()).isTrue();
+                    assertThat(rs.getInt(1)).isEqualTo(3);
+                    assertThat(rs.getString(2)).isEqualTo("REVIEW");
+                }
+                try (ResultSet rs = st.executeQuery("select count(*) from edu_year_plans p"
+                        + " join edu_year_plans existing on existing.school_year_id = p.school_year_id"
+                        + " and existing.age_group_id = p.age_group_id"
+                        + " where existing.id = " + planId + " and p.version_no = 2 and not p.disabled")) {
+                    assertThat(rs.next()).isTrue();
+                    assertThat(rs.getLong(1)).isZero();
+                }
+            } finally {
+                connection.rollback();
+                connection.setAutoCommit(autoCommit);
+            }
+            return null;
+        });
+    }
+
+    @Test
     @DisplayName("Không còn tài khoản/dữ liệu demo cũ: tên đăng nhập là SĐT, không tên chứa Demo")
     void datasetHasNoDemoIdentities() {
         assertThat(jdbc.queryForObject(

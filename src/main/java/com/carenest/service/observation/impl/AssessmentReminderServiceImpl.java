@@ -1,5 +1,6 @@
 package com.carenest.service.observation.impl;
 
+import com.carenest.config.NotificationTimingProperties;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.observation.EvaluationDeadlineDtos.EvaluationPeriod;
 import com.carenest.dto.observation.EvaluationDeadlineDtos.OverdueClassItem;
@@ -26,7 +27,6 @@ import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.DayOfWeek;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -58,8 +58,6 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DM = DateTimeFormatter.ofPattern("dd/MM");
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
-    private static final Duration CUTOFF_LEAD = Duration.ofMinutes(30);
-    private static final Duration UNLOCK_ENDING_LEAD = Duration.ofHours(1);
     private static final int NEXT_SCHOOL_DAY_SCAN = 30;
 
     private final ObservationDayRules rules;
@@ -74,9 +72,10 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
     private final WeeklyCommentUnlockRepository weeklyUnlockRepository;
     private final AssessmentDayUnlockRepository dayUnlockRepository;
     private final Clock clock;
+    private final NotificationTimingProperties timing;
 
     @Override
-    @Scheduled(cron = "0 */5 6-12 * * MON-FRI", zone = "${carenest.time-zone}")
+    @Scheduled(cron = "#{@notificationSchedules.attendanceCron()}", zone = "${carenest.time-zone}")
     public int remindAttendanceCutoff() {
         String logPrefix = LOG_PREFIX + "|remindAttendanceCutoff";
         log.info("{}|START", logPrefix);
@@ -86,8 +85,13 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
             int sent = 0;
             if (info != null && info.schoolDay() && !info.baseLocked() && info.cutoff() != null) {
                 LocalDateTime cutoffAt = today.atTime(LocalTime.parse(info.cutoff()));
-                Duration left = Duration.between(LocalDateTime.now(clock), cutoffAt);
-                if (!left.isNegative() && left.compareTo(CUTOFF_LEAD) <= 0) {
+                LocalDateTime now = LocalDateTime.now(clock);
+                if (!now.isBefore(today.atTime(timing.notificationReminders().attendanceStart()))
+                        && now.isBefore(cutoffAt)) {
+                    int interval = timing.notificationReminders().attendanceIntervalMinutes();
+                    LocalDateTime slot = now.withMinute(now.getMinute() / interval * interval)
+                            .withSecond(0)
+                            .withNano(0);
                     List<ClassroomInfoResponse> classes = activeClasses(today);
                     Set<Long> taken = attendanceService.findClassDays(ids(classes), today, today).stream()
                             .map(ClassChildDay::classroomId)
@@ -100,10 +104,10 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                         sent += notifyOnce(
                                 teachers.getOrDefault(cls.id(), List.of()),
                                 NotificationType.ATTENDANCE_REMINDER,
-                                "Sắp tới giờ chốt điểm danh",
+                                "Nhắc điểm danh hôm nay",
                                 "Lớp " + cls.name() + " chưa điểm danh hôm nay. Giờ chốt " + info.cutoff() + ".",
                                 "/attendance?classId=" + cls.id() + "&date=" + today,
-                                "cutoff-" + today);
+                                "cutoff-" + slot);
                     }
                 }
             }
@@ -116,7 +120,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
     }
 
     @Override
-    @Scheduled(cron = "0 0 20 * * MON-FRI", zone = "${carenest.time-zone}")
+    @Scheduled(cron = "${carenest.notification-reminders.daily-assessment-cron}", zone = "${carenest.time-zone}")
     public int remindDailyAssessment() {
         String logPrefix = LOG_PREFIX + "|remindDailyAssessment";
         log.info("{}|START", logPrefix);
@@ -164,7 +168,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
     }
 
     @Override
-    @Scheduled(cron = "0 0 7 * * MON-FRI", zone = "${carenest.time-zone}")
+    @Scheduled(cron = "${carenest.notification-reminders.evaluation-deadline-cron}", zone = "${carenest.time-zone}")
     public int remindEvaluationDeadlines() {
         String logPrefix = LOG_PREFIX + "|remindEvaluationDeadlines";
         log.info("{}|START", logPrefix);
@@ -278,13 +282,13 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
     }
 
     @Override
-    @Scheduled(cron = "0 */10 * * * *", zone = "${carenest.time-zone}")
+    @Scheduled(cron = "${carenest.notification-reminders.unlock-ending-cron}", zone = "${carenest.time-zone}")
     public int remindUnlocksEnding() {
         String logPrefix = LOG_PREFIX + "|remindUnlocksEnding";
         log.info("{}|START", logPrefix);
         try {
             Instant now = rules.now();
-            Instant until = now.plus(UNLOCK_ENDING_LEAD);
+            Instant until = now.plus(timing.notificationReminders().unlockEndingLead());
             int sent = 0;
             for (AssessmentDayUnlock u : dayUnlockRepository.findByValidUntilBetween(now, until)) {
                 sent += remindEnding(
@@ -344,7 +348,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
     }
 
     @Override
-    @Scheduled(cron = "0 30 7 * * MON-FRI", zone = "${carenest.time-zone}")
+    @Scheduled(cron = "${carenest.notification-reminders.leader-overdue-cron}", zone = "${carenest.time-zone}")
     public int remindLeadersOverdue() {
         String logPrefix = LOG_PREFIX + "|remindLeadersOverdue";
         log.info("{}|START", logPrefix);

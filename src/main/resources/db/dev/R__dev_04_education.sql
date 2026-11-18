@@ -338,6 +338,11 @@ ALTER TABLE _e_yp ADD COLUMN plan_id bigint, ADD COLUMN fresh boolean;
 UPDATE _e_yp y SET plan_id = p.id
 FROM edu_year_plans p, _e_ctx c
 WHERE p.school_year_id = c.sy_id AND p.age_group_id = y.ag_id AND p.version_no = y.version_no AND NOT p.disabled;
+-- Bản chờ mẫu bị bỏ qua do đã có bản đang mở khác không có cây/lịch sử để seed (EDU-25).
+DELETE FROM _e_yp y USING _e_ctx c
+WHERE y.plan_id IS NULL AND y.review
+  AND EXISTS (SELECT 1 FROM edu_year_plans p WHERE p.school_year_id = c.sy_id AND p.age_group_id = y.ag_id
+              AND p.status <> 'APPROVED' AND NOT p.disabled);
 -- Chỉ dựng cây cho kế hoạch chưa có dòng nào (lần chạy đầu); chạy lại không chạm cây đã có
 UPDATE _e_yp y SET fresh = NOT EXISTS (SELECT 1 FROM edu_themes t WHERE t.school_year_plan_id = y.plan_id)
                        AND NOT EXISTS (SELECT 1 FROM edu_plan_goals g WHERE g.school_year_plan_id = y.plan_id);

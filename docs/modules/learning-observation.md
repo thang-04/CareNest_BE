@@ -65,3 +65,7 @@ Chưa có.
 - OBS-27 (user chốt lại 09/11/2026): từng MT cuối chủ đề Đạt khi có ít nhất một hoạt động Đạt; vắng/chưa có hoạt động Đạt là Chưa đạt. Tổng kết cả chủ đề 70% giữ nguyên. Bảng đã xác nhận không tính lại.
 
 - Học kỳ vẫn dùng bảng lớp/lĩnh vực, hai tầng 50% và kỳ II riêng. Riêng cuối năm, user chốt 09/11/2026: mỗi MT tổng hợp theo các chủ đề có gắn MT và Đạt khi ít nhất 50% chủ đề Đạt; bảng chủ đề/phiếu năm đã xác nhận giữ snapshot.
+
+## Nhắc điểm danh — OBS-30, Tiền điều chỉnh 17/11/2026
+
+AssessmentReminderServiceImpl.remindAttendanceCutoff chạy mỗi 5 phút từ 08:00–23:55 thứ Hai–Sáu, chỉ gửi khi ngày học, năm đang hoạt động, chưa baseLocked và thời điểm trong [08:00, giờ khóa cấu hình). Không còn giới hạn 30 phút trước khóa hoặc trần 12h. Chỉ lớp chưa điểm danh, gửi GV chính và dạy thay theo ngày. Link dedupe gồm lớp/ngày/khung 5 phút: chạy lại trong cùng slot không nhân tin, slot sau có thể nhắc lại tới khi điểm danh/khóa. Các lịch đánh giá/mở lại/nhắc BGH giữ nguyên.

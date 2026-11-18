@@ -95,6 +95,20 @@ class RecipientResolverTest {
     }
 
     @Test
+    void senderIsExcludedFromEverySelectedRoleBeforeCounting() {
+        given(staff.findCurrentTeacherIds(anyCollection(), eq(DAY))).willReturn(Map.of(10L, List.of(1L, 40L)));
+        given(staff.findPrincipalIds(DAY)).willReturn(Set.of(1L, 3L));
+        given(staff.findCampusVicePrincipalIds(1L, DAY)).willReturn(Set.of(2L));
+        Map<RecipientRole, Set<Long>> result = resolver.resolve(
+                target(AnnouncementScopeType.CAMPUS, 1L, null, null, RecipientRole.BGH, RecipientRole.TEACHER),
+                1L,
+                DAY);
+        assertThat(RecipientResolver.all(result))
+                .containsExactlyInAnyOrder(2L, 3L, 40L)
+                .doesNotContain(1L);
+    }
+
+    @Test
     void kitchenOfCampusIsCountedOnceForManyClasses() {
         given(staff.findCampusKitchenIds(1L, DAY)).willReturn(Set.of(70L));
 

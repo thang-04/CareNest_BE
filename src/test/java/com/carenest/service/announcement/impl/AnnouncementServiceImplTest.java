@@ -76,7 +76,8 @@ class AnnouncementServiceImplTest {
                 notifications,
                 accounts,
                 storage,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                com.carenest.support.NotificationTimingTestConfig.load());
         given(resolver.normalize(any())).willAnswer(inv -> inv.getArgument(0));
         given(resolver.canView(any(), any(), any())).willReturn(true);
         given(resolver.resolve(any(), any(), any())).willReturn(Map.of(RecipientRole.PARENT, Set.of(500L, 501L)));
@@ -118,6 +119,89 @@ class AnnouncementServiceImplTest {
         assertThat(r.status()).isEqualTo(AnnouncementStatus.SENT);
         assertThat(r.recipientCount()).isEqualTo(2);
         verify(notifications).notifyAnnouncement(eq(7L), eq(Set.of(500L, 501L)), eq("Nghỉ lễ"), anyString());
+    }
+
+    @Test
+    void onlyCancelledCanBeDeletedAndFilesWaitForCommit() {
+        existing(AnnouncementStatus.SENT);
+        assertThatThrownBy(() -> service.deleteAnnouncement(HT, 7L))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.ANNOUNCEMENT_NOT_DELETABLE));
+        verify(announcements, never()).deleteAll(any());
+        SchoolAnnouncement a = existing(AnnouncementStatus.CANCELLED);
+        AnnouncementAttachment file = mock(AnnouncementAttachment.class);
+        given(file.getFileKey()).willReturn("cancelled/demo.pdf");
+        given(attachments.findByAnnouncementIdIn(List.of(7L))).willReturn(List.of(file));
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            service.deleteAnnouncement(HT, 7L);
+            verify(announcements).deleteAll(List.of(a));
+            verify(storage, never()).removeQuietly(any(), anyString());
+            org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(org.springframework.transaction.support.TransactionSynchronization::afterCommit);
+            verify(storage).removeQuietly(com.carenest.utils.enums.FileCategory.ANNOUNCEMENT, "cancelled/demo.pdf");
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void deleteOutsideScopeReturnsNotFoundAndDoesNotTouchFiles() {
+        existing(AnnouncementStatus.CANCELLED);
+        given(resolver.canView(any(), any(), any())).willReturn(false);
+        assertThatThrownBy(() -> service.deleteAnnouncement(HT, 7L))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.ANNOUNCEMENT_NOT_FOUND));
+        verify(announcements, never()).deleteAll(any());
+        verify(storage, never()).removeQuietly(any(), anyString());
+    }
+
+    @Test
+    void bulkWithNonCancelledStatusDeletesNothing() {
+        assertThat(service.deleteCancelledAnnouncements(HT, "demo", AnnouncementStatus.SENT))
+                .isZero();
+        verify(announcements, never()).deleteAll(any());
+    }
+
+    @Test
+    void selectedIdsAreCheckedTogetherBeforeAnyDelete() {
+        SchoolAnnouncement cancelled = existing(AnnouncementStatus.CANCELLED);
+        SchoolAnnouncement sent = existing(AnnouncementStatus.SENT);
+        ReflectionTestUtils.setField(sent, "id", 8L);
+        given(announcements.findAll(
+                        any(org.springframework.data.jpa.domain.Specification.class),
+                        any(org.springframework.data.domain.Sort.class)))
+                .willReturn(List.of(cancelled, sent));
+        var selection = new com.carenest.dto.announcement.AnnouncementSelectionRequest(
+                false, List.of(7L, 8L), List.of(), null, null);
+        assertThatThrownBy(() -> service.deleteSelectedAnnouncements(HT, selection))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.ANNOUNCEMENT_NOT_DELETABLE));
+        verify(announcements, never()).deleteAll(any());
+        given(announcements.findAll(
+                        any(org.springframework.data.jpa.domain.Specification.class),
+                        any(org.springframework.data.domain.Sort.class)))
+                .willReturn(List.of(cancelled));
+        assertThatThrownBy(() -> service.deleteSelectedAnnouncements(HT, selection))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.ANNOUNCEMENT_NOT_FOUND));
+        verify(announcements, never()).deleteAll(any());
+    }
+
+    @Test
+    void emptySelectionIsRejected() {
+        assertThatThrownBy(() -> service.deleteSelectedAnnouncements(
+                        HT,
+                        new com.carenest.dto.announcement.AnnouncementSelectionRequest(
+                                false, List.of(), List.of(), null, null)))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA));
+        verify(announcements, never()).deleteAll(any());
     }
 
     @Test

@@ -1,15 +1,17 @@
 package com.carenest.controller.announcement;
 
+import com.carenest.dto.announcement.AnnouncementListResponse;
 import com.carenest.dto.announcement.AnnouncementRequest;
 import com.carenest.dto.announcement.AnnouncementResponse;
+import com.carenest.dto.announcement.AnnouncementSelectionRequest;
 import com.carenest.dto.announcement.MyAnnouncementResponse;
 import com.carenest.dto.announcement.RecipientPreviewResponse;
 import com.carenest.dto.announcement.RecipientTargetRequest;
-import com.carenest.dto.common.PageResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.announcement.AnnouncementService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
+import com.carenest.utils.enums.AnnouncementStatus;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -97,15 +100,53 @@ public class AnnouncementController {
 
     @GetMapping("/announcements")
     @PreAuthorize(BGH)
-    public ResponseEntity<ResponseJson<PageResponse<AnnouncementResponse>>> listAnnouncements(
+    public ResponseEntity<ResponseJson<AnnouncementListResponse>> listAnnouncements(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) AnnouncementStatus status,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|listAnnouncements|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        PageResponse<AnnouncementResponse> list = announcementService.listAnnouncements(currentUser, page, size);
+        AnnouncementListResponse list = announcementService.listAnnouncements(currentUser, q, status, page, size);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get announcements success", list);
+    }
+
+    @DeleteMapping("/announcements/cancelled")
+    @PreAuthorize(BGH)
+    public ResponseEntity<ResponseJson<Integer>> deleteCancelledAnnouncements(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) AnnouncementStatus status,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|deleteCancelledAnnouncements|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        int count = announcementService.deleteCancelledAnnouncements(currentUser, q, status);
+        log.info("{}|count={}|END", logPrefix, count);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Delete cancelled announcements success", count);
+    }
+
+    @PostMapping("/announcements/delete-selection")
+    @PreAuthorize(BGH)
+    public ResponseEntity<ResponseJson<Integer>> deleteSelectedAnnouncements(
+            @RequestBody AnnouncementSelectionRequest selection, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|deleteSelectedAnnouncements|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        int count = announcementService.deleteSelectedAnnouncements(currentUser, selection);
+        log.info("{}|count={}|END", logPrefix, count);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Delete selected announcements success", count);
+    }
+
+    @DeleteMapping("/announcements/{announcementId}")
+    @PreAuthorize(BGH)
+    public ResponseEntity<ResponseJson<Void>> deleteAnnouncement(
+            @PathVariable Long announcementId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|deleteAnnouncement|userId=" + currentUser.userId() + "|announcementId=" + announcementId;
+        log.info("{}|START", logPrefix);
+        announcementService.deleteAnnouncement(currentUser, announcementId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Delete announcement success");
     }
 
     @GetMapping("/announcements/{announcementId}")

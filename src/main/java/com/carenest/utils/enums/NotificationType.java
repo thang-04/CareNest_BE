@@ -63,5 +63,39 @@ public enum NotificationType {
     MEAL_COUNT_CONFIRMED,
     REWARD_LIST_UPDATED,
     /** Kích hoạt năm học mới: báo GV, PHT, bếp có phân công năm mới (CFG-YR-02). */
-    SCHOOL_YEAR_ACTIVATED
+    SCHOOL_YEAR_ACTIVATED;
+
+    public String typeLabel() {
+        return switch (this) {
+            case SCHOOL_ANNOUNCEMENT -> "Thông báo nhà trường";
+            case EDU_SUBMITTED,
+                    EDU_STEP_APPROVED,
+                    EDU_RELEASED,
+                    EDU_RETURNED,
+                    EDU_DEADLINE_EXTENDED,
+                    EDU_DEADLINE_NEAR -> "Kế hoạch giáo dục";
+            case CHILD_PICKED_UP -> "Đón trẻ";
+            case DAILY_HEALTH_NOTED -> "Sức khỏe trong ngày";
+            case CHILD_TB_CONTACT,
+                    CHILD_TB_CONTACT_DATE_CHANGED,
+                    HEALTH_RESULT_PUBLISHED,
+                    HEALTH_RESULT_UPDATED,
+                    HEALTH_CHECK_OPENED,
+                    HEALTH_TREND_APPROVED -> "Sức khỏe";
+            case MENU_PUBLISHED -> "Thực đơn";
+            case MEAL_COUNT_RECONFIRM, MEAL_COUNT_CONFIRMED -> "Suất ăn";
+            case LEAVE_REQUEST_CREATED, LEAVE_REQUEST_CHANGED -> "Đơn nghỉ";
+            case CHILD_EVALUATION_CONFIRMED, THEME_EVALUATION_CONFIRMED, ASSESSMENT_REMINDER, ASSESSMENT_REOPENED ->
+                "Đánh giá trẻ";
+            case WEEKLY_COMMENT_SENT -> "Nhận xét tuần";
+            case ATTENDANCE_DAY_UNLOCKED, ATTENDANCE_REMINDER -> "Điểm danh";
+            case CHILD_WITHDRAWN, CHILD_PLACED -> "Hồ sơ trẻ";
+            case GUARDIAN_PHONE_CHANGE_REQUESTED, GUARDIAN_PHONE_CHANGE_DECIDED -> "Tài khoản phụ huynh";
+            case STAFF_ASSIGNED -> "Phân công";
+            case CUTOFF_CHANGED -> "Thời gian chốt";
+            case REWARD_LIST_UPDATED -> "Khen thưởng";
+            case SCHOOL_YEAR_ACTIVATED -> "Năm học";
+            case LEADER_REMINDER -> "Nhắc việc";
+        };
+    }
 }

@@ -14,4 +14,18 @@ public record AnnouncementScheduleRequest(
         Integer dayOfWeek,
         Integer dayOfMonth,
         LocalTime sendTime,
-        Boolean active) {}
+        Boolean active,
+        String title,
+        String body,
+        java.util.List<Long> keepAttachmentIds) {
+    public AnnouncementScheduleRequest(
+            Long templateId,
+            RecipientTargetRequest target,
+            ScheduleFrequency frequency,
+            Integer dayOfWeek,
+            Integer dayOfMonth,
+            LocalTime sendTime,
+            Boolean active) {
+        this(templateId, target, frequency, dayOfWeek, dayOfMonth, sendTime, active, null, null, null);
+    }
+}
