@@ -76,7 +76,7 @@ class CampusControllerTest {
     @Test
     void createReturns201() throws Exception {
         CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
-        given(campusService.createCampus(eq(principal), any())).willReturn(campus());
+        given(campusService.createCampus(eq(principal), any(), any())).willReturn(campus());
 
         mockMvc.perform(post(CAMPUSES)
                         .with(token(CareNestRole.PRINCIPAL))

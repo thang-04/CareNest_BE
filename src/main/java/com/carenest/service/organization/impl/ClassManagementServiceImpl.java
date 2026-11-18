@@ -314,6 +314,11 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                     ageGroupRepository.addAllToYear(target.getId());
                 }
                 ageGroupRepository.addToYear(target.getId(), group.getId());
+                // Lớp chép sang năm đích mang theo điểm trường (V151)
+                if (campusRepository.findYearCampusIds(target.getId()).isEmpty()) {
+                    campusRepository.addAllToYear(target.getId());
+                }
+                campusRepository.addToYear(target.getId(), c.getCampusId());
                 copied.add(c.getName());
             }
             CopyClassesResponse response = new CopyClassesResponse(copied, skipped, withoutRoom);
@@ -332,6 +337,11 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         String name = DisplayNames.normalize(request.name());
         if (!campusRepository.existsById(request.campusId())) {
             throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);
+        }
+        // V151: lớp chỉ mở ở điểm trường của năm học đó (Cần chốt 22/10/2026)
+        List<Long> yearCampuses = campusRepository.findYearCampusIds(request.schoolYearId());
+        if (!yearCampuses.isEmpty() && !yearCampuses.contains(request.campusId())) {
+            throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
         }
         if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
             throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);
