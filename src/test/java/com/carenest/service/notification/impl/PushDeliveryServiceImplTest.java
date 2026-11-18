@@ -18,7 +18,6 @@ import com.carenest.utils.enums.DevicePlatform;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.PushState;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -48,7 +47,12 @@ class PushDeliveryServiceImplTest {
         given(deliveries.lockById(2L)).willReturn(Optional.of(pending));
         given(devices.lockById(11L)).willReturn(Optional.of(device));
         var service = new PushDeliveryServiceImpl(
-                notifications, devices, deliveries, gateway, Clock.fixed(now, ZoneOffset.UTC), Duration.ofMinutes(60));
+                notifications,
+                devices,
+                deliveries,
+                gateway,
+                Clock.fixed(now, ZoneOffset.UTC),
+                com.carenest.support.NotificationTimingTestConfig.load());
         assertThat(service.pushOne(1L)).isEqualTo(PushState.SENT);
         ArgumentCaptor<PushGateway.PushMessage> message = ArgumentCaptor.forClass(PushGateway.PushMessage.class);
         verify(gateway, times(1)).send(message.capture());

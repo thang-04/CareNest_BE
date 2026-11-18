@@ -62,14 +62,16 @@ class NotificationControllerTest {
                         Instant.parse("2026-11-15T09:00:00Z"),
                         null,
                         null,
-                        null));
+                        null,
+                        "Đón trẻ"));
 
         mockMvc.perform(get("/api/me/notifications/11")
                         .with(jwt().authorities(new SimpleGrantedAuthority(CareNestRole.PARENT.authority()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(11))
-                .andExpect(jsonPath("$.data.type").value("CHILD_PICKED_UP"));
+                .andExpect(jsonPath("$.data.type").value("CHILD_PICKED_UP"))
+                .andExpect(jsonPath("$.data.typeLabel").value("Đón trẻ"));
     }
 
     @Test

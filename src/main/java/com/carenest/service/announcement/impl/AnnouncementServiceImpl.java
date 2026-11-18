@@ -1,8 +1,11 @@
 package com.carenest.service.announcement.impl;
 
+import com.carenest.config.NotificationTimingProperties;
 import com.carenest.dto.announcement.AnnouncementAttachmentResponse;
+import com.carenest.dto.announcement.AnnouncementListResponse;
 import com.carenest.dto.announcement.AnnouncementRequest;
 import com.carenest.dto.announcement.AnnouncementResponse;
+import com.carenest.dto.announcement.AnnouncementSelectionRequest;
 import com.carenest.dto.announcement.MyAnnouncementResponse;
 import com.carenest.dto.announcement.RecipientPreviewResponse;
 import com.carenest.dto.announcement.RecipientTargetRequest;
@@ -23,8 +26,6 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AnnouncementStatus;
 import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.RecipientRole;
-import java.io.IOException;
-import java.io.InputStream;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -40,6 +41,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -51,7 +54,6 @@ import org.springframework.web.multipart.MultipartFile;
 public class AnnouncementServiceImpl implements AnnouncementService {
     private static final String LOG_PREFIX = "[AnnouncementServiceImpl]";
     static final int MAX_FILES = 5;
-    static final int MAX_SCHEDULE_DAYS = 30;
     private static final int TITLE_MAX = 150;
     private static final int BODY_MAX = 4000;
     private static final int MAX_PAGE_SIZE = 100;
@@ -63,6 +65,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
     private final AccountService accountService;
     private final FileStorage storage;
     private final Clock clock;
+    private final NotificationTimingProperties timing;
 
     @Override
     @Transactional(readOnly = true)
@@ -181,24 +184,146 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<AnnouncementResponse> listAnnouncements(CurrentUser user, int page, int size) {
+    public AnnouncementListResponse listAnnouncements(
+            CurrentUser user, String q, AnnouncementStatus status, int page, int size) {
         String logPrefix = LOG_PREFIX + "|listAnnouncements|userId=" + user.userId();
         log.info("{}|START", logPrefix);
         try {
-            PageRequest paging = PageRequest.of(Math.max(page, 0), size <= 0 ? 20 : Math.min(size, MAX_PAGE_SIZE));
-            Page<SchoolAnnouncement> rows = recipientResolver.managesWholeSchool(user)
-                    ? announcementRepository.findAllByOrderByCreatedAtDescIdDesc(paging)
-                    : announcementRepository.findVisibleToVicePrincipal(
-                            user.userId(), withDummy(recipientResolver.managedCampusIds(user)), paging);
+            PageRequest paging = PageRequest.of(
+                    Math.max(page, 0),
+                    size <= 0 ? 20 : Math.min(size, MAX_PAGE_SIZE),
+                    Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+            Page<SchoolAnnouncement> rows = announcementRepository.findAll(filtered(user, q, status), paging);
             Map<Long, String> names = accountService.findFullNames(
                     rows.stream().map(SchoolAnnouncement::getSenderId).toList());
             PageResponse<AnnouncementResponse> list = PageResponse.from(rows, a -> toView(a, user, names, List.of()));
             log.info("{}|count={}|END", logPrefix, list.items().size());
-            return list;
+            long cancelledCount = status == AnnouncementStatus.CANCELLED
+                    ? rows.getTotalElements()
+                    : status != null
+                            ? 0
+                            : announcementRepository.count(filtered(user, q, AnnouncementStatus.CANCELLED));
+            return AnnouncementListResponse.of(list, cancelledCount);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public void deleteAnnouncement(CurrentUser user, Long announcementId) {
+        String logPrefix =
+                LOG_PREFIX + "|deleteAnnouncement|userId=" + user.userId() + "|announcementId=" + announcementId;
+        log.info("{}|START", logPrefix);
+        try {
+            SchoolAnnouncement a = announcementRepository
+                    .lockById(announcementId)
+                    .filter(x -> recipientResolver.canView(user, x.target(), x.getSenderId()))
+                    .orElseThrow(() -> GlobalException.of(ApiCode.ANNOUNCEMENT_NOT_FOUND));
+            if (a.getStatus() != AnnouncementStatus.CANCELLED)
+                throw GlobalException.of(ApiCode.ANNOUNCEMENT_NOT_DELETABLE);
+            deleteRows(List.of(a));
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public int deleteCancelledAnnouncements(CurrentUser user, String q, AnnouncementStatus status) {
+        String logPrefix = LOG_PREFIX + "|deleteCancelledAnnouncements|userId=" + user.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            if (status != null && status != AnnouncementStatus.CANCELLED) {
+                log.info("{}|count=0|END", logPrefix);
+                return 0;
+            }
+            List<SchoolAnnouncement> rows =
+                    announcementRepository.findAll(filtered(user, q, AnnouncementStatus.CANCELLED), Sort.by("id"));
+            if (!rows.isEmpty()) deleteRows(rows);
+            log.info("{}|count={}|END", logPrefix, rows.size());
+            return rows.size();
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public int deleteSelectedAnnouncements(CurrentUser user, AnnouncementSelectionRequest selection) {
+        String logPrefix = LOG_PREFIX + "|deleteSelectedAnnouncements|userId=" + user.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            if (selection == null) throw GlobalException.of(ApiCode.INVALID_REQUEST_DATA);
+            List<Long> ids = selection.ids() == null ? List.of() : selection.ids();
+            List<Long> excluded = selection.excludedIds() == null ? List.of() : selection.excludedIds();
+            if (ids.stream().anyMatch(id -> id == null || id <= 0)
+                    || excluded.stream().anyMatch(id -> id == null || id <= 0)
+                    || (selection.allMatching() && !ids.isEmpty())
+                    || (!selection.allMatching() && (ids.isEmpty() || !excluded.isEmpty()))) {
+                throw GlobalException.of(ApiCode.INVALID_REQUEST_DATA);
+            }
+            Specification<SchoolAnnouncement> spec;
+            if (selection.allMatching()) {
+                if (selection.status() != null && selection.status() != AnnouncementStatus.CANCELLED) {
+                    log.info("{}|count=0|END", logPrefix);
+                    return 0;
+                }
+                spec = filtered(user, selection.q(), AnnouncementStatus.CANCELLED);
+                if (!excluded.isEmpty())
+                    spec = spec.and((root, query, cb) -> cb.not(root.get("id").in(excluded)));
+            } else {
+                spec = filtered(user, null, null)
+                        .and((root, query, cb) -> root.get("id").in(ids));
+            }
+            // Kiểm toàn bộ lựa chọn sau khóa, trước xóa: sai một dòng thì không xóa thành công một phần.
+            List<SchoolAnnouncement> rows = announcementRepository.findAll(spec, Sort.by("id"));
+            if (!selection.allMatching() && rows.size() != new HashSet<>(ids).size())
+                throw GlobalException.of(ApiCode.ANNOUNCEMENT_NOT_FOUND);
+            if (rows.stream().anyMatch(row -> row.getStatus() != AnnouncementStatus.CANCELLED))
+                throw GlobalException.of(ApiCode.ANNOUNCEMENT_NOT_DELETABLE);
+            if (!rows.isEmpty()) deleteRows(rows);
+            log.info("{}|count={}|END", logPrefix, rows.size());
+            return rows.size();
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private Specification<SchoolAnnouncement> filtered(CurrentUser user, String q, AnnouncementStatus status) {
+        boolean wholeSchool = recipientResolver.managesWholeSchool(user);
+        Set<Long> campuses = recipientResolver.managedCampusIds(user);
+        String term = q == null ? "" : q.trim().toLowerCase(java.util.Locale.ROOT);
+        String pattern = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        return (root, query, cb) -> {
+            var scope = wholeSchool
+                    ? cb.conjunction()
+                    : cb.or(
+                            cb.equal(root.get("senderId"), user.userId()),
+                            root.get("scopeCampusId").in(withDummy(campuses)));
+            var state = status == null ? cb.conjunction() : cb.equal(root.get("status"), status);
+            var search = term.isEmpty()
+                    ? cb.conjunction()
+                    : cb.or(
+                            cb.like(cb.lower(root.get("title")), pattern, '\\'),
+                            cb.like(cb.lower(root.get("body")), pattern, '\\'));
+            return cb.and(scope, state, search);
+        };
+    }
+
+    private void deleteRows(List<SchoolAnnouncement> rows) {
+        List<String> keys =
+                attachmentRepository
+                        .findByAnnouncementIdIn(
+                                rows.stream().map(SchoolAnnouncement::getId).toList())
+                        .stream()
+                        .map(AnnouncementAttachment::getFileKey)
+                        .toList();
+        announcementRepository.deleteAll(rows);
+        announcementRepository.flush();
+        AnnouncementFiles.cleanupAfterCommit(attachmentRepository, storage, keys);
     }
 
     @Override
@@ -250,7 +375,10 @@ public class AnnouncementServiceImpl implements AnnouncementService {
             AnnouncementAttachment f = attachmentRepository
                     .findById(attachmentId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.ANNOUNCEMENT_NOT_FOUND));
-            readable(user, f.getAnnouncementId());
+            if (f.getScheduleId() != null) {
+                if (!recipientResolver.managesWholeSchool(user))
+                    throw GlobalException.of(ApiCode.ANNOUNCEMENT_NOT_FOUND);
+            } else readable(user, f.getAnnouncementId());
             Download download = new Download(
                     storage.load(FileCategory.ANNOUNCEMENT, f.getFileKey()), f.getFileName(), f.getContentType());
             log.info("{}|END", logPrefix);
@@ -349,7 +477,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
         return recipients;
     }
 
-    private static void validateContent(AnnouncementRequest request) {
+    static void validateContent(AnnouncementRequest request) {
         List<FieldErrorResponse> errors = new ArrayList<>();
         if (request == null || blank(request.title()) || request.title().trim().length() > TITLE_MAX) {
             errors.add(new FieldErrorResponse("title", "Tiêu đề bắt buộc, tối đa " + TITLE_MAX + " ký tự"));
@@ -362,14 +490,15 @@ public class AnnouncementServiceImpl implements AnnouncementService {
         }
     }
 
-    private static Instant checkSendAt(Instant sendAt, Instant now) {
-        if (!sendAt.isAfter(now) || sendAt.isAfter(now.plus(Duration.ofDays(MAX_SCHEDULE_DAYS)))) {
-            throw GlobalException.of(ApiCode.ANNOUNCEMENT_INVALID_SEND_AT, MAX_SCHEDULE_DAYS);
+    private Instant checkSendAt(Instant sendAt, Instant now) {
+        int maxDays = timing.announcement().maxScheduleDays();
+        if (!sendAt.isAfter(now) || sendAt.isAfter(now.plus(Duration.ofDays(maxDays)))) {
+            throw GlobalException.of(ApiCode.ANNOUNCEMENT_INVALID_SEND_AT, maxDays);
         }
         return sendAt;
     }
 
-    private static void checkFileCount(int count) {
+    static void checkFileCount(int count) {
         if (count > MAX_FILES) {
             throw GlobalException.of(ApiCode.ANNOUNCEMENT_TOO_MANY_FILES, MAX_FILES);
         }
@@ -377,18 +506,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
 
     /** Lưu tệp lên kho (kiểm loại, dung lượng, chữ ký đầu tệp ở FileStorage); lỗi sau đó thì nơi gọi xóa các key đã lưu. */
     private void storeFiles(Long announcementId, List<MultipartFile> files, Instant now, List<String> storedKeys) {
-        for (MultipartFile file : files) {
-            String name = safeName(file.getOriginalFilename());
-            FileStorage.StoredFile stored;
-            try (InputStream input = file.getInputStream()) {
-                stored = storage.store(FileCategory.ANNOUNCEMENT, announcementId, name, input, file.getSize());
-            } catch (IOException ex) {
-                throw GlobalException.withCause(ApiCode.FILE_UNREADABLE, ex);
-            }
-            storedKeys.add(stored.key());
-            attachmentRepository.save(AnnouncementAttachment.of(
-                    announcementId, stored.key(), name, stored.contentType(), stored.size(), now));
-        }
+        AnnouncementFiles.store(attachmentRepository, storage, announcementId, false, files, now, storedKeys);
     }
 
     private AnnouncementResponse toView(SchoolAnnouncement a, CurrentUser viewer) {
@@ -413,7 +531,8 @@ public class AnnouncementServiceImpl implements AnnouncementService {
                 a.getSenderId(),
                 names.get(a.getSenderId()),
                 attachments,
-                a.getStatus() == AnnouncementStatus.SCHEDULED && viewer != null);
+                a.getStatus() == AnnouncementStatus.SCHEDULED && viewer != null,
+                a.getStatus() == AnnouncementStatus.CANCELLED && viewer != null);
     }
 
     private List<AnnouncementAttachmentResponse> attachmentsOf(Long announcementId) {
@@ -427,7 +546,7 @@ public class AnnouncementServiceImpl implements AnnouncementService {
         return LocalDate.now(clock);
     }
 
-    private static List<MultipartFile> nonEmpty(List<MultipartFile> files) {
+    static List<MultipartFile> nonEmpty(List<MultipartFile> files) {
         return files == null
                 ? List.of()
                 : files.stream()

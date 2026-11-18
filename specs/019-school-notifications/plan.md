@@ -109,3 +109,10 @@ Tài liệu cập nhật: `docs/modules/notification.md`, `docs/business/BUSINES
 ### 2026-11-15 — plan
 - Tiền yêu cầu chạy liền plan → analyze → tasks → implement → converge, commit + push, không hỏi thêm.
 - Giả định tự chọn (báo bàn giao): FCM qua JDK không thêm thư viện; trạng thái đẩy theo thông báo (không theo thiết bị); quyền theo vai trò (HT, PHT) thay vì thêm `Permission` mới; PAR-03 tách 3 loại thông báo, mỗi loại bật/tắt riêng; nội dung thông báo trường tối đa 4000 ký tự.
+
+## Delta Tiền chốt 17/11/2026 — PAR-13, OBS-30
+
+Yêu cầu/14 mục domain, AC, contract, dữ liệu không migration, kế hoạch, tasks và analyze/converge tại [bổ sung dọn thông báo đã hủy](domain-spec.md). Bộ lọc q/status, DELETE một hoặc mọi CANCELLED khớp filter+scope trên mọi trang, canDelete; PAR-07 không tự nhận giữ nguyên. Nhắc điểm danh mỗi 5 phút từ 08:00 đến trước giờ khóa cấu hình, thay một lần trong 30 phút trước khóa.
+
+### Điều chỉnh tiếp — timing tập trung và chọn dòng
+Theo domain-spec.md AC7–9/T7–T10: giữ DB hiện có, timing defaults/cron về YAML + properties, GET cancelledCount, POST delete-selection (ids hoặc allMatching/excludedIds/filter), UI checkbox thay nút xóa tất cả. User chốt chọn tất cả mọi trang; không đổi scope và mặc định giờ.

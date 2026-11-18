@@ -19,6 +19,14 @@ public interface AnnouncementScheduleRepository extends JpaRepository<Announceme
 
     boolean existsByTemplateId(Long templateId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM AnnouncementSchedule s WHERE s.id = :id")
+    Optional<AnnouncementSchedule> lockById(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM AnnouncementSchedule s WHERE s.id IN :ids ORDER BY s.id")
+    List<AnnouncementSchedule> lockByIds(@Param("ids") java.util.Collection<Long> ids);
+
     @Query("SELECT s.id FROM AnnouncementSchedule s WHERE s.active = true AND s.nextRunAt <= :now ORDER BY s.nextRunAt")
     List<Long> findDueIds(@Param("now") Instant now, Pageable pageable);
 

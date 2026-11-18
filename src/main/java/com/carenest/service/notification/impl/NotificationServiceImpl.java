@@ -282,7 +282,8 @@ public class NotificationServiceImpl implements NotificationService {
                 n.getCreatedAt(),
                 n.getReadAt(),
                 n.getLink(),
-                n.getAnnouncementId());
+                n.getAnnouncementId(),
+                n.getType().typeLabel());
     }
 
     private static String truncate(String text, int max) {

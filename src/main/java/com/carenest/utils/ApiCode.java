@@ -164,6 +164,8 @@ public enum ApiCode {
     NOTIFICATION_RULE_UNKNOWN_VARIABLE(
             1212, HttpStatus.BAD_REQUEST, "Câu chữ chỉ được dùng các biến cho phép của loại thông báo"),
     ANNOUNCEMENT_SCHEDULE_NOT_FOUND(1213, HttpStatus.NOT_FOUND, "Không tìm thấy lịch gửi lặp"),
+    ANNOUNCEMENT_NOT_DELETABLE(1214, HttpStatus.CONFLICT, "Chỉ được xóa thông báo đã hủy"),
+    ANNOUNCEMENT_SCHEDULE_ACTIVE(1215, HttpStatus.CONFLICT, "Chỉ được xóa lịch gửi đã tắt, hãy tắt lịch trước"),
 
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),

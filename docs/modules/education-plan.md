@@ -119,6 +119,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 - Gửi / duyệt hồ sơ chủ đề đổi trạng thái cả kế hoạch chủ đề và giáo án các tuần nhánh trong cùng giao dịch (khóa dòng tài liệu chính).
 - MT đánh số lại khi xóa hoặc chèn dòng; module khác tham chiếu MT qua id dòng, không qua số.
 - Kế hoạch đã ban hành bị khóa sửa, vì lớp dùng chủ đề, đợt nghỉ và MT của nó; sửa = tạo phiên bản mới (EDU-25), không sửa dòng của bản đã ban hành.
+- Seed dev: bản REVIEW mẫu bị bỏ qua vì có bản đang mở khác phải được bỏ khỏi tập dựng cây/lịch sử, tránh owner NULL ([incident](../knowledge/incidents/BUG-261116-education-seed-missing-plan-owner.md)).
 - So sánh phiên bản dùng lineage hiệu dụng `COALESCE(lineage_id, id)`; MT đánh lại số không phải là đổi. Tra "hiện hành" bằng truy vấn chuỗi, không lưu cờ.
 - Thứ tự chủ đề, đợt nghỉ = thứ tự mảng trong PUT (`sort_order`); dấu tích lưu theo chênh lệch, không xóa JPQL rồi ghi lại ([BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)).
 - Kế hoạch chủ đề lưu luôn MT, nội dung lấy từ kế hoạch năm để bản đã duyệt không đổi theo (EDU-15).
@@ -292,3 +293,12 @@ Không đổi DB, không thêm endpoint; chỉ đổi hình dạng `content` (JS
   dùng `day.content.week` nếu có; chủ đề khác dùng bản hiệu lực. Bỏ ngày nghỉ; ô gộp cả tuần, `goc.all` tính mọi ngày học.
 - Học liệu (R9): khóa trùng `id` một thẻ ⇒ chữ ký theo `name` của thẻ; theme chưa có thẻ giữ cách khớp ô chữ cũ.
 - `docs/api/openapi.yaml` là bản sinh từ code (`OpenApiSnapshotTest`); spec 006 không đổi chữ ký/DTO nên không đổi file đó.
+
+
+## Header thích ứng — EDU-92 (Tiền 17/11/2026)
+
+Tiền điều chỉnh tiếp 17/11/2026: thanh thao tác sát dưới header dùng chung, đứng trước thẻ lọc/tab; bỏ khoảng trống do tiêu đề ẩn. Quay lại (nếu có) ở trái, chi tiết/lưu/gửi/duyệt/xuất ở phải; chip/nút phụ vẫn nhóm trái. Giữ một hàng; thiếu chiều rộng thì gom vào menu ba gạch. Giữ quyền EDU-54/90, disabled và hộp xác nhận. Áp dụng năm/tổ, nhánh, chủ đề, tuần/ngày và cấu hình; không thay API/luồng nghiệp vụ. Thứ tự này thay bộ lọc/tab trước hàng nút của quyết định 12/11.
+
+Ngoại lệ Tiền chốt tiếp 17/11/2026: trang Mở hạn/Kế hoạch quá hạn bỏ thanh header thao tác riêng; Mở hạn hàng loạt đặt sát bảng danh sách, giữ chọn nhiều dòng, mở từng dòng, quyền và hộp xác nhận.
+
+Tiền điều chỉnh tiếp 17/11/2026 (ảnh tên Kế hoạch năm học khi cuộn): bỏ mọi tên ngắn của tài liệu/lớp/chủ đề/tuần tự hiện trong thanh thao tác khi cuộn. Tên trang vẫn ở breadcrumb/header chung; giữ nguyên trạng thái, nút, quyền và ghim thanh thao tác. Thay hành vi hiện tên ngắn lúc dính của quyết định 12/11.

@@ -33,8 +33,25 @@ public class AnnouncementSchedule {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "template_id", nullable = false)
+    @Column(name = "template_id")
     private Long templateId;
+
+    @Column(length = 150)
+    private String title;
+
+    @Column(length = 4000)
+    private String body;
+
+    public void content(String title, String body) {
+        this.title = title;
+        this.body = body;
+    }
+
+    public void activate(boolean active, Instant next, Instant at) {
+        this.active = active;
+        this.nextRunAt = next;
+        this.updatedAt = at;
+    }
 
     @Enumerated(EnumType.STRING)
     @Column(name = "scope_type", nullable = false, length = 10)

@@ -43,8 +43,8 @@ public class PushOutboxWorker {
             PlatformTransactionManager transactionManager,
             Clock clock,
             @Value("${carenest.push.batch-size:300}") int batchSize,
-            @Value("${carenest.push.max-age:60m}") Duration maxAge,
-            @Value("${carenest.push.device-max-idle:270d}") Duration deviceMaxIdle,
+            @Value("${carenest.push.max-age}") Duration maxAge,
+            @Value("${carenest.push.device-max-idle}") Duration deviceMaxIdle,
             @Value("${carenest.push.worker-enabled:true}") boolean enabled,
             @Value("${carenest.push.worker-threads:4}") int threads) {
         this.notifications = notifications;
@@ -59,9 +59,7 @@ public class PushOutboxWorker {
         this.executor = Executors.newFixedThreadPool(Math.max(1, Math.min(4, threads)));
     }
 
-    @Scheduled(
-            fixedDelayString = "${carenest.push.worker-delay:5s}",
-            initialDelayString = "${carenest.push.worker-delay:5s}")
+    @Scheduled(fixedDelayString = "${carenest.push.worker-delay}", initialDelayString = "${carenest.push.worker-delay}")
     public synchronized void pushDue() {
         if (!enabled) return;
         Instant now = clock.instant();
@@ -96,7 +94,7 @@ public class PushOutboxWorker {
         CompletableFuture.allOf(jobs.toArray(CompletableFuture[]::new)).join();
     }
 
-    @Scheduled(cron = "0 10 3 * * *", zone = "${carenest.time-zone}")
+    @Scheduled(cron = "${carenest.push.device-cleanup-cron}", zone = "${carenest.time-zone}")
     public void removeStaleDevices() {
         tx.execute(status -> devices.deleteByUpdatedAtBefore(clock.instant().minus(deviceMaxIdle)));
     }
@@ -108,9 +106,5 @@ public class PushOutboxWorker {
 
     PushState pushOne(Long id) {
         return deliveryService.pushOne(id);
-    }
-
-    static Duration backoff(int attempt) {
-        return PushDeliveryServiceImpl.backoff(attempt);
     }
 }

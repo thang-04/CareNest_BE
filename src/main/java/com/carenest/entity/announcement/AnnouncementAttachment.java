@@ -22,8 +22,18 @@ public class AnnouncementAttachment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "announcement_id", nullable = false, updatable = false)
+    @Column(name = "announcement_id", updatable = false)
     private Long announcementId;
+
+    @Column(name = "schedule_id", updatable = false)
+    private Long scheduleId;
+
+    public static AnnouncementAttachment forSchedule(
+            Long scheduleId, String key, String name, String type, long size, Instant at) {
+        AnnouncementAttachment file = of(null, key, name, type, size, at);
+        file.scheduleId = scheduleId;
+        return file;
+    }
 
     @Column(name = "file_key", nullable = false, updatable = false)
     private String fileKey;

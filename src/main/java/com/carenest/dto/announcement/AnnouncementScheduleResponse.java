@@ -15,4 +15,7 @@ public record AnnouncementScheduleResponse(
         Integer dayOfMonth,
         LocalTime sendTime,
         boolean active,
-        Instant nextRunAt) {}
+        Instant nextRunAt,
+        String title,
+        String body,
+        java.util.List<AnnouncementAttachmentResponse> attachments) {}

@@ -70,7 +70,7 @@ class PushOutboxWorkerTest {
                         deliveries,
                         gateway,
                         Clock.fixed(NOW, ZoneOffset.UTC),
-                        Duration.ofMinutes(60)),
+                        com.carenest.support.NotificationTimingTestConfig.load()),
                 mock(PlatformTransactionManager.class),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 100,
@@ -286,7 +286,7 @@ class PushOutboxWorkerTest {
                         deliveries,
                         gateway,
                         Clock.fixed(NOW, ZoneOffset.UTC),
-                        Duration.ofMinutes(60)),
+                        com.carenest.support.NotificationTimingTestConfig.load()),
                 mock(PlatformTransactionManager.class),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 300,
@@ -305,8 +305,42 @@ class PushOutboxWorkerTest {
 
     @Test
     void backoffDoublesAndCapsAtThirtyMinutes() {
-        assertThat(PushOutboxWorker.backoff(1)).isBetween(Duration.ofSeconds(48), Duration.ofSeconds(72));
-        assertThat(PushOutboxWorker.backoff(3)).isBetween(Duration.ofSeconds(192), Duration.ofSeconds(288));
-        assertThat(PushOutboxWorker.backoff(20)).isLessThanOrEqualTo(Duration.ofMinutes(36));
+        assertThat(PushDeliveryServiceImpl.backoff(
+                        1,
+                        com.carenest.support.NotificationTimingTestConfig.load()
+                                .push()
+                                .retryInitialDelay(),
+                        com.carenest.support.NotificationTimingTestConfig.load()
+                                .push()
+                                .retryMaxDelay()))
+                .isBetween(Duration.ofSeconds(48), Duration.ofSeconds(72));
+        assertThat(PushDeliveryServiceImpl.backoff(
+                        3,
+                        com.carenest.support.NotificationTimingTestConfig.load()
+                                .push()
+                                .retryInitialDelay(),
+                        com.carenest.support.NotificationTimingTestConfig.load()
+                                .push()
+                                .retryMaxDelay()))
+                .isBetween(Duration.ofSeconds(192), Duration.ofSeconds(288));
+        assertThat(PushDeliveryServiceImpl.backoff(
+                        20,
+                        com.carenest.support.NotificationTimingTestConfig.load()
+                                .push()
+                                .retryInitialDelay(),
+                        com.carenest.support.NotificationTimingTestConfig.load()
+                                .push()
+                                .retryMaxDelay()))
+                .isLessThanOrEqualTo(Duration.ofMinutes(36));
+    }
+
+    @Test
+    void backoffUsesConfiguredBaseAndCeiling() {
+        assertThat(PushDeliveryServiceImpl.backoff(1, Duration.ofMillis(1), Duration.ofMillis(1)))
+                .isPositive();
+        assertThat(PushDeliveryServiceImpl.backoff(1, Duration.ofSeconds(2), Duration.ofSeconds(8)))
+                .isBetween(Duration.ofMillis(1600), Duration.ofMillis(2400));
+        assertThat(PushDeliveryServiceImpl.backoff(10, Duration.ofSeconds(2), Duration.ofSeconds(8)))
+                .isBetween(Duration.ofMillis(6400), Duration.ofMillis(9600));
     }
 }
