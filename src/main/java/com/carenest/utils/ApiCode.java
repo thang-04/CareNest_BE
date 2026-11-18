@@ -332,6 +332,8 @@ public enum ApiCode {
     PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
     PLACEMENT_CHILD_ALREADY_ENROLLED(
             2413, HttpStatus.CONFLICT, "{0} đang có lớp, không vào lớp năm học mới theo đăng ký tiếp nhận được"),
+    PLACEMENT_ADMISSION_WRONG_CAMPUS(2415, HttpStatus.BAD_REQUEST, "Lớp {0} không thuộc điểm trường đăng ký của {1}"),
+    PLACEMENT_ADMISSION_WRONG_AGE_GROUP(2416, HttpStatus.BAD_REQUEST, "{0} ({1} tháng) không thuộc nhóm tuổi của {2}"),
     CHILD_PLANNED_FOR_NEXT_YEAR(
             2414, HttpStatus.CONFLICT, "{0} đã đăng ký cho năm học sắp tới, xếp lớp tại màn Xếp lớp năm học mới"),
 

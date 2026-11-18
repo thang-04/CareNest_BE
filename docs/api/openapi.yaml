@@ -10819,6 +10819,8 @@ components:
           format: date
         fullName:
           type: string
+        hasAllergy:
+          type: boolean
         id:
           type: integer
           format: int64
@@ -12386,6 +12388,7 @@ components:
       - date
       - observation
       - requestId
+      - temperature
     DailySheetResponse:
       type: object
       properties:
@@ -17331,6 +17334,9 @@ components:
       type: object
       properties:
         admissionId:
+          type: integer
+          format: int64
+        ageGroupId:
           type: integer
           format: int64
         birthDate:
