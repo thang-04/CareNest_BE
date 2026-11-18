@@ -271,3 +271,10 @@ Hiện trạng code:
 - `grep -rn countActiveChildren src/main`: chỉ còn 4 chỗ sĩ số lớp (`AgeGroupServiceImpl:151`, `CampusServiceImpl:119`, `ClassManagementServiceImpl:509`, `TeacherAssignmentServiceImpl:486`); dự trù (`MealDemandCalculator:99`) và thống kê thực đơn (`MealPlanServiceImpl:361`) gọi `countMealRegisteredChildren`.
 - Khác plan: mỗi task tách 2 commit nhỏ theo yêu cầu user (Task 5: bảng điểm danh trả cờ; bỏ suất của trẻ không báo ăn. Task 6: dự trù; thống kê thực đơn), nên tên commit khác Step 5. `FreshGoodsIntegrationTest#previewCountsOnlyMealRegisteredChildren` dùng lớp 2 trẻ (2 → 1) thay cho 3 → 2; vẫn chứng minh AC-7.
 - Tiếp: review toàn nhánh BE, sau đó plan Web.
+
+### 2026-11-18 — Review toàn nhánh và sửa (chờ user)
+- Review toàn nhánh: "With fixes". C1: thêm `boolean mealRegistered` vào DTO dùng chung `ClassChildResponse` làm hỏng việc đọc snapshot đánh giá chủ đề cũ (V97) dưới Jackson 3 (`FAIL_ON_NULL_FOR_PRIMITIVES`). I1: số V144 trùng nhánh đã push `feature/G94-288-BE-FEAT-55-notifications-integrated`. M1–M4: tài liệu module, test binding JSON và trẻ dị ứng, gom cờ vào `Child.enroll`.
+- Commit sửa: `1f2cd68a`, `4157bebb`, `2fc5418f`, `247eee6b`, `98d608bb`, `965722bb`
+- Verify: `mvnw.cmd -B clean spotless:check verify` → `Tests run: 1988, Failures: 0, Errors: 0, Skipped: 0` · `BUILD SUCCESS`; review lại phần sửa: đạt, không lỗi mới.
+- Khác plan: `ClassChildResponse` giữ 3 trường; điểm danh đọc cờ qua `ChildService.findChildIdsWithoutMeals` (plan Task 5 ghi thêm field vào `ClassChildResponse`).
+- Chờ user: (1) đổi số migration V144 (sửa migration đã commit cần user cho phép; thứ tự merge với G94-288); (2) PUT khai báo thiếu `mealRegistered` hiện coi là báo ăn (trẻ đang không báo ăn sẽ thành báo ăn) — giữ hay đổi thành "giữ cờ cũ".
