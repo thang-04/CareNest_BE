@@ -37,7 +37,7 @@ public record ClassAttendanceResponse(
             String note,
             Instant recordedAt) {}
 
-    public record ChildBrief(Long id, String fullName, LocalDate dateOfBirth) {}
+    public record ChildBrief(Long id, String fullName, LocalDate dateOfBirth, boolean mealRegistered) {}
 
     /** meals: mỗi bữa của lớp ⇒ trẻ có ăn không. */
     public record RecordView(

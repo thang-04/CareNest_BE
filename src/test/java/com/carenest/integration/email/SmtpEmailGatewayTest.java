@@ -63,7 +63,7 @@ class SmtpEmailGatewayTest {
     }
 
     @Test
-    @DisplayName("Email: Gmail từ chối đăng nhập ⇒ EmailDeliveryException nhắc App Password")
+    @DisplayName("Email: SMTP từ chối đăng nhập ⇒ EmailDeliveryException nhắc kiểm tra API key")
     void authenticationFailureMapsToDeliveryException() {
         doThrow(new MailAuthenticationException("535 Username and Password not accepted"))
                 .when(sender)
@@ -71,7 +71,7 @@ class SmtpEmailGatewayTest {
 
         assertThatThrownBy(() -> gateway.send(EmailMessage.text("parent@example.com", "Tiêu đề", "Nội dung")))
                 .isInstanceOf(EmailDeliveryException.class)
-                .hasMessageContaining("App Password")
+                .hasMessageContaining("API key")
                 .hasNoCause();
     }
 

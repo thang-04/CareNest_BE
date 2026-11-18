@@ -79,6 +79,10 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
             @Param("citizenIds") Collection<String> citizenIds,
             @Param("excludeId") Long excludeId);
 
+    // CHD-13: trẻ không báo ăn trong danh sách id
+    @Query("select c.id from Child c where c.id in :childIds and c.mealRegistered = false")
+    List<Long> findIdsWithoutMeals(@Param("childIds") Collection<Long> childIds);
+
     /** Một dòng danh sách trẻ: trẻ và lớp hiển thị (null khi không có lớp). */
     interface ChildListRow {
         Long getChildId();

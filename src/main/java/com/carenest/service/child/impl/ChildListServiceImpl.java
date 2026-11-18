@@ -267,6 +267,7 @@ public class ChildListServiceImpl implements ChildListService {
                             child.getReadmittedOn(),
                             allergies.getOrDefault(child.getId(), List.of()),
                             declared.contains(child.getId()),
+                            child.isMealRegistered(),
                             minimized(guardians.getOrDefault(child.getId(), List.of())),
                             canManage,
                             child.getPhotoKey() == null ? null : "/children/" + child.getId() + "/photo",

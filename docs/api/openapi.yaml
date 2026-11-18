@@ -10585,6 +10585,8 @@ components:
         id:
           type: integer
           format: int64
+        mealRegistered:
+          type: boolean
     ChildClassResponse:
       type: object
       properties:
@@ -10702,6 +10704,8 @@ components:
           format: date
         leftReason:
           type: string
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         profile:
@@ -10873,6 +10877,8 @@ components:
         leftAt:
           type: string
           format: date
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         readmittedAt:
@@ -11118,6 +11124,8 @@ components:
           format: date
         leftReason:
           type: string
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         profile:
@@ -14858,6 +14866,8 @@ components:
           $ref: "#/components/schemas/AllergiesInput"
         diet:
           $ref: "#/components/schemas/DeclarationAnswerInput"
+        mealRegistered:
+          type: boolean
         medicalHistory:
           $ref: "#/components/schemas/MedicalHistoryInput"
         otherNotes:

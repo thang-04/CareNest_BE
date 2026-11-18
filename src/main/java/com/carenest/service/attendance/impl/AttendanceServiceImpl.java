@@ -193,9 +193,11 @@ public class AttendanceServiceImpl implements AttendanceService {
                             .collect(Collectors.groupingBy(DailyHealthEntry::getChildId));
             Map<Long, LeaveTag> leaves =
                     leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day, cls);
+            Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(
+                    children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()));
             List<ChildRow> rows = children.stream()
                     .map(ch -> new ChildRow(
-                            toBrief(ch),
+                            toBrief(ch, withoutMeals),
                             toView(records.get(ch.id()), cls.mealSessions(), names),
                             toHealth(health.getOrDefault(ch.id(), List.of())),
                             leaves.get(ch.id())))
@@ -249,9 +251,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (info.locked()) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
             }
-            Set<Long> classChildIds = enrollmentService.findChildrenInClassroom(classId, date).stream()
-                    .map(ClassChildResponse::id)
-                    .collect(Collectors.toSet());
+            List<ClassChildResponse> classChildren = enrollmentService.findChildrenInClassroom(classId, date);
+            Set<Long> classChildIds =
+                    classChildren.stream().map(ClassChildResponse::id).collect(Collectors.toSet());
             Set<Long> seen = new HashSet<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 if (!classChildIds.contains(entry.childId()) || !seen.add(entry.childId())) {
@@ -271,9 +273,12 @@ public class AttendanceServiceImpl implements AttendanceService {
                     throw GlobalException.of(ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
                 }
             }
+            // CHD-13: trẻ không báo ăn không bao giờ có suất, bỏ qua meals gửi lên
+            Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(classChildIds);
             Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
-                mealsByChild.put(entry.childId(), mealsOf(entry, cls.mealSessions()));
+                mealsByChild.put(
+                        entry.childId(), mealsOf(entry, cls.mealSessions(), !withoutMeals.contains(entry.childId())));
             }
             Instant at = rules.now();
             Long unlockId = info.unlock() == null ? null : info.unlock().id();
@@ -498,8 +503,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         return cls;
     }
 
-    /** ATT-02: Có mặt mặc định ăn đủ bữa; giáo viên được tắt. Trẻ vắng không được đăng ký suất. */
-    private static List<MealSession> mealsOf(SaveAttendanceRequest.Entry entry, List<MealSession> classSessions) {
+    /** ATT-02: Có mặt mặc định ăn đủ bữa, GV được tắt; trẻ vắng không có suất. CHD-13: trẻ không báo ăn luôn không có bữa. */
+    private static List<MealSession> mealsOf(
+            SaveAttendanceRequest.Entry entry, List<MealSession> classSessions, boolean mealRegistered) {
+        if (!mealRegistered) {
+            return List.of();
+        }
         Map<MealSession, Boolean> requested = entry.meals();
         List<MealSession> taken = requested == null || requested.isEmpty()
                 ? (entry.status().isAbsent()
@@ -545,6 +554,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroomDuring(cls.id(), from, to);
         List<Long> childIds = children.stream().map(ClassChildResponse::id).toList();
+        Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(childIds);
         Map<String, AttendanceRecord> records =
                 recordRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
                         .filter(r -> r.getClassroomId().equals(cls.id()))
@@ -593,7 +603,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<ChildTotal> childTotals = children.stream()
                 .map(ch -> {
                     int[] c = perChild.get(ch.id());
-                    return new ChildTotal(toBrief(ch), c[0], c[1], c[2], c[3]);
+                    return new ChildTotal(toBrief(ch, withoutMeals), c[0], c[1], c[2], c[3]);
                 })
                 .toList();
         return new ClassSummary(
@@ -608,8 +618,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         return rows.stream().mapToInt(field).sum();
     }
 
-    private static ChildBrief toBrief(ClassChildResponse ch) {
-        return new ChildBrief(ch.id(), ch.fullName(), ch.dateOfBirth());
+    private static ChildBrief toBrief(ClassChildResponse ch, Set<Long> withoutMeals) {
+        return new ChildBrief(ch.id(), ch.fullName(), ch.dateOfBirth(), !withoutMeals.contains(ch.id()));
     }
 
     private static RecordView toView(AttendanceRecord r, List<MealSession> sessions, Map<Long, String> names) {

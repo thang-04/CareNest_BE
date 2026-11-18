@@ -293,7 +293,9 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     draft.gender(),
                     placed,
                     draft.campusId(),
-                    today));
+                    today,
+                    // CHD-13: cờ báo ăn của trẻ theo khai báo tiếp nhận
+                    draft.declaration().mealRegistered()));
             Long childId = child.getId();
 
             ChildProfileDraft p = draft.profile();
@@ -410,6 +412,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     child.getReadmittedOn(),
                     allergies,
                     declarationRepository.existsById(childId),
+                    child.isMealRegistered(),
                     profile,
                     guardiansOf(childId),
                     historyOf(childId),

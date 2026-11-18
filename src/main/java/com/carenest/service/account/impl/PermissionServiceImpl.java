@@ -343,7 +343,7 @@ public class PermissionServiceImpl implements PermissionService {
         boolean valid = item.effect() == PermissionEffect.GRANT
                 && (item.scope() == PermissionScope.CAMPUS || item.permission().campusScoped());
         if (!valid) {
-            throw GlobalException.of(ApiCode.INVALID_VALUE, "scope");
+            throw GlobalException.of(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
         }
         return item.scope();
     }

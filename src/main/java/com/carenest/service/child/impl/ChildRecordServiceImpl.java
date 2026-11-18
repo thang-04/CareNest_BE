@@ -197,14 +197,21 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             LocalDate beforeTbDate =
                     existing.map(ChildHealthDeclaration::getTbContactDate).orElse(null);
 
-            ChildHealthDeclaration.Answer diet = answer(d.diet());
+            // CHD-13: không báo ăn ⇒ giữ dị ứng, chế độ ăn đã khai; chưa có khai báo thì dùng giá trị của form
+            boolean keepStored = !d.mealRegistered() && existing.isPresent();
+            DeclarationState allergiesState = keepStored ? existing.get().getAllergiesState() : d.allergiesState();
+            List<String> allergyItems = keepStored ? allergyNames(childId) : d.allergies();
+            ChildHealthDeclaration.Answer diet = keepStored
+                    ? new ChildHealthDeclaration.Answer(
+                            existing.get().getDietState(), existing.get().getDietText())
+                    : answer(d.diet());
             ChildHealthDeclaration.Answer otherNotes = answer(d.otherNotes());
             ChildHealthDeclaration.Answer self = answer(d.selfHistory());
             ChildHealthDeclaration.Answer family = answer(d.familyHistory());
             if (existing.isPresent()) {
                 existing.get()
                         .update(
-                                d.allergiesState(),
+                                allergiesState,
                                 diet,
                                 otherNotes,
                                 self,
@@ -216,7 +223,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             } else {
                 declarationRepository.save(ChildHealthDeclaration.declare(
                         childId,
-                        d.allergiesState(),
+                        allergiesState,
                         diet,
                         otherNotes,
                         self,
@@ -227,13 +234,16 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                         now));
             }
             // CHD-06: dị ứng có hiệu lực ngay cho bếp, điểm danh (đọc child_allergies)
-            allergyRepository.deleteByChildId(childId);
-            allergyRepository.saveAll(d.allergies().stream()
-                    .map(name -> ChildAllergy.of(childId, name))
-                    .toList());
+            if (!keepStored) {
+                allergyRepository.deleteByChildId(childId);
+                allergyRepository.saveAll(d.allergies().stream()
+                        .map(name -> ChildAllergy.of(childId, name))
+                        .toList());
+            }
+            child.changeMealRegistration(d.mealRegistered());
 
             HealthDeclarationResponse.DeclarationAllergies afterAllergies =
-                    new HealthDeclarationResponse.DeclarationAllergies(d.allergiesState(), d.allergies());
+                    new HealthDeclarationResponse.DeclarationAllergies(allergiesState, allergyItems);
             HealthDeclarationResponse.DeclarationMedicalHistory afterHistory = medicalHistoryOf(d);
             String allergyChange = Objects.equals(beforeAllergies, afterAllergies)
                     ? null

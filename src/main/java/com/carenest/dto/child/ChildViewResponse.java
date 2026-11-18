@@ -27,6 +27,7 @@ public record ChildViewResponse(
         LocalDate readmittedAt,
         List<String> allergies,
         boolean hasDeclaration,
+        boolean mealRegistered,
         ChildProfileDetailResponse profile,
         List<ChildGuardianResponse> guardians,
         List<ChildHistoryResponse> history,
@@ -50,6 +51,7 @@ public record ChildViewResponse(
                 readmittedAt,
                 allergies,
                 hasDeclaration,
+                mealRegistered,
                 profile,
                 guardians.stream()
                         .map(g -> new ChildGuardianResponse(
