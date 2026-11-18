@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 380 endpoint.
+Tổng: 382 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -318,7 +318,9 @@ GET /nutrition/meal-photos/{photoId}/url · src/main/java/com/carenest/controlle
 GET /nutrition/meal-plans · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlans
 GET /nutrition/meal-plans/{weekStart} · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlan
 PUT /nutrition/meal-plans/{weekStart} · src/main/java/com/carenest/controller/meals/MealPlanController.java#saveMealPlan
+PUT /nutrition/meal-plans/{weekStart}/days/{date}/amend · src/main/java/com/carenest/controller/meals/MealPlanController.java#amendMealPlanDay
 POST /nutrition/meal-plans/{weekStart}/publish · src/main/java/com/carenest/controller/meals/MealPlanController.java#publishMealPlan
+GET /nutrition/meal-plans/{weekStart}/revisions · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlanRevisions
 POST /nutrition/menu-statistics · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMenuStatistics
 GET /nutrition/menu-templates · src/main/java/com/carenest/controller/meals/MenuTemplateController.java#getTemplates
 POST /nutrition/menu-templates · src/main/java/com/carenest/controller/meals/MenuTemplateController.java#createTemplate

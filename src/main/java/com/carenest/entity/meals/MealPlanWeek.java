@@ -146,6 +146,21 @@ public class MealPlanWeek {
         return MealPlanDay.of(info.date(), info.off(), info.note(), dayItems);
     }
 
+    /**
+     * Sửa ngoại lệ một ngày của tuần đã công bố (NUT-08, P-39): thay ghi chú và món, giữ cờ ngày nghỉ và trạng thái công
+     * bố. Điều kiện ngày, giờ chốt, lý do do service kiểm.
+     */
+    public void amendPublishedDay(LocalDate date, String note, List<MealPlanItem> newItems, Long userId) {
+        if (!isPublished()) {
+            throw new IllegalStateException("Week " + weekStart + " is not published");
+        }
+        MealPlanDay.Info current = dayInfos.stream()
+                .filter(info -> info.date().equals(date))
+                .findFirst()
+                .orElse(new MealPlanDay.Info(date, false, ""));
+        changeDays(List.of(MealPlanDay.of(date, current.off(), note, newItems)), userId);
+    }
+
     public void publish(Long userId, Instant at) {
         status = MealPlanStatus.PUBLISHED;
         publishedBy = userId;
