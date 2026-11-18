@@ -10945,6 +10945,8 @@ components:
           type: boolean
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         profile:
           $ref: "#/components/schemas/ChildProfileDetailResponse"
         readmittedAt:
@@ -11365,6 +11367,8 @@ components:
           type: boolean
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         profile:
           $ref: "#/components/schemas/ChildProfileDetailResponse"
         readmittedAt:
@@ -18485,6 +18489,32 @@ components:
         userId:
           type: integer
           format: int64
+    PlannedAdmissionResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - PENDING
+          - PLACED
+          - ACTIVATED
+          - CANCELLED
     PolicyEntry:
       type: object
       properties:

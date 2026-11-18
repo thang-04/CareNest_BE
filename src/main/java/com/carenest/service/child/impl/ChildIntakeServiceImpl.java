@@ -17,6 +17,7 @@ import com.carenest.dto.child.GuardianRecord;
 import com.carenest.dto.child.HealthDeclarationDraft;
 import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.PlacementClassResponse;
+import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
@@ -461,13 +462,55 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     profile,
                     guardiansOf(childId),
                     historyOf(childId),
-                    child.getPhotoKey() == null ? null : "/children/" + childId + "/photo");
+                    child.getPhotoKey() == null ? null : "/children/" + childId + "/photo",
+                    findOpenPlannedAdmissions(List.of(childId)).get(childId));
             log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, PlannedAdmissionResponse> findOpenPlannedAdmissions(Collection<Long> childIds) {
+        if (childIds.isEmpty()) {
+            return Map.of();
+        }
+        // CHD-11: chỉ đăng ký còn mở; một trẻ có tối đa một đăng ký mở
+        List<PlannedAdmission> open = plannedAdmissionRepository.findByChildIdInAndStatusIn(
+                childIds, List.of(PlannedAdmissionStatus.PENDING, PlannedAdmissionStatus.PLACED));
+        Map<Long, String> yearNames = new HashMap<>();
+        Map<Long, String> classNames = new HashMap<>();
+        Map<Long, PlannedAdmissionResponse> result = new HashMap<>();
+        for (PlannedAdmission pa : open) {
+            String yearName = yearNames.computeIfAbsent(
+                    pa.getSchoolYearId(),
+                    id -> schoolYearService
+                            .findSchoolYearDetail(id)
+                            .map(SchoolYearDetailResponse::name)
+                            .orElse(null));
+            String className = pa.getClassroomId() == null
+                    ? null
+                    : classNames.computeIfAbsent(
+                            pa.getClassroomId(),
+                            id -> classroomService
+                                    .findClassroomInfo(id)
+                                    .map(ClassroomInfoResponse::name)
+                                    .orElse(null));
+            result.put(
+                    pa.getChildId(),
+                    new PlannedAdmissionResponse(
+                            pa.getSchoolYearId(),
+                            yearName,
+                            pa.getCampusId(),
+                            pa.getClassroomId(),
+                            className,
+                            pa.getStartDate(),
+                            pa.getStatus()));
+        }
+        return result;
     }
 
     @Override

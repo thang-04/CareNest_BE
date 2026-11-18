@@ -31,7 +31,8 @@ public record ChildViewResponse(
         ChildProfileDetailResponse profile,
         List<ChildGuardianResponse> guardians,
         List<ChildHistoryResponse> history,
-        String photoUrl) {
+        String photoUrl,
+        PlannedAdmissionResponse plannedAdmission) {
     public ChildViewResponse withoutGuardianAccounts() {
         return new ChildViewResponse(
                 id,
@@ -68,6 +69,7 @@ public record ChildViewResponse(
                                 g.accountRecipient()))
                         .toList(),
                 history,
-                photoUrl);
+                photoUrl,
+                plannedAdmission);
     }
 }

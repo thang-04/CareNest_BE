@@ -12,6 +12,9 @@ public interface PlannedAdmissionRepository extends JpaRepository<PlannedAdmissi
 
     long countByClassroomIdAndStatusIn(Long classroomId, Collection<PlannedAdmissionStatus> statuses);
 
+    List<PlannedAdmission> findByChildIdInAndStatusIn(
+            Collection<Long> childIds, Collection<PlannedAdmissionStatus> statuses);
+
     java.util.Optional<PlannedAdmission> findFirstByChildIdAndStatusIn(
             Long childId, Collection<PlannedAdmissionStatus> statuses);
 }

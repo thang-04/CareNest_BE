@@ -1259,6 +1259,33 @@ class ChildEnrollmentIntegrationTest {
                 .isZero();
     }
 
+    @Test
+    @DisplayName("CHD-11: hồ sơ trẻ năm sau có đăng ký; trẻ thường không có")
+    void childViewCarriesPlannedAdmission() {
+        long childId = enrollPlannedAn();
+
+        var admission = intakeService.getChildView(childId).plannedAdmission();
+        assertThat(admission).isNotNull();
+        assertThat(admission.schoolYearName()).isEqualTo("2027-2028");
+        assertThat(admission.status()).isEqualTo(com.carenest.utils.enums.PlannedAdmissionStatus.PLACED);
+        assertThat(intakeService.getChildView(siblingA).plannedAdmission()).isNull();
+    }
+
+    private long enrollPlannedAn() {
+        openPrep("2026-10-29");
+        return enrollmentService
+                .enroll(
+                        principal,
+                        plannedRequest(
+                                "Bé An Năm Sau",
+                                plannedClass,
+                                campusA,
+                                "2027-09-05",
+                                newGuardian("0915000010", "001500000010")))
+                .child()
+                .id();
+    }
+
     private void openPrep(String date) {
         jdbc.update("UPDATE school_years SET prep_date = ?::date WHERE id = ?", date, plannedYear);
     }
