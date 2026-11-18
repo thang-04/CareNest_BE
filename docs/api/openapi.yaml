@@ -11654,7 +11654,7 @@ components:
           items:
             type: integer
             format: int64
-          maxItems: 2
+          maxItems: 3
           minItems: 0
       required:
       - teacherIds

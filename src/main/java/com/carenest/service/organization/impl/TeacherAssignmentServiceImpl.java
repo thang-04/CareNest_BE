@@ -134,9 +134,13 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (teacherIds.size() != request.teacherIds().size()) {
                 throw GlobalException.of(ApiCode.TEACHERS_MUST_DIFFER);
             }
-            // SCH-04 (Cần chốt 10/11/2026): năm đang học mỗi lớp đúng 2 GV đứng lớp, có chủ nhiệm; năm sắp tới xếp dần
+            // SCH-04 (Cần chốt 18/11/2026): mỗi lớp tối đa 3 GV; năm đang học từ 2 GV, có GV phụ trách chính; năm sắp
+            // tới xếp dần
+            if (teacherIds.size() > 3) {
+                throw GlobalException.of(ApiCode.CLASS_TOO_MANY_TEACHERS);
+            }
             if (year.getStatus() == SchoolYearStatus.ACTIVE) {
-                if (teacherIds.size() != 2) {
+                if (teacherIds.size() < 2) {
                     throw GlobalException.of(ApiCode.CLASS_NEEDS_TWO_TEACHERS);
                 }
                 if (request.homeroomTeacherId() == null) {
