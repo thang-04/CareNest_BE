@@ -37,7 +37,9 @@ public record ClassAttendanceResponse(
             String note,
             Instant recordedAt) {}
 
-    public record ChildBrief(Long id, String fullName, LocalDate dateOfBirth, boolean mealRegistered) {}
+    /** hasAllergy: hồ sơ trẻ có khai báo dị ứng (GV biết trẻ cần suất thay thế). */
+    public record ChildBrief(
+            Long id, String fullName, LocalDate dateOfBirth, boolean mealRegistered, boolean hasAllergy) {}
 
     /** meals: mỗi bữa của lớp ⇒ trẻ có ăn không. */
     public record RecordView(

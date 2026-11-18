@@ -193,11 +193,12 @@ public class AttendanceServiceImpl implements AttendanceService {
                             .collect(Collectors.groupingBy(DailyHealthEntry::getChildId));
             Map<Long, LeaveTag> leaves =
                     leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day, cls);
-            Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(
-                    children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()));
+            Set<Long> childIds = children.stream().map(ClassChildResponse::id).collect(Collectors.toSet());
+            Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(childIds);
+            Set<Long> allergic = childService.findChildIdsWithAllergies(childIds);
             List<ChildRow> rows = children.stream()
                     .map(ch -> new ChildRow(
-                            toBrief(ch, withoutMeals),
+                            toBrief(ch, withoutMeals, allergic),
                             toView(records.get(ch.id()), cls.mealSessions(), names),
                             toHealth(health.getOrDefault(ch.id(), List.of())),
                             leaves.get(ch.id())))
@@ -603,7 +604,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<ChildTotal> childTotals = children.stream()
                 .map(ch -> {
                     int[] c = perChild.get(ch.id());
-                    return new ChildTotal(toBrief(ch, withoutMeals), c[0], c[1], c[2], c[3]);
+                    return new ChildTotal(toBrief(ch, withoutMeals, allergic), c[0], c[1], c[2], c[3]);
                 })
                 .toList();
         return new ClassSummary(
@@ -618,8 +619,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         return rows.stream().mapToInt(field).sum();
     }
 
-    private static ChildBrief toBrief(ClassChildResponse ch, Set<Long> withoutMeals) {
-        return new ChildBrief(ch.id(), ch.fullName(), ch.dateOfBirth(), !withoutMeals.contains(ch.id()));
+    private static ChildBrief toBrief(ClassChildResponse ch, Set<Long> withoutMeals, Set<Long> allergic) {
+        return new ChildBrief(
+                ch.id(), ch.fullName(), ch.dateOfBirth(), !withoutMeals.contains(ch.id()), allergic.contains(ch.id()));
     }
 
     private static RecordView toView(AttendanceRecord r, List<MealSession> sessions, Map<Long, String> names) {
