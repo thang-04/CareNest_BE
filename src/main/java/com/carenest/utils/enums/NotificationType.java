@@ -41,6 +41,8 @@ public enum NotificationType {
     DAILY_HEALTH_NOTED,
     /** Công bố thực đơn tuần, báo phụ huynh (NUT-08). */
     MENU_PUBLISHED,
+    /** Sửa ngoại lệ một ngày của thực đơn đã công bố, báo phụ huynh và bếp (NUT-08, P-39). */
+    MENU_CHANGED,
     /** Phụ huynh gửi đơn nghỉ, báo GV lớp (ATT-05). */
     LEAVE_REQUEST_CREATED,
     /** Xác nhận đánh giá trẻ, báo phụ huynh (PAR-03). */
@@ -82,7 +84,7 @@ public enum NotificationType {
                     HEALTH_RESULT_UPDATED,
                     HEALTH_CHECK_OPENED,
                     HEALTH_TREND_APPROVED -> "Sức khỏe";
-            case MENU_PUBLISHED -> "Thực đơn";
+            case MENU_PUBLISHED, MENU_CHANGED -> "Thực đơn";
             case MEAL_COUNT_RECONFIRM, MEAL_COUNT_CONFIRMED -> "Suất ăn";
             case LEAVE_REQUEST_CREATED, LEAVE_REQUEST_CHANGED -> "Đơn nghỉ";
             case CHILD_EVALUATION_CONFIRMED, THEME_EVALUATION_CONFIRMED, ASSESSMENT_REMINDER, ASSESSMENT_REOPENED ->

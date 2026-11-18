@@ -60,4 +60,18 @@ public abstract class JsonListConverter<T> implements AttributeConverter<List<T>
             super(new TypeReference<>() {});
         }
     }
+
+    @Converter
+    public static class RevisionItems extends JsonListConverter<MealPlanDayRevision.Item> {
+        public RevisionItems() {
+            super(new TypeReference<>() {});
+        }
+    }
+
+    @Converter
+    public static class RevisionIssues extends JsonListConverter<MealPlanDayRevision.Issue> {
+        public RevisionIssues() {
+            super(new TypeReference<>() {});
+        }
+    }
 }
