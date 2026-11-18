@@ -223,6 +223,59 @@ class ClassStructureIntegrationTest {
     }
 
     @Test
+    @DisplayName("Cần chốt 18/11/2026: phụ trách bếp chỉ là nhân viên bếp, PHT của điểm trường hoặc Hiệu trưởng")
+    void kitchenManagerMustBeKitchenStaffViceOrPrincipal() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-t-k', 'teacher.k', 'GV Bếp') RETURNING id");
+        long kitchenClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
+                + campusA + ", " + year + ", 'Lớp bếp', " + ageGroup3 + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-01-01')",
+                teacherId,
+                kitchenClass);
+        long cookId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-cook', 'cook.k', 'Cô Bếp') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'KITCHEN_STAFF', ?, '2026-01-01')",
+                cookId,
+                campusA);
+
+        assertThatThrownBy(() -> roomService.createRoom(
+                        principal, new RoomRequest(campusA, "B.1", "Bếp 1", RoomType.KITCHEN, null, teacherId, null)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ROOM_KITCHEN_MANAGER_INVALID);
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(campusA, "B.1", "Bếp 1", RoomType.KITCHEN, null, cookId, null))
+                        .id())
+                .isNotNull();
+        // PHT của điểm trường và Hiệu trưởng cũng được; phòng loại khác vẫn nhận GV của điểm trường
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(
+                                        campusA, "B.2", "Bếp 2", RoomType.KITCHEN, null, vicePrincipal.userId(), null))
+                        .id())
+                .isNotNull();
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(campusA, "B.3", "Bếp 3", RoomType.KITCHEN, null, principal.userId(), null))
+                        .id())
+                .isNotNull();
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(campusA, "K.1", "Kho 1", RoomType.STORAGE, null, teacherId, null))
+                        .id())
+                .isNotNull();
+    }
+
+    @Test
     void classSizeLimitedByAgeGroupAndRoom() {
         RoomResponse room = createRoom(campusA, "P.101", 20);
 

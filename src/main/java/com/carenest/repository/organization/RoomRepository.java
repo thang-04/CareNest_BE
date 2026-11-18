@@ -40,6 +40,17 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     boolean isStaffOfCampus(
             @Param("userId") Long userId, @Param("campusId") Long campusId, @Param("date") LocalDate date);
 
+    // Cần chốt 18/11/2026: phụ trách bếp chỉ là nhân viên bếp, PHT của điểm trường (còn phân công) hoặc Hiệu trưởng
+    @Query(value = """
+                    select count(*) > 0 from staff_assignments a
+                    where a.user_id = :userId
+                      and a.valid_from <= :date and (a.valid_to is null or a.valid_to >= :date)
+                      and (a.staff_role = 'PRINCIPAL'
+                           or (a.staff_role in ('KITCHEN_STAFF', 'VICE_PRINCIPAL') and a.campus_id = :campusId))
+                    """, nativeQuery = true)
+    boolean isKitchenManagerOfCampus(
+            @Param("userId") Long userId, @Param("campusId") Long campusId, @Param("date") LocalDate date);
+
     @Query(
             value = "select u.id as userId, u.full_name as fullName from user_accounts u where u.id in :ids",
             nativeQuery = true)

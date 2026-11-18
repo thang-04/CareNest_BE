@@ -241,6 +241,8 @@ public enum ApiCode {
     ROOM_NOT_IN_CAMPUS(2120, HttpStatus.BAD_REQUEST, "Phòng không thuộc điểm trường đã chọn"),
     ROOM_INACTIVE(2121, HttpStatus.CONFLICT, "Phòng đã ngừng sử dụng"),
     ROOM_TAKEN(2122, HttpStatus.CONFLICT, "Phòng đã được lớp khác dùng trong năm học này"),
+    ROOM_KITCHEN_MANAGER_INVALID(
+            2123, HttpStatus.BAD_REQUEST, "Phụ trách bếp phải là nhân viên bếp, PHT của điểm trường hoặc Hiệu trưởng"),
 
     // ========== 22xx NHÓM TUỔI & LỚP ==========
     CLASS_ACCESS_DENIED(2201, HttpStatus.FORBIDDEN, "Bạn không có quyền với lớp này"),
