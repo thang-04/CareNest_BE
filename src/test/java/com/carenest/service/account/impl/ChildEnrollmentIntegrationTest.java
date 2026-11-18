@@ -833,6 +833,8 @@ class ChildEnrollmentIntegrationTest {
                 ApiCode.PREP_YEAR_NOT_OPEN);
         assertThat(count("SELECT count(*) FROM children WHERE id = ? AND status = 'LEFT'", left))
                 .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM planned_admissions WHERE child_id = ?", left))
+                .isZero();
 
         openPrep("2026-10-29");
         entityManager.clear();
@@ -1347,6 +1349,43 @@ class ChildEnrollmentIntegrationTest {
                         childId,
                         plannedYear))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CHD-11: mở lại năm sau không gửi ngày bắt đầu ⇒ lấy ngày bắt đầu năm học")
+    void readmitDefaultsStartDateToYearStart() {
+        long childId = withdrawnPlannedChild("Trẻ Mặc Định Ngày", "0915000007", "001500000007");
+
+        intakeService.readmit(principal, childId, new ReadmitChildRequest("Gia đình đổi ý", plannedYear, null));
+
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?"
+                                + " AND status = 'PENDING' AND start_date = '2027-09-05'",
+                        childId,
+                        plannedYear))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CHD-11: mở lại năm sau với ngày bắt đầu ngoài năm học ⇒ lỗi trường, hồ sơ vẫn đã nghỉ")
+    void readmitRejectsStartDateOutsideYear() {
+        long childId = withdrawnPlannedChild("Trẻ Ngày Sai", "0915000008", "001500000008");
+
+        expectField(
+                () -> intakeService.readmit(
+                        principal,
+                        childId,
+                        new ReadmitChildRequest("Gia đình đổi ý", plannedYear, LocalDate.of(2027, 8, 1))),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Ngày bắt đầu phải nằm trong thời gian năm học đã chọn");
+
+        assertThat(count("SELECT count(*) FROM children WHERE id = ? AND status = 'LEFT'", childId))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status <> 'CANCELLED'",
+                        childId))
+                .isZero();
     }
 
     @Test
