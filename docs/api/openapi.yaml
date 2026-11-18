@@ -16119,6 +16119,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EnrollChildRequest"
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
     ImportResult:
       type: object
       properties:

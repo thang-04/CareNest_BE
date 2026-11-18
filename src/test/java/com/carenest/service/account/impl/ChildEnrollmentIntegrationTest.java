@@ -1312,6 +1312,39 @@ class ChildEnrollmentIntegrationTest {
         assertThat(items).extracting(i -> i.id()).doesNotContain(childId);
     }
 
+    @Autowired
+    private com.carenest.service.child.ChildEnrollmentImportService importService;
+
+    @Test
+    @DisplayName("CHD-11: nhập Excel vào năm sau ⇒ mỗi trẻ một đăng ký chưa có lớp")
+    void importIntoPlannedYearCreatesPendingAdmissions() {
+        EnrollChildRequest r1 =
+                request("Bé Excel Một", "2023-04-10", null, null, newGuardian("0915000021", "001500000021"));
+        EnrollChildRequest r2 =
+                request("Bé Excel Hai", "2023-05-11", null, null, newGuardian("0915000022", "001500000022"));
+        var body = new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                List.of(r1, r2), campusA, plannedYear, LocalDate.of(2027, 9, 5));
+        long before = count("SELECT count(*) FROM children");
+
+        expectCode(() -> importService.importRows(principal, body), ApiCode.PREP_YEAR_NOT_OPEN);
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
+
+        openPrep("2026-10-29");
+        entityManager.clear(); // năm học đã nạp vào persistence context ở lần gọi 2412 trước
+        var result = importService.importRows(principal, body);
+
+        assertThat(result.created()).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before + 2);
+        for (Long id : result.ids()) {
+            assertThat(count(
+                            "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status = 'PENDING'"
+                                    + " AND campus_id = ? AND classroom_id IS NULL",
+                            id,
+                            campusA))
+                    .isEqualTo(1);
+        }
+    }
+
     private long enrollPlannedAn() {
         openPrep("2026-10-29");
         return enrollmentService
