@@ -814,8 +814,9 @@ Kho khô từng điểm trường theo lô (NUT-11). Tồn lô = Σ `stock_movem
 ## Kế hoạch tuần và nhu cầu kho (module: nutrition, feature `meals`) — V57, V83
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| meal_plan_weeks | week_start (thứ Hai, UK), status `DRAFT`/`PUBLISHED`, published_by/at, days (V83, jsonb `[{date, off, note}]`: off = ngày không phục vụ; luôn 5 ngày thứ 2–6) | Công bố cả tuần một lần cho cả trường; đã công bố không sửa | NUT-08, NUT-13 |
+| meal_plan_weeks | week_start (thứ Hai, UK), status `DRAFT`/`PUBLISHED`, published_by/at, days (V83, jsonb `[{date, off, note}]`: off = ngày không phục vụ; luôn 5 ngày thứ 2–6) | Công bố cả tuần một lần cho cả trường; đã công bố chỉ sửa ngoại lệ từng ngày (P-39) | NUT-08, NUT-13 |
 | meal_plan_items | week_id (CASCADE), menu_date (V83 thay day_id), session `MORNING`/`LUNCH`/`AFTERNOON`, menu_block `NURSERY`/`KINDERGARTEN`, dish_id, sort_order | UK (week, date, session, block, dish); khối suy từ `age_groups.age_to_months` ≤ 36 | NUT-13, NUT-18 |
+| meal_plan_day_revisions | week_id, menu_date, before_note/before_items, after_note/after_items (jsonb `[{session, block, dishId, dishName}]`), reason (≥10 ký tự), issues (jsonb cảnh báo cân đối lúc sửa), changed_by, changed_at (V145) | Chỉ thêm, không sửa/xóa; mỗi lần sửa ngoại lệ một ngày đã công bố | NUT-08, P-39 |
 | menu_template_sets (V59) | name, season_label (nhãn mùa), menu_block `NURSERY`/`KINDERGARTEN`, status `ACTIVE`/`INACTIVE` | Bộ 4 tuần thứ 2–6 theo khối | NUT-13 |
 | menu_template_items (V59) | set_id (CASCADE), week_no 1–4, weekday 1–5, session, dish_id, sort_order | UK (set, week, weekday, session, dish) | NUT-13 |
 | stock_daily_demands | campus_id, meal_date, food_id, required_qty (nhu cầu theo suất đã chốt), shortfall_qty (phần thiếu chưa trừ) | UK (campus, date, food); 0 ≤ shortfall ≤ required | NUT-07, NUT-11, P-38 |

@@ -565,6 +565,10 @@ public enum ApiCode {
             6090,
             HttpStatus.UNPROCESSABLE_ENTITY,
             "Còn {0} dòng Không đạt chưa ghi biện pháp xử lý (loại bỏ, trả lại, tiêu hủy...)"),
+    MEAL_PLAN_NOT_PUBLISHED(6091, HttpStatus.CONFLICT, "Thực đơn tuần chưa công bố, sửa ở bản nháp"),
+    MEAL_PLAN_DAY_LOCKED(6092, HttpStatus.CONFLICT, "Ngày {0} đã qua giờ chốt hoặc là ngày nghỉ, không sửa được"),
+    MEAL_PLAN_REASON_REQUIRED(6093, HttpStatus.BAD_REQUEST, "Cần nhập lý do sửa thực đơn (10–500 ký tự)"),
+    MEAL_PLAN_AMEND_NO_CHANGE(6094, HttpStatus.BAD_REQUEST, "Thực đơn ngày {0} không có thay đổi"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
