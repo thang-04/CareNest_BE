@@ -36,4 +36,5 @@ public record ChildListItemResponse(
         boolean canManage,
         String photoUrl,
         Long classroomId,
-        long guardianCount) {}
+        long guardianCount,
+        PlannedAdmissionResponse plannedAdmission) {}

@@ -11120,6 +11120,8 @@ components:
           type: boolean
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         readmittedAt:
           type: string
           format: date
