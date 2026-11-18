@@ -89,6 +89,7 @@ import tools.jackson.databind.ObjectMapper;
 public class ChildIntakeServiceImpl implements ChildIntakeService {
     private static final String LOG_PREFIX = "[ChildIntakeServiceImpl]";
     private static final DateTimeFormatter YEAR_SUFFIX = DateTimeFormatter.ofPattern("yy");
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     // Không khớp SĐT/CCCD nào (thay danh sách rỗng trong IN)
     private static final Set<String> NO_MATCH = Set.of("-");
 
@@ -184,6 +185,10 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     && requestedYear.status() != SchoolYearStatus.ACTIVE
                     && requestedYear.status() != SchoolYearStatus.PLANNED) {
                 throw fieldError("schoolYearId", "Năm học đã kết thúc, không thể tiếp nhận trẻ");
+            }
+            if (requestedYear != null && requestedYear.status() == SchoolYearStatus.PLANNED) {
+                // CHD-11: lớp tiếp nhận của năm sau chỉ mở từ ngày mở chuẩn bị
+                plannedTarget(schoolYearId, null);
             }
             List<ClassroomInfoResponse> classes = (schoolYearId == null
                             ? classroomService.findActiveYearClassrooms()
@@ -574,16 +579,11 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (targetYear != null && targetYear.status() == SchoolYearStatus.CLOSED) {
             throw fieldError("schoolYearId", "Năm học đã kết thúc, không thể tiếp nhận trẻ");
         }
+        LocalDate startDate = today;
         if (planned) {
-            SchoolYearDetailResponse next = schoolYearService.findNextPlannedYear();
-            if (next == null || !next.id().equals(targetYear.id())) {
-                throw fieldError("schoolYearId", "Chỉ được đăng ký cho năm học sắp diễn ra gần nhất");
-            }
-        }
-        LocalDate startDate =
-                planned ? (requestedStartDate == null ? targetYear.startDate() : requestedStartDate) : today;
-        if (planned && (startDate.isBefore(targetYear.startDate()) || startDate.isAfter(targetYear.endDate()))) {
-            throw fieldError("startDate", "Ngày bắt đầu phải nằm trong thời gian năm học đã chọn");
+            PlannedTarget target = plannedTarget(schoolYearId, requestedStartDate);
+            targetYear = target.year();
+            startDate = target.startDate();
         }
         if (classId != null) {
             ClassroomInfoResponse classroom =
@@ -614,6 +614,31 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         }
         EnrollmentDraft pending = draft.withPlacement(null, target);
         return planned ? pending.withAdmission(targetYear.id(), startDate) : pending;
+    }
+
+    /** Năm sắp diễn ra được tiếp nhận (CHD-11) và ngày bắt đầu học của trẻ trong năm đó. */
+    private record PlannedTarget(SchoolYearDetailResponse year, LocalDate startDate) {}
+
+    /**
+     * Năm sắp diễn ra gần nhất, chỉ nhận trẻ từ ngày mở chuẩn bị (CHD-11, CFG-YR-05; trước đó 2412). Ngày bắt đầu học
+     * phải nằm trong năm học, để trống = ngày bắt đầu năm.
+     */
+    private PlannedTarget plannedTarget(Long schoolYearId, LocalDate requestedStartDate) {
+        SchoolYearDetailResponse year = schoolYearService
+                .findSchoolYearDetail(schoolYearId)
+                .orElseThrow(() -> fieldError("schoolYearId", "Năm học không tồn tại"));
+        SchoolYearDetailResponse next = schoolYearService.findNextPlannedYear();
+        if (next == null || !next.id().equals(year.id())) {
+            throw fieldError("schoolYearId", "Chỉ được đăng ký cho năm học sắp diễn ra gần nhất");
+        }
+        if (!year.preparing()) {
+            throw GlobalException.of(ApiCode.PREP_YEAR_NOT_OPEN, year.name(), DISPLAY_DATE.format(year.prepDate()));
+        }
+        LocalDate startDate = requestedStartDate == null ? year.startDate() : requestedStartDate;
+        if (startDate.isBefore(year.startDate()) || startDate.isAfter(year.endDate())) {
+            throw fieldError("startDate", "Ngày bắt đầu phải nằm trong thời gian năm học đã chọn");
+        }
+        return new PlannedTarget(year, startDate);
     }
 
     private String plannedClassProblem(CurrentUser actor, ClassroomInfoResponse classroom, Long schoolYearId) {
