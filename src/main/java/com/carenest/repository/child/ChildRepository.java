@@ -40,7 +40,10 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
                            OR yc.classroom_id IS NOT NULL
                            OR (c.status = 'PENDING_PLACEMENT' AND EXISTS (
                                 SELECT 1 FROM school_years y
-                                WHERE y.id = CAST(:yearId AS BIGINT) AND y.status = 'ACTIVE'))
+                                WHERE y.id = CAST(:yearId AS BIGINT) AND y.status = 'ACTIVE')
+                                AND NOT EXISTS (
+                                SELECT 1 FROM planned_admissions pa
+                                WHERE pa.child_id = c.id AND pa.status IN ('PENDING', 'PLACED')))
                            OR (c.status = 'LEFT' AND (
                                 SELECT y.id FROM school_years y
                                 WHERE y.start_date <= c.left_on
@@ -78,6 +81,10 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
             @Param("dateOfBirth") LocalDate dateOfBirth,
             @Param("citizenIds") Collection<String> citizenIds,
             @Param("excludeId") Long excludeId);
+
+    // CHD-13: trẻ không báo ăn trong danh sách id
+    @Query("select c.id from Child c where c.id in :childIds and c.mealRegistered = false")
+    List<Long> findIdsWithoutMeals(@Param("childIds") Collection<Long> childIds);
 
     /** Một dòng danh sách trẻ: trẻ và lớp hiển thị (null khi không có lớp). */
     interface ChildListRow {

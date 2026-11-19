@@ -332,7 +332,8 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         return r.className() == null ? summary : summary + " (lớp " + r.className() + ")";
     }
 
-    // Chỗ ký "Giáo viên": GV chủ nhiệm, lớp chưa có chủ nhiệm thì các GV lớp (như bản in cuối chủ đề)
+    // Cần chốt 17/11/2026: giữ mẫu phiếu cuối năm — chỗ ký "Giáo viên" là GV phụ trách chính; lớp chưa có thì các GV
+    // phụ trách lớp
     private List<String> teacherNames(ClassroomInfoResponse cls, LocalDate at) {
         Long homeroom = staffAssignmentService
                 .findHomeroomTeacherIds(List.of(cls.id()), at)

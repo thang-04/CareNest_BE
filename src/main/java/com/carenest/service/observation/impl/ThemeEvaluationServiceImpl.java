@@ -74,6 +74,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
+    private final EvaluationNotifier evaluationNotifier;
     private final EvaluationDeadlineService evaluationDeadlineService;
 
     /** Ô lưu trong JSON: c = trẻ, g = dòng gốc MT, m = đạt, x = GV sửa tay. */
@@ -234,6 +235,9 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
             ThemeEvaluation evaluation = editable(currentUser, cls, theme, Permission.ASSESSMENT_CONFIRM);
+            if (!rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
+            }
             if (rules.today().isBefore(theme.getEndDate())) {
                 throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_ENDED);
             }
@@ -247,6 +251,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             ThemeEvaluationResponse response = view(currentUser, cls, theme, evaluation);
             evaluation.setPresentationSnapshot(objectMapper.writeValueAsString(response));
             evaluationRepository.saveAndFlush(evaluation);
+            evaluationNotifier.themeEvaluationConfirmed(
+                    all.stream().map(StoredCell::c).distinct().toList(), cls.name());
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -781,6 +787,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 !confirmed
                         && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
                         && rules.canRecordPeriod(user, cls)
+                        && rules.isHomeroom(user, cls)
                         && cls.yearStatus() == SchoolYearStatus.ACTIVE
                         && !today.isBefore(theme.getEndDate()),
                 confirmedByName,
@@ -809,15 +816,10 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     }
 
     private ThemeSigners signersOf(ClassroomInfoResponse cls, LocalDate at) {
-        // Mẫu ký "Giáo viên chủ nhiệm": GV chủ nhiệm của lớp, lớp chưa có chủ nhiệm thì các GV lớp
-        Long homeroom = staffAssignmentService
-                .findHomeroomTeacherIds(List.of(cls.id()), at)
-                .get(cls.id());
-        List<Long> teacherIds = homeroom != null
-                ? List.of(homeroom)
-                : staffAssignmentService
-                        .findCurrentMainTeacherIds(List.of(cls.id()), at)
-                        .getOrDefault(cls.id(), List.of());
+        // Mẫu ký "Giáo viên": điền tất cả giáo viên phụ trách lớp tại thời điểm của phiếu.
+        List<Long> teacherIds = staffAssignmentService
+                .findCurrentMainTeacherIds(List.of(cls.id()), at)
+                .getOrDefault(cls.id(), List.of());
         Set<Long> leaderIds = cls.ageGroupId() == null
                 ? Set.of()
                 : staffAssignmentService.findYearTeamLeaderIds(cls.ageGroupId(), cls.schoolYearId(), at);

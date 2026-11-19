@@ -88,6 +88,22 @@ public class ChildServiceImpl implements ChildService {
 
     @Override
     @Transactional(readOnly = true)
+    public Set<Long> findChildIdsWithoutMeals(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findChildIdsWithoutMeals|count=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> result =
+                    childIds.isEmpty() ? Set.of() : Set.copyOf(childRepository.findIdsWithoutMeals(childIds));
+            log.info("{}|withoutMeals={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ChildProfileResponse getChildProfile(CurrentUser currentUser, Long childId) {
         String logPrefix = LOG_PREFIX + "|getChildProfile|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);

@@ -193,7 +193,7 @@ class YearTransitionIntegrationTest {
         jdbc.update("DELETE FROM staff_assignments WHERE classroom_id = ? AND is_homeroom", newClass3);
         YearReadinessResponse noHomeroom = service.getReadiness(principal, newYear);
         assertThat(teacherStep(noHomeroom).ok()).isFalse();
-        assertThat(teacherStep(noHomeroom).detail()).isEqualTo("1 lớp chưa có chủ nhiệm");
+        assertThat(teacherStep(noHomeroom).detail()).isEqualTo("1 lớp chưa có GV phụ trách chính");
         assertThat(noHomeroom.blockers()).anyMatch(b -> b.startsWith("Giáo viên lớp"));
 
         // Người còn lại làm chủ nhiệm ⇒ chỉ cảnh báo thiếu 1 GV
@@ -203,7 +203,7 @@ class YearTransitionIntegrationTest {
         YearReadinessResponse.Step warn = teacherStep(service.getReadiness(principal, newYear));
         assertThat(warn.ok()).isTrue();
         assertThat(warn.warning()).isTrue();
-        assertThat(warn.detail()).isEqualTo("Tất cả lớp có GV và chủ nhiệm · 1 lớp thiếu 1 GV");
+        assertThat(warn.detail()).isEqualTo("Tất cả lớp có GV và GV phụ trách chính · 1 lớp thiếu 1 GV");
 
         // Lớp không còn giáo viên ⇒ chặn
         jdbc.update("DELETE FROM staff_assignments WHERE classroom_id = ?", newClass3);
@@ -280,8 +280,10 @@ class YearTransitionIntegrationTest {
                 .contains(newClass4, newClass3);
         CurrentUser vpWithoutAssignment =
                 new CurrentUser(user("vp-old"), "kc-vp-old", "vp-old", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
-        assertThat(service.getPrepClasses(vpWithoutAssignment, newYear).classes())
-                .isEmpty();
+        // PHT hết phân công không thấy năm sắp diễn ra (Cần chốt 17/11/2026, khớp danh sách lớp)
+        assertThatThrownBy(() -> service.getPrepClasses(vpWithoutAssignment, newYear))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
 
         // Chưa tới ngày mở chuẩn bị: GV không thấy năm
         jdbc.update("UPDATE school_years SET prep_date = '2027-09-01' WHERE id = ?", newYear);
@@ -353,6 +355,73 @@ class YearTransitionIntegrationTest {
                 });
         assertThat(roomService.getRooms(principal, null, newYear))
                 .noneMatch(r -> r.room().equals("P.1"));
+    }
+
+    @Test
+    @DisplayName("Trẻ mới đăng ký năm sau: đúng nhóm tuổi; kích hoạt vào lớp đã xếp, chưa có lớp thì Chờ xếp lớp")
+    void plannedAdmissionsEnterNewYearOnActivation() {
+        long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, newClass3);
+        long placedChild = newChild("Trẻ mới có lớp", "2024-06-01", campus);
+        long waitingChild = newChild("Trẻ mới chờ lớp", "2024-06-01", campus);
+        long placedAdmission = admission(placedChild, campus);
+        admission(waitingChild, campus);
+        // Nhóm tuổi của trẻ mới tính tại ngày bắt đầu năm mới, cùng nhóm với lớp năm mới đúng tuổi
+        Long group3 = jdbc.queryForObject("SELECT age_group_id FROM classrooms WHERE id = ?", Long.class, newClass3);
+        assertThat(service.getPlacements(principal, newYear).newAdmissions())
+                .extracting(PlacementBoardResponse.NewAdmission::ageGroupId)
+                .containsOnly(group3);
+
+        // Lớp nhỡ (48–60 tháng) sai nhóm tuổi với trẻ 39 tháng lúc khai giảng
+        expectError(
+                () -> service.savePlacements(
+                        principal,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(),
+                                List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass4)))),
+                ApiCode.PLACEMENT_ADMISSION_WRONG_AGE_GROUP);
+        assertThatThrownBy(() -> service.savePlacements(
+                        principal,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(),
+                                List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass4)))))
+                .hasMessageContaining("Trẻ mới có lớp (39 tháng) không thuộc nhóm tuổi của");
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(
+                                new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass4),
+                                new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass4)),
+                        List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass3))));
+
+        service.activateSchoolYear(principal, newYear, "2027-2028");
+
+        LocalDate firstDay = LocalDate.of(2027, 9, 5);
+        assertThat(enrollmentService.findActiveClassroomIds(placedChild, firstDay))
+                .containsExactly(newClass3);
+        assertThat(jdbc.queryForObject("SELECT status FROM children WHERE id = ?", String.class, waitingChild))
+                .isEqualTo("PENDING_PLACEMENT");
+        assertThat(jdbc.queryForObject("SELECT intake_campus_id FROM children WHERE id = ?", Long.class, waitingChild))
+                .isEqualTo(campus);
+        assertThat(jdbc.queryForList(
+                        "SELECT DISTINCT status FROM planned_admissions WHERE school_year_id = ?",
+                        String.class,
+                        newYear))
+                .containsExactly("ACTIVATED");
+    }
+
+    private long newChild(String name, String dateOfBirth, long campusId) {
+        return insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on,"
+                + " intake_campus_id) VALUES ("
+                + "'IT' || substr(md5(random()::text), 1, 12), '" + name + "', '" + dateOfBirth
+                + "', 'MALE', 'PENDING_PLACEMENT', CURRENT_DATE, " + campusId + ") RETURNING id");
+    }
+
+    private long admission(long childId, long campusId) {
+        return insertId("INSERT INTO planned_admissions (child_id, school_year_id, campus_id, start_date) VALUES ("
+                + childId + ", " + newYear + ", " + campusId + ", '2027-09-05') RETURNING id");
     }
 
     @Test

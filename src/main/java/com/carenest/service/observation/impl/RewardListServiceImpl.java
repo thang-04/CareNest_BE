@@ -208,6 +208,10 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
             }
             List<RewardItemRequest> items = checkItems(cls, request == null ? null : request.items());
+            // Cần chốt 15/11/2026: GV lớp cùng lập / lưu nháp, chỉ GV chủ nhiệm gửi duyệt
+            if (submit && !rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.SUBMIT_HOMEROOM_ONLY);
+            }
             if (submit && items.isEmpty()) {
                 throw GlobalException.of(ApiCode.REWARD_LIST_EMPTY);
             }
@@ -522,15 +526,16 @@ public class RewardListServiceImpl implements RewardListService {
                 schoolDays.add(d);
             }
         }
-        Map<Long, Integer> present = new HashMap<>();
+        Map<Long, Double> present = new HashMap<>();
         if (!to.isBefore(cls.yearStart())) {
             for (ClassChildDay d : attendanceService.findClassDays(List.of(cls.id()), cls.yearStart(), to)) {
                 if (!schoolDays.contains(d.date())) {
                     continue;
                 }
                 recorded.add(d.date());
+                // ATT-14: nghỉ nửa buổi tính 0,5 ngày có mặt
                 if (d.status() == AttendanceStatus.PRESENT) {
-                    present.merge(d.childId(), 1, Integer::sum);
+                    present.merge(d.childId(), d.presentDays(), Double::sum);
                 }
             }
         }
@@ -567,9 +572,9 @@ public class RewardListServiceImpl implements RewardListService {
 
         List<RewardChildRow> rows = children.stream()
                 .map(c -> {
-                    int presentDays = present.getOrDefault(c.id(), 0);
+                    double presentDays = present.getOrDefault(c.id(), 0.0);
                     List<LocalDate> own = expectedDays.getOrDefault(c.id(), List.of());
-                    Integer rate = own.isEmpty() ? null : Math.round(presentDays * 100f / own.size());
+                    Integer rate = own.isEmpty() ? null : (int) Math.round(presentDays * 100 / own.size());
                     long weeks = own.stream()
                             .map(d -> d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
                             .distinct()
@@ -674,6 +679,7 @@ public class RewardListServiceImpl implements RewardListService {
                                 e.getNote()))
                         .toList(),
                 canEdit(user, cls, list),
+                canEdit(user, cls, list) && rules.isHomeroom(user, cls),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE && canReview(user, list),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE && canDecide(user, list),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE ? rules.yearEndOpensOn(user, cls) : null,

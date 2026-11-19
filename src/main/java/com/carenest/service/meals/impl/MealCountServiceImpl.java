@@ -118,6 +118,12 @@ public class MealCountServiceImpl implements MealCountService {
             return status == SchoolYearStatus.ACTIVE;
         }
 
+        // CFG-YR-05: kích hoạt sớm (tối đa 7 ngày trước) chưa phải ngày học của năm ⇒ chưa có sổ suất ăn
+        boolean started(LocalDate day) {
+            LocalDate start = classes.getFirst().yearStart();
+            return start == null || !day.isBefore(start);
+        }
+
         Map<Long, ClassroomInfoResponse> classById() {
             return classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, Function.identity()));
         }
@@ -142,7 +148,7 @@ public class MealCountServiceImpl implements MealCountService {
             DayInfoResponse info = attendanceService.getDayInfo(currentUser, day, null);
             Year year = year(schoolYearId);
             List<MealCountResponse> counts = new ArrayList<>();
-            if (year != null && info.schoolDay() && !day.isAfter(info.today())) {
+            if (year != null && info.schoolDay() && !day.isAfter(info.today()) && year.started(day)) {
                 List<Long> campusIds = year.classes().stream()
                         .map(ClassroomInfoResponse::campusId)
                         .distinct()
@@ -268,7 +274,7 @@ public class MealCountServiceImpl implements MealCountService {
             DayInfoResponse info = attendanceService.getActiveYearDayInfo(day);
             Year year = year(null);
             int campuses = 0;
-            if (year != null && year.active() && info.schoolDay() && info.baseLocked()) {
+            if (year != null && year.active() && year.started(day) && info.schoolDay() && info.baseLocked()) {
                 List<Long> campusIds = year.classes().stream()
                         .map(ClassroomInfoResponse::campusId)
                         .distinct()
@@ -462,13 +468,10 @@ public class MealCountServiceImpl implements MealCountService {
                 }
                 // NUT-03 (Cần chốt 04/11/2026): sổ đã chốt vừa có số mới ⇒ báo PHT điểm trường (không có PHT thì HT)
                 if (!alreadyFlagged && counts.stream().anyMatch(MealCount::isNeedsReconfirmation)) {
-                    notificationService.notifyUsers(
+                    notificationService.notifyEvent(
                             staffAssignmentService.findCampusConfirmerIds(campusId, LocalDate.now(clock)),
                             NotificationType.MEAL_COUNT_RECONFIRM,
-                            "Sổ báo ăn cần xác nhận lại",
-                            "Số suất ngày " + DMY.format(date)
-                                    + " đã thay đổi sau khi xác nhận (giáo viên sửa điểm danh). Vào Sổ báo ăn để xác"
-                                    + " nhận lại; bếp vẫn dùng số đã xác nhận trước đó.",
+                            Map.of("ngay", DMY.format(date)),
                             null);
                 }
             }

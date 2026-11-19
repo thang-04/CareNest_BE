@@ -357,12 +357,11 @@ public class PickupServiceImpl implements PickupService {
                 ? " Người đón: " + record.getPickupPersonName() + " ("
                         + relationLabel(record.getPickupPersonRelationship()) + ")."
                 : " Người đón đã được phụ huynh xác nhận qua điện thoại.";
-        String body = name + " đã được đón lúc " + time + " ngày " + DMY.format(record.getDate()) + "." + by;
-        notificationService.notifyUsers(
+        // Câu chữ theo quy tắc PCK-04 HT đã sửa hoặc mặc định (PAR-09)
+        notificationService.notifyEvent(
                 parentIds,
                 NotificationType.CHILD_PICKED_UP,
-                cut(name + " đã được đón", 150),
-                cut(body, 500),
+                Map.of("tenTre", name, "gio", time, "ngay", DMY.format(record.getDate()), "nguoiDon", by.trim()),
                 record.getChildId());
         return parentIds.size();
     }

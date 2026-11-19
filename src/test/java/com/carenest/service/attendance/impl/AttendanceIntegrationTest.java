@@ -254,7 +254,7 @@ class AttendanceIntegrationTest {
 
         ClassAttendanceResponse sheet = service.getClassAttendance(teacherA, classA, TODAY);
         assertThat(sheet.children().getFirst().record().status()).isEqualTo(AttendanceStatus.PRESENT);
-        // ATT-02: có mặt là ăn mọi bữa của nhóm tuổi, dù client chỉ gửi bữa trưa
+        // ATT-02: Có mặt mặc định bật đủ bữa của nhóm tuổi.
         assertThat(sheet.children().getFirst().record().meals())
                 .containsEntry(MealSession.LUNCH, true)
                 .containsEntry(MealSession.AFTERNOON, true);
@@ -340,33 +340,126 @@ class AttendanceIntegrationTest {
     }
 
     @Test
-    @DisplayName("ATT-02: suất tính từ trạng thái — có mặt ⇒ mọi bữa của nhóm tuổi, field meals client gửi bị bỏ qua")
-    void mealsFollowAttendanceStatusAndIgnoreClientMeals() {
+    @DisplayName("ATT-02: Có mặt mặc định ăn đủ bữa nhưng giáo viên có thể tắt tham gia ăn")
+    void presentDefaultsToMealsAndTeacherCanTurnMealsOff() {
         service.saveClassAttendance(
                 teacherA,
                 classA,
                 request(
                         TODAY,
-                        new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.MORNING, true)),
+                        new Entry(
+                                child1,
+                                AttendanceStatus.PRESENT,
+                                Map.of(MealSession.LUNCH, false, MealSession.AFTERNOON, false)),
                         new Entry(child2, AttendanceStatus.PRESENT, null)));
 
-        assertThat(service.getClassAttendance(teacherA, classA, TODAY).children())
-                .allSatisfy(row -> assertThat(row.record().meals())
-                        .containsEntry(MealSession.LUNCH, true)
-                        .containsEntry(MealSession.AFTERNOON, true)
-                        .doesNotContainKey(MealSession.MORNING));
+        var rows = service.getClassAttendance(teacherA, classA, TODAY).children();
+        assertThat(rows.getFirst().record().meals()).doesNotContainValue(true);
+        assertThat(rows.getLast().record().meals())
+                .containsEntry(MealSession.LUNCH, true)
+                .containsEntry(MealSession.AFTERNOON, true);
         AttendanceService.ClassMealTally tally =
                 service.tallyMeals(TODAY, classCampus(classA), classYear(classA)).stream()
                         .filter(t -> t.classroomId() == classA)
                         .findFirst()
                         .orElseThrow();
-        assertThat(tally.meals()).containsEntry(MealSession.LUNCH, 2).containsEntry(MealSession.AFTERNOON, 2);
-        // Tắt bữa phía client (meals false) không còn bớt suất
+        assertThat(tally.meals()).containsEntry(MealSession.LUNCH, 1).containsEntry(MealSession.AFTERNOON, 1);
+
         var resend = service.saveClassAttendance(
                 teacherA,
                 classA,
-                request(TODAY, new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, false))));
-        assertThat(resend.changed()).isZero();
+                request(
+                        TODAY,
+                        new Entry(
+                                child1,
+                                AttendanceStatus.PRESENT,
+                                Map.of(MealSession.LUNCH, true, MealSession.AFTERNOON, true))));
+        assertThat(resend.changed()).isEqualTo(1);
+
+        expectCode(
+                () -> service.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        request(TODAY, new Entry(child1, AttendanceStatus.UNEXCUSED, Map.of(MealSession.LUNCH, true)))),
+                ApiCode.ABSENT_CHILD_NO_MEAL);
+        // Bữa không thuộc nhóm tuổi của lớp bị chặn
+        expectCode(
+                () -> service.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        request(TODAY, new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.MORNING, true)))),
+                ApiCode.MEAL_SESSION_NOT_SERVED);
+    }
+
+    @Test
+    @DisplayName("ATT-02a/CHD-13: trẻ không báo ăn không có suất")
+    void childWithoutMealsNeverGetsMeals() {
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), present(child2)));
+        entityManager.flush();
+        entityManager.clear();
+        AttendanceService.ClassMealTally before = tallyOf(classA);
+
+        long noMeal = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, meal_registered) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Dũng', '2023-04-01', 'MALE', 'ACTIVE', CURRENT_DATE, FALSE) RETURNING id");
+        enroll(noMeal, classA);
+        // Trẻ không báo ăn nhưng còn dị ứng đã lưu (CHD-13): không được tính suất thay thế
+        jdbc.update(
+                "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
+                        + " self_history_state, family_history_state, tb_contact_state, declared_by)"
+                        + " VALUES (?, 'REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED',"
+                        + " 'NONE_REPORTED', ?)",
+                noMeal,
+                principal.userId());
+        jdbc.update("INSERT INTO child_allergies (child_id, name) VALUES (?, 'Tôm')", noMeal);
+
+        // meals null: mặc định ăn đủ bữa nhưng trẻ không báo ăn thì không có bữa nào
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(noMeal)));
+        assertThat(mealsOfChild(noMeal)).doesNotContainValue(true);
+
+        // Gửi mọi bữa true: bị bỏ qua, không lỗi
+        service.saveClassAttendance(
+                teacherA,
+                classA,
+                request(
+                        TODAY,
+                        new Entry(
+                                noMeal,
+                                AttendanceStatus.PRESENT,
+                                Map.of(MealSession.LUNCH, true, MealSession.AFTERNOON, true))));
+        assertThat(mealsOfChild(noMeal)).doesNotContainValue(true);
+
+        AttendanceService.ClassMealTally after = tallyOf(classA);
+        assertThat(after.present()).isEqualTo(before.present() + 1);
+        assertThat(after.meals()).isEqualTo(before.meals());
+        assertThat(after.substitutes()).isEqualTo(before.substitutes());
+
+        var sheet = service.getClassAttendance(teacherA, classA, TODAY).children();
+        assertThat(sheet)
+                .filteredOn(r -> r.child().id() == noMeal)
+                .singleElement()
+                .satisfies(r -> assertThat(r.child().mealRegistered()).isFalse());
+        assertThat(sheet)
+                .filteredOn(r -> r.child().id() == child1)
+                .singleElement()
+                .satisfies(r -> assertThat(r.child().mealRegistered()).isTrue());
+    }
+
+    private AttendanceService.ClassMealTally tallyOf(long classId) {
+        return service.tallyMeals(TODAY, classCampus(classId), classYear(classId)).stream()
+                .filter(t -> t.classroomId() == classId)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private Map<MealSession, Boolean> mealsOfChild(long childId) {
+        entityManager.flush();
+        entityManager.clear();
+        return service.getClassAttendance(teacherA, classA, TODAY).children().stream()
+                .filter(r -> r.child().id() == childId)
+                .findFirst()
+                .orElseThrow()
+                .record()
+                .meals();
     }
 
     @Test
@@ -808,7 +901,8 @@ class AttendanceIntegrationTest {
     }
 
     private static Entry present(long childId) {
-        return new Entry(childId, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true));
+        return new Entry(
+                childId, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true, MealSession.AFTERNOON, true));
     }
 
     private static Entry absent(long childId) {

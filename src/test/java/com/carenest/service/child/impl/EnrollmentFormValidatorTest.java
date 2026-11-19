@@ -276,6 +276,49 @@ class EnrollmentFormValidatorTest {
                 new ChildAddressInput("Hà Nội", "Cầu Giấy", "1 Láng"));
     }
 
+    @Test
+    @DisplayName("CHD-13: không báo ăn thì không kiểm dị ứng, chế độ ăn")
+    void mealNotRegisteredSkipsAllergyAndDiet() {
+        HealthDeclarationInput input = new HealthDeclarationInput(
+                new AllergiesInput("REPORTED", List.of()),
+                new DeclarationAnswerInput("REPORTED", " "),
+                null,
+                new MedicalHistoryInput(
+                        new DeclarationAnswerInput("NONE_REPORTED", null),
+                        new DeclarationAnswerInput("NONE_REPORTED", null),
+                        new TbContactInput("NONE_REPORTED", null)),
+                false);
+
+        var result = EnrollmentFormValidator.validate(request(child(List.of(guardian())), input), TODAY);
+
+        assertThat(result.errors()).isEmpty();
+        var d = result.draft().declaration();
+        assertThat(d.allergiesState()).isEqualTo(DeclarationState.NOT_PROVIDED);
+        assertThat(d.allergies()).isEmpty();
+        assertThat(d.diet().state()).isEqualTo(DeclarationState.NOT_PROVIDED);
+        assertThat(d.mealRegistered()).isFalse();
+    }
+
+    @Test
+    @DisplayName("CHD-13: thiếu cờ báo ăn được hiểu là có báo ăn")
+    void missingMealFlagMeansRegistered() {
+        HealthDeclarationInput missingAllergy = new HealthDeclarationInput(
+                new AllergiesInput(null, null),
+                new DeclarationAnswerInput("NONE_REPORTED", null),
+                null,
+                new MedicalHistoryInput(
+                        new DeclarationAnswerInput("NONE_REPORTED", null),
+                        new DeclarationAnswerInput("NONE_REPORTED", null),
+                        new TbContactInput("NONE_REPORTED", null)),
+                null);
+
+        assertThat(errors(EnrollmentFormValidator.validate(request(child(List.of(guardian())), missingAllergy), TODAY)))
+                .containsEntry("declaration.allergies", "Chọn tình trạng dị ứng");
+        var ok = EnrollmentFormValidator.validate(request(child(List.of(guardian())), okDeclaration()), TODAY);
+        assertThat(ok.errors()).isEmpty();
+        assertThat(ok.draft().declaration().mealRegistered()).isTrue();
+    }
+
     private static HealthDeclarationInput okDeclaration() {
         return declaration("NONE_REPORTED", List.of(), "NONE_REPORTED", null, "NONE_REPORTED", null);
     }

@@ -50,4 +50,7 @@ public interface AuthStateStore {
     void revokeAccountAuth(Long id);
 
     void cleanup(Instant now);
+
+    /** AUTH-28: chặn ngay access token còn hạn của các phiên Web vừa bị đăng nhập mới hơn thay thế. */
+    void revokeWebSessions(String keycloakUserId, java.util.List<String> sessionIds);
 }

@@ -73,7 +73,7 @@ API kiểm token **tại chỗ** bằng public key (JWKS) của Keycloak, có ca
   - Audience: client → tab *Client scopes* → `<client>-dedicated` → mapper `carenest-api-audience` (loại *Audience*, *Included Custom Audience* = `carenest-api`, *Add to access token* On, *Add to ID token* Off). Có trên web, mobile, dev.
 - **Realm settings**:
   - *Login*: User registration Off · Forgot password On · Login with email On · Edit username Off.
-  - *Email*: compose local gửi thật qua Gmail `smtp.gmail.com:587` STARTTLS, auth bằng `CARENEST_EMAIL_SMTP_USERNAME`/App Password, from = tài khoản Gmail; VPS và e2e vẫn Mailpit (mặc định trong realm: `mailpit:1025`, không auth).
+  - *Email*: compose local, VPS, dev gửi thật qua Resend `smtp.resend.com:587` STARTTLS, username `resend`, password = API key (`CARENEST_EMAIL_SMTP_PASSWORD`), from = `CARENEST_EMAIL_FROM` thuộc domain đã xác minh; e2e vẫn Mailpit (mặc định trong realm: `mailpit:1025`, không auth). Chi tiết `DEPLOYMENT.md` mục Email.
   - *Tokens*: Access Token Lifespan 5 phút · Revoke Refresh Token On · Max reuse 0.
   - *Sessions*: SSO Session Idle 30 phút · SSO Session Max 10 giờ.
   - *Security defenses → Brute force detection*: Lockout temporarily, 5 lần sai.
@@ -168,9 +168,9 @@ Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo 
    ```
 
    - Role tạo được: PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT (ADMIN thì không).
-   - `temporaryPassword` bắt buộc, trừ khi có `email` và `KEYCLOAK_ACTIONS_EMAIL_ENABLED=true` (compose bật sẵn, gửi qua Gmail).
+   - `temporaryPassword` bắt buộc, trừ khi có `email` và `KEYCLOAK_ACTIONS_EMAIL_ENABLED=true` (compose bật sẵn, gửi qua Resend).
    - BE tạo user Keycloak (họ tên ở `firstName`, required action `UPDATE_PASSWORD`), gán realm role, ghi `user_accounts`. Bước sau lỗi thì xóa user Keycloak vừa tạo (bù trừ). Xóa cũng lỗi thì log ERROR `compensationFailed|manualCleanupRequired` kèm `keycloakUserId` để dọn tay.
-   - Có email: Keycloak gửi email "Update Your Account" — gửi thật tới hộp thư người dùng qua Gmail. Response `setupEmailSent` cho biết đã gửi chưa.
+   - Có email: Keycloak gửi email "Update Your Account" — gửi thật tới hộp thư người dùng qua Resend. Response `setupEmailSent` cho biết đã gửi chưa.
 3. Người dùng đăng nhập lần đầu qua trình duyệt (web/app hoặc Account Console) bằng mật khẩu tạm ⇒ Keycloak bắt đặt mật khẩu mới. Trước bước này, password grant trả `Account is not fully set up`.
 4. Khóa / mở khóa:
 
@@ -187,7 +187,7 @@ Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo 
 
 - `docker/keycloak/import/carenest-realm.json` là **nguồn chuẩn** cấu hình realm ở dev. Muốn đổi thì sửa file này rồi kiểm lại trên console.
 - User dev nằm riêng ở `docker/keycloak/dev/carenest-users-0.json` (cùng thư mục import với file realm trong container); VPS demo mount bản riêng `docker/keycloak/vps/carenest-users-0.json` (cùng user/id, mật khẩu placeholder `${KEYCLOAK_DEV_USER_PASSWORD}` — Keycloak thay bằng env lúc import, phải qua chính sách `length(8) and notUsername`); server dữ liệu thật không mount file nào. Test `docker/keycloak/auth/vps-users.test.mjs` giữ hai file cùng id/username/role. Đổi user dev thì sửa cả file này và `db/dev/R__dev_seed.sql` (cùng `id` ↔ `keycloak_user_id`).
-- Client `carenest-dev` trong realm có `"enabled": "${CARENEST_DEV_CLIENT_ENABLED:false}"`: mặc định **tắt**, compose dev đặt `true`. SMTP lấy từ `CARENEST_SMTP_HOST`/`PORT`/`AUTH`/`STARTTLS`/`USER`/`PASSWORD`/`FROM` (mặc định `mailpit:1025` không auth; compose local map sang Gmail `CARENEST_EMAIL_*`). Placeholder dạng `${TEN_BIEN:mac_dinh}` đã kiểm chạy được trên KC 26.8.0.
+- Client `carenest-dev` trong realm có `"enabled": "${CARENEST_DEV_CLIENT_ENABLED:false}"`: mặc định **tắt**, compose dev đặt `true`. SMTP lấy từ `CARENEST_SMTP_HOST`/`PORT`/`AUTH`/`STARTTLS`/`USER`/`PASSWORD`/`FROM` (mặc định `mailpit:1025` không auth; compose map sang Resend `CARENEST_EMAIL_*`). Placeholder dạng `${TEN_BIEN:mac_dinh}` đã kiểm chạy được trên KC 26.8.0.
 - Secret và giá trị theo môi trường dùng placeholder `${TEN_BIEN}` (Keycloak thay bằng biến môi trường của container lúc import): `KEYCLOAK_ADMIN_CLIENT_SECRET`, `CARENEST_WEB_ORIGIN`, `CARENEST_MOBILE_REDIRECT_URI`.
 - Tránh thêm mảng `clientScopes` ở cấp realm trong file import: Keycloak chỉ tự tạo bộ client scope mặc định (`profile`, `email`, `roles`, `basic`…) khi file không khai báo mảng này, nên khai báo thiếu có thể làm token mất `sub`/role (chưa thử thực tế, tránh cho an toàn). Vì vậy audience mapper đặt trên từng client.
 - `--import-realm` **bỏ qua realm đã tồn tại**. Muốn áp lại file ở dev, reset DB Keycloak (mất user tạo tay/tạo qua API; các `user_accounts` tương ứng thành mồ côi):

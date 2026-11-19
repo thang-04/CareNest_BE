@@ -77,7 +77,7 @@ flowchart LR
     API -->|"JWT, Admin API"| KC
     API --> DB[("PostgreSQL 17")]
     API --> S3[("S3<br/>học liệu")]
-    API --> SMTP["SMTP<br/>Gmail (VPS: Mailpit)"]
+    API --> SMTP["SMTP<br/>Resend"]
 ```
 
 - Luồng request: `controller → service → repository`. Entity không trả qua API; mapper chuyển Entity sang DTO.
@@ -134,7 +134,7 @@ cp .env.example .env    # bắt buộc; đổi các giá trị change-me khi lê
 docker compose up --build
 ```
 
-Compose dựng PostgreSQL, Keycloak (import realm `carenest`, email gửi thật qua Gmail) và API với profile `dev` (nạp dữ liệu mẫu). Swagger UI: <http://localhost:8080/swagger-ui/index.html>.
+Compose dựng PostgreSQL, Keycloak (import realm `carenest`, email gửi thật qua Resend SMTP) và API với profile `dev` (nạp dữ liệu mẫu). Swagger UI: <http://localhost:8080/swagger-ui/index.html>.
 
 Bộ dữ liệu dev (Trường Mầm non Thượng Hồng: 2 cơ sở, 10 lớp, ~210 trẻ, đủ mọi vai trò, dữ liệu vận hành từ 01/09 tới hôm qua) sinh bằng `node scripts/dev/gen-dev-dataset.mjs`. Tài khoản đăng nhập (tên đăng nhập = SĐT) ở `docs/TAI_KHOAN_DEV.md`; mật khẩu `demo123` **chỉ ở máy local**. VPS dùng cùng user nhưng mật khẩu là `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` của VPS (`docs/system/DEPLOYMENT.md`).
 
@@ -171,7 +171,7 @@ Workflow [`deploy.yml`](.github/workflows/deploy.yml) chỉ chạy trên `main`,
 - PR vào `main`: verify API, build và test extension Keycloak.
 - Push vào `main`: thêm bước đẩy image lên Docker Hub, đồng bộ lên VPS, `docker compose up`, reload Caddy, kiểm tra HTTPS.
 
-Trên VPS mọi service chỉ nghe localhost; Caddy phục vụ `auth.carenest.edu.vn` (Keycloak) và chuyển `/api/*` của `web.carenest.edu.vn` vào API. Cài đặt, cổng, rollback: [DEPLOYMENT](docs/system/DEPLOYMENT.md).
+Trên VPS mọi service chỉ nghe localhost; Caddy phục vụ `auth.carenest.edu.vn` (Keycloak) và chuyển `/api/*` của `thuonghong.carenest.edu.vn` vào API. Cài đặt, cổng, rollback: [DEPLOYMENT](docs/system/DEPLOYMENT.md).
 
 ## Cấu trúc repo
 

@@ -50,8 +50,11 @@ public final class EvaluationDtos {
 
     public record ChildRef(Long id, String fullName, LocalDate dateOfBirth) {}
 
-    /** teaches: người xem là GV lớp (thấy bản nháp); canEdit: GV đang phụ trách lớp của năm đang hoạt động. */
-    public record ClassRef(Long id, String name, Long campusId, boolean teaches, boolean canEdit) {}
+    /**
+     * teaches: người xem là GV lớp (thấy bản nháp); canEdit: GV đang phụ trách lớp của năm đang hoạt động; canConfirm:
+     * được xác nhận — GV chủ nhiệm, hoặc lớp chưa có chủ nhiệm (Cần chốt 15/11/2026).
+     */
+    public record ClassRef(Long id, String name, Long campusId, boolean teaches, boolean canEdit, boolean canConfirm) {}
 
     public record GoalCount(int dat, int canCoGang, int chuaDat) {}
 

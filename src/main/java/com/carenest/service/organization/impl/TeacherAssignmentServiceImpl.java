@@ -8,7 +8,6 @@ import com.carenest.dto.organization.TeacherAssignmentResponse;
 import com.carenest.dto.organization.TeacherCandidateResponse;
 import com.carenest.dto.organization.TeamLeaderRequest;
 import com.carenest.dto.organization.TeamLeaderResponse;
-import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.entity.organization.StaffAssignment;
@@ -30,7 +29,6 @@ import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +85,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     .toList();
             TeacherAssignmentResponse response = new TeacherAssignmentResponse(
                     schoolStructureMapper.toDetailResponse(year, classroomRepository.countBySchoolYearId(year.getId())),
-                    yearSnapshotReader.ageGroups(year.getId()).orElseGet(this::ageGroups),
+                    yearSnapshotReader.yearAgeGroups(year.getId()),
                     toClassTeachers(classes, asOf(year)),
                     teachers);
             log.info("{}|END", logPrefix);
@@ -136,9 +134,13 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (teacherIds.size() != request.teacherIds().size()) {
                 throw GlobalException.of(ApiCode.TEACHERS_MUST_DIFFER);
             }
-            // SCH-04 (Cần chốt 10/11/2026): năm đang học mỗi lớp đúng 2 GV đứng lớp, có chủ nhiệm; năm sắp tới xếp dần
+            // SCH-04 (Cần chốt 18/11/2026): mỗi lớp tối đa 3 GV; năm đang học từ 2 GV, có GV phụ trách chính; năm sắp
+            // tới xếp dần
+            if (teacherIds.size() > 3) {
+                throw GlobalException.of(ApiCode.CLASS_TOO_MANY_TEACHERS);
+            }
             if (year.getStatus() == SchoolYearStatus.ACTIVE) {
-                if (teacherIds.size() != 2) {
+                if (teacherIds.size() < 2) {
                     throw GlobalException.of(ApiCode.CLASS_NEEDS_TWO_TEACHERS);
                 }
                 if (request.homeroomTeacherId() == null) {
@@ -232,7 +234,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             schoolConfigAccess.checkPrincipal(currentUser);
             SchoolYear year = findYear(request.schoolYearId());
             SchoolYearRules.checkOpen(year);
-            if (!ageGroupRepository.existsById(request.ageGroupId())) {
+            // Tổ trưởng chỉ cho nhóm tuổi có trong năm học đó (năm chưa có danh sách riêng thì mọi nhóm)
+            List<Long> yearGroups = ageGroupRepository.findYearAgeGroupIds(year.getId());
+            if (!ageGroupRepository.existsById(request.ageGroupId())
+                    || (!yearGroups.isEmpty() && !yearGroups.contains(request.ageGroupId()))) {
                 throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
             }
             if (request.userId() != null) {
@@ -412,7 +417,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId()).stream()
                         .filter(c -> c.getAgeGroupId() != null)
                         .collect(Collectors.groupingBy(Classroom::getAgeGroupId, Collectors.counting()));
-        List<AgeGroupDetailResponse> groups = ageGroups();
+        List<AgeGroupDetailResponse> groups = yearSnapshotReader.yearAgeGroups(year.getId());
         Map<Long, String> groupNames = groups.stream()
                 .collect(Collectors.toMap(AgeGroupDetailResponse::id, AgeGroupDetailResponse::shortName));
         Map<Long, Long> teacherCampus = teachers.stream()
@@ -516,15 +521,6 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                                     .map(id -> new ClassTeachersResponse.Teacher(id, names.get(id)))
                                     .toList());
                 })
-                .toList();
-    }
-
-    private List<AgeGroupDetailResponse> ageGroups() {
-        return ageGroupRepository.findAll().stream()
-                .sorted(Comparator.comparing(
-                                (AgeGroup g) -> g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
-                        .thenComparing(AgeGroup::getSortOrder))
-                .map(schoolStructureMapper::toDetailResponse)
                 .toList();
     }
 

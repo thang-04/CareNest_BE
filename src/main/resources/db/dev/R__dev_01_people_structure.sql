@@ -376,8 +376,8 @@ SELECT u.id, v.permission_code, v.effect, v.scope, v.reason, gb.id
 FROM (VALUES
     ('00000000-0000-4000-b000-000000000018', 'CHILD_PROFILE_EDIT', 'GRANT', 'CAMPUS', 'Hỗ trợ Phó hiệu trưởng cập nhật hồ sơ trẻ Cơ sở 2 đầu năm học', '00000000-0000-4000-a000-000000000002'),
     ('00000000-0000-4000-b000-000000000015', 'ASSESSMENT_CONFIRM', 'REVOKE', NULL, 'Giáo viên tập sự, giáo viên chủ nhiệm xác nhận đánh giá thay', '00000000-0000-4000-a000-000000000002'),
-    ('00000000-0000-4000-a000-000000000003', 'NUTRITION_MANAGE', 'GRANT', 'SCHOOL', 'Phó hiệu trưởng phụ trách dinh dưỡng quản lý danh mục bán trú toàn trường', '00000000-0000-4000-a000-000000000002'),
-    ('00000000-0000-4000-a000-000000000003', 'MENU_MANAGE', 'GRANT', 'SCHOOL', 'Phó hiệu trưởng phụ trách dinh dưỡng lập và công bố thực đơn chung hai cơ sở', '00000000-0000-4000-a000-000000000002'),
+    ('00000000-0000-4000-a000-000000000003', 'NUTRITION_MANAGE', 'GRANT', 'CAMPUS', 'Phó hiệu trưởng phụ trách dinh dưỡng quản lý danh mục bán trú toàn trường', '00000000-0000-4000-a000-000000000002'),
+    ('00000000-0000-4000-a000-000000000003', 'MENU_MANAGE', 'GRANT', 'CAMPUS', 'Phó hiệu trưởng phụ trách dinh dưỡng lập và công bố thực đơn chung hai cơ sở', '00000000-0000-4000-a000-000000000002'),
     ('00000000-0000-4000-a000-000000000003', 'STOCK_MANAGE', 'GRANT', 'CAMPUS', 'Phó hiệu trưởng nhập kho khô tại cơ sở phụ trách', '00000000-0000-4000-a000-000000000002'),
     ('00000000-0000-4000-a000-000000000003', 'FOOD_SAFETY_APPROVE', 'GRANT', 'CAMPUS', 'Phó hiệu trưởng duyệt lưu mẫu, hủy mẫu thức ăn tại cơ sở phụ trách', '00000000-0000-4000-a000-000000000002'),
     ('00000000-0000-4000-b000-000000000001', 'STOCK_MANAGE', 'GRANT', 'CAMPUS', 'Phó hiệu trưởng nhập kho khô tại cơ sở phụ trách', '00000000-0000-4000-a000-000000000002'),
@@ -386,6 +386,12 @@ FROM (VALUES
 JOIN user_accounts u ON u.keycloak_user_id = v.keycloak_user_id
 JOIN user_accounts gb ON gb.keycloak_user_id = v.granted_by
 WHERE NOT EXISTS (SELECT 1 FROM permission_grants p WHERE p.user_id = u.id AND p.permission_code = v.permission_code);
+
+-- AUTH-20: chỉ mã sửa theo mảng mới có phạm vi cả trường; sửa dòng seed cũ đã ghi SCHOOL cho mã khác
+UPDATE permission_grants SET scope = 'CAMPUS'
+WHERE effect = 'GRANT' AND scope = 'SCHOOL' AND permission_code IN ('NUTRITION_MANAGE', 'MENU_MANAGE');
+UPDATE permission_change_log SET after_scope = 'CAMPUS'
+WHERE after_state = 'GRANT' AND after_scope = 'SCHOOL' AND permission_code IN ('NUTRITION_MANAGE', 'MENU_MANAGE');
 
 -- Lịch sử đổi quyền tương ứng (màn lịch sử phân quyền): trước đó kế thừa vai trò
 INSERT INTO permission_change_log (batch_id, actor_user_id, target_user_id, permission_code, before_state, after_state,

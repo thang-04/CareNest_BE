@@ -218,6 +218,12 @@ public class RoomServiceImpl implements RoomService {
                 && !roomRepository.isStaffOfCampus(managerUserId, request.campusId(), schoolConfigAccess.today())) {
             throw GlobalException.of(ApiCode.ROOM_MANAGER_INVALID);
         }
+        if (managerUserId != null
+                && request.type() == RoomType.KITCHEN
+                && !roomRepository.isKitchenManagerOfCampus(
+                        managerUserId, request.campusId(), schoolConfigAccess.today())) {
+            throw GlobalException.of(ApiCode.ROOM_KITCHEN_MANAGER_INVALID);
+        }
         String note = request.note() == null ? "" : request.note().trim();
         return new RoomRequest(request.campusId(), code, name, request.type(), request.capacity(), managerUserId, note);
     }

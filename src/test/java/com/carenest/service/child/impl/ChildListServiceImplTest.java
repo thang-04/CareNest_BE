@@ -308,7 +308,8 @@ class ChildListServiceImplTest {
                 Gender.FEMALE,
                 status != ChildStatus.PENDING_PLACEMENT,
                 intakeCampusId,
-                LocalDate.of(2026, 9, 1));
+                LocalDate.of(2026, 9, 1),
+                true);
         ReflectionTestUtils.setField(child, "id", id);
         return child;
     }

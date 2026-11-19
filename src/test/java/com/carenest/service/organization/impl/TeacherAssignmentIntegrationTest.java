@@ -199,8 +199,8 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("SCH-04: năm đang học mỗi lớp đúng 2 GV đứng lớp và có chủ nhiệm (Cần chốt 10/11/2026)")
-    void activeYearNeedsExactlyTwoTeachersAndHomeroom() {
+    @DisplayName("SCH-04: năm đang học mỗi lớp 2–3 GV đứng lớp và có GV phụ trách chính (Cần chốt 18/11/2026)")
+    void activeYearNeedsTwoToThreeTeachersAndHomeroom() {
         expectError(
                 () -> service.assignClassTeachers(
                         principal, classA1, new ClassTeachersRequest(List.of(teacher1), teacher1)),
@@ -213,6 +213,21 @@ class TeacherAssignmentIntegrationTest {
                                 principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher2))
                         .homeroomTeacherId())
                 .isEqualTo(teacher2);
+        // Trường thừa giáo viên: lớp có 3 cô được, tối đa 3
+        endAssignments(teacher3);
+        assertThat(service.assignClassTeachers(
+                                principal,
+                                classA1,
+                                new ClassTeachersRequest(List.of(teacher1, teacher2, teacher3), teacher1))
+                        .teacherIds())
+                .containsExactlyInAnyOrder(teacher1, teacher2, teacher3);
+        long teacher4 = user("teacher4");
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal,
+                        classA1,
+                        new ClassTeachersRequest(List.of(teacher1, teacher2, teacher3, teacher4), teacher1)),
+                ApiCode.CLASS_TOO_MANY_TEACHERS);
     }
 
     @Test

@@ -58,11 +58,10 @@ App: **bếp** — Hôm nay, Lưu mẫu, Ảnh bữa. **GV** — điểm danh (b
 | --- | --- | --- | --- | --- |
 | `MEAL_COUNT_CONFIRM` (đã có) | điểm trường, GRANT nâng T | HT; PHT (bật, điểm trường mình) | PHT | Xác nhận, xác nhận lại suất (NUT-02 — C) |
 | `NUTRITION_MANAGE` (plan L1) | T | HT | PHT (mặc định tắt) | Danh mục, cấu hình nhóm tuổi, NCC |
-| `MENU_MANAGE` | T | HT | PHT (mặc định tắt) | Bộ mẫu, kế hoạch tuần, món thay thế, **công bố** (NUT-08: công bố là duyệt) |
+| `MENU_MANAGE` | T | HT | PHT (mặc định tắt) | Bộ mẫu, kế hoạch tuần, món thay thế, **công bố** (NUT-08: công bố là duyệt), sửa ngoại lệ ngày đã công bố (P-39, chốt 18/11) |
 | `STOCK_MANAGE` | điểm trường, GRANT nâng T | HT | PHT (mặc định tắt) | Phiếu nhập kho khô, bản dự trù, kiểm nhận hàng tươi |
 | `FOOD_SAFETY_APPROVE` | điểm trường, GRANT nâng T | HT | PHT (mặc định tắt) | Duyệt lưu/hủy mẫu, in biểu mẫu |
 | `KITCHEN_RECORD` | TK | Bếp | Bếp | Ghi lưu/hủy mẫu, đăng ảnh bữa |
-| `MENU_PUBLISHED_EDIT` (ngoại lệ) | T | HT | PHT (mặc định tắt) | Sửa thực đơn đã công bố khi bất khả kháng (NUT-08, P-39 duyệt 02/11) |
 
 PHT không có mã sửa vẫn xem dữ liệu bán trú mọi điểm trường (AUTH-20 — C). HT có sẵn các mã để làm thay khi PHT vắng, theo cách NUT-02 đang áp cho số suất (P cho các mã ngoài `MEAL_COUNT_CONFIRM`). Khung giờ ảnh bữa: phần cố định của HT (NUT-16 — C), không qua ma trận.
 
@@ -84,7 +83,7 @@ Cột actor ghi phạm vi được làm; "—" = không. Admin không có quyề
 | | Create/Update/Delete | T | T (`MENU_MANAGE`) | — | — | — | — | Chỉ tuần DRAFT | Có | C (NUT-08, NUT-13, NUT-23) |
 | Công bố thực đơn tuần | Publish | T | T (`MENU_MANAGE`) | — | — | — | — | Mọi ngày đạt cân đối; cả trường một lần; không chờ suất; thiếu kho chỉ cảnh báo | Có | C (NUT-08, NUT-11) |
 | Thực đơn tuần đã công bố | View | T | T | T | T (P) | TK | Tr | PH chỉ bản đã công bố (PAR-02) | — | C (AUTH-05, PAR-01); GV P |
-| | Update (ngoại lệ) | T | T (`MENU_PUBLISHED_EDIT`) | — | — | — | — | Chỉ ngày chưa tới hoặc hôm nay trước giờ chốt; lý do bắt buộc; báo bếp + PH; ngày đã có suất xác nhận ⇒ tính lại trừ kho | Có, lý do | C (NUT-08, P-39) |
+| | Update (ngoại lệ) | T | T (`MENU_MANAGE`) | — | — | — | — | Cả một ngày; chỉ ngày chưa tới hoặc hôm nay trước giờ chốt, không ngày nghỉ; lý do bắt buộc; cân đối chỉ cảnh báo; không cần duyệt; báo bếp + PH; ngày đã có suất xác nhận ⇒ tính lại trừ kho | Có, lý do, trước/sau (`meal_plan_day_revisions`) | C (NUT-08, P-39) |
 | | Export (in thực đơn tuần) | T | T | T | — | — | — | | — | P |
 | Điểm danh = báo ăn | Create/Update | — | — | — | L | — | — | Trước giờ chốt hoặc khi được mở lại | Có | C (ATT-01, ATT-02) |
 | | Mở lại sau giờ chốt | T | điểm trường | điểm trường | — | — | — | Lý do bắt buộc | Có, lý do | C (ATT-08) |
@@ -114,7 +113,7 @@ Cột actor ghi phạm vi được làm; "—" = không. Admin không có quyề
 
 | Ngoại lệ | Cách xử lý | TT |
 | --- | --- | --- |
-| Sửa thực đơn đã công bố | Chỉ bất khả kháng, người có `MENU_PUBLISHED_EDIT`, điều kiện ở bảng trên | C (NUT-08, P-39) |
+| Sửa thực đơn đã công bố | Chỉ bất khả kháng, người có `MENU_MANAGE`, không cần duyệt, điều kiện ở bảng trên | C (NUT-08, P-39) |
 | Điều chỉnh suất sau giờ chốt | Mở lại điểm danh (ATT-08) → GV sửa → xác nhận lại (NUT-03, NUT-04); kho ghi chênh lệch | C |
 | Thay đổi dữ liệu kho | Không sửa bút toán; phiếu nhập sai ⇒ bút toán đảo có lý do; không kiểm kê, không chuyển cơ sở | C (không kiểm kê); bút toán đảo P |
 | Thiếu kho khi xác nhận suất | Không chặn xác nhận; ghi phần thiếu; PHT mua thêm (B), nhập phiếu bổ sung ⇒ trừ tiếp | C (NUT-11, P-38) |

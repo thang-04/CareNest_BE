@@ -319,11 +319,11 @@ class PermissionServiceImplTest {
 
         assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, notScoped))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.INVALID_VALUE);
+                .isEqualTo(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
         assertThatThrownBy(() ->
                         permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, revokeWithScope))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.INVALID_VALUE);
+                .isEqualTo(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
         verify(userPermissionOverrideRepository, never()).saveAll(any());
     }
 

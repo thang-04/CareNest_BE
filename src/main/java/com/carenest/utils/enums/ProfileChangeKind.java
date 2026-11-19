@@ -1,6 +1,6 @@
 package com.carenest.utils.enums;
 
-/** Loại yêu cầu sửa hồ sơ trẻ của GV chờ duyệt (CHD-11, V139). */
+/** Loại yêu cầu sửa hồ sơ trẻ của GV chờ duyệt (CHD-11, V153). */
 public enum ProfileChangeKind {
     /** Thông tin trẻ và người giám hộ (`PUT /children/{id}`). */
     PROFILE,

@@ -197,6 +197,26 @@ public class ClassroomServiceImpl implements ClassroomService {
         }
     }
 
+    @Override
+    public Map<Long, Long> countMealRegisteredChildren(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|countMealRegisteredChildren|classrooms=" + classroomIds.size() + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> counts = classroomIds.isEmpty()
+                    ? Map.of()
+                    : classroomRepository.countMealRegisteredChildren(classroomIds, date).stream()
+                            .collect(Collectors.toMap(
+                                    ClassroomRepository.ClassroomCount::getClassroomId,
+                                    ClassroomRepository.ClassroomCount::getTotal));
+            log.info("{}|END", logPrefix);
+            return counts;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private Map<Long, AgeGroup> ageGroups() {
         return ageGroupRepository.findAll().stream().collect(Collectors.toMap(AgeGroup::getId, Function.identity()));
     }
