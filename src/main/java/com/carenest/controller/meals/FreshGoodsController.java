@@ -1,5 +1,6 @@
 package com.carenest.controller.meals;
 
+import com.carenest.dto.meals.DryIntakeRequest;
 import com.carenest.dto.meals.FreshCheckRequest;
 import com.carenest.dto.meals.FreshCheckResponse;
 import com.carenest.dto.meals.FreshForecastRequest;
@@ -125,5 +126,20 @@ public class FreshGoodsController {
         FreshCheckResponse checks = freshGoodsService.recordCheck(currentUser, campusId, date, round, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Record fresh check success", checks);
+    }
+
+    @PostMapping("/fresh-checks/dry-receipts")
+    @PreAuthorize("@permissionGuard.has('STOCK_MANAGE')")
+    public ResponseEntity<ResponseJson<FreshCheckResponse>> recordDryIntake(
+            @RequestParam Long campusId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Valid @RequestBody DryIntakeRequest request,
+            CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|recordDryIntake|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        FreshCheckResponse checks = freshGoodsService.recordDryIntake(currentUser, campusId, date, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Record dry intake success", checks);
     }
 }

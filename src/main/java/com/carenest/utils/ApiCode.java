@@ -548,6 +548,10 @@ public enum ApiCode {
             "Kỳ dự trù không hợp lệ: ngày bắt đầu không sau ngày kết thúc, tối đa 31 ngày"),
     FRESH_CHECK_NOT_AVAILABLE(6042, HttpStatus.CONFLICT, "Chưa kiểm nhận lần {0} được: {1}"),
     FRESH_CHECK_LINES_MISMATCH(6043, HttpStatus.BAD_REQUEST, "Dòng kiểm nhận không khớp danh sách cần nhận: {0}"),
+    DRY_INTAKE_NOT_TODAY(6044, HttpStatus.CONFLICT, "Chỉ ghi kiểm nhận hàng khô trong ngày nhận hàng"),
+    DRY_INTAKE_NOTE_REQUIRED(
+            6045, HttpStatus.UNPROCESSABLE_ENTITY, "Dòng {0} không đạt: ghi biện pháp xử lý (trả lại, tiêu hủy...)"),
+    DRY_ORDER_INVALID(6046, HttpStatus.BAD_REQUEST, "Lượng hàng khô đặt không hợp lệ: {0}"),
     MENU_TEMPLATE_NOT_FOUND(6050, HttpStatus.NOT_FOUND, "Không tìm thấy bộ thực đơn mẫu"),
 
     FOOD_SAMPLE_NOT_FOUND(6060, HttpStatus.NOT_FOUND, "Không tìm thấy bản lưu mẫu"),

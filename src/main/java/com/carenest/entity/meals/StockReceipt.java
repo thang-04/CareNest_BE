@@ -3,6 +3,7 @@ package com.carenest.entity.meals;
 import com.carenest.utils.enums.StockReceiptStatus;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -20,7 +21,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 /** Phiếu nhập kho khô của một điểm trường (NUT-11): nháp sửa được, xác nhận tạo lô, hủy bằng bút toán đảo. */
 @Getter
@@ -48,6 +51,17 @@ public class StockReceipt {
 
     @Column(nullable = false, length = 500)
     private String note = "";
+
+    @Column(name = "forecast_id")
+    private Long forecastId;
+
+    @Column(name = "from_intake", nullable = false)
+    private boolean fromIntake;
+
+    @Convert(converter = JsonListConverter.RejectedLines.class)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "rejected_lines", nullable = false, columnDefinition = "jsonb")
+    private List<StockRejectedLine> rejectedLines = List.of();
 
     @OneToMany(mappedBy = "receipt", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id")
@@ -87,6 +101,15 @@ public class StockReceipt {
         receipt.campusId = campusId;
         receipt.createdBy = createdBy;
         receipt.updatedBy = createdBy;
+        return receipt;
+    }
+
+    /** Đợt hàng khô kiểm nhận trong ngày (NUT-11, NUT-12): gắn bản dự trù có kỳ chứa ngày, giữ dòng không đạt. */
+    public static StockReceipt intake(Long campusId, Long forecastId, List<StockRejectedLine> rejectedLines, Long userId) {
+        StockReceipt receipt = draft(campusId, userId);
+        receipt.forecastId = forecastId;
+        receipt.fromIntake = true;
+        receipt.rejectedLines = List.copyOf(rejectedLines);
         return receipt;
     }
 

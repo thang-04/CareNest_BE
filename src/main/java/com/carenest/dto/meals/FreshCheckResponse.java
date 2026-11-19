@@ -11,7 +11,25 @@ import java.util.List;
  * Kiểm nhận hàng tươi của điểm trường–ngày, luôn đủ hai lần. {@code canManage}: người xem có {@code STOCK_MANAGE} ở
  * điểm trường.
  */
-public record FreshCheckResponse(Long campusId, LocalDate date, boolean canManage, List<FreshCheckRound> rounds) {
+public record FreshCheckResponse(
+        Long campusId, LocalDate date, boolean canManage, List<FreshCheckRound> rounds, DryIntake dry) {
+
+    /**
+     * Hàng khô giao trong ngày (NUT-11, NUT-12): {@code orders} theo bản dự trù có kỳ chứa ngày ({@code forecastId} null ⇒
+     * không có, mọi dòng là ngoài đơn); {@code receipts} các đợt đã kiểm nhận trong ngày.
+     */
+    public record DryIntake(
+            Long forecastId,
+            LocalDate periodFrom,
+            LocalDate periodTo,
+            List<DryOrderStatus> orders,
+            List<StockReceiptResponse> receipts) {}
+
+    /**
+     * {@code ordered} null ⇒ thực phẩm nhận ngoài đơn; {@code received}: tổng dòng đạt của các phiếu đã xác nhận gắn bản
+     * dự trù, tính cả hôm nay.
+     */
+    public record DryOrderStatus(StockFoodRef food, BigDecimal ordered, BigDecimal received) {}
 
     /**
      * {@code available} false ⇒ chưa ghi được, lý do ở {@code unavailableReason}. Chưa ghi ({@code recorded} false) thì

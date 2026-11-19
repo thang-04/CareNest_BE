@@ -26,7 +26,14 @@ public record StockReceiptResponse(
         Instant cancelledAt,
         String cancelReason,
         Instant createdAt,
-        boolean canManage) {
+        boolean canManage,
+        Long forecastId,
+        boolean fromIntake,
+        List<RejectedLine> rejectedLines) {
+
+    /** Dòng kiểm nhận không đạt: không thành lô, {@code note} là biện pháp xử lý. */
+    public record RejectedLine(
+            StockFoodRef food, String lotNo, LocalDate expiryDate, BigDecimal quantity, String note) {}
 
     public record ReceiptLine(
             Long id,

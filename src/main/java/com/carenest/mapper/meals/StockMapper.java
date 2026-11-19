@@ -57,7 +57,17 @@ public class StockMapper {
                 receipt.getCancelledAt(),
                 receipt.getCancelReason(),
                 receipt.getCreatedAt(),
-                canManage);
+                canManage,
+                receipt.getForecastId(),
+                receipt.isFromIntake(),
+                receipt.getRejectedLines().stream()
+                        .map(line -> new StockReceiptResponse.RejectedLine(
+                                toFoodRef(foods.get(line.foodId())),
+                                line.lotNo(),
+                                line.expiryDate(),
+                                line.quantity(),
+                                line.note()))
+                        .toList());
     }
 
     public StockLotResponse toResponse(StockLot lot, Food food, String supplierName, BigDecimal remaining) {
