@@ -3028,6 +3028,91 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/profile-change-requests:
+    get:
+      operationId: listProfileChangeRequests
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListChildProfileChangeResponse"
+          description: OK
+      tags:
+      - child-profile-change-request-controller
+  /api/children/profile-change-requests/{requestId}:
+    get:
+      operationId: getProfileChangeRequest
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildProfileChangeResponse"
+          description: OK
+      tags:
+      - child-profile-change-request-controller
+  /api/children/profile-change-requests/{requestId}/approve:
+    post:
+      operationId: approveProfileChange
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildProfileChangeResponse"
+          description: OK
+      tags:
+      - child-profile-change-request-controller
+  /api/children/profile-change-requests/{requestId}/reject:
+    post:
+      operationId: rejectProfileChange
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChildProfileChangeDecisionRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildProfileChangeResponse"
+          description: OK
+      tags:
+      - child-profile-change-request-controller
   /api/children/{childId}:
     get:
       operationId: getChildProfile
@@ -3688,6 +3773,50 @@ paths:
           description: OK
       tags:
       - child-photo-controller
+  /api/children/{childId}/profile-change-requests:
+    post:
+      operationId: submitProfileChange
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChildProfileChangeCreateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildProfileChangeResponse"
+          description: Created
+      tags:
+      - child-profile-change-request-controller
+  /api/children/{childId}/profile-change-requests/latest:
+    get:
+      operationId: getLatestProfileChanges
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListChildProfileChangeResponse"
+          description: OK
+      tags:
+      - child-profile-change-request-controller
   /api/children/{childId}/readmit:
     post:
       operationId: readmit
@@ -6582,6 +6711,8 @@ paths:
           - MEAL_COUNT_CONFIRMED
           - REWARD_LIST_UPDATED
           - SCHOOL_YEAR_ACTIVATED
+          - CHILD_PROFILE_CHANGE_REQUESTED
+          - CHILD_PROFILE_CHANGE_DECIDED
       requestBody:
         content:
           application/json:
@@ -11305,6 +11436,79 @@ components:
           format: int64
         userName:
           type: string
+    ChildProfileChangeCreateRequest:
+      type: object
+      properties:
+        declaration:
+          $ref: "#/components/schemas/HealthDeclarationRequest"
+        kind:
+          type: string
+          enum:
+          - PROFILE
+          - HEALTH_DECLARATION
+        profile:
+          $ref: "#/components/schemas/UpdateChildRequest"
+      required:
+      - kind
+    ChildProfileChangeDecisionRequest:
+      type: object
+      properties:
+        note:
+          type: string
+    ChildProfileChangeResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canDecide:
+          type: boolean
+        childCode:
+          type: string
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        className:
+          type: string
+        decidedAt:
+          type: string
+          format: date-time
+        decidedBy:
+          type: integer
+          format: int64
+        decidedByName:
+          type: string
+        decisionNote:
+          type: string
+        declaration:
+          $ref: "#/components/schemas/HealthDeclarationRequest"
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - PROFILE
+          - HEALTH_DECLARATION
+        profile:
+          $ref: "#/components/schemas/UpdateChildRequest"
+        requestedAt:
+          type: string
+          format: date-time
+        requestedBy:
+          type: integer
+          format: int64
+        requestedByName:
+          type: string
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
     ChildProfileDetailResponse:
       type: object
       properties:
@@ -17480,6 +17684,7 @@ components:
             - ASSESSMENT_CLASS_REVIEW
             - REWARD_REVIEW
             - NUTRITION_MANAGE
+            - MEAL_CONFIG_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
             - KITCHEN_RECORD
@@ -17529,6 +17734,7 @@ components:
             - ASSESSMENT_CLASS_REVIEW
             - REWARD_REVIEW
             - NUTRITION_MANAGE
+            - MEAL_CONFIG_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
             - KITCHEN_RECORD
@@ -17706,6 +17912,8 @@ components:
           - MEAL_COUNT_CONFIRMED
           - REWARD_LIST_UPDATED
           - SCHOOL_YEAR_ACTIVATED
+          - CHILD_PROFILE_CHANGE_REQUESTED
+          - CHILD_PROFILE_CHANGE_DECIDED
         typeLabel:
           type: string
     NotificationRuleRequest:
@@ -17776,6 +17984,8 @@ components:
           - MEAL_COUNT_CONFIRMED
           - REWARD_LIST_UPDATED
           - SCHOOL_YEAR_ACTIVATED
+          - CHILD_PROFILE_CHANGE_REQUESTED
+          - CHILD_PROFILE_CHANGE_DECIDED
         variables:
           type: array
           items:
@@ -17911,6 +18121,7 @@ components:
           - ASSESSMENT_CLASS_REVIEW
           - REWARD_REVIEW
           - NUTRITION_MANAGE
+          - MEAL_CONFIG_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
           - KITCHEN_RECORD
@@ -18220,6 +18431,8 @@ components:
     PermissionChangeLogResponse:
       type: object
       properties:
+        actorName:
+          type: string
         actorUserId:
           type: integer
           format: int64
@@ -18275,6 +18488,8 @@ components:
         targetUserId:
           type: integer
           format: int64
+        targetUserName:
+          type: string
     PermissionOverrideResponse:
       type: object
       properties:
@@ -18309,6 +18524,7 @@ components:
           - ASSESSMENT_CLASS_REVIEW
           - REWARD_REVIEW
           - NUTRITION_MANAGE
+          - MEAL_CONFIG_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
           - KITCHEN_RECORD
@@ -18358,6 +18574,7 @@ components:
           - ASSESSMENT_CLASS_REVIEW
           - REWARD_REVIEW
           - NUTRITION_MANAGE
+          - MEAL_CONFIG_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
           - KITCHEN_RECORD
@@ -19792,6 +20009,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonChildProfileChangeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildProfileChangeResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonChildProfileResponse:
       type: object
       properties:
@@ -20737,6 +20967,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ChildGuardianResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListChildProfileChangeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildProfileChangeResponse"
         desc:
           type: string
         errorCode:
@@ -22659,6 +22904,7 @@ components:
             - ASSESSMENT_CLASS_REVIEW
             - REWARD_REVIEW
             - NUTRITION_MANAGE
+            - MEAL_CONFIG_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
             - KITCHEN_RECORD
@@ -22694,6 +22940,7 @@ components:
             - ASSESSMENT_CLASS_REVIEW
             - REWARD_REVIEW
             - NUTRITION_MANAGE
+            - MEAL_CONFIG_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
             - KITCHEN_RECORD
@@ -23669,6 +23916,8 @@ components:
         campusId:
           type: integer
           format: int64
+        canCancel:
+          type: boolean
         canManage:
           type: boolean
         cancelReason:
@@ -24444,6 +24693,7 @@ components:
             - ASSESSMENT_CLASS_REVIEW
             - REWARD_REVIEW
             - NUTRITION_MANAGE
+            - MEAL_CONFIG_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
             - KITCHEN_RECORD
@@ -24487,6 +24737,7 @@ components:
             - ASSESSMENT_CLASS_REVIEW
             - REWARD_REVIEW
             - NUTRITION_MANAGE
+            - MEAL_CONFIG_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
             - KITCHEN_RECORD
@@ -24520,6 +24771,7 @@ components:
             - ASSESSMENT_CLASS_REVIEW
             - REWARD_REVIEW
             - NUTRITION_MANAGE
+            - MEAL_CONFIG_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
             - KITCHEN_RECORD

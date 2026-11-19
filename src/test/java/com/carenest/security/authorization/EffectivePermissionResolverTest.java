@@ -59,6 +59,18 @@ class EffectivePermissionResolverTest {
     }
 
     @Test
+    @DisplayName("AUTH-10: HT cấp thêm CHILD_PROFILE_EDIT cho GV ⇒ có trong quyền hiệu lực; thu hồi ⇒ mất")
+    void teacherGrantOfChildProfileEditIsEffective() {
+        UserPermissionOverride grant =
+                UserPermissionOverride.create(5L, "CHILD_PROFILE_EDIT", PermissionEffect.GRANT, "hỗ trợ PHT", 1L);
+
+        assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(), List.of(grant)))
+                .contains(Permission.CHILD_PROFILE_EDIT);
+        assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(), List.of()))
+                .doesNotContain(Permission.CHILD_PROFILE_EDIT);
+    }
+
+    @Test
     @DisplayName("AUTH-13: GRANT ngoài configurableRoles và dòng ma trận lệch bị bỏ qua")
     void grantOutsideConfigurableRolesAndStaleRowsAreIgnored() {
         UserPermissionOverride grantPermissionManage =
