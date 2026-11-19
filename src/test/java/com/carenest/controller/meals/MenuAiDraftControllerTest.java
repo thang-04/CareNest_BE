@@ -2,6 +2,7 @@ package com.carenest.controller.meals;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,6 +30,7 @@ import com.carenest.utils.enums.MenuAiDraftKind;
 import com.carenest.utils.enums.MenuAiDraftSource;
 import com.carenest.utils.enums.MenuAiDraftStatus;
 import com.carenest.utils.enums.MenuAiFallbackReason;
+import com.carenest.utils.enums.MenuAiStrategy;
 import com.carenest.utils.enums.MenuBlock;
 import com.carenest.utils.enums.Permission;
 import java.time.Instant;
@@ -78,7 +80,7 @@ class MenuAiDraftControllerTest {
                 .andExpect(jsonPath("$.code").value(403));
         mockMvc.perform(post(DRAFTS + "/5/apply").with(token())).andExpect(status().isForbidden());
         verify(menuAiDraftService, never()).createDraft(any(), any());
-        verify(menuAiDraftService, never()).applyDraft(any(), any(), any());
+        verify(menuAiDraftService, never()).applyDraft(any(), any(), any(), any());
     }
 
     @Test
@@ -142,7 +144,8 @@ class MenuAiDraftControllerTest {
                         eq(5L),
                         eq(new MenuAiDraftGridRequest(List.of(new MenuAiDraftGridRequest.Day(
                                 LocalDate.of(2026, 11, 16),
-                                List.of(new MenuAiDraftGridRequest.Item("LUNCH.2", 31L)))))));
+                                List.of(new MenuAiDraftGridRequest.Item("LUNCH.2", 31L)))))),
+                        isNull());
     }
 
     @Test
@@ -167,7 +170,7 @@ class MenuAiDraftControllerTest {
     @DisplayName("Dùng nháp đã bỏ ⇒ 409 mã 6092; nháp không tồn tại ⇒ 404")
     void stateErrorsMapToConflictAndNotFound() throws Exception {
         CurrentUser user = authenticate(Set.of(Permission.MENU_MANAGE));
-        given(menuAiDraftService.applyDraft(eq(user), eq(5L), any()))
+        given(menuAiDraftService.applyDraft(eq(user), eq(5L), any(), any()))
                 .willThrow(GlobalException.of(ApiCode.MENU_AI_DRAFT_NOT_PENDING));
         given(menuAiDraftService.getDraft(user, 9L)).willThrow(GlobalException.of(ApiCode.MENU_AI_DRAFT_NOT_FOUND));
 
@@ -210,6 +213,10 @@ class MenuAiDraftControllerTest {
                 List.of(),
                 List.of(new MenuAiDraftResponse.Check(
                         "NORM_BALANCE", "PASS", "Cân đối", "5/5 ngày đạt", List.of("NUT-24"))),
-                0);
+                0,
+                LocalDate.of(2026, 10, 19),
+                LocalDate.of(2026, 11, 15),
+                MenuAiStrategy.FREE,
+                List.of());
     }
 }

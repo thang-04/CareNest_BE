@@ -110,4 +110,40 @@ class MenuCandidateBuilderTest {
 
         assertThat(candidates.get(LUNCH_MAIN.key())).containsExactly(DAU, CA, THIT);
     }
+
+    @Test
+    @DisplayName("AC-17: món giống mong muốn hơn xếp trước; món không có điểm xếp sau mọi món có điểm; rỗng ⇒ như cũ")
+    void similarityReordersCandidates() {
+        Map<String, List<Long>> withoutVector = MenuCandidateBuilder.build(
+                DISHES.values(), List.of(GROUP), SLOTS, Set.of(), MenuContext.Signals.NONE, 15);
+        Map<String, List<Long>> withVector = MenuCandidateBuilder.build(
+                DISHES.values(),
+                List.of(GROUP),
+                SLOTS,
+                Set.of(),
+                MenuContext.Signals.NONE,
+                Map.of(DAU, 0.9, CA, 0.4),
+                15);
+        Map<String, List<Long>> emptyVector = MenuCandidateBuilder.build(
+                DISHES.values(), List.of(GROUP), SLOTS, Set.of(), MenuContext.Signals.NONE, Map.of(), 15);
+
+        assertThat(withoutVector.get(LUNCH_MAIN.key())).containsExactly(THIT, CA, DAU);
+        assertThat(withVector.get(LUNCH_MAIN.key())).containsExactly(DAU, CA, THIT);
+        assertThat(emptyVector).isEqualTo(withoutVector);
+    }
+
+    @Test
+    @DisplayName(
+            "AC-17: vector chỉ là khóa xếp sau tín hiệu cứng — món vừa dùng, hết kho vẫn xếp sau; không thêm món vào ô")
+    void similarityNeverOverridesHardSignalsOrFilters() {
+        MenuContext.Signals outOfStock = new MenuContext.Signals(Set.of(), null, Set.of(), Set.of(CA));
+        Map<Long, Double> similarity = Map.of(THIT, 0.99, CA, 0.98, DAU, 0.1, COM, 0.99);
+
+        Map<String, List<Long>> candidates = MenuCandidateBuilder.build(
+                DISHES.values(), List.of(GROUP), SLOTS, Set.of(THIT), outOfStock, similarity, 15);
+
+        // DAU (ít giống nhất) vẫn đứng trước THIT (vừa dùng) và CA (hết kho); cơm có điểm cao nhưng không vào ô mặn
+        assertThat(candidates.get(LUNCH_MAIN.key())).containsExactly(DAU, CA, THIT);
+        assertThat(candidates.get(LUNCH_MAIN.key())).doesNotContain(COM);
+    }
 }

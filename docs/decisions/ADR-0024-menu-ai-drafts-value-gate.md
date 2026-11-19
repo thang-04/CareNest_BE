@@ -14,6 +14,8 @@ AI-07 (4) yêu cầu gợi ý thực đơn tuần (tùy chọn: mẫu ngày, tha
 4. Gọi đồng bộ trong deadline task (mặc định tuần 30s); đọc ngữ cảnh và lưu nháp ở transaction ngắn, không giữ kết nối DB khi chờ model.
 5. Dùng nháp ghi qua `MealPlanService.saveMealPlan` (giữ khóa, kiểm tra hiện có); không công bố (NUT-08, AI-02). Mẫu ngày không ghi bảng mẫu (bộ mẫu không có trạng thái nháp) — chỉ đánh dấu đã dùng.
 
+6. Truy xuất lai (bổ sung 19/11/2026, user chốt 13/11/2026): SQL lọc cứng như trên rồi pgvector chỉ xếp lại thứ tự ứng viên trong ô theo "mong muốn" của PHT (gợi ý tuần/mẫu ngày) hoặc theo món cần thay (thay một món không kèm mong muốn). Vector là khóa xếp sau món vừa dùng và món hết kho, trước hợp mùa/quen; không đưa thêm món vào ô; lịch sử thực đơn không embed. Embedding tắt/lỗi/hết ngân sách (`carenest.embedding.budget`, mặc định 8s, nằm trong deadline gợi ý) ⇒ thứ tự như không có vector, nháp vẫn trả (AI-03). Vector món lưu ở `dish_embeddings` (V146), embed lười theo lô, lệch model/hash ⇒ embed lại. Đọc lại ngữ cảnh khi sửa/dùng nháp không gọi mạng: dùng vector đã lưu và câu mong muốn trong cache bộ nhớ, miss ⇒ thứ tự như không có vector (món gợi ý gốc của ô vẫn hợp lệ).
+
 ## Phương án đã cân nhắc
 | Phương án | Ưu | Nhược |
 | --- | --- | --- |
@@ -27,6 +29,7 @@ AI-07 (4) yêu cầu gợi ý thực đơn tuần (tùy chọn: mẫu ngày, tha
 - Proxy/gateway VPS phải để read timeout ≥ 60s cho `POST /nutrition/menu-ai-drafts`.
 - Đổi prompt ⇒ thêm file version mới (`prompts/menu/*_vN.txt`), không sửa file cũ đã dùng.
 - Đổi trọng số điểm chỉ khi có kết quả eval (`MenuAiLiveEvalTest`).
+- Postgres phải có extension `vector`: image `pgvector/pgvector:pg17` cho compose, VPS dev và Testcontainers; đổi image trên volume cũ cần `REINDEX` (`docs/system/DEPLOYMENT.md`). Chất lượng xếp lại của vector chưa đo bằng model embedding thật (eval truy xuất 10 câu mong muốn cần key).
 
 ## Còn chờ
 - Kết quả eval với provider thật (AC-10): mốc bật demo 0 lần lọt lỗi chặn và AI thắng phương án quy tắc ≥ 60% case hợp lệ.

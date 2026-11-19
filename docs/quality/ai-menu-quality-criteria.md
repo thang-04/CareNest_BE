@@ -1,6 +1,39 @@
 # Tiêu chí chất lượng gợi ý thực đơn AI — căn cứ và cách đảm bảo
 
-Phạm vi: gợi ý kế hoạch thực đơn tuần theo khối (AI-07 (4)), Feature014. Code: `service/meals/impl/Menu*`, `integration/ai/`. Plan: `docs/plans/active/2026-11-10-boarding-menu-ai.md`. Cập nhật 10/11/2026.
+Phạm vi: gợi ý kế hoạch thực đơn tuần theo khối (AI-07 (4)), Feature014. Code: `service/meals/impl/Menu*`, `integration/ai/`. Plan: `docs/plans/active/2026-11-10-boarding-menu-ai.md`. Cập nhật 16/11/2026 (thêm kiến trúc, bằng chứng theo góp ý giảng viên họp 13/11/2026).
+
+## 0. Kiến trúc
+
+```text
+Dữ liệu nạp (PostgreSQL, do trường nhập — AI không tạo, NUT-05)
+  danh mục món + định lượng gam/trẻ theo nhóm tuổi · thực phẩm + giá trị /100 g có nguồn (Viện Dinh dưỡng)
+  định mức nhóm tuổi (PHT nhập) · kế hoạch tuần 4 tuần liền trước (truy vấn theo ngày) · bộ mẫu theo mùa
+  · tồn kho khô theo lô · thực phẩm thiếu / món bắt buộc PHT nhập khi gợi ý
+        │
+        ▼
+[1] SQL + code lọc cứng: đúng loại món của ô, đang dùng, đủ định lượng, bỏ món chứa thực phẩm thiếu,
+    xếp ưu tiên (chưa dùng gần đây, kho còn, GIỐNG MONG MUỐN, hợp mùa, quen)  ── MenuAiContextLoader, MenuCandidateBuilder
+        ▲ chỉ xếp lại thứ tự, không thêm món vào ô
+    [1b] pgvector (dish_embeddings): điểm cosine món ↔ "mong muốn" của PHT / món cần thay ── DishSimilarity
+        │ ứng viên mỗi ô (bí danh D1..Dn, không id thật, không dữ liệu trẻ — AI-04)
+        ├──────────────────────────────┐
+        ▼                              ▼
+[2a] Phương án theo quy tắc       [2b] LLM (Gemini → Groq, qua AiGateway) chỉ CHỌN bí danh cho từng ô
+     (RuleBasedMenuPlanner)            output lạ/sai ô/JSON hỏng ⇒ loại (MenuAiOutputParser)
+        │                              │
+        ▼                              ▼
+[3] Code tính dinh dưỡng: Σ gam × giá trị/100 g → kcal, đạm–béo ĐV/TV, bột đường, vi chất, giá
+    so định mức (MealPlanEvaluator — cùng bộ kiểm chặn công bố) → sửa tất định (MenuPlanRepairer)
+    → chấm điểm cả hai (MenuScore) → chọn AI chỉ khi qua cổng cứng và điểm ≥ quy tắc
+        │
+        ▼
+[4] Nháp menu_ai_drafts (source, model, prompt version, điểm, bảng kiểm) → PHT sửa/dùng/bỏ → công bố như cũ
+```
+
+- **LLM không tính số.** Mọi kcal, % cơ cấu, giá trên màn hình do bước [3] tính bằng công thức; lý do model viết bị xóa chữ số.
+- **Lịch sử thực đơn** lấy bằng truy vấn SQL theo `weekStart` (không phải tìm gần nghĩa), nên "4 tuần trước ăn gì" là chính xác.
+- **Vector DB (pgvector, đã có từ 19/11/2026):** bảng `dish_embeddings` (V146) trong chính PostgreSQL. Văn bản embed của món = tên, loại món, thực phẩm chính, nhãn mùa của bộ mẫu chứa món; embed lười theo lô lúc gợi ý cho món thiếu vector hoặc lệch model/hash, trong ngân sách `carenest.embedding.budget` (8s). Vector chỉ xếp lại thứ tự món ứng viên theo "mong muốn" của PHT (hoặc món cần thay), luôn SAU lọc cứng và sau món vừa dùng/hết kho; không thêm món vào ô. Lịch sử thực đơn không đưa vào vector (SQL theo ngày). Embedding tắt/lỗi/hết giờ ⇒ thứ tự như cũ, nháp vẫn trả.
+- **Đây không phải RAG sinh văn bản trên tài liệu:** không cắt chunk, không đưa đoạn tài liệu vào prompt; LLM vẫn chỉ chọn bí danh trong ứng viên đã lọc.
 
 ## 1. Luận điểm chính
 
@@ -30,7 +63,7 @@ Mức ép: **Chặn** = không đạt thì không thể là phương án đượ
 | Vi chất (canxi, sắt, vitamin A, B1, B2, PP, C, photpho) | NUT-26 (Bảng thành phần thực phẩm VN, Viện Dinh dưỡng) | Điểm + Hiển thị | `MICRONUTRIENT_OFF` |
 | Chi phí/trẻ trong giá suất | NUT-19 | Điểm + Hiển thị | `OVER_BUDGET` |
 | Món chính không lặp trong tuần | NUT-20 | Điểm + Hiển thị | `DISH_REPEATED` |
-| Không lặp thực đơn 2 tuần trước (lịch sử) | NUT-20; dữ liệu kế hoạch tuần đã lưu | Điểm + Ưu tiên | `HISTORY` |
+| Không lặp thực đơn các tuần liền trước (lịch sử; mặc định 4 tuần, cấu hình `carenest.menu-ai.recent-weeks`; truy vấn theo ngày bắt đầu tuần, nháp trả `historyFrom`–`historyTo`) | NUT-20; dữ liệu kế hoạch tuần đã lưu | Điểm + Ưu tiên | `HISTORY` |
 | Món trường đã nấu (đã có trong tuần công bố 12 tuần gần đây) | NUT-13; dữ liệu tuần đã công bố | Ưu tiên + Hiển thị | `FAMILIAR` |
 | Hợp mùa: món có trong bộ thực đơn mẫu trùng nhãn mùa PHT chọn | NUT-13 (bộ mẫu 4 tuần có nhãn mùa do trường lập) | Ưu tiên + Hiển thị | `SEASON` |
 | Thực phẩm kho khô còn hàng còn hạn ở ít nhất một điểm trường | NUT-11 (tồn theo lô, hạn dùng) | Điểm + Ưu tiên + Hiển thị | `DRY_STOCK_OUT` |
@@ -54,7 +87,25 @@ Mỗi nháp trả `checks` (bảng kiểm trên) cho đúng phương án đượ
 - **Hàng tươi**: đặt nhà cung cấp hằng ngày ngoài hệ thống (NUT-12), không có dữ liệu "còn hàng"; chỉ kho khô được xét. Thực phẩm ngừng dùng bị loại hẳn.
 - **Kho khô theo điểm trường**: món bị đánh dấu hết hàng khi mọi điểm trường người lập xem được đều hết lô còn hạn tại thứ Hai của tuần; không chặn vì PHT có thể nhập thêm trước ngày ăn (NUT-11), sau khi dùng nháp màn kế hoạch tuần vẫn cảnh báo thiếu kho như cũ.
 - **Khẩu vị trẻ**: hệ thống không có dữ liệu trẻ ăn hết hay bỏ thừa; "món trường đã nấu" là tín hiệu gần nhất.
-- **Chất lượng AI so với quy tắc chưa đo bằng model thật**: test hiện dùng gateway giả. Phase 3 chạy eval tay 8 tình huống × 3 lần; mốc bật cho demo: 0 lần lọt lỗi chặn và AI thắng phương án quy tắc ≥ 60% case hợp lệ (AC-10). Không đạt thì ghi đúng kết quả.
+- **Chất lượng xếp lại của vector chưa đo bằng model embedding thật**: test tự động dùng embedding giả theo từ khóa (kiểm đúng cơ chế: thứ tự, lưu lười, tắt/lỗi ⇒ như cũ). Eval truy xuất 10 câu mong muốn chấm tay top-5 món cần key embedding (AC-17/AC-18); chưa chạy.
+- **Chất lượng AI so với quy tắc chưa đo bằng model thật**: test tự động dùng gateway giả; eval tay (mục 4a) đã chạy không có key (chỉ phương án quy tắc). Mốc bật cho demo: 0 lần lọt lỗi chặn và AI thắng phương án quy tắc ≥ 60% case hợp lệ (AC-10). Không đạt thì ghi đúng kết quả.
+- **Dữ liệu demo chưa phải số thật của trường**: Nhà trẻ hiện tối đa 534 kcal/ngày < định mức 600 (`CASE-261111-menu-ai-kcal-out-of-reach`); cần định lượng và định mức thật trước khi lấy số eval làm bằng chứng.
+
+## 4a. Bằng chứng và cách kiểm lại
+
+Chạy tay (không chạy trong CI), cần key thật để đo AI:
+
+```bash
+AI_LIVE_EVAL=true AI_LIVE_EVAL_RUNS=3 ./mvnw test -Dtest=MenuAiLiveEvalTest
+```
+
+- 10 tình huống trong `src/test/resources/ai-eval/menu-cases.json`: đủ món, thiếu số liệu, dị ứng, ngân sách chặt, ít món, câu chèn lệnh, danh mục lớn, provider lỗi, **thiếu thực phẩm** (NCC hết hàng), **lịch sử 4 tuần**.
+- Kết quả ở `target/ai-eval/menu-eval-<thời điểm>/`:
+  - `lines.csv`: mỗi dòng một thực phẩm của một món trong một ô một ngày — gam/trẻ, giá trị /100 g, phần đóng góp (kcal, đạm/béo ĐV–TV, bột đường). Tester cộng theo ngày bằng bảng tính.
+  - `days.csv`: tổng ngày hệ thống tính (`kcal_system`), tổng cộng lại từ `lines.csv` (`kcal_recomputed`), khớp hay không, khoảng định mức, trong khoảng hay không, P:L:G, chi phí.
+  - `records.json`: mỗi lần chạy — nguồn (AI/quy tắc), lý do dự phòng, điểm hai phương án, model, độ trễ, số món lặp trong tuần (tổng và món mặn), số ô lặp so lịch sử, số ngày ngoài khoảng kcal, có ô nào dùng thực phẩm thiếu không.
+- Test tự fail nếu: phương án nhãn AI còn lỗi chặn; lưới có món chứa thực phẩm thiếu; tổng kcal hệ thống lệch tổng cộng tay > 0,1 kcal.
+- Chép thư mục kết quả vào `docs/quality/ai-eval/<ngày>/`. Lần chạy không key 16/11/2026: `docs/quality/ai-eval/2026-11-16-offline/`.
 
 ## 5. Câu hỏi hội đồng hay gặp
 
@@ -62,6 +113,9 @@ Mỗi nháp trả `checks` (bảng kiểm trên) cho đúng phương án đượ
 - **"Nếu AI tệ thì người dùng có bị ảnh hưởng?"** Không: phương án theo quy tắc luôn được tính trước; AI chỉ được chọn khi đạt mọi kiểm tra chặn và điểm không thấp hơn (`MenuSuggestionEngineTest`). AI tắt, hết hạn mức, quá thời gian ⇒ vẫn có phương án hoặc thông báo không có phương án kèm nguyên nhân (AI-03). Danh mục chưa ghép được thực đơn đạt định mức ⇒ vẫn hiện phương án theo quy tắc gắn nhãn chưa đạt kèm lỗi từng ngày; không bao giờ gắn nhãn AI và không công bố được cho tới khi PHT sửa đạt (NUT-09, `unmetPlanStillOffersDishesButCannotBePublished`).
 - **"Vì sao tin điểm số?"** Công thức tất định, có unit test (`MenuScoreTest`), áp cho cả AI và phương án quy tắc: sát định mức 45, giá 20, đa dạng 25, cảnh báo 10. Trọng số trong cấu hình, chỉ chỉnh khi có kết quả eval.
 - **"AI có thấy dữ liệu trẻ không?"** Không. Task thực đơn khai `PUBLIC_CATALOG`; prompt chỉ có món, định mức nhóm tuổi, giá suất (`AiPropertiesTest`, `MenuSuggestionEngineTest` kiểm prompt không chứa id thật).
+- **"AI tính calo có đúng không?"** AI không tính calo. Code cộng gam × giá trị/100 g; `days.csv` để tester đối chiếu, test so tổng hệ thống với tổng cộng độc lập từng dòng (mục 4a).
+- **"Sao nó biết tuần trước ăn gì? Dùng vector DB gì?"** Truy vấn SQL kế hoạch tuần theo ngày (4 tuần, cấu hình được), không dùng tìm kiếm gần nghĩa cho lịch sử. Vector (pgvector) chỉ dự kiến cho xếp ưu tiên món theo mong muốn, chưa có (mục 0).
+- **"Thiếu thực phẩm do thiên tai thì sao?"** PHT nhập thực phẩm thiếu; món chứa thực phẩm đó bị loại trước khi AI thấy; chế độ chỉnh từ thực đơn mẫu chỉ đổi đúng ô bị ảnh hưởng (`TEMPLATE_ADJUST`, `changedCells`). Tuần đã công bố: Phase 6 (sửa bất khả kháng, P-39), chưa làm.
 - **"Đo giá trị khi dùng thật thế nào?"** Bảng `menu_ai_drafts` lưu nguồn, điểm AI và quy tắc, lý do dự phòng, trạng thái dùng/bỏ: tính tỉ lệ `source=AI`, tỉ lệ PHT dùng, điểm chênh trung bình.
 
 ## 6. Việc mở

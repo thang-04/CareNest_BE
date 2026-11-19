@@ -6196,7 +6196,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/MenuAiDraftGridRequest"
+              $ref: "#/components/schemas/MenuAiDraftApplyRequest"
       responses:
         "200":
           content:
@@ -9214,6 +9214,24 @@ components:
           - TEAM_LEADER
       required:
       - role
+    ChangedCell:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        fromDishId:
+          type: integer
+          format: int64
+        fromDishName:
+          type: string
+        slot:
+          type: string
+        toDishId:
+          type: integer
+          format: int64
+        toDishName:
+          type: string
     Check:
       type: object
       properties:
@@ -15295,6 +15313,17 @@ components:
           $ref: "#/components/schemas/DeclarationAnswerInput"
         tbContact:
           $ref: "#/components/schemas/TbContactInput"
+    MenuAiDraftApplyRequest:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/Day"
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
     MenuAiDraftCandidatesResponse:
       type: object
       properties:
@@ -15350,10 +15379,22 @@ components:
           - MENU_WEEKLY
           - MENU_DAILY
           - MENU_DAY_FIX
+        requiredDishIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 20
+          minItems: 0
         season:
           type: string
           maxLength: 50
           minLength: 0
+        strategy:
+          type: string
+          enum:
+          - FREE
+          - TEMPLATE_ADJUST
         targetDate:
           type: string
           format: date
@@ -15363,6 +15404,13 @@ components:
           - MORNING
           - LUNCH
           - AFTERNOON
+        unavailableFoodIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 50
+          minItems: 0
         weekStart:
           type: string
           format: date
@@ -15381,6 +15429,10 @@ components:
           enum:
           - NURSERY
           - KINDERGARTEN
+        changedCells:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChangedCell"
         checks:
           type: array
           items:
@@ -15408,6 +15460,12 @@ components:
         fromDishId:
           type: integer
           format: int64
+        historyFrom:
+          type: string
+          format: date
+        historyTo:
+          type: string
+          format: date
         id:
           type: integer
           format: int64
@@ -15443,6 +15501,11 @@ components:
           - APPLIED
           - DISMISSED
           - NO_FEASIBLE
+        strategy:
+          type: string
+          enum:
+          - FREE
+          - TEMPLATE_ADJUST
         targetDate:
           type: string
           format: date

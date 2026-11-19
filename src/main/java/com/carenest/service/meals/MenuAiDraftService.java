@@ -21,9 +21,10 @@ public interface MenuAiDraftService {
      * Tuần: ghi lưới của khối vào tuần chưa công bố, giữ khối khác. Thay một món: chỉ đổi đúng ô. Gọi lại khi đã dùng
      * trả tuần hiện tại. Mẫu ngày không dùng thao tác này. {@code edited} khác null (chỉ gợi ý tuần) ⇒ ghi lưới người
      * duyệt đã sửa thay cho lưới gợi ý và lưu số ô đã sửa; lưới còn lỗi chặn vẫn ghi vào tuần nháp, công bố vẫn bị
-     * chặn (NUT-09).
+     * chặn (NUT-09). Thay một món trên tuần đã công bố (P-39): cần {@code reason}, đi qua luồng sửa bất khả kháng (quyền,
+     * ngày còn sửa được, kiểm cân đối, lưu vết, thông báo).
      */
-    MealPlanResponse applyDraft(CurrentUser currentUser, Long id, MenuAiDraftGridRequest edited);
+    MealPlanResponse applyDraft(CurrentUser currentUser, Long id, MenuAiDraftGridRequest edited, String reason);
 
     /** Món ứng viên theo ô của nháp gợi ý tuần đang chờ duyệt, để người duyệt đổi món. */
     MenuAiDraftCandidatesResponse getCandidates(CurrentUser currentUser, Long id);

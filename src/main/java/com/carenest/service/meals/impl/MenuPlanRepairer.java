@@ -44,6 +44,10 @@ final class MenuPlanRepairer {
             double bestPenalty = penalty;
             for (MenuSlot slot : ctx.slots()) {
                 Long now = current.dish(date, slot.key());
+                // Ô đang giữ món bắt buộc của người lập thì không đổi
+                if (now != null && ctx.requiredDishIds().contains(now)) {
+                    continue;
+                }
                 for (Long candidate : ctx.candidatesOf(slot)) {
                     if (candidate.equals(now) || current.usedInSession(date, slot, candidate, ctx.slots())) {
                         continue;

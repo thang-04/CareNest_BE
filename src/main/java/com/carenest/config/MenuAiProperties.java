@@ -8,23 +8,29 @@ import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Tham số gợi ý thực đơn (AI-07): số món ứng viên tối đa mỗi ô, trọng số điểm phương án, khung ô món mặc định của bữa
- * khi khối chưa có thực đơn mẫu đang dùng. Trọng số chỉ chỉnh khi có kết quả eval.
+ * Tham số gợi ý thực đơn (AI-07): số món ứng viên tối đa mỗi ô, số tuần liền trước dùng để tránh lặp món (NUT-20),
+ * trọng số điểm phương án, khung ô món mặc định của bữa khi khối chưa có thực đơn mẫu đang dùng. Trọng số chỉ chỉnh
+ * khi có kết quả eval.
  */
 @ConfigurationProperties("carenest.menu-ai")
 public record MenuAiProperties(
-        Integer candidateLimit, Weights weights, Map<MealSession, List<List<DishType>>> defaultSlots) {
+        Integer candidateLimit,
+        Integer recentWeeks,
+        Weights weights,
+        Map<MealSession, List<List<DishType>>> defaultSlots) {
 
     private static final int DEFAULT_CANDIDATE_LIMIT = 15;
+    private static final int DEFAULT_RECENT_WEEKS = 4;
 
     public MenuAiProperties {
         candidateLimit = candidateLimit == null || candidateLimit < 1 ? DEFAULT_CANDIDATE_LIMIT : candidateLimit;
+        recentWeeks = recentWeeks == null || recentWeeks < 1 ? DEFAULT_RECENT_WEEKS : recentWeeks;
         weights = weights == null ? Weights.DEFAULT : weights;
         defaultSlots = defaultSlots == null || defaultSlots.isEmpty() ? standardSlots() : Map.copyOf(defaultSlots);
     }
 
     public static MenuAiProperties defaults() {
-        return new MenuAiProperties(null, null, null);
+        return new MenuAiProperties(null, null, null, null);
     }
 
     /** Trọng số (tổng 100): sát định mức, giá, đa dạng, cảnh báo. */

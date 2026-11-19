@@ -25,6 +25,8 @@ VPS mất chain iptables của Docker ⇒ không có network bridge (`FE:docs/kn
 
 Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'` chỉ thấy `127.0.0.1`.
 
+**Image Postgres có pgvector (V146, ADR-0024):** `compose.yaml`/`compose.vps.yaml` dùng `pgvector/pgvector:pg17` (nền Debian/glibc) thay `postgres:17-alpine` (musl). Volume đã khởi tạo bằng image alpine mà đổi image thì thứ tự so sánh chuỗi (collation) có thể khác ⇒ index chữ có nguy cơ sai. Trước khi deploy lên VPS có dữ liệu: backup, chạy thử trên bản sao, rồi `REINDEX DATABASE` cho `carenest` (hoặc dump/restore vào volume mới). Chưa kiểm trên VPS thật. Máy dev dùng volume mới thì không bị ảnh hưởng; không đổi image mà vẫn giữ migration V146 thì ứng dụng không khởi động (thiếu extension `vector`).
+
 ## File trong repo
 
 | File | Vai trò |

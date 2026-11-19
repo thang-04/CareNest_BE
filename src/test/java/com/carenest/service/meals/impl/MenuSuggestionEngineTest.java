@@ -349,6 +349,69 @@ class MenuSuggestionEngineTest {
         assertThat(outcome.issues()).noneMatch(MenuSuggestionEngineTest::blocking);
     }
 
+    @Test
+    @DisplayName("AC-16: model bỏ sót món bắt buộc ⇒ code vẫn đặt món đó vào tuần và bước sửa không gỡ ra")
+    void requiredDishIsPlacedEvenWhenModelOmitsIt() {
+        MenuContext ctx = MenuFixtures.ctx().constrained(Set.of(DAU), false);
+        gateway.respond(r -> week(
+                ctx, new long[] {THIT, CA, THIT, CA, THIT}, new long[] {SUA, SUA, SUA, SUA, SUA}, "Xen kẽ thịt cá."));
+
+        MenuSuggestionEngine.Outcome outcome = engine.suggestWeek(ctx);
+
+        assertThat(outcome.grid().cells().values())
+                .anySatisfy(day -> assertThat(day).containsValue(DAU));
+        assertThat(gateway.requests.getFirst().userPrompt()).contains("Món bắt buộc có ít nhất một lần trong tuần");
+    }
+
+    @Test
+    @DisplayName("AC-14: chỉnh từ mẫu, mọi ô có món mẫu dùng được ⇒ giữ nguyên mẫu, không gọi model")
+    void templateAdjustWithFullTemplateSkipsModel() {
+        Map<Integer, Map<String, Long>> template = new java.util.HashMap<>();
+        for (int day = 0; day < 5; day++) {
+            template.put(
+                    day,
+                    Map.of(
+                            MenuFixtures.LUNCH_CARB.key(), COM,
+                            MenuFixtures.LUNCH_MAIN.key(), THIT,
+                            MenuFixtures.AFTERNOON.key(), SUA));
+        }
+        MenuContext ctx = MenuFixtures.ctx(
+                        MenuFixtures.DISHES, MenuFixtures.norm("300", "600"), Set.of(), Set.of(), template)
+                .constrained(Set.of(), true);
+
+        MenuSuggestionEngine.Outcome outcome = engine.suggestWeek(ctx);
+
+        assertThat(gateway.requests).isEmpty();
+        assertThat(outcome.source()).isEqualTo(MenuAiDraftSource.RULE_BASED);
+        assertThat(outcome.grid()).isEqualTo(MenuFixtures.sameEveryDay(ctx, COM, THIT, SUA));
+        assertThat(MenuPlanConstraints.changedCells(outcome.grid(), ctx)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("AC-14: chỉnh từ mẫu, mẫu thiếu bữa chiều ⇒ model chỉ quyết ô trống, ô có món mẫu giữ nguyên")
+    void templateAdjustLetsModelFillOnlyOpenCells() {
+        Map<Integer, Map<String, Long>> template = new java.util.HashMap<>();
+        for (int day = 0; day < 5; day++) {
+            template.put(day, Map.of(MenuFixtures.LUNCH_CARB.key(), COM, MenuFixtures.LUNCH_MAIN.key(), THIT));
+        }
+        MenuContext ctx = MenuFixtures.ctx(
+                        MenuFixtures.DISHES, MenuFixtures.norm("300", "600"), Set.of(), Set.of(), template)
+                .constrained(Set.of(), true);
+        gateway.respond(r ->
+                week(ctx, new long[] {CA, CA, DAU, DAU, CA}, new long[] {SUA, SUA, SUA, SUA, SUA}, "Đổi món mặn."));
+
+        MenuSuggestionEngine.Outcome outcome = engine.suggestWeek(ctx);
+
+        assertThat(gateway.requests).isNotEmpty();
+        assertThat(gateway.requests.getFirst().userPrompt()).contains("Giữ nguyên theo thực đơn mẫu");
+        for (LocalDate date : ctx.servedDates()) {
+            assertThat(outcome.grid().dish(date, MenuFixtures.LUNCH_MAIN.key())).isEqualTo(THIT);
+        }
+        assertThat(MenuPlanConstraints.changedCells(outcome.grid(), ctx))
+                .hasSize(5)
+                .allSatisfy(c -> assertThat(c.slot()).isEqualTo(MenuFixtures.AFTERNOON.key()));
+    }
+
     private static MenuContext withCandidates(MenuContext ctx, Map<String, List<Long>> candidates) {
         return new MenuContext(
                 ctx.block(),

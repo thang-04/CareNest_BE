@@ -29,9 +29,45 @@ record MenuContext(
         Signals signals,
         Map<Integer, Map<String, Long>> template,
         String season,
-        String wishes) {
+        String wishes,
+        Set<Long> requiredDishIds,
+        boolean keepTemplate) {
+
+    /** Ngữ cảnh không có ràng buộc của người lập: không món bắt buộc, không giữ ô theo mẫu. */
+    MenuContext(
+            MenuBlock block,
+            List<LocalDate> dates,
+            Set<LocalDate> offDays,
+            List<AgeGroupInfo> groups,
+            Map<Long, DishInfo> dishes,
+            BiFunction<Long, LocalDate, Norm> normOf,
+            List<MenuSlot> slots,
+            Map<String, List<Long>> candidates,
+            Set<Long> recentDishIds,
+            Signals signals,
+            Map<Integer, Map<String, Long>> template,
+            String season,
+            String wishes) {
+        this(
+                block,
+                dates,
+                offDays,
+                groups,
+                dishes,
+                normOf,
+                slots,
+                candidates,
+                recentDishIds,
+                signals,
+                template,
+                season,
+                wishes,
+                Set.of(),
+                false);
+    }
 
     MenuContext {
+        requiredDishIds = Set.copyOf(requiredDishIds);
         dates = List.copyOf(dates);
         offDays = Set.copyOf(offDays);
         groups = List.copyOf(groups);
@@ -76,7 +112,37 @@ record MenuContext(
                 signals,
                 template,
                 season,
-                wishes);
+                wishes,
+                requiredDishIds,
+                keepTemplate);
+    }
+
+    /**
+     * Cùng ngữ cảnh kèm ràng buộc của người lập: {@code required} = món phải có ít nhất một lần trong tuần; {@code
+     * keepTemplate} = chỉnh từ thực đơn mẫu, ô có món mẫu dùng được thì giữ.
+     */
+    MenuContext constrained(Set<Long> required, boolean keepTemplate) {
+        return new MenuContext(
+                block,
+                dates,
+                offDays,
+                groups,
+                dishes,
+                normOf,
+                slots,
+                candidates,
+                recentDishIds,
+                signals,
+                template,
+                season,
+                wishes,
+                required,
+                keepTemplate);
+    }
+
+    /** Món của thực đơn mẫu tại ô {@code slot} của ngày {@code date}; null khi mẫu không có món ở đó. */
+    Long templateDish(LocalDate date, MenuSlot slot) {
+        return template.getOrDefault(dates.indexOf(date), Map.of()).get(slot.key());
     }
 
     /** Ngày phục vụ (không nghỉ) theo thứ tự trong tuần. */

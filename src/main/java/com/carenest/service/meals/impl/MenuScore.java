@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 /**
  * Điểm phương án 0–100, tất định (bước 6): sát định mức (kcal, P:L:G, gam ĐV-TV, % kcal bữa), giá so giá suất, đa dạng
- * món (trừ món trùng 2 tuần trước), số cảnh báo. Chỉ dùng để so AI với phương án theo quy tắc; cổng cứng là evaluator.
+ * món (trừ món trùng các tuần liền trước), số cảnh báo. Chỉ dùng để so AI với phương án theo quy tắc; cổng cứng là evaluator.
  */
 final class MenuScore {
 
@@ -121,7 +121,7 @@ final class MenuScore {
         return ratio <= 1 ? 1 : Math.max(0, 1 - (ratio - 1) * OVER_BUDGET_SLOPE);
     }
 
-    // Số món khác nhau / số ô, trừ phần ô dùng món đã có 2 tuần trước
+    // Số món khác nhau / số ô, trừ phần ô dùng món đã có các tuần liền trước
     private static double variety(MenuGrid grid, MenuContext ctx) {
         int cells = 0;
         int recent = 0;

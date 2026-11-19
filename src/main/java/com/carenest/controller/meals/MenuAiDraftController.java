@@ -1,6 +1,7 @@
 package com.carenest.controller.meals;
 
 import com.carenest.dto.meals.MealPlanResponse;
+import com.carenest.dto.meals.MenuAiDraftApplyRequest;
 import com.carenest.dto.meals.MenuAiDraftCandidatesResponse;
 import com.carenest.dto.meals.MenuAiDraftEvaluationResponse;
 import com.carenest.dto.meals.MenuAiDraftGridRequest;
@@ -85,11 +86,14 @@ public class MenuAiDraftController {
     @PreAuthorize("@permissionGuard.has('MENU_MANAGE')")
     public ResponseEntity<ResponseJson<MealPlanResponse>> applyDraft(
             @PathVariable Long id,
-            @Valid @RequestBody(required = false) MenuAiDraftGridRequest edited,
+            @Valid @RequestBody(required = false) MenuAiDraftApplyRequest request,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|applyDraft|userId=" + currentUser.userId() + "|draftId=" + id;
         log.info("{}|START", logPrefix);
-        MealPlanResponse plan = menuAiDraftService.applyDraft(currentUser, id, edited);
+        MenuAiDraftGridRequest edited =
+                request == null || request.days() == null ? null : new MenuAiDraftGridRequest(request.days());
+        String reason = request == null ? null : request.reason();
+        MealPlanResponse plan = menuAiDraftService.applyDraft(currentUser, id, edited, reason);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Apply menu AI draft success", plan);
     }

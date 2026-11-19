@@ -122,10 +122,23 @@ carenest:
         data-class: CHILD_DERIVED
         deadline: 20s
         max-repair-rounds: 0
+  # Embedding (AI-06): xếp lại món ứng viên theo ngữ nghĩa, chỉ sau lọc cứng. Thiếu base URL/model/key hoặc AI tắt thì
+  # bỏ qua, gợi ý chạy như cũ. Chỉ gửi văn bản danh mục công khai và câu mong muốn của PHT, không dữ liệu trẻ (AI-04)
+  embedding:
+    base-url: ${AI_EMBEDDING_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+    model: ${AI_EMBEDDING_MODEL:}
+    api-key: ${AI_EMBEDDING_API_KEY:}
+    dimensions: ${AI_EMBEDDING_DIMENSIONS:0}
+    connect-timeout: 3s
+    read-timeout: 10s
+    batch-size: 50
+    # Tổng thời gian cho một lần embed lười trong lúc gợi ý (nằm trong deadline gợi ý)
+    budget: ${AI_EMBEDDING_BUDGET:8s}
   # Gợi ý thực đơn (AI-07): số món ứng viên mỗi ô, trọng số điểm phương án (chỉ chỉnh khi có kết quả eval), khung ô
   # mặc định của bữa khi khối chưa có thực đơn mẫu đang dùng
   menu-ai:
     candidate-limit: 15
+    recent-weeks: 4
     weights:
       norm: 45
       cost: 20

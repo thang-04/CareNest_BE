@@ -31,6 +31,7 @@ import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuAiDraftKind;
 import com.carenest.utils.enums.MenuAiDraftStatus;
+import com.carenest.utils.enums.MenuAiStrategy;
 import com.carenest.utils.enums.MenuBlock;
 import com.carenest.utils.enums.Permission;
 import java.nio.charset.StandardCharsets;
@@ -60,6 +61,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
@@ -76,18 +78,42 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
     private final MealPlanEvaluationSupport evaluationSupport;
     private final MealPlanService mealPlanService;
     private final MenuAiContextLoader contextLoader;
+    private final DishSimilarity dishSimilarity;
     private final MenuSuggestionEngine engine;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
-    record StoredRequest(String season, String wishes) {}
+    /** {@code historyFrom}–{@code historyTo}: khoảng ngày đã đối chiếu để tránh lặp món (null ở nháp cũ). */
+    record StoredRequest(
+            String season,
+            String wishes,
+            LocalDate historyFrom,
+            LocalDate historyTo,
+            MenuAiStrategy strategy,
+            List<Long> unavailableFoodIds,
+            List<Long> requiredDishIds) {
+
+        // Đọc lại ngữ cảnh của nháp đã có: cùng ràng buộc lúc tạo, phần không còn áp được thì bỏ qua
+        MenuAiContextLoader.Constraints constraints() {
+            return new MenuAiContextLoader.Constraints(
+                    idSet(unavailableFoodIds),
+                    idSet(requiredDishIds),
+                    strategy == MenuAiStrategy.TEMPLATE_ADJUST,
+                    false);
+        }
+    }
 
     record StoredItem(String slot, MealSession session, Long dishId) {}
 
     record StoredDay(LocalDate date, boolean off, String reason, List<StoredItem> items) {}
 
-    record StoredOutput(List<StoredDay> days) {}
+    /** {@code changedCells}: ô khác thực đơn mẫu khi chỉnh từ mẫu (null ở nháp cũ). */
+    record StoredOutput(List<StoredDay> days, List<MenuPlanConstraints.Changed> changedCells) {}
+
+    private static Set<Long> idSet(List<Long> ids) {
+        return ids == null ? Set.of() : new TreeSet<>(ids);
+    }
 
     record StoredScore(
             Integer ai,
@@ -168,7 +194,7 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
     }
 
     @Override
-    public MealPlanResponse applyDraft(CurrentUser currentUser, Long id, MenuAiDraftGridRequest edited) {
+    public MealPlanResponse applyDraft(CurrentUser currentUser, Long id, MenuAiDraftGridRequest edited, String reason) {
         String logPrefix = LOG_PREFIX + "|applyDraft|userId=" + currentUser.userId() + "|draftId=" + id + "|edited="
                 + (edited != null);
         log.info("{}|START", logPrefix);
@@ -190,11 +216,11 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                 throw GlobalException.of(ApiCode.MENU_AI_DRAFT_NOT_PENDING);
             }
             MealPlanWeek week = weekRepository.findByWeekStart(weekStart).orElse(null);
-            // NUT-08: tuần đã công bố không nhận nháp
+            StoredOutput output = objectMapper.readValue(draft.getOutputJson(), StoredOutput.class);
             if (week != null && week.isPublished()) {
+                // NUT-08: tuần đã công bố không nhận nháp
                 throw GlobalException.of(ApiCode.MEAL_PLAN_PUBLISHED);
             }
-            StoredOutput output = objectMapper.readValue(draft.getOutputJson(), StoredOutput.class);
             int editedCells = 0;
             MealPlanRequest request;
             if (edited != null) {
@@ -329,7 +355,15 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
             throw GlobalException.of(ApiCode.MENU_AI_DRAFT_NOT_PENDING);
         }
         StoredRequest stored = objectMapper.readValue(draft.getRequestJson(), StoredRequest.class);
-        return contextLoader.weekly(user, draft.getMenuBlock(), draft.getWeekStart(), stored.season(), stored.wishes());
+        return contextLoader.weekly(
+                user,
+                draft.getMenuBlock(),
+                draft.getWeekStart(),
+                stored.season(),
+                stored.wishes(),
+                stored.constraints(),
+                // Đọc lại ngữ cảnh khi sửa/dùng nháp: không gọi mạng trong transaction, dùng vector và cache đã có
+                dishSimilarity.byWishesCached(stored.wishes()));
     }
 
     private static Map<LocalDate, Map<String, Long>> cellsOf(StoredOutput output) {
@@ -420,10 +454,22 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
     }
 
     private static void checkRequest(MenuAiDraftRequest request) {
+        List<FieldErrorResponse> missing = new ArrayList<>();
+        // Chỉnh từ mẫu và món bắt buộc là ràng buộc của cả tuần
+        if (request.kind() != MenuAiDraftKind.MENU_WEEKLY) {
+            if (request.strategy() == MenuAiStrategy.TEMPLATE_ADJUST) {
+                missing.add(new FieldErrorResponse("strategy", "Chỉnh từ thực đơn mẫu chỉ dùng cho gợi ý tuần"));
+            }
+            if (request.requiredDishIds() != null && !request.requiredDishIds().isEmpty()) {
+                missing.add(new FieldErrorResponse("requiredDishIds", "Món bắt buộc chỉ dùng cho gợi ý tuần"));
+            }
+        }
         if (request.kind() == MenuAiDraftKind.MENU_DAILY) {
+            if (!missing.isEmpty()) {
+                throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, missing);
+            }
             return;
         }
-        List<FieldErrorResponse> missing = new ArrayList<>();
         if (request.weekStart() == null) {
             missing.add(new FieldErrorResponse("weekStart", "Chọn tuần cần gợi ý"));
         }
@@ -455,18 +501,41 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
         MenuBlock block = request.block();
         return switch (request.kind()) {
             case MENU_WEEKLY -> {
-                MenuContext ctx = Objects.requireNonNull(transactionTemplate.execute(status ->
-                        contextLoader.weekly(user, block, request.weekStart(), request.season(), request.wishes())));
+                MenuAiContextLoader.Constraints constraints = new MenuAiContextLoader.Constraints(
+                        idSet(request.unavailableFoodIds()),
+                        idSet(request.requiredDishIds()),
+                        request.strategy() == MenuAiStrategy.TEMPLATE_ADJUST,
+                        true);
+                // Vector (có gọi mạng) chạy ngoài transaction, trước khi dựng ứng viên; lỗi/tắt ⇒ rỗng, thứ tự như cũ
+                Map<Long, Double> similarity = dishSimilarity.byWishes(request.wishes());
+                MenuContext ctx = Objects.requireNonNull(transactionTemplate.execute(status -> contextLoader.weekly(
+                        user,
+                        block,
+                        request.weekStart(),
+                        request.season(),
+                        request.wishes(),
+                        constraints,
+                        similarity)));
                 MenuSuggestionEngine.Outcome outcome = engine.suggestWeek(ctx);
                 yield new Suggestion(ctx, outcome, gridOutput(ctx, outcome.grid()));
             }
             case MENU_DAILY -> {
-                MenuContext ctx = Objects.requireNonNull(transactionTemplate.execute(
-                        status -> contextLoader.daily(user, block, request.season(), request.wishes())));
+                Map<Long, Double> similarity = dishSimilarity.byWishes(request.wishes());
+                MenuContext ctx = Objects.requireNonNull(transactionTemplate.execute(status -> contextLoader.daily(
+                        user,
+                        block,
+                        request.season(),
+                        request.wishes(),
+                        idSet(request.unavailableFoodIds()),
+                        similarity)));
                 MenuSuggestionEngine.Outcome outcome = engine.suggestDaily(ctx);
                 yield new Suggestion(ctx, outcome, gridOutput(ctx, outcome.grid()));
             }
             case MENU_DAY_FIX -> {
+                // Có mong muốn thì theo mong muốn; không thì món gần nghĩa món cần thay đứng trước
+                Map<Long, Double> similarity = StringUtils.hasText(request.wishes())
+                        ? dishSimilarity.byWishes(request.wishes())
+                        : dishSimilarity.likeDish(request.fromDishId());
                 MenuAiContextLoader.DayFix fix =
                         Objects.requireNonNull(transactionTemplate.execute(status -> contextLoader.dayFix(
                                 user,
@@ -476,7 +545,9 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                                 request.targetSession(),
                                 request.fromDishId(),
                                 request.season(),
-                                request.wishes())));
+                                request.wishes(),
+                                idSet(request.unavailableFoodIds()),
+                                similarity)));
                 MenuSuggestionEngine.Outcome outcome =
                         engine.suggestDayFix(fix.ctx(), fix.current(), fix.date(), fix.slot());
                 yield new Suggestion(fix.ctx(), outcome, fixOutput(fix, outcome.grid()));
@@ -508,8 +579,16 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                 outcome.baselineScore(),
                 b == null ? null : new MenuAiDraftResponse.Breakdown(b.norm(), b.cost(), b.variety(), b.warnings()),
                 outcome.checks());
+        LocalDate monday = ctx.dates().getFirst().with(DayOfWeek.MONDAY);
         draft.recordContent(
-                objectMapper.writeValueAsString(new StoredRequest(ctx.season(), ctx.wishes())),
+                objectMapper.writeValueAsString(new StoredRequest(
+                        ctx.season(),
+                        ctx.wishes(),
+                        contextLoader.historyFrom(monday),
+                        monday.minusDays(1),
+                        request.strategy() == null ? MenuAiStrategy.FREE : request.strategy(),
+                        List.copyOf(idSet(request.unavailableFoodIds())),
+                        List.copyOf(idSet(request.requiredDishIds())))),
                 objectMapper.writeValueAsString(suggestion.output()),
                 objectMapper.writeValueAsString(score),
                 objectMapper.writeValueAsString(outcome.issues()),
@@ -530,7 +609,7 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
             }
             days.add(new StoredDay(date, off, grid.reasons().get(date), items));
         }
-        return new StoredOutput(days);
+        return new StoredOutput(days, MenuPlanConstraints.changedCells(grid, ctx));
     }
 
     // Thay một món: chỉ lưu đúng ô được thay (một ngày, một món); rỗng khi không có phương án
@@ -540,7 +619,7 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                 ? List.of()
                 : List.of(new StoredItem(fix.slot().key(), fix.slot().session(), dishId));
         return new StoredOutput(
-                List.of(new StoredDay(fix.date(), false, grid.reasons().get(fix.date()), items)));
+                List.of(new StoredDay(fix.date(), false, grid.reasons().get(fix.date()), items)), List.of());
     }
 
     private static Set<Long> dishIdsOf(StoredOutput output) {
@@ -704,7 +783,8 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
      * Thay một món: món cũ phải còn đúng ô (chưa ai sửa tay), ngày đó sau khi thay không có lỗi chặn trên dữ liệu mới;
      * mọi ô khác của tuần giữ nguyên.
      */
-    private MealPlanRequest replacedDish(MenuAiDraft draft, MealPlanWeek week, StoredOutput output) {
+    // Món cần thay của nháp phải còn ở đúng bữa, khối của ngày đó
+    private static void checkTargetStillThere(MenuAiDraft draft, MealPlanWeek week) {
         LocalDate date = draft.getTargetDate();
         MealPlanDay day = week == null ? null : week.day(date).orElse(null);
         boolean stillThere = day != null
@@ -712,12 +792,17 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                         .anyMatch(i -> i.getMenuBlock() == draft.getMenuBlock()
                                 && i.getSession() == draft.getTargetSession()
                                 && i.getDishId().equals(draft.getFromDishId()));
-        Long toDishId = output.days().getFirst().items().getFirst().dishId();
         if (!stillThere) {
             throw GlobalException.withFieldErrors(
                     ApiCode.MENU_AI_DRAFT_STALE,
                     List.of(new FieldErrorResponse(date.toString(), "Món cần thay đã được đổi trên kế hoạch tuần")));
         }
+    }
+
+    private MealPlanRequest replacedDish(MenuAiDraft draft, MealPlanWeek week, StoredOutput output) {
+        LocalDate date = draft.getTargetDate();
+        checkTargetStillThere(draft, week);
+        Long toDishId = output.days().getFirst().items().getFirst().dishId();
         List<MealPlanRequest.DayInput> days = new ArrayList<>();
         List<DayPlan> blockPlans = new ArrayList<>();
         for (MealPlanDay existing : week.getDays()) {
@@ -783,10 +868,19 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
     private MenuAiDraftResponse toResponse(MenuAiDraft draft) {
         StoredOutput output = objectMapper.readValue(draft.getOutputJson(), StoredOutput.class);
         StoredScore score = objectMapper.readValue(draft.getScoreJson(), StoredScore.class);
+        StoredRequest stored = objectMapper.readValue(draft.getRequestJson(), StoredRequest.class);
         List<MealPlanResponse.Issue> issues =
                 List.of(objectMapper.readValue(draft.getIssuesJson(), MealPlanResponse.Issue[].class));
-        Map<Long, Dish> dishes = dishRepository.findAllById(dishIdsOf(output)).stream()
+        List<MenuPlanConstraints.Changed> changed = output.changedCells() == null ? List.of() : output.changedCells();
+        Set<Long> dishIds = new TreeSet<>(dishIdsOf(output));
+        changed.stream()
+                .map(MenuPlanConstraints.Changed::fromDishId)
+                .filter(Objects::nonNull)
+                .forEach(dishIds::add);
+        Map<Long, Dish> dishes = dishRepository.findAllById(dishIds).stream()
                 .collect(Collectors.toMap(Dish::getId, Function.identity()));
+        Function<Long, String> nameOf = id ->
+                id == null || !dishes.containsKey(id) ? null : dishes.get(id).getName();
         boolean daily = draft.getKind() == MenuAiDraftKind.MENU_DAILY;
         List<MenuAiDraftResponse.Day> days = output.days().stream()
                 .map(d -> new MenuAiDraftResponse.Day(
@@ -825,6 +919,18 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                 days,
                 issues,
                 score.checks() == null ? List.of() : score.checks(),
-                draft.getEditedCells());
+                draft.getEditedCells(),
+                stored.historyFrom(),
+                stored.historyTo(),
+                stored.strategy() == null ? MenuAiStrategy.FREE : stored.strategy(),
+                changed.stream()
+                        .map(c -> new MenuAiDraftResponse.ChangedCell(
+                                c.date(),
+                                c.slot(),
+                                c.fromDishId(),
+                                nameOf.apply(c.fromDishId()),
+                                c.toDishId(),
+                                nameOf.apply(c.toDishId())))
+                        .toList());
     }
 }

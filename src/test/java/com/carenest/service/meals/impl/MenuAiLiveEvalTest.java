@@ -24,6 +24,7 @@ import com.carenest.utils.enums.MenuBlock;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -46,11 +47,14 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Eval chạy tay gợi ý thực đơn tuần với provider thật (AC-10), không chạy trong CI: bật bằng {@code AI_LIVE_EVAL=true}
- * cùng biến {@code AI_GEMINI_*}, {@code AI_GROQ_*} như {@code .env}. Dữ liệu giả ở {@code ai-eval/menu-cases.json}; mỗi
- * case chạy {@code AI_LIVE_EVAL_RUNS} lần (mặc định 3) qua đúng engine thật. Ghi {@code target/ai-eval/menu-eval-*.json}
- * để chép vào {@code docs/quality/ai-eval/<ngày>/}. Chặn cứng: 0 lần phương án nhãn AI còn lỗi chặn; tỉ lệ AI thắng
- * phương án quy tắc chỉ ghi lại (mốc bật demo ≥ 60% case hợp lệ).
+ * Eval chạy tay gợi ý thực đơn tuần với provider thật (AC-10, AC-18), không chạy trong CI: bật bằng {@code
+ * AI_LIVE_EVAL=true} cùng biến {@code AI_GEMINI_*}, {@code AI_GROQ_*} như {@code .env}. Dữ liệu giả ở {@code
+ * ai-eval/menu-cases.json}; mỗi case chạy {@code AI_LIVE_EVAL_RUNS} lần (mặc định 3) qua đúng engine thật. Ghi thư mục
+ * {@code target/ai-eval/menu-eval-<thời điểm>/}: {@code records.json} (chỉ số từng lần chạy), {@code lines.csv} (món –
+ * thực phẩm – gam – giá trị trên 100 g – phần đóng góp, để tester tính lại bằng bảng tính), {@code days.csv} (tổng ngày
+ * hệ thống tính so với tổng cộng lại từ {@code lines.csv} và định mức). Chép vào {@code docs/quality/ai-eval/<ngày>/}.
+ * Chặn cứng: 0 lần phương án nhãn AI còn lỗi chặn, 0 ô dùng món chứa thực phẩm thiếu, 0 ngày tổng kcal hệ thống lệch
+ * tổng cộng tay; tỉ lệ AI thắng phương án quy tắc chỉ ghi lại (mốc bật demo ≥ 60% case hợp lệ).
  */
 @Slf4j
 @EnabledIfEnvironmentVariable(named = "AI_LIVE_EVAL", matches = "true")
@@ -73,6 +77,8 @@ class MenuAiLiveEvalTest {
         JsonNode root = MAPPER.readTree(resource());
         int runs = Integer.parseInt(env("AI_LIVE_EVAL_RUNS", "3"));
         List<Map<String, Object>> records = new ArrayList<>();
+        List<String> lines = new ArrayList<>(List.of(LINE_HEADER));
+        List<String> days = new ArrayList<>(List.of(DAY_HEADER));
         for (JsonNode evalCase : root.get("cases")) {
             boolean badKeys = evalCase.path("badKeys").asBoolean(false);
             MenuSuggestionEngine engine = new MenuSuggestionEngine(
@@ -86,13 +92,18 @@ class MenuAiLiveEvalTest {
                 pauseForRateLimit();
                 long started = System.nanoTime();
                 MenuSuggestionEngine.Outcome outcome = engine.suggestWeek(ctx);
-                records.add(record(evalCase.get("name").asString(), run, outcome, started));
+                String name = evalCase.get("name").asString();
+                Map<String, Object> record = record(name, run, outcome, started);
+                record.putAll(evidence(name, run, outcome, ctx, ids(evalCase.path("unavailableFoods")), lines, days));
+                records.add(record);
             }
         }
-        Path out = writeReport(records);
-        long leaks = records.stream()
-                .filter(r -> Boolean.TRUE.equals(r.get("blockingLeak")))
-                .count();
+        Path out = writeReport(records, lines, days);
+        long leaks = count(records, "blockingLeak");
+        long unavailableLeaks = count(records, "unavailableLeak");
+        long kcalMismatches = records.stream()
+                .mapToLong(r -> ((Number) r.getOrDefault("kcalMismatchDays", 0)).longValue())
+                .sum();
         List<Map<String, Object>> valid = records.stream()
                 .filter(r -> !"provider-loi".equals(r.get("case")))
                 .filter(r -> !"NO_FEASIBLE".equals(r.get("status")))
@@ -100,9 +111,189 @@ class MenuAiLiveEvalTest {
                 .toList();
         long aiWins = valid.stream().filter(r -> "AI".equals(r.get("source"))).count();
         log.info(
-                "MENU EVAL | records={} | valid={} | aiWins={} ({}%) | blockingLeaks={} | report={}",
-                records.size(), valid.size(), aiWins, valid.isEmpty() ? 0 : aiWins * 100 / valid.size(), leaks, out);
+                "MENU EVAL | records={} | valid={} | aiWins={} ({}%) | blockingLeaks={} | unavailableLeaks={}"
+                        + " | kcalMismatchDays={} | report={}",
+                records.size(),
+                valid.size(),
+                aiWins,
+                valid.isEmpty() ? 0 : aiWins * 100 / valid.size(),
+                leaks,
+                unavailableLeaks,
+                kcalMismatches,
+                out);
         assertThat(leaks).as("phương án nhãn AI không được còn lỗi chặn").isZero();
+        assertThat(unavailableLeaks)
+                .as("lưới không được có món chứa thực phẩm thiếu")
+                .isZero();
+        assertThat(kcalMismatches)
+                .as("tổng kcal hệ thống phải khớp tổng cộng tay từ lines.csv")
+                .isZero();
+    }
+
+    private static final String LINE_HEADER = "case,run,source,date,session,slot,dish_id,dish,food_id,origin,grams,"
+            + "kcal_100g,protein_100g,lipid_100g,glucid_100g,kcal,animal_protein,plant_protein,animal_lipid,"
+            + "plant_lipid,glucid";
+    private static final String DAY_HEADER = "case,run,source,date,status,kcal_system,kcal_recomputed,kcal_match,"
+            + "kcal_min,kcal_max,kcal_in_range,protein,lipid,glucid,animal_protein,plant_protein,animal_lipid,"
+            + "plant_lipid,cost,meal_price";
+    private static final BigDecimal KCAL_TOLERANCE = new BigDecimal("0.1");
+
+    /**
+     * Bằng chứng cho tester (AC-18): cộng tay từng thực phẩm theo gam × giá trị/100 g, không qua evaluator, rồi so với
+     * tổng ngày hệ thống tính; đếm món lặp trong tuần, lặp so lịch sử, ngày ngoài khoảng kcal, ô dùng thực phẩm thiếu.
+     */
+    private static Map<String, Object> evidence(
+            String name,
+            int run,
+            MenuSuggestionEngine.Outcome outcome,
+            MenuContext ctx,
+            Set<Long> unavailableFoods,
+            List<String> lines,
+            List<String> days) {
+        Map<String, Object> metrics = new LinkedHashMap<>();
+        MenuGrid grid = outcome.grid();
+        if (grid == null) {
+            return metrics;
+        }
+        String source = outcome.source() == null ? "" : outcome.source().name();
+        Map<Long, Integer> uses = new HashMap<>();
+        // NUT-20 cảnh báo lặp theo món mặn; cơm/canh lặp là bình thường nên đếm riêng
+        Map<Long, Integer> mainUses = new HashMap<>();
+        int historyRepeats = 0;
+        boolean unavailableLeak = false;
+        Map<LocalDate, BigDecimal> recomputed = new LinkedHashMap<>();
+        Set<LocalDate> incomplete = new HashSet<>();
+        for (LocalDate date : ctx.dates()) {
+            if (ctx.offDays().contains(date)) {
+                continue;
+            }
+            BigDecimal dayKcal = BigDecimal.ZERO;
+            for (MenuSlot slot : ctx.slots()) {
+                Long dishId = grid.dish(date, slot.key());
+                if (dishId == null) {
+                    continue;
+                }
+                uses.merge(dishId, 1, Integer::sum);
+                if (ctx.dishes().get(dishId).type() == DishType.MAIN) {
+                    mainUses.merge(dishId, 1, Integer::sum);
+                }
+                if (ctx.recentDishIds().contains(dishId)) {
+                    historyRepeats++;
+                }
+                DishInfo dish = ctx.dishes().get(dishId);
+                for (Portion p : dish.byAgeGroup().getOrDefault(GROUP_ID, List.of())) {
+                    FoodInfo food = p.food();
+                    unavailableLeak |= unavailableFoods.contains(food.id());
+                    BigDecimal ratio = p.grams().divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP);
+                    BigDecimal kcal = food.kcal() == null ? null : food.kcal().multiply(ratio);
+                    boolean animal = food.origin() == FoodOrigin.ANIMAL;
+                    BigDecimal protein = food.protein().multiply(ratio);
+                    BigDecimal lipid = food.lipid().multiply(ratio);
+                    if (kcal == null) {
+                        incomplete.add(date);
+                    } else {
+                        dayKcal = dayKcal.add(kcal);
+                    }
+                    lines.add(csv(
+                            name,
+                            run,
+                            source,
+                            date,
+                            slot.session(),
+                            slot.key(),
+                            dishId,
+                            dish.name(),
+                            food.id(),
+                            food.origin(),
+                            p.grams(),
+                            food.kcal(),
+                            food.protein(),
+                            food.lipid(),
+                            food.glucid(),
+                            round2(kcal),
+                            animal ? round2(protein) : BigDecimal.ZERO,
+                            animal ? BigDecimal.ZERO : round2(protein),
+                            animal ? round2(lipid) : BigDecimal.ZERO,
+                            animal ? BigDecimal.ZERO : round2(lipid),
+                            round2(food.glucid().multiply(ratio))));
+                }
+            }
+            recomputed.put(date, dayKcal);
+        }
+        int outOfRange = 0;
+        int mismatches = 0;
+        for (var evaluation : grid.evaluate(ctx).evaluations()) {
+            LocalDate date = evaluation.date();
+            var totals = evaluation.totals();
+            Range kcalRange = ctx.normOf().apply(evaluation.ageGroupId(), date).kcal();
+            boolean complete = !incomplete.contains(date);
+            BigDecimal mine = recomputed.get(date);
+            boolean match = !complete
+                    || (totals.kcal() != null
+                            && totals.kcal().subtract(mine).abs().compareTo(KCAL_TOLERANCE) <= 0);
+            boolean inRange = complete
+                    && totals.kcal() != null
+                    && totals.kcal().compareTo(kcalRange.min()) >= 0
+                    && totals.kcal().compareTo(kcalRange.max()) <= 0;
+            if (!match) {
+                mismatches++;
+            }
+            if (!inRange) {
+                outOfRange++;
+            }
+            days.add(csv(
+                    name,
+                    run,
+                    source,
+                    date,
+                    evaluation.status(),
+                    totals.kcal(),
+                    complete ? round2(mine) : null,
+                    complete ? match : null,
+                    kcalRange.min(),
+                    kcalRange.max(),
+                    inRange,
+                    totals.protein(),
+                    totals.lipid(),
+                    totals.glucid(),
+                    totals.animalProtein(),
+                    totals.plantProtein(),
+                    totals.animalLipid(),
+                    totals.plantLipid(),
+                    evaluation.cost(),
+                    evaluation.mealPrice()));
+        }
+        metrics.put(
+                "repeatsWithinWeek", uses.values().stream().mapToInt(n -> n - 1).sum());
+        metrics.put(
+                "mainRepeatsWithinWeek",
+                mainUses.values().stream().mapToInt(n -> n - 1).sum());
+        metrics.put("repeatsVsHistory", historyRepeats);
+        metrics.put("daysOutOfKcalRange", outOfRange);
+        metrics.put("kcalMismatchDays", mismatches);
+        metrics.put("unavailableLeak", unavailableLeak);
+        return metrics;
+    }
+
+    private static BigDecimal round2(BigDecimal value) {
+        return value == null ? null : value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private static String csv(Object... values) {
+        StringBuilder row = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) {
+                row.append(',');
+            }
+            Object v = values[i];
+            String text = v == null ? "" : v instanceof BigDecimal d ? d.toPlainString() : v.toString();
+            row.append(text.contains(",") || text.contains("\"") ? "\"" + text.replace("\"", "\"\"") + "\"" : text);
+        }
+        return row.toString();
+    }
+
+    private static long count(List<Map<String, Object>> records, String flag) {
+        return records.stream().filter(r -> Boolean.TRUE.equals(r.get(flag))).count();
     }
 
     private static Map<String, Object> record(
@@ -170,12 +361,18 @@ class MenuAiLiveEvalTest {
                             allergens));
         }
         Set<Long> keep = ids(evalCase.path("keepDishes"));
+        // Như MenuAiContextLoader: món chứa thực phẩm thiếu bị loại khỏi danh mục trước khi dựng ứng viên (NUT-11)
+        Set<Long> unavailable = ids(evalCase.path("unavailableFoods"));
+        Set<Long> recent = ids(evalCase.path("recentDishes"));
         int copies = evalCase.path("duplicateCatalog").asInt(1);
         Map<Long, DishInfo> dishes = new HashMap<>();
         for (int copy = 0; copy < copies; copy++) {
             for (JsonNode d : root.get("dishes")) {
                 long id = d.get("id").asLong();
                 if (!keep.isEmpty() && !keep.contains(id)) {
+                    continue;
+                }
+                if (unavailable.contains(d.get("food").asLong())) {
                     continue;
                 }
                 long copyId = id + copy * 1000L;
@@ -218,7 +415,7 @@ class MenuAiLiveEvalTest {
                 dishes.values(),
                 List.of(GROUP),
                 SLOTS,
-                Set.of(),
+                recent,
                 MenuContext.Signals.NONE,
                 MenuAiProperties.defaults().candidateLimit());
         return new MenuContext(
@@ -230,7 +427,7 @@ class MenuAiLiveEvalTest {
                 (groupId, date) -> norm,
                 SLOTS,
                 candidates,
-                Set.of(),
+                recent,
                 MenuContext.Signals.NONE,
                 Map.of(),
                 "Mùa đông",
@@ -281,13 +478,18 @@ class MenuAiLiveEvalTest {
         return MenuAiLiveEvalTest.class.getResourceAsStream("/ai-eval/menu-cases.json");
     }
 
-    private static Path writeReport(List<Map<String, Object>> records) throws IOException {
-        Path dir = Path.of("target", "ai-eval");
+    private static Path writeReport(List<Map<String, Object>> records, List<String> lines, List<String> days)
+            throws IOException {
+        Path dir = Path.of("target", "ai-eval")
+                .resolve("menu-eval-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")));
         Files.createDirectories(dir);
-        Path out = dir.resolve(
-                "menu-eval-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".json");
-        Files.writeString(out, MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(records));
-        return out;
+        Files.writeString(
+                dir.resolve("records.json"),
+                MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(records));
+        // BOM để Excel đọc đúng tiếng Việt khi mở trực tiếp
+        Files.writeString(dir.resolve("lines.csv"), "﻿" + String.join("\n", lines) + "\n");
+        Files.writeString(dir.resolve("days.csv"), "﻿" + String.join("\n", days) + "\n");
+        return dir;
     }
 
     // Hạn mức free tính theo phút: giãn các lần gọi (mặc định 4s, đặt AI_LIVE_EVAL_PAUSE_MS để đổi)

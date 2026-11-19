@@ -113,8 +113,8 @@ final class MenuCriteriaReport {
         checks.add(new Check(
                 "HISTORY",
                 recent == 0 ? PASS : INFO,
-                "Không lặp thực đơn 2 tuần trước",
-                recent + "/" + cells.size() + " ô dùng lại món của 2 tuần trước (bị trừ điểm đa dạng)",
+                "Không lặp thực đơn các tuần liền trước",
+                recent + "/" + cells.size() + " ô dùng lại món của các tuần liền trước (bị trừ điểm đa dạng)",
                 List.of("NUT-20")));
         long familiar =
                 dishes.stream().filter(ctx.signals().familiar()::contains).count();

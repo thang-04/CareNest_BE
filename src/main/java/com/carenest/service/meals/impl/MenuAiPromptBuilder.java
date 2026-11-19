@@ -63,8 +63,9 @@ final class MenuAiPromptBuilder {
                 .map(aliases.toAlias()::get)
                 .collect(Collectors.joining(", "));
         if (!recent.isEmpty()) {
-            sb.append("Món đã dùng 2 tuần trước: ").append(recent).append('\n');
+            sb.append("Món vừa dùng gần đây: ").append(recent).append('\n');
         }
+        appendConstraints(sb, ctx, aliases);
         String season = clean(ctx.season(), SEASON_MAX);
         if (!season.isEmpty()) {
             sb.append("Mùa: ").append(season);
@@ -135,6 +136,33 @@ final class MenuAiPromptBuilder {
         }
         sb.append("Chọn MỘT món trong ô ").append(slot.key()).append(" để thay.\n");
         return sb.toString();
+    }
+
+    // Ràng buộc của người lập: code tự áp lại sau khi đọc output, nêu ra để model chọn các ô còn lại cho hợp
+    private static void appendConstraints(StringBuilder sb, MenuContext ctx, Aliases aliases) {
+        String required = ctx.requiredDishIds().stream()
+                .filter(aliases.toAlias()::containsKey)
+                .sorted()
+                .map(aliases.toAlias()::get)
+                .collect(Collectors.joining(", "));
+        if (!required.isEmpty()) {
+            sb.append("Món bắt buộc có ít nhất một lần trong tuần: ")
+                    .append(required)
+                    .append('\n');
+        }
+        if (!ctx.keepTemplate()) {
+            return;
+        }
+        sb.append("Giữ nguyên theo thực đơn mẫu của trường, chỉ chọn món cho các ô còn lại:\n");
+        for (LocalDate date : ctx.servedDates()) {
+            String kept = ctx.slots().stream()
+                    .filter(s -> MenuPlanConstraints.pinned(ctx, date, s) != null)
+                    .map(s -> s.key() + "=" + aliases.toAlias().get(MenuPlanConstraints.pinned(ctx, date, s)))
+                    .collect(Collectors.joining(", "));
+            if (!kept.isEmpty()) {
+                sb.append("- ").append(date).append(": ").append(kept).append('\n');
+            }
+        }
     }
 
     private static void appendCatalog(StringBuilder sb, MenuContext ctx, Aliases aliases) {
@@ -232,7 +260,8 @@ final class MenuAiPromptBuilder {
                 + "\n";
     }
 
-    // Nhãn lấy từ dữ liệu của trường để model ưu tiên đúng: hợp mùa, quen thuộc, vừa dùng, kho khô đang hết
+    // Nhãn lấy từ dữ liệu của trường để model ưu tiên đúng: hợp mùa, quen thuộc, vừa dùng các tuần liền trước,
+    // kho khô đang hết
     private static String tags(Long dishId, MenuContext ctx) {
         List<String> tags = new ArrayList<>();
         if (ctx.signals().seasonal().contains(dishId)) {
@@ -242,7 +271,7 @@ final class MenuAiPromptBuilder {
             tags.add("trường đã dùng");
         }
         if (ctx.recentDishIds().contains(dishId)) {
-            tags.add("vừa dùng 2 tuần trước");
+            tags.add("vừa dùng gần đây");
         }
         if (ctx.signals().outOfStock().contains(dishId)) {
             tags.add("kho khô đang hết");

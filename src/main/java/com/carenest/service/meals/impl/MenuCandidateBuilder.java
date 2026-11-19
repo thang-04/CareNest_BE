@@ -21,7 +21,7 @@ final class MenuCandidateBuilder {
     private MenuCandidateBuilder() {}
 
     /**
-     * Khóa ô → tối đa {@code limit} món theo thứ tự ưu tiên tất định: chưa dùng 2 tuần trước, kho khô còn hàng, hợp mùa
+     * Khóa ô → tối đa {@code limit} món theo thứ tự ưu tiên tất định: chưa dùng các tuần liền trước, kho khô còn hàng, hợp mùa
      * (có trong bộ mẫu theo mùa), trường đã từng dùng, rồi tới id. Ô không có món nào vẫn có khóa, danh sách rỗng.
      */
     static Map<String, List<Long>> build(
@@ -31,6 +31,22 @@ final class MenuCandidateBuilder {
             Set<Long> recentDishIds,
             MenuContext.Signals signals,
             int limit) {
+        return build(activeDishes, groups, slots, recentDishIds, signals, Map.of(), limit);
+    }
+
+    /**
+     * Như trên, thêm {@code similarity} (điểm giống ngữ nghĩa với mong muốn hoặc món cần thay, AI-06): món giống hơn
+     * đứng trước khi cùng chưa dùng gần đây và còn kho; không có điểm (rỗng) thì thứ tự y như bản không vector. Lọc cứng
+     * (loại món, định lượng, trạng thái) vẫn chạy trước, vector không đưa thêm món nào vào ô.
+     */
+    static Map<String, List<Long>> build(
+            Collection<DishInfo> activeDishes,
+            List<AgeGroupInfo> groups,
+            List<MenuSlot> slots,
+            Set<Long> recentDishIds,
+            MenuContext.Signals signals,
+            Map<Long, Double> similarity,
+            int limit) {
         List<DishInfo> complete =
                 activeDishes.stream().filter(d -> complete(d, groups)).toList();
         Map<String, List<Long>> candidates = new LinkedHashMap<>();
@@ -39,7 +55,7 @@ final class MenuCandidateBuilder {
                     slot.key(),
                     complete.stream()
                             .filter(d -> slot.types().contains(d.type()))
-                            .sorted(priority(recentDishIds, signals))
+                            .sorted(priority(recentDishIds, signals, similarity))
                             .limit(limit)
                             .map(DishInfo::id)
                             .toList());
@@ -47,9 +63,12 @@ final class MenuCandidateBuilder {
         return candidates;
     }
 
-    private static Comparator<DishInfo> priority(Set<Long> recent, MenuContext.Signals signals) {
+    private static Comparator<DishInfo> priority(
+            Set<Long> recent, MenuContext.Signals signals, Map<Long, Double> similarity) {
         return Comparator.comparing((DishInfo d) -> recent.contains(d.id()))
                 .thenComparing(d -> signals.outOfStock().contains(d.id()))
+                // Giống hơn ⇒ đứng trước; món không có điểm đứng sau mọi món có điểm
+                .thenComparingDouble(d -> -similarity.getOrDefault(d.id(), Double.NEGATIVE_INFINITY))
                 .thenComparing(d -> !signals.seasonal().contains(d.id()))
                 .thenComparing(d -> !signals.familiar().contains(d.id()))
                 .thenComparing(DishInfo::id);

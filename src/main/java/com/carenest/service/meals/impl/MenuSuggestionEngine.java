@@ -43,10 +43,10 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 class MenuSuggestionEngine {
 
-    static final String WEEKLY_PROMPT = "menu/weekly_v1";
+    static final String WEEKLY_PROMPT = "menu/weekly_v2";
     static final String REPAIR_PROMPT = "menu/repair_v1";
     static final String DAILY_PROMPT = "menu/daily_v1";
-    static final String DAY_FIX_PROMPT = "menu/dayfix_v1";
+    static final String DAY_FIX_PROMPT = "menu/dayfix_v2";
     // Không mở vòng gọi model mới khi còn ít hơn mức này tới deadline (một lần gọi hiếm khi nhanh hơn)
     private static final Duration MIN_CALL_BUDGET = Duration.ofSeconds(3);
     private static final Map<MealSession, String> SESSION_LABELS =
@@ -99,8 +99,17 @@ class MenuSuggestionEngine {
         if (!causes.isEmpty()) {
             return noFeasible(ctx, causes, null, null, null, ModelCall.NONE);
         }
-        Candidate baseline = judge(MenuPlanRepairer.repair(RuleBasedMenuPlanner.plan(ctx), ctx), ctx);
-        return decide(ctx, baseline, attemptAi(ctx, task, firstPrompt), true);
+        Candidate baseline = judge(constrainedRepair(RuleBasedMenuPlanner.plan(ctx), ctx), ctx);
+        // Chỉnh từ mẫu mà mọi ô đều giữ theo mẫu ⇒ model không còn ô nào để chọn, không gọi
+        AiAttempt ai = ctx.keepTemplate() && !MenuPlanConstraints.hasOpenCells(ctx)
+                ? new AiAttempt(null, MenuAiFallbackReason.AI_NOT_BETTER, ModelCall.NONE)
+                : attemptAi(ctx, task, firstPrompt);
+        return decide(ctx, baseline, ai, true);
+    }
+
+    // Ràng buộc của người lập áp trước bước sửa; bước sửa chỉ đổi ô khi ngày còn lỗi chặn
+    private static MenuGrid constrainedRepair(MenuGrid grid, MenuContext ctx) {
+        return MenuPlanRepairer.repair(MenuPlanConstraints.apply(grid, ctx), ctx);
     }
 
     /**
@@ -240,7 +249,7 @@ class MenuSuggestionEngine {
             }
             calls.parsed++;
             MenuGrid grid = current == null ? parsed.grid() : current.grid().merge(parsed.grid());
-            current = judge(MenuPlanRepairer.repair(grid, ctx), ctx);
+            current = judge(constrainedRepair(grid, ctx), ctx);
             if (current.passes()) {
                 break;
             }

@@ -56,7 +56,7 @@ Mỗi module là một feature package xuyên các tầng; nghiệp vụ từng 
 | --- | --- |
 | Ngôn ngữ | Java 21 (LTS) |
 | Framework | Spring Boot 4.1.1: Web MVC, Validation, Data JPA, Security OAuth2 Resource Server, Actuator |
-| Database | PostgreSQL 17, Flyway |
+| Database | PostgreSQL 17 (image `pgvector/pgvector:pg17`, extension `vector`), Flyway |
 | Xác thực | Keycloak 26.8 kèm extension `carenest-auth`, Spring Security Resource Server |
 | Lưu trữ file | AWS SDK v2 (S3) cho học liệu |
 | API docs | springdoc-openapi 3.1.1, snapshot OpenAPI trong repo |
@@ -75,7 +75,7 @@ flowchart LR
     M["CareNest_APP<br/>Mobile"] -->|"Bearer"| API
     M -.->|"đăng nhập PKCE"| KC["Keycloak 26<br/>realm carenest"]
     API -->|"JWT, Admin API"| KC
-    API --> DB[("PostgreSQL 17")]
+    API --> DB[("PostgreSQL 17 + pgvector")]
     API --> S3[("S3<br/>học liệu")]
     API --> SMTP["SMTP<br/>Mailpit khi dev"]
 ```

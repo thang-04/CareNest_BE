@@ -6,6 +6,7 @@ import com.carenest.utils.enums.MenuAiDraftKind;
 import com.carenest.utils.enums.MenuAiDraftSource;
 import com.carenest.utils.enums.MenuAiDraftStatus;
 import com.carenest.utils.enums.MenuAiFallbackReason;
+import com.carenest.utils.enums.MenuAiStrategy;
 import com.carenest.utils.enums.MenuBlock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -15,8 +16,9 @@ import java.util.List;
  * Nháp gợi ý thực đơn: lưới món, nguồn ({@code AI} hoặc {@code RULE_BASED} kèm {@code fallbackReason}), điểm AI và
  * phương án theo quy tắc, issue của evaluator cho phương án được chọn (hoặc nguyên nhân khi {@code NO_FEASIBLE}).
  * {@code feasible=false} với nháp có lưới món = phương án theo quy tắc còn lỗi chặn (NUT-09): dùng được làm điểm bắt
- * đầu để sửa tay, tuần chưa công bố được. {@code editedCells}: số ô người duyệt đã sửa so với gợi ý lúc dùng. Số
- * liệu dinh dưỡng chỉ có trong issue/evaluator, không lấy từ model.
+ * đầu để sửa tay, tuần chưa công bố được. {@code editedCells}: số ô người duyệt đã sửa so với gợi ý lúc dùng.
+ * {@code historyFrom}–{@code historyTo}: khoảng ngày của các tuần liền trước đã đối chiếu để tránh lặp món (NUT-20);
+ * null ở nháp tạo trước khi có trường này. Số liệu dinh dưỡng chỉ có trong issue/evaluator, không lấy từ model.
  */
 public record MenuAiDraftResponse(
         Long id,
@@ -38,7 +40,18 @@ public record MenuAiDraftResponse(
         List<Day> days,
         List<MealPlanResponse.Issue> issues,
         List<Check> checks,
-        int editedCells) {
+        int editedCells,
+        LocalDate historyFrom,
+        LocalDate historyTo,
+        MenuAiStrategy strategy,
+        List<ChangedCell> changedCells) {
+
+    /**
+     * Một ô của gợi ý khác thực đơn mẫu khi {@code strategy=TEMPLATE_ADJUST} (rỗng với {@code FREE}): {@code slot} khớp
+     * {@link Slot#key()}; {@code fromDishId} null khi thực đơn mẫu không có món ở ô đó.
+     */
+    public record ChangedCell(
+            LocalDate date, String slot, Long fromDishId, String fromDishName, Long toDishId, String toDishName) {}
 
     /** Một hàng của bảng gợi ý: ô {@code key} (vd. {@code LUNCH.2}) của bữa, nhận món thuộc {@code dishTypes}. */
     public record Slot(String key, MealSession session, int index, List<DishType> dishTypes) {}

@@ -49,7 +49,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class MenuAiContextLoader {
 
-    private static final int RECENT_WEEKS = 2;
     private static final int FAMILIAR_WEEKS = 12;
     private static final int DAYS = MealPlanEvaluationSupport.SCHOOL_DAYS;
 
@@ -69,42 +68,131 @@ class MenuAiContextLoader {
     private record Catalog(
             Map<Long, Dish> all, List<Dish> usable, Map<Long, DishInfo> allInfos, Map<Long, DishInfo> usableInfos) {}
 
-    MenuContext weekly(CurrentUser user, MenuBlock block, LocalDate weekStart, String season, String wishes) {
+    /**
+     * Ràng buộc của người lập cho gợi ý tuần. {@code strict}: lúc tạo nháp, ràng buộc không áp được ⇒ 400; lúc đọc lại
+     * ngữ cảnh của nháp đã có thì bỏ qua phần không còn áp được (dữ liệu có thể đã đổi).
+     */
+    record Constraints(Set<Long> unavailableFoodIds, Set<Long> requiredDishIds, boolean keepTemplate, boolean strict) {
+        static final Constraints NONE = new Constraints(Set.of(), Set.of(), false, false);
+    }
+
+    MenuContext weekly(
+            CurrentUser user,
+            MenuBlock block,
+            LocalDate weekStart,
+            String season,
+            String wishes,
+            Constraints constraints,
+            Map<Long, Double> similarity) {
         MealPlanWeek week = weekRepository.findByWeekStart(weekStart).orElse(null);
         checkNotPublished(week);
         List<AgeGroupInfo> groups = blockGroups(block);
-        Catalog catalog = catalog();
+        Catalog catalog = catalog(constraints.unavailableFoodIds());
         MenuTemplateSet template = templateOf(block, season);
         List<MenuSlot> slots = slotsOf(served(groups), template, catalog.all());
         Set<Long> recent = recentDishes(block, weekStart);
         MenuContext.Signals signals = signals(user, block, weekStart, season, template, catalog.usable());
-        return new MenuContext(
-                block,
-                weekDates(weekStart),
-                offDays(week),
+        Map<Integer, Map<String, Long>> templateGrid = templateGrid(template, weekStart, slots, catalog.all());
+        if (constraints.keepTemplate() && templateGrid.isEmpty() && constraints.strict()) {
+            throw invalid("strategy", "Khối chưa có thực đơn mẫu đang dùng cho tuần này để chỉnh");
+        }
+        Set<LocalDate> offDays = offDays(week);
+        Map<String, List<Long>> candidates = new LinkedHashMap<>(MenuCandidateBuilder.build(
+                catalog.usableInfos().values(),
                 groups,
-                catalog.usableInfos(),
-                evaluationSupport.normsUntil(weekStart.plusDays(DAYS - 1L)),
                 slots,
-                MenuCandidateBuilder.build(
-                        catalog.usableInfos().values(), groups, slots, recent, signals, properties.candidateLimit()),
                 recent,
                 signals,
-                templateGrid(template, weekStart, slots, catalog.all()),
-                MenuAiPromptBuilder.clean(season, MenuAiPromptBuilder.SEASON_MAX),
-                MenuAiPromptBuilder.clean(wishes, MenuAiPromptBuilder.WISHES_MAX));
+                similarity,
+                properties.candidateLimit()));
+        Set<Long> required = addRequired(candidates, slots, groups, catalog, constraints, DAYS - offDays.size());
+        return new MenuContext(
+                        block,
+                        weekDates(weekStart),
+                        offDays,
+                        groups,
+                        catalog.usableInfos(),
+                        evaluationSupport.normsUntil(weekStart.plusDays(DAYS - 1L)),
+                        slots,
+                        candidates,
+                        recent,
+                        signals,
+                        templateGrid,
+                        MenuAiPromptBuilder.clean(season, MenuAiPromptBuilder.SEASON_MAX),
+                        MenuAiPromptBuilder.clean(wishes, MenuAiPromptBuilder.WISHES_MAX))
+                .constrained(required, constraints.keepTemplate() && !templateGrid.isEmpty());
+    }
+
+    /**
+     * Món bắt buộc phải dùng được (đang dùng, đủ định lượng, không chứa thực phẩm đang thiếu) và có ô nhận loại món đó;
+     * được đưa lên đầu danh sách ứng viên của ô nhận nó kể cả khi vượt giới hạn số ứng viên. Mỗi ô nhận tối đa một món
+     * bắt buộc mỗi ngày phục vụ.
+     */
+    private static Set<Long> addRequired(
+            Map<String, List<Long>> candidates,
+            List<MenuSlot> slots,
+            List<AgeGroupInfo> groups,
+            Catalog catalog,
+            Constraints constraints,
+            int servedDays) {
+        Set<Long> accepted = new TreeSet<>();
+        Map<String, Integer> placed = new HashMap<>();
+        List<FieldErrorResponse> errors = new ArrayList<>();
+        for (Long dishId : new TreeSet<>(constraints.requiredDishIds())) {
+            DishInfo info = catalog.usableInfos().get(dishId);
+            String name = catalog.all().containsKey(dishId)
+                    ? catalog.all().get(dishId).getName()
+                    : "#" + dishId;
+            if (info == null || !MenuCandidateBuilder.complete(info, groups)) {
+                errors.add(new FieldErrorResponse(
+                        "requiredDishIds",
+                        "Món " + name
+                                + " không dùng được: phải đang dùng, đủ định lượng và không chứa thực phẩm thiếu"));
+                continue;
+            }
+            MenuSlot target = slots.stream()
+                    .filter(s -> s.types().contains(info.type()))
+                    .filter(s -> placed.getOrDefault(s.key(), 0) < servedDays)
+                    .findFirst()
+                    .orElse(null);
+            if (target == null) {
+                errors.add(new FieldErrorResponse(
+                        "requiredDishIds", "Món " + name + ": không còn ô nào trong tuần nhận loại món này"));
+                continue;
+            }
+            placed.merge(target.key(), 1, Integer::sum);
+            accepted.add(dishId);
+            for (MenuSlot slot : slots) {
+                if (slot.types().contains(info.type())) {
+                    List<Long> list = new ArrayList<>(candidates.get(slot.key()));
+                    list.remove(dishId);
+                    list.addFirst(dishId);
+                    candidates.put(slot.key(), list);
+                }
+            }
+        }
+        if (!errors.isEmpty() && constraints.strict()) {
+            throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
+        }
+        return accepted;
     }
 
     /**
      * Mẫu một ngày: ngày neo = hôm nay (định mức hiệu lực hôm nay); thực đơn mẫu cùng thứ của tuần xoay vòng hiện tại
      * làm phương án quy tắc ban đầu.
      */
-    MenuContext daily(CurrentUser user, MenuBlock block, String season, String wishes) {
+    MenuContext daily(
+            CurrentUser user,
+            MenuBlock block,
+            String season,
+            String wishes,
+            Set<Long> unavailableFoodIds,
+            Map<Long, Double> similarity) {
         LocalDate anchor = LocalDate.now(clock);
         LocalDate monday = anchor.with(DayOfWeek.MONDAY);
         int weekday = Math.min(anchor.getDayOfWeek().getValue(), DAYS) - 1;
         List<AgeGroupInfo> groups = blockGroups(block);
-        Catalog catalog = catalog();
+        Catalog catalog = catalog(unavailableFoodIds);
         MenuTemplateSet template = templateOf(block, season);
         List<MenuSlot> slots = slotsOf(served(groups), template, catalog.all());
         Set<Long> recent = recentDishes(block, monday);
@@ -120,7 +208,13 @@ class MenuAiContextLoader {
                 evaluationSupport.normsUntil(anchor),
                 slots,
                 MenuCandidateBuilder.build(
-                        catalog.usableInfos().values(), groups, slots, recent, signals, properties.candidateLimit()),
+                        catalog.usableInfos().values(),
+                        groups,
+                        slots,
+                        recent,
+                        signals,
+                        similarity,
+                        properties.candidateLimit()),
                 recent,
                 signals,
                 templateDay.isEmpty() ? Map.of() : Map.of(0, templateDay),
@@ -140,19 +234,21 @@ class MenuAiContextLoader {
             MealSession session,
             Long fromDishId,
             String season,
-            String wishes) {
+            String wishes,
+            Set<Long> unavailableFoodIds,
+            Map<Long, Double> similarity) {
         MealPlanWeek week = weekRepository
                 .findByWeekStart(weekStart)
                 .orElseThrow(() -> invalid("weekStart", "Tuần chưa có kế hoạch thực đơn để thay món"));
-        checkNotPublished(week);
         if (date.isBefore(weekStart) || date.isAfter(weekStart.plusDays(DAYS - 1L))) {
             throw GlobalException.of(ApiCode.MEAL_PLAN_DATE_INVALID, date);
         }
+        checkNotPublished(week);
         if (offDays(week).contains(date)) {
             throw invalid("targetDate", "Ngày nghỉ không có món để thay");
         }
         List<AgeGroupInfo> groups = blockGroups(block);
-        Catalog catalog = catalog();
+        Catalog catalog = catalog(unavailableFoodIds);
         Map<LocalDate, Map<MealSession, List<Long>>> byDay = blockItems(week, block);
         List<Long> sessionDishes = byDay.getOrDefault(date, Map.of()).getOrDefault(session, List.of());
         int index = sessionDishes.indexOf(fromDishId);
@@ -186,6 +282,7 @@ class MenuAiContextLoader {
                         List.of(target),
                         recent,
                         signals,
+                        similarity,
                         properties.candidateLimit())
                 .get(target.key())
                 .stream()
@@ -232,14 +329,16 @@ class MenuAiContextLoader {
         return byDay;
     }
 
-    private Catalog catalog() {
+    private Catalog catalog(Set<Long> unavailableFoodIds) {
         Map<Long, Dish> all = dishRepository.findAllByOrderByNameAsc().stream()
                 .collect(Collectors.toMap(Dish::getId, Function.identity()));
-        // Món đang dùng và mọi thực phẩm của món còn đang dùng (thực phẩm ngừng dùng = trường không còn mua)
+        // Món đang dùng và mọi thực phẩm của món còn đang dùng (thực phẩm ngừng dùng = trường không còn mua), không
+        // chứa thực phẩm người lập báo đang thiếu
         List<Dish> usable = all.values().stream()
                 .filter(d -> d.getStatus() == CatalogStatus.ACTIVE)
-                .filter(d ->
-                        d.getIngredients().stream().allMatch(i -> i.getFood().getStatus() == CatalogStatus.ACTIVE))
+                .filter(d -> d.getIngredients().stream()
+                        .allMatch(i -> i.getFood().getStatus() == CatalogStatus.ACTIVE
+                                && !unavailableFoodIds.contains(i.getFood().getId())))
                 .toList();
         return new Catalog(
                 all,
@@ -418,10 +517,15 @@ class MenuAiContextLoader {
         return grid;
     }
 
+    /** Thứ Hai đầu tiên của khoảng lịch sử dùng để tránh lặp món: các tuần liền trước tuần {@code weekStart}. */
+    LocalDate historyFrom(LocalDate weekStart) {
+        return weekStart.minusWeeks(properties.recentWeeks());
+    }
+
+    // Lịch sử lấy theo ngày bắt đầu tuần, không theo độ giống nội dung
     private Set<Long> recentDishes(MenuBlock block, LocalDate weekStart) {
         return weekRepository
-                .findWithDaysByWeekStartBetweenOrderByWeekStartAsc(
-                        weekStart.minusWeeks(RECENT_WEEKS), weekStart.minusWeeks(1))
+                .findWithDaysByWeekStartBetweenOrderByWeekStartAsc(historyFrom(weekStart), weekStart.minusWeeks(1))
                 .stream()
                 .flatMap(w -> w.getDays().stream())
                 .flatMap(d -> d.getItems().stream())
