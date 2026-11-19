@@ -632,7 +632,8 @@ class FreshGoodsIntegrationTest {
     }
 
     @Test
-    @DisplayName("NUT-11/NUT-12: đợt hàng khô ⇒ phiếu đã xác nhận từ dòng đạt; đã nhận cộng dồn theo kỳ, hủy phiếu thì giảm")
+    @DisplayName(
+            "NUT-11/NUT-12: đợt hàng khô ⇒ phiếu đã xác nhận từ dòng đạt; đã nhận cộng dồn theo kỳ, hủy phiếu thì giảm")
     void dryIntakeCreatesConfirmedReceiptAndTracksReceived() {
         LocalDate today = LocalDate.now(clock);
         long forecastId = freshService
@@ -655,7 +656,8 @@ class FreshGoodsIntegrationTest {
             assertThat(receipt.status()).isEqualTo(StockReceiptStatus.CONFIRMED);
             assertThat(receipt.fromIntake()).isTrue();
             assertThat(receipt.forecastId()).isEqualTo(forecastId);
-            assertThat(receipt.lines()).extracting(StockReceiptResponse.ReceiptLine::lotNo)
+            assertThat(receipt.lines())
+                    .extracting(StockReceiptResponse.ReceiptLine::lotNo)
                     .containsExactlyInAnyOrder("L1", "D1");
             assertThat(receipt.rejectedLines()).singleElement().satisfies(rejected -> {
                 assertThat(rejected.food().id()).isEqualTo(rice);

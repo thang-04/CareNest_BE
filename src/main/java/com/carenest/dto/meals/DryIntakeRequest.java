@@ -25,7 +25,10 @@ public record DryIntakeRequest(
             @NotNull Long foodId,
             @NotBlank @Size(max = 50) String lotNo,
             @NotNull LocalDate expiryDate,
-            @NotNull @Positive @Digits(integer = 12, fraction = 2) BigDecimal quantity,
+
+            @NotNull @Positive @Digits(integer = 12, fraction = 2)
+            BigDecimal quantity,
+
             @NotNull @PositiveOrZero BigDecimal unitPrice,
             @NotNull Boolean passed,
             @Size(max = 300) String note) {}

@@ -38,5 +38,7 @@ public record FreshForecastRequest(
 
     public record DryOrderInput(
             @NotNull Long foodId,
-            @NotNull @PositiveOrZero @Digits(integer = 12, fraction = 2) BigDecimal quantity) {}
+
+            @NotNull @PositiveOrZero @Digits(integer = 12, fraction = 2)
+            BigDecimal quantity) {}
 }

@@ -184,8 +184,8 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                                     ? suggestedDryOrder(dryLines)
                                     : validatedDryOrder(request.dryOrder()));
             FreshForecast saved = forecastRepository.save(calculated.forecast());
-            FreshForecastResponse response = toResponse(
-                    currentUser, new Calculated(saved, calculated.days(), calculated.ageGroups()), dryLines);
+            FreshForecastResponse response =
+                    toResponse(currentUser, new Calculated(saved, calculated.days(), calculated.ageGroups()), dryLines);
             log.info("{}|forecastId={}|END", logPrefix, saved.getId());
             return response;
         } catch (RuntimeException ex) {
@@ -562,14 +562,15 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
     private static List<FreshForecastDryOrder> suggestedDryOrder(List<FreshForecastResponse.DryLine> dryLines) {
         return dryLines.stream()
                 .filter(line -> line.shortQty() != null && line.shortQty().signum() > 0)
-                .map(line -> new FreshForecastDryOrder(line.food().id(), line.shortQty().setScale(2, RoundingMode.UP)))
+                .map(line -> new FreshForecastDryOrder(
+                        line.food().id(), line.shortQty().setScale(2, RoundingMode.UP)))
                 .toList();
     }
 
     /** Lượng hàng khô PHT sửa: chỉ thực phẩm kho khô đang dùng, không trùng; dòng 0 bỏ. */
     private List<FreshForecastDryOrder> validatedDryOrder(List<FreshForecastRequest.DryOrderInput> inputs) {
-        Map<Long, Food> foods =
-                foods(inputs.stream().map(FreshForecastRequest.DryOrderInput::foodId).collect(Collectors.toSet()));
+        Map<Long, Food> foods = foods(
+                inputs.stream().map(FreshForecastRequest.DryOrderInput::foodId).collect(Collectors.toSet()));
         Set<Long> seen = new HashSet<>();
         List<FreshForecastDryOrder> order = new ArrayList<>();
         for (FreshForecastRequest.DryOrderInput input : inputs) {
@@ -584,7 +585,8 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                 throw GlobalException.of(ApiCode.DRY_ORDER_INVALID, "trùng " + food.getName());
             }
             if (input.quantity().signum() > 0) {
-                order.add(new FreshForecastDryOrder(food.getId(), input.quantity().setScale(2, RoundingMode.UP)));
+                order.add(
+                        new FreshForecastDryOrder(food.getId(), input.quantity().setScale(2, RoundingMode.UP)));
             }
         }
         return order;
@@ -734,7 +736,8 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                         stockMapper.toFoodRef(foods.get(id)),
                         ordered.get(id),
                         received.getOrDefault(id, BigDecimal.ZERO)))
-                .sorted(Comparator.comparing((FreshCheckResponse.DryOrderStatus line) -> line.food().name()))
+                .sorted(Comparator.comparing(
+                        (FreshCheckResponse.DryOrderStatus line) -> line.food().name()))
                 .toList();
         return new FreshCheckResponse.DryIntake(
                 forecast.getId(), forecast.getPeriodFrom(), forecast.getPeriodTo(), orders, receipts);

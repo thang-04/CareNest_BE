@@ -21,7 +21,8 @@ public interface StockReceiptRepository extends JpaRepository<StockReceipt, Long
     List<StockReceipt> findByCampusIdOrderByReceivedDateDescIdDesc(Long campusId);
 
     @EntityGraph(attributePaths = "lines")
-    List<StockReceipt> findByCampusIdAndReceivedDateAndFromIntakeTrueOrderByIdAsc(Long campusId, LocalDate receivedDate);
+    List<StockReceipt> findByCampusIdAndReceivedDateAndFromIntakeTrueOrderByIdAsc(
+            Long campusId, LocalDate receivedDate);
 
     @Query("select l.foodId as foodId, sum(l.quantity) as quantity from StockReceiptLine l"
             + " where l.receipt.forecastId = :forecastId and l.receipt.status = :status group by l.foodId")

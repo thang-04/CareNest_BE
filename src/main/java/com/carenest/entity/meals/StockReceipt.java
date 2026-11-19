@@ -105,7 +105,8 @@ public class StockReceipt {
     }
 
     /** Đợt hàng khô kiểm nhận trong ngày (NUT-11, NUT-12): gắn bản dự trù có kỳ chứa ngày, giữ dòng không đạt. */
-    public static StockReceipt intake(Long campusId, Long forecastId, List<StockRejectedLine> rejectedLines, Long userId) {
+    public static StockReceipt intake(
+            Long campusId, Long forecastId, List<StockRejectedLine> rejectedLines, Long userId) {
         StockReceipt receipt = draft(campusId, userId);
         receipt.forecastId = forecastId;
         receipt.fromIntake = true;

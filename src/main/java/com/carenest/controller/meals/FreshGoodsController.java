@@ -135,8 +135,7 @@ public class FreshGoodsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @Valid @RequestBody DryIntakeRequest request,
             CurrentUser currentUser) {
-        String logPrefix =
-                LOG_PREFIX + "|recordDryIntake|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        String logPrefix = LOG_PREFIX + "|recordDryIntake|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         FreshCheckResponse checks = freshGoodsService.recordDryIntake(currentUser, campusId, date, request);
         log.info("{}|END", logPrefix);
