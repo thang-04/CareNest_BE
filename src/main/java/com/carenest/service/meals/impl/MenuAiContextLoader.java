@@ -13,6 +13,7 @@ import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.repository.meals.MenuTemplateSetRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.MealPlanService;
 import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DishInfo;
 import com.carenest.service.organization.CampusService;
@@ -26,6 +27,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -49,6 +51,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class MenuAiContextLoader {
 
+    private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("dd/MM");
     private static final int FAMILIAR_WEEKS = 12;
     private static final int DAYS = MealPlanEvaluationSupport.SCHOOL_DAYS;
 
@@ -59,6 +62,7 @@ class MenuAiContextLoader {
     private final MenuAiProperties properties;
     private final CampusService campusService;
     private final DryStockOutlook dryStockOutlook;
+    private final MealPlanService mealPlanService;
     private final Clock clock;
 
     /** Thay một món: lưới tuần hiện có, ô cần thay và ngày của ô. */
@@ -243,7 +247,14 @@ class MenuAiContextLoader {
         if (date.isBefore(weekStart) || date.isAfter(weekStart.plusDays(DAYS - 1L))) {
             throw GlobalException.of(ApiCode.MEAL_PLAN_DATE_INVALID, date);
         }
-        checkNotPublished(week);
+        if (week.isPublished()) {
+            // P-39: tuần đã công bố chỉ nhận gợi ý thay món ở ngày còn sửa được — cùng cờ canAmend của sửa ngoại lệ
+            boolean amendable = mealPlanService.getMealPlan(user, weekStart).days().stream()
+                    .anyMatch(d -> d.date().equals(date) && d.canAmend());
+            if (!amendable) {
+                throw GlobalException.of(ApiCode.MEAL_PLAN_DAY_LOCKED, DAY_LABEL.format(date));
+            }
+        }
         if (offDays(week).contains(date)) {
             throw invalid("targetDate", "Ngày nghỉ không có món để thay");
         }

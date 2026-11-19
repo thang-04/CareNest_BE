@@ -1,6 +1,7 @@
 package com.carenest.service.meals.impl;
 
 import com.carenest.dto.common.FieldErrorResponse;
+import com.carenest.dto.meals.MealPlanAmendRequest;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
 import com.carenest.dto.meals.MenuAiDraftCandidatesResponse;
@@ -218,8 +219,16 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
             MealPlanWeek week = weekRepository.findByWeekStart(weekStart).orElse(null);
             StoredOutput output = objectMapper.readValue(draft.getOutputJson(), StoredOutput.class);
             if (week != null && week.isPublished()) {
-                // NUT-08: tuần đã công bố không nhận nháp
-                throw GlobalException.of(ApiCode.MEAL_PLAN_PUBLISHED);
+                // NUT-08: tuần đã công bố chỉ nhận nháp thay một món (không kèm lưới sửa), qua sửa ngoại lệ có sẵn
+                // (P-39)
+                if (draft.getKind() != MenuAiDraftKind.MENU_DAY_FIX || edited != null) {
+                    throw GlobalException.of(ApiCode.MEAL_PLAN_PUBLISHED);
+                }
+                MealPlanResponse response = amendWithDraft(currentUser, draft, week, output, reason);
+                draft.applyEdited(currentUser.userId(), now(), 0);
+                draftRepository.saveAndFlush(draft);
+                log.info("{}|END|amended", logPrefix);
+                return response;
             }
             int editedCells = 0;
             MealPlanRequest request;
@@ -797,6 +806,29 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                     ApiCode.MENU_AI_DRAFT_STALE,
                     List.of(new FieldErrorResponse(date.toString(), "Món cần thay đã được đổi trên kế hoạch tuần")));
         }
+    }
+
+    // Tuần đã công bố: đổi đúng món cần thay trong ngày, giữ nguyên ghi chú và các món còn lại, rồi để sửa ngoại lệ có
+    // sẵn
+    // kiểm giờ chốt, lý do (≥10 ký tự), lưu lịch sử và báo phụ huynh/bếp. Cân đối chỉ cảnh báo khi sửa ngoại lệ.
+    private MealPlanResponse amendWithDraft(
+            CurrentUser user, MenuAiDraft draft, MealPlanWeek week, StoredOutput output, String reason) {
+        checkTargetStillThere(draft, week);
+        LocalDate date = draft.getTargetDate();
+        Long toDishId = output.days().getFirst().items().getFirst().dishId();
+        MealPlanDay day = week.day(date).orElseThrow();
+        List<MealPlanRequest.ItemInput> items = day.getItems().stream()
+                .sorted(Comparator.comparingInt(MealPlanItem::getSortOrder))
+                .map(item -> {
+                    boolean target = item.getMenuBlock() == draft.getMenuBlock()
+                            && item.getSession() == draft.getTargetSession()
+                            && item.getDishId().equals(draft.getFromDishId());
+                    return new MealPlanRequest.ItemInput(
+                            item.getSession(), item.getMenuBlock(), target ? toDishId : item.getDishId());
+                })
+                .toList();
+        return mealPlanService.amendMealPlanDay(
+                user, draft.getWeekStart(), date, new MealPlanAmendRequest(day.getNote(), items, reason));
     }
 
     private MealPlanRequest replacedDish(MenuAiDraft draft, MealPlanWeek week, StoredOutput output) {

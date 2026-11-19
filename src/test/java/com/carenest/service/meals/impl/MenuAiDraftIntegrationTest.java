@@ -37,8 +37,11 @@ import com.carenest.utils.enums.MenuAiDraftStatus;
 import com.carenest.utils.enums.MenuAiFallbackReason;
 import com.carenest.utils.enums.MenuAiStrategy;
 import com.carenest.utils.enums.MenuBlock;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -50,7 +53,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.junit.jupiter.Container;
@@ -66,6 +72,49 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class MenuAiDraftIntegrationTest {
 
     private static final LocalDate MONDAY = LocalDate.of(2026, 11, 16);
+    private static final ZoneId SCHOOL_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    /** Đồng hồ giờ trường chỉnh được; mặc định chạy theo giờ thật nên các test khác không đổi. */
+    static class MutableClock extends Clock {
+        private Instant instant = Instant.now();
+
+        void reset() {
+            instant = Instant.now();
+        }
+
+        void set(LocalDate date, String time) {
+            instant = date.atTime(java.time.LocalTime.parse(time))
+                    .atZone(SCHOOL_ZONE)
+                    .toInstant();
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return SCHOOL_ZONE;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return Clock.fixed(instant, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+    }
+
+    @TestConfiguration
+    static class ClockConfig {
+        @Bean
+        @Primary
+        MutableClock mutableClock() {
+            return new MutableClock();
+        }
+    }
+
+    @Autowired
+    private MutableClock clock;
 
     @Container
     @ServiceConnection
@@ -98,7 +147,9 @@ class MenuAiDraftIntegrationTest {
     void setUp() {
         // Nháp tạo ngoài transaction test nên dữ liệu phải commit: danh mục seed một lần cho container, mỗi test chỉ
         // dọn nháp và kế hoạch tuần
+        clock.reset();
         jdbc.update("DELETE FROM menu_ai_drafts");
+        jdbc.update("DELETE FROM meal_plan_day_revisions");
         jdbc.update("DELETE FROM meal_plan_weeks");
         jdbc.update("DELETE FROM dish_embeddings");
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
@@ -1059,5 +1110,79 @@ class MenuAiDraftIntegrationTest {
 
     private long insertId(String sql) {
         return jdbc.queryForObject(sql, Long.class);
+    }
+
+    // Tuần đã công bố: thay món bằng gợi ý AI đi qua sửa ngoại lệ có sẵn (P-39)
+    private MealPlanResponse publishedKindergartenWeek() {
+        MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
+        MealPlanResponse applied = draftService.applyDraft(principal, draft.id(), null, null);
+        mealPlanService.publishMealPlan(principal, MONDAY);
+        return applied;
+    }
+
+    @Test
+    @DisplayName(
+            "AC-24: tuần đã công bố, ngày chưa chốt ⇒ nháp thay món dùng qua sửa ngoại lệ: lưu lịch sử, tuần vẫn công bố")
+    void dayFixDraftAmendsPublishedWeek() {
+        MealPlanResponse before = publishedKindergartenWeek();
+        long oldMain = mainOf(before, MONDAY);
+        clock.set(MONDAY.minusDays(1), "07:00");
+
+        MenuAiDraftResponse fix = draftService.createDraft(principal, dayFix(MONDAY, oldMain));
+        long newMain = fix.days().getFirst().items().getFirst().dishId();
+        MealPlanResponse amended =
+                draftService.applyDraft(principal, fix.id(), null, "Nhà cung cấp báo hết nguyên liệu");
+
+        assertThat(newMain).isNotEqualTo(oldMain);
+        assertThat(amended.status()).isEqualTo("PUBLISHED");
+        assertThat(mainOf(amended, MONDAY)).isEqualTo(newMain);
+        assertThat(amended.revisionCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM meal_plan_day_revisions WHERE reason = ?",
+                        Long.class,
+                        "Nhà cung cấp báo hết nguyên liệu"))
+                .isEqualTo(1L);
+        assertThat(draftService.getDraft(principal, fix.id()).status()).isEqualTo(MenuAiDraftStatus.APPLIED);
+        // Các ngày khác giữ nguyên
+        assertThat(mainOf(amended, MONDAY.plusDays(1))).isEqualTo(mainOf(before, MONDAY.plusDays(1)));
+    }
+
+    @Test
+    @DisplayName("AC-24, AC-25: ngày đã qua giờ chốt ⇒ không tạo nháp thay món (409 MEAL_PLAN_DAY_LOCKED)")
+    void dayFixOnLockedDayIsRejected() {
+        long oldMain = mainOf(publishedKindergartenWeek(), MONDAY);
+        clock.set(MONDAY, "10:00");
+
+        expectCode(() -> draftService.createDraft(principal, dayFix(MONDAY, oldMain)), ApiCode.MEAL_PLAN_DAY_LOCKED);
+    }
+
+    @Test
+    @DisplayName("AC-24: dùng nháp thay món trên tuần đã công bố thiếu lý do (<10 ký tự) ⇒ 400, tuần không đổi")
+    void amendingDraftNeedsReason() {
+        MealPlanResponse before = publishedKindergartenWeek();
+        long oldMain = mainOf(before, MONDAY);
+        clock.set(MONDAY.minusDays(1), "07:00");
+        MenuAiDraftResponse fix = draftService.createDraft(principal, dayFix(MONDAY, oldMain));
+
+        expectCode(() -> draftService.applyDraft(principal, fix.id(), null, "ngắn"), ApiCode.MEAL_PLAN_REASON_REQUIRED);
+        expectCode(() -> draftService.applyDraft(principal, fix.id(), null, null), ApiCode.MEAL_PLAN_REASON_REQUIRED);
+
+        assertThat(mainOf(mealPlanService.getMealPlan(principal, MONDAY), MONDAY))
+                .isEqualTo(oldMain);
+        assertThat(draftService.getDraft(principal, fix.id()).status()).isEqualTo(MenuAiDraftStatus.PENDING_REVIEW);
+    }
+
+    @Test
+    @DisplayName("AC-24: nháp tuần hoặc nháp có lưới sửa trên tuần đã công bố vẫn bị chặn (409 MEAL_PLAN_PUBLISHED)")
+    void onlyDayFixDraftsAmendPublishedWeek() {
+        MenuAiDraftResponse weekDraft = draftService.createDraft(principal, weekly(MONDAY));
+        draftService.applyDraft(principal, weekDraft.id(), null, null);
+        MenuAiDraftResponse second = draftService.createDraft(principal, weekly(MONDAY));
+        mealPlanService.publishMealPlan(principal, MONDAY);
+        clock.set(MONDAY.minusDays(1), "07:00");
+
+        expectCode(
+                () -> draftService.applyDraft(principal, second.id(), null, "Lý do đủ dài để hợp lệ"),
+                ApiCode.MEAL_PLAN_PUBLISHED);
     }
 }
