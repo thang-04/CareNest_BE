@@ -91,23 +91,48 @@ public class RoomServiceImpl implements RoomService {
             SchoolYear year = openYear(schoolYearId);
             // Cần chốt 19/11/2026: phòng thêm ở năm nào chỉ có ở năm đó; mã, tên không trùng trong năm
             RoomRequest data = validate(request, null, 0, year.getId());
-            Room room = Room.create(
+            boolean active = year.getStatus() == SchoolYearStatus.ACTIVE;
+            Room room = reusableRoom(data);
+            if (room == null) {
+                room = Room.create(
+                        data.campusId(),
+                        data.room(),
+                        data.name(),
+                        data.type(),
+                        toShort(data.capacity()),
+                        data.managerUserId(),
+                        data.note());
+                // Năm chưa hoạt động: bảng chung chưa dùng phòng này (kích hoạt năm sẽ bật)
+                if (!active) {
+                    room.changeStatus(RoomStatus.INACTIVE);
+                }
+                room = roomRepository.save(room);
+                roomRepository.flush();
+            } else if (active) {
+                // Cùng một phòng vật lý được dùng lại qua các năm; năm đang chạy đồng bộ bảng chung ngay.
+                room.changeInfo(
+                        data.campusId(),
+                        data.room(),
+                        data.name(),
+                        data.type(),
+                        toShort(data.capacity()),
+                        data.managerUserId(),
+                        data.note());
+                room.changeStatus(RoomStatus.ACTIVE);
+            }
+            roomRepository.addToYear(year.getId(), room.getId());
+            roomRepository.updateYearInfo(
+                    year.getId(),
+                    room.getId(),
                     data.campusId(),
                     data.room(),
                     data.name(),
-                    data.type(),
+                    data.type().name(),
                     toShort(data.capacity()),
                     data.managerUserId(),
                     data.note());
-            boolean active = year.getStatus() == SchoolYearStatus.ACTIVE;
-            // Năm chưa hoạt động: bảng chung chưa dùng phòng này (kích hoạt năm sẽ bật)
-            if (!active) {
-                room.changeStatus(RoomStatus.INACTIVE);
-            }
-            room = roomRepository.save(room);
-            roomRepository.flush();
-            roomRepository.addToYear(year.getId(), room.getId());
             roomRepository.updateYearStatus(year.getId(), room.getId(), RoomStatus.ACTIVE.name());
+            roomRepository.flush();
             RoomResponse response = roomInYear(room, year.getId());
             log.info("{}|roomId={}|END", logPrefix, room.getId());
             return response;
@@ -373,6 +398,22 @@ public class RoomServiceImpl implements RoomService {
 
     private RoomRequest validate(RoomRequest request, Long excludeId, int minCapacity) {
         return validate(request, excludeId, minCapacity, null);
+    }
+
+    private Room reusableRoom(RoomRequest data) {
+        List<Room> matches = roomRepository.findReusableByCodeOrName(data.campusId(), data.room(), data.name());
+        Room byCode = matches.stream()
+                .filter(room -> room.getCode().equalsIgnoreCase(data.room()))
+                .findFirst()
+                .orElse(null);
+        Room byName = matches.stream()
+                .filter(room -> room.getName().equalsIgnoreCase(data.name()))
+                .findFirst()
+                .orElse(null);
+        if (byCode != null && byName != null && !byCode.getId().equals(byName.getId())) {
+            throw GlobalException.of(ApiCode.ROOM_NAME_EXISTS);
+        }
+        return byCode != null ? byCode : byName;
     }
 
     // Có năm học (V154): điểm trường hoạt động trong năm đó; mã, tên không trùng trong năm đó

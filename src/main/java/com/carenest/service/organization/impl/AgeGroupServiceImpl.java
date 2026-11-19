@@ -81,6 +81,12 @@ public class AgeGroupServiceImpl implements AgeGroupService {
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
             SchoolYear year = openYear(schoolYearId);
+            if (year.getStatus() != SchoolYearStatus.PLANNED) {
+                throw GlobalException.of(
+                        ApiCode.AGE_GROUP_CREATE_YEAR_NOT_PLANNED,
+                        year.getName(),
+                        year.getStatus().name());
+            }
             if (request.ageToMonths() <= request.ageFromMonths()) {
                 throw GlobalException.of(ApiCode.AGE_RANGE_INVALID);
             }

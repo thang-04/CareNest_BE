@@ -14,6 +14,7 @@ import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,6 +28,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 class PlacementRules {
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private final EnrollmentRepository enrollmentRepository;
     private final ChildPlacementRepository placementRepository;
     private final StaffAccessPolicy staffAccessPolicy;
@@ -76,6 +78,17 @@ class PlacementRules {
             Instant at,
             LocalDate today) {
         placementRepository.save(ChildPlacement.record(childId, fromClassroomId, to.id(), actorId, reason, at));
+        if (fromClassroomId != null) {
+            Set<Long> oldTeacherIds = new HashSet<>(staffAssignmentService
+                    .findCurrentTeacherIds(List.of(fromClassroomId), today)
+                    .getOrDefault(fromClassroomId, List.of()));
+            notificationService.notifyUsers(
+                    oldTeacherIds,
+                    NotificationType.CHILD_PLACED,
+                    "Trẻ chuyển lớp",
+                    childName + " chuyển sang " + to.name() + " từ ngày " + DAY.format(today) + ".",
+                    childId);
+        }
         Set<Long> teacherIds = new HashSet<>(staffAssignmentService
                 .findCurrentTeacherIds(List.of(to.id()), today)
                 .getOrDefault(to.id(), List.of()));
@@ -83,7 +96,9 @@ class PlacementRules {
                 teacherIds,
                 NotificationType.CHILD_PLACED,
                 "Lớp có trẻ mới",
-                childName + " đã được xếp vào " + to.name() + ".",
+                fromClassroomId == null
+                        ? childName + " đã được xếp vào " + to.name() + "."
+                        : childName + " chuyển vào lớp từ ngày " + DAY.format(today) + ".",
                 childId);
     }
 }

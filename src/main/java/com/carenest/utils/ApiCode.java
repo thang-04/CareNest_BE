@@ -274,6 +274,8 @@ public enum ApiCode {
     CLASS_PLACED_AGE_GROUP_LOCKED(2216, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào, không đổi được nhóm tuổi"),
     CLASS_PLACED_CAMPUS_LOCKED(2217, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào, không đổi được điểm trường"),
     CLASS_HAS_PLACED_CHILDREN(2218, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào năm mới, không xóa được"),
+    AGE_GROUP_CREATE_YEAR_NOT_PLANNED(
+            2219, HttpStatus.CONFLICT, "Chỉ thêm nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
 
     // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
     REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),

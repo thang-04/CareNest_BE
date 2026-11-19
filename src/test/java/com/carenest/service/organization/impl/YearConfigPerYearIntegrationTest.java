@@ -128,6 +128,18 @@ class YearConfigPerYearIntegrationTest {
     }
 
     @Test
+    @DisplayName("Không thêm nhóm tuổi mới vào năm học đang hoạt động")
+    void activeYearRejectsNewAgeGroup() {
+        AgeGroupRequest request =
+                new AgeGroupRequest("Nhóm giữa năm", "Giữa năm", 73, 84, List.of(MealSession.LUNCH), 20, null);
+
+        assertThatThrownBy(() -> ageGroupService.createAgeGroup(principal, request, active))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.AGE_GROUP_CREATE_YEAR_NOT_PLANNED);
+    }
+
+    @Test
     @DisplayName("Sửa nhóm tuổi ở năm sắp diễn ra: năm đang hoạt động và bảng chung không đổi; kích hoạt thì áp")
     void ageGroupInfoIsPerYear() {
         String before = jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, group);
@@ -250,6 +262,25 @@ class YearConfigPerYearIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.ROOM_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("Phòng cùng mã và tên ở năm khác dùng lại phòng vật lý, không bị unique toàn cục chặn")
+    void roomCanBeReusedInAnotherYear() {
+        RoomRequest request = new RoomRequest(campusA, "P401", "Phòng Lá", RoomType.CLASS, 25, null, "");
+        RoomResponse activeRoom = roomService.createRoom(principal, request, active);
+
+        RoomResponse plannedRoom = roomService.createRoom(principal, request, planned);
+
+        assertThat(plannedRoom.id()).isEqualTo(activeRoom.id());
+        assertThat(rooms(active)).extracting(RoomResponse::id).contains(activeRoom.id());
+        assertThat(rooms(planned)).extracting(RoomResponse::id).contains(activeRoom.id());
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM rooms WHERE campus_id = ? AND lower(code) = lower(?)",
+                        Long.class,
+                        campusA,
+                        request.room()))
+                .isEqualTo(1L);
     }
 
     @Test
