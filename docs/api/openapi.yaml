@@ -1563,6 +1563,12 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -2271,6 +2277,12 @@ paths:
           type: integer
           format: int64
       - in: query
+        name: ageGroupId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
         name: from
         required: false
         schema:
@@ -2544,6 +2556,13 @@ paths:
       - campus-controller
     post:
       operationId: createCampus
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -2578,6 +2597,12 @@ paths:
       - in: path
         name: campusId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -2626,6 +2651,12 @@ paths:
       - in: path
         name: campusId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -3827,6 +3858,37 @@ paths:
             schema:
               $ref: "#/components/schemas/SaveAttendanceRequest"
         required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/classes/{classId}/attendance/children/{childId}/arrived:
+    post:
+      operationId: markArrived
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
       responses:
         "200":
           content:
@@ -10720,6 +10782,8 @@ components:
           format: int64
         code:
           type: string
+        deleteBlockedReason:
+          type: string
         id:
           type: integer
           format: int64
@@ -10870,6 +10934,8 @@ components:
           format: date
         fullName:
           type: string
+        hasAllergy:
+          type: boolean
         id:
           type: integer
           format: int64
@@ -11334,12 +11400,26 @@ components:
     ChildTotal:
       type: object
       properties:
+        afternoonOff:
+          type: integer
+          format: int32
+        attendedDays:
+          type: number
+          format: double
         child:
           $ref: "#/components/schemas/ChildBrief"
         excused:
           type: integer
           format: int32
+        mealCounts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
         meals:
+          type: integer
+          format: int32
+        morningOff:
           type: integer
           format: int32
         present:
@@ -11511,6 +11591,9 @@ components:
           type: string
         day:
           $ref: "#/components/schemas/DayInfoResponse"
+        latestAfternoonArrival:
+          type: string
+          format: time-local
         mealSessions:
           type: array
           items:
@@ -12133,9 +12216,17 @@ components:
         childId:
           type: integer
           format: int64
+        eats:
+          type: boolean
         fromDate:
           type: string
           format: date
+        part:
+          type: string
+          enum:
+          - FULL_DAY
+          - MORNING
+          - AFTERNOON
         reason:
           type: string
           maxLength: 500
@@ -12283,6 +12374,9 @@ components:
         effectiveFrom:
           type: string
           format: date
+        latestAfternoonArrival:
+          type: string
+          format: time-local
         note:
           type: string
           maxLength: 500
@@ -12437,6 +12531,7 @@ components:
       - date
       - observation
       - requestId
+      - temperature
     DailySheetResponse:
       type: object
       properties:
@@ -12715,6 +12810,9 @@ components:
     DayRow:
       type: object
       properties:
+        afternoonOff:
+          type: integer
+          format: int32
         date:
           type: string
           format: date
@@ -12730,6 +12828,9 @@ components:
             type: integer
             format: int32
         missing:
+          type: integer
+          format: int32
+        morningOff:
           type: integer
           format: int32
         present:
@@ -13462,6 +13563,9 @@ components:
         id:
           type: integer
           format: int64
+        latestAfternoonArrival:
+          type: string
+          format: time-local
         note:
           type: string
         previousTime:
@@ -16595,6 +16699,9 @@ components:
     LeaveRequestResponse:
       type: object
       properties:
+        ageGroupId:
+          type: integer
+          format: int64
         appliedDates:
           type: array
           items:
@@ -16624,6 +16731,16 @@ components:
           format: int64
         createdByName:
           type: string
+        eats:
+          type: boolean
+        eatsMeals:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
         effectiveTo:
           type: string
           format: date
@@ -16633,6 +16750,12 @@ components:
         id:
           type: integer
           format: int64
+        part:
+          type: string
+          enum:
+          - FULL_DAY
+          - MORNING
+          - AFTERNOON
         reason:
           type: string
         skippedDates:
@@ -17299,6 +17422,14 @@ components:
         from:
           type: string
           format: date
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
         size:
           type: integer
           format: int32
@@ -17431,6 +17562,9 @@ components:
       type: object
       properties:
         admissionId:
+          type: integer
+          format: int64
+        ageGroupId:
           type: integer
           format: int64
         birthDate:
@@ -18940,8 +19074,8 @@ components:
           type: integer
           format: int32
         presentDays:
-          type: integer
-          format: int32
+          type: number
+          format: double
         schoolDays:
           type: integer
           format: int32
@@ -22342,8 +22476,8 @@ components:
         note:
           type: string
         presentDays:
-          type: integer
-          format: int32
+          type: number
+          format: double
         programCompleted:
           type: boolean
         schoolDays:
@@ -23137,6 +23271,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Entry"
+        latestAfternoonArrival:
+          type: string
+          format: time-local
         note:
           type: string
         schoolYear:

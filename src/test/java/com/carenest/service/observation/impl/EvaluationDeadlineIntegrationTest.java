@@ -351,6 +351,13 @@ class EvaluationDeadlineIntegrationTest {
                 .contains("YEAR");
         reminderService.remindLeadersOverdue();
         assertThat(notifications(vpA, "LEADER_REMINDER")).isEqualTo(1);
+        // Lớp quá hạn theo năm học đang chọn: năm sắp diễn ra chưa có kỳ nào quá hạn
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        assertThat(service.getOverdue(vpA, null, planned)).isEmpty();
+        assertThat(service.getOverdue(vpA, null, year))
+                .extracting(OverdueClassItem::kind)
+                .contains("YEAR");
 
         jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", year);
         entityManager.clear();

@@ -70,6 +70,7 @@ public record PlacementBoardResponse(
 
     public record TargetClass(Long id, String name, Long campusId, Long ageGroupId, Integer capacity, long taken) {}
 
+    /** ageGroupId: nhóm tuổi của trẻ tính tại ngày bắt đầu năm học mới; null = không khớp nhóm nào. */
     public record NewAdmission(
             Long admissionId,
             Long childId,
@@ -77,5 +78,6 @@ public record PlacementBoardResponse(
             LocalDate birthDate,
             Long campusId,
             Long targetClassId,
-            LocalDate startDate) {}
+            LocalDate startDate,
+            Long ageGroupId) {}
 }

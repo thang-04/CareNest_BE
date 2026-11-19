@@ -209,7 +209,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                                         child.getDateOfBirth(),
                                         a.getCampusId(),
                                         a.getClassroomId(),
-                                        a.getStartDate());
+                                        a.getStartDate(),
+                                        ageGroupOf(setup, child));
                     })
                     .filter(Objects::nonNull)
                     .sorted(Comparator.comparing(PlacementBoardResponse.NewAdmission::fullName))
@@ -301,14 +302,21 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     if (to == null) {
                         throw GlobalException.of(ApiCode.TARGET_CLASS_REQUIRED);
                     }
-                    if (!placesCampus(currentUser, to.campusId())
-                            || !Objects.equals(to.campusId(), admission.getCampusId())) {
+                    if (!placesCampus(currentUser, to.campusId())) {
                         throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
                     }
-                    // Như trẻ chuyển năm: lớp phải đúng nhóm tuổi của trẻ (tính tại ngày bắt đầu năm học)
                     Child child = board.children.get(admission.getChildId());
+                    String childName = child == null ? "Trẻ" : child.getFullName();
+                    if (!Objects.equals(to.campusId(), admission.getCampusId())) {
+                        throw GlobalException.of(ApiCode.PLACEMENT_ADMISSION_WRONG_CAMPUS, to.name(), childName);
+                    }
+                    // Như trẻ chuyển năm: lớp phải đúng nhóm tuổi của trẻ (tính tại ngày bắt đầu năm học)
                     if (child != null && !fitsAgeGroup(setup, to.ageGroupId(), child)) {
-                        throw GlobalException.of(ApiCode.PLACEMENT_WRONG_AGE_GROUP, child.getFullName(), to.name());
+                        throw GlobalException.of(
+                                ApiCode.PLACEMENT_ADMISSION_WRONG_AGE_GROUP,
+                                childName,
+                                ageMonths(setup, child),
+                                to.name());
                     }
                 }
                 admission.assignClass(item.toClassId());
@@ -585,6 +593,21 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                             + DISPLAY_DATE.format(actualStart) + ".",
                     childId);
         });
+    }
+
+    // Nhóm tuổi của trẻ tại ngày bắt đầu năm học mới (cùng cách kiểm như fitsAgeGroup); không khớp nhóm nào ⇒ null
+    private static Long ageGroupOf(YearSetupResponse setup, Child child) {
+        return setup.ageGroups().stream()
+                .filter(g -> g.ageFromMonths() != null && g.ageToMonths() != null)
+                .filter(g -> fitsAgeGroup(setup, g.id(), child))
+                .map(AgeGroupDetailResponse::id)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static long ageMonths(YearSetupResponse setup, Child child) {
+        return java.time.temporal.ChronoUnit.MONTHS.between(
+                child.getDateOfBirth(), setup.year().startDate());
     }
 
     private static boolean fitsAgeGroup(YearSetupResponse setup, Long ageGroupId, Child child) {

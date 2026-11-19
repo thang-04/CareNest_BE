@@ -135,3 +135,5 @@ Hạn, khóa, mở lại đánh giá cuối chủ đề / học kỳ / cuối n�
 | Gửi gói học kỳ còn thiếu phần (`data.details` = mục thiếu) | `SEMESTER_PACKAGE_INCOMPLETE` (7387, 400) | spec 004 FR-003 |
 
 Không trả stack trace, tên class, SQL. Lỗi từ Spring Security ghi cùng format (guide 8.5, `docs/contracts/AUTH_CONTRACT.md`): 401 `UNAUTHENTICATED` (1002, kèm `WWW-Authenticate: Bearer`), 403 `FORBIDDEN` (1101), 503 `AUTH_SERVICE_UNAVAILABLE` (1013, không lấy được key kiểm token từ Keycloak).
+
+Xếp lớp trẻ mới tiếp nhận cho năm học sau (Cần chốt 18/11/2026), `PUT /school-years/{id}/placements` mục `newAdmissions`: `PLACEMENT_ADMISSION_WRONG_CAMPUS` 2415 (400) "Lớp {lớp} không thuộc điểm trường đăng ký của {trẻ}"; `PLACEMENT_ADMISSION_WRONG_AGE_GROUP` 2416 (400) "{trẻ} ({n} tháng) không thuộc nhóm tuổi của {lớp}" (tuổi tháng tại ngày bắt đầu năm học mới); lớp đầy vẫn `PLACEMENT_CLASS_FULL` 2408. FE hiện lỗi đỏ ở khối trẻ mới, không dùng toast. Bảng xếp lớp trả `newAdmissions[].ageGroupId` (null = không khớp nhóm tuổi nào).

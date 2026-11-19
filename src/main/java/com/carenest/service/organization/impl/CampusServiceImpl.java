@@ -22,6 +22,7 @@ import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.DisplayNames;
 import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.RoomStatus;
@@ -30,6 +31,8 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -79,16 +82,23 @@ public class CampusServiceImpl implements CampusService {
                     yearId == null ? Map.of() : toMap(campusRepository.countChildrenByCampus(yearId, today));
             Map<Long, List<StaffBriefResponse>> vicePrincipals = campusStaff(today, StaffRole.VICE_PRINCIPAL);
             Map<Long, SchoolYearRepository.CampusSnapshot> snapshot = campusSnapshot(yearId);
+            // V151: chỉ điểm trường của năm đang xem (năm chưa có danh sách riêng thì cả danh mục)
+            Set<Long> yearCampuses = yearCampusIds(yearId);
+            Map<Long, CampusRepository.YearCampusInfo> yearInfo = yearInfo(yearId, snapshot);
             List<CampusResponse> response = campuses.stream()
+                    .filter(c -> yearCampuses == null || yearCampuses.contains(c.getId()))
                     // Năm đã kết thúc: chỉ điểm trường có lúc kết thúc năm, thông tin như bản chụp
                     .filter(c -> snapshot == null || snapshot.containsKey(c.getId()))
                     .map(c -> withSnapshot(
-                            campusMapper.toResponse(
-                                    c,
-                                    classCounts.getOrDefault(c.getId(), 0L),
-                                    childCounts.getOrDefault(c.getId(), 0L),
-                                    vicePrincipals.getOrDefault(c.getId(), List.of())),
-                            snapshot))
+                                    withYearInfo(
+                                            campusMapper.toResponse(
+                                                    c,
+                                                    classCounts.getOrDefault(c.getId(), 0L),
+                                                    childCounts.getOrDefault(c.getId(), 0L),
+                                                    vicePrincipals.getOrDefault(c.getId(), List.of())),
+                                            yearInfo),
+                                    snapshot)
+                            .withDeleteBlockedReason(deleteBlockedReason(c, yearId)))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -174,7 +184,9 @@ public class CampusServiceImpl implements CampusService {
                             .toList();
             CampusDetailResponse response = new CampusDetailResponse(
                     withSnapshot(
-                            campusMapper.toResponse(campus, classes.size(), childCount, vicePrincipals),
+                            withYearInfo(
+                                    campusMapper.toResponse(campus, classes.size(), childCount, vicePrincipals),
+                                    yearInfo(yearId, campusSnapshot(yearId))),
                             campusSnapshot(yearId)),
                     yearId,
                     classes,
@@ -191,11 +203,13 @@ public class CampusServiceImpl implements CampusService {
     }
 
     @Override
-    public CampusResponse createCampus(CurrentUser currentUser, CampusRequest request) {
-        String logPrefix = LOG_PREFIX + "|createCampus|userId=" + currentUser.userId();
+    public CampusResponse createCampus(CurrentUser currentUser, CampusRequest request, Long schoolYearId) {
+        String logPrefix =
+                LOG_PREFIX + "|createCampus|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             checkPrincipal(currentUser);
+            Long yearId = openYearId(schoolYearId);
             CampusRequest data = normalize(request);
             if (campusRepository.existsByCodeIgnoreCase(data.code())) {
                 throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
@@ -211,6 +225,14 @@ public class CampusServiceImpl implements CampusService {
                 campus.markMain(true);
             }
             campus = campusRepository.save(campus);
+            // Cần chốt 22/10/2026: thêm ở năm nào chỉ năm đó có; năm tạo sau chép từ năm này
+            if (yearId != null) {
+                if (campusRepository.findYearCampusIds(yearId).isEmpty()) {
+                    campusRepository.addAllToYear(yearId);
+                } else {
+                    campusRepository.addToYear(yearId, campus.getId());
+                }
+            }
             log.info("{}|campusId={}|END", logPrefix, campus.getId());
             return campusMapper.toResponse(campus, 0, 0, List.of());
         } catch (RuntimeException ex) {
@@ -220,29 +242,53 @@ public class CampusServiceImpl implements CampusService {
     }
 
     @Override
-    public CampusResponse updateCampus(CurrentUser currentUser, Long campusId, CampusRequest request) {
-        String logPrefix = LOG_PREFIX + "|updateCampus|userId=" + currentUser.userId() + "|campusId=" + campusId;
+    public CampusResponse updateCampus(
+            CurrentUser currentUser, Long campusId, CampusRequest request, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|updateCampus|userId=" + currentUser.userId() + "|campusId=" + campusId
+                + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             checkPrincipal(currentUser);
             Campus campus = findCampus(campusId);
             CampusRequest data = normalize(request);
-            if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
-                throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
-            }
-            if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
-                throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
+            Long yearId = openYearId(schoolYearId);
+            boolean inYear = yearId != null
+                    && Set.copyOf(campusRepository.findYearCampusIds(yearId)).contains(campusId);
+            // Cần chốt 22/10/2026: sửa ở năm nào chỉ năm đó đổi; mã, tên không trùng trong cùng năm
+            if (inYear) {
+                if (campusRepository.existsCodeInYear(yearId, campusId, data.code())) {
+                    throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
+                }
+                if (campusRepository.existsNameInYear(yearId, campusId, data.name())) {
+                    throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
+                }
+                campusRepository.updateYearInfo(
+                        yearId, campusId, data.code(), data.name(), data.shortName(), data.address(), data.phone());
             }
             if (campus.isMain() && Boolean.FALSE.equals(data.isMain())) {
                 throw GlobalException.of(ApiCode.MAIN_CAMPUS_REQUIRED);
             }
-            campus.changeInfo(data.code(), data.name(), data.shortName(), data.address(), data.phone());
+            // Thông tin chung (module khác đọc) theo năm đang hoạt động; sửa ở năm sắp diễn ra không đổi năm này
+            boolean activeYear = yearId == null
+                    || schoolYearRepository
+                            .findById(yearId)
+                            .map(y -> y.getStatus() == SchoolYearStatus.ACTIVE)
+                            .orElse(true);
+            if (!inYear || activeYear) {
+                if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
+                    throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
+                }
+                if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
+                    throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
+                }
+                campus.changeInfo(data.code(), data.name(), data.shortName(), data.address(), data.phone());
+            }
             if (Boolean.TRUE.equals(data.isMain()) && !campus.isMain()) {
                 unsetCurrentMain();
                 campus.markMain(true);
             }
             campusRepository.flush();
-            CampusResponse response = toResponseWithStats(campus);
+            CampusResponse response = withYearInfo(toResponseWithStats(campus), yearInfo(yearId, null));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -252,8 +298,9 @@ public class CampusServiceImpl implements CampusService {
     }
 
     @Override
-    public void deleteCampus(CurrentUser currentUser, Long campusId) {
-        String logPrefix = LOG_PREFIX + "|deleteCampus|userId=" + currentUser.userId() + "|campusId=" + campusId;
+    public void deleteCampus(CurrentUser currentUser, Long campusId, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|deleteCampus|userId=" + currentUser.userId() + "|campusId=" + campusId
+                + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             checkPrincipal(currentUser);
@@ -261,14 +308,24 @@ public class CampusServiceImpl implements CampusService {
             if (campus.isMain()) {
                 throw GlobalException.of(ApiCode.MAIN_CAMPUS_NOT_DELETABLE);
             }
-            if (classroomRepository.countByCampusId(campusId) > 0) {
-                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "lớp");
+            Long yearId = openYearId(schoolYearId);
+            // Điểm trường còn ở năm khác: chỉ bỏ khỏi năm đang chọn (năm khác không đổi)
+            if (yearId != null && usedInOtherYears(campusId, yearId)) {
+                String yearBlockers = yearBlockers(campusId, yearId);
+                if (yearBlockers != null) {
+                    throw GlobalException.of(ApiCode.CAMPUS_NOT_EMPTY, campus.getName(), yearBlockers);
+                }
+                if (campusRepository.findYearCampusIds(yearId).isEmpty()) {
+                    campusRepository.addAllToYear(yearId);
+                }
+                campusRepository.removeFromYear(yearId, campusId);
+                log.info("{}|removedFromYear|END", logPrefix);
+                return;
             }
-            if (roomRepository.countByCampusIdAndStatusNot(campusId, RoomStatus.DELETED) > 0) {
-                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "phòng");
-            }
-            if (campusRepository.countStaffAssignments(campusId) > 0) {
-                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "nhân sự");
+            // Cần chốt 19/11/2026: chỉ xóa điểm trường chưa có dữ liệu; còn gì thì báo đủ để HT biết
+            String blockers = dataBlockers(campusId);
+            if (blockers != null) {
+                throw GlobalException.of(ApiCode.CAMPUS_NOT_EMPTY, campus.getName(), blockers);
             }
             try {
                 campusRepository.delete(campus);
@@ -402,6 +459,116 @@ public class CampusServiceImpl implements CampusService {
                                 s -> new StaffBriefResponse(s.getUserId(), s.getFullName()), Collectors.toList())));
     }
 
+    /** Lý do chưa xóa được điểm trường khỏi năm đang xem (để web giải thích); null = xóa được. */
+    private String deleteBlockedReason(Campus campus, Long yearId) {
+        if (campus.isMain()) {
+            return "Điểm trường chính, không xóa được";
+        }
+        return yearId != null && usedInOtherYears(campus.getId(), yearId)
+                ? yearBlockers(campus.getId(), yearId)
+                : dataBlockers(campus.getId());
+    }
+
+    // Thông tin riêng của năm còn mở (V152); năm đã đóng dùng bản chụp
+    private Map<Long, CampusRepository.YearCampusInfo> yearInfo(
+            Long yearId, Map<Long, SchoolYearRepository.CampusSnapshot> snapshot) {
+        if (yearId == null || snapshot != null) {
+            return Map.of();
+        }
+        return campusRepository.findYearCampusInfo(yearId).stream()
+                .filter(i -> i.getName() != null)
+                .collect(Collectors.toMap(CampusRepository.YearCampusInfo::getCampusId, i -> i));
+    }
+
+    private static CampusResponse withYearInfo(CampusResponse r, Map<Long, CampusRepository.YearCampusInfo> info) {
+        CampusRepository.YearCampusInfo i = info.get(r.id());
+        if (i == null) {
+            return r;
+        }
+        return new CampusResponse(
+                r.id(),
+                i.getCode(),
+                i.getName(),
+                i.getShortName(),
+                i.getAddress(),
+                i.getPhone(),
+                r.isMain(),
+                r.status(),
+                r.classCount(),
+                r.childCount(),
+                r.vicePrincipals(),
+                r.deleteBlockedReason());
+    }
+
+    // Danh sách điểm trường của năm (V151); null = không lọc (chưa có năm, hoặc năm chưa có danh sách riêng)
+    private Set<Long> yearCampusIds(Long yearId) {
+        if (yearId == null) {
+            return null;
+        }
+        List<Long> ids = campusRepository.findYearCampusIds(yearId);
+        return ids.isEmpty() ? null : Set.copyOf(ids);
+    }
+
+    // Năm đã kết thúc thì chỉ xem (CFG-YR-01)
+    private Long openYearId(Long schoolYearId) {
+        Long yearId = resolveSchoolYearId(schoolYearId);
+        if (yearId != null) {
+            SchoolYearRules.checkOpen(schoolYearRepository.findById(yearId).orElseThrow());
+        }
+        return yearId;
+    }
+
+    private boolean usedInOtherYears(Long campusId, Long yearId) {
+        Set<Long> inYear = yearCampusIds(yearId);
+        long years = campusRepository.countYears(campusId);
+        return inYear == null || inYear.contains(campusId) ? years > 1 : years > 0;
+    }
+
+    // Bỏ khỏi một năm: chặn khi năm đó còn lớp hoặc PHT phụ trách
+    private String yearBlockers(Long campusId, Long yearId) {
+        List<String> parts = new ArrayList<>();
+        long classes = campusRepository.countClassesInYear(campusId, yearId);
+        if (classes > 0) {
+            parts.add(classes + " lớp năm này");
+        }
+        List<String> vps = campusRepository.findYearVicePrincipalNames(campusId, yearId);
+        if (!vps.isEmpty()) {
+            parts.add("PHT " + String.join(", ", vps));
+        }
+        return parts.isEmpty() ? null : String.join(", ", parts);
+    }
+
+    // Lớp (mọi năm), phòng, trẻ (đăng ký / từng học / xếp năm sau), nhân sự (cả lịch sử); null = trống
+    private String dataBlockers(Long campusId) {
+        List<String> parts = new ArrayList<>();
+        long classes = classroomRepository.countByCampusId(campusId);
+        if (classes > 0) {
+            parts.add(classes + " lớp");
+        }
+        long rooms = roomRepository.countByCampusIdAndStatusNot(campusId, RoomStatus.DELETED);
+        if (rooms > 0) {
+            parts.add(rooms + " phòng");
+        }
+        long children = campusRepository.countChildrenEver(campusId);
+        if (children > 0) {
+            parts.add(children + " trẻ");
+        }
+        Map<String, List<String>> staff = new LinkedHashMap<>();
+        campusRepository
+                .findStaffNamesEver(campusId)
+                .forEach(s -> staff.computeIfAbsent(
+                                "VICE_PRINCIPAL".equals(s.getStaffRole())
+                                        ? "PHT"
+                                        : "TEACHER".equals(s.getStaffRole()) ? "GV" : "nhân sự",
+                                k -> new ArrayList<>())
+                        .add(s.getFullName()));
+        staff.forEach((role, names) -> parts.add(role + " "
+                + (names.size() > 3
+                        ? String.join(", ", names.subList(0, 3)) + " và " + (names.size() - 3) + " người khác"
+                        : String.join(", ", names))));
+        return parts.isEmpty() ? null : String.join(", ", parts);
+    }
+
     private CampusResponse toResponseWithStats(Campus campus) {
         LocalDate today = LocalDate.now(clock);
         Long yearId = resolveSchoolYearId(null);
@@ -441,7 +608,7 @@ public class CampusServiceImpl implements CampusService {
                 : request.phone().replaceAll("[\\s.\\-]", "").replaceFirst("^\\+?84", "0");
         return new CampusRequest(
                 request.code().trim(),
-                request.name().trim(),
+                DisplayNames.normalize(request.name()),
                 request.shortName().trim(),
                 request.address().trim(),
                 phone,

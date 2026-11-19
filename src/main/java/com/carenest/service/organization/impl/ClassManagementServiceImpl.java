@@ -25,6 +25,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.DisplayNames;
 import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.RoomStatus;
@@ -313,6 +314,11 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                     ageGroupRepository.addAllToYear(target.getId());
                 }
                 ageGroupRepository.addToYear(target.getId(), group.getId());
+                // Lớp chép sang năm đích mang theo điểm trường (V151)
+                if (campusRepository.findYearCampusIds(target.getId()).isEmpty()) {
+                    campusRepository.addAllToYear(target.getId());
+                }
+                campusRepository.addToYear(target.getId(), c.getCampusId());
                 copied.add(c.getName());
             }
             CopyClassesResponse response = new CopyClassesResponse(copied, skipped, withoutRoom);
@@ -327,9 +333,15 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     // Kiểm tra lớp mới/sửa: tên không trùng trong điểm trường + năm, phòng cùng điểm trường và chưa có lớp khác,
     // sĩ số trong [max(1, số trẻ), min(sĩ số tối đa nhóm tuổi, sức chứa phòng)]
     private String validate(ClassRequest request, Long classId, long enrolled) {
-        String name = request.name().trim();
+        // Tên lớp chuẩn hóa trước khi lưu và so trùng (gộp khoảng trắng, dấu NFC)
+        String name = DisplayNames.normalize(request.name());
         if (!campusRepository.existsById(request.campusId())) {
             throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);
+        }
+        // V151: lớp chỉ mở ở điểm trường của năm học đó (Cần chốt 22/10/2026)
+        List<Long> yearCampuses = campusRepository.findYearCampusIds(request.schoolYearId());
+        if (!yearCampuses.isEmpty() && !yearCampuses.contains(request.campusId())) {
+            throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
         }
         if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
             throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);

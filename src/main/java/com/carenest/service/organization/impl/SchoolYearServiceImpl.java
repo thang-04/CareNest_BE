@@ -149,6 +149,13 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             } else {
                 ageGroupRepository.copyYearAgeGroups(latest.getId(), schoolYear.getId());
             }
+            // Điểm trường của năm mới cũng chép từ năm gần nhất (V151; chưa có thì cả danh mục)
+            if (latest == null
+                    || campusRepository.findYearCampusIds(latest.getId()).isEmpty()) {
+                campusRepository.addAllToYear(schoolYear.getId());
+            } else {
+                campusRepository.copyYearCampuses(latest.getId(), schoolYear.getId());
+            }
             log.info("{}|schoolYearId={}|END", logPrefix, schoolYear.getId());
             return schoolStructureMapper.toDetailResponse(schoolYear, 0, LocalDate.now(clock));
         } catch (RuntimeException ex) {

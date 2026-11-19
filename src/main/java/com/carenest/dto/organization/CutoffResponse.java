@@ -26,7 +26,8 @@ public record CutoffResponse(
             Long updatedBy,
             String updatedByName,
             Instant updatedAt,
-            List<Entry> history) {}
+            List<Entry> history,
+            @JsonFormat(pattern = "HH:mm") LocalTime latestAfternoonArrival) {}
 
     public record Entry(
             Long id,
@@ -36,5 +37,6 @@ public record CutoffResponse(
             String note,
             Long userId,
             String userName,
-            Instant at) {}
+            Instant at,
+            @JsonFormat(pattern = "HH:mm") LocalTime latestAfternoonArrival) {}
 }
