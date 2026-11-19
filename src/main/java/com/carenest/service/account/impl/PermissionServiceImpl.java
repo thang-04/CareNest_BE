@@ -35,6 +35,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -73,6 +75,16 @@ public class PermissionServiceImpl implements PermissionService {
     private final PermissionMapper permissionMapper;
     private final TransactionTemplate transactionTemplate;
     private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasEffectivePermission(Long userId, CareNestRole role, Permission permission) {
+        return EffectivePermissionResolver.resolve(
+                        Set.of(role),
+                        rolePermissionRepository.findByRole(role),
+                        userPermissionOverrideRepository.findByUserId(userId))
+                .contains(permission);
+    }
 
     @Override
     public List<PermissionResponse> getPermissionCatalog() {
@@ -274,8 +286,17 @@ public class PermissionServiceImpl implements PermissionService {
             } else {
                 logs = permissionChangeLogRepository.findAll(pageable);
             }
+            Set<Long> userIds = new HashSet<>();
+            logs.forEach(row -> {
+                userIds.add(row.getActorUserId());
+                if (row.getTargetUserId() != null) {
+                    userIds.add(row.getTargetUserId());
+                }
+            });
+            Map<Long, String> names = new HashMap<>();
+            userAccountRepository.findAllById(userIds).forEach(user -> names.put(user.getId(), user.getFullName()));
             PageResponse<PermissionChangeLogResponse> response =
-                    PageResponse.from(logs, permissionMapper::toChangeLogResponse);
+                    PageResponse.from(logs, row -> permissionMapper.toChangeLogResponse(row, names::get));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {

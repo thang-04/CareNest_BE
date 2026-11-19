@@ -209,7 +209,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                                         child.getDateOfBirth(),
                                         a.getCampusId(),
                                         a.getClassroomId(),
-                                        a.getStartDate());
+                                        a.getStartDate(),
+                                        ageGroupOf(setup, child));
                     })
                     .filter(Objects::nonNull)
                     .sorted(Comparator.comparing(PlacementBoardResponse.NewAdmission::fullName))
@@ -301,14 +302,21 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     if (to == null) {
                         throw GlobalException.of(ApiCode.TARGET_CLASS_REQUIRED);
                     }
-                    if (!placesCampus(currentUser, to.campusId())
-                            || !Objects.equals(to.campusId(), admission.getCampusId())) {
+                    if (!placesCampus(currentUser, to.campusId())) {
                         throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
                     }
-                    // Như trẻ chuyển năm: lớp phải đúng nhóm tuổi của trẻ (tính tại ngày bắt đầu năm học)
                     Child child = board.children.get(admission.getChildId());
+                    String childName = child == null ? "Trẻ" : child.getFullName();
+                    if (!Objects.equals(to.campusId(), admission.getCampusId())) {
+                        throw GlobalException.of(ApiCode.PLACEMENT_ADMISSION_WRONG_CAMPUS, to.name(), childName);
+                    }
+                    // Như trẻ chuyển năm: lớp phải đúng nhóm tuổi của trẻ (tính tại ngày bắt đầu năm học)
                     if (child != null && !fitsAgeGroup(setup, to.ageGroupId(), child)) {
-                        throw GlobalException.of(ApiCode.PLACEMENT_WRONG_AGE_GROUP, child.getFullName(), to.name());
+                        throw GlobalException.of(
+                                ApiCode.PLACEMENT_ADMISSION_WRONG_AGE_GROUP,
+                                childName,
+                                ageMonths(setup, child),
+                                to.name());
                     }
                 }
                 admission.assignClass(item.toClassId());
@@ -587,6 +595,21 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         });
     }
 
+    // Nhóm tuổi của trẻ tại ngày bắt đầu năm học mới (cùng cách kiểm như fitsAgeGroup); không khớp nhóm nào ⇒ null
+    private static Long ageGroupOf(YearSetupResponse setup, Child child) {
+        return setup.ageGroups().stream()
+                .filter(g -> g.ageFromMonths() != null && g.ageToMonths() != null)
+                .filter(g -> fitsAgeGroup(setup, g.id(), child))
+                .map(AgeGroupDetailResponse::id)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static long ageMonths(YearSetupResponse setup, Child child) {
+        return java.time.temporal.ChronoUnit.MONTHS.between(
+                child.getDateOfBirth(), setup.year().startDate());
+    }
+
     private static boolean fitsAgeGroup(YearSetupResponse setup, Long ageGroupId, Child child) {
         var group = setup.ageGroups().stream()
                 .filter(g -> g.id().equals(ageGroupId))
@@ -697,6 +720,22 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         String placementDetail = setup.sourceYear() == null
                 ? "Không có năm học đang hoạt động cần chuyển trẻ"
                 : placed + "/" + toPlace + " trẻ của năm " + setup.sourceYear().name() + " đã xếp lớp";
+        // Cần chốt 19/11/2026 (BUG-43): trẻ đã tiếp nhận cho năm phải được xếp lớp trước khi kích hoạt
+        List<String> unplaced = board.admissions.values().stream()
+                .filter(a -> a.getClassroomId() == null)
+                .map(a -> board.children.containsKey(a.getChildId())
+                        ? board.children.get(a.getChildId()).getFullName()
+                        : "#" + a.getChildId())
+                .sorted()
+                .toList();
+        if (!unplaced.isEmpty()) {
+            misfits = new ArrayList<>(misfits);
+            misfits.add("Còn " + unplaced.size() + " trẻ đã tiếp nhận chưa xếp lớp ("
+                    + (unplaced.size() > 3
+                            ? String.join(", ", unplaced.subList(0, 3)) + " và " + (unplaced.size() - 3) + " trẻ khác"
+                            : String.join(", ", unplaced))
+                    + "), xếp lớp trước khi kích hoạt năm");
+        }
         steps.add(step(
                 "placement",
                 true,

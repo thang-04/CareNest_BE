@@ -36,7 +36,12 @@ public interface EvaluationDeadlineService {
     EvaluationUnlockResponse revokeUnlock(CurrentUser currentUser, Long unlockId);
 
     /** BGH: lớp quá hạn chưa xong (nhận xét tuần tuần trước, chủ đề, học kỳ, cuối năm) trong phạm vi điểm trường. */
-    List<OverdueClassItem> getOverdue(CurrentUser currentUser, Long campusId);
+    default List<OverdueClassItem> getOverdue(CurrentUser currentUser, Long campusId) {
+        return getOverdue(currentUser, campusId, null);
+    }
+
+    /** Lớp quá hạn theo năm học đang chọn (null = năm đang hoạt động); năm sắp diễn ra trả rỗng. */
+    List<OverdueClassItem> getOverdue(CurrentUser currentUser, Long campusId, Long schoolYearId);
 
     /** Kỳ đã khóa (không đang mở lại) mà còn việc dở của các lớp (BGH nhắc), không kiểm quyền. */
     List<OverdueClassItem> overdueOf(List<ClassroomInfoResponse> classes);

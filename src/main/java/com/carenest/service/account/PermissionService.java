@@ -9,6 +9,7 @@ import com.carenest.dto.account.UserPermissionOverridesResponse;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import java.util.List;
 
 /** Cấu hình quyền: ma trận theo role, ngoại lệ từng người và lịch sử thay đổi (ADR-0017). */
@@ -33,4 +34,7 @@ public interface PermissionService {
 
     PageResponse<PermissionChangeLogResponse> getPermissionChangeLogs(
             CareNestRole targetRole, Long targetUserId, int page, int size);
+
+    /** Quyền hiệu lực của một nhân sự theo role cấu hình được (ma trận + ngoại lệ), dùng chọn người nhận thông báo. */
+    boolean hasEffectivePermission(Long userId, CareNestRole role, Permission permission);
 }

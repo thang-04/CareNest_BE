@@ -1,6 +1,8 @@
 package com.carenest.repository.attendance;
 
 import com.carenest.entity.attendance.AttendanceRecord;
+import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.DayPart;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -22,4 +24,7 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
 
     List<AttendanceRecord> findByClassroomIdInAndDateBetween(
             Collection<Long> classroomIds, LocalDate from, LocalDate to);
+
+    List<AttendanceRecord> findByDateAndAbsentPartAndStatus(
+            LocalDate date, DayPart absentPart, AttendanceStatus status);
 }

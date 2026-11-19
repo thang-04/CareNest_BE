@@ -27,13 +27,21 @@ class DailyHealthRequestValidationTest {
                 .contains("Thân nhiệt phải từ 20,0 đến 45,0 °C");
     }
 
+    @Test
+    @DisplayName("Thân nhiệt bắt buộc (Cần chốt 18/11/2026)")
+    void temperatureIsRequired() {
+        assertThat(validator.validate(request(null)))
+                .extracting(v -> v.getPropertyPath().toString() + ":" + v.getMessage())
+                .containsExactly("temperature:Vui lòng nhập thân nhiệt");
+    }
+
     private static DailyHealthRequest request(String temperature) {
         return new DailyHealthRequest(
                 "req-1",
                 1L,
                 2L,
                 LocalDate.of(2026, 11, 11),
-                new BigDecimal(temperature),
+                temperature == null ? null : new BigDecimal(temperature),
                 HealthObservation.NO_CONCERN,
                 null,
                 null,

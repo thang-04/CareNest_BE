@@ -104,6 +104,14 @@ class ClassStructureIntegrationTest {
                 campusA);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                year);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                year);
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         principal = new CurrentUser(
                 principalId,
@@ -289,6 +297,27 @@ class ClassStructureIntegrationTest {
     }
 
     @Test
+    void classNameDuplicateIgnoresSpacesAccentFormAndCaseWithinYearAndCampus() {
+        RoomResponse room = createRoom(campusA, "P.101", 25);
+        ClassResponse created =
+                classService.createClass(principal, classRequest("  Lớp   Mầm 1 ", campusA, room.id(), 25));
+        assertThat(created.name()).isEqualTo("Lớp Mầm 1");
+        String decomposed = java.text.Normalizer.normalize("LỚP MẦM 1", java.text.Normalizer.Form.NFD);
+        for (String name : List.of("Lớp  Mầm 1", decomposed)) {
+            assertThatThrownBy(() -> classService.createClass(principal, classRequest(name, campusA, room.id(), 25)))
+                    .isInstanceOf(GlobalException.class)
+                    .extracting(ex -> ((GlobalException) ex).getApiCode())
+                    .isEqualTo(ApiCode.CLASS_NAME_EXISTS);
+        }
+        // Điểm trường khác cùng năm vẫn được dùng tên này
+        RoomResponse roomB = createRoom(campusB, "P.201", 25);
+        assertThat(classService
+                        .createClass(principal, classRequest("Lớp Mầm 1", campusB, roomB.id(), 25))
+                        .name())
+                .isEqualTo("Lớp Mầm 1");
+    }
+
+    @Test
     void roomUsedOnceForEachYearAndCampusMustMatch() {
         RoomResponse room = createRoom(campusA, "P.101", 25);
         classService.createClass(principal, classRequest("Lớp Mầm 1", campusA, room.id(), 25));
@@ -451,6 +480,19 @@ class ClassStructureIntegrationTest {
         long nextYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
                 + "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id");
         jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                nextYear);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                nextYear);
+        jdbc.update(
+                "INSERT INTO school_year_room_members (school_year_id, room_id, campus_id, code, name, room_type, capacity, manager_user_id, status, note) "
+                        + "SELECT ?, id, campus_id, code, name, room_type, capacity, manager_user_id, status, note FROM rooms "
+                        + "WHERE deleted_at IS NULL AND status <> 'DELETED'",
+                nextYear);
+        jdbc.update(
                 "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES (?, ?, 'Lớp B', ?, 20)",
                 campusA,
                 nextYear,
@@ -566,7 +608,7 @@ class ClassStructureIntegrationTest {
 
     private RoomResponse createRoomAs(CurrentUser user, long campusId, String code, int capacity) {
         return roomService.createRoom(
-                user, new RoomRequest(campusId, code, "Phòng " + code, RoomType.CLASS, capacity, null, null));
+                user, new RoomRequest(campusId, code, "Phòng " + code, RoomType.CLASS, capacity, null, null), year);
     }
 
     private ClassRequest classRequest(String name, long campusId, long roomId, int capacity) {

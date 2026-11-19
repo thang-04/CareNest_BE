@@ -156,6 +156,10 @@ class FlowConsistencyIntegrationTest {
                 + " RETURNING id");
         insertId("INSERT INTO campuses (code, name, short_name, is_main, status) VALUES ('CS-X', 'X', 'X', FALSE,"
                 + " 'INACTIVE') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                year);
 
         assertThat(yearSetup.getYearSetup(year).campusesWithoutVicePrincipal()).containsExactly(active);
     }

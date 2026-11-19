@@ -14,6 +14,7 @@ import com.carenest.repository.child.ChildAllergyRepository;
 import com.carenest.repository.child.ChildHealthDeclarationRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildListService;
@@ -69,23 +70,44 @@ public class ChildListServiceImpl implements ChildListService {
     private final ClassroomService classroomService;
     private final ChildIntakeService childIntakeService;
     private final StaffAccessPolicy staffAccessPolicy;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final StaffAssignmentService staffAssignmentService;
     private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ChildListItemResponse> searchChildren(CurrentUser actor, ChildListFilter filter) {
-        String logPrefix = LOG_PREFIX + "|searchChildren|userId=" + actor.userId() + "|schoolYearId="
+        return search("searchChildren", actor, filter, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ChildListItemResponse> browseChildren(CurrentUser actor, ChildListFilter filter) {
+        return search("browseChildren", actor, filter, true);
+    }
+
+    private PageResponse<ChildListItemResponse> search(
+            String method, CurrentUser actor, ChildListFilter filter, boolean schoolWideOnFilter) {
+        String logPrefix = LOG_PREFIX + "|" + method + "|userId=" + actor.userId() + "|schoolYearId="
                 + filter.schoolYearId() + "|campusId=" + filter.campusId() + "|classId=" + filter.classId() + "|page="
                 + filter.page() + "|size=" + filter.size();
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
             Scope scope = scopeOf(actor, today);
-            if (!scope.wholeSchool()) {
-                checkFilterScope(filter, scope.campusIds(), scope.classIds());
+            // AUTH-20 (2026-11-15): PHT chủ động lọc lớp/điểm trường khác thì xem được (cả trường); danh sách mặc định
+            // vẫn điểm trường mình; cờ quản lý từng dòng luôn theo `scope`
+            boolean filtered = filter.classId() != null || filter.campusId() != null;
+            Scope readScope = schoolWideOnFilter
+                            && filtered
+                            && !scope.wholeSchool()
+                            && campusAccessPolicy.canReadAllCampuses(actor)
+                    ? new Scope(true, scope.campusIds(), scope.classIds())
+                    : scope;
+            if (!readScope.wholeSchool()) {
+                checkFilterScope(filter, readScope.campusIds(), readScope.classIds());
             }
-            List<ChildRepository.ChildListRow> rows = rowsOf(scope, filter, today);
+            List<ChildRepository.ChildListRow> rows = rowsOf(readScope, filter, today);
             int total = rows.size();
             int from = (int) Math.min((long) filter.page() * filter.size(), total);
             int to = Math.min(from + filter.size(), total);

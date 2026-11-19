@@ -227,6 +227,11 @@ public enum ApiCode {
             2107, HttpStatus.CONFLICT, "Trường cần một điểm trường chính, chọn điểm trường chính khác trước"),
     MAIN_CAMPUS_NOT_DELETABLE(2108, HttpStatus.CONFLICT, "Không xóa được điểm trường chính"),
     CAMPUS_HAS_DEPENDENTS(2109, HttpStatus.CONFLICT, "Điểm trường đã có {0}, không xóa được"),
+    // Cần chốt 19/11/2026: chỉ xóa điểm trường chưa có dữ liệu, báo rõ còn gì và gợi ý ngừng hoạt động
+    CAMPUS_NOT_IN_YEAR(
+            2125, HttpStatus.BAD_REQUEST, "Điểm trường không có trong năm học này, thêm điểm trường vào năm trước"),
+    CAMPUS_NOT_EMPTY(
+            2124, HttpStatus.CONFLICT, "{0} còn {1}, không xóa được. Nếu không dùng nữa, chọn Ngừng hoạt động"),
     MAIN_CAMPUS_NOT_DEACTIVATABLE(2110, HttpStatus.CONFLICT, "Không ngừng hoạt động được điểm trường chính"),
     CAMPUS_HAS_ACTIVE_CLASSES(
             2111,
@@ -332,6 +337,8 @@ public enum ApiCode {
     PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
     PLACEMENT_CHILD_ALREADY_ENROLLED(
             2413, HttpStatus.CONFLICT, "{0} đang có lớp, không vào lớp năm học mới theo đăng ký tiếp nhận được"),
+    PLACEMENT_ADMISSION_WRONG_CAMPUS(2415, HttpStatus.BAD_REQUEST, "Lớp {0} không thuộc điểm trường đăng ký của {1}"),
+    PLACEMENT_ADMISSION_WRONG_AGE_GROUP(2416, HttpStatus.BAD_REQUEST, "{0} ({1} tháng) không thuộc nhóm tuổi của {2}"),
     CHILD_PLANNED_FOR_NEXT_YEAR(
             2414, HttpStatus.CONFLICT, "{0} đã đăng ký cho năm học sắp tới, xếp lớp tại màn Xếp lớp năm học mới"),
 
@@ -361,6 +368,13 @@ public enum ApiCode {
     CHILD_ALREADY_LEFT(3011, HttpStatus.CONFLICT, "Trẻ đã nghỉ học. Mở lại hồ sơ trước khi thay đổi."),
     // G94-180/AUTH-21 (2026-11-11): yêu cầu đổi SĐT cho phụ huynh không có trên hồ sơ trẻ này
     CHILD_GUARDIAN_NOT_FOUND(3012, HttpStatus.NOT_FOUND, "Không tìm thấy phụ huynh trên hồ sơ trẻ. Tải lại hồ sơ."),
+    // CHD-11 (2026-11-15): GV sửa hồ sơ, khai báo sức khỏe ⇒ gửi yêu cầu, HT/PHT điểm trường duyệt mới ghi
+    CHILD_PROFILE_CHANGE_NEEDS_APPROVAL(
+            3013, HttpStatus.CONFLICT, "Giáo viên gửi yêu cầu sửa hồ sơ để Hiệu trưởng hoặc Phó hiệu trưởng duyệt"),
+    CHILD_PROFILE_CHANGE_NOT_FOUND(3014, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu sửa hồ sơ trẻ"),
+    CHILD_PROFILE_CHANGE_NOT_PENDING(3015, HttpStatus.CONFLICT, "Yêu cầu sửa hồ sơ trẻ đã được xử lý"),
+    CHILD_PROFILE_CHANGE_DECIDE_DENIED(
+            3016, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt yêu cầu sửa hồ sơ của trẻ này"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
@@ -393,6 +407,11 @@ public enum ApiCode {
     LEAVE_NOT_FOUND(4023, HttpStatus.NOT_FOUND, "Không tìm thấy đơn nghỉ"),
     LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
     LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
+    // ATT-12, ATT-13 (Cần chốt 18/11/2026): nghỉ nửa buổi
+    LEAVE_HALF_DAY_SINGLE_DAY(4031, HttpStatus.BAD_REQUEST, "Nghỉ buổi sáng hoặc buổi chiều chỉ chọn cho một ngày"),
+    CUTOFF_LATEST_ARRIVAL_INVALID(4030, HttpStatus.BAD_REQUEST, "Giờ đến muộn nhất buổi chiều phải sau giờ chốt {0}"),
+    ATTENDANCE_ARRIVAL_NOT_ALLOWED(
+            4033, HttpStatus.CONFLICT, "Chỉ ghi Đã đến cho trẻ nghỉ buổi sáng chưa đến, từ giờ chốt tới {0}"),
     ATTENDANCE_EXCUSED_NOT_ALLOWED(
             4018,
             HttpStatus.BAD_REQUEST,
@@ -476,6 +495,7 @@ public enum ApiCode {
     MEAL_COUNT_ALREADY_CONFIRMED(6005, HttpStatus.CONFLICT, "Sổ báo ăn bữa này đã được xác nhận"),
     MEAL_COUNT_UNCHANGED(6006, HttpStatus.BAD_REQUEST, "Số suất chưa thay đổi"),
     MEAL_COUNT_YEAR_READ_ONLY(6007, HttpStatus.CONFLICT, "Năm học không hoạt động, sổ báo ăn chỉ xem"),
+    HALF_DAY_LEAVE_MEAL(6044, HttpStatus.BAD_REQUEST, "Trẻ nghỉ buổi {0}, không báo bữa {1}"),
     MEAL_COUNT_NORMAL_NOT_EDITABLE(
             6008,
             HttpStatus.CONFLICT,
@@ -571,6 +591,10 @@ public enum ApiCode {
             6090,
             HttpStatus.UNPROCESSABLE_ENTITY,
             "Còn {0} dòng Không đạt chưa ghi biện pháp xử lý (loại bỏ, trả lại, tiêu hủy...)"),
+    MEAL_PLAN_NOT_PUBLISHED(6091, HttpStatus.CONFLICT, "Thực đơn tuần chưa công bố, sửa ở bản nháp"),
+    MEAL_PLAN_DAY_LOCKED(6092, HttpStatus.CONFLICT, "Ngày {0} đã qua giờ chốt hoặc là ngày nghỉ, không sửa được"),
+    MEAL_PLAN_REASON_REQUIRED(6093, HttpStatus.BAD_REQUEST, "Cần nhập lý do sửa thực đơn (10–500 ký tự)"),
+    MEAL_PLAN_AMEND_NO_CHANGE(6094, HttpStatus.BAD_REQUEST, "Thực đơn ngày {0} không có thay đổi"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
@@ -704,8 +728,7 @@ public enum ApiCode {
     ASSESSMENT_ACTIVITY_NOT_IN_LESSON(
             7308, HttpStatus.BAD_REQUEST, "Hoạt động không có trong giáo án đã duyệt của ngày"),
     ASSESSMENT_GOAL_NOT_IN_ACTIVITY(7309, HttpStatus.BAD_REQUEST, "Mục tiêu không thuộc hoạt động này của giáo án"),
-    ASSESSMENT_GOAL_TWO_RESULTS(
-            7310, HttpStatus.BAD_REQUEST, "Một mục tiêu chỉ chọn một mức Đạt, Cần cố gắng hoặc Chưa đạt"),
+    ASSESSMENT_GOAL_TWO_RESULTS(7310, HttpStatus.BAD_REQUEST, "Một mục tiêu chỉ chọn một mức Đạt hoặc Chưa đạt"),
     ASSESSMENT_DIAGNOSTIC_TERM(
             7311, HttpStatus.BAD_REQUEST, "Không dùng thuật ngữ chẩn đoán (\"{0}\"). Hãy mô tả hành vi quan sát được"),
     ASSESSMENT_NOTHING_TO_SAVE(7312, HttpStatus.BAD_REQUEST, "Chưa có thay đổi nào để lưu"),
@@ -737,7 +760,7 @@ public enum ApiCode {
             7329,
             HttpStatus.BAD_REQUEST,
             "Kỳ phát phiếu không hợp lệ: tuần bắt đầu thứ Hai, tháng bắt đầu ngày 1 và nằm trong năm học của lớp"),
-    TICKET_PERIOD_NOT_ENDED(7330, HttpStatus.BAD_REQUEST, "Chỉ phát phiếu khi kỳ đã kết thúc (sau ngày {0})"),
+    TICKET_PERIOD_NOT_ENDED(7330, HttpStatus.BAD_REQUEST, "Chưa tới ngày phát phiếu, phát được từ ngày {0}"),
     TICKET_NO_CHILDREN(7331, HttpStatus.BAD_REQUEST, "Chọn ít nhất một trẻ để phát phiếu"),
     TICKET_TOO_MANY_CHILDREN(7332, HttpStatus.BAD_REQUEST, "Danh sách trẻ có mã trùng hoặc nhiều hơn sĩ số lớp"),
     TICKET_CHILD_NOT_IN_CLASS(7333, HttpStatus.BAD_REQUEST, "Có trẻ không thuộc lớp trong kỳ này"),

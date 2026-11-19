@@ -95,6 +95,7 @@ class DryStockOutlookIntegrationTest {
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        attachCampusesToYear(year);
         classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
                 + ", " + year + ", 'Lớp K', " + ag3 + ") RETURNING id");
         for (String name : List.of("Trẻ A", "Trẻ B")) {
@@ -126,6 +127,13 @@ class DryStockOutlookIntegrationTest {
                 principal.userId());
         // Tồn 375 g ⇒ đủ thứ Hai (150), thứ Ba (150), thiếu từ thứ Tư
         receive("375", "2027-05-01");
+    }
+
+    private void attachCampusesToYear(long schoolYearId) {
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                schoolYearId);
     }
 
     @Test

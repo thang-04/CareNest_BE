@@ -41,6 +41,8 @@ public enum NotificationType {
     DAILY_HEALTH_NOTED,
     /** Công bố thực đơn tuần, báo phụ huynh (NUT-08). */
     MENU_PUBLISHED,
+    /** Sửa ngoại lệ một ngày của thực đơn đã công bố, báo phụ huynh và bếp (NUT-08, P-39). */
+    MENU_CHANGED,
     /** Phụ huynh gửi đơn nghỉ, báo GV lớp (ATT-05). */
     LEAVE_REQUEST_CREATED,
     /** Xác nhận đánh giá trẻ, báo phụ huynh (PAR-03). */
@@ -63,7 +65,11 @@ public enum NotificationType {
     MEAL_COUNT_CONFIRMED,
     REWARD_LIST_UPDATED,
     /** Kích hoạt năm học mới: báo GV, PHT, bếp có phân công năm mới (CFG-YR-02). */
-    SCHOOL_YEAR_ACTIVATED;
+    SCHOOL_YEAR_ACTIVATED,
+    /** GV gửi yêu cầu sửa hồ sơ/khai báo sức khỏe trẻ, báo HT và PHT điểm trường có quyền duyệt (CHD-11). */
+    CHILD_PROFILE_CHANGE_REQUESTED,
+    /** Kết quả duyệt/từ chối yêu cầu sửa hồ sơ trẻ, báo GV đã gửi (CHD-11). */
+    CHILD_PROFILE_CHANGE_DECIDED;
 
     public String typeLabel() {
         return switch (this) {
@@ -82,7 +88,7 @@ public enum NotificationType {
                     HEALTH_RESULT_UPDATED,
                     HEALTH_CHECK_OPENED,
                     HEALTH_TREND_APPROVED -> "Sức khỏe";
-            case MENU_PUBLISHED -> "Thực đơn";
+            case MENU_PUBLISHED, MENU_CHANGED -> "Thực đơn";
             case MEAL_COUNT_RECONFIRM, MEAL_COUNT_CONFIRMED -> "Suất ăn";
             case LEAVE_REQUEST_CREATED, LEAVE_REQUEST_CHANGED -> "Đơn nghỉ";
             case CHILD_EVALUATION_CONFIRMED, THEME_EVALUATION_CONFIRMED, ASSESSMENT_REMINDER, ASSESSMENT_REOPENED ->
@@ -96,6 +102,7 @@ public enum NotificationType {
             case REWARD_LIST_UPDATED -> "Khen thưởng";
             case SCHOOL_YEAR_ACTIVATED -> "Năm học";
             case LEADER_REMINDER -> "Nhắc việc";
+            case CHILD_PROFILE_CHANGE_REQUESTED, CHILD_PROFILE_CHANGE_DECIDED -> "Hồ sơ trẻ";
         };
     }
 }
