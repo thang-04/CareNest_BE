@@ -575,6 +575,17 @@ public enum ApiCode {
     MEAL_PLAN_DAY_LOCKED(6092, HttpStatus.CONFLICT, "Ngày {0} đã qua giờ chốt hoặc là ngày nghỉ, không sửa được"),
     MEAL_PLAN_REASON_REQUIRED(6093, HttpStatus.BAD_REQUEST, "Cần nhập lý do sửa thực đơn (10–500 ký tự)"),
     MEAL_PLAN_AMEND_NO_CHANGE(6094, HttpStatus.BAD_REQUEST, "Thực đơn ngày {0} không có thay đổi"),
+    FOOD_PRICE_NOT_FOUND(6095, HttpStatus.NOT_FOUND, "Không tìm thấy mức giá"),
+    FOOD_PRICE_DATE_PAST(
+            6096, HttpStatus.BAD_REQUEST, "Ngày hiệu lực phải từ hôm nay trở đi, giá các ngày đã qua giữ nguyên"),
+    FOOD_PRICE_LOCKED(6097, HttpStatus.CONFLICT, "Mức giá đã có hiệu lực, không sửa hoặc xóa được"),
+    FOOD_PRICE_DATE_DUPLICATED(6098, HttpStatus.CONFLICT, "Thực phẩm {0} đã có mức giá từ ngày {1}"),
+    FOOD_PRICE_REASON_REQUIRED(
+            6099, HttpStatus.BAD_REQUEST, "Ngày hiệu lực nằm trong hạn hợp đồng: cần ghi lý do (số phụ lục)"),
+    FOOD_PRICE_CHANGE_VIA_ADJUST(6100, HttpStatus.BAD_REQUEST, "Giá và nhà cung cấp đổi qua chức năng điều chỉnh giá"),
+    SUPPLIER_INACTIVE(6101, HttpStatus.CONFLICT, "Nhà cung cấp đã ngừng hoạt động"),
+    SUPPLIER_CONTRACT_RANGE_INVALID(
+            6102, HttpStatus.BAD_REQUEST, "Ngày kết thúc hợp đồng không được trước ngày bắt đầu"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

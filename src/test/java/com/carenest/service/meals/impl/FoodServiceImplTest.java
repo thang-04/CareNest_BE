@@ -17,6 +17,8 @@ import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FoodGroup;
@@ -24,9 +26,15 @@ import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,7 +45,18 @@ class FoodServiceImplTest {
             new CurrentUser(3L, "kc-3", "viceprincipal.a", "Demo", null, Set.of(CareNestRole.VICE_PRINCIPAL));
 
     private final FoodRepository foodRepository = mock(FoodRepository.class);
-    private final FoodServiceImpl service = new FoodServiceImpl(foodRepository, new NutritionCatalogMapper());
+    private final FoodPriceService foodPriceService = mock(FoodPriceService.class);
+    private final FoodServiceImpl service = new FoodServiceImpl(
+            foodRepository,
+            new NutritionCatalogMapper(),
+            foodPriceService,
+            Clock.fixed(Instant.parse("2026-11-18T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")));
+
+    @BeforeEach
+    void emptyPriceBook() {
+        given(foodPriceService.book(any()))
+                .willReturn(new FoodPriceBook(Map.of(), Map.of(), LocalDate.of(2026, 11, 18)));
+    }
 
     @Test
     @DisplayName("NUT-05: thực phẩm thiếu nguồn dinh dưỡng thì không lưu")
@@ -79,7 +98,8 @@ class FoodServiceImplTest {
                 valid.storage(),
                 null,
                 null,
-                List.of());
+                List.of(),
+                null);
 
         assertThatThrownBy(() -> service.createFood(VICE_PRINCIPAL, noOrigin))
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
@@ -163,7 +183,8 @@ class FoodServiceImplTest {
                 FoodStorage.FRESH,
                 FoodOrigin.PLANT,
                 null,
-                List.of());
+                List.of(),
+                null);
 
         FoodResponse created = service.createFood(VICE_PRINCIPAL, request);
 
@@ -261,6 +282,7 @@ class FoodServiceImplTest {
                 FoodStorage.DRY,
                 FoodOrigin.PLANT,
                 null,
-                List.of());
+                List.of(),
+                null);
     }
 }

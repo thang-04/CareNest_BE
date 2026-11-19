@@ -1,6 +1,7 @@
 package com.carenest.dto.meals;
 
 import com.carenest.utils.enums.CatalogStatus;
+import com.carenest.utils.enums.ContractStatus;
 import com.carenest.utils.enums.FoodGroup;
 import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
@@ -8,6 +9,7 @@ import com.carenest.utils.enums.FoodUnit;
 import java.math.BigDecimal;
 import java.util.List;
 
+/** {@code unitPrice}, NCC và trạng thái hợp đồng lấy tại hôm nay theo lịch sử giá (NUT-27). */
 public record FoodResponse(
         Long id,
         String code,
@@ -36,4 +38,7 @@ public record FoodResponse(
         FoodOrigin origin,
         String note,
         CatalogStatus status,
-        List<AllergenResponse> allergens) {}
+        List<AllergenResponse> allergens,
+        Long supplierId,
+        String supplierName,
+        ContractStatus contractStatus) {}

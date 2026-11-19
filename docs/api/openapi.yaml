@@ -7110,6 +7110,104 @@ paths:
           description: OK
       tags:
       - nutrition-food-controller
+  /api/nutrition/foods/{foodId}/prices:
+    get:
+      operationId: getFoodPrices
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListFoodPriceResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
+    post:
+      operationId: adjustFoodPrice
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodPriceRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodPriceResponse"
+          description: Created
+      tags:
+      - nutrition-food-controller
+  /api/nutrition/foods/{foodId}/prices/{priceId}:
+    delete:
+      operationId: deleteFoodPrice
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: priceId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - nutrition-food-controller
+    put:
+      operationId: updateFoodPrice
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: priceId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodPriceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodPriceResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
   /api/nutrition/foods/{foodId}/status:
     patch:
       operationId: changeFoodStatus
@@ -8090,6 +8188,56 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonSupplierResponse"
+          description: OK
+      tags:
+      - supplier-controller
+  /api/nutrition/suppliers/{supplierId}/apply-contract:
+    post:
+      operationId: applyContract
+      parameters:
+      - in: path
+        name: supplierId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierContractRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSupplierResponse"
+          description: OK
+      tags:
+      - supplier-controller
+  /api/nutrition/suppliers/{supplierId}/foods:
+    get:
+      operationId: getSupplierFoods
+      parameters:
+      - in: path
+        name: supplierId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSupplierFoodResponse"
           description: OK
       tags:
       - supplier-controller
@@ -12633,6 +12781,14 @@ components:
     DayMarketLine:
       type: object
       properties:
+        contractStatus:
+          type: string
+          enum:
+          - ACTIVE
+          - EXPIRING
+          - EXPIRED
+          - NOT_STARTED
+          - NONE
         cost:
           type: number
         food:
@@ -12646,6 +12802,11 @@ components:
         quantity:
           type: number
         storage:
+          type: string
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
           type: string
         unitPrice:
           type: number
@@ -13851,6 +14012,45 @@ components:
           type: number
         storage:
           type: string
+    FoodPriceRequest:
+      type: object
+      properties:
+        effectiveFrom:
+          type: string
+          format: date
+        price:
+          type: number
+          minimum: 0
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+        supplierId:
+          type: integer
+          format: int64
+      required:
+      - effectiveFrom
+      - price
+    FoodPriceResponse:
+      type: object
+      properties:
+        editable:
+          type: boolean
+        effectiveFrom:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        price:
+          type: number
+        reason:
+          type: string
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
     FoodRequest:
       type: object
       properties:
@@ -13932,6 +14132,9 @@ components:
           enum:
           - FRESH
           - DRY
+        supplierId:
+          type: integer
+          format: int64
         unit:
           type: string
           enum:
@@ -13988,6 +14191,14 @@ components:
           type: number
         code:
           type: string
+        contractStatus:
+          type: string
+          enum:
+          - ACTIVE
+          - EXPIRING
+          - EXPIRED
+          - NOT_STARTED
+          - NONE
         foodGroup:
           type: string
           enum:
@@ -14042,6 +14253,11 @@ components:
           enum:
           - FRESH
           - DRY
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
         unit:
           type: string
           enum:
@@ -14193,6 +14409,8 @@ components:
           - ENOUGH
           - SHORT
           - OVER
+        supplier:
+          $ref: "#/components/schemas/SupplierInfo"
     FreshCheckLineInput:
       type: object
       properties:
@@ -14212,6 +14430,9 @@ components:
           - ENOUGH
           - SHORT
           - OVER
+        supplierId:
+          type: integer
+          format: int64
       required:
       - foodId
       - result
@@ -14326,6 +14547,9 @@ components:
           format: date
         quantity:
           type: number
+        supplierId:
+          type: integer
+          format: int64
     FreshForecastLine:
       type: object
       properties:
@@ -14335,6 +14559,11 @@ components:
             $ref: "#/components/schemas/FreshForecastDayQty"
         food:
           $ref: "#/components/schemas/StockFoodRef"
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
         totalQty:
           type: number
     FreshForecastRequest:
@@ -16718,39 +16947,15 @@ components:
     Line:
       type: object
       properties:
-        absent:
-          type: integer
-          format: int32
-        ageGroupId:
+        foodId:
           type: integer
           format: int64
-        attendanceChanged:
-          type: boolean
-        classId:
-          type: integer
-          format: int64
-        className:
-          type: string
-        confirmedNormal:
-          type: integer
-          format: int32
-        confirmedSubstitute:
-          type: integer
-          format: int32
-        missing:
-          type: integer
-          format: int32
-        normal:
-          type: integer
-          format: int32
-        present:
-          type: integer
-          format: int32
-        substitute:
-          type: integer
-          format: int32
-        substituteAdjusted:
-          type: boolean
+        price:
+          type: number
+          minimum: 0
+      required:
+      - foodId
+      - price
     LinkedChildResponse:
       type: object
       properties:
@@ -17209,6 +17414,10 @@ components:
             $ref: "#/components/schemas/Ingredient"
         mealPrice:
           type: number
+        supplierCosts:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupplierCost"
         totalCost:
           type: number
     MenuTemplateRequest:
@@ -20087,6 +20296,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonFoodPriceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/FoodPriceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonFoodResponse:
       type: object
       properties:
@@ -20773,6 +20995,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListFoodPriceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodPriceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListFoodResponse:
       type: object
       properties:
@@ -21233,6 +21470,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StockShortfallResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListSupplierFoodResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupplierFoodResponse"
         desc:
           type: string
         errorCode:
@@ -23642,6 +23894,60 @@ components:
           format: int32
         structured:
           $ref: "#/components/schemas/StructuredSummary"
+    SupplierContractRequest:
+      type: object
+      properties:
+        contractEnd:
+          type: string
+          format: date
+        contractNo:
+          type: string
+          maxLength: 50
+          minLength: 0
+        contractStart:
+          type: string
+          format: date
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/Line"
+          minItems: 1
+      required:
+      - contractEnd
+      - contractStart
+      - lines
+    SupplierCost:
+      type: object
+      properties:
+        contractStatus:
+          type: string
+          enum:
+          - ACTIVE
+          - EXPIRING
+          - EXPIRED
+          - NOT_STARTED
+          - NONE
+        cost:
+          type: number
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
+    SupplierFoodResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        foodId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        price:
+          type: number
+        purchaseUnit:
+          type: string
     SupplierInfo:
       type: object
       properties:
@@ -23663,6 +23969,16 @@ components:
           type: string
           maxLength: 300
           minLength: 0
+        contractEnd:
+          type: string
+          format: date
+        contractNo:
+          type: string
+          maxLength: 50
+          minLength: 0
+        contractStart:
+          type: string
+          format: date
         deliveryPerson:
           type: string
           maxLength: 100
@@ -23686,6 +24002,22 @@ components:
       properties:
         address:
           type: string
+        contractEnd:
+          type: string
+          format: date
+        contractNo:
+          type: string
+        contractStart:
+          type: string
+          format: date
+        contractStatus:
+          type: string
+          enum:
+          - ACTIVE
+          - EXPIRING
+          - EXPIRED
+          - NOT_STARTED
+          - NONE
         deliveryPerson:
           type: string
         id:

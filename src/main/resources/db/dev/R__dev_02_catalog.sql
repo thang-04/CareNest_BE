@@ -767,6 +767,12 @@ FROM (VALUES
 ) AS v (name, phone, address, delivery_person, id_card)
 WHERE NOT EXISTS (SELECT 1 FROM suppliers s WHERE s.name = v.name);
 
+-- 4b. Mức giá ban đầu của thực phẩm (NUT-27): giá theo ngày hiệu lực, chưa gán NCC — PHT gán qua "Áp dụng hợp đồng mới"
+INSERT INTO food_prices (food_id, price, effective_from, reason, created_at, updated_at)
+SELECT f.id, f.unit_price, DATE '2026-08-20', 'Giá ban đầu', TIMESTAMPTZ '2026-08-20 14:00+07', TIMESTAMPTZ '2026-08-20 14:00+07'
+FROM foods f
+WHERE f.code LIKE 'VDD%' AND NOT EXISTS (SELECT 1 FROM food_prices p WHERE p.food_id = f.id);
+
 -- 5. Bộ thực đơn mẫu 4 tuần (nhà trẻ 3 bữa, mẫu giáo 2 bữa theo age_groups.meal_sessions)
 INSERT INTO menu_template_sets (name, season_label, menu_block, created_at, updated_at)
 SELECT v.name, 'Năm học 2026-2027', v.block, TIMESTAMPTZ '2026-08-25 10:00+07', TIMESTAMPTZ '2026-08-25 10:00+07'
