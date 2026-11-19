@@ -686,6 +686,20 @@ public class AttendanceServiceImpl implements AttendanceService {
                         .map(Map.Entry::getKey)
                         .sorted()
                         .toList();
+        // Cần chốt 19/11/2026: bữa của buổi trẻ nghỉ báo câu riêng, không nhầm với bữa ngoài nhóm tuổi
+        if (absentPart != null) {
+            List<MealSession> leaveMeals = taken.stream()
+                    .filter(m -> classSessions.contains(m) && absentPart.includes(m))
+                    .toList();
+            if (!leaveMeals.isEmpty()) {
+                throw GlobalException.of(
+                        ApiCode.HALF_DAY_LEAVE_MEAL,
+                        absentPart == DayPart.AFTERNOON ? "chiều" : "sáng",
+                        leaveMeals.stream()
+                                .map(AttendanceServiceImpl::mealLabel)
+                                .collect(Collectors.joining(", ")));
+            }
+        }
         if (!served.containsAll(taken)) {
             throw GlobalException.of(ApiCode.MEAL_SESSION_NOT_SERVED);
         }
@@ -693,6 +707,14 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw GlobalException.of(ApiCode.ABSENT_CHILD_NO_MEAL);
         }
         return taken;
+    }
+
+    private static String mealLabel(MealSession session) {
+        return switch (session) {
+            case MORNING -> "Phụ sáng";
+            case LUNCH -> "Trưa";
+            case AFTERNOON -> "Xế";
+        };
     }
 
     private void checkRange(LocalDate from, LocalDate to) {
