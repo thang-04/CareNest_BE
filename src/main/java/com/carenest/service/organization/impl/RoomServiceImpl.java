@@ -607,7 +607,9 @@ public class RoomServiceImpl implements RoomService {
                             type,
                             i.getCapacity() == null ? null : i.getCapacity().intValue(),
                             homeroom ? r.managerUserId() : i.getManagerUserId(),
-                            homeroom ? r.managerName() : managerNames.get(i.getManagerUserId()),
+                            homeroom
+                                    ? r.managerName()
+                                    : i.getManagerUserId() == null ? null : managerNames.get(i.getManagerUserId()),
                             RoomStatus.valueOf(i.getStatus()),
                             i.getNote(),
                             r.yearClasses(),
