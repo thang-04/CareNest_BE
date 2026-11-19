@@ -18,7 +18,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers(disabledWithoutDocker = true)
 class FoodMicronutrientsMigrationTest {
     @Container
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Test
     @DisplayName("NUT-26: dữ liệu cũ giữ nguyên với vi chất null; vi chất âm và min lớn hơn max bị CHECK chặn")

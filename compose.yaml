@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    # PostgreSQL 17 kèm pgvector (xếp lại món ứng viên theo ngữ nghĩa, bảng dish_embeddings)
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-carenest}
       POSTGRES_USER: ${POSTGRES_USER:-carenest}
@@ -97,6 +98,8 @@ services:
       AI_GROQ_MODEL: ${AI_GROQ_MODEL:-}
       AI_GROQ_API_KEY: ${AI_GROQ_API_KEY:-}
       AI_GROQ_REASONING_EFFORT: ${AI_GROQ_REASONING_EFFORT:-}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      AI_EMBEDDING_API_KEY: ${AI_EMBEDDING_API_KEY:-}
     ports:
       - "${SERVER_PORT:-8080}:8080"
 

@@ -29,7 +29,7 @@ class EduWorkflowConcurrencyIntegrationTest {
     @Container
     @ServiceConnection
     static org.testcontainers.postgresql.PostgreSQLContainer postgres =
-            new org.testcontainers.postgresql.PostgreSQLContainer("postgres:17-alpine");
+            new org.testcontainers.postgresql.PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     JdbcTemplate jdbc;
