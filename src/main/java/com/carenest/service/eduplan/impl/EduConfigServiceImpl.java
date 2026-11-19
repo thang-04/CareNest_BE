@@ -14,6 +14,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.eduplan.EduConfigService;
+import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
@@ -40,7 +41,7 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
 public class EduConfigServiceImpl implements EduConfigService {
     private static final String LOG_PREFIX = "[EduConfigServiceImpl]";
     private static final Set<String> SIGNER_ROLES = Set.of("TEAM_LEADER", "VICE_PRINCIPAL", "PRINCIPAL");
@@ -58,13 +59,28 @@ public class EduConfigServiceImpl implements EduConfigService {
     private final Clock clock;
     private final AccountService accountService;
     private final StaffAssignmentService staffAssignmentService;
+    private final EduWorkflowService workflowService;
 
     @Override
     public EduConfigResponse getEduConfig() {
         String logPrefix = LOG_PREFIX + "|getEduConfig";
         log.info("{}|START", logPrefix);
         try {
-            EduConfigResponse config = toConfig();
+            EduConfigResponse config = toConfig(null);
+            log.info("{}|END", logPrefix);
+            return config;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public EduConfigResponse getEduConfig(CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getEduConfig|userId=" + (currentUser != null ? currentUser.userId() : null);
+        log.info("{}|START", logPrefix);
+        try {
+            EduConfigResponse config = toConfig(currentUser);
             log.info("{}|END", logPrefix);
             return config;
         } catch (RuntimeException ex) {
@@ -82,23 +98,33 @@ public class EduConfigServiceImpl implements EduConfigService {
             if (!accessPolicy.hasPermission(currentUser, EduPermission.PLAN_CONFIG)) {
                 throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
             }
+
+            EduSettings settings =
+                    settingsRepository.findForUpdate().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+
+            EduConfigResponse.Signers currentSigners =
+                    objectMapper.readValue(settings.getSigners(), EduConfigResponse.Signers.class);
             EduConfigRequest.Signers signers = request.signers();
-            requireSigners(signers);
+            if (signers != null) {
+                boolean matchesProjection = Objects.equals(signers.year(), currentSigners.year())
+                        && Objects.equals(signers.branch(), currentSigners.branch())
+                        && Objects.equals(signers.week(), currentSigners.week());
+                if (!matchesProjection) {
+                    throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
+                }
+            }
+
             List<EduConfigResponse.WeekRow> weekRows = normalizeWeekRows(request.weekRows());
             List<EduDomain> domains = saveDomains(request.extraDomains());
             applyLabels(domains, request.domainLabels());
 
-            EduSettings settings = settingsRepository
-                    .findById(EduSettings.SINGLETON_ID)
-                    .orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
             settings.update(
-                    objectMapper.writeValueAsString(
-                            new EduConfigResponse.Signers(signers.year(), signers.branch(), signers.week())),
+                    settings.getSigners(),
                     objectMapper.writeValueAsString(weekRows),
                     currentUser.userId(),
                     clock.instant());
 
-            EduConfigResponse config = toConfig();
+            EduConfigResponse config = toConfig(currentUser);
             log.info("{}|END", logPrefix);
             return config;
         } catch (RuntimeException ex) {
@@ -107,10 +133,25 @@ public class EduConfigServiceImpl implements EduConfigService {
         }
     }
 
-    private EduConfigResponse toConfig() {
+    private EduConfigResponse toConfig(CurrentUser currentUser) {
         EduSettings settings = settingsRepository
                 .findById(EduSettings.SINGLETON_ID)
                 .orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+
+        com.carenest.dto.eduplan.EduWorkflowPolicyResponse workflow = null;
+        boolean canConfigure = false;
+        List<Long> yearCreationScopes = List.of();
+
+        if (currentUser != null) {
+            workflow = workflowService.getPolicy(currentUser);
+            canConfigure = accessPolicy.canConfigureWorkflow(currentUser);
+            EduWorkflowPolicy.RolePolicy yearPolicy = workflowService.loadPolicy("year");
+            yearCreationScopes = schoolStructureService.findAgeGroups().stream()
+                    .filter(ag -> accessPolicy.canAuthorYearPlan(currentUser, yearPolicy, ag.id()))
+                    .map(AgeGroupResponse::id)
+                    .toList();
+        }
+
         return new EduConfigResponse(
                 domainRepository.findAllByActiveTrueOrderBySortOrderAsc().stream()
                         .map(mapper::toConfigDomain)
@@ -119,7 +160,17 @@ public class EduConfigServiceImpl implements EduConfigService {
                 schoolStructureService.findAgeGroups(),
                 objectMapper.readValue(settings.getSigners(), EduConfigResponse.Signers.class),
                 objectMapper.readValue(settings.getWeekRows(), WEEK_ROWS),
-                signerNames());
+                signerNames(),
+                workflow,
+                canConfigure,
+                yearCreationScopes,
+                currentUser == null
+                        ? List.of()
+                        : schoolStructureService.findAgeGroups().stream()
+                                .filter(age -> accessPolicy.canAuthorYearPlan(
+                                        currentUser, workflowService.loadPolicy("schoolYear"), age.id()))
+                                .map(AgeGroupResponse::id)
+                                .toList());
     }
 
     // EDU-21: họ tên in dưới chỗ ký; Tổ trưởng của từng nhóm tuổi theo năm học (hôm nay nếu thuộc năm đó, không thì đầu

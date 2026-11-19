@@ -16,6 +16,7 @@ import com.carenest.service.attendance.AttendanceService.ClassChildDay;
 import com.carenest.service.observation.ClassMonthlyCommentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -90,7 +91,7 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            ClassMonthlyComment comment = editable(currentUser, cls, request.month());
+            ClassMonthlyComment comment = editable(currentUser, cls, request.month(), Permission.ASSESSMENT_RECORD);
             comment.save(ChildEvaluationServiceImpl.checkContent(request.content()), currentUser.userId(), rules.now());
             commentRepository.saveAndFlush(comment);
             ClassMonthlyCommentResponse response = toResponse(currentUser, cls, comment.getMonth(), comment, true);
@@ -109,7 +110,7 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            ClassMonthlyComment comment = editable(currentUser, cls, request.month());
+            ClassMonthlyComment comment = editable(currentUser, cls, request.month(), Permission.ASSESSMENT_CONFIRM);
             comment.confirm(
                     ChildEvaluationServiceImpl.checkContent(request.content()), currentUser.userId(), rules.now());
             commentRepository.saveAndFlush(comment);
@@ -123,8 +124,9 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
     }
 
     // Chỉ GV đang dạy lớp, năm đang hoạt động, tháng đã kết thúc, chưa xác nhận (OBS-26)
-    private ClassMonthlyComment editable(CurrentUser user, ClassroomInfoResponse cls, LocalDate month) {
-        if (!rules.canRecord(user, cls)) {
+    private ClassMonthlyComment editable(
+            CurrentUser user, ClassroomInfoResponse cls, LocalDate month, Permission requiredPermission) {
+        if (!user.hasPermission(requiredPermission) || !rules.canRecord(user, cls)) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -168,6 +170,7 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
                 confirmed ? c.getConfirmedAt() : null,
                 c == null ? null : c.getUpdatedAt(),
                 !confirmed
+                        && user.hasPermission(Permission.ASSESSMENT_RECORD)
                         && rules.canRecord(user, cls)
                         && cls.yearStatus() == SchoolYearStatus.ACTIVE
                         && ended(cls, month));

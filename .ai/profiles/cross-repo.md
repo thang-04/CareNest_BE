@@ -2,7 +2,7 @@
 
 Mức: L3.
 
-1. Đọc `docs/system/CROSS_REPO_MAP.md`: ownership + điểm chạm.
+1. Tra bằng grep, không đọc cả file: `docs/api/API_INDEX.md` (endpoint → controller#method), `docs/system/FE_API_CALLS.md` (file Web gọi endpoint nào). Ownership + điểm chạm: `docs/system/CROSS_REPO_MAP.md`.
 2. Liệt kê thay đổi thuộc BE / FE / APP / contract dùng chung.
 3. Nếu repo FE/APP có sẵn cạnh BE (thư mục sibling), đọc `AGENTS.md` + `.ai/ROUTER.md` của repo đó; không giả định cả ba được checkout.
 4. BE sở hữu rule + contract; client sở hữu UI/state/integration. Không copy business rule sang client.

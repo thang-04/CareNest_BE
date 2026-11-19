@@ -2,6 +2,7 @@ package com.carenest.entity.meals;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -17,7 +18,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 /** Bản dự trù hàng tươi của một điểm trường theo kỳ (NUT-07): lưu xong không sửa, muốn đổi thì lập bản mới. */
 @Getter
@@ -42,9 +45,10 @@ public class FreshForecast {
     @Column(nullable = false, length = 500)
     private String note = "";
 
-    @OneToMany(mappedBy = "forecast", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("id")
-    private List<FreshForecastCount> counts = new ArrayList<>();
+    @Convert(converter = JsonListConverter.ForecastCounts.class)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    private List<FreshForecastCount> counts = List.of();
 
     @OneToMany(mappedBy = "forecast", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("menuDate, id")
@@ -75,10 +79,7 @@ public class FreshForecast {
         forecast.periodTo = periodTo;
         forecast.note = note;
         forecast.createdBy = createdBy;
-        counts.forEach(count -> {
-            count.attachTo(forecast);
-            forecast.counts.add(count);
-        });
+        forecast.counts = List.copyOf(counts);
         lines.forEach(line -> {
             line.attachTo(forecast);
             forecast.lines.add(line);

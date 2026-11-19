@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/carenest}
     username: ${DB_USERNAME:carenest}
-    password: ${DB_PASSWORD:carenest}
+    password: ${DB_PASSWORD:carenest}  # carenest:allow-secret
   jpa:
     open-in-view: false
     hibernate:
@@ -32,6 +32,12 @@ carenest:
   # Ảnh chân dung phụ huynh (đối chiếu người đón khi trả trẻ): cùng bucket, prefix riêng
   account-media:
     prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
+  # Ảnh chữ ký của nhân sự Web (SIG-01): cùng bucket, prefix riêng
+  signature-media:
+    prefix: ${CARENEST_SIGNATURE_MEDIA_PREFIX:accounts/signatures/}
+  # Bản sao ảnh chữ ký trên biên bản kiểm thực đã ký (INS-03): prefix riêng để đổi/xóa chữ ký tài khoản không ảnh hưởng
+  inspection-signature-media:
+    prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}
@@ -110,6 +116,12 @@ carenest:
         data-class: PUBLIC_CATALOG
         deadline: 15s
         max-repair-rounds: 1
+      # Số đo của trẻ (đã ẩn danh) là dữ liệu dẫn xuất từ trẻ ⇒ chỉ provider không dùng dữ liệu để train (AI-04)
+      HEALTH_TREND:
+        chain: [groq]
+        data-class: CHILD_DERIVED
+        deadline: 20s
+        max-repair-rounds: 0
   # Gợi ý thực đơn (AI-07): số món ứng viên mỗi ô, trọng số điểm phương án (chỉ chỉnh khi có kết quả eval), khung ô
   # mặc định của bữa khi khối chưa có thực đơn mẫu đang dùng
   menu-ai:

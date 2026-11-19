@@ -14,8 +14,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
 import com.carenest.dto.child.AddGuardianResponse;
+import com.carenest.dto.child.ChildGuardianOverviewResponse;
+import com.carenest.dto.child.ChildListFilter;
 import com.carenest.dto.child.GuardianCandidateResponse;
+import com.carenest.dto.child.GuardianResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
+import com.carenest.dto.common.PageResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
@@ -25,6 +29,7 @@ import com.carenest.service.account.GuardianAccountService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.UserStatus;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -161,6 +166,50 @@ class GuardianControllerTest {
         mockMvc.perform(post("/api/parent-accounts/50/temporary-password").with(token(CareNestRole.PRINCIPAL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.temporaryPassword").value("N3wTempPass"));
+    }
+
+    @Test
+    @DisplayName("Màn Tài khoản phụ huynh: một lần gọi cho cả trang, bộ lọc như GET /children")
+    void principalReadsGuardianOverview() throws Exception {
+        CurrentUser principal = authenticate(CareNestRole.PRINCIPAL);
+        given(guardianAccountService.guardianOverview(
+                        principal, new ChildListFilter(null, 7L, null, null, null, 1, 100)))
+                .willReturn(new PageResponse<>(
+                        List.of(new ChildGuardianOverviewResponse(
+                                null,
+                                new GuardianResponse(
+                                        50L,
+                                        "0912345678",
+                                        "Phụ huynh Demo",
+                                        null,
+                                        GuardianRelationship.MOTHER,
+                                        UserStatus.ACTIVE,
+                                        null))),
+                        1,
+                        100,
+                        101,
+                        2));
+
+        mockMvc.perform(get("/api/children/guardian-overview")
+                        .param("campusId", "7")
+                        .param("page", "1")
+                        .param("size", "100")
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].account.userId").value(50))
+                .andExpect(jsonPath("$.data.items[0].account.username").value("0912345678"))
+                .andExpect(jsonPath("$.data.totalPages").value(2));
+    }
+
+    @Test
+    @DisplayName("Màn Tài khoản phụ huynh cần PARENT_ACCOUNT_MANAGE: GV ⇒ 403")
+    void teacherCannotReadGuardianOverview() throws Exception {
+        authenticate(CareNestRole.TEACHER);
+
+        mockMvc.perform(get("/api/children/guardian-overview").with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(guardianAccountService);
     }
 
     private CurrentUser authenticate(CareNestRole role) {

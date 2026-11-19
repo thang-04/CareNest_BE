@@ -20,9 +20,13 @@ function orientLines(ctx, source) {
       : `[CareNest] Nhánh ${branch || "?"} không chứa mã task — user bảo commit/tạo PR ⇒ hỏi mã Jira (vd. G94-181) trước, không tự đoán.`,
   );
 
-  const plans = activePlans(ctx).filter((p) => p.branch === branch && ctx.config.plans.gateStatuses.includes(p.status));
+  // Tên plan bắt đầu bằng ngày ⇒ sắp giảm dần để lấy plan mới nhất; chỉ nêu 1 plan cho gọn context
+  const plans = activePlans(ctx)
+    .filter((p) => p.branch === branch && ctx.config.plans.gateStatuses.includes(p.status))
+    .sort((a, b) => b.file.localeCompare(a.file));
   for (const p of plans.slice(0, 1)) {
-    lines.push(`[CareNest] Plan đang làm trên ${branch}: ${p.file} [${p.status}] — log cuối: ${p.lastLog ?? "chưa có"}. Đọc Progress log trước khi làm tiếp.`);
+    const more = plans.length > 1 ? ` (còn ${plans.length - 1} plan cũ hơn cùng nhánh — xong thì chuyển sang completed/)` : "";
+    lines.push(`[CareNest] Plan đang làm trên ${branch}: ${p.file} [${p.status}] — log cuối: ${p.lastLog ?? "chưa có"}. Đọc Progress log trước khi làm tiếp.${more}`);
   }
 
   // Không fetch: so với lần fetch gần nhất của origin/main

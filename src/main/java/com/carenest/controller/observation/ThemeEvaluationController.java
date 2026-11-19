@@ -31,7 +31,7 @@ public class ThemeEvaluationController {
     private final ThemeEvaluationService themeEvaluationService;
 
     @GetMapping("/assessment/theme-evaluations/classes")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<List<ClassItem>>> getClasses(
             @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getClasses|userId=" + currentUser.userId();
@@ -42,7 +42,7 @@ public class ThemeEvaluationController {
     }
 
     @GetMapping("/assessment/theme-evaluations/themes")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<List<ThemeItem>>> getThemes(
             @RequestParam Long classId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getThemes|userId=" + currentUser.userId() + "|classId=" + classId;
@@ -53,7 +53,7 @@ public class ThemeEvaluationController {
     }
 
     @GetMapping("/assessment/theme-evaluations")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<ThemeEvaluationResponse>> getEvaluation(
             @RequestParam Long classId, @RequestParam Long themeId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getEvaluation|userId=" + currentUser.userId() + "|classId=" + classId;
@@ -64,7 +64,7 @@ public class ThemeEvaluationController {
     }
 
     @PutMapping("/assessment/theme-evaluations")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<ThemeEvaluationResponse>> saveEvaluation(
             @Valid @RequestBody ThemeEvaluationRequest request, CurrentUser currentUser) {
         String logPrefix =
@@ -76,7 +76,7 @@ public class ThemeEvaluationController {
     }
 
     @PostMapping("/assessment/theme-evaluations/confirm")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_CONFIRM')")
     public ResponseEntity<ResponseJson<ThemeEvaluationResponse>> confirmEvaluation(
             @Valid @RequestBody ThemeEvaluationRequest request, CurrentUser currentUser) {
         String logPrefix =

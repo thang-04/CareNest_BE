@@ -5,14 +5,20 @@ import com.carenest.dto.account.PhoneLookupRequest;
 import com.carenest.dto.account.UpdateAccountStatusRequest;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
+import com.carenest.dto.child.ChildGuardianOverviewResponse;
+import com.carenest.dto.child.ChildListFilter;
 import com.carenest.dto.child.GuardianCandidateResponse;
 import com.carenest.dto.child.GuardianResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
+import com.carenest.dto.common.PageResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.GuardianAccountService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +31,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -46,6 +53,26 @@ public class GuardianController {
         List<GuardianResponse> guardians = guardianAccountService.listGuardians(currentUser, childId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "List guardians success", guardians);
+    }
+
+    // Màn Tài khoản phụ huynh: trang trẻ (bộ lọc, phạm vi như GET /children) kèm tài khoản người nhận, một lần gọi
+    @GetMapping("/children/guardian-overview")
+    @PreAuthorize("@permissionGuard.has('PARENT_ACCOUNT_MANAGE')")
+    public ResponseEntity<ResponseJson<PageResponse<ChildGuardianOverviewResponse>>> guardianOverview(
+            @RequestParam(required = false) Long schoolYear,
+            @RequestParam(required = false) Long campusId,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) @Size(max = 100) String keyword,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|guardianOverview|userId=" + currentUser.userId() + "|campusId=" + campusId
+                + "|classId=" + classId + "|page=" + page;
+        log.info("{}|START", logPrefix);
+        PageResponse<ChildGuardianOverviewResponse> overview = guardianAccountService.guardianOverview(
+                currentUser, new ChildListFilter(schoolYear, campusId, classId, null, keyword, page, size));
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Guardian overview success", overview);
     }
 
     @PostMapping("/children/{childId}/guardians/lookup")

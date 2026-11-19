@@ -198,6 +198,7 @@ public class QualityReportServiceImpl implements QualityReportService {
             QualityRow row,
             Set<Long> children,
             Set<Long> left,
+            Set<Long> quit,
             Set<Long> meal,
             Set<Long> diligent,
             Set<Long> good,
@@ -245,7 +246,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                     ym.format(MONTH_KEY),
                     average(
                             presentByMonth.getOrDefault(ym, 0),
-                            schoolDays.getOrDefault(ym, Set.of()).size()));
+                            counted(schoolDays.getOrDefault(ym, Set.of()), recorded, today)
+                                    .size()));
         }
 
         LocalDate monthEnd = month.atEndOfMonth();
@@ -263,7 +265,7 @@ public class QualityReportServiceImpl implements QualityReportService {
         Set<Long> children = stays.stream()
                 .map(EnrollmentService.ClassStay::childId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<LocalDate> monthDays = schoolDays.getOrDefault(month, Set.of());
+        Set<LocalDate> monthDays = counted(schoolDays.getOrDefault(month, Set.of()), recorded, today);
         int sd = monthDays.size();
         // Ngày phải đi của từng trẻ = ngày học của lớp trong tháng mà trẻ đang thuộc lớp
         Map<Long, Integer> expected = new HashMap<>();
@@ -279,9 +281,20 @@ public class QualityReportServiceImpl implements QualityReportService {
                 .sum();
         int possibleDays =
                 children.stream().mapToInt(id -> expected.getOrDefault(id, 0)).sum();
-        Set<Long> left = leftDuring(cls, month, today);
+        Map<Long, LocalDate> lastDays = leftDuring(cls, month, today);
+        Set<Long> left = lastDays.keySet();
+        // Cần chốt 10/11/2026: dòng toàn trường chỉ đếm trẻ nghỉ hẳn (không còn học lớp nào sau ngày rời lớp trong năm)
+        Set<Long> quit = lastDays.entrySet().stream()
+                .filter(e -> enrollmentService
+                        .findChildStays(e.getKey(), e.getValue().plusDays(1), cls.yearEnd())
+                        .isEmpty())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         Set<Long> meal = children.stream().filter(lunch::contains).collect(Collectors.toSet());
+        // Cần chốt 10/11/2026: bé chăm xét theo thời gian trẻ học lớp (vào giữa tháng đi đủ = 100%); trẻ chuyển đi
+        // hoặc nghỉ hẳn trong tháng tính vào trẻ ra lớp, không xét bé chăm ở lớp đó
         Set<Long> diligent = children.stream()
+                .filter(id -> !left.contains(id))
                 .filter(id -> expected.getOrDefault(id, 0) > 0
                         && childPresent.getOrDefault(id, 0) * 100 >= DILIGENT_PERCENT * expected.get(id))
                 .collect(Collectors.toSet());
@@ -320,7 +333,7 @@ public class QualityReportServiceImpl implements QualityReportService {
                                 && stays.stream().anyMatch(st -> st.covers(day)))
                         .sorted()
                         .toList());
-        return new ClassResult(row, children, left, meal, diligent, good, allRound);
+        return new ClassResult(row, children, left, quit, meal, diligent, good, allRound);
     }
 
     // Ngày học của tháng theo lịch năm học của lớp (trừ cuối tuần, ngày nghỉ cấu hình), không quá hôm nay
@@ -342,23 +355,26 @@ public class QualityReportServiceImpl implements QualityReportService {
         return days;
     }
 
-    // OBS-23: trẻ ra lớp = trẻ có ngày cuối ở lớp rơi vào tháng (thôi học hoặc chuyển lớp) và ngày đó đã qua; kết thúc
+    // OBS-23: trẻ ra lớp = trẻ có ngày cuối ở lớp rơi vào tháng (nghỉ hẳn hoặc chuyển lớp) và ngày đó đã qua; kết thúc
     // vì hết năm học không tính, quay lại lớp ngay hôm sau cũng không tính
-    private Set<Long> leftDuring(ClassroomInfoResponse cls, YearMonth month, LocalDate today) {
+    private Map<Long, LocalDate> leftDuring(ClassroomInfoResponse cls, YearMonth month, LocalDate today) {
         LocalDate from = month.atDay(1).isBefore(cls.yearStart()) ? cls.yearStart() : month.atDay(1);
         LocalDate dayAfter = month.atEndOfMonth().plusDays(1);
         LocalDate to = dayAfter.isAfter(cls.yearEnd()) ? cls.yearEnd() : dayAfter;
         if (to.isBefore(from)) {
-            return Set.of();
+            return Map.of();
         }
         List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
+        // childId → ngày cuối ở lớp (trẻ rời lớp 2 lần trong tháng lấy lần sau)
         return stays.stream()
                 .filter(st -> st.to().isBefore(to) && st.to().isBefore(today))
                 .filter(st -> stays.stream()
                         .noneMatch(o -> o.childId().equals(st.childId())
                                 && o.from().equals(st.to().plusDays(1))))
-                .map(EnrollmentService.ClassStay::childId)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toMap(
+                        EnrollmentService.ClassStay::childId,
+                        EnrollmentService.ClassStay::to,
+                        (x, y) -> x.isAfter(y) ? x : y));
     }
 
     private static Set<Long> issuedTo(List<BehaviourTicket> tickets, TicketType type, Set<Long> children) {
@@ -388,7 +404,8 @@ public class QualityReportServiceImpl implements QualityReportService {
     private static QualityTotal totalOf(String level, List<ClassResult> results, List<YearMonth> months) {
         List<QualityRow> rows = results.stream().map(ClassResult::row).toList();
         int children = distinct(results, ClassResult::children);
-        int left = distinct(results, ClassResult::left);
+        // Trẻ ra lớp: dòng khối đếm cả trẻ chuyển lớp; dòng toàn trường chỉ đếm trẻ nghỉ hẳn (Cần chốt 10/11/2026)
+        int left = distinct(results, TOAN_TRUONG.equals(level) ? ClassResult::quit : ClassResult::left);
         int meal = distinct(results, ClassResult::meal);
         int diligent = distinct(results, ClassResult::diligent);
         int good = distinct(results, ClassResult::good);
@@ -440,5 +457,14 @@ public class QualityReportServiceImpl implements QualityReportService {
 
     private static Integer percent(int part, int whole) {
         return whole == 0 ? null : Math.round(part * 100f / whole);
+    }
+
+    // Hôm nay chỉ tính là ngày phải đi khi lớp đã điểm danh hôm nay; chưa điểm danh thì chưa đếm (tránh hạ tỷ lệ bé
+    // chăm,
+    // chuyên cần trong ngày). Ngày đã qua vẫn đếm dù chưa điểm danh (OBS-23)
+    private static Set<LocalDate> counted(Set<LocalDate> days, Set<LocalDate> recorded, LocalDate today) {
+        return days.stream()
+                .filter(d -> d.isBefore(today) || recorded.contains(d))
+                .collect(Collectors.toSet());
     }
 }

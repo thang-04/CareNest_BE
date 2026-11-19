@@ -60,11 +60,11 @@ class EduCurriculumServiceIntegrationTest {
         assertThat(service.getGoals(ageGroup("ag-2"))).hasSize(41);
         assertThat(service.getGoals(ageGroup("ag-3"))).hasSize(84);
         assertThat(service.getGoals(ageGroup("ag-4"))).hasSize(99);
-        assertThat(service.getGoals(ageGroup("ag-5"))).hasSize(103);
-        assertThat(service.getContents(ageGroup("ag-2"))).hasSize(77);
+        assertThat(service.getGoals(ageGroup("ag-5"))).hasSize(107);
+        assertThat(service.getContents(ageGroup("ag-2"))).hasSize(82);
         assertThat(service.getContents(ageGroup("ag-3"))).hasSize(119);
-        assertThat(service.getContents(ageGroup("ag-4"))).hasSize(121);
-        assertThat(service.getContents(ageGroup("ag-5"))).hasSize(106);
+        assertThat(service.getContents(ageGroup("ag-4"))).hasSize(143);
+        assertThat(service.getContents(ageGroup("ag-5"))).hasSize(150);
     }
 
     @Test
@@ -82,7 +82,7 @@ class EduCurriculumServiceIntegrationTest {
                 .filteredOn(g -> "2.1".equals(g.goalNo()) && g.sectionRef().endsWith("› I › a) › 2 › 2.1"))
                 .singleElement()
                 .satisfies(g -> {
-                    assertThat(g.goalText()).isEqualTo("Giữ được thăng bằng cơ thể khi thực hiện vận động");
+                    assertThat(g.goalText()).isEqualTo("Giữ được thăng bằng cơ thể khi thực hiện vận động:");
                     assertThat(g.contents())
                             .containsExactly("Đi hết đoạn đường hẹp (3m x 0,2m).", "Đi kiễng gót liên tục 3m.");
                 });

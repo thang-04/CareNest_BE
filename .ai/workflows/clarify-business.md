@@ -21,3 +21,18 @@ Làn S: 1 dòng `Rule: <ID> (<status>)`. Chưa CONFIRMED/ACCEPTED hoặc lệch 
 5. **Ghi câu trả lời ngay** theo `update-knowledge.md` T1: rule mới/đổi + nguồn "user, ngày"; status theo đúng mức user nói (CONFIRMED chỉ khi team/trường đã chốt, còn lại PROPOSED). Mục đích: lần sau không hỏi lại.
 
 Có ≥2 phương án thiết kế (làn M/L) ⇒ thêm bảng 2–3 phương án (trade-off, đề xuất trước), user chọn; làn L ghi vào "Key decisions" của plan.
+
+## Bản tác động (trước khi sửa vùng dùng chung hoặc module của người khác)
+
+Điểm dừng cứng của AGENTS.md › "Chế độ làm việc". Chạy `node scripts/ai-layer/impact.mjs <file>` rồi trình bày ≤12 dòng, **chờ người làm chọn** mới sửa:
+
+```text
+Thay đổi: <sửa gì, ở file nào>
+Ảnh hưởng: <dán phần chính của output impact.mjs: controller, endpoint, file Web đang gọi>
+Luồng người dùng: <role nào thấy/thao tác khác đi thế nào; không đổi ⇒ ghi "không đổi">
+Module của: <thành viên phụ trách các phần bị ảnh hưởng>
+Phương án: A <…> · B <…> · (C <…>) — đề xuất <A/B/C> vì <lý do>
+Cách kiểm: <test/verify nào, màn nào cần mở lại>
+```
+
+Ưu tiên phương án không chạm phần dùng chung (thêm biến thể/prop mới, giữ hành vi cũ làm mặc định) khi nó đủ đáp ứng yêu cầu.

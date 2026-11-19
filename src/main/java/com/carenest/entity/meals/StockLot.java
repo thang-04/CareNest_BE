@@ -2,39 +2,40 @@ package com.carenest.entity.meals;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Formula;
+import org.hibernate.annotations.Immutable;
+import org.hibernate.annotations.SQLRestriction;
 
-/** Lô kho khô tạo khi xác nhận phiếu nhập (NUT-11). Tồn = tổng bút toán của lô, không lưu tại chỗ. */
+/**
+ * Lô kho khô (NUT-11): chính là dòng phiếu nhập sau khi phiếu được xác nhận, không lưu bảng riêng. Chỉ đọc; tồn = tổng
+ * bút toán của lô ({@code stock_movements.lot_id} = id dòng phiếu). Phiếu nháp chưa có lô; phiếu đã hủy giữ lô với tồn
+ * 0 để tra lịch sử.
+ */
 @Getter
 @Entity
-@Table(name = "stock_lots")
+@Immutable
+@Table(name = "stock_receipt_lines")
+@SQLRestriction("receipt_id IN (SELECT r.id FROM stock_receipts r WHERE r.status <> 'DRAFT')")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class StockLot {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "campus_id", nullable = false)
+    @Formula("(SELECT r.campus_id FROM stock_receipts r WHERE r.id = receipt_id)")
     private Long campusId;
 
     @Column(name = "food_id", nullable = false)
     private Long foodId;
 
-    @Column(name = "receipt_line_id", nullable = false)
-    private Long receiptLineId;
-
-    @Column(name = "supplier_id", nullable = false)
+    @Formula("(SELECT r.supplier_id FROM stock_receipts r WHERE r.id = receipt_id)")
     private Long supplierId;
 
     @Column(name = "lot_no", nullable = false, length = 50)
@@ -49,24 +50,6 @@ public class StockLot {
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
-    @Column(name = "received_date", nullable = false)
+    @Formula("(SELECT r.received_date FROM stock_receipts r WHERE r.id = receipt_id)")
     private LocalDate receivedDate;
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
-
-    public static StockLot fromReceipt(StockReceipt receipt, StockReceiptLine line) {
-        StockLot lot = new StockLot();
-        lot.campusId = receipt.getCampusId();
-        lot.foodId = line.getFoodId();
-        lot.receiptLineId = line.getId();
-        lot.supplierId = receipt.getSupplierId();
-        lot.lotNo = line.getLotNo();
-        lot.expiryDate = line.getExpiryDate();
-        lot.quantity = line.getQuantity();
-        lot.unitPrice = line.getUnitPrice();
-        lot.receivedDate = receipt.getReceivedDate();
-        return lot;
-    }
 }

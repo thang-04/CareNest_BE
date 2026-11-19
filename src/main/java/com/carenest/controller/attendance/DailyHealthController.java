@@ -33,7 +33,7 @@ public class DailyHealthController {
     private final DailyHealthService dailyHealthService;
 
     @GetMapping("/classes/{classId}/children/{childId}/daily-health")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.hasAny('ATTENDANCE_VIEW', 'DAILY_HEALTH_RECORD')")
     public ResponseEntity<ResponseJson<DailyHealthResponse.ChildDay>> getClassChildHealth(
             @PathVariable Long classId,
             @PathVariable Long childId,
@@ -48,7 +48,7 @@ public class DailyHealthController {
     }
 
     @PostMapping("/daily-health-entries")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('DAILY_HEALTH_RECORD')")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<DailyHealthEntryResponse>> addEntry(
             @Valid @RequestBody DailyHealthRequest request, CurrentUser currentUser) {
@@ -61,7 +61,7 @@ public class DailyHealthController {
     }
 
     @GetMapping("/daily-health/overview")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_VIEW')")
     public ResponseEntity<ResponseJson<DailyHealthResponse.Overview>> getOverview(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) Long schoolYearId,
@@ -78,7 +78,7 @@ public class DailyHealthController {
     }
 
     @GetMapping("/children/{childId}/daily-health")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_VIEW')")
     public ResponseEntity<ResponseJson<DailyHealthResponse.ChildDay>> getChildHistory(
             @PathVariable Long childId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,

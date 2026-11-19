@@ -13,12 +13,17 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
-/** Một ô "bật" của ma trận quyền theo role. Mã quyền lưu chuỗi để code bị bỏ khỏi enum không làm vỡ việc đọc. */
+/**
+ * Một ô "bật" của ma trận quyền theo role. Mã quyền lưu chuỗi để code bị bỏ khỏi enum không làm vỡ việc đọc. Dùng chung
+ * bảng {@code permission_grants} với {@link UserPermissionOverride}; entity này chỉ thấy dòng role.
+ */
 @Getter
 @Entity
-@Table(name = "role_permissions")
+@Table(name = "permission_grants")
+@SQLRestriction("role IS NOT NULL")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RolePermission {
 
@@ -33,7 +38,7 @@ public class RolePermission {
     @Column(name = "permission_code", nullable = false, updatable = false, length = 64)
     private String permissionCode;
 
-    @Column(name = "updated_by")
+    @Column(name = "granted_by")
     private Long updatedBy;
 
     @UpdateTimestamp

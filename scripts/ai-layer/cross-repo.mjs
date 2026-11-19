@@ -4,26 +4,45 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { listFiles, matchAny, readText, siblingRoot } from "./lib.mjs";
 
-// Tách khối chung theo heading `### `, bỏ các mục được phép khác nhau giữa repo
-export function sharedBlock(text, { heading, exclude }) {
+export const INTRO = "(mở đầu)";
+
+// Cắt khối chung thành: phần trước (gồm dòng heading), các mục `### ` giữ nguyên văn, phần sau (từ `## ` kế tiếp)
+export function splitBlock(text, heading) {
   const lines = text.split("\n");
   const start = lines.findIndex((l) => l.replace(/^#+\s*/, "").trim() === heading);
   if (start < 0) return null;
-  const sections = new Map();
-  let name = "(mở đầu)";
-  let body = [];
-  const flush = () => sections.set(name, body.join("\n").replace(/\s+/g, " ").trim());
-  for (let i = start + 1; i < lines.length && !/^## /.test(lines[i]); i++) {
-    const sub = lines[i].match(/^### (.+)$/);
-    if (sub) {
-      flush();
-      name = sub[1].trim();
-      body = [];
-    } else body.push(lines[i]);
+  let end = start + 1;
+  while (end < lines.length && !/^## /.test(lines[end])) end++;
+  const sections = [{ name: INTRO, lines: [] }];
+  for (const line of lines.slice(start + 1, end)) {
+    const sub = line.match(/^### (.+)$/);
+    if (sub) sections.push({ name: sub[1].trim(), lines: [line] });
+    else sections.at(-1).lines.push(line);
   }
-  flush();
+  return { before: lines.slice(0, start + 1), sections, after: lines.slice(end) };
+}
+
+// Nội dung từng mục của khối chung (đã gộp khoảng trắng), bỏ các mục được phép khác nhau giữa repo
+export function sharedBlock(text, { heading, exclude }) {
+  const block = splitBlock(text, heading);
+  if (!block) return null;
+  const sections = new Map();
+  for (const { name, lines } of block.sections) {
+    const body = name === INTRO ? lines : lines.slice(1);
+    sections.set(name, body.join("\n").replace(/\s+/g, " ").trim());
+  }
   for (const key of exclude) sections.delete(key);
   return sections;
+}
+
+// Khối chung của `target` lấy theo `source`; mục trong `exclude` giữ bản của target. Thiếu khối ⇒ null
+export function mergeSharedBlock(sourceText, targetText, { heading, exclude }) {
+  const source = splitBlock(sourceText, heading);
+  const target = splitBlock(targetText, heading);
+  if (!source || !target) return null;
+  const own = new Map(target.sections.map((s) => [s.name, s.lines]));
+  const merged = source.sections.flatMap((s) => (exclude.includes(s.name) && own.has(s.name) ? own.get(s.name) : s.lines));
+  return [...target.before, ...merged, ...target.after].join("\n");
 }
 
 const hash = (text) => createHash("sha1").update(text).digest("hex");

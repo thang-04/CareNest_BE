@@ -4,5 +4,6 @@ package com.carenest.utils.enums;
 public enum AiTask {
     MENU_WEEKLY,
     MENU_DAILY,
-    MENU_DAY_FIX
+    MENU_DAY_FIX,
+    HEALTH_TREND
 }

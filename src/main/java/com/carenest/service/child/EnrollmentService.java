@@ -5,12 +5,16 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /** Lớp của trẻ tại một ngày (nguồn scope cho GV/BGH); không gọi ngược policy (MODULE_MAP). */
 public interface EnrollmentService {
 
     List<Long> findActiveClassroomIds(Long childId, LocalDate date);
+
+    /** Điểm trường tiếp nhận của trẻ đang chờ xếp lớp; rỗng khi trẻ đã có lớp, đã nghỉ hoặc id không tồn tại. */
+    Optional<Long> findPendingPlacementCampusId(Long childId);
 
     /** Trẻ đã nghỉ học/ra trường tại date: có lịch sử xếp lớp nhưng không còn lớp chưa kết thúc (CHD-04). */
     Set<Long> findChildIdsLeftSchool(Collection<Long> childIds, LocalDate date);

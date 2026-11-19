@@ -17,6 +17,7 @@ import com.carenest.service.organization.RoomService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -203,6 +205,72 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
+    @DisplayName("CFG-YR-05: GV năm đang chuẩn bị thấy lớp mình và trẻ đã xếp, chỉ trong giai đoạn chuẩn bị")
+    void teacherSeesPrepClassesWithPlacedChildren() {
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(List.of(
+                        new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass4),
+                        new SavePlacementsRequest.Item(child2, PlacementAction.LEAVE, null))));
+        long teacherId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE username = 'teacher1'", Long.class);
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-teacher1", "teacher1", "T", null, Set.of(CareNestRole.TEACHER));
+
+        // Hôm nay 30/08/2027 ≥ ngày mở chuẩn bị mặc định 05/08/2027
+        var prep = service.getPrepClasses(teacher, newYear);
+        assertThat(prep.prepDate()).isEqualTo(LocalDate.of(2027, 8, 5));
+        assertThat(prep.classes()).extracting(c -> c.id()).containsExactlyInAnyOrder(newClass4, newClass3);
+        assertThat(prep.classes())
+                .filteredOn(c -> c.id().equals(newClass4))
+                .singleElement()
+                .satisfies(
+                        c -> assertThat(c.children()).extracting(ch -> ch.id()).containsExactly(child1));
+
+        CurrentUser stranger =
+                new CurrentUser(user("stranger"), "kc-stranger", "stranger", "S", null, Set.of(CareNestRole.TEACHER));
+        assertThat(service.getPrepClasses(stranger, newYear).classes()).isEmpty();
+
+        // Tổ trưởng nhóm tuổi 4 năm mới (không dạy lớp nào): thấy mọi lớp nhóm tuổi đó, chỉ xem
+        long leaderId = user("leader");
+        long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from, valid_to)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2027-09-05', '2028-05-31')",
+                leaderId,
+                ag4,
+                newYear);
+        CurrentUser leader = new CurrentUser(leaderId, "kc-leader", "leader", "L", null, Set.of(CareNestRole.TEACHER));
+        assertThat(service.getPrepClasses(leader, newYear).classes())
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.id()).isEqualTo(newClass4);
+                    assertThat(c.teaches()).isFalse();
+                    assertThat(c.children()).extracting(ch -> ch.id()).containsExactly(child1);
+                });
+        assertThat(service.getPrepClasses(teacher, newYear).classes()).allMatch(c -> c.teaches());
+
+        // AUTH-20: PHT còn phân công xem mọi lớp; PHT không còn phân công không thấy lớp nào
+        long vpId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE username = 'vp'", Long.class);
+        CurrentUser vp = new CurrentUser(vpId, "kc-vp", "vp", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        assertThat(service.getPrepClasses(vp, newYear).classes())
+                .extracting(c -> c.id())
+                .contains(newClass4, newClass3);
+        CurrentUser vpWithoutAssignment =
+                new CurrentUser(user("vp-old"), "kc-vp-old", "vp-old", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        assertThat(service.getPrepClasses(vpWithoutAssignment, newYear).classes())
+                .isEmpty();
+
+        // Chưa tới ngày mở chuẩn bị: GV không thấy năm
+        jdbc.update("UPDATE school_years SET prep_date = '2027-09-01' WHERE id = ?", newYear);
+        entityManager.clear();
+        assertThatThrownBy(() -> service.getPrepClasses(teacher, newYear))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_NOT_FOUND);
+    }
+
+    @Test
     void activationMovesChildrenAndClosesOldYear() {
         service.savePlacements(
                 principal,
@@ -348,6 +416,52 @@ class YearTransitionIntegrationTest {
                         newYear,
                         new SavePlacementsRequest(
                                 List.of(new SavePlacementsRequest.Item(child1, PlacementAction.LEAVE, null)))),
+                ApiCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Phân quyền động: PHT xếp lớp năm mới khi HT cấp YEAR_PLACEMENT_MANAGE, đúng phạm vi điểm trường")
+    void vicePrincipalPlacesWithinGrantedScope() {
+        long vpId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE username = 'vp'", Long.class);
+        CurrentUser noGrant = new CurrentUser(vpId, "kc-vp", "vp", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        expectError(() -> service.getPlacements(noGrant, newYear), ApiCode.FORBIDDEN);
+
+        CurrentUser granted = new CurrentUser(
+                vpId,
+                "kc-vp",
+                "vp",
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.YEAR_PLACEMENT_MANAGE));
+        PlacementBoardResponse board = service.getPlacements(granted, newYear);
+        assertThat(board.editable()).isTrue();
+        assertThat(board.classes())
+                .extracting(PlacementBoardResponse.SourceClass::id)
+                .containsExactly(oldClass);
+        service.savePlacements(
+                granted,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass4))));
+
+        // PHT có mã nhưng không phụ trách điểm trường của lớp ⇒ không thấy, không xếp được
+        long otherVp = user("vp-other");
+        CurrentUser outside = new CurrentUser(
+                otherVp,
+                "kc-vp-other",
+                "vp-other",
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.YEAR_PLACEMENT_MANAGE));
+        assertThat(service.getPlacements(outside, newYear).classes()).isEmpty();
+        expectError(
+                () -> service.savePlacements(
+                        outside,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(new SavePlacementsRequest.Item(child2, PlacementAction.LEAVE, null)))),
                 ApiCode.FORBIDDEN);
     }
 

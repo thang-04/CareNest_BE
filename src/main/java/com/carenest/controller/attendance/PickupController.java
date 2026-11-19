@@ -32,7 +32,7 @@ public class PickupController {
     private final PickupService pickupService;
 
     @GetMapping("/classes/{classId}/pickups")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('PICKUP_RECORD')")
     public ResponseEntity<ResponseJson<PickupBoardResponse>> getBoard(
             @PathVariable Long classId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
@@ -45,7 +45,7 @@ public class PickupController {
     }
 
     @GetMapping("/pickups/children/{childId}")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('PICKUP_RECORD')")
     public ResponseEntity<ResponseJson<PickupChildResponse>> getChild(
             @PathVariable Long childId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getChild|userId=" + currentUser.userId() + "|childId=" + childId;
@@ -56,7 +56,7 @@ public class PickupController {
     }
 
     @PostMapping("/pickups")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('PICKUP_RECORD')")
     public ResponseEntity<ResponseJson<PickupRecordResponse>> recordResult(
             @RequestBody PickupRequest request, CurrentUser currentUser) {
         String logPrefix =
@@ -68,7 +68,7 @@ public class PickupController {
     }
 
     @GetMapping("/pickups")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('PICKUP_RECORD')")
     public ResponseEntity<ResponseJson<List<PickupRecordResponse>>> listResults(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             CurrentUser currentUser) {

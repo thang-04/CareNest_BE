@@ -29,10 +29,13 @@ public record GoalFilePreviewResponse(
     @Schema(name = "GoalFileBreak")
     public record Break(String name, LocalDate start, LocalDate end, String note) {}
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "GoalFileDomainPreview")
     public record Domain(String name, List<Row> rows) {}
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "GoalFileRowPreview")
     public record Row(String kind, String text, List<Content> contents) {}
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "GoalFileContentPreview")
     public record Content(String text, List<String> themes) {}
 
     /** row: số dòng trong bảng/trang tính/CSV, đếm từ 1. */

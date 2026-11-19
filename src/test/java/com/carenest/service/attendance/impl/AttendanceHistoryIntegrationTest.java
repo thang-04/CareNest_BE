@@ -11,6 +11,7 @@ import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthObservation;
+import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -199,7 +200,10 @@ class AttendanceHistoryIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions = role == CareNestRole.TEACHER
+                ? Set.of(Permission.ATTENDANCE_VIEW, Permission.DAILY_HEALTH_RECORD)
+                : Set.of(Permission.ATTENDANCE_VIEW, Permission.ATTENDANCE_UNLOCK);
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
     }
 
     private long insertId(String sql) {

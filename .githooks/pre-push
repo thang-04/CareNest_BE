@@ -1,5 +1,5 @@
 #!/bin/sh
-# Trước push: kiểm lại message mọi commit sắp push (bắt commit tạo bằng --no-verify), chặn push lên main và force push,
+# Trước push: kiểm lại message và file rác của mọi commit sắp push (bắt commit tạo bằng --no-verify), chặn push lên main và force push,
 # tùy chọn chạy verify (git config carenest.verifyOnPush true) vì chưa có CI. ADR-0012.
 . "$(dirname "$0")/lib.sh"
 zero=0000000000000000000000000000000000000000
@@ -37,6 +37,12 @@ while read -r lref lsha rref rsha; do
     CN_QUIET_WARN=1 cn_validate_msg "$tmp"
     [ "$CN_ERRORS" -eq "$before" ] || echo "[CareNest]   ↑ commit $(git log -1 --format='%h %s' "$sha")" >&2
   done
+
+  # File rác trong các commit sắp push (bắt commit tạo bằng --no-verify)
+  if [ -n "$range" ] && command -v node >/dev/null 2>&1 && [ -f scripts/ai-layer/junk-files.mjs ]; then
+    printf '%s\n' $range | node scripts/ai-layer/junk-files.mjs --pushed "$lsha" --stderr
+    [ $? -ne 1 ] || cn_err "nhánh sắp push có file rác (xem trên)"
+  fi
 done
 rm -f "$tmp"
 

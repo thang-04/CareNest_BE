@@ -73,9 +73,69 @@ final class EnrollmentFormValidator {
     static Result validate(EnrollChildRequest request, LocalDate today) {
         Map<String, String> errors = new LinkedHashMap<>();
         EnrollmentChildInput child = request == null ? null : request.child();
-        if (child == null) {
-            child = new EnrollmentChildInput(null, null, null, List.of(), null);
+        ChildInfo info = validateChildInfo(child, today, errors, true);
+        HealthDeclarationDraft declaration =
+                validateDeclaration(request == null ? null : request.declaration(), info.dateOfBirth(), today, errors);
+
+        List<FieldErrorResponse> list = toList(errors);
+        if (!list.isEmpty()) {
+            return new Result(list, null);
         }
+        return new Result(
+                List.of(),
+                new EnrollmentDraft(
+                        info.fullName(),
+                        info.dateOfBirth(),
+                        info.gender(),
+                        info.guardians(),
+                        info.profile(),
+                        declaration,
+                        null,
+                        null));
+    }
+
+    /**
+     * Sửa hồ sơ (mục 4.2 plan tiếp nhận): kiểm như tiếp nhận trừ khai báo sức khỏe và người nhận tài khoản (người nhận đổi
+     * ở màn Tài khoản phụ huynh — Spec013). Lỗi đưa vào {@code errors}; draft null khi có lỗi.
+     */
+    static EnrollmentDraft validateEdit(EnrollmentChildInput child, LocalDate today, Map<String, String> errors) {
+        ChildInfo info = validateChildInfo(child, today, errors, false);
+        if (!errors.isEmpty()) {
+            return null;
+        }
+        return new EnrollmentDraft(
+                info.fullName(), info.dateOfBirth(), info.gender(), info.guardians(), info.profile(), null, null, null);
+    }
+
+    /**
+     * Sửa khai báo sức khỏe (mục 4.5): kiểm như tiếp nhận nhưng đường dẫn ô không có tiền tố {@code declaration.} (như
+     * BE giả). Lỗi đưa vào {@code errors}; trả null khi có lỗi.
+     */
+    static HealthDeclarationDraft validateDeclarationOnly(
+            HealthDeclarationInput input, LocalDate dateOfBirth, LocalDate today, Map<String, String> errors) {
+        Map<String, String> prefixed = new LinkedHashMap<>();
+        HealthDeclarationDraft draft = validateDeclaration(input, dateOfBirth, today, prefixed);
+        prefixed.forEach((field, message) -> errors.put(field.replaceFirst("^declaration\\.", ""), message));
+        return prefixed.isEmpty() ? draft : null;
+    }
+
+    static List<FieldErrorResponse> toList(Map<String, String> errors) {
+        return errors.entrySet().stream()
+                .map(e -> new FieldErrorResponse(e.getKey(), e.getValue()))
+                .toList();
+    }
+
+    private record ChildInfo(
+            String fullName,
+            LocalDate dateOfBirth,
+            Gender gender,
+            List<GuardianDraft> guardians,
+            ChildProfileDraft profile) {}
+
+    private static ChildInfo validateChildInfo(
+            EnrollmentChildInput input, LocalDate today, Map<String, String> errors, boolean requireRecipient) {
+        EnrollmentChildInput child =
+                input == null ? new EnrollmentChildInput(null, null, null, List.of(), null) : input;
 
         String fullName = clean(child.fullName());
         if (fullName == null) {
@@ -96,20 +156,9 @@ final class EnrollmentFormValidator {
             errors.put("gender", "Chọn giới tính");
         }
 
-        List<GuardianDraft> guardians = validateGuardians(child.guardians(), errors);
+        List<GuardianDraft> guardians = validateGuardians(child.guardians(), errors, requireRecipient);
         ChildProfileDraft profile = validateProfile(child.profile(), errors);
-        HealthDeclarationDraft declaration =
-                validateDeclaration(request == null ? null : request.declaration(), dateOfBirth, today, errors);
-
-        List<FieldErrorResponse> list = errors.entrySet().stream()
-                .map(e -> new FieldErrorResponse(e.getKey(), e.getValue()))
-                .toList();
-        if (!list.isEmpty()) {
-            return new Result(list, null);
-        }
-        return new Result(
-                List.of(),
-                new EnrollmentDraft(fullName, dateOfBirth, gender, guardians, profile, declaration, null, null));
+        return new ChildInfo(fullName, dateOfBirth, gender, guardians, profile);
     }
 
     /**
@@ -121,7 +170,8 @@ final class EnrollmentFormValidator {
         return cleaned == null ? "" : cleaned.toLowerCase(VIETNAMESE);
     }
 
-    private static List<GuardianDraft> validateGuardians(List<GuardianInput> inputs, Map<String, String> errors) {
+    private static List<GuardianDraft> validateGuardians(
+            List<GuardianInput> inputs, Map<String, String> errors, boolean requireRecipient) {
         List<GuardianInput> guardians = inputs == null ? List.of() : inputs;
         List<GuardianDraft> drafts = new ArrayList<>();
         for (int i = 0; i < guardians.size(); i++) {
@@ -177,7 +227,8 @@ final class EnrollmentFormValidator {
         } else if (hasDuplicate(drafts.stream().map(GuardianDraft::phone).toList())) {
             errors.put("guardians", "Hai phụ huynh không được dùng chung số điện thoại");
         }
-        if (drafts.stream().filter(GuardianDraft::accountRecipient).count() != 1) {
+        if (requireRecipient
+                && drafts.stream().filter(GuardianDraft::accountRecipient).count() != 1) {
             errors.put("accountRecipient", "Chọn đúng một phụ huynh nhận tài khoản");
         }
         return drafts;

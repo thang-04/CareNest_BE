@@ -30,7 +30,7 @@ public class ClassMonthlyCommentController {
     private final ClassMonthlyCommentService classMonthlyCommentService;
 
     @GetMapping("/assessment/class-monthly-comments")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<ClassMonthlyCommentResponse>> getComment(
             @RequestParam Long classId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate month,
@@ -43,7 +43,7 @@ public class ClassMonthlyCommentController {
     }
 
     @PutMapping("/assessment/class-monthly-comments")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<ClassMonthlyCommentResponse>> saveComment(
             @Valid @RequestBody ClassMonthlyCommentRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveComment|userId=" + currentUser.userId() + "|classId=" + request.classId();
@@ -54,7 +54,7 @@ public class ClassMonthlyCommentController {
     }
 
     @PostMapping("/assessment/class-monthly-comments/confirm")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_CONFIRM')")
     public ResponseEntity<ResponseJson<ClassMonthlyCommentResponse>> confirmComment(
             @Valid @RequestBody ClassMonthlyCommentRequest request, CurrentUser currentUser) {
         String logPrefix =

@@ -36,7 +36,7 @@ public class BehaviourTicketController {
     private final BehaviourTicketService behaviourTicketService;
 
     @GetMapping("/assessment/behaviour-tickets/board")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<TicketBoardResponse>> getBoard(
             @RequestParam Long classId,
             @RequestParam(required = false) TicketType type,
@@ -50,7 +50,7 @@ public class BehaviourTicketController {
     }
 
     @PostMapping("/assessment/behaviour-tickets")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<List<IssuedTicket>>> issue(
             @Valid @RequestBody IssueTicketsRequest request, CurrentUser currentUser) {
@@ -62,7 +62,7 @@ public class BehaviourTicketController {
     }
 
     @GetMapping("/assessment/behaviour-tickets/summary")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<TicketSummaryResponse>> getSummary(
             @RequestParam Long classId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate month,
@@ -75,7 +75,7 @@ public class BehaviourTicketController {
     }
 
     @GetMapping("/assessment/behaviour-tickets/overview")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<TicketOverviewResponse>> getOverview(
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate month,

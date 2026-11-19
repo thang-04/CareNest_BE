@@ -115,6 +115,26 @@ public class AccountServiceImpl implements AccountService {
 
     // Tổ trưởng khối là giáo viên có thêm phân công nhóm tuổi: hiệu lực khi token có role TEACHER
     // CHD-04: trẻ đã nghỉ học/ra trường không còn trong phạm vi phụ huynh, giống ChildAccessPolicy
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> findActiveUserIds(Collection<Long> userIds) {
+        String logPrefix = LOG_PREFIX + "|findActiveUserIds";
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> activeIds = userIds.isEmpty()
+                    ? Set.of()
+                    : userAccountRepository.findAllById(Set.copyOf(userIds)).stream()
+                            .filter(account -> account.getStatus() == UserStatus.ACTIVE)
+                            .map(UserAccount::getId)
+                            .collect(Collectors.toUnmodifiableSet());
+            log.info("{}|END", logPrefix);
+            return activeIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private List<Long> studyingChildIds(Long userId) {
         List<Long> linked = guardianChildLinkService.findChildIdsOfGuardian(userId);
         Set<Long> left = enrollmentService.findChildIdsLeftSchool(linked, LocalDate.now(clock));

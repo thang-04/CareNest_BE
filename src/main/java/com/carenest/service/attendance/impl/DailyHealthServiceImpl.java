@@ -33,6 +33,7 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupOutcome;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
@@ -120,7 +121,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             ClassroomInfoResponse cls = classroomService
                     .findClassroomInfo(request.classId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.DAILY_HEALTH_RECORD) || !rules.canRecord(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -380,6 +381,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
     private boolean canRecordFor(CurrentUser user, ClassroomInfoResponse cls, Long childId, LocalDate date) {
         return cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && writableDay(cls.id(), date)
+                && user.hasPermission(Permission.DAILY_HEALTH_RECORD)
                 && rules.canRecord(user, cls)
                 && isPresent(childId, cls.id(), date);
     }

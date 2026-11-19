@@ -31,7 +31,7 @@ public class RewardListController {
     private final RewardListService rewardListService;
 
     @GetMapping("/assessment/reward-lists")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<List<RewardClassRow>>> classes(
             @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|classes|userId=" + currentUser.userId();
@@ -42,7 +42,7 @@ public class RewardListController {
     }
 
     @GetMapping("/assessment/reward-lists/classes/{classId}")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<RewardClassDetail>> detail(@PathVariable Long classId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|detail|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
@@ -52,7 +52,7 @@ public class RewardListController {
     }
 
     @PutMapping("/assessment/reward-lists/classes/{classId}")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<RewardClassDetail>> save(
             @PathVariable Long classId,
             @RequestBody RewardListRequest request,
@@ -67,7 +67,7 @@ public class RewardListController {
     }
 
     @PostMapping("/assessment/reward-lists/{id}/review")
-    @PreAuthorize("hasRole('VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('REWARD_REVIEW')")
     public ResponseEntity<ResponseJson<RewardClassDetail>> review(
             @PathVariable Long id, @RequestBody RewardDecisionRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|review|userId=" + currentUser.userId() + "|id=" + id;

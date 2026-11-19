@@ -49,6 +49,11 @@ public class SchoolYear {
     @Column(name = "semester2_end")
     private LocalDate semester2End;
 
+    // CFG-YR-05: từ ngày này năm sắp diễn ra mở cho GV chuẩn bị (xem lớp, trẻ, soạn giáo án); null ⇒ 1 tháng trước
+    // ngày bắt đầu (dòng tạo ngoài service)
+    @Column(name = "prep_date")
+    private LocalDate prepDate;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private SchoolYearStatus status;
@@ -74,18 +79,33 @@ public class SchoolYear {
     private Instant updatedAt;
 
     public static SchoolYear plan(String name, LocalDate startDate, LocalDate endDate) {
+        return plan(name, startDate, endDate, startDate.minusMonths(1));
+    }
+
+    public static SchoolYear plan(String name, LocalDate startDate, LocalDate endDate, LocalDate prepDate) {
         SchoolYear schoolYear = new SchoolYear();
         schoolYear.name = name;
         schoolYear.startDate = startDate;
         schoolYear.endDate = endDate;
+        schoolYear.prepDate = prepDate;
         schoolYear.status = SchoolYearStatus.PLANNED;
         return schoolYear;
     }
 
-    public void changeInfo(String name, LocalDate startDate, LocalDate endDate) {
+    public void changeInfo(String name, LocalDate startDate, LocalDate endDate, LocalDate prepDate) {
         this.name = name;
         this.startDate = startDate;
         this.endDate = endDate;
+        this.prepDate = prepDate;
+    }
+
+    /** Năm sắp diễn ra đã tới ngày mở chuẩn bị (CFG-YR-05). */
+    public boolean isPreparing(LocalDate today) {
+        return status == SchoolYearStatus.PLANNED && !today.isBefore(getPrepDate());
+    }
+
+    public LocalDate getPrepDate() {
+        return prepDate != null ? prepDate : startDate.minusMonths(1);
     }
 
     public void changeSemesters(

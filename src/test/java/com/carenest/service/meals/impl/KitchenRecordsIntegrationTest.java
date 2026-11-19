@@ -250,6 +250,83 @@ class KitchenRecordsIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "NUT-21, AC-9: ghi khối lượng, dụng cụ chứa, nhiệt độ từng món; bản không gửi ⇒ rỗng; sửa không gửi ⇒ giữ")
+    void sampleDishDetails() {
+        // Client cũ không gửi ghi chú từng món: đọc về rỗng, không lỗi
+        FoodSampleResponse plain = foodSampleService.createSample(kitchen, sampleRequest(null));
+        assertThat(plain.dishes())
+                .allSatisfy(d -> assertThat(List.of(d.weight(), d.container(), d.temperature()))
+                        .containsOnly(""));
+
+        FoodSampleResponse detailed = foodSampleService.createSample(
+                kitchen,
+                new FoodSampleRequest(
+                        MONDAY,
+                        MealSession.AFTERNOON,
+                        List.of(com, thit),
+                        null,
+                        null,
+                        List.of(
+                                new FoodSampleRequest.DishDetailInput(com, " 100 g ", "Hộp nhựa có nắp", "2-8 °C"),
+                                new FoodSampleRequest.DishDetailInput(thit, "80 g", null, "2-8 °C"))));
+        assertThat(detailed.dishes())
+                .extracting(d -> d.code(), d -> d.weight(), d -> d.container(), d -> d.temperature())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("COM", "100 g", "Hộp nhựa có nắp", "2-8 °C"),
+                        org.assertj.core.groups.Tuple.tuple("THITRIM", "80 g", "", "2-8 °C"));
+        assertThat(jdbc.queryForObject(
+                        "SELECT jsonb_array_length(dish_details) FROM food_samples WHERE id = ?",
+                        Integer.class,
+                        detailed.id()))
+                .isEqualTo(2);
+
+        // Sửa không gửi ghi chú ⇒ giữ; bỏ món ⇒ ghi chú món đó bỏ theo
+        FoodSampleResponse kept = foodSampleService.updateSample(
+                kitchen,
+                detailed.id(),
+                new FoodSampleRequest(MONDAY, MealSession.AFTERNOON, List.of(com), null, "ghi chú"));
+        assertThat(kept.dishes())
+                .singleElement()
+                .satisfies(d -> assertThat(d.weight()).isEqualTo("100 g"));
+
+        // Gửi mảng rỗng ⇒ xóa hết ghi chú
+        FoodSampleResponse cleared = foodSampleService.updateSample(
+                kitchen,
+                detailed.id(),
+                new FoodSampleRequest(MONDAY, MealSession.AFTERNOON, List.of(com), null, null, List.of()));
+        assertThat(cleared.dishes())
+                .singleElement()
+                .satisfies(d -> assertThat(d.weight()).isEmpty());
+
+        // Món không nằm trong mẫu hoặc ghi trùng một món ⇒ 400
+        expectCode(
+                () -> foodSampleService.createSample(
+                        kitchen,
+                        new FoodSampleRequest(
+                                MONDAY,
+                                MealSession.LUNCH,
+                                List.of(com),
+                                null,
+                                null,
+                                List.of(new FoodSampleRequest.DishDetailInput(thit, "80 g", null, null)))),
+                ApiCode.INVALID_VALUE);
+        expectCode(
+                () -> foodSampleService.createSample(
+                        kitchen,
+                        new FoodSampleRequest(
+                                MONDAY,
+                                MealSession.LUNCH,
+                                List.of(com),
+                                null,
+                                null,
+                                List.of(
+                                        new FoodSampleRequest.DishDetailInput(com, "1", null, null),
+                                        new FoodSampleRequest.DishDetailInput(com, "2", null, null)))),
+                ApiCode.INVALID_VALUE);
+    }
+
+    @Test
     @DisplayName("NUT-21: hủy mẫu trước 24 giờ ⇒ 409; sau 24 giờ ⇒ RECORDED; PHT có mã duyệt ⇒ APPROVED")
     void disposeAfter24Hours() {
         FoodSampleResponse fresh =
@@ -456,11 +533,17 @@ class KitchenRecordsIntegrationTest {
         long week = insertId("INSERT INTO meal_plan_weeks (week_start, status, published_at) VALUES ('" + start + "', '"
                 + status + "', " + ("PUBLISHED".equals(status) ? "now()" : "NULL") + ") RETURNING id");
         for (int i = 0; i < 5; i++) {
-            long day = insertId("INSERT INTO meal_plan_days (week_id, menu_date) VALUES (" + week + ", '"
-                    + start.plusDays(i) + "') RETURNING id");
+            LocalDate day = start.plusDays(i);
+            jdbc.update(
+                    "UPDATE meal_plan_weeks SET days = days || jsonb_build_array("
+                            + "jsonb_build_object('date', ?::date, 'off', false, 'note', '')) WHERE id = ?",
+                    day,
+                    week);
             for (long dish : dishes) {
                 jdbc.update(
-                        "INSERT INTO meal_plan_items (day_id, session, menu_block, dish_id) VALUES (?, 'LUNCH', 'KINDERGARTEN', ?)",
+                        "INSERT INTO meal_plan_items (week_id, menu_date, session, menu_block, dish_id)"
+                                + " VALUES (?, ?, 'LUNCH', 'KINDERGARTEN', ?)",
+                        week,
                         day,
                         dish);
             }

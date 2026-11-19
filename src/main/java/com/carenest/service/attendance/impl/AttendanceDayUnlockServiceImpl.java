@@ -9,14 +9,18 @@ import com.carenest.repository.attendance.AttendanceDayUnlockRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,10 +39,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockService {
     private static final String LOG_PREFIX = "[AttendanceDayUnlockServiceImpl]";
 
+    private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private final AttendanceDayUnlockRepository unlockRepository;
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
     private final AccountService accountService;
+    private final StaffAssignmentService staffAssignmentService;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     @Override
@@ -124,6 +132,18 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             AttendanceDayUnlock unlock = unlockRepository.save(AttendanceDayUnlock.create(
                     cls.id(), cls.campusId(), date, request.validUntil(), reason, currentUser.userId(), now));
             DayUnlockResponse response = rules.toUnlockView(unlock, cls.name());
+            // ATT-08: báo giáo viên lớp vào sửa điểm danh ngày được mở lại
+            List<Long> teacherIds = staffAssignmentService
+                    .findCurrentTeacherIds(List.of(cls.id()), today)
+                    .getOrDefault(cls.id(), List.of());
+            if (!teacherIds.isEmpty()) {
+                notificationService.notifyUsers(
+                        teacherIds,
+                        NotificationType.ATTENDANCE_DAY_UNLOCKED,
+                        "Mở lại điểm danh " + cls.name(),
+                        "Điểm danh ngày " + DMY.format(date) + " được mở lại để kiểm tra, sửa. Lý do: " + reason,
+                        null);
+            }
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {

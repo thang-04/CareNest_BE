@@ -126,6 +126,28 @@ public class ClassroomServiceImpl implements ClassroomService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Map<Long, LocalDate> findOpenedDates(Collection<Long> classroomIds) {
+        String logPrefix = LOG_PREFIX + "|findOpenedDates|classrooms=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, LocalDate> dates = classroomIds.isEmpty()
+                    ? Map.of()
+                    : classroomRepository.findAllById(classroomIds).stream()
+                            .filter(c -> c.getCreatedAt() != null)
+                            .collect(Collectors.toMap(
+                                    Classroom::getId,
+                                    c -> java.time.LocalDate.ofInstant(
+                                            c.getCreatedAt(), java.time.ZoneId.of("Asia/Ho_Chi_Minh"))));
+            log.info("{}|END", logPrefix);
+            return dates;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Map<Long, Long> findCampusIds(Collection<Long> classroomIds) {
         String logPrefix = LOG_PREFIX + "|findCampusIds|classrooms=" + classroomIds.size();
         log.info("{}|START", logPrefix);

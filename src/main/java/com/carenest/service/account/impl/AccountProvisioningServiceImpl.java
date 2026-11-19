@@ -9,6 +9,7 @@ import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.dto.account.StaffAssignmentScopeRequest;
 import com.carenest.dto.account.UpdateAccountProfileRequest;
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.NewStaffAssignment;
 import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.entity.account.UserAccount;
@@ -58,6 +59,10 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
     // ADMIN chỉ tạo trực tiếp trên Keycloak (bootstrap); PARENT tạo qua luồng gắn trẻ (AUTH-18), không qua API này
     private static final Set<CareNestRole> PROVISIONABLE_ROLES = EnumSet.of(
             CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF);
+    // AUTH-15: PHT, GV nhận thư đặt mật khẩu và quên mật khẩu trên Web qua email; bếp dùng tài khoản chung nên không
+    // bắt buộc
+    private static final Set<CareNestRole> EMAIL_REQUIRED_ROLES =
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER);
     // AUTH-25: lên/xuống Hiệu trưởng do Admin làm trên Keycloak, không qua API đổi vai trò
     private static final Set<CareNestRole> CHANGEABLE_ROLES =
             EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF);
@@ -125,6 +130,10 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             String email = StringUtils.hasText(request.email())
                     ? request.email().trim().toLowerCase(Locale.ROOT)
                     : null;
+            if (email == null && EMAIL_REQUIRED_ROLES.contains(request.role())) {
+                throw GlobalException.withFieldErrors(
+                        ApiCode.INVALID_REQUEST_DATA, List.of(new FieldErrorResponse("email", "Vui lòng nhập email")));
+            }
             boolean sendSetupEmail = email != null && identityProviderClient.canSendSetupEmail();
             if (request.temporaryPassword() == null && !sendSetupEmail) {
                 throw GlobalException.of(ApiCode.TEMP_PASSWORD_REQUIRED);

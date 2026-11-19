@@ -5,19 +5,19 @@ import com.carenest.dto.meals.FoodImportRequest;
 import com.carenest.dto.meals.FoodImportResponse;
 import com.carenest.dto.meals.FoodRequest;
 import com.carenest.dto.meals.FoodResponse;
-import com.carenest.entity.meals.Allergen;
 import com.carenest.entity.meals.Food;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
-import com.carenest.repository.meals.AllergenRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.FoodService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.Allergen;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodGroup;
 import com.carenest.utils.enums.FoodStorage;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -39,7 +39,6 @@ public class FoodServiceImpl implements FoodService {
     private static final String LOG_PREFIX = "[FoodServiceImpl]";
 
     private final FoodRepository foodRepository;
-    private final AllergenRepository allergenRepository;
     private final NutritionCatalogMapper mapper;
 
     @Override
@@ -48,9 +47,8 @@ public class FoodServiceImpl implements FoodService {
         String logPrefix = LOG_PREFIX + "|getAllergens";
         log.info("{}|START", logPrefix);
         try {
-            List<AllergenResponse> response = allergenRepository.findAllByOrderBySortOrderAsc().stream()
-                    .map(mapper::toResponse)
-                    .toList();
+            List<AllergenResponse> response =
+                    Arrays.stream(Allergen.values()).map(mapper::toResponse).toList();
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -111,7 +109,7 @@ public class FoodServiceImpl implements FoodService {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
             Food food = Food.create(currentUser.userId());
-            apply(food, request, code, resolveAllergens(request.allergenIds(), allergensById()), currentUser.userId());
+            apply(food, request, code, resolveAllergens(request.allergenIds()), currentUser.userId());
             food = foodRepository.save(food);
             log.info("{}|foodId={}|END", logPrefix, food.getId());
             return mapper.toResponse(food);
@@ -134,7 +132,7 @@ public class FoodServiceImpl implements FoodService {
             if (foodRepository.existsByCodeAndIdNot(code, foodId)) {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
-            apply(food, request, code, resolveAllergens(request.allergenIds(), allergensById()), currentUser.userId());
+            apply(food, request, code, resolveAllergens(request.allergenIds()), currentUser.userId());
             foodRepository.flush();
             log.info("{}|END", logPrefix);
             return mapper.toResponse(food);
@@ -168,7 +166,6 @@ public class FoodServiceImpl implements FoodService {
         log.info("{}|START", logPrefix);
         try {
             List<FoodImportRequest.Item> items = request.items();
-            Map<Long, Allergen> allergens = allergensById();
             Map<Long, Food> existing = foodRepository
                     .findAllById(items.stream()
                             .map(FoodImportRequest.Item::id)
@@ -208,7 +205,8 @@ public class FoodServiceImpl implements FoodService {
                 if (data.origin() == null) {
                     errors.add(row + " thiếu nguồn gốc");
                 }
-                if (data.allergenIds() != null && !allergens.keySet().containsAll(data.allergenIds())) {
+                if (data.allergenIds() != null
+                        && !data.allergenIds().stream().allMatch(id -> Allergen.fromId(id) != null)) {
                     errors.add(row + " chất dị ứng không hợp lệ");
                 }
             }
@@ -231,7 +229,7 @@ public class FoodServiceImpl implements FoodService {
                     code = nextCode(reserved);
                 }
                 reserved.add(code);
-                apply(food, data, code, resolveAllergens(data.allergenIds(), allergens), currentUser.userId());
+                apply(food, data, code, resolveAllergens(data.allergenIds()), currentUser.userId());
                 if (item.id() == null) {
                     created++;
                 }
@@ -247,9 +245,7 @@ public class FoodServiceImpl implements FoodService {
     }
 
     private Food findFood(Long foodId) {
-        return foodRepository
-                .findWithAllergensById(foodId)
-                .orElseThrow(() -> GlobalException.of(ApiCode.FOOD_NOT_FOUND));
+        return foodRepository.findById(foodId).orElseThrow(() -> GlobalException.of(ApiCode.FOOD_NOT_FOUND));
     }
 
     // NUT-05: số liệu dinh dưỡng phải ghi rõ nguồn
@@ -263,17 +259,13 @@ public class FoodServiceImpl implements FoodService {
         }
     }
 
-    private Map<Long, Allergen> allergensById() {
-        return allergenRepository.findAll().stream().collect(Collectors.toMap(Allergen::getId, Function.identity()));
-    }
-
-    private static Set<Allergen> resolveAllergens(List<Long> allergenIds, Map<Long, Allergen> allergens) {
+    private static Set<Allergen> resolveAllergens(List<Long> allergenIds) {
         if (allergenIds == null || allergenIds.isEmpty()) {
             return Set.of();
         }
         Set<Allergen> resolved = new HashSet<>();
         for (Long allergenId : allergenIds) {
-            Allergen allergen = allergens.get(allergenId);
+            Allergen allergen = Allergen.fromId(allergenId);
             if (allergen == null) {
                 throw GlobalException.of(ApiCode.ALLERGEN_INVALID);
             }

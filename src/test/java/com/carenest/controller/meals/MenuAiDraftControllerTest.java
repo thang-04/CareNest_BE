@@ -164,7 +164,7 @@ class MenuAiDraftControllerTest {
     }
 
     @Test
-    @DisplayName("Dùng nháp đã bỏ ⇒ 409 mã 6081; nháp không tồn tại ⇒ 404")
+    @DisplayName("Dùng nháp đã bỏ ⇒ 409 mã 6092; nháp không tồn tại ⇒ 404")
     void stateErrorsMapToConflictAndNotFound() throws Exception {
         CurrentUser user = authenticate(Set.of(Permission.MENU_MANAGE));
         given(menuAiDraftService.applyDraft(eq(user), eq(5L), any()))
@@ -173,7 +173,7 @@ class MenuAiDraftControllerTest {
 
         mockMvc.perform(post(DRAFTS + "/5/apply").with(token()))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errorCode").value(6081));
+                .andExpect(jsonPath("$.errorCode").value(6092));
         mockMvc.perform(get(DRAFTS + "/9").with(token())).andExpect(status().isNotFound());
     }
 

@@ -66,7 +66,7 @@ public class LeaveRequestController {
     }
 
     @GetMapping("/leave-requests")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_VIEW')")
     public ResponseEntity<ResponseJson<List<LeaveRequestResponse>>> searchLeaveRequests(
             @RequestParam(required = false) Long classId,
             @RequestParam(required = false) Long campusId,

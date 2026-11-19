@@ -13,10 +13,12 @@ import org.springframework.stereotype.Component;
 public class SemesterEvaluationUsageImpl implements SemesterUsageCheck {
 
     private final ChildEvaluationRepository evaluationRepository;
+    private final com.carenest.repository.observation.SemesterAssessmentRepository semesterRepository;
 
     @Override
     public boolean usedBySemester(Long schoolYearId, LocalDate start, LocalDate end) {
-        return evaluationRepository.existsBySchoolYearIdAndPeriodTypeAndPeriodStartBetween(
-                schoolYearId, EvaluationPeriodType.SEMESTER, start, end);
+        return semesterRepository.existsBySchoolYearIdAndStartBetween(schoolYearId, start, end)
+                || evaluationRepository.existsBySchoolYearIdAndPeriodTypeAndPeriodStartBetween(
+                        schoolYearId, EvaluationPeriodType.SEMESTER, start, end);
     }
 }

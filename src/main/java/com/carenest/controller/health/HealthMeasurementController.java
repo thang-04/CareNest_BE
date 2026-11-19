@@ -3,6 +3,7 @@ package com.carenest.controller.health;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
+import com.carenest.dto.health.PublishedHealthResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthMeasurementService;
 import com.carenest.utils.ApiCode;
@@ -31,6 +32,18 @@ public class HealthMeasurementController {
     private static final String LOG_PREFIX = "[HealthMeasurementController]";
 
     private final HealthMeasurementService healthMeasurementService;
+
+    // PAR-01, PAR-03: phụ huynh xem kết quả đã công bố; nhân sự xem trước được (phạm vi kiểm ở service)
+    @GetMapping("/published")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
+    public ResponseEntity<ResponseJson<PublishedHealthResponse>> getPublishedHealth(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getPublishedHealth|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        PublishedHealthResponse health = healthMeasurementService.getPublishedHealth(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get published health success", health);
+    }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")

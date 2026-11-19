@@ -12,7 +12,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
+import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildProfileResponse;
+import com.carenest.dto.child.ParentAccountRowResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
@@ -22,7 +24,10 @@ import com.carenest.security.TestPermissions;
 import com.carenest.service.child.ChildService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.GuardianAccountStatus;
+import com.carenest.utils.enums.GuardianRelationship;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +54,9 @@ class ChildControllerTest {
 
     @MockitoBean
     private ChildService childService;
+
+    @MockitoBean
+    private com.carenest.service.child.ChildListService childListService;
 
     @Test
     void shouldReturn401WithoutToken() throws Exception {
@@ -121,6 +129,106 @@ class ChildControllerTest {
 
         mockMvc.perform(get(CHILD_URL, 101).with(tokenWithRole(CareNestRole.PARENT)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName(
+            "D-4: GV xem danh sách; tên cũ classroomId, q của màn Tài khoản phụ huynh vẫn nhận; status nhiều giá trị")
+    void teacherListsChildrenWithLegacyParams() throws Exception {
+        CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
+        given(childListService.searchChildren(eq(teacher), any()))
+                .willReturn(new com.carenest.dto.common.PageResponse<>(List.of(), 0, 20, 0, 0));
+
+        mockMvc.perform(get("/api/children")
+                        .param("classroomId", "11")
+                        .param("q", "An")
+                        .param("status", "ACTIVE", "LEFT")
+                        .param("schoolYear", "5")
+                        .with(tokenWithRole(CareNestRole.TEACHER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Search children success"))
+                .andExpect(jsonPath("$.data.items").isArray())
+                .andExpect(jsonPath("$.data.totalPages").value(0));
+
+        org.mockito.ArgumentCaptor<com.carenest.dto.child.ChildListFilter> filter =
+                org.mockito.ArgumentCaptor.forClass(com.carenest.dto.child.ChildListFilter.class);
+        verify(childListService).searchChildren(eq(teacher), filter.capture());
+        org.assertj.core.api.Assertions.assertThat(filter.getValue())
+                .isEqualTo(new com.carenest.dto.child.ChildListFilter(
+                        5L,
+                        null,
+                        11L,
+                        Set.of(com.carenest.utils.enums.ChildStatus.ACTIVE, com.carenest.utils.enums.ChildStatus.LEFT),
+                        "An",
+                        0,
+                        20));
+    }
+
+    @Test
+    @DisplayName("AUTH-05: bếp không có CHILD_PROFILE_VIEW / PARENT_ACCOUNT_MANAGE ⇒ 403 ở lớp 1, không tới service")
+    void kitchenCannotListChildren() throws Exception {
+        authenticateAs(CareNestRole.KITCHEN_STAFF);
+
+        mockMvc.perform(get("/api/children").with(tokenWithRole(CareNestRole.KITCHEN_STAFF)))
+                .andExpect(status().isForbidden());
+        verify(childListService, never()).searchChildren(any(), any());
+    }
+
+    @Test
+    @DisplayName("Mục 4.8: HT đọc phụ huynh theo trạng thái tài khoản, từ khóa; route không bị hiểu là /children/{id}")
+    void principalListsParentAccounts() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(childListService.listParentAccounts(principal, GuardianAccountStatus.NOT_ACTIVATED, "an"))
+                .willReturn(List.of(new ParentAccountRowResponse(
+                        11L,
+                        "TR001",
+                        "Trẻ Demo",
+                        1L,
+                        "Chồi A",
+                        0,
+                        new ChildGuardianResponse(
+                                "Phụ huynh demo",
+                                GuardianRelationship.MOTHER,
+                                "0900000001",
+                                null,
+                                null,
+                                GuardianAccountStatus.NOT_ACTIVATED,
+                                null,
+                                null,
+                                null),
+                        null)));
+
+        mockMvc.perform(get("/api/children/parent-accounts")
+                        .param("status", "NOT_ACTIVATED")
+                        .param("keyword", "an")
+                        .with(tokenWithRole(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].childId").value(11))
+                .andExpect(jsonPath("$.data[0].guardianIndex").value(0))
+                .andExpect(jsonPath("$.data[0].guardian.accountStatus").value("NOT_ACTIVATED"))
+                .andExpect(jsonPath("$.data[0].username").doesNotExist());
+        verify(childService, never()).getChildProfile(any(), any());
+    }
+
+    @Test
+    @DisplayName("Mục 4.8: GV không có PARENT_ACCOUNT_MANAGE ⇒ 403 ở lớp 1")
+    void teacherCannotListParentAccounts() throws Exception {
+        authenticateAs(CareNestRole.TEACHER);
+
+        mockMvc.perform(get("/api/children/parent-accounts").with(tokenWithRole(CareNestRole.TEACHER)))
+                .andExpect(status().isForbidden());
+        verify(childListService, never()).listParentAccounts(any(), any(), any());
+    }
+
+    @Test
+    void parentAccountsRejectsUnknownStatus() throws Exception {
+        authenticateAs(CareNestRole.PRINCIPAL);
+
+        mockMvc.perform(get("/api/children/parent-accounts")
+                        .param("status", "PENDING")
+                        .with(tokenWithRole(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isBadRequest());
+        verify(childListService, never()).listParentAccounts(any(), any(), any());
     }
 
     @Test

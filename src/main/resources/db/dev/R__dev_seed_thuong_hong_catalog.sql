@@ -89,8 +89,8 @@ VALUES
     ('VDD13005', 'Muối ăn', 'OTHER', 'g', 'kg', 1000, 8000, 1, 0, 0, 0, 'Viện Dinh dưỡng Quốc gia (viendinhduong.vn)', 'crawl 2026-09-21', 0, 'DRY', 'PLANT', 'Giá ước tính (demo)')
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO food_allergens (food_id, allergen_id)
-SELECT f.id, a.id
+-- Mỗi thực phẩm seed có tối đa một chất dị ứng; chỉ ghi khi chưa gắn để không đè dữ liệu sửa tay
+UPDATE foods f SET allergen_codes = v.allergen_code
 FROM (VALUES
     ('VDD1018', 'WHEAT'),
     ('VDD1022', 'WHEAT'),
@@ -110,9 +110,7 @@ FROM (VALUES
     ('VDD10004', 'COW_MILK'),
     ('VDD10009', 'COW_MILK')
 ) AS v (food_code, allergen_code)
-JOIN foods f ON f.code = v.food_code
-JOIN allergens a ON a.code = v.allergen_code
-ON CONFLICT DO NOTHING;
+WHERE f.code = v.food_code AND f.allergen_codes = '';
 
 INSERT INTO dishes (code, name, dish_type, description)
 VALUES
@@ -560,18 +558,12 @@ JOIN stock_receipts r ON r.note = 'Seed dev Thượng Hồng: nhập kho khô đ
 JOIN campuses c ON c.id = r.campus_id
 WHERE NOT EXISTS (SELECT 1 FROM stock_receipt_lines l WHERE l.receipt_id = r.id AND l.food_id = f.id);
 
-INSERT INTO stock_lots (campus_id, food_id, receipt_line_id, supplier_id, lot_no, expiry_date, quantity, unit_price, received_date)
-SELECT r.campus_id, l.food_id, l.id, r.supplier_id, l.lot_no, l.expiry_date, l.quantity, l.unit_price, r.received_date
+-- Phiếu đã xác nhận: mỗi dòng phiếu là một lô (lot_id = id dòng phiếu)
+INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity, receipt_id, reason, created_by)
+SELECT l.id, r.campus_id, l.food_id, 'RECEIPT', l.quantity, r.id, 'Nhập kho đầu kỳ', r.confirmed_by
 FROM stock_receipt_lines l
 JOIN stock_receipts r ON r.id = l.receipt_id AND r.note = 'Seed dev Thượng Hồng: nhập kho khô đầu kỳ'
-WHERE NOT EXISTS (SELECT 1 FROM stock_lots x WHERE x.receipt_line_id = l.id);
-
-INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity, receipt_id, reason, created_by)
-SELECT x.id, x.campus_id, x.food_id, 'RECEIPT', x.quantity, r.id, 'Nhập kho đầu kỳ', r.confirmed_by
-FROM stock_lots x
-JOIN stock_receipt_lines l ON l.id = x.receipt_line_id
-JOIN stock_receipts r ON r.id = l.receipt_id AND r.note = 'Seed dev Thượng Hồng: nhập kho khô đầu kỳ'
-WHERE NOT EXISTS (SELECT 1 FROM stock_movements m WHERE m.lot_id = x.id AND m.movement_type = 'RECEIPT');
+WHERE NOT EXISTS (SELECT 1 FROM stock_movements m WHERE m.lot_id = l.id AND m.movement_type = 'RECEIPT');
 
 INSERT INTO menu_template_sets (name, season_label, menu_block)
 SELECT v.name, 'Mùa thu', v.block
@@ -824,19 +816,19 @@ FROM (VALUES ('2026-10-19', '2026-10-16 16:00+07'), ('2026-10-26', '2026-10-23 1
 JOIN user_accounts u ON u.username = 'viceprincipal'
 ON CONFLICT (week_start) DO NOTHING;
 
-INSERT INTO meal_plan_days (week_id, menu_date)
-SELECT pw.id, pw.week_start + g.n
+-- 5 ngày học thứ 2–6, không ngày nghỉ (cột jsonb days của tuần)
+UPDATE meal_plan_weeks pw
+SET days = (SELECT jsonb_agg(jsonb_build_object('date', pw.week_start + g.n, 'off', false, 'note', '') ORDER BY g.n)
+            FROM generate_series(0, 4) AS g (n))
+WHERE pw.week_start IN (DATE '2026-10-19', DATE '2026-10-26', DATE '2026-11-02', DATE '2026-11-09')
+  AND pw.days = '[]'::jsonb;
+
+INSERT INTO meal_plan_items (week_id, menu_date, session, menu_block, dish_id, sort_order)
+SELECT pw.id, pw.week_start + g.n, t.session, s.menu_block, t.dish_id, t.sort_order
 FROM meal_plan_weeks pw
 CROSS JOIN generate_series(0, 4) AS g (n)
-WHERE pw.week_start IN (DATE '2026-10-19', DATE '2026-10-26', DATE '2026-11-02', DATE '2026-11-09')
-ON CONFLICT (week_id, menu_date) DO NOTHING;
-
-INSERT INTO meal_plan_items (day_id, session, menu_block, dish_id, sort_order)
-SELECT d.id, t.session, s.menu_block, t.dish_id, t.sort_order
-FROM meal_plan_days d
-JOIN meal_plan_weeks pw ON pw.id = d.week_id
 JOIN menu_template_sets s ON s.name IN ('Thực đơn mùa thu - Nhà trẻ', 'Thực đơn mùa thu - Mẫu giáo')
-JOIN menu_template_items t ON t.set_id = s.id AND t.weekday = EXTRACT(ISODOW FROM d.menu_date)::int
+JOIN menu_template_items t ON t.set_id = s.id AND t.weekday = g.n + 1
     AND t.week_no = CASE pw.week_start WHEN DATE '2026-10-19' THEN 3 WHEN DATE '2026-10-26' THEN 4 WHEN DATE '2026-11-02' THEN 1 WHEN DATE '2026-11-09' THEN 2 END
 WHERE pw.week_start IN (DATE '2026-10-19', DATE '2026-10-26', DATE '2026-11-02', DATE '2026-11-09')
-ON CONFLICT (day_id, session, menu_block, dish_id) DO NOTHING;
+ON CONFLICT (week_id, menu_date, session, menu_block, dish_id) DO NOTHING;

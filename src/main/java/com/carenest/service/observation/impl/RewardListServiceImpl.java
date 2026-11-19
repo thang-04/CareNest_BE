@@ -35,6 +35,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationPeriodType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RewardAction;
 import com.carenest.utils.enums.RewardStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -184,11 +185,15 @@ public class RewardListServiceImpl implements RewardListService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.REWARD_EDIT_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+            }
+            // OBS-14 (Cần chốt 10/11/2026): lập / gửi danh sách từ ngày kết thúc HK II
+            if (rules.today().isBefore(rules.yearEndOpensOn(currentUser, cls))) {
+                throw GlobalException.of(ApiCode.REWARD_NOT_OPEN);
             }
             // Khóa lớp trước khi đọc: 2 lần lưu cùng lúc không tạo trùng danh sách của lớp
             rules.lockClassForUpdate(cls.id());
@@ -296,13 +301,15 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_DECISION_INVALID);
             }
             boolean approve = "APPROVE".equals(decision);
+            // Cần chốt 11/11/2026: luồng thường GV → PHT xét → HT duyệt; HT được duyệt thẳng khi PHT chưa xét, ghi rõ
+            boolean direct = list.getStatus() == RewardStatus.PENDING_VP;
             String comment = checkComment(request.comment(), !approve);
             Instant at = rules.now();
             list.decide(approve, currentUser.userId(), at, comment);
             listRepository.saveAndFlush(list);
             eventRepository.save(RewardListEvent.of(
                     list.getId(),
-                    approve ? RewardAction.APPROVED : RewardAction.RETURNED,
+                    !approve ? RewardAction.RETURNED : direct ? RewardAction.DIRECT_APPROVED : RewardAction.APPROVED,
                     currentUser.userId(),
                     at,
                     comment));
@@ -334,20 +341,25 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private boolean canEdit(CurrentUser user, ClassroomInfoResponse cls, RewardList list) {
-        return rules.canRecord(user, cls)
+        return user.hasPermission(Permission.ASSESSMENT_RECORD)
+                && rules.canRecord(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                && !rules.today().isBefore(rules.yearEndOpensOn(user, cls))
                 && (list == null || list.isEditable());
     }
 
     private boolean isReviewer(CurrentUser user, RewardList list) {
-        return user.hasRole(CareNestRole.VICE_PRINCIPAL) && rules.leadsCampus(user, list.getCampusId());
+        return user.hasRole(CareNestRole.VICE_PRINCIPAL)
+                && user.hasPermission(Permission.REWARD_REVIEW)
+                && rules.leadsCampus(user, Permission.REWARD_REVIEW, list.getCampusId());
     }
 
     private boolean canReview(CurrentUser user, RewardList list) {
         return list != null && list.getStatus() == RewardStatus.PENDING_VP && isReviewer(user, list);
     }
 
-    // HT toàn quyền: phê duyệt được cả danh sách đang chờ PHT (điểm trường chưa có PHT)
+    // HT toàn quyền: duyệt được cả danh sách đang chờ PHT (PHT chưa xét) — ghi "HT duyệt trực tiếp" (Cần chốt
+    // 11/11/2026)
     private boolean canDecide(CurrentUser user, RewardList list) {
         return list != null
                 && user.hasRole(CareNestRole.PRINCIPAL)
@@ -398,15 +410,14 @@ public class RewardListServiceImpl implements RewardListService {
                 // Không có danh hiệu thì không lưu dòng (ghi chú đi kèm danh hiệu)
                 continue;
             }
+            // Cô chọn danh hiệu không cần chờ đánh giá cuối năm (Cần chốt 10/11/2026); hoàn thành chương trình thì cần
             ChildEvaluation ye = yearEnds.get(item.childId());
-            if (ye == null) {
-                throw GlobalException.of(ApiCode.REWARD_YEAR_END_REQUIRED, name);
-            }
             if (picked.stream().filter(GENERAL_TITLES::contains).count() > 1
                     || picked.stream().filter(PROGRAM_TITLES::contains).count() > 1) {
                 throw GlobalException.of(ApiCode.REWARD_TITLE_CONFLICT, name);
             }
-            if (picked.stream().anyMatch(PROGRAM_TITLES::contains) && !Boolean.TRUE.equals(ye.getProgramCompleted())) {
+            if (picked.stream().anyMatch(PROGRAM_TITLES::contains)
+                    && (ye == null || !Boolean.TRUE.equals(ye.getProgramCompleted()))) {
                 throw GlobalException.of(ApiCode.REWARD_PROGRAM_TITLE_INVALID, name);
             }
             List<String> ordered = TITLES.stream().filter(picked::contains).toList();
@@ -530,22 +541,22 @@ public class RewardListServiceImpl implements RewardListService {
                             .count();
                     ChildEvaluation ye = yearEnds.get(c.id());
                     List<String> suggested = new ArrayList<>();
-                    if (ye != null) {
-                        // Chăm: đi học từ 90% ngày học; ngoan: phiếu tuần từ nửa số tuần học; ngoan toàn diện: phiếu
-                        // tháng từ nửa số tháng học. Gợi ý một danh hiệu cao nhất đạt được, GV quyết định
-                        boolean diligent = rate != null && rate >= DILIGENT_PERCENT;
-                        boolean good = weeks > 0 && weekly * 2L >= weeks;
-                        boolean allRound = months > 0 && monthly * 2L >= months;
-                        if (diligent && allRound) {
-                            suggested.add(EXCELLENT);
-                        } else if (diligent && good) {
-                            suggested.add(DILIGENT_GOOD);
-                        } else if (good) {
-                            suggested.add(GOOD);
-                        }
-                        if (programClass && Boolean.TRUE.equals(ye.getProgramCompleted())) {
-                            suggested.add(PROGRAM_GOOD);
-                        }
+                    // Chăm: đi học từ 90% ngày học; ngoan: phiếu tuần từ nửa số tuần học; ngoan toàn diện: phiếu
+                    // tháng từ nửa số tháng học. Gợi ý một danh hiệu cao nhất đạt được, GV quyết định. Luôn gợi ý theo
+                    // số liệu hiện có, không chờ đánh giá cuối năm (Cần chốt 10/11/2026)
+                    boolean diligent = rate != null && rate >= DILIGENT_PERCENT;
+                    boolean good = weeks > 0 && weekly * 2L >= weeks;
+                    boolean allRound = months > 0 && monthly * 2L >= months;
+                    if (diligent && allRound) {
+                        suggested.add(EXCELLENT);
+                    } else if (diligent && good) {
+                        suggested.add(DILIGENT_GOOD);
+                    } else if (good) {
+                        suggested.add(GOOD);
+                    }
+                    // Hoàn thành chương trình lấy từ đánh giá cuối năm đã xác nhận
+                    if (programClass && ye != null && Boolean.TRUE.equals(ye.getProgramCompleted())) {
+                        suggested.add(PROGRAM_GOOD);
                     }
                     RewardListItem item = items.get(c.id());
                     return new RewardChildRow(
@@ -622,6 +633,7 @@ public class RewardListServiceImpl implements RewardListService {
                 canEdit(user, cls, list),
                 canReview(user, list),
                 canDecide(user, list),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE ? rules.yearEndOpensOn(user, cls) : null,
                 schoolDays.stream()
                         .filter(day -> day.isBefore(today)
                                 && !recorded.contains(day)

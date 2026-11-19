@@ -53,6 +53,10 @@ public class ThemeEvaluation {
     @Column(length = 1000)
     private String note;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "presentation_snapshot", columnDefinition = "jsonb")
+    private String presentationSnapshot;
+
     @Column(name = "confirmed_by")
     private Long confirmedBy;
 
@@ -105,5 +109,9 @@ public class ThemeEvaluation {
         save(cellsJson, note, userId, at);
         this.confirmedBy = userId;
         this.confirmedAt = at;
+    }
+
+    public void setPresentationSnapshot(String presentationSnapshot) {
+        this.presentationSnapshot = presentationSnapshot;
     }
 }

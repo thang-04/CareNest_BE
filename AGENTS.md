@@ -2,15 +2,22 @@
 
 Repo này là **source of truth** của CareNest: business rule, domain, kiến trúc, API contract, database và engineering memory. Web (`CareNest_FE`) và Mobile (`CareNest_APP`) là client.
 
+## Quy trình thực thi — chỉ đạo user ngày 07/11/2026
+
+- Áp dụng cho toàn bộ quy trình làm việc trong repo: agent tự điều phối các bước cần thiết, ưu tiên nhanh và đúng phạm vi; không tự chạy harness/orchestrator, hook mở rộng Spec Kit hoặc các script setup/check/verify của dự án. Không lặp thêm workflow/skill chỉ để thỏa cổng của harness cũ. Skill user gọi vẫn được dùng cho nội dung công việc, đọc artifact trực tiếp thay cho script điều phối.
+- Kiểm chứng trực tiếp theo thay đổi: chạy test/build/lint cần thiết bằng công cụ gốc (Maven, Node, SQL...), tái sử dụng test hiện có; ghi lệnh, kết quả và phần chưa kiểm chứng. Không mặc định chạy toàn bộ suite cho thay đổi tài liệu. Không vô hiệu hóa hoặc sửa test/hook để che lỗi.
+- Chỉ đạo này thay thế các yêu cầu dùng harness/script điều phối, gồm `scripts/verify.mjs`, `scripts/check-ai-layer.mjs` và wrapper tương tự ở các mục bên dưới. Giữ nguyên nghiệp vụ đã chốt, bảo mật, giới hạn phạm vi repo và quyền Git/API/dependency/migration; không coi yêu cầu tăng tốc là phê duyệt triển khai.
+- Nếu artifact hoặc constitution còn yêu cầu harness cũ, nêu rõ chỗ lệch và đề xuất đồng bộ ở bước chỉnh tài liệu được phép; không tự sửa artifact trong lệnh chỉ đọc như `speckit-analyze`, không tự sửa constitution trong lượt phân tích.
+
 ## Bắt đầu mọi task — chọn làn
 
-- **Mọi feature mới:** bắt buộc theo [quy trình Domain spec → Spec Kit → implement/converge](.ai/workflows/feature-spec-loop.md) do user cung cấp và xác nhận 01/11/2026; dùng [mẫu Domain spec 14 mục](docs/business/DOMAIN_SPEC_TEMPLATE.md). Chọn làn vẫn quyết định phạm vi review/verify; làn S không bỏ vòng lặp này khi là feature mới.
+- **Feature mới — mức đặc tả theo làn** ([quy trình](.ai/workflows/feature-spec-loop.md), user chốt 01/11/2026, điều chỉnh theo làn 11/11/2026): làn **L** đủ vòng Domain spec → Spec Kit → implement/converge với [mẫu Domain spec 14 mục](docs/business/DOMAIN_SPEC_TEMPLATE.md); làn **M** một `specs/<feature>/spec.md` rút gọn rồi implement + verify; làn **S** 3–5 dòng acceptance trong chat.
 
 | Làn | Khi nào | Đọc | Plan · verify · báo cáo |
 | --- | --- | --- | --- |
-| **S** | ≤2 file source, 1 module, việc rõ, ngoài vùng rủi ro | File đích + test gần nhất; bug: grep `docs/knowledge/ISSUE_INDEX.md` | Không plan · `node scripts/verify.mjs --quick` · ≤3 dòng |
+| **S** | ≤2 file source, 1 module, việc rõ, ngoài vùng rủi ro và vùng dùng chung | File đích + test gần nhất; bug: grep `docs/knowledge/ISSUE_INDEX.md` | Không plan · `node scripts/verify.mjs --quick` · ≤3 dòng |
 | **M** | 3–8 file; đổi hành vi trong 1 module | `.ai/ROUTER.md` → grep `.ai/CONTEXT_MAP.yaml` → module card → mục guide router chỉ | Mini-plan trong chat · `node scripts/verify.mjs` · ≤8 dòng |
-| **L** | Vùng rủi ro (migration, `security/`, `integration/`, API contract, dependency/hạ tầng), ≥2 module, FE/APP, >8 file | + `.ai/ESCALATION.md` L3–L4 | Plan `.ai/workflows/plan-change.md` user duyệt · verify + snapshot |
+| **L** | Vùng rủi ro (migration, `security/`, `integration/`, API contract, dependency/hạ tầng), vùng dùng chung, ≥2 module, FE/APP, >8 file | + `.ai/ESCALATION.md` L3–L4 | Plan `.ai/workflows/plan-change.md` được duyệt · verify + snapshot |
 
 - Đổi nghiệp vụ (mọi làn) ⇒ `.ai/workflows/clarify-business.md` trước khi code. Vượt tiêu chí ⇒ nâng làn; không hạ làn để né quy trình.
 - Plan `docs/plans/active/` khớp branch ⇒ đọc Progress log cuối trước.
@@ -21,12 +28,14 @@ Repo này là **source of truth** của CareNest: business rule, domain, kiến 
 ## Nguyên tắc bất biến
 
 1. **Không tự chế business rule.** Rule có ID trong `docs/business/BUSINESS_RULES.md`. Nghiệp vụ chưa rõ / `PENDING` / `OPEN` / lệch tài liệu ⇒ hỏi user tới khi rõ; làm cấu hình được chỉ khi user nói chưa chốt.
+   - **Bắt buộc đối chiếu context kế hoạch giáo dục** (user yêu cầu 09/11/2026): mọi phân tích, đặc tả, plan, task, sửa code và review liên quan kế hoạch giáo dục phải đọc phần hiện hành trong `docs/context/PROJECT_CONTEXT.md`, `docs/modules/education-plan.md`, `docs/business/flows/education-plan.md`, các rule EDU liên quan trong `docs/business/BUSINESS_RULES.md` và nguồn quyết định mà chúng dẫn tới (hiện có `docs/business/education-plan-confirmation-2026-11-09.md`). Đối chiếu yêu cầu/AC → rule ID, trạng thái, nguồn/ngày → plan/task/check; không chỉ kiểm spec/plan/tasks với nhau. Ưu tiên quyết định mới nhất có nguồn trong đúng phạm vi; tách nghiệp vụ đích khỏi tình trạng triển khai, không lấy code cũ làm chuẩn thay quyết định đã chốt hoặc suy CONFIRMED là đã hoàn tất/được phép triển khai. Nguồn mâu thuẫn chưa giải quyết phải báo rõ trước khi sửa; với `speckit-analyze`, chỉ báo gap, không tự sửa artifact.
+   - **Bản nghiệp vụ chuẩn ngoài repo** (Tiền chốt 10/11/2026): nếu máy có `../nghiep_vu_chuan/ke_hoach_giao_duc.md` (thư mục cha của repo) thì đó là nguồn cao nhất về kế hoạch giáo dục, thắng `BUSINESS_RULES.md` và tài liệu trong repo (có thể bị nhánh khác đổi khi pull). Lệch giữa hai bên ⇒ báo user, không tự làm theo repo; quy tắc đầy đủ ở `../AGENTS.md`. Máy không có file đó thì giữ nguyên quy tắc trên.
 2. Ưu tiên khi mâu thuẫn — nghiệp vụ: quyết định mới nhất có nguồn (team chốt, chỉ đạo giảng viên đã nhận) > khảo sát/Report 1 > đề xuất; code: source > guide > ADR ACCEPTED (chi tiết `PROJECT_CONTEXT.md`). Code ≠ docs ⇒ báo xung đột, xác minh trước khi sửa.
 3. **1 trường, 2 điểm trường** — không multi-school/multi-tenant. Mọi truy vấn dữ liệu trẻ/lớp kiểm tra quyền theo campus/class/child ở server.
 4. **AI chỉ hỗ trợ:** AI tạo bản nháp, con người duyệt; nghiệp vụ chạy được khi AI tắt; AI không tạo dữ liệu dinh dưỡng nền, không chẩn đoán. Gọi AI chỉ qua `integration/`.
 5. Không mở rộng ngoài V1 (`docs/context/PROJECT_CONTEXT.md` mục Exclusions).
 6. Dữ liệu trẻ em, sức khỏe, tài khoản: tối thiểu quyền; không đưa dữ liệu thật hoặc secret vào prompt, log, test, commit.
-7. Đổi API/auth ⇒ kiểm tra tác động FE/APP (`docs/system/CROSS_REPO_MAP.md`). Chỉ đọc repo FE/APP khi task có tác động liên repo; không tự sửa repo khác.
+7. Đổi API/auth ⇒ kiểm tra tác động FE/APP: grep path trong `docs/api/API_INDEX.md` (endpoint → controller) và `docs/system/FE_API_CALLS.md` (file Web gọi); quy ước ở `docs/system/CROSS_REPO_MAP.md`. Chỉ đọc repo FE/APP khi task có tác động liên repo; không tự sửa repo khác.
 8. Tri thức mới, lỗi không hiển nhiên hoặc phải thử >1 cách ⇒ `.ai/workflows/update-knowledge.md` ngay trong lượt, kể cả các cách đã thử thất bại.
 
 ## Stack
@@ -40,7 +49,20 @@ Java 21, Spring Boot 4.1.1, Maven (`mvnw`), PostgreSQL 17, Spring Data JPA, Flyw
 
 ## Quy tắc chung CareNest (bắt buộc)
 
-Khối này giống nhau ở cả ba repo `CareNest_BE`, `CareNest_FE`, `CareNest_APP`; chỉ mục "Hỏi trước khi làm" và "Phạm vi" khác theo repo. Sửa ở một repo thì đồng bộ sang hai repo còn lại.
+Khối này giống nhau ở cả ba repo `CareNest_BE`, `CareNest_FE`, `CareNest_APP`; chỉ mục "Hỏi trước khi làm" và "Phạm vi" khác theo repo. Khối này và file harness dùng chung (hook, githook, `scripts/ai-layer/`): sửa ở `CareNest_BE` rồi trong FE/APP chạy `node scripts/ai-layer/sync-shared.mjs --from ../CareNest_BE`.
+
+### Chế độ làm việc — tự chạy, có điểm dừng
+
+Áp dụng cho mọi công cụ AI (Claude, Codex, công cụ khác); Claude hook chỉ là lớp chặn thêm.
+
+- Việc trong module mình phụ trách, làn S/M: làm một mạch tới bàn giao, không dừng hỏi yes/no. Kỹ thuật đã có convention ⇒ tự chọn. Mọi giả định ghi ở báo cáo bàn giao.
+- **Điểm dừng cứng** — dừng, trình bày, chờ người làm trả lời rồi mới sửa:
+  1. Các việc ở mục "Hỏi trước khi làm".
+  2. File thuộc **vùng dùng chung** (`guard.sharedGlobs` trong `.claude/hooks/harness.config.json`).
+  3. File thuộc module do thành viên khác phụ trách (`ownership` cùng file).
+  4. Nghiệp vụ `PENDING` / `OPEN` / lệch tài liệu.
+- Ở điểm dừng 2 và 3, in **bản tác động** (≤12 dòng) trước khi sửa: thay đổi gì · màn hình/route/role hoặc endpoint/client bị ảnh hưởng (dán output `node scripts/ai-layer/impact.mjs <file>`) · luồng người dùng đổi thế nào · module của ai · 2–3 phương án và đề xuất · cách kiểm. Mẫu: `.ai/workflows/clarify-business.md`.
+- Làn L: viết plan, trình bày tóm tắt kèm bản tác động, chờ duyệt rồi mới code.
 
 ### Git — nhánh và mã công việc
 
@@ -80,8 +102,9 @@ G94-182: Add lesson plan validation
 ### Cổng chất lượng
 
 - **Iron Law:** chưa có output `node scripts/verify.mjs` chạy sau lần sửa cuối ⇒ không báo "xong/pass/đã sửa"; skip = chưa kiểm chứng (`docs/quality/VERIFICATION.md`).
-- Làn L ⇒ plan user duyệt mới code. Sửa bug thất bại 3 lần ⇒ dừng, ghi Attempts, hỏi.
+- Làn L ⇒ plan được duyệt mới code (mục "Chế độ làm việc"). Sửa bug thất bại 3 lần ⇒ dừng, ghi Attempts, hỏi.
 - Sửa `.ai/ .claude/ .agents/ docs/` ⇒ `node scripts/check-ai-layer.mjs`. Cổng fail ⇒ sửa nguyên nhân, không lách.
+- **File rác:** không commit log, cache, file nén, thư mục tạm của công cụ/AI, file nặng; file phát sinh không thuộc source ⇒ thêm vào `.gitignore`. `node scripts/ai-layer/junk-files.mjs` chặn ở pre-commit, pre-push và verify; file lạ chưa ignore chỉ cảnh báo. Ngoại lệ có chủ đích ⇒ `junk.allow` trong `.claude/hooks/harness.config.json`.
 
 ### Hỏi trước khi làm
 
@@ -97,4 +120,4 @@ G94-182: Add lesson plan validation
 
 ### Giao tiếp
 
-- Trả lời user tiếng Việt; commit, branch, identifier tiếng Anh. Yêu cầu chưa rõ ⇒ hỏi trước. Báo kết quả đúng sự thật (test fail/skip/chưa chạy phải nói rõ).
+- Trả lời user tiếng Việt; commit, branch, identifier tiếng Anh. Yêu cầu chưa rõ về nghiệp vụ ⇒ hỏi trước. Báo kết quả đúng sự thật (test fail/skip/chưa chạy phải nói rõ).

@@ -198,16 +198,19 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
 
-      # Image lấy từ Docker Hub ⇒ VPS chỉ cần compose + file mount; .env trên VPS không bị đụng
+      # Image lấy từ Docker Hub ⇒ VPS chỉ cần compose + file mount; .env trên VPS không bị đụng.
+      # File vào .incoming/; deploy/remote-deploy.sh kiểm tra rồi mới đưa vào chỗ chạy (và giữ bản cũ để rollback)
       - name: Upload compose and mounted files
         run: |
-          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "mkdir -p '$APP_DIR'"
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "mkdir -p '$APP_DIR/.incoming'"
           rsync -azR -e "ssh -p $VPS_PORT" \
+            deploy/remote-deploy.sh \
+            deploy/vps.env.example \
             compose.vps.yaml \
             docker/postgres/init/ \
             docker/keycloak/auth/generated/carenest-realm.json \
             docker/keycloak/vps/carenest-users-0.json \
-            "$VPS_USER@$VPS_HOST:$APP_DIR/"
+            "$VPS_USER@$VPS_HOST:$APP_DIR/.incoming/"
 
       # Đuôi .new không khớp `import *.caddy` nên Caddy chưa đọc tới khi bước Apply đổi tên
       - name: Upload Caddy site
@@ -215,45 +218,19 @@ jobs:
           rsync -z -e "ssh -p $VPS_PORT" deploy/caddy/carenest-auth.caddy \
             "$VPS_USER@$VPS_HOST:$CADDY_DIR/carenest-auth.caddy.new"
 
-      # Service giữ nguyên tag thì compose không recreate. Keycloak tự build lại + import realm lần đầu,
-      # API chạy Flyway ⇒ chờ health tối đa ~3 phút
+      # Toàn bộ logic (kiểm trước, backup DB, up, chờ health, tự rollback) nằm trong deploy/remote-deploy.sh.
+      # Keycloak tự build lại + import realm lần đầu, API chạy Flyway ⇒ chờ health tối đa ~3 phút
       - name: Pull and restart on VPS
         env:
           API_IMAGE: ${{ env.IMAGE }}:${{ needs.plan.outputs.api_tag }}
           KEYCLOAK_IMAGE: ${{ env.IMAGE }}:${{ needs.plan.outputs.keycloak_tag }}
         run: |
-          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
-            "cd '$APP_DIR' && API_IMAGE='$API_IMAGE' KEYCLOAK_IMAGE='$KEYCLOAK_IMAGE' bash -s" <<'EOF'
-          set -e
-          test -f .env || { echo ".env missing in $PWD (template: deploy/vps.env.example)" >&2; exit 1; }
-          docker pull "$API_IMAGE"
-          docker pull "$KEYCLOAK_IMAGE"
-          docker compose -f compose.vps.yaml up -d --no-build --remove-orphans
-          healthy=
-          for i in $(seq 1 60); do
-            if curl -fsS -o /dev/null http://127.0.0.1:18310/actuator/health \
-              && curl -fsS -o /dev/null http://127.0.0.1:18321/health/ready; then
-              healthy=1
-              break
-            fi
-            sleep 3
-          done
-          if [ -z "$healthy" ]; then
-            docker compose -f compose.vps.yaml ps
-            docker compose -f compose.vps.yaml logs --tail 80 api keycloak
-            exit 1
-          fi
-          # So sánh image ID để giữ cả tag được container production hoặc dev dùng.
-          used_images=$(mktemp)
-          docker ps -aq | xargs -r docker inspect --format '{{.Image}}' > "$used_images"
-          while IFS= read -r tag; do
-            if [ "$tag" = "$API_IMAGE" ] || [ "$tag" = "$KEYCLOAK_IMAGE" ] || [ "${tag##*:}" = '<none>' ]; then continue; fi
-            image_id=$(docker image inspect --format '{{.Id}}' "$tag")
-            if ! grep -Fxq "$image_id" "$used_images"; then docker rmi "$tag"; fi
-          done < <(docker images "${API_IMAGE%:*}" --format '{{.Repository}}:{{.Tag}}')
-          rm -f "$used_images"
-          docker image prune -f
-          EOF
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "cd '$APP_DIR' && \
+            DEPLOY_ENV=production COMPOSE_FILE=compose.vps.yaml ENV_EXAMPLE=deploy/vps.env.example \
+            MANAGED_PATHS='compose.vps.yaml docker/postgres/init docker/keycloak/auth/generated/carenest-realm.json docker/keycloak/vps/carenest-users-0.json' \
+            API_HEALTH_URL=http://127.0.0.1:18310/actuator/health KC_HEALTH_URL=http://127.0.0.1:18321/health/ready \
+            API_IMAGE='$API_IMAGE' KEYCLOAK_IMAGE='$KEYCLOAK_IMAGE' \
+            bash .incoming/deploy/remote-deploy.sh"
 
       # Caddy dùng chung với site khác: reload lỗi thì Caddy giữ cấu hình đang chạy,
       # nhưng file lỗi còn trên đĩa sẽ làm Caddy không lên sau reboot ⇒ khôi phục file cũ
@@ -279,9 +256,20 @@ jobs:
 
       # Token Keycloak phải có iss https (KEYCLOAK_ISSUER_URI của API so khớp tuyệt đối)
       - name: Smoke test HTTPS
+        id: smoke
         run: |
           curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$AUTH_DISCOVERY_URL" \
             | grep -F '"issuer":"https://auth.carenest.edu.vn/realms/carenest"'
+
+      # Smoke fail sau khi bản mới đã lên ⇒ quay về bản trước (cùng logic với health fail)
+      - name: Roll back after failed smoke test
+        if: ${{ failure() && steps.smoke.outcome == 'failure' }}
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "cd '$APP_DIR' && \
+            DEPLOY_ENV=production COMPOSE_FILE=compose.vps.yaml ENV_EXAMPLE=deploy/vps.env.example \
+            MANAGED_PATHS=compose.vps.yaml \
+            API_HEALTH_URL=http://127.0.0.1:18310/actuator/health KC_HEALTH_URL=http://127.0.0.1:18321/health/ready \
+            bash .incoming/deploy/remote-deploy.sh rollback 'smoke test failed'"
 
   # Môi trường dev (compose.dev.yaml): Keycloak + api riêng, dùng chung Postgres/Mailpit của production.
   # .env dev và DB/role carenest_dev, keycloak_dev tạo tay một lần (docs/system/DEPLOYMENT.md mục Môi trường dev)
@@ -316,57 +304,33 @@ jobs:
 
       - name: Upload compose and mounted files
         run: |
-          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "mkdir -p '$APP_DIR'"
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "mkdir -p '$APP_DIR/.incoming'"
           rsync -azR -e "ssh -p $VPS_PORT" \
+            deploy/remote-deploy.sh \
+            deploy/dev.env.example \
             compose.dev.yaml \
             docker/keycloak/auth/generated/carenest-realm.json \
             docker/keycloak/vps/carenest-users-0.json \
-            "$VPS_USER@$VPS_HOST:$APP_DIR/"
+            "$VPS_USER@$VPS_HOST:$APP_DIR/.incoming/"
 
       - name: Upload Caddy site
         run: |
           rsync -z -e "ssh -p $VPS_PORT" "deploy/caddy/$SITE_FILE" \
             "$VPS_USER@$VPS_HOST:$CADDY_DIR/$SITE_FILE.new"
 
-      # Postgres thuộc stack production: không chạy thì báo rõ thay vì chờ health hết giờ
+      # Postgres thuộc stack production: không chạy thì script dừng và báo rõ. DB dev (carenest_dev, keycloak_dev)
+      # là DB duy nhất script được phép khôi phục trong job này; DB production không bị chạm
       - name: Pull and restart on VPS
         env:
           API_IMAGE: ${{ env.IMAGE }}:${{ needs.plan.outputs.api_tag }}
           KEYCLOAK_IMAGE: ${{ env.IMAGE }}:${{ needs.plan.outputs.keycloak_tag }}
         run: |
-          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
-            "cd '$APP_DIR' && API_IMAGE='$API_IMAGE' KEYCLOAK_IMAGE='$KEYCLOAK_IMAGE' bash -s" <<'EOF'
-          set -e
-          test -f .env || { echo ".env missing in $PWD (template: deploy/dev.env.example)" >&2; exit 1; }
-          test -n "$(docker ps -qf name=carenest-be-postgres)" || { echo "Postgres of the production stack is not running" >&2; exit 1; }
-          docker pull "$API_IMAGE"
-          docker pull "$KEYCLOAK_IMAGE"
-          docker compose -f compose.dev.yaml up -d --no-build --remove-orphans
-          healthy=
-          for i in $(seq 1 60); do
-            if curl -fsS -o /dev/null http://127.0.0.1:18311/actuator/health \
-              && curl -fsS -o /dev/null http://127.0.0.1:18323/health/ready; then
-              healthy=1
-              break
-            fi
-            sleep 3
-          done
-          if [ -z "$healthy" ]; then
-            docker compose -f compose.dev.yaml ps
-            docker compose -f compose.dev.yaml logs --tail 80 api keycloak
-            exit 1
-          fi
-          # So sánh image ID để giữ cả tag được container production hoặc dev dùng.
-          used_images=$(mktemp)
-          docker ps -aq | xargs -r docker inspect --format '{{.Image}}' > "$used_images"
-          while IFS= read -r tag; do
-            if [ "$tag" = "$API_IMAGE" ] || [ "$tag" = "$KEYCLOAK_IMAGE" ] || [ "${tag##*:}" = '<none>' ]; then continue; fi
-            image_id=$(docker image inspect --format '{{.Id}}' "$tag")
-            if ! grep -Fxq "$image_id" "$used_images"; then docker rmi "$tag"; fi
-          done < <(docker images "${API_IMAGE%:*}" --format '{{.Repository}}:{{.Tag}}')
-          rm -f "$used_images"
-          docker image prune -f
-          EOF
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "cd '$APP_DIR' && \
+            DEPLOY_ENV=dev COMPOSE_FILE=compose.dev.yaml ENV_EXAMPLE=deploy/dev.env.example \
+            MANAGED_PATHS='compose.dev.yaml docker/keycloak/auth/generated/carenest-realm.json docker/keycloak/vps/carenest-users-0.json' \
+            API_HEALTH_URL=http://127.0.0.1:18311/actuator/health KC_HEALTH_URL=http://127.0.0.1:18323/health/ready \
+            API_IMAGE='$API_IMAGE' KEYCLOAK_IMAGE='$KEYCLOAK_IMAGE' \
+            bash .incoming/deploy/remote-deploy.sh"
 
       # Giống production: reload lỗi ⇒ khôi phục file cũ để Caddy vẫn lên sau reboot
       - name: Apply Caddy site
@@ -391,6 +355,16 @@ jobs:
 
       # Lần đầu Caddy cần thời gian xin chứng chỉ cho auth-dev
       - name: Smoke test HTTPS
+        id: smoke
         run: |
           curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "$AUTH_DISCOVERY_URL" \
             | grep -F '"issuer":"https://auth-dev.carenest.edu.vn/realms/carenest"'
+
+      - name: Roll back after failed smoke test
+        if: ${{ failure() && steps.smoke.outcome == 'failure' }}
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "cd '$APP_DIR' && \
+            DEPLOY_ENV=dev COMPOSE_FILE=compose.dev.yaml ENV_EXAMPLE=deploy/dev.env.example \
+            MANAGED_PATHS=compose.dev.yaml \
+            API_HEALTH_URL=http://127.0.0.1:18311/actuator/health KC_HEALTH_URL=http://127.0.0.1:18323/health/ready \
+            bash .incoming/deploy/remote-deploy.sh rollback 'smoke test failed'"

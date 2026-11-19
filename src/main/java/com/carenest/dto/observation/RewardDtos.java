@@ -70,6 +70,8 @@ public final class RewardDtos {
             boolean canEdit,
             boolean canReview,
             boolean canDecide,
+            // OBS-14: ngày mở lập danh sách (kết thúc HK II); null khi năm không còn hoạt động
+            LocalDate openFrom,
             // Ngày học đã qua lớp chưa điểm danh (vẫn tính vào ngày phải đi khi xét Bé chăm)
             List<LocalDate> unrecordedDays) {}
 

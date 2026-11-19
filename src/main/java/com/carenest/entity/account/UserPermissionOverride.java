@@ -15,12 +15,17 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
-/** Ngoại lệ quyền của một người (GRANT/REVOKE) so với ma trận role của họ. */
+/**
+ * Ngoại lệ quyền của một người (GRANT/REVOKE) so với ma trận role của họ. Dùng chung bảng {@code permission_grants}
+ * với {@link RolePermission}; entity này chỉ thấy dòng người.
+ */
 @Getter
 @Entity
-@Table(name = "user_permission_overrides")
+@Table(name = "permission_grants")
+@SQLRestriction("user_id IS NOT NULL")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class UserPermissionOverride {
 
@@ -46,7 +51,7 @@ public class UserPermissionOverride {
     @Column(nullable = false, length = 500)
     private String reason;
 
-    @Column(name = "created_by", nullable = false)
+    @Column(name = "granted_by", nullable = false)
     private Long createdBy;
 
     @CreationTimestamp

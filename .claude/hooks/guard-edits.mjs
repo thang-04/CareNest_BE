@@ -31,9 +31,24 @@ function alreadyApproved(events, key, rel) {
   return askAt !== undefined && events.some((e) => e.kind === "edit" && e.path === rel && e.at >= askAt);
 }
 
+const IMPACT = "in bản tác động trước khi sửa: `node scripts/ai-layer/impact.mjs <file>` (AGENTS.md › Chế độ làm việc)";
+
+// Thành viên phụ trách file (glob khớp đầu tiên) nếu khác người đang làm; không xác định được ai ⇒ null (không hỏi)
+function foreignOwner(ctx, rel) {
+  const { modules, identities } = ctx.config.ownership;
+  const owner = Object.entries(modules).find(([glob]) => matchAny([glob], rel))?.[1];
+  if (!owner) return null;
+  const name = tryGit(["config", "user.name"], ctx.root);
+  const me = Object.entries(identities).find(([, names]) => names.includes(name))?.[0];
+  return me && me !== owner ? owner : null;
+}
+
 function editRules(ctx, rel, branch) {
   const { guard } = ctx.config;
   const asks = [];
+  if (matchAny(guard.sharedGlobs, rel)) asks.push(["shared", `vùng dùng chung, ảnh hưởng màn hình/module khác — ${IMPACT}`]);
+  const owner = foreignOwner(ctx, rel);
+  if (owner) asks.push(["foreign", `module do ${owner} phụ trách — ${IMPACT}`]);
   if (matchAny(guard.harnessGlobs, rel)) asks.push(["harness", "sửa file harness (hook/script/settings) — xác nhận đây là chủ đích của user"]);
   if (matchAny(guard.immutableGlobs, rel) && existsInHead(ctx, rel)) {
     asks.push(["migration", "migration đã commit là bất biến — tạo migration mới V{n+1}; chỉ sửa khi user đồng ý rõ"]);
@@ -82,9 +97,10 @@ run("guard-edits", (input, ctx) => {
   const events = readEvents(ctx);
   const pending = editRules(ctx, rel, branch).filter(([key]) => !alreadyApproved(events, `${key}:${rel}`, rel));
   if (!pending.length) return;
-  const why = `[CareNest] ${rel}: ${pending.map(([, w]) => w).join("; ")}`;
-  // Chế độ tự chạy (harness.config.json › guard.autonomous): không hỏi user, chỉ nhắc agent ghi vào báo cáo bàn giao
-  if (ctx.config.guard.autonomous) return addContext("PreToolUse", `${why} — chế độ tự chạy: cứ làm, ghi rõ trong báo cáo bàn giao.`);
-  for (const [key] of pending) appendEvent(ctx, { kind: "ask", key: `${key}:${rel}` });
-  preToolUse("ask", why);
+  const reason = (rules) => `[CareNest] ${rel}: ${rules.map(([, w]) => w).join("; ")}`;
+  // Chế độ tự chạy (guard.autonomous): chỉ điểm dừng cứng (guard.hardStops) mới hỏi; còn lại nhắc agent ghi vào báo cáo bàn giao
+  const asks = ctx.config.guard.autonomous ? pending.filter(([key]) => ctx.config.guard.hardStops.includes(key)) : pending;
+  if (!asks.length) return addContext("PreToolUse", `${reason(pending)} — chế độ tự chạy: cứ làm, ghi rõ trong báo cáo bàn giao.`);
+  for (const [key] of asks) appendEvent(ctx, { kind: "ask", key: `${key}:${rel}` });
+  preToolUse("ask", reason(asks));
 });

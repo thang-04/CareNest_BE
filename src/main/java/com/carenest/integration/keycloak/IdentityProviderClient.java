@@ -23,8 +23,20 @@ public interface IdentityProviderClient {
 
     void setUserEnabled(String userId, boolean enabled);
 
-    /** Đổi họ tên và email (null ⇒ giữ email cũ); email đổi thì bỏ trạng thái đã xác minh. */
+    /**
+     * Đổi tên đăng nhập (G94-180/AUTH-21: SĐT phụ huynh đổi được duyệt). Provider không đổi (realm cấm sửa username)
+     * ⇒ {@link IdentityProviderException} REJECTED; trùng username ⇒ CONFLICT.
+     */
+    void updateUsername(String userId, String username);
+
+    /** Đổi họ tên và email (null ⇒ giữ email cũ); email đổi thì bỏ trạng thái đã xác minh (AUTH-25, hồ sơ nhân sự). */
     void updateUserProfile(String userId, String fullName, String email);
+
+    /**
+     * Đặt họ tên, email đúng như DB (G94-180/AUTH-21, phụ huynh theo hồ sơ trẻ): email null ⇒ xóa email trên provider;
+     * email đổi thì bỏ trạng thái đã xác minh. Khác {@link #updateUserProfile} ở cách hiểu email null.
+     */
+    void replaceProfile(String userId, String fullName, String email);
 
     /** Đặt mật khẩu tạm mới (bắt đổi ở lần đăng nhập kế tiếp). */
     void resetTemporaryPassword(String userId, String temporaryPassword);

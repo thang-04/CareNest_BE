@@ -208,7 +208,7 @@ class DryStockOutlook {
         }
         return forecast.getCounts().stream()
                 .collect(Collectors.toMap(
-                        FreshForecastCount::getAgeGroupId, FreshForecastCount::getExpectedCount, Integer::sum));
+                        FreshForecastCount::ageGroupId, FreshForecastCount::expectedCount, Integer::sum));
     }
 
     private List<Lot> lots(Long campusId) {

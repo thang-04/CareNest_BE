@@ -20,6 +20,13 @@ public interface NotificationService {
     /** Tạo thông báo cho các người dùng (bỏ trùng); chạy trong giao dịch của người gọi. */
     void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body, Long childId);
 
+    /**
+     * Thông báo có đường dẫn Web (kế hoạch giáo dục, spec 003). {@code once}: bỏ người đã có thông báo cùng loại + đường
+     * dẫn (nhắc "Gần đến hạn" một lần).
+     */
+    void notifyUsers(
+            Collection<Long> userIds, NotificationType type, String title, String body, String link, boolean once);
+
     NotificationListResponse listMyNotifications(CurrentUser currentUser, int limit);
 
     NotificationResponse markRead(CurrentUser currentUser, Long notificationId);

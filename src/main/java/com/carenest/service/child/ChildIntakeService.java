@@ -25,7 +25,16 @@ import java.util.Optional;
  * khoản phụ huynh đi qua {@code ChildEnrollmentService} của feature account (feature child không gọi account).
  */
 public interface ChildIntakeService {
+    /**
+     * Phát sau khi mở lại hồ sơ trẻ đã nghỉ (CHD-03): feature account tự mở lại tài khoản phụ huynh do hệ thống khóa
+     * khi trẻ nghỉ (CHD-04, V90). Feature child không gọi account nên báo qua sự kiện.
+     */
+    record ChildReadmittedEvent(Long childId) {}
+
     Optional<Long> findRecipientAccountId(Long childId);
+
+    /** Như {@link #findRecipientAccountId} cho nhiều trẻ: childId → tài khoản người nhận (trẻ chưa có không có khóa). */
+    java.util.Map<Long, Long> findRecipientAccountIds(java.util.Collection<Long> childIds);
 
     List<com.carenest.dto.child.ChildGuardianResponse> accountCandidates(Long childId);
 
@@ -71,14 +80,16 @@ public interface ChildIntakeService {
     Optional<ChildMedicalHistory> findMedicalHistory(Long childId);
 
     /**
-     * Ghi tiền sử mới vào khai báo sức khỏe (từ phiếu khám; HLT-06) và một dòng lịch sử khai báo. Trẻ
-     * chưa có khai báo ⇒ tạo khai báo, các mục khác "chưa cung cấp". Chạy trong giao dịch của người gọi.
+     * Ghi tiền sử mới vào khai báo sức khỏe (từ phiếu khám; HLT-06) và một dòng lịch sử khai báo kèm tiền sử trước/sau.
+     * Trẻ chưa có khai báo ⇒ tạo khai báo, các mục khác "chưa cung cấp". Ngày tiếp xúc lao đã có đổi ⇒ thông báo
+     * CHD-07 với {@code changeSource} (vd. "phiếu khám ngày 01/11/2026"). Chạy trong giao dịch của người gọi.
      */
     void updateMedicalHistory(
             Long childId,
             ChildMedicalHistory history,
             HealthDeclarationAction action,
             String note,
+            String changeSource,
             Long userId,
             Instant at);
 

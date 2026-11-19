@@ -14,6 +14,7 @@ import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -101,8 +102,20 @@ class AttendanceDayRules {
                 unlock.map(u -> toUnlockView(u, cls.name())).orElse(null));
     }
 
-    // AUTH-20: xem điểm danh/sức khỏe là đường đọc ⇒ PHT xem mọi cơ sở; ghi vẫn qua canRecord/canUnlock
+    // Quyền xem của BGH theo đúng scope HT cấp; GV/tổ trưởng vẫn theo lớp/nhóm tuổi được phân công.
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
+        // GV có quyền ghi điểm danh / sức khỏe luôn xem được lớp đang dạy, kể cả khi HT thu hồi quyền Xem (chỉ bớt xem
+        // tổng hợp), để quyền ghi không bị mất theo
+        if ((user.hasPermission(Permission.ATTENDANCE_RECORD) || user.hasPermission(Permission.DAILY_HEALTH_RECORD))
+                && canRecord(user, cls)) {
+            return true;
+        }
+        if (!user.hasPermission(Permission.ATTENDANCE_VIEW)) {
+            return false;
+        }
+        if (user.hasRole(CareNestRole.PRINCIPAL) || user.hasRole(CareNestRole.VICE_PRINCIPAL)) {
+            return campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, cls.campusId());
+        }
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
@@ -114,7 +127,7 @@ class AttendanceDayRules {
     }
 
     boolean canReadCampus(CurrentUser user, Long campusId) {
-        return campusAccessPolicy.canReadCampus(user, campusId);
+        return campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, campusId);
     }
 
     /**
@@ -133,10 +146,14 @@ class AttendanceDayRules {
                 && staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today());
     }
 
+    boolean canRecordAttendance(CurrentUser user, ClassroomInfoResponse cls) {
+        return user.hasPermission(Permission.ATTENDANCE_RECORD) && canRecord(user, cls);
+    }
+
     /** Cần chốt 21/10/2026: HT mở lại mọi lớp, PHT chỉ lớp điểm trường mình (AUTH-01, AUTH-02). */
     boolean canUnlock(CurrentUser user, Long campusId) {
         return (user.hasRole(CareNestRole.PRINCIPAL) || user.hasRole(CareNestRole.VICE_PRINCIPAL))
-                && campusAccessPolicy.canViewCampus(user, campusId);
+                && campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_UNLOCK, campusId);
     }
 
     DayUnlockResponse toUnlockView(AttendanceDayUnlock u, String className) {

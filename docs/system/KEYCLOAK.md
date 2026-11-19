@@ -154,6 +154,8 @@ Keycloak đã có realm thì `--import-realm` bỏ qua file user dev: đổi fil
 
 Lớp A1 có `Trẻ Demo A1-01`, `Trẻ Demo A1-02`; lớp B1 có `Trẻ Demo B1-01`. Tất cả là dữ liệu giả.
 
+Dữ liệu thử màn G94-180 (`db/dev/R__dev_seed_thuong_hong_records_health.sql`): `principal` có 2 yêu cầu đổi SĐT phụ huynh chờ duyệt, `viceprincipal` 1 (tài khoản phụ huynh seed không có user Keycloak ⇒ chỉ xem/từ chối; thử duyệt bằng yêu cầu mới cho `parent1`/`parent2`); 3 trẻ chờ xếp lớp mới (1 trẻ chưa khai báo sức khỏe), 1 trẻ đã nghỉ học; 2 trẻ chuyển lớp 09/11/2026 (`teacher1` nhận "Lớp có trẻ mới"), 1 trẻ Lớp A1 khai tiếp xúc lao; 2 kỳ cân đo đã đóng mỗi điểm trường. `parent1` xem được giải thích xu hướng đã duyệt của `Trẻ Demo A1-01`; giải thích của `Trẻ Demo B1-01` (sụt cân) còn nháp, `teacher2` duyệt.
+
 Thử phân quyền với `GET /api/children/{id}` (id thật xem bằng `docker compose exec postgres psql -U carenest -d carenest -c "select id, full_name from children"`) — kết quả đã kiểm e2e:
 
 | User | A1-01 | A1-02 | B1-01 | id không tồn tại |
@@ -227,6 +229,22 @@ Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo 
   ```
 
 - Đã chỉnh trên console và muốn đối chiếu: *Realm settings* → *Action* (góc phải) → *Partial export* (secret bị che, không có user) → so với file JSON, chép phần cần giữ vào.
+
+### Đổi tên đăng nhập phụ huynh (G94-180/AUTH-21, sửa 2026-11-10)
+
+Duyệt yêu cầu đổi SĐT phụ huynh đổi `username` qua Admin API (service account `carenest-backend`). Keycloak 26.8 chặn việc này khi realm tắt sửa username: `PUT /admin/realms/carenest/users/{id}` trả `400 error-user-attribute-read-only` (đã thử 10/11/2026). File import vì vậy đặt:
+
+- `"editUsernameAllowed": true`;
+- user profile, thuộc tính `username`: `permissions.edit = ["admin"]` (bỏ `user`) ⇒ chỉ admin/service account đổi; người dùng tự đổi ở Account Console / Account REST API bị chặn `400 error-user-attribute-read-only`.
+
+Đã kiểm trên KC 26.8.0 dựng mới từ file này: service account đổi username 204 (đọc lại đúng), trùng username 409, đăng nhập bằng username mới được, người dùng tự đổi bị chặn.
+
+Realm **đã có** (DB dev cũ, VPS) không nhập lại file ⇒ chỉnh tay một lần, không cần reset DB:
+
+1. *Realm settings* → *General* → bật **Edit username** → *Save*.
+2. *Realm settings* → *User profile* → thuộc tính `username` → *Permission* → *Who can edit*: chỉ **Admin** (bỏ **User**) → *Save*.
+
+Chưa chỉnh thì duyệt đổi SĐT báo `USERNAME_CHANGE_NOT_ALLOWED` (1140, 503), log `usernameChangeRejected|checkRealmEditUsername`; không đổi gì, không gửi SMS, yêu cầu vẫn chờ duyệt.
 
 ## 8. Xử lý lỗi thường gặp
 

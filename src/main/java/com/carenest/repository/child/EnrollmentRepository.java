@@ -41,6 +41,8 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     /** Enrollment gần nhất của trẻ (kể cả đã đóng): điểm trường của trẻ đã nghỉ học là điểm trường lớp cuối. */
     Optional<Enrollment> findFirstByChildIdOrderByValidFromDescIdDesc(Long childId);
 
+    Optional<Enrollment> findFirstByChildIdOrderByValidFromAscIdAsc(Long childId);
+
     @Query("""
             select e from Enrollment e
             where e.childId in :childIds
@@ -49,13 +51,20 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
             """)
     List<Enrollment> findActiveByChildIdIn(@Param("childIds") Collection<Long> childIds, @Param("date") LocalDate date);
 
-    // Đã từng xếp lớp mà không còn lớp nào chưa kết thúc tới :date (nghỉ học/ra trường khi chuyển năm học)
+    /*
+     * Đã nghỉ học tính tới :date (CHD-03, CHD-04): cho nghỉ (status LEFT, left_on ≤ :date — kể cả trẻ chưa từng có lớp,
+     * hoặc nghỉ ngay ngày vào lớp nên lớp bị xóa), hoặc ra trường khi chuyển năm học (từng có lớp, không còn lớp chưa
+     * kết thúc tới :date; ra trường không đổi status). Chờ xếp lớp (mới tiếp nhận hoặc mở lại hồ sơ) không tính là nghỉ.
+     */
     @Query("""
-            select distinct e.childId from Enrollment e
-            where e.childId in :childIds
-              and not exists (
-                  select 1 from Enrollment o
-                  where o.childId = e.childId and (o.validTo is null or o.validTo >= :date))
+            select c.id from Child c
+            where c.id in :childIds
+              and ((c.status = com.carenest.utils.enums.ChildStatus.LEFT and c.leftOn <= :date)
+                or (c.status <> com.carenest.utils.enums.ChildStatus.PENDING_PLACEMENT
+                    and exists (select 1 from Enrollment e where e.childId = c.id)
+                    and not exists (
+                        select 1 from Enrollment o
+                        where o.childId = c.id and (o.validTo is null or o.validTo >= :date))))
             """)
     List<Long> findChildIdsLeftSchool(@Param("childIds") Collection<Long> childIds, @Param("date") LocalDate date);
 }

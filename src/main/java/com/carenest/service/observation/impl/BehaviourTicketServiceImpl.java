@@ -26,6 +26,7 @@ import com.carenest.service.observation.BehaviourTicketService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.TicketType;
 import java.time.DayOfWeek;
@@ -55,12 +56,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class BehaviourTicketServiceImpl implements BehaviourTicketService {
 
     private static final String LOG_PREFIX = "[BehaviourTicketServiceImpl]";
-    // Công thức phiếu đang có (FE TICKET_RULES), Cần giữ nguyên 30/10/2026
-    static final int WEEK_MIN_PRESENT_DAYS = 4;
+    // OBS-10 (Cần chốt 11/11/2026): phiếu tuần chỉ cần ≥3 cờ trong tuần (mỗi ngày tối đa 1 cờ ⇒ có mặt ≥3 ngày);
+    // phiếu tháng cần ≥3 phiếu tuần
     static final int WEEK_MIN_FLAGS = 3;
     static final int MONTH_MIN_WEEKLY_TICKETS = 3;
     private static final Map<String, Integer> RULES = Map.of(
-            "WEEK_MIN_PRESENT_DAYS", WEEK_MIN_PRESENT_DAYS,
             "WEEK_MIN_FLAGS", WEEK_MIN_FLAGS,
             "MONTH_MIN_WEEKLY_TICKETS", MONTH_MIN_WEEKLY_TICKETS);
 
@@ -91,7 +91,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             .filter(p -> p.start().equals(periodStart))
                             .findFirst()
                             .orElseThrow(() -> GlobalException.of(ApiCode.TICKET_PERIOD_INVALID));
-            List<TicketBoardRow> rows = current == null ? List.of() : boardRows(cls, t, current);
+            List<TicketBoardRow> rows = current == null ? List.of() : boardRows(currentUser, cls, t, current);
             log.info("{}|rows={}|END", logPrefix, rows.size());
             return new TicketBoardResponse(new TicketClassRef(cls.id(), cls.name()), t, periods, current, rows, RULES);
         } catch (RuntimeException ex) {
@@ -108,7 +108,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.TICKET_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -389,7 +389,8 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
 
     // ---------- số liệu ----------
 
-    private List<TicketBoardRow> boardRows(ClassroomInfoResponse cls, TicketType type, TicketPeriod period) {
+    private List<TicketBoardRow> boardRows(
+            CurrentUser currentUser, ClassroomInfoResponse cls, TicketType type, TicketPeriod period) {
         List<ClassChildResponse> children = childrenOf(cls, period);
         Set<Long> endMembers =
                 enrollmentService
@@ -418,7 +419,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             t == null && eligible(type, present, flags, weeklyCount),
                             t == null ? null : toIssued(t),
                             t != null && !t.getClassroomId().equals(cls.id()),
-                            endMembers.contains(c.id()));
+                            currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
+                                    && rules.canRecord(currentUser, cls)
+                                    && endMembers.contains(c.id()));
                 })
                 .toList();
     }
@@ -488,9 +491,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         return result;
     }
 
-    private static boolean eligible(TicketType type, Integer present, Integer flags, Integer weeklyCount) {
+    static boolean eligible(TicketType type, Integer present, Integer flags, Integer weeklyCount) {
         return type == TicketType.WEEKLY
-                ? present != null && flags != null && present >= WEEK_MIN_PRESENT_DAYS && flags >= WEEK_MIN_FLAGS
+                ? flags != null && flags >= WEEK_MIN_FLAGS
                 : weeklyCount != null && weeklyCount >= MONTH_MIN_WEEKLY_TICKETS;
     }
 

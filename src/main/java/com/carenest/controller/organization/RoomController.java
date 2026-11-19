@@ -53,7 +53,7 @@ public class RoomController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ROOM_MANAGE')")
     // Để OpenAPI ghi 201 khớp ApiCode.CREATED
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<RoomResponse>> createRoom(
@@ -66,7 +66,7 @@ public class RoomController {
     }
 
     @PutMapping("/{roomId}")
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ROOM_MANAGE')")
     public ResponseEntity<ResponseJson<RoomResponse>> updateRoom(
             @PathVariable Long roomId, @Valid @RequestBody RoomRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|updateRoom|userId=" + currentUser.userId() + "|roomId=" + roomId;
@@ -77,7 +77,7 @@ public class RoomController {
     }
 
     @PatchMapping("/{roomId}/status")
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ROOM_MANAGE')")
     public ResponseEntity<ResponseJson<RoomResponse>> changeRoomStatus(
             @PathVariable Long roomId, @Valid @RequestBody RoomStatusRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|changeRoomStatus|userId=" + currentUser.userId() + "|roomId=" + roomId;
@@ -88,7 +88,7 @@ public class RoomController {
     }
 
     @DeleteMapping("/{roomId}")
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ROOM_MANAGE')")
     public ResponseEntity<ResponseJson<Void>> deleteRoom(@PathVariable Long roomId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|deleteRoom|userId=" + currentUser.userId() + "|roomId=" + roomId;
         log.info("{}|START", logPrefix);

@@ -15,6 +15,8 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | system | `system/SYSTEM_ARCHITECTURE.md` | BE + FE + APP, AI layer, scope | FULL |
 | | `system/MODULE_MAP.md` | Dependency, thứ tự lớp, cycle đã phá | FULL |
 | | `system/CROSS_REPO_MAP.md` | Ownership BE/FE/APP, điểm chạm | FULL |
+| | `api/API_INDEX.md` | Bảng tra endpoint → controller#method (sinh tự động, grep theo path) | FULL |
+| | `system/FE_API_CALLS.md` | Bảng tra file Web gọi endpoint nào (ảnh chụp từ FE, grep theo path) | FULL |
 | | `system/DEPLOYMENT.md` | VPS demo: Docker Hub, mạng host, cổng, Caddy, rollback, chuyển dữ liệu thật | FULL |
 | | `system/KEYCLOAK.md` | Chạy/cấu hình Keycloak, lấy token, lỗi thường gặp | FULL |
 | guide | `backend-coding-guide.md` | **Quy tắc code bắt buộc** (layer, response, logging, exception, migration, checklist) | FULL — nguồn chuẩn code |
@@ -28,7 +30,7 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | api | `api/openapi.yaml` | Snapshot hợp đồng OpenAPI, khóa bởi `OpenApiSnapshotTest` (đổi có chủ đích: `update-api.md`) | FULL |
 | api | `api/CareNest.postman_collection.json` + `CareNest-local.postman_environment.json` | Postman: mọi API hiện có + ma trận phân quyền (kiểm bằng newman) | FULL |
 | database | `database/DATABASE.md` | Nguyên tắc DB | FULL |
-| | `database/ERD.md`, `database/DATA_DICTIONARY.md` | Schema | SKELETON |
+| | `database/ERD.md`, `database/DATA_DICTIONARY.md` | Schema (đang điền theo migration; cột chuẩn là file migration) | FULL |
 | knowledge | `knowledge/ISSUE_INDEX.md` | **Search đầu tiên khi debug** | FULL |
 | | `knowledge/incidents/_TEMPLATE.md` | Mẫu incident (status open/fixed, có Attempts) | FULL |
 | | `knowledge/CROSS_MODULE_ISSUES.md` | Rủi ro CMR + issue liên module | FULL |

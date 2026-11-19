@@ -31,21 +31,21 @@ Tất cả cần `MENU_MANAGE` (thiếu ⇒ 403 `1101`). Bọc `ResponseJson` nh
 
 - Thêm 11/11/2026 (sửa món trên nháp): `days[].items[].slot` = khóa ô của món (vd. `LUNCH.2`); `slots` = `[{ key, session, index, dishTypes[] }]` là các hàng của bảng gợi ý theo thứ tự bữa rồi thứ tự ô, suy từ chính lưới đã lưu (rỗng khi `NO_FEASIBLE`); `editedCells` = số ô người duyệt đã sửa so với gợi ý lúc dùng (0 khi chưa dùng hoặc dùng nguyên gợi ý).
 
-## `GET /nutrition/menu-ai-drafts/{id}` — 200 | 404 `6080`.
+## `GET /nutrition/menu-ai-drafts/{id}` — 200 | 404 `6091`.
 ## `GET /nutrition/menu-ai-drafts/{id}/candidates`
-- Chỉ `MENU_WEEKLY` đang `PENDING_REVIEW` (loại khác ⇒ 409 `6083`; trạng thái khác ⇒ 409 `6081`; tuần đã công bố ⇒ 409 `6035`). 200: `{ slots: [{ key, session, index, dishTypes[], dishes: [{ dishId, dishName, dishType, seasonal, familiar, outOfStock }] }] }`; món theo thứ tự ưu tiên của hệ thống, đọc trên dữ liệu hiện tại. Không trả số liệu dinh dưỡng.
+- Chỉ `MENU_WEEKLY` đang `PENDING_REVIEW` (loại khác ⇒ 409 `6094`; trạng thái khác ⇒ 409 `6092`; tuần đã công bố ⇒ 409 `6035`). 200: `{ slots: [{ key, session, index, dishTypes[], dishes: [{ dishId, dishName, dishType, seasonal, familiar, outOfStock }] }] }`; món theo thứ tự ưu tiên của hệ thống, đọc trên dữ liệu hiện tại. Không trả số liệu dinh dưỡng.
 ## `POST /nutrition/menu-ai-drafts/{id}/evaluate` — chấm thử, không lưu, không gọi model
 - Body `{ days: [{ date, items: [{ slot, dishId }] }] }`: đủ đúng các ngày phục vụ của tuần, mỗi ô của khung đúng một món; món phải thuộc ứng viên của ô (hoặc là món gợi ý gốc của chính ô đó), không lặp trong một bữa. Sai ⇒ 400 `9001`, `data` = `[{ field: "days[<ngày>].<ô>" | "days[<ngày>]" | "days", message }]`.
 - 200: `{ feasible, editedCells, score: { total, breakdown }, evaluations, issues, checks }`; `evaluations` cùng dạng `MealPlanResponse.evaluations` (chỉ khối của nháp). Cùng evaluator, cảnh báo kho khô, điểm và bảng kiểm với lúc tạo nháp; `editedCells > 0` ⇒ dòng `VALUE_GATE` ghi người duyệt đã sửa N ô. Điều kiện loại/trạng thái như `candidates`.
-## `POST /nutrition/menu-ai-drafts/{id}/dismiss` — 200; trạng thái khác `PENDING_REVIEW` ⇒ 409 `6081`.
+## `POST /nutrition/menu-ai-drafts/{id}/dismiss` — 200; trạng thái khác `PENDING_REVIEW` ⇒ 409 `6092`.
 ## `POST /nutrition/menu-ai-drafts/{id}/apply`
-- `MENU_WEEKLY`, `MENU_DAY_FIX`: 200 trả `MealPlanResponse` của tuần sau khi ghi. Đã `APPLIED` ⇒ 200 trả tuần hiện tại (không ghi lại). `DISMISSED`/`NO_FEASIBLE` ⇒ 409 `6081`; tuần PUBLISHED ⇒ 409 `6035`. Dữ liệu đổi (fingerprint khác) và món ngừng dùng/bữa không còn phục vụ/phát sinh `BLOCKING` ⇒ 409 `6082`, `data` = `[{ field: ngày ISO hoặc "week", message }]`. Nháp `feasible=false` dùng được: ghi vào tuần DRAFT, không kiểm lại `BLOCKING` (vốn đã có), vẫn kiểm món ngừng dùng/bữa không còn phục vụ; công bố tuần vẫn bị chặn `6039`.
-- Body tùy chọn (thêm 11/11/2026), cùng dạng `evaluate`, chỉ cho `MENU_WEEKLY` đang `PENDING_REVIEW`: ghi lưới người duyệt đã sửa thay cho lưới gợi ý, lưu `editedCells`; kiểm lưới như `evaluate` (400 `9001`), món ngừng dùng/bữa không còn phục vụ ⇒ 409 `6082`; không chặn theo `BLOCKING` (công bố vẫn chặn `6039`). Không body ⇒ hành vi cũ. `MENU_DAY_FIX` kèm body ⇒ 409 `6083`.
-- `MENU_DAY_FIX`: chỉ đổi đúng ô; món cũ đã bị sửa tay khỏi ô ⇒ 409 `6082`; kiểm lại lỗi chặn của ngày đó trên dữ liệu mới.
-- `MENU_DAILY` ⇒ 409 `6083` (dùng `mark-used`).
+- `MENU_WEEKLY`, `MENU_DAY_FIX`: 200 trả `MealPlanResponse` của tuần sau khi ghi. Đã `APPLIED` ⇒ 200 trả tuần hiện tại (không ghi lại). `DISMISSED`/`NO_FEASIBLE` ⇒ 409 `6092`; tuần PUBLISHED ⇒ 409 `6035`. Dữ liệu đổi (fingerprint khác) và món ngừng dùng/bữa không còn phục vụ/phát sinh `BLOCKING` ⇒ 409 `6093`, `data` = `[{ field: ngày ISO hoặc "week", message }]`. Nháp `feasible=false` dùng được: ghi vào tuần DRAFT, không kiểm lại `BLOCKING` (vốn đã có), vẫn kiểm món ngừng dùng/bữa không còn phục vụ; công bố tuần vẫn bị chặn `6039`.
+- Body tùy chọn (thêm 11/11/2026), cùng dạng `evaluate`, chỉ cho `MENU_WEEKLY` đang `PENDING_REVIEW`: ghi lưới người duyệt đã sửa thay cho lưới gợi ý, lưu `editedCells`; kiểm lưới như `evaluate` (400 `9001`), món ngừng dùng/bữa không còn phục vụ ⇒ 409 `6093`; không chặn theo `BLOCKING` (công bố vẫn chặn `6039`). Không body ⇒ hành vi cũ. `MENU_DAY_FIX` kèm body ⇒ 409 `6094`.
+- `MENU_DAY_FIX`: chỉ đổi đúng ô; món cũ đã bị sửa tay khỏi ô ⇒ 409 `6093`; kiểm lại lỗi chặn của ngày đó trên dữ liệu mới.
+- `MENU_DAILY` ⇒ 409 `6094` (dùng `mark-used`).
 
 ## `POST /nutrition/menu-ai-drafts/{id}/mark-used`
-- Chỉ `MENU_DAILY` (loại khác ⇒ 409 `6083`): đánh dấu `APPLIED`, trả `MenuAiDraftResponse`; gọi lại khi đã `APPLIED` trả như cũ. Web điền form thực đơn mẫu từ `days[0]` rồi lưu qua `/nutrition/menu-templates` (kiểm tra của mẫu vẫn áp dụng).
+- Chỉ `MENU_DAILY` (loại khác ⇒ 409 `6094`): đánh dấu `APPLIED`, trả `MenuAiDraftResponse`; gọi lại khi đã `APPLIED` trả như cũ. Web điền form thực đơn mẫu từ `days[0]` rồi lưu qua `/nutrition/menu-templates` (kiểm tra của mẫu vẫn áp dụng).
 
 ## Tác động client
 FE `CareNest_FE`: `AiWeekComposer`, `AiTemplateComposer`, gợi ý thay món trong `WeeklyMenuPage` đổi từ contract demo `/menu/ai-suggestions` sang API này (plan FE riêng, cần user cho phép sửa repo FE). APP: không.

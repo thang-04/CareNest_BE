@@ -50,15 +50,25 @@ test("E2: đường dẫn trong repo phải tồn tại; placeholder/code fence/
   assert.match(msgs(warnsOf(result)), /planned, chưa tồn tại: scripts\/verify.mjs/);
 });
 
-test("E2: tham chiếu BE: / ../CareNest_BE/ giải theo repo sibling, sibling vắng thì bỏ qua", () => {
+test("E2: tham chiếu BE: / ../CareNest_BE/ giải theo repo sibling; thiếu chỉ cảnh báo (sibling có thể ở nhánh khác); sibling vắng thì bỏ qua", () => {
   const ws = makeWorkspace();
   makeRepo({ "docs/modules/a.md": "# a\n" }, { workspace: ws, name: "CareNest_BE" });
   const fe = makeRepo(
-    { "docs/x.md": "`BE:docs/modules/a.md` `BE:docs/modules/a.md:3` `BE:docs/modules/zz.md` `../CareNest_BE/docs/modules/a.md` `APP:docs/q.md`" },
+    {
+      "docs/x.md":
+        "`BE:docs/modules/a.md` `BE:docs/modules/a.md:3` `BE:docs/modules/zz.md` `../CareNest_BE/docs/modules/a.md` `APP:docs/q.md` [s](../../CareNest_BE/specs/x.md) [t](missing.md)",
+    },
     { workspace: ws, name: "CareNest_FE" },
   );
   const result = run(fe, { only: ["E2"], overrides: { repo: "FE" } });
-  assert.deepEqual(errorsOf(result).map((f) => f.msg), ["đường dẫn không tồn tại: BE:docs/modules/zz.md"]);
+  assert.deepEqual(errorsOf(result).map((f) => f.msg), ["link không tồn tại: missing.md"]);
+  const warns = warnsOf(result)
+    .map((f) => f.msg)
+    .sort();
+  assert.deepEqual(warns, [
+    "link sang repo khác không tồn tại: ../../CareNest_BE/specs/x.md (kiểm lại trên BE dev)",
+    "đường dẫn sang repo khác không tồn tại: BE:docs/modules/zz.md (kiểm lại trên BE dev)",
+  ]);
 });
 
 const BE_MAP = [

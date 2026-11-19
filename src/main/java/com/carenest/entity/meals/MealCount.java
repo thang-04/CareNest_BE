@@ -167,6 +167,7 @@ public class MealCount {
         int eating = line.getNormal() + line.getSubstitute();
         int delta = substitute - line.getSubstitute();
         line.setServings(eating - substitute, substitute);
+        line.markSubstituteAdjusted();
         return delta;
     }
 
@@ -180,12 +181,18 @@ public class MealCount {
         if (current == null) {
             return false;
         }
-        int substitute = Math.min(allergicEating, eating);
+        // NUT-02: suất thay thế đã điều chỉnh tay giữ nguyên (chỉ không vượt số trẻ ăn), đánh dấu để người duyệt kiểm
+        // tra lại
+        boolean adjusted = current.isSubstituteAdjusted();
+        int substitute = Math.min(adjusted ? current.getSubstitute() : allergicEating, eating);
         if (current.sameAs(present, absent, missing, eating - substitute, substitute)) {
             return false;
         }
         MealCountLine line = workingLine(classroomId).orElseThrow();
         line.setFigures(present, absent, missing, eating - substitute, substitute);
+        if (adjusted) {
+            line.markAttendanceChanged();
+        }
         return true;
     }
 
@@ -197,9 +204,13 @@ public class MealCount {
         pending.forEach(p -> lines.stream()
                 .filter(l -> !l.isPending() && l.getClassroomId().equals(p.getClassroomId()))
                 .findFirst()
-                .ifPresent(l ->
-                        l.setFigures(p.getPresent(), p.getAbsent(), p.getMissing(), p.getNormal(), p.getSubstitute())));
+                .ifPresent(l -> {
+                    l.setFigures(p.getPresent(), p.getAbsent(), p.getMissing(), p.getNormal(), p.getSubstitute());
+                    l.copyFlagsFrom(p);
+                }));
         lines.removeAll(pending);
+        // Người duyệt đã xem lại số khi xác nhận
+        lines.forEach(MealCountLine::clearAttendanceChanged);
         status = MealCountStatus.CONFIRMED;
         needsReconfirmation = false;
         confirmedBy = userId;

@@ -1,136 +1,104 @@
 # Flow — Kế hoạch giáo dục và giáo án
 
-Module: education-plan → learning-observation (đánh giá theo MT). Rule: EDU-01..41, OBS-07, AI-07. ADR: 0020, 0006. `[B]` = ngoài hệ thống, `[S]` = hệ thống.
-Nguồn: UI CareNest_FE (Tiền chốt UI là chuẩn, 20/10, 22/10), mẫu MN Thái Dương, `huong_dan_nghiep_vu/phan_viec_cac_actor_giao_an.md`.
+> **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
 
-Kế hoạch năm theo **nhóm tuổi**, áp dụng toàn trường. Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày theo **từng lớp**. Sợi dây xuyên suốt là **số MT 1..n** của kế hoạch năm:
 
-```text
-Kế hoạch năm: nội dung của MT tích vào chủ đề
-  → Kế hoạch chủ đề: GV viết hoạt động giáo dục cho từng MT của chủ đề
-    → Giáo án tuần: chọn hoạt động vào ô (giờ, ngày) ⇒ ô nhớ MT
-      → Kế hoạch ngày: "Mục tiêu trong ngày" = MT của hoạt động trong ngày
-        → Đánh giá trẻ hằng ngày theo MT (learning-observation)
-```
+> **Quyết định user10/11/2026 — duyệt hồ sơ lớp:** Theo chuỗi HT cấu hình, không bắt buộc có bước TT; chỉ PHT duyệt cũng hợp lệ. Giữ cấp trên duyệt cấp dưới, chống tự duyệt, phạm vi phân công và REVIEW cấm sửa. Quyết định này thay yêu cầu TT bắt buộc trước PHT/HT trong tài liệu09/11; chưa phải bằng chứng triển khai/nghiệm thu.
 
-## 0. Cấu hình (Hiệu trưởng, Phó HT) — EDU-11
+> **Cập nhật ngày 09/11/2026** bám sát 4 chỉ đạo nghiệp vụ:
+> 1. Phân cấp phê duyệt theo thứ bậc: HT cao nhất; PHT làm → chỉ HT duyệt; TT làm → PHT hoặc HT duyệt; hồ sơ chủ đề lớp do GV làm → duyệt theo cấu hình, có thể chỉ PHT duyệt; không bắt buộc bước TT (user10/11).
+> 2. Không ai được xóa kế hoạch tổ, kể cả xóa mềm/ẩn khỏi danh sách; quyền xóa kế hoạch năm theo EDU-07.
+> 3. Bỏ status "Đang sửa" và quy tắc khóa 90s/20s -> Cấu hình phân công chỉ định đúng 1 thành viên tạo độc quyền.
+> 4. Cả Tổ trưởng và GV đều được sửa nội dung giáo dục; GV ở lớp được tick chọn lại mục tiêu theo chủ đề.
+
+## 1. Phạm vi và chuỗi nguồn
 
 ```text
-[S] Đổi tên hiển thị lĩnh vực; thêm lĩnh vực khi Bộ bổ sung (5 lĩnh vực chuẩn không xóa)
-[S] Chuỗi người ký cho kế hoạch năm, chủ đề nhánh, hồ sơ chủ đề (mặc định Tổ trưởng → Phó HT; thêm Hiệu trưởng được)
-[S] Các dòng hoạt động của kế hoạch tuần, dòng nào gộp cả tuần
+Kế hoạch năm học (nhóm tuổi, toàn trường)
+  → Kế hoạch giáo dục tổ (nhóm tuổi, kế thừa cây năm, TT được sửa nội dung, tick vào chủ đề)
+    → Chủ đề nhánh của từng lớp (Lịch lớp v2, GV chỉ sửa nhánh riêng; không đổi chủ đề lớn)
+      → Kế hoạch chủ đề (GV được sửa nội dung, được tick lại mục tiêu theo chủ đề)
+        → Giáo án từng tuần học + 5 kế hoạch ngày
+          → Đánh giá trẻ theo MT từ giáo án đã duyệt
 ```
 
-## 1. Kế hoạch năm học (Tổ trưởng nhóm tuổi, Phó HT) — EDU-01..10
+Mỗi loại năm/tổ có một chuỗi cho một năm học/nhóm tuổi, tối đa một bản DRAFT/REVIEW trong chuỗi.
+
+Khi gửi kế hoạch năm, mọi chủ đề và mẫu nhánh đã khai báo phải đủ ngày bắt đầu/kết thúc để kiểm số tuần theo khoảng áp dụng; nháp vẫn được lưu thiếu ngày. EDU-66 CONFIRMED (Tiền 10/11/2026); EDU-52 đổi: **mọi điều kiện bắt buộc khi ban hành chặn ngay từ bước gửi duyệt** — gửi và ban hành dùng chung một bộ kiểm (`requireReadyToIssue`).
+
+Theo EDU-71 PROPOSED (user trực tiếp 09/11), nếu giới hạn bị mất hoặc chưa đủ bằng chứng phân biệt với legacy thật, chặn gửi và báo kiểm tra/khôi phục. Khôi phục theo bằng chứng, giữ trạng thái; legacy thật có bằng chứng không tự bị áp khoảng tuần mới nhưng vẫn kiểm đủ ngày. STT hệ thống tự sinh; nhãn trống về mặc định theo EDU-09/58.
+
+Theo EDU-67/68 PROPOSED (user trực tiếp 09/11), nếu năm mới và tổ cùng sửa một nội dung thì bản cập nhật tổ giữ bản tổ, báo tổ trưởng rà soát; phiên bản năm điều chỉnh dùng cấu hình giới hạn tại lúc tạo. Khôi phục giới hạn đã mất do lỗi chỉ khi có bằng chứng và giữ trạng thái hồ sơ.
+
+## 2. Cấu hình và duyệt — Strict Hierarchy Approval
+
+Chỉ HT có quyền cấu hình người soạn/duyệt theo loại hồ sơ. Phân cấp duyệt tuân thủ tuyệt đối:
+
+| Loại | Soạn (Đúng 1 người tạo độc quyền) | Chuỗi duyệt hợp lệ (Cấp trên duyệt cấp dưới) |
+|---|---|---|
+| Kế hoạch năm học | PHT (hoặc TT) | **Nếu PHT soạn: Bắt buộc CHỈ CÓ Hiệu trưởng duyệt**<br>Nếu TT soạn: PHT hoặc HT duyệt |
+| Kế hoạch tổ | Tổ trưởng đúng nhóm tuổi | PHT hoặc HT duyệt |
+| Gói học kỳ lớp (tên nhánh + kế hoạch chủ đề + kế hoạch tuần của mọi chủ đề trong kỳ; EDU-74/75) | GV chủ nhiệm | Theo chuỗi cấu hình "chủ đề nhánh"; hạn = ngày bắt đầu học kỳ |
+| Hồ sơ chủ đề lớp (chỉ giáo án ngày của chủ đề; EDU-74/75) | GV chủ nhiệm | Theo cấu hình HT: ví dụ chỉ PHT hoặc TT → PHT; không bắt buộc bước TT |
+
+- **Chống tự duyệt:** Người tham gia soạn thảo bị loại khỏi ứng viên duyệt. Cấp dưới không bao giờ được duyệt bài cấp trên.
+- **Trạng thái duyệt:**
+  ```text
+  DRAFT (Nháp) → gửi → REVIEW (Chờ duyệt - Cấm sửa) → duyệt bước cuối → APPROVED (Ban hành)
+                           └── trả lại + lý do → DRAFT (UI: Trả lại) → sửa/gửi lại
+  ```
+- `REVIEW` cấm sửa đối với tất cả mọi người (kể cả PHT). Muốn sửa phải Trả lại về `DRAFT` kèm lý do.
+
+## 3. Cấu hình người tạo độc quyền & Bỏ khóa 90s
+
+- Bỏ hoàn toàn trạng thái `EDITING` ("Đang sửa") và cơ chế lease 90s / heartbeat 20s.
+- Hệ thống áp dụng cấu hình phân công: **Mỗi kế hoạch chỉ cho đúng 1 thành viên được chỉ định tạo và soạn thảo**. Người khác không được quyền tạo trùng hay vào sửa đè.
+
+## 4. Quy tắc xóa kế hoạch
+
+- Không ai được xóa kế hoạch tổ ở bất kỳ trạng thái nào, kể cả xóa cứng hay xóa mềm/ẩn khỏi danh sách; server từ chối mọi đường xóa. Mỗi năm học/nhóm tuổi chỉ có một chuỗi kế hoạch tổ liên kết kế hoạch năm; giữ nguồn, lịch sử và liên kết lớp theo EDU-01/07/57/62. User xác nhận trực tiếp 09/11/2026.
+- Quyền xóa kế hoạch năm giữ riêng theo EDU-07; quyết định bỏ lease tại EDU-70 thay phần điều kiện khóa phiên cũ, không tự mở rộng quyền xóa.
+
+## 5. Quyền sửa Nội dung & Tính linh hoạt của Giáo viên ở lớp
+
+- Dữ liệu cây mục tiêu và nội dung map tuần tự: Năm học $\rightarrow$ Tổ $\rightarrow$ Lớp.
+- **Tổ trưởng:** Kế thừa từ năm, được thêm/sửa nội dung giáo dục riêng trong kế hoạch tổ và tick vào chủ đề. Không sửa nguồn năm; giáo viên phía dưới thấy nội dung tổ theo quyền và trạng thái hiện hành (EDU-65 PROPOSED, user trực tiếp 09/11).
+- **Giáo viên ở lớp:** Kế thừa từ tổ, **được quyền sửa nội dung giáo dục** và **được quyền tick chọn lại mục tiêu/nội dung theo chủ đề** cho phù hợp với đặc thù học sinh lớp mình.
+- **Sau khi dạy:** Giáo viên ghi nhận thực tế vào ô *"Kế hoạch điều chỉnh và bổ sung"* (EDU-27) qua endpoint riêng, lưu độc lập ở mọi trạng thái mà không ảnh hưởng trạng thái `APPROVED` của giáo án.
+
+## Mốc duyệt theo thời gian dạy (EDU-74, Tiền 10/11/2026)
 
 ```text
-[S] Phó HT (mọi nhóm tuổi) hoặc Tổ trưởng (nhóm tuổi mình) lập kế hoạch: 1 bản / (năm học, nhóm tuổi)
-[S] Vào trang soạn ⇒ Đang sửa, khóa cho người đó; người kia chỉ xem "Đang được [tên] sửa"
-      Lưu tay: chỉ ghi lên hệ thống khi bấm Lưu/Ctrl+S hoặc gửi/ban hành (Tiền chốt 27/10); giữ nội dung dở
-      Heartbeat 20 giây, hết quyền sau 90 giây mất liên lạc; thoát bình thường nhả quyền ngay khi server nhận
-      Cùng tài khoản mở lại (vd. sau mất điện) ⇒ phiên mới nhận quyền ngay, Khôi phục dùng được ngay;
-      tab cũ còn sống ⇒ "Đã mất quyền sửa…", giữ bản giữ; người khác vẫn chờ 90 giây (EDU-10)
-      Chờ duyệt: chỉ Phó HT sửa và cũng giữ quyền theo phiên, không đổi trạng thái chờ
-      Web giữ ẩn bản chưa lưu trên máy để khôi phục khi mở lại; phải kiểm quyền/revision, không ghi đè bản mới
-[S] Tab Mục tiêu: lĩnh vực > lĩnh vực con > nhóm kết quả mong đợi > MT n > nội dung; tích nội dung vào chủ đề
-      Lấy từ Chương trình của Bộ (EDU-28): chọn MT theo nhóm tuổi, kèm nội dung; gợi ý nội dung mục C; trang nguồn để đối chiếu
-[S] Lấy từ kế hoạch có sẵn (EDU-24, yêu cầu đã chốt; chưa triển khai): chọn năm học/nhóm tuổi và một nguồn;
-      giữ quyền EDU-06 (chỉ Phó HT khác nhóm tuổi, Tổ trưởng chỉ nhóm tuổi mình), tích từng MT hoặc tất cả;
-      chỉ chép MT và nội dung, không chép chủ đề/đợt nghỉ/lịch/dấu tích, giữ dữ liệu đích; Lưu theo EDU-22
-[S] Tab Chủ đề và sự kiện: chủ đề (tên, viết tắt, lễ hội, từ ngày – đến ngày, ghi chú), đợt nghỉ;
-      số tuần và danh sách MT của chủ đề hệ thống tự tính
-[S] Tổ trưởng gửi ⇒ Chờ Phó HT ban hành (khóa với Tổ trưởng)
-[S] Phó HT: sửa nhỏ / Ban hành ⇒ Đã ban hành (khóa hẳn) | Trả lại (bắt buộc lý do) ⇒ Bị trả lại
-      Phó HT tự lập thì ban hành thẳng từ Nháp
-[S] Xuất Word / in PDF theo mẫu ở mọi bước
-[B] Phó HT, Tổ trưởng ký tay trên bản in
-[S] Sửa sau ban hành (EDU-25): Tạo phiên bản điều chỉnh ⇒ phiên bản n+1 Nháp chép đủ nội dung ⇒ TT gửi → PHT ban hành
-      (PHT tự tạo thì ban hành thẳng); bản cũ giữ nguyên, lớp dùng bản cũ tới khi bản mới ban hành
-[S] Bản mới ban hành ⇒ tài liệu lớp của bản cũ chỉ xem; giáo viên tạo tài liệu trên bản mới từ bản mẫu hoặc chép bản cũ,
-      ô gắn MT/chủ đề đổi hoặc bị bỏ hiện đỏ, sửa/đánh dấu xong mới gửi; đi lại chủ đề nhánh → hồ sơ chủ đề (EDU-26)
+Gói học kỳ (hạn = ngày bắt đầu học kỳ)   ──ban hành──▶ Hồ sơ chủ đề được gửi (hạn = ngày bắt đầu chủ đề)
+   tên nhánh + kế hoạch chủ đề + kế hoạch tuần          chỉ giáo án ngày mọi tuần của chủ đề
+   của mọi chủ đề trong kỳ (EDU-75)
+Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chưa ban hành: "Quá hạn", khóa gửi → HT mở hạn (lý do, hạn mới)
 ```
 
-## 2. Chủ đề nhánh (giáo viên lớp, cả năm) — EDU-12, EDU-14, EDU-18
+- Bản đang Chờ duyệt khi tới hạn vẫn được duyệt; ban hành sau hạn hiện "Ban hành trễ".
+- Trạng thái duyệt (Nháp/Chờ duyệt/Bị trả lại/Đã ban hành) và trạng thái hạn (Gần đến hạn/Quá hạn/Đúng hạn/Ban hành trễ)
+  hiện tách rõ; mở hạn/mở khóa chỉ Hiệu trưởng (Tiền 11/11/2026, spec 005).
+- Người chỉ xem chỉ thấy lịch nhánh của học kỳ đã ban hành.
+
+## Cách duyệt cố định, phiên bản và khóa theo thời gian (spec 004 — Tiền 11/11/2026, EDU-75/76/77)
+
+- Không còn lựa chọn "theo học kỳ"/"theo chủ đề". Gửi gói học kỳ thiếu tên nhánh, kế hoạch chủ đề hoặc kế hoạch tuần ⇒ chặn
+  (7387), hiện danh sách mục thiếu. Gói học kỳ chưa ban hành vẫn soạn/lưu được giáo án ngày, chỉ chưa gửi hồ sơ chủ đề.
+- Màn hình: "Chủ đề / Chủ đề nhánh" và kế hoạch chủ đề chỉ để sửa (không nút gửi). Gói học kỳ gửi/duyệt ở **Kế hoạch giáo
+  dục chủ đề** (tab học kỳ 1/2); hồ sơ chủ đề ở **Kế hoạch giáo dục ngày** (kế hoạch tuần chỉ xem ở trên + giáo án 5 ngày).
 
 ```text
-[S] Mở khi kế hoạch năm của nhóm tuổi đã ban hành
-[S] Bảng Tháng | Chủ đề | Chủ đề nhánh | Tuần n (dd/mm → dd/mm, có dòng nghỉ) | Ghi chú; tuần và chủ đề lấy từ kế hoạch năm
-[S] GV đặt tên từng tuần; AI gợi ý / viết lại tên là bản nháp, giữ ✓ hoặc bỏ ✗ từng ô (EDU-20)
-[S] Gửi khi mọi tuần có tên và hết ô AI chưa xử lý ⇒ duyệt theo chuỗi (mặc định Tổ trưởng → Phó HT)
-[S] Người tới lượt: Duyệt ⇒ chuyển người kế tiếp / Đã duyệt | Trả lại (lý do) ⇒ Bị trả lại, GV sửa và gửi lại
+Đã ban hành ──(trước ngày bắt đầu)── Tạo phiên bản điều chỉnh → Nháp → gửi → duyệt → ban hành (bản cũ hiệu lực tới lúc này)
+            ──(từ ngày bắt đầu)───── Khóa (7388 gói/hồ sơ; 7389 năm/tổ) → Mở khóa (lý do + hạn mới) → làm tiếp tới hạn mới
 ```
 
-## 3. Kế hoạch chủ đề (giáo viên lớp, mỗi chủ đề) — EDU-13, EDU-15
+| Tài liệu | Ngày bắt đầu (mốc khóa) | Mở khóa |
+|---|---|---|
+| Kế hoạch năm học, kế hoạch tổ | ngày bắt đầu năm học (khóa gửi bản chưa ban hành, tạo phiên bản năm, cập nhật tổ) | Hiệu trưởng |
+| Gói học kỳ | ngày bắt đầu học kỳ | HT/PHT |
+| Hồ sơ chủ đề (giáo án ngày) | ngày bắt đầu chủ đề; sau đó chỉ còn ô điều chỉnh sau dạy (EDU-27) | HT/PHT |
 
-```text
-[S] Mở khi chủ đề nhánh đã duyệt
-[S] I. MT | Mục tiêu | Nội dung (lấy sẵn từ kế hoạch năm, chỉ nội dung đã tích vào chủ đề, GV không sửa) | Hoạt động giáo dục
-      GV viết hoạt động dạng "Loại giờ: nội dung" (loại giờ = dòng của kế hoạch tuần)
-      Trang nhắc MT chưa có hoạt động
-[S] II. Môi trường giáo dục: trong lớp, ngoài lớp
-[S] Lưu ⇒ mở được giáo án tuần của các nhánh trong chủ đề
-```
+- Phiên bản dở khi tới ngày bắt đầu: Chờ duyệt vẫn duyệt/trả lại cho xong (trả lại thì không gửi lại được); Nháp bị khóa.
+- Phiên bản mới của gói học kỳ ban hành mà đổi kế hoạch tuần ⇒ chỉ giáo án ngày của tuần đó về Nháp (sự kiện `week_changed`,
+  báo GVCN); tuần khác giữ ban hành.
 
-## 4. Giáo án tuần = kế hoạch tuần + 5 kế hoạch ngày — EDU-16
-
-```text
-[S] Kế hoạch tuần: I. Mục đích (kiến thức, kỹ năng, thái độ), II. Chuẩn bị, III. bảng dòng hoạt động × Thứ 2–6
-      Ô có gợi ý từ cột Hoạt động giáo dục của kế hoạch chủ đề theo loại giờ; chọn ⇒ ô nhớ MT
-      Mỗi hoạt động chỉ xếp vào 1 ô ngày trong cả chủ đề; ô gộp cả tuần lặp được
-[S] Kế hoạch ngày (Thứ 2–6): đề tài lấy từ ô Hoạt động học; Mục tiêu trong ngày = MT các hoạt động trong ngày;
-      tiến trình hoạt động học (ổn định, nội dung trọng tâm, kết thúc), ngoài trời, buổi chiều: cô | trẻ | ghi chú
-      AI gợi ý tiến trình giờ học chỉ điền ô trống, GV giữ / bỏ (EDU-20)
-```
-
-## 5. Gửi và duyệt hồ sơ chủ đề — EDU-17, EDU-18
-
-```text
-[S] Hồ sơ chủ đề = kế hoạch chủ đề + giáo án tất cả các nhánh; gửi 1 lần (thiếu nhánh thì chặn)
-      Hạn gửi = ngày bắt đầu chủ đề (chỉ nhắc); cảnh báo không chặn khi còn hoạt động chưa xếp vào tuần
-[S] Duyệt theo chuỗi; Tổ trưởng chỉ duyệt lớp thuộc nhóm tuổi mình; GV kiêm Tổ trưởng của lớp ⇒ gửi thẳng Phó HT
-[S] Trả lại bắt buộc lý do ⇒ Bị trả lại cả hồ sơ
-[S] Xuất Word / in hồ sơ; cuối mỗi tuần có khung "Duyệt giáo án từ ngày … đến ngày …"
-[B] Người duyệt ký tay trên bản in
-```
-
-## 6. Đánh giá trẻ hằng ngày — EDU-19, OBS-07
-
-```text
-[S] Giáo án tuần đã duyệt ⇒ nút "Đánh giá trẻ ngày này" mở trang Đánh giá hằng ngày
-[S] Mỗi giờ có MT là một cột chấm Đạt / Chưa đạt theo MT; lớp chưa có giáo án duyệt ⇒ khóa phần này
-[B] Bản in giáo án để trống "Đánh giá trẻ trong ngày" để viết tay
-[S] "Kế hoạch điều chỉnh và bổ sung" của từng ngày: giáo viên lớp ghi trong hệ thống ở mọi trạng thái, kể cả đã duyệt (EDU-27); in kèm nội dung
-```
-
-## Lưu ý cho implementation
-
-- Trạng thái do BE quyết định qua endpoint hành động; client không gửi status.
-- Đã có BE (G94-226): kế hoạch năm (`/education-plans/goals`), cấu hình (`/education-plans/config`), tài liệu lớp (`/education-plans/class-docs`). AI: UI chạy mock, API PROPOSED (`docs/system/CROSS_REPO_MAP.md`).
-- Module khác tham chiếu MT qua id dòng mục tiêu, không qua số MT (số đánh lại khi chèn/xóa dòng).
-- Bản kế hoạch chủ đề đã lưu giữ cả MT, nội dung lấy từ kế hoạch năm (EDU-15).
-- Mục tiêu năm học và các màn kế hoạch lớp đều lưu tay (Tiền chốt 27/10); Web giữ ẩn bản chưa lưu trên máy để khôi phục. Rời khi chưa lưu và xóa mục có cảnh báo/xác nhận theo EDU-22.
-
-## Học liệu và dạy học
-Giáo viên lớp lưu activities trước khi upload; S3 giữ binary private và DB metadata. Chỉ Nháp/Bị trả lại được upload/gắn lại/gỡ. Các mutation khóa parent cùng luồng gửi/duyệt. Người xem scope hiện hành đọc học liệu active; editor thấy phần cần gắn lại. Trình chiếu không đổi trạng thái duyệt, giữ MT và nội dung đã xếp ngày; stale pick không ghép media theo ID vị trí. Ảnh/video/PDF trực tiếp, Office tải. Xem specs/002-class-plan-teaching-media và ADR-0018.
-
-## Đối chiếu khảo sát team 27/10 (từ `dev`, EDU-29..38)
-
-Khảo sát G94-254 viết trên `dev` thành EDU-01..10; khi merge G94-226 đổi số thành EDU-29..38. Luồng trên (EDU-01..28) là luồng code đang chạy. Khớp: EDU-30 (soạn/ban hành mục tiêu năm), EDU-33 (duyệt không ký), EDU-34 (mẫu có cấu trúc + Word), EDU-36 (nhân bản bản đã duyệt — EDU-25, EDU-26). Mới, chưa làm:
-
-```text
-[S] Phụ huynh: tên các hoạt động trong ngày của lớp con   (EDU-37, PAR-01)
-[S] AI gợi ý nội dung hoạt động từ mục tiêu, GV sửa       (AI-07, EDU-20)
-```
-
-Mâu thuẫn với code — user chốt 29/10/2026 theo code, dòng khảo sát SUPERSEDED:
-- EDU-31 (Tổ trưởng duyệt kế hoạch chính lớp mình) ⇒ theo EDU-18: bỏ bước Tổ trưởng khi Tổ trưởng dạy chính lớp đó.
-- EDU-32 (chỉ duyệt một lần đầu năm, tuần/ngày không duyệt) ⇒ theo EDU-17..19: hồ sơ chủ đề gồm giáo án tuần/ngày duyệt theo từng chủ đề; đánh giá theo giáo án đã duyệt.
-- EDU-35 (GV tự thêm mục kế hoạch ngày) ⇒ theo EDU-11, EDU-16: dòng hoạt động do HT/PHT cấu hình.
-- EDU-38 (quyền theo ma trận ADR-0017) ⇒ theo EDU-08: `goals.*`, `plans.config` gán theo role tại `EduPlanAccessPolicy`.
-
-Lịch chủ đề (đóng P-29, user chốt 30/10 theo mẫu Thái Dương): thời lượng do người lập đặt, mỗi tuần học là một chủ đề nhánh (EDU-39); chủ đề bắt đầu Thứ 2, kết thúc Thứ 6, không trùng nhau — kiểm khi gửi/ban hành (EDU-39, EDU-40); đợt nghỉ ghi được từng ngày, tuần chỉ thành tuần nghỉ khi nghỉ trọn Thứ 2 → Thứ 6 (EDU-41).
-
-## Nhập file chủ đề nhánh — EDU-47 (user chốt 01/11/2026)
-
-[B] Giáo viên chuẩn bị file → [S] xem trước theo lớp/kế hoạch hiện hành, kiểm quyền và ghép tên vào tuần hệ thống → [B] xem cảnh báo/tên sẽ thay, xác nhận → [S] áp dụng vào nháp → [B] bấm Lưu, sau đó gửi khi đủ điều kiện EDU-14 → [S] lưu/gửi theo quyền và chuỗi EDU-18.
-Không nhận thời gian/ngày nghỉ/người ký file, không tự lưu/gửi. Hủy không đổi bản nháp; chủ đề lạ/mơ hồ hoặc tên thừa báo theo dòng, thiếu không xóa tuần khác. Hai nút Lưu/gửi luôn hiện khi tài liệu đã tải, khóa kèm lý do khi không đủ điều kiện. [Contract và kiểm chứng](../../../specs/008-branch-plan-file-import/quickstart.md).

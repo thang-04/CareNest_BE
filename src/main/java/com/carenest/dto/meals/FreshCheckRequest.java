@@ -11,10 +11,11 @@ import java.util.List;
 
 /**
  * Ghi kiểm nhận hàng tươi một lần: đủ một dòng cho mỗi thực phẩm cần nhận (không thiếu, không lạ). PHT chọn
- * đủ/thiếu/thừa; {@code receivedQty} (đơn vị gốc g/ml) không bắt buộc.
+ * đủ/thiếu/thừa; {@code receivedQty} (đơn vị gốc g/ml) không bắt buộc. {@code supplierId}: nhà cung cấp của lần giao,
+ * không bắt buộc (bỏ trống ⇒ bỏ nhà cung cấp đã ghi trước đó).
  */
 public record FreshCheckRequest(
-        @Size(max = 500) String note, @NotNull @Valid List<FreshCheckLineInput> lines) {
+        @Size(max = 500) String note, @NotNull @Valid List<FreshCheckLineInput> lines, Long supplierId) {
 
     public record FreshCheckLineInput(
             @NotNull Long foodId,

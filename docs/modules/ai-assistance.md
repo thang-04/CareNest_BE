@@ -1,6 +1,6 @@
 # Module — ai-assistance
 
-Vị trí: `integration/ai/` (port `AiGateway`) · Status: lõi gọi provider theo task xong (10/11/2026); dùng đầu tiên cho AI thực đơn bán trú (`docs/plans/active/2026-11-10-boarding-menu-ai.md`). Lát cắt nhận xét trẻ cũ, embedding và feature `knowledge` (RAG) đã gỡ, code còn ở commit `0d8938a` · ADR-0007, ADR-0008
+Vị trí: `integration/ai/` (port `AiGateway`, cổng AI duy nhất) · Status: lõi gọi provider theo task xong (10/11/2026); dùng cho AI thực đơn bán trú (`docs/plans/active/2026-11-10-boarding-menu-ai.md`) và giải thích xu hướng sức khỏe (task `HEALTH_TREND`, chuyển từ `AiClient` sang `AiGateway` ngày 13/11/2026, `AiClient` đã gỡ). Lát cắt nhận xét trẻ cũ, embedding và feature `knowledge` (RAG) đã gỡ, code còn ở commit `0d8938a` · ADR-0007, ADR-0008
 
 ## Mục đích
 Cách ly AI provider khỏi domain; chọn provider theo loại dữ liệu, giới hạn thời gian, log metadata. Kiểm output là việc của domain (mỗi tác vụ có guard riêng).
@@ -18,6 +18,13 @@ Nháp nghiệp vụ (lưu ở module domain, vd. `menu_ai_drafts`), guard output
 
 ## Rules
 AI-01..10, HLT-04, NUT-05. Provider: Gemini API, Groq (AI-09, ADR-0007).
+
+## Hiện có (2026-11-10)
+Plan `docs/plans/completed/2026-11-10-health-record-complete.md`.
+- `AiClient.complete(AiRequest(task, systemPrompt, userPrompt, maxTokens))` ⇒ `AiResult(text, model)`; `isEnabled()`. Lỗi: `AiException` lý do `UNAVAILABLE` (tắt, lỗi gọi, phản hồi rỗng) / `TIMEOUT` — domain đổi thành 8001 / 8002.
+- `OpenAiCompatibleAiClient`: một adapter `POST {base-url}/chat/completions` (Bearer key, temperature 0.2) dùng cho Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`, mặc định) và Groq (`https://api.groq.com/openai/v1`) — AI-09, không thêm SDK. Log chỉ task, model, độ trễ, kết quả (AI-05).
+- Cấu hình `carenest.ai.*` (`AiProperties`): env `CARENEST_AI_BASE_URL`, `CARENEST_AI_API_KEY`, `CARENEST_AI_MODEL` (mặc định `gemini-2.0-flash`), `CARENEST_AI_READ_TIMEOUT` (20s); connect 3s. Không có khóa ⇒ AI tắt, không gọi mạng; nghiệp vụ không AI vẫn chạy (AI-03). Khóa chỉ ở env/secret, không commit; `toString()` che khóa.
+- Prompt nằm ở domain gọi (vd. `HealthTrendServiceImpl`): domain tự tối giản dữ liệu (AI-04), kiểm output (HLT-04) và lưu nháp `source=AI`, model (AI-01, AI-02).
 
 ## Phụ thuộc
 - Dùng: common/utils. **Không import module domain nào.**

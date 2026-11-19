@@ -1,7 +1,6 @@
 package com.carenest.repository.meals;
 
 import com.carenest.entity.meals.StockLot;
-import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -13,8 +12,6 @@ public interface StockLotRepository extends JpaRepository<StockLot, Long> {
     List<StockLot> findByCampusIdAndFoodIdOrderByExpiryDateAscIdAsc(Long campusId, Long foodId);
 
     List<StockLot> findByCampusIdOrderByExpiryDateAscIdAsc(Long campusId);
-
-    List<StockLot> findByReceiptLineIdIn(Collection<Long> receiptLineIds);
 
     /**
      * Khóa dòng điểm trường tới hết transaction: mọi ghi kho của một điểm trường (xác nhận phiếu, trừ theo suất) chạy

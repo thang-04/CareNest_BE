@@ -6,9 +6,12 @@ import com.carenest.integration.push.PushGateway;
 import com.carenest.repository.notification.DeviceTokenRepository;
 import com.carenest.repository.notification.NotificationRepository;
 import com.carenest.service.notification.NotificationService;
+import com.carenest.utils.enums.NotificationType;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +29,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @RequiredArgsConstructor
 class PushDispatchListener {
     private static final String LOG_PREFIX = "[PushDispatchListener]";
+    private static final Set<NotificationType> HEALTH_TYPES = EnumSet.of(
+            NotificationType.CHILD_TB_CONTACT,
+            NotificationType.CHILD_TB_CONTACT_DATE_CHANGED,
+            NotificationType.HEALTH_RESULT_PUBLISHED,
+            NotificationType.HEALTH_RESULT_UPDATED);
 
     private final NotificationRepository notificationRepository;
     private final DeviceTokenRepository deviceTokenRepository;
@@ -52,10 +60,14 @@ class PushDispatchListener {
             if (n.getChildId() != null) {
                 data.put("childId", String.valueOf(n.getChildId()));
             }
+            // Màn khóa không hiện thông tin sức khỏe cạnh tên trẻ (APP PUSH_NOTIFICATION): nội dung đầy đủ xem trong
+            // App
+            boolean health = HEALTH_TYPES.contains(n.getType());
+            String title = health ? "Thông tin sức khỏe" : n.getTitle();
+            String body = health ? "Có thông tin sức khỏe mới. Mở ứng dụng để xem." : n.getBody();
             for (DeviceToken d : devices.getOrDefault(n.getUserId(), List.of())) {
                 try {
-                    pushGateway.send(new PushGateway.PushMessage(
-                            d.getToken(), d.getPlatform(), n.getTitle(), n.getBody(), data));
+                    pushGateway.send(new PushGateway.PushMessage(d.getToken(), d.getPlatform(), title, body, data));
                     sent++;
                 } catch (RuntimeException ex) {
                     failed++;

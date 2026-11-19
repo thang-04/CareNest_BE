@@ -9,6 +9,7 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.carenest.utils.enums.UserStatus;
 import java.util.ArrayList;
 import java.util.List;
@@ -201,13 +202,30 @@ class AccountLifecycleOperations {
      */
     void deactivateQuietly(String logPrefix, UserAccount account) {
         transactionTemplate.executeWithoutResult(status -> {
-            account.changeStatus(UserStatus.INACTIVE);
+            account.lockBySystem();
             userAccountRepository.saveAndFlush(account);
             authState.revokeAccountAuth(account.getId());
         });
         try {
             identityProviderClient.setUserEnabled(account.getKeycloakUserId(), false);
             identityProviderClient.logoutUser(account.getKeycloakUserId());
+        } catch (IdentityProviderException ex) {
+            log.error("{}|identityProviderSyncFailed", logPrefix, ex);
+        }
+    }
+
+    /**
+     * Mở lại tài khoản hệ thống đã khóa (mở lại hồ sơ một con, CHD-03): DB ACTIVE trong transaction riêng rồi bật
+     * Keycloak ngoài transaction. Giữ mật khẩu cũ. Keycloak lỗi chỉ log: HT/PHT mở tay ở màn Tài khoản phụ huynh để
+     * đồng bộ lại.
+     */
+    void reactivateQuietly(String logPrefix, UserAccount account) {
+        transactionTemplate.executeWithoutResult(status -> {
+            account.unlockBySystem();
+            userAccountRepository.saveAndFlush(account);
+        });
+        try {
+            identityProviderClient.setUserEnabled(account.getKeycloakUserId(), true);
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderSyncFailed", logPrefix, ex);
         }
@@ -242,6 +260,64 @@ class AccountLifecycleOperations {
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
             throw GlobalException.withCause(ApiCode.PASSWORD_RESET_SESSION_REVOKE_FAILED, ex);
+        }
+    }
+
+    /**
+     * Đổi tên đăng nhập + mật khẩu tạm (G94-180/AUTH-21, yêu cầu đổi SĐT được duyệt): đổi username Keycloak, đặt mật khẩu
+     * tạm, rồi chạy {@code persist} trong một transaction DB. Lỗi sau khi đã đổi username ⇒ trả lại username cũ (mật khẩu
+     * tạm vừa đặt không hoàn được: duyệt lại sẽ cấp mật khẩu khác). Cuối cùng hủy mọi phiên của tên đăng nhập cũ.
+     */
+    <T> T changeUsername(
+            String logPrefix, UserAccount account, String newUsername, String temporaryPassword, Supplier<T> persist) {
+        String keycloakUserId = account.getKeycloakUserId();
+        try {
+            identityProviderClient.updateUsername(keycloakUserId, newUsername);
+        } catch (IdentityProviderException ex) {
+            if (ex.getReason() == IdentityProviderErrorReason.REJECTED) {
+                // KC 26 trả 400 read-only khi realm tắt "Edit username" (đã thử 2026-11-10)
+                log.error("{}|userId={}|usernameChangeRejected|checkRealmEditUsername", logPrefix, account.getId());
+                throw GlobalException.withCause(ApiCode.USERNAME_CHANGE_NOT_ALLOWED, ex);
+            }
+            throw toGlobalException(ex);
+        }
+        T result;
+        try {
+            identityProviderClient.resetTemporaryPassword(keycloakUserId, temporaryPassword);
+            result = transactionTemplate.execute(status -> persist.get());
+        } catch (RuntimeException ex) {
+            restoreUsernameQuietly(logPrefix, account);
+            if (ex instanceof IdentityProviderException idpEx) {
+                throw toGlobalException(idpEx);
+            }
+            throw ex;
+        }
+        authState.revokeAccountAuth(account.getId());
+        try {
+            identityProviderClient.logoutUser(keycloakUserId);
+        } catch (IdentityProviderException ex) {
+            // Mật khẩu cũ đã hết hiệu lực nên refresh token cũ chỉ còn tới hạn; không báo lỗi khi username, DB đã đổi
+            log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
+        }
+        return result;
+    }
+
+    /** Họ tên, email theo DB (đã commit); Keycloak lỗi chỉ log: BE đọc họ tên, email từ DB. */
+    void syncProfileQuietly(String logPrefix, UserAccount account) {
+        try {
+            identityProviderClient.replaceProfile(
+                    account.getKeycloakUserId(), account.getFullName(), account.getEmail());
+        } catch (IdentityProviderException ex) {
+            log.error("{}|userId={}|identityProviderSyncFailed", logPrefix, account.getId(), ex);
+        }
+    }
+
+    private void restoreUsernameQuietly(String logPrefix, UserAccount account) {
+        try {
+            identityProviderClient.updateUsername(account.getKeycloakUserId(), account.getUsername());
+            log.warn("{}|userId={}|usernameRestored", logPrefix, account.getId());
+        } catch (IdentityProviderException ex) {
+            log.error("{}|userId={}|usernameRestoreFailed|manualCleanupRequired", logPrefix, account.getId(), ex);
         }
     }
 

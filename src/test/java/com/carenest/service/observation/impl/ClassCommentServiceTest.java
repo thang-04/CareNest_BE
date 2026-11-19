@@ -28,6 +28,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -100,9 +101,10 @@ class ClassCommentServiceTest {
         when(classPolicy.canReadClassroom(teacher, 10L)).thenReturn(true);
         when(campusPolicy.canViewCampus(eq(principal), anyLong())).thenReturn(true);
         when(campusPolicy.canViewCampus(vp, 100L)).thenReturn(true);
-        // AUTH-20: HT, PHT xem mọi điểm trường
-        when(campusPolicy.canReadCampus(eq(principal), anyLong())).thenReturn(true);
-        when(campusPolicy.canReadCampus(eq(vp), anyLong())).thenReturn(true);
+        when(campusPolicy.canEditCampus(eq(principal), eq(Permission.ASSESSMENT_VIEW), anyLong()))
+                .thenReturn(true);
+        when(campusPolicy.canEditCampus(vp, Permission.ASSESSMENT_VIEW, 100L)).thenReturn(true);
+        when(campusPolicy.canEditCampus(vp, Permission.ASSESSMENT_VIEW, 200L)).thenReturn(false);
         when(accounts.findFullNames(anyList())).thenReturn(Map.of(1L, "Review Teacher"));
         when(comments.findByClassroomIdAndDate(anyLong(), any()))
                 .thenAnswer(i -> Optional.ofNullable(stored.get(i.getArgument(0) + "|" + i.getArgument(1))));
@@ -159,8 +161,8 @@ class ClassCommentServiceTest {
         stored.put("20|" + TODAY, foreign);
         for (String period : List.of("WEEK", "MONTH")) {
             var board = overview.getOverview(vp, period, 1L, null, null, null);
-            // PHT xem cả lớp điểm trường khác (AUTH-20); nhận xét không lẫn giữa các lớp
-            assertThat(board.rows()).hasSize(2);
+            // PHT mặc định chỉ xem lớp thuộc campus được HT cấp; nhận xét không lẫn giữa các lớp.
+            assertThat(board.rows()).hasSize(1);
             var own = board.rows().stream()
                     .filter(r -> r.classId() == 10L)
                     .findFirst()
@@ -172,9 +174,7 @@ class ClassCommentServiceTest {
         }
         assertThat(overview.getOverview(principal, "DAY", 1L, null, null, null).rows())
                 .hasSize(2);
-        assertThat(overview.getClassDetail(vp, 20L, "DAY").classComments())
-                .extracting(c -> c.text())
-                .containsExactly("Other campus");
+        assertCode(() -> overview.getClassDetail(vp, 20L, "DAY"), ApiCode.CLASS_ACCESS_DENIED);
     }
 
     @Test
@@ -244,7 +244,14 @@ class ClassCommentServiceTest {
     }
 
     private static CurrentUser user(Long id, CareNestRole role) {
-        return new CurrentUser(id, "review-" + id, "review-" + id, "Review User", null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case TEACHER, TEAM_LEADER ->
+                        Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD, Permission.ASSESSMENT_CONFIRM);
+                    case PRINCIPAL, VICE_PRINCIPAL -> Set.of(Permission.ASSESSMENT_VIEW);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "review-" + id, "review-" + id, "Review User", null, Set.of(role), permissions);
     }
 
     private static void assertCode(Runnable action, ApiCode code) {

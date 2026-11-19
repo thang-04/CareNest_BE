@@ -86,7 +86,8 @@ FROM (VALUES (1, 'th.gv.a01', 'Nguyễn Thị Lan Anh', 'TEACHER'),
              (18, 'th.gv.b09', 'Tạ Thị Kim Oanh', 'TEACHER'),
              (19, 'th.pht.b', 'Cao Thị Bích Ngọc', 'VICE_PRINCIPAL'),
              (20, 'th.bep.b', 'Nhà bếp Cơ sở 2', 'KITCHEN_STAFF')) AS v (n, username, full_name, role)
-ON CONFLICT (keycloak_user_id) DO NOTHING;
+-- Không chỉ định cột: DB dev có thể đã có username này với keycloak_user_id khác (tài khoản cấp thật) ⇒ bỏ qua
+ON CONFLICT DO NOTHING;
 
 -- Mỗi lớp 2 GV cố định, 1 chủ nhiệm (SCH-04, AUTH-24); A1/B1 đã có teacher1/teacher2 nên chỉ thêm 1 GV chủ nhiệm
 INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom)
@@ -261,19 +262,23 @@ WHERE t.idx % 2 = 0
   AND NOT EXISTS (SELECT 1 FROM user_accounts u WHERE u.username = g.phone OR u.citizen_id = g.citizen_id)
 ON CONFLICT (keycloak_user_id) DO NOTHING;
 
-INSERT INTO guardian_child_links (user_id, child_id, relationship)
-SELECT u.id, ch.id, g.relationship
-FROM th_children t
-JOIN children ch ON ch.code = t.code
-JOIN child_guardians g ON g.child_id = ch.id AND g.position = 0
-JOIN user_accounts u ON u.username = g.phone AND u.keycloak_user_id LIKE '00000000-0000-4000-d000-%'
-WHERE t.idx % 2 = 0
-ON CONFLICT (user_id, child_id) DO NOTHING;
-
-UPDATE child_guardians g SET user_id = u.id
+-- Liên kết tài khoản với trẻ (nguồn scope phụ huynh, AUTH-04)
+UPDATE child_guardians g SET user_id = u.id, linked_at = now()
 FROM th_children t, children ch, user_accounts u
 WHERE ch.code = t.code AND g.child_id = ch.id AND g.position = 0 AND t.idx % 2 = 0
   AND u.username = g.phone AND u.keycloak_user_id LIKE '00000000-0000-4000-d000-%' AND g.user_id IS NULL;
 
 DROP TABLE th_children;
 DROP TABLE th_class_plan;
+
+-- Người nhận tài khoản (AUTH-18): mỗi trẻ có phụ huynh đúng một người nhận, như tiếp nhận/nhập Excel. Ưu tiên người
+-- đã liên kết tài khoản (như V81), không ai thì người đầu trên hồ sơ. DB mới: seed chạy sau V81 nên V81 không chọn được.
+-- Chỉ đụng trẻ chưa có người nhận nên chạy lại không đổi gì.
+UPDATE child_guardians g SET account_recipient = TRUE
+FROM (SELECT DISTINCT ON (x.child_id) x.id
+      FROM child_guardians x
+      WHERE NOT EXISTS (SELECT 1 FROM child_guardians r WHERE r.child_id = x.child_id AND r.account_recipient)
+      ORDER BY x.child_id,
+               (x.user_id IS NOT NULL) DESC,
+               x.position) c
+WHERE g.id = c.id;

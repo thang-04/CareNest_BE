@@ -8,6 +8,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -106,10 +107,14 @@ public class StaffAccessPolicy {
     /** Gán/kết thúc phân công role đó tại campus đó (AUTH-16). */
     public void checkCanAssign(CurrentUser actor, StaffRole staffRole, Long campusId) {
         CareNestRole role = CareNestRole.valueOf(staffRole.name());
+        Set<Long> managed = managedCampusIds(actor);
+        // Phân quyền động (Cần chốt 10/11/2026): HT cấp STAFF_ASSIGNMENT_MANAGE toàn trường ⇒ PHT phân công GV/bếp mọi
+        // cơ sở
+        boolean schoolWide = !managed.isEmpty() && actor.hasSchoolWidePermission(Permission.STAFF_ASSIGNMENT_MANAGE);
         boolean allowed = (PRINCIPAL_MANAGED.contains(role) && managesWholeSchool(actor))
                 || (VICE_PRINCIPAL_MANAGED.contains(role)
                         && campusId != null
-                        && managedCampusIds(actor).contains(campusId));
+                        && (managed.contains(campusId) || schoolWide));
         if (!allowed) {
             deny("checkCanAssign", actor, ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
         }

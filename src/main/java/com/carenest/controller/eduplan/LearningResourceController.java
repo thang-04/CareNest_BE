@@ -38,7 +38,7 @@ public class LearningResourceController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<LearningResourceResponse>> upload(
             @PathVariable String docKey,
             @RequestPart MultipartFile file,
@@ -60,7 +60,7 @@ public class LearningResourceController {
     }
 
     @PatchMapping("/{id}/activity")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<LearningResourceResponse>> bind(
             @PathVariable String docKey,
             @PathVariable Long id,
@@ -74,7 +74,7 @@ public class LearningResourceController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<String>> detach(
             @PathVariable String docKey, @PathVariable Long id, CurrentUser user) {
         String p = LOG_PREFIX + "|detach|userId=" + user.userId() + "|id=" + id;

@@ -33,7 +33,7 @@ CREATE TEMP TABLE th_ops_att AS
 SELECT ch.id AS child_id, cl.id AS classroom_id, cl.campus_id, dd.day, t.user_id AS teacher_id,
        -- Vắng có phép đến từ đơn nghỉ của phụ huynh (ATT-04) nên chỉ trẻ có tài khoản phụ huynh; còn lại vắng không phép
        CASE WHEN h.r >= 6 THEN 'PRESENT'
-            WHEN h.r < 4 AND EXISTS (SELECT 1 FROM guardian_child_links l WHERE l.child_id = ch.id) THEN 'EXCUSED'
+            WHEN h.r < 4 AND EXISTS (SELECT 1 FROM child_guardians l WHERE l.child_id = ch.id AND l.user_id IS NOT NULL) THEN 'EXCUSED'
             ELSE 'UNEXCUSED' END AS status,
        CASE WHEN h.r < 6 THEN '' ELSE g.meal_sessions END AS meals,
        (dd.day + TIME '08:00' + (h.m % 30) * INTERVAL '1 minute') AT TIME ZONE 'Asia/Ho_Chi_Minh' AS recorded_at,
@@ -131,9 +131,10 @@ FROM (SELECT mc.campus_id, mc.date, mc.session, cl.age_group_id, sum(l.normal + 
       WHERE mc.status = 'CONFIRMED'
       GROUP BY mc.campus_id, mc.date, mc.session, cl.age_group_id) p
 JOIN age_groups g ON g.id = p.age_group_id
-JOIN meal_plan_days d ON d.menu_date = p.date AND NOT d.off
-JOIN meal_plan_weeks w ON w.id = d.week_id AND w.status = 'PUBLISHED'
-JOIN meal_plan_items i ON i.day_id = d.id AND i.session = p.session
+JOIN meal_plan_items i ON i.menu_date = p.date AND i.session = p.session
+JOIN meal_plan_weeks w ON w.id = i.week_id AND w.status = 'PUBLISHED'
+    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(w.days) e
+                    WHERE (e ->> 'date')::date = p.date AND (e ->> 'off')::boolean)
     AND i.menu_block = CASE WHEN g.age_to_months <= 36 THEN 'NURSERY' ELSE 'KINDERGARTEN' END
 JOIN dish_ingredients di ON di.dish_id = i.dish_id AND di.age_group_id = p.age_group_id
 JOIN foods f ON f.id = di.food_id AND f.storage = 'DRY'
@@ -148,8 +149,9 @@ INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity
 SELECT l.id, d.campus_id, d.food_id, 'DEDUCT', -d.qty, d.meal_date, ''
 FROM th_ops_demand d
 JOIN LATERAL (
-    SELECT x.id FROM stock_lots x
-    WHERE x.campus_id = d.campus_id AND x.food_id = d.food_id AND x.expiry_date >= d.meal_date
+    SELECT x.id FROM stock_receipt_lines x
+    JOIN stock_receipts r ON r.id = x.receipt_id AND r.status = 'CONFIRMED'
+    WHERE r.campus_id = d.campus_id AND x.food_id = d.food_id AND x.expiry_date >= d.meal_date
     ORDER BY x.expiry_date, x.id
     LIMIT 1) l ON TRUE
 WHERE NOT EXISTS (

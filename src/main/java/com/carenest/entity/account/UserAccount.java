@@ -47,6 +47,10 @@ public class UserAccount {
     @Column(nullable = false, length = 20)
     private UserStatus status;
 
+    // Hệ thống khóa vì không còn con đang học (CHD-04, V90): mở lại hồ sơ một con thì tự mở; khóa/mở tay ⇒ false
+    @Column(name = "locked_by_system", nullable = false)
+    private boolean lockedBySystem;
+
     // Bản sao role Keycloak để lọc/kiểm phạm vi quản lý (V8); token vẫn là nguồn quyền
     @Enumerated(EnumType.STRING)
     // Không updatable: merge entity đọc trước đó không ghi đè role mới; đổi qua UserAccountRepository.updatePrimaryRole
@@ -105,12 +109,40 @@ public class UserAccount {
         }
     }
 
+    /**
+     * Họ tên, email theo hồ sơ trẻ (G94-180/AUTH-21): email trống trên hồ sơ ⇒ xóa email. Tên đăng nhập đổi qua yêu cầu
+     * đổi SĐT được duyệt. Khác {@link #updateProfile} (hồ sơ nhân sự, email null ⇒ giữ).
+     */
+    public void applyGuardianContact(String fullName, String email) {
+        this.fullName = fullName;
+        this.email = email;
+    }
+
+    /** Đổi CCCD của phụ huynh ở Sửa hồ sơ (AUTH-21); service đã kiểm không trùng người khác (UNIQUE). */
+    public void changeCitizenId(String citizenId) {
+        this.citizenId = citizenId;
+    }
+
     public boolean isActive() {
         return status == UserStatus.ACTIVE;
     }
 
+    /** HT/PHT khóa hoặc mở tay: bỏ dấu "hệ thống khóa" để mở lại hồ sơ trẻ không tự mở tài khoản khóa tay. */
     public void changeStatus(UserStatus newStatus) {
         this.status = newStatus;
+        this.lockedBySystem = false;
+    }
+
+    /** Hệ thống khóa vì không còn con đang học (CHD-04); mở lại hồ sơ một con thì tự mở ({@link #unlockBySystem}). */
+    public void lockBySystem() {
+        this.status = UserStatus.INACTIVE;
+        this.lockedBySystem = true;
+    }
+
+    /** Mở lại tài khoản hệ thống đã khóa khi một con được mở lại hồ sơ (CHD-03). */
+    public void unlockBySystem() {
+        this.status = UserStatus.ACTIVE;
+        this.lockedBySystem = false;
     }
 
     /** email null ⇒ giữ email cũ (AUTH-25). */

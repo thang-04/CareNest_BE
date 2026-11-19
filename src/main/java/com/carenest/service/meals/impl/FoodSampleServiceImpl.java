@@ -5,6 +5,7 @@ import com.carenest.dto.meals.FoodSampleRequest;
 import com.carenest.dto.meals.FoodSampleResponse;
 import com.carenest.entity.meals.Dish;
 import com.carenest.entity.meals.FoodSample;
+import com.carenest.entity.meals.FoodSampleDishDetail;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodSampleRepository;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -89,7 +91,8 @@ public class FoodSampleServiceImpl implements FoodSampleService {
                     sampledAt,
                     currentUser.userId(),
                     noteOf(request),
-                    request.dishIds()));
+                    request.dishIds(),
+                    detailsOf(request)));
             FoodSampleResponse response =
                     toResponses(currentUser, List.of(saved)).getFirst();
             log.info("{}|sampleId={}|END", logPrefix, saved.getId());
@@ -111,7 +114,13 @@ public class FoodSampleServiceImpl implements FoodSampleService {
                 throw GlobalException.of(ApiCode.FOOD_SAMPLE_LOCKED);
             }
             Instant sampledAt = validateRequest(request, clock.instant());
-            sample.change(request.date(), request.session(), sampledAt, noteOf(request), request.dishIds());
+            sample.change(
+                    request.date(),
+                    request.session(),
+                    sampledAt,
+                    noteOf(request),
+                    request.dishIds(),
+                    detailsOf(request));
             sampleRepository.saveAndFlush(sample);
             FoodSampleResponse response =
                     toResponses(currentUser, List.of(sample)).getFirst();
@@ -250,11 +259,38 @@ public class FoodSampleServiceImpl implements FoodSampleService {
         if (dishRepository.findAllById(dishIds).size() != dishIds.size()) {
             throw GlobalException.of(ApiCode.FOOD_SAMPLE_DISH_INVALID);
         }
+        // Ghi chú Mẫu 5: mỗi món một dòng và chỉ cho món đã chọn lưu mẫu
+        if (request.dishDetails() != null) {
+            Set<Long> described = new HashSet<>();
+            for (FoodSampleRequest.DishDetailInput detail : request.dishDetails()) {
+                if (!dishIds.contains(detail.dishId()) || !described.add(detail.dishId())) {
+                    throw GlobalException.of(ApiCode.INVALID_VALUE, "dishDetails");
+                }
+            }
+        }
         return sampledAt;
     }
 
     private static String noteOf(FoodSampleRequest request) {
         return request.note() == null ? "" : request.note().trim();
+    }
+
+    /** null ⇒ client không gửi: giữ ghi chú từng món đã có. */
+    private static List<FoodSampleDishDetail> detailsOf(FoodSampleRequest request) {
+        if (request.dishDetails() == null) {
+            return null;
+        }
+        return request.dishDetails().stream()
+                .map(detail -> new FoodSampleDishDetail(
+                        detail.dishId(),
+                        trimmed(detail.weight()),
+                        trimmed(detail.container()),
+                        trimmed(detail.temperature())))
+                .toList();
+    }
+
+    private static String trimmed(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private List<FoodSampleResponse> toResponses(CurrentUser currentUser, Collection<FoodSample> samples) {
@@ -270,11 +306,22 @@ public class FoodSampleServiceImpl implements FoodSampleService {
     }
 
     private FoodSampleResponse toResponse(CurrentUser currentUser, FoodSample sample, Map<Long, Dish> dishes) {
+        Map<Long, FoodSampleDishDetail> details = sample.getDishDetails().stream()
+                .collect(Collectors.toMap(FoodSampleDishDetail::dishId, Function.identity(), (a, b) -> a));
         List<FoodSampleResponse.SampleDish> sampleDishes = sample.getDishIds().stream()
                 .map(dishes::get)
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(Dish::getName))
-                .map(dish -> new FoodSampleResponse.SampleDish(dish.getId(), dish.getCode(), dish.getName()))
+                .map(dish -> {
+                    FoodSampleDishDetail detail = details.get(dish.getId());
+                    return new FoodSampleResponse.SampleDish(
+                            dish.getId(),
+                            dish.getCode(),
+                            dish.getName(),
+                            detail == null ? "" : detail.weight(),
+                            detail == null ? "" : detail.container(),
+                            detail == null ? "" : detail.temperature());
+                })
                 .toList();
         return new FoodSampleResponse(
                 sample.getId(),

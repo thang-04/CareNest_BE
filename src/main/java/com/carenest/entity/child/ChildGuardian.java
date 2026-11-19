@@ -17,8 +17,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * Phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20). {@code userId} = tài khoản đã liên kết với trẻ
- * (guardian_child_links vẫn là nguồn scope, AUTH-04); SĐT lưu dạng chuẩn hóa = tên đăng nhập phụ huynh.
+ * Phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20). {@code userId} = tài khoản đã liên kết với trẻ, là
+ * nguồn scope của phụ huynh (AUTH-04); SĐT lưu dạng chuẩn hóa = tên đăng nhập phụ huynh.
  */
 @Getter
 @Entity
@@ -55,6 +55,9 @@ public class ChildGuardian {
     @Column(name = "user_id")
     private Long userId;
 
+    @Column(name = "linked_at")
+    private Instant linkedAt;
+
     @Column(name = "account_recipient", nullable = false)
     private boolean accountRecipient;
 
@@ -62,8 +65,35 @@ public class ChildGuardian {
         this.accountRecipient = selected;
     }
 
-    public void linkAccount(Long accountId) {
-        this.userId = accountId;
+    /** Liên kết tài khoản với trẻ; đã liên kết đúng tài khoản này thì giữ thời điểm cũ. */
+    public void linkAccount(Long accountId, Instant at) {
+        if (!accountId.equals(this.userId)) {
+            this.userId = accountId;
+            this.linkedAt = at;
+        }
+    }
+
+    /** Gỡ liên kết tài khoản khỏi trẻ (AUTH-19); tài khoản phụ huynh giữ nguyên. */
+    public void unlinkAccount() {
+        this.userId = null;
+        this.linkedAt = null;
+    }
+
+    /**
+     * Sửa phụ huynh trên hồ sơ (G94-180/AUTH-21). SĐT của phụ huynh đã có tài khoản không đổi ở đây mà qua yêu cầu
+     * đổi SĐT được duyệt ({@link #changePhone}).
+     */
+    public void update(
+            int position, String fullName, GuardianRelationship relationship, String citizenId, String email) {
+        this.position = (short) position;
+        this.fullName = fullName;
+        this.relationship = relationship;
+        this.citizenId = citizenId;
+        this.email = email;
+    }
+
+    public void changePhone(String phone) {
+        this.phone = phone;
     }
 
     @Column(name = "photo_key", length = 36)
@@ -100,8 +130,7 @@ public class ChildGuardian {
             GuardianRelationship relationship,
             String phone,
             String citizenId,
-            String email,
-            Long userId) {
+            String email) {
         ChildGuardian guardian = new ChildGuardian();
         guardian.childId = childId;
         guardian.position = (short) position;
@@ -110,7 +139,6 @@ public class ChildGuardian {
         guardian.phone = phone;
         guardian.citizenId = citizenId;
         guardian.email = email;
-        guardian.userId = userId;
         return guardian;
     }
 }

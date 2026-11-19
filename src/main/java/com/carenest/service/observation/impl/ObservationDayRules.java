@@ -16,6 +16,7 @@ import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -52,6 +53,14 @@ class ObservationDayRules {
         return LocalDate.now(clock);
     }
 
+    // OBS-06 / OBS-14 (Cần chốt 10/11/2026): việc cuối năm mở từ ngày kết thúc HK II; chưa đặt HK II thì ngày kết
+    // thúc năm học
+    LocalDate yearEndOpensOn(CurrentUser user, ClassroomInfoResponse cls) {
+        var year = schoolYearService.getSchoolYear(user, cls.schoolYearId());
+        LocalDate semester2End = year == null ? null : year.semester2End();
+        return semester2End == null || semester2End.isAfter(cls.yearEnd()) ? cls.yearEnd() : semester2End;
+    }
+
     Instant now() {
         return clock.instant();
     }
@@ -76,8 +85,14 @@ class ObservationDayRules {
                 .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
     }
 
-    // Chỉ dùng cho đường đọc: PHT xem mọi điểm trường (AUTH-20); ghi qua canRecord / leadsCampus
+    // BGH xem theo scope quyền HT cấp; GV/tổ trưởng vẫn theo lớp/nhóm tuổi được phân công.
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
+        if (!user.hasPermission(Permission.ASSESSMENT_VIEW)) {
+            return false;
+        }
+        if (isLeader(user)) {
+            return campusAccessPolicy.canEditCampus(user, Permission.ASSESSMENT_VIEW, cls.campusId());
+        }
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
@@ -110,9 +125,14 @@ class ObservationDayRules {
         return isLeader(user) && campusAccessPolicy.canViewCampus(user, campusId);
     }
 
+    /** Thao tác được HT cấp phạm vi campus hoặc toàn trường cho đúng mã quyền. */
+    boolean leadsCampus(CurrentUser user, Permission permission, Long campusId) {
+        return isLeader(user) && campusAccessPolicy.canEditCampus(user, permission, campusId);
+    }
+
     /** Xem: HT và PHT xem mọi điểm trường (AUTH-20, Cần chốt 03/11/2026 cho cả Đánh giá trẻ). */
     boolean readsCampus(CurrentUser user, Long campusId) {
-        return isLeader(user) && campusAccessPolicy.canReadCampus(user, campusId);
+        return isLeader(user) && campusAccessPolicy.canEditCampus(user, Permission.ASSESSMENT_VIEW, campusId);
     }
 
     List<ClassCommentResponse> commentViews(List<ClassDailyComment> comments) {
