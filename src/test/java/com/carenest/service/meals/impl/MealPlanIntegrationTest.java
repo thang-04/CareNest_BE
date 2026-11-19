@@ -71,6 +71,7 @@ class MealPlanIntegrationTest {
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        attachCampusesToYear(year);
         classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
                 + ", " + year + ", 'Lớp M', " + ag3 + ") RETURNING id");
         // Định mức ag-3 (mẫu giáo bé, bữa trưa + chiều): 300–600 kcal, P 12–25%, L 15–35%, G 40–70%
@@ -94,6 +95,13 @@ class MealPlanIntegrationTest {
         campusRole(vp, "VICE_PRINCIPAL");
         kitchen = user("kitchen", CareNestRole.KITCHEN_STAFF);
         campusRole(kitchen, "KITCHEN_STAFF");
+    }
+
+    private void attachCampusesToYear(long schoolYearId) {
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                schoolYearId);
     }
 
     @Test

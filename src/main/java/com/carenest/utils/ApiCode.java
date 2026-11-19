@@ -495,6 +495,7 @@ public enum ApiCode {
     MEAL_COUNT_ALREADY_CONFIRMED(6005, HttpStatus.CONFLICT, "Sổ báo ăn bữa này đã được xác nhận"),
     MEAL_COUNT_UNCHANGED(6006, HttpStatus.BAD_REQUEST, "Số suất chưa thay đổi"),
     MEAL_COUNT_YEAR_READ_ONLY(6007, HttpStatus.CONFLICT, "Năm học không hoạt động, sổ báo ăn chỉ xem"),
+    HALF_DAY_LEAVE_MEAL(6044, HttpStatus.BAD_REQUEST, "Trẻ nghỉ buổi {0}, không báo bữa {1}"),
     MEAL_COUNT_NORMAL_NOT_EDITABLE(
             6008,
             HttpStatus.CONFLICT,
@@ -727,8 +728,7 @@ public enum ApiCode {
     ASSESSMENT_ACTIVITY_NOT_IN_LESSON(
             7308, HttpStatus.BAD_REQUEST, "Hoạt động không có trong giáo án đã duyệt của ngày"),
     ASSESSMENT_GOAL_NOT_IN_ACTIVITY(7309, HttpStatus.BAD_REQUEST, "Mục tiêu không thuộc hoạt động này của giáo án"),
-    ASSESSMENT_GOAL_TWO_RESULTS(
-            7310, HttpStatus.BAD_REQUEST, "Một mục tiêu chỉ chọn một mức Đạt, Cần cố gắng hoặc Chưa đạt"),
+    ASSESSMENT_GOAL_TWO_RESULTS(7310, HttpStatus.BAD_REQUEST, "Một mục tiêu chỉ chọn một mức Đạt hoặc Chưa đạt"),
     ASSESSMENT_DIAGNOSTIC_TERM(
             7311, HttpStatus.BAD_REQUEST, "Không dùng thuật ngữ chẩn đoán (\"{0}\"). Hãy mô tả hành vi quan sát được"),
     ASSESSMENT_NOTHING_TO_SAVE(7312, HttpStatus.BAD_REQUEST, "Chưa có thay đổi nào để lưu"),

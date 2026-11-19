@@ -720,6 +720,22 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         String placementDetail = setup.sourceYear() == null
                 ? "Không có năm học đang hoạt động cần chuyển trẻ"
                 : placed + "/" + toPlace + " trẻ của năm " + setup.sourceYear().name() + " đã xếp lớp";
+        // Cần chốt 19/11/2026 (BUG-43): trẻ đã tiếp nhận cho năm phải được xếp lớp trước khi kích hoạt
+        List<String> unplaced = board.admissions.values().stream()
+                .filter(a -> a.getClassroomId() == null)
+                .map(a -> board.children.containsKey(a.getChildId())
+                        ? board.children.get(a.getChildId()).getFullName()
+                        : "#" + a.getChildId())
+                .sorted()
+                .toList();
+        if (!unplaced.isEmpty()) {
+            misfits = new ArrayList<>(misfits);
+            misfits.add("Còn " + unplaced.size() + " trẻ đã tiếp nhận chưa xếp lớp ("
+                    + (unplaced.size() > 3
+                            ? String.join(", ", unplaced.subList(0, 3)) + " và " + (unplaced.size() - 3) + " trẻ khác"
+                            : String.join(", ", unplaced))
+                    + "), xếp lớp trước khi kích hoạt năm");
+        }
         steps.add(step(
                 "placement",
                 true,

@@ -99,6 +99,14 @@ class TeacherAssignmentIntegrationTest {
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         ageGroup4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                year);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                year);
         classA1 = classroom(campusA, "Lớp A1");
         classA2 = classroom(campusA, "Lớp A2");
         long classB1 = classroom(campusB, "Lớp B1");
@@ -757,6 +765,10 @@ class TeacherAssignmentIntegrationTest {
         long campusId = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classA1);
         long plannedClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity)"
                 + " VALUES (" + campusId + ", " + planned + ", 'Lớp A1 năm sau', " + ageGroup4 + ", 25) RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                planned);
         LocalDate prep = LocalDate.of(2027, 8, 5);
 
         service.assignClassTeachers(principal, plannedClass, new ClassTeachersRequest(List.of(teacher1), teacher1));

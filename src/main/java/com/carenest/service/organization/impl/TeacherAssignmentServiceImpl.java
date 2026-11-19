@@ -234,10 +234,9 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             schoolConfigAccess.checkPrincipal(currentUser);
             SchoolYear year = findYear(request.schoolYearId());
             SchoolYearRules.checkOpen(year);
-            // Tổ trưởng chỉ cho nhóm tuổi có trong năm học đó (năm chưa có danh sách riêng thì mọi nhóm)
+            // Tổ trưởng chỉ cho nhóm tuổi có trong đúng năm học đó. Migration đã backfill dữ liệu cũ.
             List<Long> yearGroups = ageGroupRepository.findYearAgeGroupIds(year.getId());
-            if (!ageGroupRepository.existsById(request.ageGroupId())
-                    || (!yearGroups.isEmpty() && !yearGroups.contains(request.ageGroupId()))) {
+            if (!ageGroupRepository.existsById(request.ageGroupId()) || !yearGroups.contains(request.ageGroupId())) {
                 throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
             }
             if (request.userId() != null) {

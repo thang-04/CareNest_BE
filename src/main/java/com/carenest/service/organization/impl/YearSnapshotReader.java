@@ -74,17 +74,22 @@ class YearSnapshotReader {
 
     /**
      * Nhóm tuổi của năm học: năm đã kết thúc đọc bản chụp; năm còn mở đọc danh sách riêng của năm (Cần chốt
-     * 22/10/2026), năm chưa có danh sách riêng thấy cả danh mục.
+     * 22/10/2026). Migration đã backfill các năm cũ; danh sách rỗng là trạng thái hợp lệ.
      */
     List<AgeGroupDetailResponse> yearAgeGroups(Long yearId) {
         return ageGroups(yearId).orElseGet(() -> {
             List<Long> ids = yearId == null ? List.of() : ageGroupRepository.findYearAgeGroupIds(yearId);
-            List<AgeGroup> groups = ids.isEmpty() ? ageGroupRepository.findAll() : ageGroupRepository.findAllById(ids);
+            List<AgeGroup> groups = yearId == null
+                    ? ageGroupRepository.findAll()
+                    : ids.isEmpty() ? List.of() : ageGroupRepository.findAllById(ids);
+            // Năm còn mở: thông tin riêng của năm (V154)
+            var info = YearAgeGroups.infoOf(ageGroupRepository, yearId);
             return groups.stream()
-                    .sorted(Comparator.comparing((AgeGroup g) ->
-                                    g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
-                            .thenComparing(AgeGroup::getSortOrder))
                     .map(schoolStructureMapper::toDetailResponse)
+                    .map(g -> YearAgeGroups.overlay(g, info))
+                    .sorted(Comparator.comparing((AgeGroupDetailResponse g) ->
+                                    g.ageFromMonths() == null ? Integer.MAX_VALUE : g.ageFromMonths())
+                            .thenComparing(AgeGroupDetailResponse::sortOrder))
                     .toList();
         });
     }
