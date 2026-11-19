@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 388 endpoint.
+Tổng: 395 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -156,6 +156,8 @@ GET /children/{childId}/photo · src/main/java/com/carenest/controller/child/Chi
 GET /children/{childId}/photo/url · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhotoUrl
 POST /children/{childId}/placement · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
 GET /children/{childId}/profile · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getProfile
+POST /children/{childId}/profile-change-requests · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#submitProfileChange
+GET /children/{childId}/profile-change-requests/latest · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#getLatestProfileChanges
 POST /children/{childId}/readmit · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#readmit
 GET /children/{childId}/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#listForParent
 POST /children/{childId}/withdraw · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
@@ -168,11 +170,16 @@ GET /children/guardian-overview · src/main/java/com/carenest/controller/child/G
 GET /children/parent-accounts · src/main/java/com/carenest/controller/child/ChildController.java#listParentAccounts
 GET /children/parent-accounts/by-citizen-id · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#findParentAccount
 GET /children/placement-classes · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#listPlacementClasses
+GET /children/profile-change-requests · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#listProfileChangeRequests
+GET /children/profile-change-requests/{requestId} · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#getProfileChangeRequest
+POST /children/profile-change-requests/{requestId}/approve · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#approveProfileChange
+POST /children/profile-change-requests/{requestId}/reject · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#rejectProfileChange
 POST /classes · src/main/java/com/carenest/controller/organization/ClassController.java#createClass
 DELETE /classes/{classId} · src/main/java/com/carenest/controller/organization/ClassController.java#deleteClass
 PUT /classes/{classId} · src/main/java/com/carenest/controller/organization/ClassController.java#updateClass
 GET /classes/{classId}/attendance · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClassAttendance
 PUT /classes/{classId}/attendance · src/main/java/com/carenest/controller/attendance/AttendanceController.java#saveClassAttendance
+POST /classes/{classId}/attendance/children/{childId}/arrived · src/main/java/com/carenest/controller/attendance/AttendanceController.java#markArrived
 GET /classes/{classId}/attendance/summary · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClassSummary
 GET /classes/{classId}/children/{childId}/daily-health · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getClassChildHealth
 GET /classes/{classId}/daily-assessment · src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#getDailySheet

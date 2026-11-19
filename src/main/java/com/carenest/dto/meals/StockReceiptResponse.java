@@ -26,7 +26,9 @@ public record StockReceiptResponse(
         Instant cancelledAt,
         String cancelReason,
         Instant createdAt,
-        boolean canManage) {
+        boolean canManage,
+        // NUT-11: hủy được khi phiếu đã xác nhận, người xem quản lý được và mọi lô chưa bị trừ
+        boolean canCancel) {
 
     public record ReceiptLine(
             Long id,

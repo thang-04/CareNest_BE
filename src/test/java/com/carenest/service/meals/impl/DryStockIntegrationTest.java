@@ -171,14 +171,18 @@ class DryStockIntegrationTest {
     @DisplayName("NUT-11: hủy phiếu chỉ khi lô chưa bị trừ, bằng bút toán đảo kèm lý do")
     void cancelReversesUntouchedLotsAndIsBlockedAfterDeduction() {
         StockReceiptResponse untouched = confirmReceipt(line(rice, "L-A", "2027-01-01", "500"));
+        assertThat(untouched.canCancel()).isTrue();
         StockReceiptResponse cancelled = receiptService.cancelReceipt(principal, untouched.id(), " Nhập nhầm ");
         assertThat(cancelled.status()).isEqualTo(StockReceiptStatus.CANCELLED);
+        assertThat(cancelled.canCancel()).isFalse();
         assertThat(cancelled.cancelReason()).isEqualTo("Nhập nhầm");
         assertThat(ledgerService.getLots(principal, campus, rice, false)).isEmpty();
 
         StockReceiptResponse used = confirmReceipt(line(rice, "L-B", "2027-01-01", "5000"));
         confirmServings(10);
         ledgerService.syncDay(campus, MONDAY);
+        // Lô đã bị trừ ⇒ Web khóa nút hủy theo canCancel
+        assertThat(receiptService.getReceipt(principal, used.id()).canCancel()).isFalse();
         expectCode(
                 () -> receiptService.cancelReceipt(principal, used.id(), "Nhập nhầm"), ApiCode.STOCK_RECEIPT_LOT_USED);
     }

@@ -365,6 +365,11 @@ class YearTransitionIntegrationTest {
         long waitingChild = newChild("Trẻ mới chờ lớp", "2024-06-01", campus);
         long placedAdmission = admission(placedChild, campus);
         admission(waitingChild, campus);
+        // Nhóm tuổi của trẻ mới tính tại ngày bắt đầu năm mới, cùng nhóm với lớp năm mới đúng tuổi
+        Long group3 = jdbc.queryForObject("SELECT age_group_id FROM classrooms WHERE id = ?", Long.class, newClass3);
+        assertThat(service.getPlacements(principal, newYear).newAdmissions())
+                .extracting(PlacementBoardResponse.NewAdmission::ageGroupId)
+                .containsOnly(group3);
 
         // Lớp nhỡ (48–60 tháng) sai nhóm tuổi với trẻ 39 tháng lúc khai giảng
         expectError(
@@ -374,7 +379,14 @@ class YearTransitionIntegrationTest {
                         new SavePlacementsRequest(
                                 List.of(),
                                 List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass4)))),
-                ApiCode.PLACEMENT_WRONG_AGE_GROUP);
+                ApiCode.PLACEMENT_ADMISSION_WRONG_AGE_GROUP);
+        assertThatThrownBy(() -> service.savePlacements(
+                        principal,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(),
+                                List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass4)))))
+                .hasMessageContaining("Trẻ mới có lớp (39 tháng) không thuộc nhóm tuổi của");
         service.savePlacements(
                 principal,
                 newYear,

@@ -39,7 +39,7 @@ public final class RewardDtos {
             String fullName,
             LocalDate dateOfBirth,
             int schoolDays,
-            int presentDays,
+            double presentDays,
             Integer attendanceRate,
             int weeklyTickets,
             int monthlyTickets,

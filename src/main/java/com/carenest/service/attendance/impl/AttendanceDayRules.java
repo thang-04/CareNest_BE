@@ -5,6 +5,7 @@ import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.DayUnlockResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceDayUnlock;
+import com.carenest.entity.organization.AttendanceCutoff;
 import com.carenest.repository.attendance.AttendanceDayUnlockRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
@@ -63,6 +64,13 @@ class AttendanceDayRules {
 
     LocalTime cutoff(Long schoolYearId, LocalDate date) {
         return attendanceCutoffService.findCutoffTime(schoolYearId, date).orElse(properties.defaultCutoff());
+    }
+
+    /** ATT-13: giờ đến muộn nhất buổi chiều của trẻ nghỉ sáng. */
+    LocalTime latestArrival(Long schoolYearId, LocalDate date) {
+        return attendanceCutoffService
+                .findLatestAfternoonArrival(schoolYearId, date)
+                .orElse(AttendanceCutoff.DEFAULT_LATEST_ARRIVAL);
     }
 
     /** ATT-06: ngày đã qua, hoặc hôm nay từ giờ chốt trở đi. */

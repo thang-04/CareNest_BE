@@ -401,19 +401,31 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
 
     @Override
     @Transactional(readOnly = true)
-    public List<OverdueClassItem> getOverdue(CurrentUser currentUser, Long campusId) {
-        String logPrefix = LOG_PREFIX + "|getOverdue|userId=" + currentUser.userId() + "|campusId=" + campusId;
+    public List<OverdueClassItem> getOverdue(CurrentUser currentUser, Long campusId, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|getOverdue|userId=" + currentUser.userId() + "|campusId=" + campusId
+                + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             if (!rules.isLeader(currentUser)) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
-            List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
-                    .filter(c -> c.yearStatus() == SchoolYearStatus.ACTIVE)
+            // Theo năm học đang chọn ở đầu trang: năm đã đóng xem lại kỳ quá hạn của năm đó (chỉ xem), năm sắp diễn ra
+            // chưa có kỳ nào quá hạn; null = năm đang hoạt động
+            List<ClassroomInfoResponse> yearClasses = schoolYearId == null
+                    ? classroomService.findActiveYearClassrooms()
+                    : classroomService.findYearClassrooms(schoolYearId);
+            List<ClassroomInfoResponse> classes = yearClasses.stream()
+                    .filter(c -> c.yearStatus() != SchoolYearStatus.PLANNED)
                     .filter(c -> campusId == null || campusId.equals(c.campusId()))
                     .filter(c -> rules.canView(currentUser, c))
                     .toList();
             List<OverdueClassItem> result = new ArrayList<>(overdueOf(classes));
+            boolean activeYear = schoolYearId == null
+                    || yearClasses.stream().anyMatch(c -> c.yearStatus() == SchoolYearStatus.ACTIVE);
+            if (!activeYear) {
+                log.info("{}|count={}|END", logPrefix, result.size());
+                return result;
+            }
             // Nhận xét tuần: tuần trước đã quá hạn mà chưa gửi đủ
             for (WeeklyCommentClassSummary s : weeklyCommentService.getOverview(
                     currentUser, campusId, rules.today().minusWeeks(1))) {

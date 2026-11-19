@@ -224,8 +224,8 @@ public class QualityReportServiceImpl implements QualityReportService {
         }
         schoolDays.computeIfAbsent(month, ym -> calendarDays(cls, ym, today));
         Set<LocalDate> recorded = new HashSet<>();
-        Map<YearMonth, Integer> presentByMonth = new HashMap<>();
-        Map<Long, Integer> childPresent = new HashMap<>();
+        Map<YearMonth, Double> presentByMonth = new HashMap<>();
+        Map<Long, Double> childPresent = new HashMap<>();
         Set<Long> lunch = new HashSet<>();
         for (ClassChildDay d : classDays) {
             YearMonth ym = YearMonth.from(d.date());
@@ -233,9 +233,10 @@ public class QualityReportServiceImpl implements QualityReportService {
             if (d.status() != AttendanceStatus.PRESENT) {
                 continue;
             }
-            presentByMonth.merge(ym, 1, Integer::sum);
+            // ATT-14: nghỉ nửa buổi tính 0,5 ngày có mặt
+            presentByMonth.merge(ym, d.presentDays(), Double::sum);
             if (ym.equals(month)) {
-                childPresent.merge(d.childId(), 1, Integer::sum);
+                childPresent.merge(d.childId(), d.presentDays(), Double::sum);
                 // Bán trú: có ăn bữa trưa ở trường ít nhất 1 ngày trong tháng
                 if (d.meals().contains(MealSession.LUNCH)) {
                     lunch.add(d.childId());
@@ -247,7 +248,7 @@ public class QualityReportServiceImpl implements QualityReportService {
             avgByMonth.put(
                     ym.format(MONTH_KEY),
                     average(
-                            presentByMonth.getOrDefault(ym, 0),
+                            presentByMonth.getOrDefault(ym, 0.0),
                             counted(schoolDays.getOrDefault(ym, Set.of()), recorded, today)
                                     .size()));
         }
@@ -278,8 +279,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                     .distinct()
                     .forEach(id -> expected.merge(id, 1, Integer::sum));
         }
-        int presentDays = children.stream()
-                .mapToInt(id -> childPresent.getOrDefault(id, 0))
+        double presentDays = children.stream()
+                .mapToDouble(id -> childPresent.getOrDefault(id, 0.0))
                 .sum();
         int possibleDays =
                 children.stream().mapToInt(id -> expected.getOrDefault(id, 0)).sum();
@@ -298,7 +299,7 @@ public class QualityReportServiceImpl implements QualityReportService {
         Set<Long> diligent = children.stream()
                 .filter(id -> !left.contains(id))
                 .filter(id -> expected.getOrDefault(id, 0) > 0
-                        && childPresent.getOrDefault(id, 0) * 100 >= DILIGENT_PERCENT * expected.get(id))
+                        && childPresent.getOrDefault(id, 0.0) * 100 >= DILIGENT_PERCENT * expected.get(id))
                 .collect(Collectors.toSet());
         // OBS-23: Bé ngoan = trẻ được GV phát phiếu tuần trong tháng; Bé ngoan toàn diện = trẻ được phát phiếu tháng
         Set<Long> good = issuedTo(tickets, TicketType.WEEKLY, children);
@@ -313,7 +314,7 @@ public class QualityReportServiceImpl implements QualityReportService {
                 from != null && from < NURSERY_BELOW_MONTHS ? NHA_TRE : MAU_GIAO,
                 n,
                 sd,
-                average(presentByMonth.getOrDefault(month, 0), sd),
+                average(presentByMonth.getOrDefault(month, 0.0), sd),
                 presentDays,
                 possibleDays,
                 percent(presentDays, possibleDays),
@@ -422,7 +423,7 @@ public class QualityReportServiceImpl implements QualityReportService {
                 rows.size(),
                 children,
                 sumOrNull(rows, QualityRow::avgPresent),
-                percent(sum(rows, QualityRow::presentDays), sum(rows, QualityRow::possibleDays)),
+                percent(rows.stream().mapToDouble(QualityRow::presentDays).sum(), sum(rows, QualityRow::possibleDays)),
                 left,
                 percent(left, children),
                 meal,
@@ -453,12 +454,16 @@ public class QualityReportServiceImpl implements QualityReportService {
                 : values.stream().mapToInt(Integer::intValue).sum();
     }
 
-    private static Integer average(int total, int days) {
-        return days == 0 ? null : Math.round((float) total / days);
+    private static Integer average(double total, int days) {
+        return days == 0 ? null : (int) Math.round(total / days);
     }
 
     private static Integer percent(int part, int whole) {
         return whole == 0 ? null : Math.round(part * 100f / whole);
+    }
+
+    private static Integer percent(double part, int whole) {
+        return whole == 0 ? null : (int) Math.round(part * 100 / whole);
     }
 
     // Hôm nay chỉ tính là ngày phải đi khi lớp đã điểm danh hôm nay; chưa điểm danh thì chưa đếm (tránh hạ tỷ lệ bé

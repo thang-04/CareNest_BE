@@ -85,10 +85,12 @@ public class EvaluationDeadlineController {
     @GetMapping("/assessment/overdue")
     @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<List<OverdueClassItem>>> getOverdue(
-            @RequestParam(required = false) Long campusId, CurrentUser currentUser) {
+            @RequestParam(required = false) Long campusId,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getOverdue|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
-        List<OverdueClassItem> response = evaluationDeadlineService.getOverdue(currentUser, campusId);
+        List<OverdueClassItem> response = evaluationDeadlineService.getOverdue(currentUser, campusId, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get overdue classes success", response);
     }
