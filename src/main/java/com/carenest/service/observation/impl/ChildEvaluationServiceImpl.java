@@ -33,6 +33,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.observation.ChildEvaluationService;
+import com.carenest.service.observation.EvaluationDeadlineService;
 import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
@@ -40,6 +41,7 @@ import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationAction;
+import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.EvaluationStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -96,6 +98,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
     private final YearEndSheetService yearEndSheetService;
+    private final EvaluationNotifier evaluationNotifier;
+    private final EvaluationDeadlineService evaluationDeadlineService;
 
     @Override
     @Transactional
@@ -111,8 +115,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             List<ClassroomInfoResponse> years = classroomService.findYearClassrooms(schoolYearId);
-            Set<Long> ledGroups =
-                    type == EvaluationPeriodType.YEAR ? rules.teamLeaderAgeGroupIds(currentUser) : Set.of();
+            Set<Long> ledGroups = type == EvaluationPeriodType.YEAR
+                    ? rules.teamLeaderAgeGroupIds(currentUser, schoolYearId)
+                    : Set.of();
             List<ClassroomInfoResponse> visible = years.stream()
                     .filter(c -> teaches(currentUser, c)
                             || rules.readsCampus(currentUser, c.campusId())
@@ -131,7 +136,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 // Chỉ GV đang dạy lớp mở danh sách mới tạo bản nháp kỳ đã kết thúc; BGH, tổ trưởng chỉ xem bản đã xác
                 // nhận
                 // nên lượt xem của họ không ghi DB, không khóa lớp
-                if (cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)) {
+                if (cls.yearStatus() == SchoolYearStatus.ACTIVE
+                        && (rules.canRecordPeriod(currentUser, cls)
+                                || (type == EvaluationPeriodType.YEAR && rules.finishesYearEnd(currentUser, cls)))) {
                     ensureDrafts(currentUser, cls, type);
                 }
             }
@@ -206,7 +213,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.name(),
                             cls.campusId(),
                             teacher,
-                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)),
+                            cls.yearStatus() == SchoolYearStatus.ACTIVE
+                                    && rules.canRecordPeriod(currentUser, cls)
+                                    && (!year || yearEndOpen(currentUser, cls)),
+                            rules.isHomeroom(currentUser, cls)),
                     data == null ? List.of() : data.days(),
                     cls.mealSessions(),
                     monthly,
@@ -250,6 +260,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         try {
             ChildEvaluation ev = find(id);
             ClassroomInfoResponse cls = checkEditable(currentUser, ev);
+            if (!rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
+            }
             String text = checkContent(content);
             if (ev.getPeriodType() == EvaluationPeriodType.YEAR && !yearEndOpen(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.YEAR_END_NOT_OPEN);
@@ -264,6 +277,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             evaluationRepository.saveAndFlush(ev);
             eventRepository.save(
                     ChildEvaluationEvent.of(ev.getId(), EvaluationAction.CONFIRMED, currentUser.userId(), at));
+            evaluationNotifier.childEvaluationConfirmed(ev.getChildId());
             log.info("{}|END", logPrefix);
             return toRows(currentUser, List.of(ev), Map.of(cls.id(), cls), true).getFirst();
         } catch (RuntimeException ex) {
@@ -408,7 +422,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem hồ sơ phát triển các lớp nhóm tuổi mình (chỉ xem)
-            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> teaches(currentUser, c)
                             || rules.readsCampus(currentUser, c.campusId())
@@ -471,11 +485,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             EnrollmentService.ChildClassStay chosen = null;
             ClassroomInfoResponse cls = null;
             boolean teacher = false;
-            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
             for (int i = stays.size() - 1; i >= 0 && chosen == null; i--) {
                 ClassroomInfoResponse c = rules.findClass(stays.get(i).classroomId());
                 boolean t = teaches(currentUser, c);
-                if (t || rules.readsCampus(currentUser, c.campusId()) || ledGroups.contains(c.ageGroupId())) {
+                if (t || rules.readsCampus(currentUser, c.campusId()) || rules.leadsClass(currentUser, c)) {
                     chosen = stays.get(i);
                     cls = c;
                     teacher = t;
@@ -534,7 +547,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.name(),
                             cls.campusId(),
                             teacher,
-                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)),
+                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordPeriod(currentUser, cls),
+                            rules.isHomeroom(currentUser, cls)),
                     new DateRange(from, to),
                     data == null ? 0 : data.presentDays(),
                     data == null ? 0 : data.flagCount(),
@@ -807,12 +821,13 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     }
 
     private boolean leadsYearEnd(CurrentUser user, ChildEvaluation ev, ClassroomInfoResponse cls) {
-        return ev.getPeriodType() == EvaluationPeriodType.YEAR && leads(rules.teamLeaderAgeGroupIds(user), cls);
+        return ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.leadsClass(user, cls);
     }
 
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {
         ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
-        if (!rules.canRecord(user, cls)) {
+        boolean yearEnd = ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.finishesYearEnd(user, cls);
+        if (!rules.canRecordPeriod(user, cls) && !yearEnd) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -824,6 +839,14 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         // OBS-06 (Cần chốt 10/11/2026): cuối năm chỉ sửa / xác nhận từ ngày kết thúc HK II; trước đó chỉ xem
         if (ev.getPeriodType() == EvaluationPeriodType.YEAR && !yearEndOpen(user, cls)) {
             throw GlobalException.of(ApiCode.YEAR_END_NOT_OPEN);
+        }
+        // OBS-06, OBS-28: quá hạn sau ngày kết thúc học kỳ / HK II thì khóa cả lớp, trừ khi BGH đang mở lại
+        if (ev.getPeriodType() == EvaluationPeriodType.SEMESTER) {
+            evaluationDeadlineService.checkWritable(
+                    cls, EvaluationLockKind.SEMESTER, evaluationDeadlineService.semesterKey(cls, ev.getPeriodEnd()));
+        } else if (ev.getPeriodType() == EvaluationPeriodType.YEAR) {
+            evaluationDeadlineService.checkWritable(
+                    cls, EvaluationLockKind.YEAR, EvaluationDeadlineServiceImpl.YEAR_KEY);
         }
         return cls;
     }

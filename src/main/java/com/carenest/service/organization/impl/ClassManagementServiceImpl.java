@@ -25,14 +25,16 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.DisplayNames;
 import com.carenest.utils.enums.CampusStatus;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,22 +80,15 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                             .orElseThrow(() -> GlobalException.of(ApiCode.NO_ACTIVE_SCHOOL_YEAR))
                     : findYear(schoolYearId);
             List<Classroom> classes = classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId());
-            classes = filterVisible(currentUser, classes);
+            classes = filterVisible(currentUser, classes, year);
             if (campusId != null) {
                 classes = classes.stream()
                         .filter(c -> c.getCampusId().equals(campusId))
                         .toList();
             }
             List<ClassResponse> classResponses = toResponses(classes);
-            // CFG-YR-02: năm đã kết thúc ⇒ nhóm tuổi như lúc kết thúc năm
-            List<AgeGroupDetailResponse> ageGroups = yearSnapshotReader
-                    .ageGroups(year.getId())
-                    .orElseGet(() -> ageGroupRepository.findAll().stream()
-                            .sorted(Comparator.comparing((AgeGroup g) ->
-                                            g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
-                                    .thenComparing(AgeGroup::getSortOrder))
-                            .map(schoolStructureMapper::toDetailResponse)
-                            .toList());
+            // CFG-YR-02: năm đã kết thúc ⇒ nhóm tuổi như lúc kết thúc năm; năm còn mở ⇒ nhóm tuổi của năm đó
+            List<AgeGroupDetailResponse> ageGroups = yearSnapshotReader.yearAgeGroups(year.getId());
             Map<Long, TeacherCandidateResponse> teachersById =
                     teacherDirectory.findTeachers(schoolConfigAccess.today()).stream()
                             .collect(Collectors.toMap(TeacherCandidateResponse::id, t -> t));
@@ -314,6 +309,16 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                 copy.changeInfo(
                         c.getName(), c.getCampusId(), group.getId(), roomFree ? room.getId() : null, (short) capacity);
                 classroomRepository.saveAndFlush(copy);
+                // Sao chép lớp mang nhóm tuổi sang năm đích nếu năm đó chưa có nhóm này
+                if (ageGroupRepository.findYearAgeGroupIds(target.getId()).isEmpty()) {
+                    ageGroupRepository.addAllToYear(target.getId());
+                }
+                ageGroupRepository.addToYear(target.getId(), group.getId());
+                // Lớp chép sang năm đích mang theo điểm trường (V151)
+                if (campusRepository.findYearCampusIds(target.getId()).isEmpty()) {
+                    campusRepository.addAllToYear(target.getId());
+                }
+                campusRepository.addToYear(target.getId(), c.getCampusId());
                 copied.add(c.getName());
             }
             CopyClassesResponse response = new CopyClassesResponse(copied, skipped, withoutRoom);
@@ -328,9 +333,15 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     // Kiểm tra lớp mới/sửa: tên không trùng trong điểm trường + năm, phòng cùng điểm trường và chưa có lớp khác,
     // sĩ số trong [max(1, số trẻ), min(sĩ số tối đa nhóm tuổi, sức chứa phòng)]
     private String validate(ClassRequest request, Long classId, long enrolled) {
-        String name = request.name().trim();
+        // Tên lớp chuẩn hóa trước khi lưu và so trùng (gộp khoảng trắng, dấu NFC)
+        String name = DisplayNames.normalize(request.name());
         if (!campusRepository.existsById(request.campusId())) {
             throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);
+        }
+        // V151: lớp chỉ mở ở điểm trường của năm học đó (Cần chốt 22/10/2026)
+        List<Long> yearCampuses = campusRepository.findYearCampusIds(request.schoolYearId());
+        if (!yearCampuses.isEmpty() && !yearCampuses.contains(request.campusId())) {
+            throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
         }
         if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
             throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);
@@ -338,6 +349,11 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         AgeGroup ageGroup = ageGroupRepository
                 .findById(request.ageGroupId())
                 .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
+        // Lớp chỉ thuộc nhóm tuổi có trong năm học của lớp (năm chưa có danh sách riêng thì mọi nhóm)
+        List<Long> yearGroups = ageGroupRepository.findYearAgeGroupIds(request.schoolYearId());
+        if (!yearGroups.isEmpty() && !yearGroups.contains(ageGroup.getId())) {
+            throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
+        }
         Room room = roomRepository
                 .findById(request.locationId())
                 .filter(r -> r.getStatus() != RoomStatus.DELETED)
@@ -369,15 +385,36 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         return name;
     }
 
-    private List<Classroom> filterVisible(CurrentUser currentUser, List<Classroom> classes) {
+    private List<Classroom> filterVisible(CurrentUser currentUser, List<Classroom> classes, SchoolYear year) {
         if (schoolConfigAccess.canViewSchool(currentUser)) {
             return classes;
         }
-        Set<Long> classIds = schoolConfigAccess.teacherClassroomIds(currentUser);
+        Set<Long> classIds = teacherClassIds(currentUser, classes, year);
         if (classIds.isEmpty()) {
             throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
         }
         return classes.stream().filter(c -> classIds.contains(c.getId())).toList();
+    }
+
+    /**
+     * Lớp GV xem được ở Cấu hình trường. CFG-YR-05 (Cần chốt 17/11/2026): năm đã qua ngày kết thúc mà HT chưa đóng ⇒ GV
+     * dạy chính năm đó vẫn xem lớp mình đã dạy (chỉ xem) tới khi HT đóng năm.
+     */
+    private Set<Long> teacherClassIds(CurrentUser currentUser, List<Classroom> classes, SchoolYear year) {
+        LocalDate today = schoolConfigAccess.today();
+        Set<Long> ids = new HashSet<>(schoolConfigAccess.teacherClassroomIds(currentUser, year.isPreparing(today)));
+        if (currentUser.hasRole(CareNestRole.TEACHER)
+                && year.getStatus() != SchoolYearStatus.CLOSED
+                && today.isAfter(year.getEndDate())
+                && !classes.isEmpty()) {
+            staffAssignmentRepository
+                    .findCurrentTeachers(classes.stream().map(Classroom::getId).toList(), year.getStartDate())
+                    .stream()
+                    .filter(a -> a.getUserId().equals(currentUser.userId()) && !a.isSubstitute())
+                    .filter(a -> a.getValidTo() == null || !a.getValidTo().isBefore(a.getValidFrom()))
+                    .forEach(a -> ids.add(a.getClassroomId()));
+        }
+        return ids;
     }
 
     private List<ClassResponse> toResponses(List<Classroom> classes) {

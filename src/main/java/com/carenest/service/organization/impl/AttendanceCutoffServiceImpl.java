@@ -6,14 +6,19 @@ import com.carenest.entity.organization.AttendanceCutoff;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.organization.AttendanceCutoffRepository;
+import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.AttendanceCutoffService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.NotificationType;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +42,9 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
     private final SchoolYearRepository schoolYearRepository;
     private final SchoolConfigAccess schoolConfigAccess;
     private final Clock clock;
+    private final CampusRepository campusRepository;
+    private final StaffAssignmentService staffAssignmentService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -68,9 +76,19 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             LocalTime time = request.time().withSecond(0).withNano(0);
             List<AttendanceCutoff> history =
                     attendanceCutoffRepository.findAllBySchoolYearIdOrderByIdDesc(schoolYearId);
+            LocalTime latestArrival = request.latestAfternoonArrival() != null
+                    ? request.latestAfternoonArrival().withSecond(0).withNano(0)
+                    : history.isEmpty()
+                            ? AttendanceCutoff.DEFAULT_LATEST_ARRIVAL
+                            : history.getFirst().getLatestAfternoonArrival();
+            // ATT-13: giờ đến muộn nhất buổi chiều phải sau giờ chốt
+            if (!latestArrival.isAfter(time)) {
+                throw GlobalException.of(ApiCode.CUTOFF_LATEST_ARRIVAL_INVALID, time);
+            }
             if (!history.isEmpty()
                     && history.getFirst().getCutoffTime().equals(time)
-                    && history.getFirst().getEffectiveFrom().equals(request.effectiveFrom())) {
+                    && history.getFirst().getEffectiveFrom().equals(request.effectiveFrom())
+                    && history.getFirst().getLatestAfternoonArrival().equals(latestArrival)) {
                 throw GlobalException.of(ApiCode.CUTOFF_UNCHANGED);
             }
             // Đổi giờ chốt lùi ngày làm đổi lại đơn nghỉ đã tính theo giờ chốt cũ (ATT-04): lần đặt sau chỉ áp dụng từ
@@ -79,12 +97,16 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                 throw GlobalException.of(ApiCode.CUTOFF_DATE_PAST);
             }
             attendanceCutoffRepository.saveAndFlush(AttendanceCutoff.create(
-                    schoolYearId,
-                    time,
-                    request.effectiveFrom(),
-                    request.note() == null ? "" : request.note().trim(),
-                    currentUser.userId()));
-            // TODO(Cần): báo các PHT khi đổi giờ chốt — chờ module notification
+                            schoolYearId,
+                            time,
+                            request.effectiveFrom(),
+                            request.note() == null ? "" : request.note().trim(),
+                            currentUser.userId())
+                    .withLatestArrival(latestArrival));
+            // OBS-31: báo PHT, GV, bếp đang phân công khi đổi giờ chốt (lần đặt đầu của năm không báo)
+            if (!history.isEmpty()) {
+                notifyCutoffChanged(year, time, request.effectiveFrom());
+            }
             CutoffResponse response = toResponse(year);
             log.info("{}|END", logPrefix);
             return response;
@@ -92,6 +114,25 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private void notifyCutoffChanged(SchoolYear year, LocalTime time, LocalDate from) {
+        LocalDate today = LocalDate.now(clock);
+        List<Long> campusIds = campusRepository.findAllByOrderByMainDescCodeAsc().stream()
+                .map(c -> c.getId())
+                .toList();
+        Set<Long> staff = staffAssignmentService.findActiveStaffUserIds(campusIds, today);
+        if (staff.isEmpty()) {
+            return;
+        }
+        notificationService.notifyUsers(
+                staff,
+                NotificationType.CUTOFF_CHANGED,
+                "Đổi giờ chốt điểm danh",
+                "Giờ chốt điểm danh và báo ăn năm học " + year.getName() + " đổi thành " + time + " từ ngày "
+                        + DateTimeFormatter.ofPattern("dd/MM/yyyy").format(from) + ".",
+                "/attendance",
+                false);
     }
 
     @Override
@@ -104,6 +145,24 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
                             schoolYearId, date)
                     .map(AttendanceCutoff::getCutoffTime);
+            log.info("{}|END", logPrefix);
+            return time;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LocalTime> findLatestAfternoonArrival(Long schoolYearId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findLatestAfternoonArrival|schoolYearId=" + schoolYearId + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<LocalTime> time = attendanceCutoffRepository
+                    .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
+                            schoolYearId, date)
+                    .map(AttendanceCutoff::getLatestAfternoonArrival);
             log.info("{}|END", logPrefix);
             return time;
         } catch (RuntimeException ex) {
@@ -135,7 +194,8 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     row.getNote(),
                     row.getCreatedBy(),
                     row.getCreatedBy() == null ? null : names.get(row.getCreatedBy()),
-                    row.getCreatedAt()));
+                    row.getCreatedAt(),
+                    row.getLatestAfternoonArrival()));
         }
         LocalTime todayTime = attendanceCutoffRepository
                 .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
@@ -153,7 +213,8 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     latest.userId(),
                     latest.userName(),
                     latest.at(),
-                    history);
+                    history,
+                    latest.latestAfternoonArrival());
         }
         return new CutoffResponse(
                 new CutoffResponse.Year(

@@ -13,4 +13,7 @@ public record NotificationResponse(
         Instant createdAt,
         Instant readAt,
         // Web mở thẳng hồ sơ kế hoạch giáo dục (spec 003)
-        String link) {}
+        String link,
+        // Thông báo của trường: mở /me/announcements/{id} xem nội dung đầy đủ, tệp (spec 019)
+        Long announcementId,
+        String typeLabel) {}

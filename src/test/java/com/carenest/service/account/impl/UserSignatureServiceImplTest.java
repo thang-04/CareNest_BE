@@ -3,8 +3,10 @@ package com.carenest.service.account.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -13,12 +15,13 @@ import com.carenest.dto.account.UserSignatureResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.account.UserSignature;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.SignatureStorage;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.account.UserSignatureRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -45,7 +48,7 @@ class UserSignatureServiceImplTest {
     private UserSignatureRepository repository;
 
     @Mock
-    private SignatureStorage storage;
+    private FileStorage storage;
 
     private UserSignatureServiceImpl service;
 
@@ -65,6 +68,10 @@ class UserSignatureServiceImplTest {
         return s;
     }
 
+    private static FileStorage.StoredFile stored(String key) {
+        return new FileStorage.StoredFile(key, "image/png", 12);
+    }
+
     private static void assertApiCode(Throwable thrown, ApiCode expected) {
         assertThat(thrown).isInstanceOf(GlobalException.class);
         assertThat(((GlobalException) thrown).getApiCode()).isEqualTo(expected);
@@ -74,7 +81,8 @@ class UserSignatureServiceImplTest {
     @DisplayName("SIG-01: ảnh đầu tiên của tài khoản tự thành mặc định, ảnh lưu qua kho tệp")
     void firstSignatureBecomesDefault() {
         when(repository.countByUserId(7L)).thenReturn(0L);
-        when(storage.store(any(), eq("image/png"))).thenReturn("11111111-1111-1111-1111-111111111111");
+        when(storage.store(eq(FileCategory.USER_SIGNATURE), eq(7L), any(byte[].class)))
+                .thenReturn(stored("11111111-1111-1111-1111-111111111111"));
         when(repository.saveAndFlush(any(UserSignature.class))).thenAnswer(call -> call.getArgument(0));
 
         UserSignatureResponse saved = service.upload(PHT, file(PNG), false);
@@ -89,7 +97,8 @@ class UserSignatureServiceImplTest {
     @DisplayName("SIG-01: ảnh sau không đè mặc định, trừ khi đặt mặc định")
     void laterSignatureKeepsDefaultUnlessAsked() {
         when(repository.countByUserId(7L)).thenReturn(2L);
-        when(storage.store(any(), anyString())).thenReturn("22222222-2222-2222-2222-222222222222");
+        when(storage.store(eq(FileCategory.USER_SIGNATURE), eq(7L), any(byte[].class)))
+                .thenReturn(stored("22222222-2222-2222-2222-222222222222"));
         when(repository.saveAndFlush(any(UserSignature.class))).thenAnswer(call -> call.getArgument(0));
 
         assertThat(service.upload(PHT, file(JPG), false).isDefault()).isFalse();
@@ -100,17 +109,14 @@ class UserSignatureServiceImplTest {
     }
 
     @Test
-    @DisplayName("SIG-01: chỉ nhận PNG hoặc JPG theo nội dung tệp, tối đa 2 MB")
-    void rejectsWrongTypeAndOversize() {
-        assertApiCode(
-                catchThrowable(() -> service.upload(PHT, file("not an image".getBytes()), false)),
-                ApiCode.SIGNATURE_INVALID);
-        assertApiCode(catchThrowable(() -> service.upload(PHT, file(WEBP), false)), ApiCode.SIGNATURE_INVALID);
+    @DisplayName("SIG-01: tệp rỗng hoặc vượt giới hạn của kho bị từ chối trước khi lưu (định dạng kiểm ở FileStorage)")
+    void rejectsEmptyAndOversize() {
         assertApiCode(catchThrowable(() -> service.upload(PHT, file(new byte[0]), false)), ApiCode.SIGNATURE_INVALID);
-        byte[] big = new byte[UserSignatureServiceImpl.MAX_BYTES + 1];
-        System.arraycopy(PNG, 0, big, 0, PNG.length);
-        assertApiCode(catchThrowable(() -> service.upload(PHT, file(big), false)), ApiCode.SIGNATURE_INVALID);
-        verify(storage, never()).store(any(), anyString());
+        doThrow(GlobalException.of(ApiCode.FILE_TOO_LARGE, " (tối đa 2 MB)"))
+                .when(storage)
+                .checkSize(eq(FileCategory.USER_SIGNATURE), isNull(), anyLong());
+        assertApiCode(catchThrowable(() -> service.upload(PHT, file(WEBP), false)), ApiCode.FILE_TOO_LARGE);
+        verify(storage, never()).store(any(), any(), any(byte[].class));
     }
 
     @Test
@@ -119,18 +125,19 @@ class UserSignatureServiceImplTest {
         when(repository.countByUserId(7L)).thenReturn(5L);
 
         assertApiCode(catchThrowable(() -> service.upload(PHT, file(PNG), false)), ApiCode.SIGNATURE_LIMIT_REACHED);
-        verify(storage, never()).store(any(), anyString());
+        verify(storage, never()).store(any(), any(), any(byte[].class));
     }
 
     @Test
     @DisplayName("SIG-01: lưu DB lỗi thì dọn tệp vừa tải")
     void removesFileWhenSaveFails() {
         when(repository.countByUserId(7L)).thenReturn(1L);
-        when(storage.store(any(), anyString())).thenReturn("33333333-3333-3333-3333-333333333333");
+        when(storage.store(eq(FileCategory.USER_SIGNATURE), eq(7L), any(byte[].class)))
+                .thenReturn(stored("33333333-3333-3333-3333-333333333333"));
         when(repository.saveAndFlush(any(UserSignature.class))).thenThrow(new IllegalStateException("db"));
 
         assertThatThrownBy(() -> service.upload(PHT, file(PNG), false)).isInstanceOf(IllegalStateException.class);
-        verify(storage).removeQuietly("33333333-3333-3333-3333-333333333333");
+        verify(storage).removeQuietly(FileCategory.USER_SIGNATURE, "33333333-3333-3333-3333-333333333333");
     }
 
     @Test
@@ -158,7 +165,7 @@ class UserSignatureServiceImplTest {
         verify(repository).delete(current);
         assertThat(next.isDefaultSignature()).isTrue();
         // Không có giao dịch thật trong test đơn vị nên tệp được xóa ngay
-        verify(storage).removeQuietly(current.getStorageKey());
+        verify(storage).removeQuietly(FileCategory.USER_SIGNATURE, current.getStorageKey());
     }
 
     @Test
@@ -167,14 +174,15 @@ class UserSignatureServiceImplTest {
         UserSignature mine = signature(1, 7, true);
         when(repository.findByIdAndUserId(1L, 7L)).thenReturn(Optional.of(mine));
         when(repository.findByIdAndUserId(5L, 7L)).thenReturn(Optional.empty());
-        when(storage.load(mine.getStorageKey())).thenReturn(PNG);
+        when(storage.loadBytes(FileCategory.USER_SIGNATURE, mine.getStorageKey()))
+                .thenReturn(PNG);
 
         ImageContent image = service.getContent(PHT, 1L);
 
         assertThat(image.content()).isEqualTo(PNG);
         assertThat(image.contentType()).isEqualTo("image/png");
         assertApiCode(catchThrowable(() -> service.getContent(PHT, 5L)), ApiCode.SIGNATURE_NOT_FOUND);
-        verify(storage, never()).load("99999999-9999-9999-9999-999999999999");
+        verify(storage, never()).loadBytes(any(), eq("99999999-9999-9999-9999-999999999999"));
     }
 
     private static Throwable catchThrowable(Runnable action) {

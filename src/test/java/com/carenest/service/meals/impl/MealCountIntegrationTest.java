@@ -152,6 +152,18 @@ class MealCountIntegrationTest {
     }
 
     @Test
+    @DisplayName("CFG-YR-05: năm kích hoạt sớm, ngày trước ngày bắt đầu chưa có sổ suất ăn (Cần chốt 17/11/2026)")
+    void earlyActivatedYearHasNoMealCountBeforeStartDate() {
+        jdbc.update("UPDATE school_years SET start_date = '2026-10-26'");
+        clock.now = AFTER_CUTOFF;
+
+        assertThat(service.getMealCounts(vpA, TODAY, null).counts()).isEmpty();
+        service.aggregateLockedDay();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_counts", Integer.class))
+                .isZero();
+    }
+
+    @Test
     void aggregatesAtCutoffAndKitchenSeesOnlyConfirmedCounts() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         // Trước giờ chốt: PHT xem số tạm tính, bếp chưa thấy gì
@@ -206,6 +218,31 @@ class MealCountIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM meal_count_history WHERE action = 'CONFIRMED'", Long.class))
                 .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Cần chốt 14/11/2026: PHT xem lại sổ suất ăn năm đã đóng của điểm trường mình, chỉ xem")
+    void vicePrincipalReadsClosedYearMealBookOfOwnCampus() {
+        long closed = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long oldClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
+                + campusA + ", " + closed + ", 'Lớp cũ', " + ag3 + ") RETURNING id");
+        LocalDate oldDay = LocalDate.of(2026, 3, 4);
+        long countId = insertId("INSERT INTO meal_counts (campus_id, school_year_id, date, session, status,"
+                + " aggregated_at, confirmed_at) VALUES (" + campusA + ", " + closed + ", '" + oldDay
+                + "', 'LUNCH', 'CONFIRMED', now(), now()) RETURNING id");
+        jdbc.update(
+                "INSERT INTO meal_count_lines (meal_count_id, classroom_id, pending, present, absent, missing, normal,"
+                        + " substitute) VALUES (?, ?, FALSE, 3, 0, 0, 3, 0)",
+                countId,
+                oldClass);
+
+        MealCountResponse old = lunch(service.getMealCounts(vpA, oldDay, closed));
+        assertThat(old.id()).isEqualTo(countId);
+        assertThat(old.canConfirm()).isFalse();
+        assertThat(old.canAdjust()).isFalse();
+        assertThat(service.getMealCounts(vpB, oldDay, closed).counts()).isEmpty();
     }
 
     @Test

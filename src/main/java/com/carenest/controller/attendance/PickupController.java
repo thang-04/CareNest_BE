@@ -2,6 +2,7 @@ package com.carenest.controller.attendance;
 
 import com.carenest.dto.attendance.PickupBoardResponse;
 import com.carenest.dto.attendance.PickupChildResponse;
+import com.carenest.dto.attendance.PickupClassResponse;
 import com.carenest.dto.attendance.PickupRecordResponse;
 import com.carenest.dto.attendance.PickupRequest;
 import com.carenest.security.CurrentUser;
@@ -30,6 +31,16 @@ public class PickupController {
     private static final String LOG_PREFIX = "[PickupController]";
 
     private final PickupService pickupService;
+
+    @GetMapping("/pickups/classes")
+    @PreAuthorize("@permissionGuard.has('PICKUP_RECORD')")
+    public ResponseEntity<ResponseJson<List<PickupClassResponse>>> listClasses(CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        List<PickupClassResponse> classes = pickupService.listClasses(currentUser);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get pickup classes success", classes);
+    }
 
     @GetMapping("/classes/{classId}/pickups")
     @PreAuthorize("@permissionGuard.has('PICKUP_RECORD')")

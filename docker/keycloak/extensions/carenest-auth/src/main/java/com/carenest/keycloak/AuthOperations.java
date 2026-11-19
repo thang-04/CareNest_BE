@@ -5,27 +5,47 @@ import jakarta.ws.rs.ServiceUnavailableException;
 import java.net.URI;
 import java.time.Clock;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 import org.keycloak.email.EmailException;
 import org.keycloak.email.EmailTemplateProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ModelException;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserCredentialModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.policy.PasswordPolicyManagerProvider;
 
 final class AuthOperations {
+    static final String DEFAULT_SCHOOL_NAME = "Trường Mầm Non Thượng Hồng";
+    private static final Map<String, String> STAFF_ROLE_LABELS = new LinkedHashMap<>();
+
+    static {
+        STAFF_ROLE_LABELS.put("PRINCIPAL", "Hiệu trưởng");
+        STAFF_ROLE_LABELS.put("VICE_PRINCIPAL", "Phó hiệu trưởng");
+        STAFF_ROLE_LABELS.put("TEACHER", "Giáo viên");
+        STAFF_ROLE_LABELS.put("KITCHEN_STAFF", "Nhân viên bếp");
+        STAFF_ROLE_LABELS.put("ADMIN", "Quản trị hệ thống");
+    }
+
     private final KeycloakSession session;
     private final RealmModel realm;
     private final SetupCapabilities capabilities;
     private final Clock clock;
+    private final Function<String, String> env;
 
     AuthOperations(KeycloakSession session, RealmModel realm, Clock clock) {
+        this(session, realm, clock, System::getenv);
+    }
+
+    AuthOperations(KeycloakSession session, RealmModel realm, Clock clock, Function<String, String> env) {
         this.session = session;
         this.realm = realm;
         this.capabilities = new SetupCapabilities(session, realm, clock);
         this.clock = clock;
+        this.env = env;
     }
 
     String verifiedCapability(String assertion, String assertionSecret) {
@@ -67,21 +87,53 @@ final class AuthOperations {
                 .forEach(offline -> session.sessions().removeOfflineUserSession(realm, offline));
     }
 
-    void sendOtp(String userId, String code) {
+    void sendOtp(String userId, String code, String webOrigin) {
         if (code == null || !code.matches("[0-9]{6}")) throw new BadRequestException("Invalid recovery code");
-        sendEmail(
-                user(userId),
-                "carenestRecoverySubject",
-                "carenest-recovery-code.ftl",
-                Map.of("code", code, "minutes", 5));
+        UserModel user = user(userId);
+        // OTP là đường khôi phục: origin lỗi chỉ làm mất logo, không chặn gửi mã
+        Map<String, Object> attributes = commonAttributes(user, safeOrigin(webOrigin));
+        attributes.put("code", code);
+        attributes.put("minutes", 5);
+        sendEmail(user, "carenestRecoverySubject", "carenest-recovery-code.ftl", attributes);
     }
 
     void sendSetupEmail(String userId, String webOrigin) {
+        String origin = safeOrigin(webOrigin);
+        if (origin == null) throw new ServiceUnavailableException("Web origin is not configured");
+        UserModel user = user(userId);
+        Map<String, Object> attributes = commonAttributes(user, origin);
+        attributes.put("link", origin + "/forgot-password");
+        attributes.put("roleLabel", staffRoleLabel(user));
+        sendEmail(user, "carenestSetupSubject", "carenest-setup.ftl", attributes);
+    }
+
+    private Map<String, Object> commonAttributes(UserModel user, String origin) {
+        Map<String, Object> attributes = new HashMap<>();
+        // BE lưu cả họ tên vào firstName (tên tiếng Việt không tách họ/tên tin cậy)
+        String fullName = user.getFirstName();
+        attributes.put("fullName", fullName == null ? "" : fullName.trim());
+        attributes.put("username", user.getUsername());
+        String school = env.apply("CARENEST_SCHOOL_NAME");
+        attributes.put("schoolName", school == null || school.isBlank() ? DEFAULT_SCHOOL_NAME : school.trim());
+        if (origin != null) attributes.put("logoUrl", origin + "/email/logo-mark.png");
+        return attributes;
+    }
+
+    // Nhân sự kiêm phụ huynh ⇒ lấy role nhân sự cao nhất; không có role nhân sự ⇒ mail không ghi vai trò
+    private String staffRoleLabel(UserModel user) {
+        for (Map.Entry<String, String> entry : STAFF_ROLE_LABELS.entrySet()) {
+            RoleModel role = realm.getRole(entry.getKey());
+            if (role != null && user.hasRole(role)) return entry.getValue();
+        }
+        return null;
+    }
+
+    private static String safeOrigin(String webOrigin) {
         URI origin;
         try {
             origin = URI.create(webOrigin);
         } catch (RuntimeException ex) {
-            throw new ServiceUnavailableException("Web origin is not configured");
+            return null;
         }
         if (origin.getHost() == null
                 || origin.getUserInfo() != null
@@ -90,13 +142,9 @@ final class AuthOperations {
                 || (origin.getPath() != null && !origin.getPath().isEmpty() && !"/".equals(origin.getPath()))
                 || !("https".equals(origin.getScheme())
                         || ("http".equals(origin.getScheme()) && "localhost".equals(origin.getHost())))) {
-            throw new ServiceUnavailableException("Web origin is not configured");
+            return null;
         }
-        sendEmail(
-                user(userId),
-                "carenestSetupSubject",
-                "carenest-setup.ftl",
-                Map.of("link", webOrigin.replaceAll("/+$", "") + "/forgot-password"));
+        return webOrigin.replaceAll("/+$", "");
     }
 
     private UserModel user(String id) {
@@ -113,7 +161,7 @@ final class AuthOperations {
             session.getProvider(EmailTemplateProvider.class)
                     .setRealm(realm)
                     .setUser(user)
-                    .send(subject, template, new HashMap<>(attributes));
+                    .send(subject, template, attributes);
         } catch (EmailException ex) {
             throw new ServiceUnavailableException("Email delivery is unavailable");
         }

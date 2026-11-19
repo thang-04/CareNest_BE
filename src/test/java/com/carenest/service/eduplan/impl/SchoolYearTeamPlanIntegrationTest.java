@@ -91,8 +91,9 @@ class SchoolYearTeamPlanIntegrationTest {
     @BeforeEach
     void setUp() {
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
-        schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
-                + "VALUES ('2026-2027', '2026-09-01', '2027-05-31') RETURNING id");
+        // Đồng hồ test 22/10/2026 nằm giữa năm học ⇒ năm đang hoạt động (Tổ trưởng tính theo năm và trạng thái năm)
+        schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         ageGroup4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
         domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
@@ -666,6 +667,25 @@ class SchoolYearTeamPlanIntegrationTest {
                         GlobalException.class,
                         e -> assertThat(e.getApiCode())
                                 .isEqualTo(com.carenest.utils.ApiCode.EDUCATION_CALENDAR_INVALID));
+    }
+
+    @Test
+    @DisplayName("EDU-91: kế hoạch tổ cũ không có kế hoạch năm học nguồn không hiện trong danh sách")
+    void legacyTeamWithoutSourceIsHidden() {
+        var team = teamFrom(issuedAnnual());
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .hasSize(1);
+        jdbc.update(
+                "UPDATE edu_team_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
+                team.id());
+        entityManager.clear();
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .isEmpty();
+        assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .isEmpty();
     }
 
     @Test

@@ -19,12 +19,21 @@ public final class AuthResponses {
             Instant expiresAt,
             boolean passwordChangeRequired,
             String changeToken,
-            MyAccountResponse account) {
+            MyAccountResponse account,
+            Takeover takeover) {
         @Override
         public String toString() {
             return "LoginData[redacted]";
         }
     }
+
+    /** AUTH-28: đăng nhập chờ người dùng chọn dùng ở đâu (409 1017); hết hạn ⇒ phải đăng nhập lại. */
+    public record Takeover(Instant expiresAt) {}
+
+    /** {@code GET /me/session}: lượt đăng nhập ở trình duyệt khác đang chờ phiên này quyết định, null nếu không có. */
+    public record SessionStatus(PendingTakeover pendingTakeover) {}
+
+    public record PendingTakeover(String id, Instant requestedAt, Instant expiresAt) {}
 
     public record AccessToken(String accessToken, Instant expiresAt) {
         @Override
@@ -33,7 +42,24 @@ public final class AuthResponses {
         }
     }
 
-    public record OtpRequest(String requestId, Instant expiresAt, Instant resendAvailableAt) {
+    // *InSeconds tính tại server lúc trả: client đếm ngược theo đồng hồ của mình, không lệ thuộc giờ máy lệch
+    public record OtpRequest(
+            String requestId,
+            Instant expiresAt,
+            Instant resendAvailableAt,
+            long expiresInSeconds,
+            long resendInSeconds) {
+        public static OtpRequest of(String requestId, Instant expiresAt, Instant resendAvailableAt, Instant now) {
+            return new OtpRequest(
+                    requestId,
+                    expiresAt,
+                    resendAvailableAt,
+                    Math.max(0, java.time.Duration.between(now, expiresAt).toSeconds()),
+                    Math.max(
+                            0,
+                            java.time.Duration.between(now, resendAvailableAt).toSeconds()));
+        }
+
         @Override
         public String toString() {
             return "OtpRequest[redacted]";

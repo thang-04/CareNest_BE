@@ -41,8 +41,9 @@ final class EduClassDocFutureEdit {
         if (start.isAfter(today) || !released) return;
         ObjectNode oldShared = before.deepCopy();
         ObjectNode newShared = after.deepCopy();
-        oldShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked"));
-        newShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked"));
+        // EDU-79: bản tuần theo hồ sơ chủ đề (khóa "week" của day) khóa theo hồ sơ chủ đề, không theo từng ngày
+        oldShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked", "week"));
+        newShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked", "week"));
         unchanged(oldShared, newShared);
         for (int i = 0; i < 5; i++) {
             JsonNode oldDay = before.path("days").path(i);

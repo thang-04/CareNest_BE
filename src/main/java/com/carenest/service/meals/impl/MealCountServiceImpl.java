@@ -118,6 +118,12 @@ public class MealCountServiceImpl implements MealCountService {
             return status == SchoolYearStatus.ACTIVE;
         }
 
+        // CFG-YR-05: kích hoạt sớm (tối đa 7 ngày trước) chưa phải ngày học của năm ⇒ chưa có sổ suất ăn
+        boolean started(LocalDate day) {
+            LocalDate start = classes.getFirst().yearStart();
+            return start == null || !day.isBefore(start);
+        }
+
         Map<Long, ClassroomInfoResponse> classById() {
             return classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, Function.identity()));
         }
@@ -142,7 +148,7 @@ public class MealCountServiceImpl implements MealCountService {
             DayInfoResponse info = attendanceService.getDayInfo(currentUser, day, null);
             Year year = year(schoolYearId);
             List<MealCountResponse> counts = new ArrayList<>();
-            if (year != null && info.schoolDay() && !day.isAfter(info.today())) {
+            if (year != null && info.schoolDay() && !day.isAfter(info.today()) && year.started(day)) {
                 List<Long> campusIds = year.classes().stream()
                         .map(ClassroomInfoResponse::campusId)
                         .distinct()
@@ -268,7 +274,7 @@ public class MealCountServiceImpl implements MealCountService {
             DayInfoResponse info = attendanceService.getActiveYearDayInfo(day);
             Year year = year(null);
             int campuses = 0;
-            if (year != null && year.active() && info.schoolDay() && info.baseLocked()) {
+            if (year != null && year.active() && year.started(day) && info.schoolDay() && info.baseLocked()) {
                 List<Long> campusIds = year.classes().stream()
                         .map(ClassroomInfoResponse::campusId)
                         .distinct()
@@ -351,6 +357,7 @@ public class MealCountServiceImpl implements MealCountService {
                 mealCountRepository.flush();
                 // P-38: suất chốt ⇒ trừ kho khô ngày đó; nghe sau commit để lỗi kho không chặn xác nhận suất
                 eventPublisher.publishEvent(new MealCountConfirmedEvent(count.getCampusId(), count.getDate()));
+                notifyKitchen(count.getCampusId(), count.getDate());
             }
             MealCountResponse response = view(count, viewer, year);
             log.info("{}|END", logPrefix);
@@ -461,13 +468,10 @@ public class MealCountServiceImpl implements MealCountService {
                 }
                 // NUT-03 (Cần chốt 04/11/2026): sổ đã chốt vừa có số mới ⇒ báo PHT điểm trường (không có PHT thì HT)
                 if (!alreadyFlagged && counts.stream().anyMatch(MealCount::isNeedsReconfirmation)) {
-                    notificationService.notifyUsers(
+                    notificationService.notifyEvent(
                             staffAssignmentService.findCampusConfirmerIds(campusId, LocalDate.now(clock)),
                             NotificationType.MEAL_COUNT_RECONFIRM,
-                            "Sổ báo ăn cần xác nhận lại",
-                            "Số suất ngày " + DMY.format(date)
-                                    + " đã thay đổi sau khi xác nhận (giáo viên sửa điểm danh). Vào Sổ báo ăn để xác"
-                                    + " nhận lại; bếp vẫn dùng số đã xác nhận trước đó.",
+                            Map.of("ngay", DMY.format(date)),
                             null);
                 }
             }
@@ -487,6 +491,28 @@ public class MealCountServiceImpl implements MealCountService {
         if (!incomplete.isEmpty()) {
             throw GlobalException.of(ApiCode.MEAL_COUNT_ATTENDANCE_INCOMPLETE, incomplete);
         }
+    }
+
+    // OBS-31: sổ báo ăn đã xác nhận (hoặc xác nhận lại) ⇒ báo bếp điểm trường dùng số mới
+    private void notifyKitchen(Long campusId, LocalDate date) {
+        LocalDate today = LocalDate.now(clock);
+        Set<Long> staff = staffAssignmentService.findActiveStaffUserIds(List.of(campusId), today);
+        List<Long> kitchen = staffAssignmentService.findActiveAssignmentsByUserIds(staff, today).entrySet().stream()
+                .filter(e -> e.getValue().stream()
+                        .anyMatch(a -> a.staffRole() == StaffRole.KITCHEN_STAFF && campusId.equals(a.campusId())))
+                .map(Map.Entry::getKey)
+                .toList();
+        if (kitchen.isEmpty()) {
+            return;
+        }
+        notificationService.notifyUsers(
+                kitchen,
+                NotificationType.MEAL_COUNT_CONFIRMED,
+                "Sổ báo ăn đã xác nhận",
+                "Sổ báo ăn ngày " + date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        + " đã xác nhận, bếp dùng số này.",
+                "/kitchen/meal-count",
+                false);
     }
 
     private Viewer viewer(CurrentUser user) {

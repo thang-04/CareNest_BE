@@ -11,6 +11,7 @@ import com.carenest.entity.eduplan.EduPlanGoal;
 import com.carenest.entity.eduplan.EduPlanSubDomain;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.utils.enums.EduGoalRowKind;
+import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -197,8 +198,9 @@ class EduYearPlanSchemaIntegrationTest {
     @Test
     @DisplayName("EDU-06: tìm kiếm lọc theo nhóm tuổi được xem, trạng thái và từ khóa")
     void searchFiltersByScopeStatusAndKeyword() {
-        EduPlan draft3 = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
-        EduPlan issued4 = draft("KHNH-20262027-MGN", ageGroup4);
+        // EDU-91: danh sách chỉ gồm kế hoạch tổ có kế hoạch năm học nguồn
+        EduPlan draft3 = yearPlanRepository.saveAndFlush(sourcedTeam("KHNH-20262027-MGB", ageGroup3));
+        EduPlan issued4 = sourcedTeam("KHNH-20262027-MGN", ageGroup4);
         issued4.issue(owner, NOW);
         yearPlanRepository.saveAndFlush(issued4);
 
@@ -214,6 +216,18 @@ class EduYearPlanSchemaIntegrationTest {
         Page<EduPlan> teacherView = yearPlanRepository.search(
                 schoolYear, null, Set.of(), Set.of(), Set.of(ageGroup3, ageGroup4), null, PageRequest.of(0, 20));
         assertThat(teacherView.getContent()).extracting(EduPlan::getId).containsExactly(issued4.getId());
+    }
+
+    private EduPlan sourcedTeam(String code, long ageGroupId) {
+        String snapshot = "{\"mode\":\"LEGACY_UNBOUNDED\"}";
+        EduPlan annual = EduPlan.createDraft(
+                EduPlanLevel.SCHOOL_YEAR, "Y-" + code, schoolYear, ageGroupId, "Năm " + code, "", owner, null, NOW);
+        annual.initializePlanSource(EduPlanLevel.SCHOOL_YEAR, null, false, snapshot);
+        annual = yearPlanRepository.saveAndFlush(annual);
+        EduPlan team = EduPlan.createDraft(
+                EduPlanLevel.TEAM, code, schoolYear, ageGroupId, "Kế hoạch " + code, "", owner, null, NOW);
+        team.initializePlanSource(EduPlanLevel.TEAM, annual.getId(), false, snapshot);
+        return team;
     }
 
     private EduPlan draft(String code, long ageGroupId) {

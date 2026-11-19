@@ -8,7 +8,6 @@ import com.carenest.dto.organization.TeacherAssignmentResponse;
 import com.carenest.dto.organization.TeacherCandidateResponse;
 import com.carenest.dto.organization.TeamLeaderRequest;
 import com.carenest.dto.organization.TeamLeaderResponse;
-import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.entity.organization.StaffAssignment;
@@ -21,13 +20,15 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
-import java.util.Comparator;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
+    private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final String LOG_PREFIX = "[TeacherAssignmentServiceImpl]";
 
     private final StaffAssignmentRepository staffAssignmentRepository;
@@ -56,6 +58,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final CampusAccessPolicy campusAccessPolicy;
     private final SchoolStructureMapper schoolStructureMapper;
     private final TeacherClassRules teacherClassRules;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -82,7 +85,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     .toList();
             TeacherAssignmentResponse response = new TeacherAssignmentResponse(
                     schoolStructureMapper.toDetailResponse(year, classroomRepository.countBySchoolYearId(year.getId())),
-                    yearSnapshotReader.ageGroups(year.getId()).orElseGet(this::ageGroups),
+                    yearSnapshotReader.yearAgeGroups(year.getId()),
                     toClassTeachers(classes, asOf(year)),
                     teachers);
             log.info("{}|END", logPrefix);
@@ -131,9 +134,13 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (teacherIds.size() != request.teacherIds().size()) {
                 throw GlobalException.of(ApiCode.TEACHERS_MUST_DIFFER);
             }
-            // SCH-04 (Cần chốt 10/11/2026): năm đang học mỗi lớp đúng 2 GV đứng lớp, có chủ nhiệm; năm sắp tới xếp dần
+            // SCH-04 (Cần chốt 18/11/2026): mỗi lớp tối đa 3 GV; năm đang học từ 2 GV, có GV phụ trách chính; năm sắp
+            // tới xếp dần
+            if (teacherIds.size() > 3) {
+                throw GlobalException.of(ApiCode.CLASS_TOO_MANY_TEACHERS);
+            }
             if (year.getStatus() == SchoolYearStatus.ACTIVE) {
-                if (teacherIds.size() != 2) {
+                if (teacherIds.size() < 2) {
                     throw GlobalException.of(ApiCode.CLASS_NEEDS_TWO_TEACHERS);
                 }
                 if (request.homeroomTeacherId() == null) {
@@ -180,7 +187,17 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 }
             }
             staffAssignmentRepository.flush();
-            // TODO(Cần): thông báo giáo viên mới được phân công — chờ module notification
+            // OBS-31: báo giáo viên mới được phân công vào lớp
+            if (!added.isEmpty()) {
+                notificationService.notifyUsers(
+                        added,
+                        NotificationType.STAFF_ASSIGNED,
+                        "Phân công lớp mới",
+                        "Cô được phân công dạy lớp " + classroom.getName() + " năm học " + year.getName() + ", từ ngày "
+                                + DMY.format(start) + ".",
+                        "/attendance",
+                        false);
+            }
             ClassTeachersResponse response = toClassTeachers(List.of(classroom), schoolConfigAccess.today())
                     .getFirst();
             log.info("{}|END", logPrefix);
@@ -217,7 +234,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             schoolConfigAccess.checkPrincipal(currentUser);
             SchoolYear year = findYear(request.schoolYearId());
             SchoolYearRules.checkOpen(year);
-            if (!ageGroupRepository.existsById(request.ageGroupId())) {
+            // Tổ trưởng chỉ cho nhóm tuổi có trong năm học đó (năm chưa có danh sách riêng thì mọi nhóm)
+            List<Long> yearGroups = ageGroupRepository.findYearAgeGroupIds(year.getId());
+            if (!ageGroupRepository.existsById(request.ageGroupId())
+                    || (!yearGroups.isEmpty() && !yearGroups.contains(request.ageGroupId()))) {
                 throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
             }
             if (request.userId() != null) {
@@ -253,6 +273,21 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                         currentUser.userId()));
             }
             staffAssignmentRepository.flush();
+            // OBS-31: báo tổ trưởng mới được phân công
+            if (request.userId() != null) {
+                String group = ageGroupRepository
+                        .findById(request.ageGroupId())
+                        .map(g -> g.getName())
+                        .orElse("");
+                notificationService.notifyUsers(
+                        Set.of(request.userId()),
+                        NotificationType.STAFF_ASSIGNED,
+                        "Phân công tổ trưởng",
+                        "Cô được phân công làm tổ trưởng " + group + " năm học " + year.getName() + ", từ ngày "
+                                + DMY.format(start) + ".",
+                        "/education/plan-reviews",
+                        false);
+            }
             TeamLeaderResponse response = toTeamLeaderResponse(year);
             log.info("{}|END", logPrefix);
             return response;
@@ -344,10 +379,23 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         }
     }
 
-    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày bắt đầu năm học
+    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày mở chuẩn bị (CFG-YR-05) để GV / Tổ trưởng soạn giáo án
     private LocalDate effectiveStart(SchoolYear year) {
         LocalDate today = schoolConfigAccess.today();
-        return today.isAfter(year.getStartDate()) ? today : year.getStartDate();
+        if (today.isAfter(year.getStartDate())) {
+            return today;
+        }
+        if (year.getStatus() == SchoolYearStatus.PLANNED) {
+            LocalDate prep = year.getPrepDate().isAfter(year.getStartDate()) ? year.getStartDate() : year.getPrepDate();
+            // Ngày mở chuẩn bị không được chồng lên năm trước (dữ liệu cũ thiếu ngày này)
+            for (SchoolYear other : schoolYearRepository.findAllByOrderByStartDateDesc()) {
+                if (other.getEndDate().isBefore(year.getStartDate()) && !prep.isAfter(other.getEndDate())) {
+                    prep = other.getEndDate().plusDays(1);
+                }
+            }
+            return today.isAfter(prep) ? today : prep;
+        }
+        return year.getStartDate();
     }
 
     private List<StaffAssignment> currentLeaders(SchoolYear year) {
@@ -369,7 +417,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId()).stream()
                         .filter(c -> c.getAgeGroupId() != null)
                         .collect(Collectors.groupingBy(Classroom::getAgeGroupId, Collectors.counting()));
-        List<AgeGroupDetailResponse> groups = ageGroups();
+        List<AgeGroupDetailResponse> groups = yearSnapshotReader.yearAgeGroups(year.getId());
         Map<Long, String> groupNames = groups.stream()
                 .collect(Collectors.toMap(AgeGroupDetailResponse::id, AgeGroupDetailResponse::shortName));
         Map<Long, Long> teacherCampus = teachers.stream()
@@ -473,15 +521,6 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                                     .map(id -> new ClassTeachersResponse.Teacher(id, names.get(id)))
                                     .toList());
                 })
-                .toList();
-    }
-
-    private List<AgeGroupDetailResponse> ageGroups() {
-        return ageGroupRepository.findAll().stream()
-                .sorted(Comparator.comparing(
-                                (AgeGroup g) -> g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
-                        .thenComparing(AgeGroup::getSortOrder))
-                .map(schoolStructureMapper::toDetailResponse)
                 .toList();
     }
 

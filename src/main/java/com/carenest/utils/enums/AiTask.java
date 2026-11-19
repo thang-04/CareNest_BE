@@ -5,5 +5,6 @@ public enum AiTask {
     MENU_WEEKLY,
     MENU_DAILY,
     MENU_DAY_FIX,
-    HEALTH_TREND
+    HEALTH_TREND,
+    WEEKLY_COMMENT
 }

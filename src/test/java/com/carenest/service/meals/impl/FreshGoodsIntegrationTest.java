@@ -114,6 +114,20 @@ class FreshGoodsIntegrationTest {
     }
 
     @Test
+    @DisplayName("NUT-07/CHD-13: dự trù không đếm trẻ không báo ăn")
+    void previewCountsOnlyMealRegisteredChildren() {
+        jdbc.update("UPDATE children SET meal_registered = FALSE WHERE full_name = 'Trẻ B'");
+
+        FreshForecastResponse preview = freshService.previewForecast(principal, request(MONDAY, FRIDAY, null));
+
+        assertThat(preview.counts()).singleElement().satisfies(c -> {
+            assertThat(c.ageGroupId()).isEqualTo(ag3);
+            assertThat(c.enrolledCount()).isEqualTo(1);
+            assertThat(c.expectedCount()).isEqualTo(1);
+        });
+    }
+
+    @Test
     @DisplayName(
             "NUT-07: xem trước không gửi sĩ số ⇒ điền sẵn số đang học; sửa số dự kiến ⇒ lượng theo suất, chỉ hàng tươi")
     void previewPrefillsEnrolmentAndScalesWithExpectedCount() {

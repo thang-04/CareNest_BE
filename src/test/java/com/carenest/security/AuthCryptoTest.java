@@ -17,7 +17,8 @@ class AuthCryptoTest {
             "carenest-auth-gateway",
             "test-client-secret-at-least-thirty-two-chars",
             false,
-            List.of("http://localhost:5173")));
+            List.of("http://localhost:5173"),
+            true));
 
     @Test
     void encryptsWithRandomIvAndBindsToSessionAndPurpose() {

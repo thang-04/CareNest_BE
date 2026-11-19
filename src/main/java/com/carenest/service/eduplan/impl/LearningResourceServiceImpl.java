@@ -1,9 +1,12 @@
 package com.carenest.service.eduplan.impl;
 
+import com.carenest.dto.common.FileUrlResponse;
+import com.carenest.dto.common.PresignedUploadResponse;
 import com.carenest.dto.eduplan.*;
 import com.carenest.entity.eduplan.*;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.StorageService;
+import com.carenest.integration.storage.FileStorage;
+import com.carenest.integration.storage.FileTypes;
 import com.carenest.repository.eduplan.*;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.*;
@@ -11,21 +14,26 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.LearningResourcePolicy;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
-import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
@@ -33,11 +41,12 @@ import tools.jackson.databind.ObjectMapper;
 public class LearningResourceServiceImpl implements LearningResourceService {
     private static final String LOG_PREFIX = "[LearningResourceServiceImpl]";
     private final EduClassDocService classDocs;
-    private final EduLearningResourceRepository resources;
-    private final EduPlanGoalRepository goals;
+    private static final int MAX_PER_SECTION = 20;
+    private final EduResourceAttachmentRepository attachments;
+    private final EduResourceItemRepository items;
+    private final ResourceLibraryService library;
     private final StaffAssignmentService assignments;
-    private final StorageService storage;
-    private final ObjectMapper mapper;
+    private final FileStorage storage;
     private final Clock clock;
     private final EduWorkflowService workflow;
     private final com.carenest.service.organization.ClassroomService classrooms;
@@ -49,10 +58,13 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         String p = LOG_PREFIX + "|list|userId=" + user.userId();
         log.info("{}|START", p);
         try {
-            EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, false);
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, false);
             boolean editor = isEditor(user, doc);
-            List<LearningResourceResponse> result = resources.findAllByClassDocIdOrderByIdAsc(doc.getId()).stream()
-                    .map(r -> response(doc, r))
+            List<EduResourceAttachment> rows = attachments.findAllByClassDocIdOrderBySortOrderAscIdAsc(doc.getId());
+            Map<Long, EduResourceItem> byId = itemsOf(rows);
+            List<LearningResourceResponse> result = rows.stream()
+                    .filter(a -> byId.containsKey(a.getItemId()))
+                    .map(a -> response(doc, a, byId.get(a.getItemId())))
                     .filter(r -> editor || r.active())
                     .toList();
             log.info("{}|END", p);
@@ -70,104 +82,250 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         log.info("{}|START", p);
         try {
             if (requestId == null) throw GlobalException.of(ApiCode.UPLOAD_REQUEST_ID_REQUIRED);
-            TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-            LearningResourceResponse replay = transaction.execute(status -> {
-                EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
-                var existing = resources.findByClassDocIdAndUploadRequestId(doc.getId(), requestId);
-                if (existing.isPresent()) return response(doc, existing.get());
-                validateBinding(doc, binding);
-                return null;
-            });
-            if (replay != null) {
+            Prepared prepared = prepare(user, docKey, binding, requestId);
+            if (prepared.replay() != null) {
                 log.info("{}|END", p);
-                return replay;
+                return prepared.replay();
             }
             String name = LearningResourcePolicy.safeName(file.getOriginalFilename());
-            String type;
+            if (isOffice(name)) validateOffice(file::getInputStream, name);
+            FileStorage.StoredFile stored;
             try (var input = file.getInputStream()) {
-                type = LearningResourcePolicy.inspect(name, input.readNBytes(8192), file.getSize());
+                stored = storage.store(FileCategory.LEARNING_RESOURCE, prepared.docId(), name, input, file.getSize());
             } catch (IOException ex) {
                 throw GlobalException.of(ApiCode.FILE_UNREADABLE);
             }
-            if (name.matches("(?i).*\\.(pptx|docx|xlsx)$")) validateOffice(file, name);
-            String key;
-            try (var input = file.getInputStream()) {
-                key = storage.store(input, file.getSize());
-            } catch (IOException ex) {
-                throw GlobalException.of(ApiCode.FILE_UNREADABLE);
-            }
-            boolean[] cleanupRegistered = {false};
-            UploadCommit outcome;
-            try {
-                outcome = transaction.execute(status -> {
-                    EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
-                    var existing = resources.findByClassDocIdAndUploadRequestId(doc.getId(), requestId);
-                    if (existing.isPresent()) return new UploadCommit(response(doc, existing.get()), false);
-                    validateBinding(doc, binding);
-                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                        @Override
-                        public void afterCompletion(int completionStatus) {
-                            if (completionStatus != STATUS_COMMITTED) storage.remove(key);
-                        }
-                    });
-                    cleanupRegistered[0] = true;
-                    EduLearningResource saved = resources.saveAndFlush(EduLearningResource.create(
-                            doc.getId(),
-                            binding.activityKey(),
-                            binding.activitySignature(),
-                            binding.activityLabel(),
-                            name,
-                            type,
-                            file.getSize(),
-                            key,
-                            requestId,
-                            user.userId(),
-                            clock.instant()));
-                    workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
-                    return new UploadCommit(response(doc, saved), true);
-                });
-            } catch (RuntimeException ex) {
-                if (!cleanupRegistered[0]) {
-                    try {
-                        storage.remove(key);
-                    } catch (RuntimeException cleanupFailure) {
-                        ex.addSuppressed(cleanupFailure);
-                    }
-                }
-                throw ex;
-            }
-            if (!outcome.usedStoredFile()) storage.remove(key);
+            LearningResourceResponse result = commit(user, docKey, binding, requestId, name, null, stored, null);
             log.info("{}|END", p);
-            return outcome.response();
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
             throw ex;
         }
     }
 
-    private record UploadCommit(LearningResourceResponse response, boolean usedStoredFile) {}
-
     @Override
+    // Không readOnly: requireDayAccess(write=true) khóa FOR SHARE/UPDATE, Postgres từ chối trong giao dịch chỉ đọc
     @Transactional
-    public LearningResourceResponse bind(CurrentUser user, String docKey, Long id, LearningResourceBinding binding) {
-        String p = LOG_PREFIX + "|bind|userId=" + user.userId() + "|id=" + id;
+    public PresignedUploadResponse uploadUrl(
+            CurrentUser user, String docKey, LearningResourceUploadUrlRequest request) {
+        String p = LOG_PREFIX + "|uploadUrl|userId=" + user.userId();
         log.info("{}|START", p);
         try {
-            EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
-            validateBinding(doc, binding);
-            EduLearningResource r = requireResource(doc, id);
-            boolean changed = !java.util.Objects.equals(r.getActivityKey(), binding.activityKey())
-                    || !java.util.Objects.equals(r.getActivitySignature(), binding.activitySignature())
-                    || !java.util.Objects.equals(r.getActivityLabel(), binding.activityLabel());
-            r.bind(binding.activityKey(), binding.activitySignature(), binding.activityLabel());
-            resources.saveAndFlush(r);
-            if (changed) workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            String name = LearningResourcePolicy.safeName(request.fileName());
+            var upload = storage.presignPut(
+                    FileCategory.LEARNING_RESOURCE, doc.getId(), name, request.contentType(), request.size());
             log.info("{}|END", p);
-            return response(doc, r);
+            return new PresignedUploadResponse(
+                    upload.uploadId(), upload.url(), "PUT", upload.headers(), upload.expiresAt());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public LearningResourceResponse confirmUpload(
+            CurrentUser user, String docKey, LearningResourceConfirmRequest request, UUID requestId) {
+        String p = LOG_PREFIX + "|confirmUpload|userId=" + user.userId();
+        log.info("{}|START", p);
+        try {
+            if (requestId == null) throw GlobalException.of(ApiCode.UPLOAD_REQUEST_ID_REQUIRED);
+            LearningResourceBinding binding = request.binding();
+            Prepared prepared = prepare(user, docKey, binding, requestId);
+            if (prepared.replay() != null) {
+                log.info("{}|END", p);
+                return prepared.replay();
+            }
+            String name = LearningResourcePolicy.safeName(request.fileName());
+            // Đuôi tên gốc phải khớp tệp đã tải (đuôi nằm trong uploadId đã ký) để tên hiển thị không đánh lừa loại tệp
+            if (!Objects.equals(FileTypes.extension(name), FileTypes.extension(request.uploadId())))
+                throw GlobalException.of(ApiCode.FILE_NAME_INVALID);
+            FileStorage.StoredFile stored =
+                    storage.confirm(FileCategory.LEARNING_RESOURCE, prepared.docId(), request.uploadId());
+            if (isOffice(name)) {
+                try {
+                    validateOffice(
+                            () -> storage.load(FileCategory.LEARNING_RESOURCE, stored.key())
+                                    .getInputStream(),
+                            name);
+                } catch (RuntimeException ex) {
+                    storage.removeQuietly(FileCategory.LEARNING_RESOURCE, stored.key());
+                    throw ex;
+                }
+            }
+            LearningResourceResponse result =
+                    commit(user, docKey, binding, requestId, name, request.title(), stored, request.tags());
+            log.info("{}|END", p);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /** Kiểm quyền + hoạt động trước khi đụng kho; cùng requestId đã ghi thì trả lại kết quả cũ (idempotent). */
+    private Prepared prepare(CurrentUser user, String docKey, LearningResourceBinding binding, UUID requestId) {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            LearningResourceResponse replay = replay(user, doc, binding, requestId);
+            if (replay != null) return new Prepared(doc.getId(), replay);
+            validateBinding(doc, binding);
+            return new Prepared(doc.getId(), null);
+        });
+    }
+
+    private record Prepared(Long docId, LearningResourceResponse replay) {}
+
+    /** Tải lại cùng requestId: trả dòng gắn đã có của học liệu đó ở mục này. */
+    private LearningResourceResponse replay(
+            CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, UUID requestId) {
+        return items.findByOwnerIdAndUploadRequestId(user.userId(), requestId)
+                .flatMap(item ->
+                        attachments.findAllByClassDocIdAndActivityKey(doc.getId(), binding.activityKey()).stream()
+                                .filter(a -> a.getItemId().equals(item.getId()))
+                                .findFirst()
+                                .map(a -> response(doc, a, item)))
+                .orElse(null);
+    }
+
+    /** EDU-82: tệp đã lưu ⇒ học liệu "Của tôi" + dòng gắn trong một giao dịch; không thành hoặc trùng thì xóa đúng tệp mới. */
+    private LearningResourceResponse commit(
+            CurrentUser user,
+            String docKey,
+            LearningResourceBinding binding,
+            UUID requestId,
+            String name,
+            String title,
+            FileStorage.StoredFile stored,
+            ResourceTagsRequest tags) {
+        String key = stored.key();
+        boolean[] cleanupRegistered = {false};
+        UploadCommit outcome;
+        try {
+            outcome = new TransactionTemplate(transactionManager).execute(status -> {
+                EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+                LearningResourceResponse again = replay(user, doc, binding, requestId);
+                if (again != null) return new UploadCommit(again, false);
+                validateBinding(doc, binding);
+                requireRoom(doc, binding.activityKey(), 1);
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int completionStatus) {
+                        if (completionStatus != STATUS_COMMITTED) storage.remove(FileCategory.LEARNING_RESOURCE, key);
+                    }
+                });
+                cleanupRegistered[0] = true;
+                EduResourceItem item = library.createFileItem(user, ageGroupOf(doc), stored, name, title, requestId);
+                EduResourceAttachment saved = saveAttachment(user, doc, binding, item.getId());
+                library.tagAttachment(item.getId(), saved.getId(), schoolYearOf(doc), tags);
+                workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+                return new UploadCommit(response(doc, saved, item), true);
+            });
+        } catch (RuntimeException ex) {
+            if (!cleanupRegistered[0]) {
+                try {
+                    storage.remove(FileCategory.LEARNING_RESOURCE, key);
+                } catch (RuntimeException cleanupFailure) {
+                    ex.addSuppressed(cleanupFailure);
+                }
+            }
+            throw ex;
+        }
+        if (!outcome.usedStoredFile()) storage.remove(FileCategory.LEARNING_RESOURCE, key);
+        return outcome.response();
+    }
+
+    private record UploadCommit(LearningResourceResponse response, boolean usedStoredFile) {}
+
+    @Override
+    @Transactional
+    public LearningResourceResponse addLink(CurrentUser user, String docKey, ResourceLinkRequest request) {
+        String p = LOG_PREFIX + "|addLink|userId=" + user.userId();
+        log.info("{}|START", p);
+        try {
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            LearningResourceBinding binding = request.binding();
+            validateBinding(doc, binding);
+            EduResourceItem item = library.findOrCreateLink(user, request.url(), request.title(), ageGroupOf(doc));
+            var result =
+                    attachAll(user, doc, binding, List.of(item), request.tags()).get(0);
+            log.info("{}|END", p);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public List<LearningResourceResponse> attach(CurrentUser user, String docKey, ResourceAttachRequest request) {
+        String p = LOG_PREFIX + "|attach|userId=" + user.userId();
+        log.info("{}|START", p);
+        try {
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            LearningResourceBinding binding = request.binding();
+            validateBinding(doc, binding);
+            List<EduResourceItem> chosen = request.itemIds().stream()
+                    .distinct()
+                    .map(id -> library.requireOwned(user, id)) // FR-013: chỉ gắn học liệu trong kho của mình
+                    .toList();
+            var result = attachAll(user, doc, binding, chosen, request.tags());
+            log.info("{}|END", p);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /** EDU-82: mỗi học liệu một lần mỗi mục, tối đa 20 học liệu mỗi mục; gắn tính là sửa nội dung (EDU-64). */
+    private List<LearningResourceResponse> attachAll(
+            CurrentUser user,
+            EduClassDoc doc,
+            LearningResourceBinding binding,
+            List<EduResourceItem> chosen,
+            ResourceTagsRequest tags) {
+        for (EduResourceItem item : chosen)
+            if (attachments.existsByClassDocIdAndActivityKeyAndItemId(doc.getId(), binding.activityKey(), item.getId()))
+                throw GlobalException.of(ApiCode.RESOURCE_ALREADY_ATTACHED);
+        requireRoom(doc, binding.activityKey(), chosen.size());
+        List<LearningResourceResponse> out = chosen.stream()
+                .map(item -> {
+                    EduResourceAttachment saved = saveAttachment(user, doc, binding, item.getId());
+                    library.tagAttachment(item.getId(), saved.getId(), schoolYearOf(doc), tags);
+                    return response(doc, saved, item);
+                })
+                .toList();
+        workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+        return out;
+    }
+
+    private EduResourceAttachment saveAttachment(
+            CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, Long itemId) {
+        try {
+            // ponytail: số thứ tự = số dòng đang có; sau khi gỡ có thể trùng số, trùng thì id lớn hơn (gắn sau) đứng
+            // sau
+            int position = (int) attachments.countByClassDocIdAndActivityKey(doc.getId(), binding.activityKey());
+            return attachments.saveAndFlush(EduResourceAttachment.of(
+                    doc.getId(),
+                    binding.activityKey(),
+                    binding.activityLabel(),
+                    itemId,
+                    position,
+                    user.userId(),
+                    clock.instant()));
+        } catch (DataIntegrityViolationException ex) {
+            // Hai người gắn cùng lúc: ràng buộc duy nhất ở DB chặn bản thứ hai
+            throw GlobalException.withCause(ApiCode.RESOURCE_ALREADY_ATTACHED, ex);
+        }
+    }
+
+    private void requireRoom(EduClassDoc doc, String activityKey, int adding) {
+        if (attachments.countByClassDocIdAndActivityKey(doc.getId(), activityKey) + adding > MAX_PER_SECTION)
+            throw GlobalException.of(ApiCode.RESOURCE_SECTION_FULL, MAX_PER_SECTION);
     }
 
     @Override
@@ -176,12 +334,35 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         String p = LOG_PREFIX + "|detach|userId=" + user.userId() + "|id=" + id;
         log.info("{}|START", p);
         try {
-            EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
-            EduLearningResource r = requireResource(doc, id);
-            boolean changed = r.getActivityKey() != null || r.getActivitySignature() != null;
-            r.detach();
-            resources.saveAndFlush(r);
-            if (changed) workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            // EDU-85: gỡ khỏi mục chỉ xóa dòng gắn; học liệu trong kho và ở ngày khác còn nguyên
+            attachments.delete(requireAttachment(doc, id));
+            attachments.flush();
+            workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+            log.info("{}|END", p);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void reorder(CurrentUser user, String docKey, ResourceOrderRequest request) {
+        String p = LOG_PREFIX + "|reorder|userId=" + user.userId();
+        log.info("{}|START", p);
+        try {
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            Map<Long, EduResourceAttachment> rows =
+                    attachments.findAllByClassDocIdAndActivityKey(doc.getId(), request.activityKey()).stream()
+                            .collect(Collectors.toMap(EduResourceAttachment::getId, Function.identity()));
+            // EDU-82: phải gửi đủ đúng các dòng gắn đang có của mục; người khác vừa gắn/gỡ thì bắt tải lại
+            if (request.ids().size() != rows.size() || !rows.keySet().containsAll(request.ids()))
+                throw GlobalException.of(ApiCode.RESOURCE_ORDER_STALE);
+            for (int i = 0; i < request.ids().size(); i++)
+                rows.get(request.ids().get(i)).moveTo(i);
+            attachments.saveAllAndFlush(rows.values());
+            workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
             log.info("{}|END", p);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
@@ -195,16 +376,43 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         String p = LOG_PREFIX + "|content|userId=" + user.userId() + "|id=" + id;
         log.info("{}|START", p);
         try {
-            EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, false);
-            EduLearningResource r = requireResource(doc, id);
-            if (!isEditor(user, doc) && !active(doc, r)) throw GlobalException.of(ApiCode.LEARNING_RESOURCE_UNBOUND);
-            Download result = new Download(storage.load(r.getStorageKey()), r.getOriginalName(), r.getContentType());
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, false);
+            EduResourceItem item = viewable(user, doc, id);
+            if (item.isLink()) throw GlobalException.of(ApiCode.LEARNING_RESOURCE_NOT_FOUND);
+            Download result = new Download(
+                    storage.load(FileCategory.LEARNING_RESOURCE, item.getStorageKey()),
+                    item.getOriginalName(),
+                    item.getContentType());
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FileUrlResponse contentUrl(CurrentUser user, String docKey, Long id) {
+        String p = LOG_PREFIX + "|contentUrl|userId=" + user.userId() + "|id=" + id;
+        log.info("{}|START", p);
+        try {
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, false);
+            // EDU-86: ai xem được giáo án thì xem được học liệu đã gắn, bất kể phạm vi/ẩn của học liệu
+            var result = ResourceLibraryServiceImpl.urlOf(storage, viewable(user, doc, id));
+            log.info("{}|END", p);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private EduResourceItem viewable(CurrentUser user, EduClassDoc doc, Long id) {
+        EduResourceAttachment a = requireAttachment(doc, id);
+        if (!isEditor(user, doc) && !matches(doc, a.getActivityKey()))
+            throw GlobalException.of(ApiCode.LEARNING_RESOURCE_UNBOUND);
+        return items.findById(a.getItemId()).orElseThrow(() -> GlobalException.of(ApiCode.LEARNING_RESOURCE_NOT_FOUND));
     }
 
     private boolean isEditor(CurrentUser user, EduClassDoc doc) {
@@ -218,68 +426,91 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                         user.userId());
     }
 
-    private EduLearningResource requireResource(EduClassDoc doc, Long id) {
-        return resources
+    private Long schoolYearOf(EduClassDoc doc) {
+        return classrooms
+                .findClassroomInfo(doc.getClassroomId())
+                .map(c -> c.schoolYearId())
+                .orElse(null);
+    }
+
+    private Long ageGroupOf(EduClassDoc doc) {
+        return classrooms
+                .findClassroomInfo(doc.getClassroomId())
+                .map(c -> c.ageGroupId())
+                .orElse(null);
+    }
+
+    private EduResourceAttachment requireAttachment(EduClassDoc doc, Long id) {
+        return attachments
                 .findByIdAndClassDocId(id, doc.getId())
                 .orElseThrow(() -> GlobalException.of(ApiCode.LEARNING_RESOURCE_NOT_FOUND));
     }
 
+    private Map<Long, EduResourceItem> itemsOf(List<EduResourceAttachment> rows) {
+        if (rows.isEmpty()) return Map.of();
+        return items
+                .findAllById(rows.stream().map(EduResourceAttachment::getItemId).collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(EduResourceItem::getId, Function.identity()));
+    }
+
+    private static final java.util.regex.Pattern KEY =
+            java.util.regex.Pattern.compile(LearningResourceBinding.KEY_PATTERN);
+
+    /** EDU-81: mục hoạt động phải là một trong 4 mục cố định của một ngày (thứ 2–6) thuộc tuần của kế hoạch ngày. */
     private void validateBinding(EduClassDoc doc, LearningResourceBinding b) {
         if (b == null
                 || b.activityLabel() == null
                 || b.activityLabel().isBlank()
                 || b.activityLabel().length() > 1000
-                || !matches(doc, b.activityKey(), b.activitySignature()))
-            throw GlobalException.of(ApiCode.ACTIVITY_CHANGED);
+                || !matches(doc, b.activityKey())) throw GlobalException.of(ApiCode.ACTIVITY_CHANGED);
     }
 
-    private boolean matches(EduClassDoc doc, String key, String signature) {
-        if (key == null || signature == null || !key.matches("[0-9]+#[0-9]+")) return false;
+    private static boolean matches(EduClassDoc doc, String key) {
+        if (key == null || !KEY.matcher(key).matches() || doc.getWeekStart() == null) return false;
         try {
-            String[] parts = key.split("#");
-            long goalId = Long.parseLong(parts[0]);
-            int index = Integer.parseInt(parts[1]);
-            boolean own = goals.belongsToTheme(goalId, doc.getYearPlanId(), doc.getThemeId());
-            if (!own) return false;
-            String text = mapper.readTree(doc.getContent())
-                    .path("rows")
-                    .path(parts[0])
-                    .path("activities")
-                    .asString("");
-            return LearningResourcePolicy.signature(text).equals(signature)
-                    && LearningResourcePolicy.hasActivity(text, index);
-        } catch (NumberFormatException ex) {
+            LocalDate date = LocalDate.parse(key.substring(0, key.indexOf('#')));
+            return !date.isBefore(doc.getWeekStart())
+                    && !date.isAfter(doc.getWeekStart().plusDays(4));
+        } catch (DateTimeParseException ex) {
             return false;
         }
     }
 
-    private boolean active(EduClassDoc doc, EduLearningResource r) {
-        return matches(doc, r.getActivityKey(), r.getActivitySignature());
-    }
-
-    private LearningResourceResponse response(EduClassDoc doc, EduLearningResource r) {
+    private LearningResourceResponse response(EduClassDoc doc, EduResourceAttachment a, EduResourceItem item) {
         return new LearningResourceResponse(
-                r.getId(),
+                a.getId(),
                 doc.getDocKey(),
-                r.getActivityKey(),
-                r.getActivitySignature(),
-                r.getActivityLabel(),
-                r.getOriginalName(),
-                r.getContentType(),
-                r.getByteSize(),
-                r.getUploadedBy(),
-                r.getCreatedAt(),
-                active(doc, r));
+                a.getActivityKey(),
+                a.getActivityLabel(),
+                item.getTitle(),
+                item.isLink() ? "text/uri-list" : item.getContentType(),
+                item.getByteSize() == null ? 0 : item.getByteSize(),
+                a.getCreatedBy(),
+                a.getCreatedAt(),
+                matches(doc, a.getActivityKey()),
+                item.getId(),
+                item.getKind(),
+                item.getTitle(),
+                item.getUrl());
     }
 
-    private void validateOffice(MultipartFile file, String name) {
+    private interface ContentSource {
+        java.io.InputStream open() throws IOException;
+    }
+
+    private static boolean isOffice(String name) {
+        return name.matches("(?i).*\\.(pptx|docx|xlsx)$");
+    }
+
+    private void validateOffice(ContentSource source, String name) {
         String folder = name.toLowerCase(java.util.Locale.ROOT).endsWith("pptx")
                 ? "ppt/"
                 : name.toLowerCase(java.util.Locale.ROOT).endsWith("docx") ? "word/" : "xl/";
         boolean types = false, body = false;
         int entries = 0;
         long expanded = 0;
-        try (var zip = new java.util.zip.ZipInputStream(file.getInputStream())) {
+        try (var zip = new java.util.zip.ZipInputStream(source.open())) {
             java.util.zip.ZipEntry entry;
             byte[] buffer = new byte[8192];
             while ((entry = zip.getNextEntry()) != null) {

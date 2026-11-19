@@ -6,9 +6,9 @@ Luồng: push `main` (merge PR từ `release/*`; PR vào `main` chỉ verify, pu
 
 ```
 Trình duyệt ─HTTPS─▶ Caddy host (giữ 80/443 của server)
-  web.carenest.edu.vn   ├─ /api/* ─▶ 127.0.0.1:18310  api (Spring Boot; /api/auth/* = gateway ADR-0013)
-                        └─ /      ─▶ 127.0.0.1:18300  FE
-  auth.carenest.edu.vn  ───────────▶ 127.0.0.1:18320  Keycloak (chặn /admin, /realms/master)
+  thuonghong.carenest.edu.vn  ├─ /api/* ─▶ 127.0.0.1:18310  api (Spring Boot; /api/auth/* = gateway ADR-0013)
+                              └─ /      ─▶ 127.0.0.1:18300  FE
+  auth.carenest.edu.vn  ─────────────────▶ 127.0.0.1:18320  Keycloak (chặn /admin, /realms/master)
   không ra ngoài:  Postgres 127.0.0.1:18330 · Keycloak management 18321 · Mailpit SMTP 18340 / UI 18341
 ```
 
@@ -25,7 +25,7 @@ VPS mất chain iptables của Docker ⇒ không có network bridge (`FE:docs/kn
 
 Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'` chỉ thấy `127.0.0.1`.
 
-**Image Postgres có pgvector (V146, ADR-0024):** `compose.yaml`/`compose.vps.yaml` dùng `pgvector/pgvector:pg17` (nền Debian/glibc) thay `postgres:17-alpine` (musl). Volume đã khởi tạo bằng image alpine mà đổi image thì thứ tự so sánh chuỗi (collation) có thể khác ⇒ index chữ có nguy cơ sai. Trước khi deploy lên VPS có dữ liệu: backup, chạy thử trên bản sao, rồi `REINDEX DATABASE` cho `carenest` (hoặc dump/restore vào volume mới). Chưa kiểm trên VPS thật. Máy dev dùng volume mới thì không bị ảnh hưởng; không đổi image mà vẫn giữ migration V146 thì ứng dụng không khởi động (thiếu extension `vector`).
+**Image Postgres có pgvector (V155, ADR-0024):** `compose.yaml`/`compose.vps.yaml` dùng `pgvector/pgvector:pg17` (nền Debian/glibc) thay `postgres:17-alpine` (musl). Volume đã khởi tạo bằng image alpine mà đổi image thì thứ tự so sánh chuỗi (collation) có thể khác ⇒ index chữ có nguy cơ sai. Trước khi deploy lên VPS có dữ liệu: backup, chạy thử trên bản sao, rồi `REINDEX DATABASE` cho `carenest` (hoặc dump/restore vào volume mới). Chưa kiểm trên VPS thật. Máy dev dùng volume mới thì không bị ảnh hưởng; không đổi image mà vẫn giữ migration V155 thì ứng dụng không khởi động (thiếu extension `vector`).
 
 ## File trong repo
 
@@ -53,21 +53,23 @@ Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'
    chmod 600 .env
    ```
    Caddyfile đã `import /data/thangnd/CAPSTONE/caddy/*.caddy` và sudoers reload Caddy đã có từ lúc cài FE.
-5. **Deploy đầu:** merge PR vào `main` (hoặc Actions › Deploy VPS › Run workflow trên `main`; nút chỉ hiện khi workflow đã có trên nhánh mặc định). Lần đầu Keycloak tạo DB, import realm + 8 user demo từ `docker/keycloak/vps/carenest-users-0.json` với mật khẩu `KEYCLOAK_DEV_USER_PASSWORD` (không phải `demo123` của máy local). Keycloak chỉ import khi realm chưa có: VPS đã import bản cũ (file dev, mật khẩu `demo123` công khai) thì owner phải tự đổi mật khẩu 8 user (`admin`, `principal`, `viceprincipal`, `teacher1`, `teacher2`, `parent1`, `parent2`, `kitchen`) trong admin console qua tunnel (mục dưới) — đổi `.env` không tự áp lại.
+5. **Deploy đầu:** merge PR vào `main` (hoặc Actions › Deploy VPS › Run workflow trên `main`; nút chỉ hiện khi workflow đã có trên nhánh mặc định). Lần đầu Keycloak tạo DB, import realm + user của bộ dữ liệu dev từ `docker/keycloak/vps/carenest-users-0.json` với mật khẩu `KEYCLOAK_DEV_USER_PASSWORD` (≥ 8 ký tự theo chính sách realm; không phải mật khẩu local). Keycloak chỉ import khi realm chưa có: đổi file user ⇒ dựng lại theo mục "Dựng lại bộ dữ liệu dev" — đổi `.env` không tự áp lại.
 6. **Bật gateway auth** (ADR-0013, quyết định demo trong plan): từ máy dev mở tunnel `ssh -L 18320:127.0.0.1:18320 thangnd@<VPS>`, đặt `KEYCLOAK_URL=http://localhost:18320`, `KEYCLOAK_REALM=carenest`, `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` trong shell rồi `node docker/keycloak/auth/bootstrap.mjs` (preview, chỉ đọc) ⇒ duyệt ⇒ chạy lại với `--apply --enable`. Sau đó trên VPS sửa `.env` `CARENEST_AUTH_ENABLED=true` và `docker compose -f compose.vps.yaml up -d --no-build api` (cần `API_IMAGE`, xem Rollback).
 7. **FE:** Caddy `/api/*` ⇒ `127.0.0.1:18310`; build với `VITE_AUTH_MODE=gateway`, `VITE_USE_MOCK=false` (repo FE).
+
+**Đổi domain web** (16/11/2026: `web` ⇒ `thuonghong.carenest.edu.vn`): sửa cùng lúc `compose.vps.yaml` (`CARENEST_WEB_ORIGIN`, `CARENEST_AUTH_WEB_ORIGIN`, `CARENEST_CORS_ALLOWED_ORIGINS`) và FE (`deploy/caddy/carenest-web.caddy`, `SITE_URL` trong `deploy.yml`); sửa tay trên VPS sẽ bị deploy `main` sau ghi đè. Realm đã có thì `--import-realm` bỏ qua ⇒ client web trong realm `carenest` vẫn giữ origin cũ: thêm domain mới vào Valid redirect URIs, Post logout redirect URIs, Web origins ở Admin Console. Bucket S3 có CORS theo origin ⇒ thêm domain mới.
 
 ## Quản trị qua SSH tunnel
 
 - Keycloak admin console: `ssh -L 18320:127.0.0.1:18320 thangnd@<VPS>` ⇒ `http://localhost:18320/admin/` (`KC_HOSTNAME_ADMIN`).
-- Mailpit (xem email OTP/đặt mật khẩu): `ssh -L 18341:127.0.0.1:18341 thangnd@<VPS>` ⇒ `http://localhost:18341`.
+- Mailpit (hộp thư thử, chỉ nhận email khi realm trỏ SMTP về `127.0.0.1:18340`; mặc định email đi Resend, mục Email): `ssh -L 18341:127.0.0.1:18341 thangnd@<VPS>` ⇒ `http://localhost:18341`.
 - Postgres: `ssh -L 18330:127.0.0.1:18330 thangnd@<VPS>`.
 
 ## Kiểm tra sau deploy
 
 - Actions: job `verify`, `deploy` xanh; bước smoke thấy issuer `https://auth.carenest.edu.vn/realms/carenest`.
 - `curl -I https://auth.carenest.edu.vn/admin/` ⇒ 404.
-- Sau bước FE: `curl -s https://web.carenest.edu.vn/api/auth/csrf` ⇒ 200 từ CareNest.
+- Sau bước FE: `curl -s https://thuonghong.carenest.edu.vn/api/auth/csrf` ⇒ 200 từ CareNest.
 - Lỗi: `cd /data/thangnd/CAPSTONE/CareNest_BE && docker compose -f compose.vps.yaml logs --tail 100 api keycloak`.
 
 ## Rollback
@@ -111,7 +113,8 @@ dùng chung production:  Postgres 18330 (DB + role carenest_dev, keycloak_dev) �
 ```
 
 - `compose.dev.yaml` (project `carenest-be-dev`) chỉ có `keycloak` + `api`; thư mục VPS `/data/thangnd/CAPSTONE/CareNest_BE-dev`, `.env` theo `deploy/dev.env.example` với secret riêng.
-- Keycloak riêng vì seed `db/dev` gắn cứng ID user Keycloak (`user_accounts.keycloak_user_id`) mà ID user phải duy nhất trên cả instance ⇒ realm thứ hai cùng Keycloak không import được 8 user demo.
+- S3, SMS (textbee), email BE, AI: `compose.dev.yaml` truyền `CARENEST_EDUCATION_MEDIA_BUCKET`, `AWS_*`, `CARENEST_SMS_PROVIDER`, `TEXTBEE_*`, `CARENEST_EMAIL_*`, `CARENEST_AI_*` từ `.env` dev; trống ⇒ S3 báo 8010, SMS/email giả, AI tắt. Đổi `.env` xong chạy lại `docker compose -f compose.dev.yaml up -d --no-build api` (kèm `API_IMAGE`, `KEYCLOAK_IMAGE` đang chạy).
+- Keycloak riêng vì seed `db/dev` gắn cứng ID user Keycloak (`user_accounts.keycloak_user_id`) mà ID user phải duy nhất trên cả instance ⇒ realm thứ hai cùng Keycloak không import được user của bộ dữ liệu dev.
 - Postgres là của stack production: production dừng thì dev cũng dừng; `deploy-dev` báo lỗi rõ khi không thấy container Postgres.
 - GitHub: environment `dev` (deployment branch `dev`); `VPS_*` là repository secret hoặc chép vào environment `dev`.
 
@@ -125,7 +128,89 @@ REVOKE CONNECT ON DATABASE carenest, keycloak, carenest_dev, keycloak_dev FROM P
 
 Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6 nhưng tunnel `ssh -L 18322:127.0.0.1:18322`, `KEYCLOAK_URL=http://localhost:18322` và secret trong `.env` dev; rồi `CARENEST_AUTH_ENABLED=true` trong `.env` dev và `docker compose -f compose.dev.yaml up -d --no-build api` (kèm `API_IMAGE`, `KEYCLOAK_IMAGE` đang chạy).
 
+Dev cho nhiều người test dùng chung tài khoản: `.env` dev đặt `CARENEST_AUTH_SINGLE_WEB_SESSION=false` (tắt giới hạn một phiên Web AUTH-28) rồi tạo lại `api`; production không đặt khóa này (mặc định `true`).
+
 **Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
+
+**Dựng lại bộ dữ liệu dev** (sau khi đổi `scripts/dev/gen-dev-dataset.mjs` và merge; làm 15/11/2026, xem `docs/knowledge/incidents/ENV-261115-dev-keycloak-password-policy.md`). Deploy **không bao giờ xóa DB**: seed `R__` chỉ thêm, không ghi đè dòng có sẵn; file user Keycloak chỉ import khi realm mới ⇒ phải tạo lại **cả DB ứng dụng lẫn DB Keycloak**, mất mọi dữ liệu nhập tay và user tạo tay. Người có quyền VPS chạy theo đúng thứ tự:
+
+1. `.env` dev đặt `KEYCLOAK_DEV_USER_PASSWORD` **≥ 8 ký tự** (dev đang dùng `demo1234`). Realm có `passwordPolicy: length(8) and notUsername`; file `docker/keycloak/vps/carenest-users-0.json` nạp mật khẩu dạng thô nên bị kiểm ⇒ 7 ký tự (`demo123`) làm Keycloak không khởi động (`invalidPasswordMinLengthMessage`). Local dùng được `demo123` vì file dev lưu hash, không qua kiểm.
+2. Backup rồi tạo lại 2 DB. Chạy trong `bash -c '…'` (đừng `set -e` thẳng ở shell đăng nhập: lỗi sẽ thoát luôn phiên SSH) và dừng container bằng `docker stop` (không `docker compose stop`: compose đòi `API_IMAGE`/`KEYCLOAK_IMAGE` chỉ CI truyền):
+
+```bash
+bash -c '
+set -euo pipefail
+PG=$(docker ps -qf name=carenest-be-postgres | head -1); SU=$(docker exec "$PG" printenv POSTGRES_USER); TS=$(date +%Y%m%d-%H%M%S)
+B=/data/thangnd/CAPSTONE/backups/dev; mkdir -p $B
+docker exec "$PG" pg_dump -U "$SU" -Fc carenest_dev > $B/carenest_dev-before-dataset-$TS.dump
+docker exec "$PG" pg_dump -U "$SU" -Fc keycloak_dev > $B/keycloak_dev-before-dataset-$TS.dump
+docker ps --format "{{.Names}}" | grep -E "^carenest-be-dev-(api|keycloak)" | xargs -r docker stop
+docker exec "$PG" psql -U "$SU" -d postgres -v ON_ERROR_STOP=1 \
+  -c "DROP DATABASE carenest_dev WITH (FORCE)" -c "CREATE DATABASE carenest_dev OWNER carenest_dev" \
+  -c "DROP DATABASE keycloak_dev WITH (FORCE)" -c "CREATE DATABASE keycloak_dev OWNER keycloak_dev"
+echo XONG
+'
+```
+
+3. Chạy lại job `deploy-dev` (Actions › Deploy VPS › run mới nhất trên `dev` › Re-run). Deploy lỗi thì **rollback khôi phục `carenest_dev` về bản rỗng rồi chạy image cũ**, image cũ nạp seed cũ ⇒ sửa nguyên nhân xong phải tạo lại `carenest_dev` lần nữa trước khi deploy lại (nếu không, dữ liệu 2 phiên bản seed trộn nhau: `ON CONFLICT DO NOTHING` giữ dòng cũ).
+4. Realm mới chưa có cấu hình gateway ⇒ đăng nhập web trả 503 `1013`, log API `[authGatewayToken]|keycloakStatus=401`. Chạy `bootstrap.mjs` với **đúng** `KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET` của `.env` dev (script ghi secret này vào client gateway; lấy secret khác ⇒ vẫn 401). VPS không có Node ⇒ chép script lên rồi chạy trong container, biến lấy thẳng từ `.env` (không dán secret ra ngoài):
+
+```bash
+# Máy dev (PowerShell/Git Bash, trong repo BE):
+scp docker/keycloak/auth/bootstrap.mjs thangnd@<VPS>:/tmp/carenest-bootstrap.mjs
+# Trên VPS:
+bash -c '
+set -euo pipefail
+cd /data/thangnd/CAPSTONE/CareNest_BE-dev; set -a; . ./.env; set +a
+docker run --rm --network host -v /tmp/carenest-bootstrap.mjs:/app/bootstrap.mjs:ro \
+  -e KEYCLOAK_URL=http://127.0.0.1:18322 -e KEYCLOAK_REALM=carenest \
+  -e KC_BOOTSTRAP_ADMIN_USERNAME -e KC_BOOTSTRAP_ADMIN_PASSWORD -e KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET \
+  node:22-alpine node /app/bootstrap.mjs --apply --enable
+rm -f /tmp/carenest-bootstrap.mjs
+'
+```
+
+5. Kiểm: kết quả bootstrap có `"applied": true`; `https://auth-dev.carenest.edu.vn/realms/carenest/.well-known/openid-configuration` 200; đăng nhập web `principal` / mật khẩu ở bước 1 ra đúng họ tên trong `docs/TAI_KHOAN_DEV.md` (vd. `teacher2` = Phạm Thị Thanh — sai người là dấu hiệu DB còn trộn seed cũ, làm lại bước 2–3). `kitchen` bị web chặn 403 là đúng (bếp chỉ dùng App).
+
+Production: cùng quy trình với `carenest`/`keycloak`, `compose.vps.yaml`, thư mục `/data/thangnd/CAPSTONE/CareNest_BE`, chủ DB `carenest`/`keycloak` — xóa toàn bộ dữ liệu prod, phải được duyệt riêng.
+
+## SMS — cổng giả và textbee
+
+Mặc định `CARENEST_SMS_PROVIDER=fake`: không gửi thật, chỉ log 2 số cuối SĐT. `textbee` gọi textbee.dev (`TextbeeSmsGateway`): điện thoại Android cài app textbee gửi tin bằng SIM của nó, **chỉ dùng dev/demo** (AUTH-18, plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`). Bật nhà cung cấp thật ⇒ tài khoản phụ huynh mới nhận mã kích hoạt; tin có mật khẩu tạm (tạo tài khoản, đổi SĐT) luôn đi cổng giả.
+
+Bật textbee ở máy dev (`compose.yaml` hoặc `mvnw`):
+1. Đăng ký tại textbee.dev, cài app textbee trên điện thoại Android có SIM, đăng nhập và cấp quyền gửi SMS.
+2. Dashboard textbee: tạo **API key**; lấy **Device ID** nếu tài khoản có nhiều máy (trống ⇒ textbee chọn máy mặc định).
+3. `.env`: `CARENEST_SMS_PROVIDER=textbee`, `TEXTBEE_API_KEY`, tùy chọn `TEXTBEE_DEVICE_ID`. Thiếu API key ⇒ API dừng lúc khởi động, báo tên biến thiếu.
+4. Khi demo: điện thoại bật app, có mạng. API trả 200 nghĩa là textbee đã nhận vào hàng đợi, chưa phải tin đã tới máy; xem trạng thái trên dashboard textbee. Cước SMS tính theo SIM.
+
+Không commit `.env`; lộ API key ⇒ thu hồi trên dashboard textbee. `compose.vps.yaml`, `compose.dev.yaml` chưa truyền biến `TEXTBEE_*` nên VPS luôn dùng cổng giả. Production chọn nhà cung cấp có brandname (D-2).
+
+Không dùng Twilio trial (thử 13–14/11/2026): trial chỉ gửi tới số Mỹ đã xác minh và chỉ 10 template có sẵn — số `+84` bị từ chối (lỗi `21612`), nội dung tự viết bị từ chối (lỗi `572006`).
+
+## Email — Resend SMTP
+
+Hai nơi gửi email, dùng chung một bộ biến `CARENEST_EMAIL_SMTP_*` + `CARENEST_EMAIL_FROM` trong `.env`:
+- Keycloak (OTP, đặt mật khẩu) qua realm `smtpServer` — Keycloak chỉ gửi được qua SMTP.
+- BE qua `integration/email/EmailGateway`. Mặc định `CARENEST_EMAIL_PROVIDER=log`: không gửi, chỉ log số người nhận; `smtp` ⇒ `SmtpEmailGateway`.
+
+Cả `compose.yaml`, `compose.vps.yaml`, `compose.dev.yaml` mặc định `smtp.resend.com:587` STARTTLS, username `resend`. Dùng SMTP thay vì API HTTP của Resend vì Keycloak bắt buộc SMTP, một cấu hình cho cả hai nơi; khi BE cần idempotency key/webhook trạng thái gửi mới thêm gateway HTTP.
+
+Bật Resend:
+1. resend.com → **Domains** → thêm domain gửi, khai các bản ghi DNS (SPF/DKIM) Resend đưa ra, chờ trạng thái *Verified*. Chưa xác minh ⇒ chỉ gửi được từ `onboarding@resend.dev` tới email chủ tài khoản Resend (người khác nhận lỗi 403).
+2. **API Keys** → tạo key quyền *Sending access* (giới hạn đúng domain) — key `re_...` chỉ hiện một lần.
+3. `.env`: `CARENEST_EMAIL_SMTP_USERNAME=resend`, `CARENEST_EMAIL_SMTP_PASSWORD=<API key>`, `CARENEST_EMAIL_FROM=no-reply@<domain đã xác minh>` (bắt buộc: trống thì From = `resend`, Resend từ chối), tùy chọn `CARENEST_EMAIL_FROM_NAME`. BE gửi thật thì thêm `CARENEST_EMAIL_PROVIDER=smtp` (thiếu biến ⇒ API dừng lúc khởi động, báo tên biến thiếu).
+4. Mạng/VPS chặn cổng 587 (log `MailConnectException`/timeout) ⇒ `CARENEST_EMAIL_SMTP_PORT=2587`, vẫn STARTTLS.
+5. Realm đã import từ trước (`--import-realm` bỏ qua realm có sẵn) ⇒ biến mới không vào Keycloak. Sửa ở Admin Console (VPS: tunnel 18320 ở trên) → realm `carenest` → Realm settings → Email: From = `CARENEST_EMAIL_FROM`, host `smtp.resend.com`, port `587` (hoặc `2587`), Enable StartTLS, Authentication bật, Username `resend`, Password = API key → **Test connection**; hoặc reset DB Keycloak (`KEYCLOAK.md`).
+6. Kiểm tra: tạo tài khoản có email (Keycloak gửi đặt mật khẩu, `setupEmailSent=true`) và xem Resend → **Emails** có bản ghi *Delivered*.
+
+Gói free Resend ~100 email/ngày, 3.000/tháng — đủ demo, production cần nâng gói. Lộ API key ⇒ xóa key trên Resend, tạo key mới, cập nhật `.env` và realm. Mailpit trên VPS giữ lại làm hộp thư thử: muốn xem email mà không gửi thật thì đổi realm Email về host `127.0.0.1`, port `18340`, tắt StartTLS/Authentication.
+
+Gọi từ service (gửi đồng bộ; email không phải bước bắt buộc ⇒ bắt `EmailDeliveryException`, không làm hỏng nghiệp vụ đã lưu):
+
+```java
+emailGateway.send(EmailMessage.html(guardianEmail, "Thông báo từ CareNest", html));
+```
 
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 

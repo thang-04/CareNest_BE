@@ -35,6 +35,7 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.DeclarationState;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthDeclarationAction;
+import com.carenest.utils.enums.HealthTrendPeriod;
 import com.carenest.utils.enums.Permission;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -270,22 +271,61 @@ class HealthRecordIntegrationTest {
         given(aiGateway.isAvailable(AiTask.HEALTH_TREND)).willReturn(true);
         given(aiGateway.complete(any()))
                 .willReturn(new AiRawResult(
-                        "Chiều cao, cân nặng tăng đều.", "groq", "model-x", "health/trend_v1", null, null, 0L));
+                        "{\"overview\": \"Chiều cao, cân nặng tăng đều.\", \"attentionPoints\": [],"
+                                + " \"positives\": [], \"followUps\": [{\"type\": \"RECHECK_NEXT_ROUND\","
+                                + " \"text\": \"Theo dõi ở kỳ cân đo sau.\"}], \"limitations\": null}",
+                        "groq",
+                        "model-x",
+                        "health/trend_v1",
+                        null,
+                        null,
+                        0L));
 
-        HealthTrendAnalysisResponse draft = trendService.analyze(teacher, child);
+        HealthTrendAnalysisResponse draft = trendService.analyze(teacher, child, HealthTrendPeriod.ALL);
         entityManager.flush();
         assertThat(draft.draft()).isTrue();
         assertThat(count("SELECT count(*) FROM health_interpretations WHERE child_id = ? AND status = 'DRAFT'", child))
                 .isEqualTo(1);
+        // HLT-21 (V138): khoảng phân tích lưu kèm bản giải thích
+        assertThat(count("SELECT count(*) FROM health_interpretations WHERE child_id = ? AND period = 'ALL'", child))
+                .isEqualTo(1);
         assertThat(measurementService.getPublishedHealth(parent, child).interpretation())
                 .isNull();
 
+        // HLT-21: chỉ GV đang phân công lớp hiện tại của trẻ được duyệt
+        assertThatThrownBy(() -> trendService.approve(principal, child, draft.id(), null))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.HEALTH_INTERPRETATION_APPROVE_DENIED));
         trendService.approve(teacher, child, draft.id(), null);
         entityManager.flush();
+        // HLT-21: duyệt ⇒ phụ huynh nhận HEALTH_TREND_APPROVED, nội dung = tổng quan đã duyệt; duyệt lại không gửi thêm
+        trendService.approve(teacher, child, draft.id(), null);
+        entityManager.flush();
+        assertThat(count(
+                        "SELECT count(*) FROM notifications n JOIN child_guardians l ON l.user_id = n.user_id"
+                                + " WHERE l.child_id = ? AND n.type = ? AND n.body = 'Chiều cao, cân nặng tăng đều.'",
+                        child,
+                        "HEALTH_TREND_APPROVED"))
+                .isEqualTo(1);
         PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child);
         assertThat(view.interpretation()).isNotNull();
-        assertThat(view.interpretation().summary()).isEqualTo("Chiều cao, cân nặng tăng đều.");
+        assertThat(view.interpretation().summary()).isEqualTo("Tổng quan: Chiều cao, cân nặng tăng đều.");
+        assertThat(view.interpretation().content().overview()).isEqualTo("Chiều cao, cân nặng tăng đều.");
+        // HLT-21: gợi ý theo dõi là việc nội bộ — phụ huynh không thấy, kể cả trong bản văn
+        assertThat(view.interpretation().content().followUps()).isEmpty();
+        assertThat(view.interpretation().summary()).doesNotContain("Gợi ý theo dõi");
         assertThat(view.interpretation().warnings()).isNotEmpty();
+        assertThat(view.interpretation().stale()).isFalse();
+        assertThat(view.interpretation().period()).isEqualTo(HealthTrendPeriod.ALL);
+        assertThat(trendService.latest(teacher, child).content().followUps()).hasSize(1);
+
+        // HLT-21: có số đo mới công bố ⇒ bản đã duyệt cũ đánh dấu stale, phụ huynh vẫn thấy (Q6 = A)
+        measure(round("Cân đo tháng 10 (giả)", "2026-10-01", "2026-10-10"), "2026-10-05", "98.8", "15.3");
+        PublishedHealthResponse later = measurementService.getPublishedHealth(parent, child);
+        assertThat(later.interpretation()).isNotNull();
+        assertThat(later.interpretation().stale()).isTrue();
+        assertThat(trendService.latest(teacher, child).stale()).isTrue();
     }
 
     @Test

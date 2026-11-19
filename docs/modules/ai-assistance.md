@@ -12,7 +12,7 @@ Cách ly AI provider khỏi domain; chọn provider theo loại dữ liệu, gi�
   - `ProviderChainAiGateway`: thử lần lượt provider trong chuỗi của task tới khi có nội dung hoặc hết deadline.
   - `OpenAiCompatibleProvider`: `POST {baseUrl}/chat/completions`, `response_format` JSON, không retry.
   - `AiProperties`, `PromptTemplateLoader` (prompt có version trong `resources/prompts/`), `AiClientException` + `AiErrorReason`.
-  - Port `EmbeddingClient` (`isAvailable()`, `modelName()`, `budget()`, `embed(texts, timeout)`) + `OpenAiCompatibleEmbeddingClient` (`POST {baseUrl}/embeddings`, chia lô, kiểm số chiều, không retry, không log nội dung) + `EmbeddingProperties` (`carenest.embedding.*`). Chỉ nhận văn bản danh mục công khai và câu mong muốn của PHT (AI-04). Vector lưu ở `dish_embeddings` (nutrition, V146).
+  - Port `EmbeddingClient` (`isAvailable()`, `modelName()`, `budget()`, `embed(texts, timeout)`) + `OpenAiCompatibleEmbeddingClient` (`POST {baseUrl}/embeddings`, chia lô, kiểm số chiều, không retry, không log nội dung) + `EmbeddingProperties` (`carenest.embedding.*`). Chỉ nhận văn bản danh mục công khai và câu mong muốn của PHT (AI-04). Vector lưu ở `dish_embeddings` (nutrition, V155).
 
 ## KHÔNG owns
 Nháp nghiệp vụ (lưu ở module domain, vd. `menu_ai_drafts`), guard output theo tác vụ, quyết định duyệt, dữ liệu domain (không query domain).
@@ -68,7 +68,7 @@ AI tắt/lỗi/hết deadline ⇒ domain dùng phương án không AI, nghiệp 
 ## PENDING
 - P-02 / ADR-0007: chốt điều khoản lưu dữ liệu trước khi gửi dữ liệu dẫn xuất từ trẻ thật.
 - P-34: nháp tổng kết năm học (AI-07 mục 5) — làm tới đâu, module nào lưu nháp.
-- RAG tài liệu (giáo án): lấy lại `knowledge` từ `0d8938a` (bảng `ai_documents`/`ai_document_chunks`, tìm cosine `<=>`); image pgvector đã có từ V146; nạp PDF cần PDFBox (hỏi trước khi thêm dependency).
+- RAG tài liệu (giáo án): lấy lại `knowledge` từ `0d8938a` (bảng `ai_documents`/`ai_document_chunks`, tìm cosine `<=>`); image pgvector đã có từ V155; nạp PDF cần PDFBox (hỏi trước khi thêm dependency).
 
 ## Known pitfalls
 - Gọi SDK/HTTP provider trực tiếp từ domain ⇒ vi phạm AI-06 (ArchUnit chặn `org.springframework.web.client` ngoài `integration/`).

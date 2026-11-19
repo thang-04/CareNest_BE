@@ -63,7 +63,7 @@ class SchoolYearControllerTest {
     void principalCopiesYear() throws Exception {
         CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
         given(yearCopyService.copyYear(eq(principal), eq(9L), any()))
-                .willReturn(new YearCopyResponse(List.of("Mầm 1"), List.of(), 1, 0, null, false, List.of()));
+                .willReturn(new YearCopyResponse(List.of("Mầm 1"), List.of(), 1, 0, 0, null, false, List.of()));
 
         mockMvc.perform(post(YEARS + "/9/copy")
                         .with(token(CareNestRole.PRINCIPAL))

@@ -38,7 +38,7 @@ public class EduConfigController {
     }
 
     @PutMapping("/config")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("hasRole('PRINCIPAL')")
     public ResponseEntity<ResponseJson<EduConfigResponse>> updateEduConfig(
             @Valid @RequestBody EduConfigRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|updateEduConfig|userId=" + currentUser.userId();

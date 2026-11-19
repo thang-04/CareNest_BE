@@ -71,6 +71,9 @@ class AssessmentContinuityIntegrationTest {
         }
     }
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private TicketParentNotifier ticketParentNotifier;
+
     @Autowired
     private EvaluationSources sources;
 
@@ -206,6 +209,13 @@ class AssessmentContinuityIntegrationTest {
         var request =
                 new com.carenest.dto.observation.TicketDtos.IssueTicketsRequest(classB, type, period, List.of(mover));
         ticketService.issue(teacher, request);
+        // Phát phiếu báo phụ huynh của trẻ được phát
+        org.mockito.Mockito.verify(ticketParentNotifier)
+                .ticketsIssued(
+                        org.mockito.ArgumentMatchers.argThat(m -> m.keySet().equals(java.util.Set.of(mover))),
+                        org.mockito.ArgumentMatchers.eq(type),
+                        org.mockito.ArgumentMatchers.eq(period),
+                        org.mockito.ArgumentMatchers.any());
         var oldBoard =
                 ticketService.getBoard(principal, classA, type, period).rows().getFirst();
         assertThat(oldBoard.ticket()).isNotNull();

@@ -107,9 +107,6 @@ class ConcurrentReceptionIntegrationTest {
     private DailyHealthService healthService;
 
     @Autowired
-    private com.carenest.service.observation.ClassMonthlyCommentService monthlyComments;
-
-    @Autowired
     private JdbcTemplate jdbc;
 
     @Autowired
@@ -239,28 +236,6 @@ class ConcurrentReceptionIntegrationTest {
                         Integer.class,
                         classA))
                 .isZero();
-        var month = LocalDate.of(2026, 9, 1);
-        race(() -> monthlyComments.get(teacherA, classA, month), () -> monthlyComments.get(teacherA, classA, month));
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM class_monthly_comments WHERE classroom_id=?", Integer.class, classA))
-                .isEqualTo(1);
-        jdbc.update("DELETE FROM class_monthly_comments WHERE classroom_id=?", classA);
-        var saveRequest = new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
-                classA, month, "TEST monthly saved: lớp đi học đều, các bé ngoan");
-        race(() -> monthlyComments.get(teacherA, classA, month), () -> monthlyComments.save(teacherA, saveRequest));
-        assertThat(jdbc.queryForObject(
-                        "SELECT content FROM class_monthly_comments WHERE classroom_id=?", String.class, classA))
-                .isEqualTo("TEST monthly saved: lớp đi học đều, các bé ngoan");
-        var confirmRequest = new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
-                classB, month, "TEST monthly confirmed: lớp đi học đều, các bé ngoan");
-        race(
-                () -> monthlyComments.get(teacherB, classB, month),
-                () -> monthlyComments.confirm(teacherB, confirmRequest));
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM class_monthly_comments WHERE classroom_id=? AND confirmed_at IS NOT NULL",
-                        Integer.class,
-                        classB))
-                .isEqualTo(1);
     }
 
     private void race(Runnable first, Runnable second) throws Exception {

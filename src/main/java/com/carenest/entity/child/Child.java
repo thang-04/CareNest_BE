@@ -63,7 +63,7 @@ public class Child {
     @Column(name = "readmitted_on")
     private LocalDate readmittedOn;
 
-    @Column(name = "photo_key", length = 36)
+    @Column(name = "photo_key", length = 255)
     private String photoKey;
 
     @Column(name = "photo_content_type", length = 30)
@@ -72,8 +72,16 @@ public class Child {
     @Column(name = "photo_size_bytes")
     private Integer photoSizeBytes;
 
+    // CHD-13: trẻ ăn ở trường, mặc định có
+    @Column(name = "meal_registered", nullable = false)
+    private boolean mealRegistered = true;
+
     @Column(name = "photo_updated_at")
     private Instant photoUpdatedAt;
+
+    public void changeMealRegistration(boolean mealRegistered) {
+        this.mealRegistered = mealRegistered;
+    }
 
     public void assignEnrollmentPhoto(String key, String contentType, int size, Instant at) {
         this.photoKey = key;
@@ -101,7 +109,8 @@ public class Child {
             Gender gender,
             boolean placed,
             Long intakeCampusId,
-            LocalDate enrolledOn) {
+            LocalDate enrolledOn,
+            boolean mealRegistered) {
         Child child = new Child();
         child.code = code;
         child.fullName = fullName;
@@ -110,6 +119,7 @@ public class Child {
         child.status = placed ? ChildStatus.ACTIVE : ChildStatus.PENDING_PLACEMENT;
         child.intakeCampusId = placed ? null : intakeCampusId;
         child.enrolledOn = enrolledOn;
+        child.mealRegistered = mealRegistered;
         return child;
     }
 

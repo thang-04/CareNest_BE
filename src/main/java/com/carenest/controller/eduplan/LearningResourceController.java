@@ -1,7 +1,14 @@
 package com.carenest.controller.eduplan;
 
+import com.carenest.dto.common.FileUrlResponse;
+import com.carenest.dto.common.PresignedUploadResponse;
 import com.carenest.dto.eduplan.LearningResourceBinding;
+import com.carenest.dto.eduplan.LearningResourceConfirmRequest;
 import com.carenest.dto.eduplan.LearningResourceResponse;
+import com.carenest.dto.eduplan.LearningResourceUploadUrlRequest;
+import com.carenest.dto.eduplan.ResourceAttachRequest;
+import com.carenest.dto.eduplan.ResourceLinkRequest;
+import com.carenest.dto.eduplan.ResourceOrderRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.LearningResourceService;
 import com.carenest.utils.ApiCode;
@@ -19,7 +26,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/education-plans/class-docs/theme/{docKey}/learning-resources")
+// EDU-81: học liệu chỉ thuộc kế hoạch giáo dục ngày (dd_…), gắn theo ngày + mục hoạt động
+@RequestMapping("/education-plans/class-docs/day/{docKey}/learning-resources")
 @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
 @RequiredArgsConstructor
 @Slf4j
@@ -43,34 +51,86 @@ public class LearningResourceController {
             @PathVariable String docKey,
             @RequestPart MultipartFile file,
             @RequestPart String activityKey,
-            @RequestPart String activitySignature,
             @RequestPart String activityLabel,
             @RequestHeader("Idempotency-Key") UUID requestId,
             CurrentUser user) {
         String p = LOG_PREFIX + "|upload|userId=" + user.userId();
         log.info("{}|START", p);
-        var result = service.upload(
-                user,
-                docKey,
-                file,
-                new LearningResourceBinding(activityKey, activitySignature, activityLabel),
-                requestId);
+        var result =
+                service.upload(user, docKey, file, new LearningResourceBinding(activityKey, activityLabel), requestId);
         log.info("{}|END", p);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Upload learning resource success", result);
     }
 
-    @PatchMapping("/{id}/activity")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
-    public ResponseEntity<ResponseJson<LearningResourceResponse>> bind(
+    /** Bước 1 tải trực tiếp (tệp lớn): xin liên kết PUT lên kho; client PUT xong thì gọi {@code /confirm}. */
+    @PostMapping("/upload-url")
+    public ResponseEntity<ResponseJson<PresignedUploadResponse>> uploadUrl(
             @PathVariable String docKey,
-            @PathVariable Long id,
-            @Valid @RequestBody LearningResourceBinding binding,
+            @Valid @RequestBody LearningResourceUploadUrlRequest request,
             CurrentUser user) {
-        String p = LOG_PREFIX + "|bind|userId=" + user.userId() + "|id=" + id;
+        String p = LOG_PREFIX + "|uploadUrl|userId=" + user.userId();
         log.info("{}|START", p);
-        var result = service.bind(user, docKey, id, binding);
+        var result = service.uploadUrl(user, docKey, request);
         log.info("{}|END", p);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Bind learning resource success", result);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Create learning resource upload url success", result);
+    }
+
+    /** Bước 2 tải trực tiếp: kiểm lại tệp đã tải và gắn vào hoạt động. */
+    @PostMapping("/confirm")
+    public ResponseEntity<ResponseJson<LearningResourceResponse>> confirmUpload(
+            @PathVariable String docKey,
+            @Valid @RequestBody LearningResourceConfirmRequest request,
+            @RequestHeader("Idempotency-Key") UUID requestId,
+            CurrentUser user) {
+        String p = LOG_PREFIX + "|confirmUpload|userId=" + user.userId();
+        log.info("{}|START", p);
+        var result = service.confirmUpload(user, docKey, request, requestId);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Confirm learning resource upload success", result);
+    }
+
+    @GetMapping("/{id}/url")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> contentUrl(
+            @PathVariable String docKey, @PathVariable Long id, CurrentUser user) {
+        String p = LOG_PREFIX + "|contentUrl|userId=" + user.userId() + "|id=" + id;
+        log.info("{}|START", p);
+        var result = service.contentUrl(user, docKey, id);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get learning resource url success", result);
+    }
+
+    /** EDU-83: dán link YouTube/Google vào một mục hoạt động. */
+    @PostMapping("/links")
+    public ResponseEntity<ResponseJson<LearningResourceResponse>> addLink(
+            @PathVariable String docKey, @Valid @RequestBody ResourceLinkRequest request, CurrentUser user) {
+        String p = LOG_PREFIX + "|addLink|userId=" + user.userId();
+        log.info("{}|START", p);
+        var result = service.addLink(user, docKey, request);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Add learning resource link success", result);
+    }
+
+    /** EDU-82: gắn học liệu có sẵn trong kho vào một mục hoạt động. */
+    @PostMapping("/attach")
+    public ResponseEntity<ResponseJson<List<LearningResourceResponse>>> attach(
+            @PathVariable String docKey, @Valid @RequestBody ResourceAttachRequest request, CurrentUser user) {
+        String p = LOG_PREFIX + "|attach|userId=" + user.userId();
+        log.info("{}|START", p);
+        var result = service.attach(user, docKey, request);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Attach learning resources success", result);
+    }
+
+    /** EDU-82: đổi thứ tự học liệu trong một mục hoạt động (thứ tự xem/trình chiếu). */
+    @PutMapping("/order")
+    public ResponseEntity<ResponseJson<List<LearningResourceResponse>>> reorder(
+            @PathVariable String docKey, @Valid @RequestBody ResourceOrderRequest request, CurrentUser user) {
+        String p = LOG_PREFIX + "|reorder|userId=" + user.userId();
+        log.info("{}|START", p);
+        service.reorder(user, docKey, request);
+        var result = service.list(user, docKey);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reorder learning resources success", result);
     }
 
     @DeleteMapping("/{id}")

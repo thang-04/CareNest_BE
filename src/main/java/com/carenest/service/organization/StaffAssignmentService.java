@@ -31,10 +31,28 @@ public interface StaffAssignmentService {
     /** Đã từng được phân công dạy lớp (tới ngày date), kể cả phân công đã kết thúc. */
     boolean hasTeacherAssignmentHistory(Long userId, Long classroomId, LocalDate date);
 
+    /** Người dùng dạy thay lớp vào đúng ngày này. */
+    boolean hasSubstituteAssignmentOn(Long userId, Long classroomId, LocalDate date);
+
+    /** Có đợt dạy thay lớp giao với khoảng [from, to] (danh sách lớp để người dạy thay mở lại ngày của mình). */
+    boolean hasSubstituteAssignmentBetween(Long userId, Long classroomId, LocalDate from, LocalDate to);
+
+    /** GV dạy chính lớp (không tính dạy thay) có phân công hiệu lực ngày date. */
+    boolean hasActiveMainTeacherAssignment(Long userId, Long classroomId, LocalDate date);
+
+    /** Có phân công vai trò trong năm học (campusId null = mọi điểm trường); dùng cho xem lại năm đã kết thúc. */
+    boolean hadRoleInYear(Long userId, StaffRole staffRole, Long campusId, Long schoolYearId);
+
+    /** GV / Tổ trưởng có phân công thuộc năm học đã có hiệu lực tới ngày date (CFG-YR-05). */
+    boolean hasStaffAssignmentInYear(Long userId, Long schoolYearId, LocalDate date);
+
     List<StaffAssignmentSummaryResponse> findActiveAssignments(Long userId, LocalDate date);
 
     /** Nhóm tuổi Tổ trưởng đang phụ trách (phân công AGE_GROUP_TEAM_LEADER còn hiệu lực). */
     Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, LocalDate date);
+
+    /** Nhóm tuổi người dùng làm Tổ trưởng trong năm học; schoolYearId null ⇒ mọi năm (như bản không có năm). */
+    Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate date);
 
     /**
      * Nhóm tuổi Tổ trưởng phụ trách trong năm học schoolYearId, gồm cả phân công năm sắp diễn ra chưa tới ngày bắt
@@ -51,11 +69,26 @@ public interface StaffAssignmentService {
     /** Giáo viên hiện tại của từng lớp (gồm phân công bắt đầu sau ngày date). */
     Map<Long, List<Long>> findCurrentTeacherIds(Collection<Long> classroomIds, LocalDate date);
 
+    /** GV dạy chính của từng lớp có phân công hiệu lực ngày date, không gồm người dạy thay. */
+    Map<Long, List<Long>> findCurrentMainTeacherIds(Collection<Long> classroomIds, LocalDate date);
+
+    /** Người dạy thay của từng lớp có phân công hiệu lực đúng ngày date (việc theo ngày). */
+    Map<Long, List<Long>> findSubstituteTeacherIdsOn(Collection<Long> classroomIds, LocalDate date);
+
     /** Giáo viên chủ nhiệm hiện tại của từng lớp (lớp chưa có chủ nhiệm không có trong map). */
     Map<Long, Long> findHomeroomTeacherIds(Collection<Long> classroomIds, LocalDate date);
 
-    /** Tổ trưởng đang phụ trách nhóm tuổi. */
-    Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date);
+    /** Tổ trưởng đang phụ trách nhóm tuổi trong năm học (năm sau có Tổ trưởng riêng, không gộp). */
+    Set<Long> findActiveTeamLeaderIds(Long schoolYearId, Long ageGroupId, LocalDate date);
+
+    /**
+     * Nhóm tuổi người dùng làm Tổ trưởng trong năm học schoolYearId (null = năm đang hoạt động): năm chưa kết thúc
+     * cần phân công còn hiệu lực tới today; năm đã kết thúc tính mọi phân công của năm đó (chỉ xem lại).
+     */
+    Set<Long> findScopedTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate today);
+
+    /** Tổ trưởng của nhóm tuổi trong đúng năm học, còn hiệu lực ngày date. */
+    Set<Long> findYearTeamLeaderIds(Long ageGroupId, Long schoolYearId, LocalDate date);
 
     /** Campus mà phân công đang hiệu lực của role đó trỏ tới (GV: campus của lớp). */
     Set<Long> findActiveCampusIds(Long userId, StaffRole staffRole, LocalDate date);
@@ -65,6 +98,9 @@ public interface StaffAssignmentService {
 
     /** PHT đang được phân công ở điểm trường tại ngày đó (không thay bằng HT khi trống). */
     Set<Long> findCampusVicePrincipalIds(Long campusId, LocalDate date);
+
+    /** Tài khoản bếp đang phân công tại điểm trường (AUTH-22: mỗi cơ sở một tài khoản dùng chung). */
+    Set<Long> findCampusKitchenIds(Long campusId, LocalDate date);
 
     /** HT đang có phân công tại ngày đó. */
     Set<Long> findPrincipalIds(LocalDate date);

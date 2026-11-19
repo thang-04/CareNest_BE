@@ -2,7 +2,6 @@ package com.carenest.service.organization.impl;
 
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.YearSetupResponse;
-import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.Campus;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.Room;
@@ -22,7 +21,6 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,6 +43,7 @@ public class YearSetupServiceImpl implements YearSetupService {
     private final ClassroomRepository classroomRepository;
     private final RoomRepository roomRepository;
     private final AgeGroupRepository ageGroupRepository;
+    private final YearSnapshotReader yearSnapshotReader;
     private final CampusRepository campusRepository;
     private final StaffAssignmentRepository staffAssignmentRepository;
     private final AttendanceCutoffRepository attendanceCutoffRepository;
@@ -64,12 +63,7 @@ public class YearSetupServiceImpl implements YearSetupService {
                     .filter(active -> !active.getId().equals(year.getId()))
                     .orElse(null);
             LocalDate today = schoolConfigAccess.today();
-            List<AgeGroupDetailResponse> ageGroups = ageGroupRepository.findAll().stream()
-                    .sorted(Comparator.comparing((AgeGroup g) ->
-                                    g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
-                            .thenComparing(AgeGroup::getSortOrder))
-                    .map(schoolStructureMapper::toDetailResponse)
-                    .toList();
+            List<AgeGroupDetailResponse> ageGroups = yearSnapshotReader.yearAgeGroups(year.getId());
             List<Campus> campuses = campusRepository.findAllByOrderByMainDescCodeAsc();
             LocalDate leaderFrom = today.isAfter(year.getStartDate()) ? today : year.getStartDate();
             // Năm sắp tới: PHT phụ trách tính tại ngày bắt đầu năm học (phân công cho năm mới bắt đầu từ ngày đó)

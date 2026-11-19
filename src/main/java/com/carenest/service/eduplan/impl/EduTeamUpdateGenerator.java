@@ -47,7 +47,9 @@ class EduTeamUpdateGenerator {
                     EduPlanLevel.TEAM, annual.getSchoolYearId(), annual.getAgeGroupId());
             if (chain.isEmpty()) {
                 var leaders = accounts.findActiveUserIds(assignments.findActiveTeamLeaderIds(
-                        annual.getAgeGroupId(), now.atZone(clock.getZone()).toLocalDate()));
+                        annual.getSchoolYearId(),
+                        annual.getAgeGroupId(),
+                        now.atZone(clock.getZone()).toLocalDate()));
                 if (leaders.size() != 1)
                     throw com.carenest.exception.GlobalException.of(
                             com.carenest.utils.ApiCode.INVALID_VALUE,

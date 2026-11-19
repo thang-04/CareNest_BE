@@ -306,7 +306,7 @@ class EduYearPlanControllerTest {
                 List.of(),
                 null,
                 null,
-                new YearPlanDetailResponse.Permissions(true, true, false, false, false, true, false),
+                new YearPlanDetailResponse.Permissions(true, true, false, false, false, true, false, true),
                 0L,
                 null,
                 1,

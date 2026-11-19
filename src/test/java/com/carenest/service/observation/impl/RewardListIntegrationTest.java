@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -158,6 +159,39 @@ class RewardListIntegrationTest {
 
         // Đã duyệt: GV không sửa được nữa
         expectCode(() -> service.save(teacherA, classA, list(item(kid1, GOOD)), false), ApiCode.REWARD_STATUS_CHANGED);
+
+        // OBS-31: gửi ⇒ PHT, chuyển ⇒ HT, trả lại / duyệt ⇒ GV lớp
+        assertThat(notifications(vpA.userId())).isEqualTo(2);
+        assertThat(notifications(principal.userId())).isEqualTo(1);
+        assertThat(notifications(teacherA.userId())).isEqualTo(2);
+    }
+
+    private int notifications(Long userId) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM notifications WHERE type = 'REWARD_LIST_UPDATED' AND user_id = ?",
+                Integer.class,
+                userId);
+    }
+
+    @Test
+    @DisplayName("Cần chốt 15/11/2026: GV lớp cùng lưu nháp, chỉ GV phụ trách chính gửi duyệt")
+    void onlyHomeroomTeacherSubmits() {
+        CurrentUser other = user("teacher-ra2", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-09-01', FALSE)",
+                other.userId(),
+                classA);
+        RewardClassDetail draft = service.save(other, classA, list(item(kid1, GOOD)), false);
+        assertThat(draft.status()).isEqualTo(RewardStatus.DRAFT);
+        assertThat(draft.canEdit()).isTrue();
+        assertThat(draft.canSubmit()).isFalse();
+        expectCode(() -> service.save(other, classA, list(item(kid1, GOOD)), true), ApiCode.SUBMIT_HOMEROOM_ONLY);
+
+        RewardClassDetail homeroom = service.detail(teacherA, classA);
+        assertThat(homeroom.canSubmit()).isTrue();
+        assertThat(service.save(teacherA, classA, list(item(kid1, GOOD)), true).status())
+                .isEqualTo(RewardStatus.PENDING_VP);
     }
 
     @Test

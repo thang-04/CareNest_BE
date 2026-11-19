@@ -28,16 +28,135 @@ carenest:
     region: ${AWS_REGION:ap-southeast-1}
     endpoint: ${CARENEST_EDUCATION_MEDIA_ENDPOINT:}
     path-style: ${CARENEST_EDUCATION_MEDIA_PATH_STYLE:false}
-    prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
-  # Ảnh chân dung phụ huynh (đối chiếu người đón khi trả trẻ): cùng bucket, prefix riêng
-  account-media:
-    prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
-  # Ảnh chữ ký của nhân sự Web (SIG-01): cùng bucket, prefix riêng
-  signature-media:
-    prefix: ${CARENEST_SIGNATURE_MEDIA_PREFIX:accounts/signatures/}
-  # Bản sao ảnh chữ ký trên biên bản kiểm thực đã ký (INS-03): prefix riêng để đổi/xóa chữ ký tài khoản không ảnh hưởng
-  inspection-signature-media:
-    prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
+  # Kho tệp dùng chung (spec 017): mỗi loại một thư mục, giới hạn và định dạng đổi ở đây, không sửa code.
+  # legacy-prefix: thư mục của tệp cũ (key UUID) — chỉ đọc/xóa, tệp mới theo thư mục + tên mới.
+  storage:
+    bucket: ${CARENEST_EDUCATION_MEDIA_BUCKET:}
+    presign-ttl: ${CARENEST_STORAGE_PRESIGN_TTL:15m}
+    # Vùng tạm cho tải trực tiếp chưa xác nhận; lifecycle bucket xóa sau 1 ngày
+    tmp-prefix: tmp/
+    categories:
+      user-avatar:
+        folder: avatars/users/
+        code: user
+        max-size: ${CARENEST_STORAGE_MAX_USER_AVATAR:2MB}
+        types: [jpg, png, webp]
+        legacy-prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
+      child-avatar:
+        folder: avatars/children/
+        code: child
+        max-size: ${CARENEST_STORAGE_MAX_CHILD_AVATAR:2MB}
+        types: [jpg, png, webp]
+        legacy-prefix: children/photos/
+      pickup:
+        folder: pickups/
+        code: pickup
+        max-size: ${CARENEST_STORAGE_MAX_PICKUP:3MB}
+        types: [jpg, png, webp]
+      plan-year-goal:
+        folder: plans/year-goals/
+        code: yeargoal
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      plan-theme:
+        folder: plans/themes/
+        code: theme
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      plan-lesson:
+        folder: plans/lessons/
+        code: lesson
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      meal:
+        folder: meals/
+        code: meal
+        max-size: ${CARENEST_STORAGE_MAX_MEAL:5MB}
+        types: [jpg, png, webp]
+        legacy-prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
+      food-sample:
+        folder: food-samples/
+        code: foodsample
+        max-size: ${CARENEST_STORAGE_MAX_FOOD_SAMPLE:5MB}
+        types: [jpg, png, webp]
+      import:
+        folder: imports/
+        code: import
+        max-size: ${CARENEST_STORAGE_MAX_IMPORT:5MB}
+        types: [xlsx]
+      learning-resource:
+        folder: hoclieu/
+        code: hoclieu
+        max-size: ${CARENEST_STORAGE_MAX_LEARNING_OTHER:20MB}
+        max-size-by-kind:
+          image: ${CARENEST_STORAGE_MAX_LEARNING_IMAGE:5MB}
+          video: ${CARENEST_STORAGE_MAX_LEARNING_VIDEO:100MB}
+        types: [jpg, jpeg, png, gif, webp, mp4, webm, pdf, pptx, docx, xlsx, txt, csv]
+        legacy-prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
+      user-signature:
+        folder: signatures/users/
+        code: sig
+        max-size: ${CARENEST_STORAGE_MAX_SIGNATURE:2MB}
+        types: [jpg, png]
+        legacy-prefix: ${CARENEST_SIGNATURE_MEDIA_PREFIX:accounts/signatures/}
+      inspection-signature:
+        folder: signatures/inspections/
+        code: inspsig
+        max-size: ${CARENEST_STORAGE_MAX_SIGNATURE:2MB}
+        types: [jpg, png]
+        legacy-prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
+      announcement:
+        folder: announcements/
+        code: announcement
+        max-size: ${CARENEST_STORAGE_MAX_ANNOUNCEMENT:10MB}
+        types: [jpg, jpeg, png, pdf]
+  # ===== THỜI GIAN THÔNG BÁO — sửa tại nhóm này, không sửa literal trong service =====
+  # s = giây, m = phút, h = giờ, d = ngày. Cron Spring có 6 phần: giây phút giờ ngày-tháng tháng thứ.
+  # Tất cả cron dùng carenest.time-zone bên dưới (mặc định giờ Việt Nam).
+  # Đổi YAML/biến môi trường cần restart BE; không làm thay đổi giờ gửi/giờ khóa đã lưu trong DB.
+  push:
+    # Sau khi quét/gửi xong một lượt, đợi khoảng này rồi quét outbox tiếp; không phải giờ người dùng hẹn gửi.
+    worker-delay: ${CARENEST_PUSH_WORKER_DELAY:5s}
+    batch-size: ${CARENEST_PUSH_BATCH_SIZE:300}
+    worker-enabled: ${CARENEST_PUSH_WORKER_ENABLED:true}
+    worker-threads: ${CARENEST_PUSH_WORKER_THREADS:4}
+    # Cửa sổ thử lại push tính từ lúc tạo thông báo; hết hạn thì ngừng đẩy, tin trong ứng dụng vẫn còn.
+    max-age: ${CARENEST_PUSH_MAX_AGE:60m}
+    # Khoảng đợi lỗi tạm thời: bắt đầu 1 phút, tăng gấp đôi, chặn ở 30 phút; jitter ±20% tránh dồn tải.
+    retry-initial-delay: ${CARENEST_PUSH_RETRY_INITIAL_DELAY:1m}
+    retry-max-delay: ${CARENEST_PUSH_RETRY_MAX_DELAY:30m}
+    # Thiết bị không cập nhật quá thời gian này sẽ được dọn vào cron dưới; không xóa nội dung thông báo.
+    device-max-idle: ${CARENEST_PUSH_DEVICE_MAX_IDLE:270d}
+    device-cleanup-cron: ${CARENEST_PUSH_DEVICE_CLEANUP_CRON:0 10 3 * * *}
+    fcm:
+      credentials-file: ${CARENEST_PUSH_FCM_CREDENTIALS_FILE:}
+  announcement:
+    # Quét thông báo hẹn một lần đã đến sendAt; lượt đầu cũng chờ khoảng này sau khi BE khởi động.
+    worker-delay: ${CARENEST_ANNOUNCEMENT_WORKER_DELAY:30s}
+    # Quét lịch lặp đã đến nextRunAt; lịch/thứ/ngày/giờ cụ thể do người dùng thiết lập trong DB.
+    schedule-delay: ${CARENEST_ANNOUNCEMENT_SCHEDULE_DELAY:60s}
+    # PAR-08: không vượt 30 ngày. Đây là giới hạn hẹn trước, không phải chu kỳ quét.
+    max-schedule-days: ${CARENEST_ANNOUNCEMENT_MAX_SCHEDULE_DAYS:30}
+  notification-reminders:
+    # Điểm danh: chỉ nhắc trong [giờ bắt đầu, giờ khóa cấu hình của ngày); lớp đã điểm danh thì dừng.
+    # Chỉ sửa interval-minutes một chỗ: cả cron quét và khóa chống trùng cùng dùng giá trị này.
+    # Chu kỳ hợp lệ là ước số của 60 phút (1,2,3,4,5,6,10,12,15,20,30,60); tránh 7 gây lệch slot qua giờ.
+    attendance-start: ${CARENEST_ATTENDANCE_REMINDER_START:08:00}
+    attendance-interval-minutes: ${CARENEST_ATTENDANCE_REMINDER_INTERVAL_MINUTES:5}
+    attendance-days: ${CARENEST_ATTENDANCE_REMINDER_DAYS:MON-FRI}
+    # 20:00 thứ Hai–Sáu: kiểm lớp còn trẻ có mặt chưa được đánh giá ngày.
+    daily-assessment-cron: ${CARENEST_DAILY_ASSESSMENT_REMINDER_CRON:0 0 20 * * MON-FRI}
+    # 07:00 thứ Hai–Sáu: kiểm các kỳ đánh giá/nhận xét tuần vừa mở, gần hạn hoặc quá hạn.
+    evaluation-deadline-cron: ${CARENEST_EVALUATION_DEADLINE_REMINDER_CRON:0 0 7 * * MON-FRI}
+    # Quét mỗi 10 phút; lead = cửa sổ nhắc trước khi lần mở lại đánh giá/nhận xét hết hạn.
+    unlock-ending-cron: ${CARENEST_UNLOCK_ENDING_REMINDER_CRON:0 */10 * * * *}
+    unlock-ending-lead: ${CARENEST_UNLOCK_ENDING_REMINDER_LEAD:1h}
+    # 07:30 thứ Hai–Sáu: kiểm và tóm tắt việc quá hạn cho HT/PHT đúng phạm vi.
+    leader-overdue-cron: ${CARENEST_LEADER_OVERDUE_REMINDER_CRON:0 30 7 * * MON-FRI}
+    # Sổ báo ăn: quét mỗi 10 phút trong 07:00–14:50; chỉ nhắc từ cutoff + khoảng đợi dưới đây.
+    meal-book-cron: ${CARENEST_MEAL_BOOK_REMINDER_CRON:0 */10 7-14 * * MON-FRI}
+    meal-book-after-cutoff: ${CARENEST_MEAL_BOOK_REMINDER_AFTER_CUTOFF:30m}
+  # ===== HẾT NHÓM THỜI GIAN THÔNG BÁO =====
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}
@@ -49,6 +168,7 @@ carenest:
     assertion-secret: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET:}
     client-secret: ${KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET:}
     secure-cookies: ${CARENEST_AUTH_SECURE_COOKIES:true}
+    single-web-session: ${CARENEST_AUTH_SINGLE_WEB_SESSION:true}
     allowed-origins: ${CARENEST_AUTH_WEB_ORIGIN:http://localhost:5173}
   security:
     jwt:
@@ -76,6 +196,30 @@ carenest:
     actions-email-enabled: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:false}
     connect-timeout: 3s
     read-timeout: 5s
+  sms:
+    # D-2: mặc định cổng giả (không gửi thật); textbee = điện thoại Android gửi bằng SIM, chỉ dùng dev/demo
+    provider: ${CARENEST_SMS_PROVIDER:fake}
+    textbee:
+      base-url: ${TEXTBEE_BASE_URL:https://api.textbee.dev/api/v1}
+      api-key: ${TEXTBEE_API_KEY:}
+      # Trống ⇒ textbee chọn thiết bị mặc định của tài khoản
+      device-id: ${TEXTBEE_DEVICE_ID:}
+      connect-timeout: 5s
+      read-timeout: 10s
+  email:
+    # Mặc định log (không gửi thật); smtp = gửi qua SMTP, mặc định Resend (password = API key, xem DEPLOYMENT.md mục Email)
+    provider: ${CARENEST_EMAIL_PROVIDER:log}
+    # Resend bắt buộc địa chỉ thuộc domain đã xác minh; trống ⇒ dùng username SMTP (chỉ hợp SMTP có username là email)
+    from: ${CARENEST_EMAIL_FROM:}
+    from-name: ${CARENEST_EMAIL_FROM_NAME:CareNest}
+    smtp:
+      host: ${CARENEST_EMAIL_SMTP_HOST:smtp.resend.com}
+      port: ${CARENEST_EMAIL_SMTP_PORT:587}
+      username: ${CARENEST_EMAIL_SMTP_USERNAME:resend}
+      password: ${CARENEST_EMAIL_SMTP_PASSWORD:}
+      starttls: ${CARENEST_EMAIL_SMTP_STARTTLS:true}
+      connect-timeout: 5s
+      read-timeout: 10s
   edu-plan:
     # EDU-10: khóa "Đang sửa" kế hoạch năm tự nhả sau khoảng này kể từ lần lưu cuối
     edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:90s}
@@ -118,6 +262,12 @@ carenest:
         max-repair-rounds: 1
       # Số đo của trẻ (đã ẩn danh) là dữ liệu dẫn xuất từ trẻ ⇒ chỉ provider không dùng dữ liệu để train (AI-04)
       HEALTH_TREND:
+        chain: [groq]
+        data-class: CHILD_DERIVED
+        deadline: 20s
+        max-repair-rounds: 0
+      # Nhận xét tuần gửi phụ huynh: số liệu tuần của trẻ (không họ tên, không mã trẻ) ⇒ dữ liệu dẫn xuất từ trẻ (AI-04)
+      WEEKLY_COMMENT:
         chain: [groq]
         data-class: CHILD_DERIVED
         deadline: 20s

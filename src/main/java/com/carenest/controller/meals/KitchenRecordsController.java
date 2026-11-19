@@ -1,5 +1,6 @@
 package com.carenest.controller.meals;
 
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.meals.FoodSampleDisposeRequest;
 import com.carenest.dto.meals.FoodSampleRequest;
 import com.carenest.dto.meals.FoodSampleResponse;
@@ -182,6 +183,17 @@ public class KitchenRecordsController {
         List<MealPhotoResponse> photos = mealPhotoService.getPhotos(currentUser, campusId, date);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get meal photos success", photos);
+    }
+
+    @GetMapping("/meal-photos/{photoId}/url")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'KITCHEN_STAFF')")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getPhotoUrl(
+            @PathVariable Long photoId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getPhotoUrl|userId=" + currentUser.userId() + "|photoId=" + photoId;
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = mealPhotoService.getPhotoUrl(currentUser, photoId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get meal photo url success", url);
     }
 
     @GetMapping("/meal-photos/{photoId}/content")

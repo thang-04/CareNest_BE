@@ -26,7 +26,7 @@ DB dev dựng bằng `R__dev_seed.sql` cũ: `classrooms` chỉ có campus, năm,
 Seed viết trước khi lớp bắt buộc nhóm tuổi/phòng (V15, V16) và trước khi có Tổ trưởng (AUTH-23); `INSERT ... ON CONFLICT DO NOTHING` không vá lớp đã tồn tại; không test nào chạy seed dev.
 
 ## Fix
-`src/main/resources/db/dev/R__dev_seed.sql`: thêm phòng `DEMO-A1`/`DEMO-B1`; `UPDATE classrooms` điền nhóm tuổi (A1 ⇒ ag-4, B1 ⇒ ag-5 theo năm sinh trẻ demo), phòng, sức chứa khi đang trống; phân công `AGE_GROUP_TEAM_LEADER` (teacher1 ag-4, teacher2 ag-5) nếu nhóm tuổi chưa có tổ trưởng năm đó. Repeatable migration chạy lại vì đổi checksum ⇒ VPS nhận khi deploy.
+`R__dev_seed.sql` (đã thay bằng bộ `db/dev/R__dev_0*.sql` sinh từ `scripts/dev/gen-dev-dataset.mjs`, 15/11/2026): thêm phòng `DEMO-A1`/`DEMO-B1`; `UPDATE classrooms` điền nhóm tuổi (A1 ⇒ ag-4, B1 ⇒ ag-5 theo năm sinh trẻ demo), phòng, sức chứa khi đang trống; phân công `AGE_GROUP_TEAM_LEADER` (teacher1 ag-4, teacher2 ag-5) nếu nhóm tuổi chưa có tổ trưởng năm đó. Repeatable migration chạy lại vì đổi checksum ⇒ VPS nhận khi deploy.
 
 ## Regression test
 `src/test/java/com/carenest/repository/organization/DevSeedIntegrationTest.java`: `freshSeedSatisfiesClassInvariants`, `seedPatchesLegacyClassesWithoutAgeGroup` (DB có lớp kiểu seed cũ ⇒ seed mới vá; chạy lại không đổi). Trước fix: lớp seed không có `room_id`/nhóm tuổi ⇒ assert fail.

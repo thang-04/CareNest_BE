@@ -24,12 +24,13 @@ import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.eduplan.EduPlanCalendarQueryService;
+import com.carenest.service.observation.EvaluationDeadlineService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
-import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
@@ -73,6 +74,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
+    private final EvaluationNotifier evaluationNotifier;
+    private final EvaluationDeadlineService evaluationDeadlineService;
 
     /** Ô lưu trong JSON: c = trẻ, g = dòng gốc MT, m = đạt, x = GV sửa tay. */
     record StoredCell(Long c, Long g, Boolean m, boolean x) {}
@@ -87,7 +90,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             List<ClassroomInfoResponse> year = schoolYearId == null
                     ? classroomService.findActiveYearClassrooms()
                     : classroomService.findYearClassrooms(schoolYearId);
@@ -232,6 +235,9 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
             ThemeEvaluation evaluation = editable(currentUser, cls, theme, Permission.ASSESSMENT_CONFIRM);
+            if (!rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
+            }
             if (rules.today().isBefore(theme.getEndDate())) {
                 throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_ENDED);
             }
@@ -245,6 +251,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             ThemeEvaluationResponse response = view(currentUser, cls, theme, evaluation);
             evaluation.setPresentationSnapshot(objectMapper.writeValueAsString(response));
             evaluationRepository.saveAndFlush(evaluation);
+            evaluationNotifier.themeEvaluationConfirmed(
+                    all.stream().map(StoredCell::c).distinct().toList(), cls.name());
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -397,7 +405,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         boolean reads = rules.canRecord(user, cls)
                 || rules.taughtClosedYear(user, cls)
                 || rules.readsCampus(user, cls.campusId())
-                || rules.teamLeaderAgeGroupIds(user).contains(cls.ageGroupId());
+                || rules.leadsClass(user, cls);
         if (!reads) {
             throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
         }
@@ -493,7 +501,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     // Sửa: GV lớp, năm học đang hoạt động, chủ đề đã bắt đầu, bảng chưa xác nhận; tạo bảng tuần tự theo lớp
     private ThemeEvaluation editable(
             CurrentUser user, ClassroomInfoResponse cls, ThemeRow theme, Permission requiredPermission) {
-        if (!user.hasPermission(requiredPermission) || !rules.canRecord(user, cls)) {
+        if (!user.hasPermission(requiredPermission) || !rules.canRecordPeriod(user, cls)) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -502,6 +510,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         if (rules.today().isBefore(theme.getStartDate())) {
             throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_STARTED);
         }
+        // OBS-27: quá hạn sau ngày kết thúc chủ đề thì khóa cả lớp, trừ khi BGH đang mở lại
+        evaluationDeadlineService.checkWritable(cls, EvaluationLockKind.THEME, String.valueOf(theme.getLineage()));
         rules.lockClassForUpdate(cls.id());
         ThemeEvaluation evaluation = evaluationRepository
                 .findByClassroomIdAndThemeId(cls.id(), theme.getLineage())
@@ -694,7 +704,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         boolean confirmed = saved != null && saved.isConfirmed();
         boolean canEdit = !confirmed
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
-                && rules.canRecord(user, cls)
+                && rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && !today.isBefore(theme.getStartDate());
         List<ChildRow> rows = new ArrayList<>();
@@ -776,7 +786,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 canEdit,
                 !confirmed
                         && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
-                        && rules.canRecord(user, cls)
+                        && rules.canRecordPeriod(user, cls)
+                        && rules.isHomeroom(user, cls)
                         && cls.yearStatus() == SchoolYearStatus.ACTIVE
                         && !today.isBefore(theme.getEndDate()),
                 confirmedByName,
@@ -805,32 +816,28 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     }
 
     private ThemeSigners signersOf(ClassroomInfoResponse cls, LocalDate at) {
-        // Mẫu ký "Giáo viên chủ nhiệm": GV chủ nhiệm của lớp, lớp chưa có chủ nhiệm thì các GV lớp
-        Long homeroom = staffAssignmentService
-                .findHomeroomTeacherIds(List.of(cls.id()), at)
-                .get(cls.id());
-        List<Long> teacherIds = homeroom != null
-                ? List.of(homeroom)
-                : staffAssignmentService
-                        .findCurrentTeacherIds(List.of(cls.id()), at)
-                        .getOrDefault(cls.id(), List.of());
+        // Mẫu ký "Giáo viên": điền tất cả giáo viên phụ trách lớp tại thời điểm của phiếu.
+        List<Long> teacherIds = staffAssignmentService
+                .findCurrentMainTeacherIds(List.of(cls.id()), at)
+                .getOrDefault(cls.id(), List.of());
         Set<Long> leaderIds = cls.ageGroupId() == null
                 ? Set.of()
-                : staffAssignmentService.findActiveTeamLeaderIds(cls.ageGroupId(), at);
-        Long issuer = cls.ageGroupId() == null
-                ? null
-                : evaluationRepository.findApprovedPlanIssuer(cls.schoolYearId(), cls.ageGroupId());
+                : staffAssignmentService.findYearTeamLeaderIds(cls.ageGroupId(), cls.schoolYearId(), at);
+        // Ô "Phó hiệu trưởng": PHT phụ trách điểm trường của lớp tại ngày in, theo phân công năm học đó; không có thì
+        // để
+        // trống cho ghi tay (không lấy người ban hành kế hoạch vì có thể là HT)
+        List<Long> vpIds = staffAssignmentService.findCampusVicePrincipalIds(cls.campusId(), at).stream()
+                .sorted()
+                .toList();
         List<Long> ids = new ArrayList<>(teacherIds);
         ids.addAll(leaderIds);
-        if (issuer != null) {
-            ids.add(issuer);
-        }
+        ids.addAll(vpIds);
         Map<Long, String> names = accountService.findFullNames(ids);
-        String vicePrincipal = issuer != null ? names.get(issuer) : null;
-        if (vicePrincipal == null) {
-            List<String> vps = accountService.findActiveFullNamesByRole(CareNestRole.VICE_PRINCIPAL);
-            vicePrincipal = vps.size() == 1 ? vps.getFirst() : null;
-        }
+        String vicePrincipal = vpIds.stream()
+                .map(names::get)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
         return new ThemeSigners(
                 teacherIds.stream().map(names::get).filter(Objects::nonNull).toList(),
                 leaderIds.stream()

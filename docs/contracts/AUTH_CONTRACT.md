@@ -11,6 +11,9 @@ Web React dùng gateway opt-in theo ADR-0013 (`docs/decisions/ADR-0013-react-aut
 - Access token: JWT RS256, thời hạn 5 phút, `aud` chứa `carenest-api`, `sub` = id user Keycloak, role ở `realm_access.roles`.
 - Refresh token PKCE do client giữ. Riêng Web gateway (ADR-0015): refresh token Keycloak mã hóa AES-GCM nằm trong cookie HttpOnly, DB không lưu phiên; Keycloak giữ phiên. Refresh token xoay vòng, JavaScript không đọc được.
 - Logout: client gọi `end_session` của Keycloak (Web) / `logout` + xóa token (Mobile). Access token đã cấp còn hiệu lực tới khi hết hạn (≤ 5 phút).
+- Một phiên Web/tài khoản (AUTH-28), người dùng xác nhận: `POST /auth/login` đúng mật khẩu mà user còn phiên Keycloak khác có client Web gateway ⇒ **409 `errorCode` 1017 `WEB_SESSION_CONFLICT`**, `data.takeover.expiresAt` (2 phút), không có access token, không cookie phiên; đặt cookie HttpOnly `CARENEST_TAKEOVER` (path `/api/auth`, AES-GCM chứa refresh token của lượt chờ — server chỉ giữ id/user/`sid`/trạng thái trong bộ nhớ). Trình duyệt mới: `POST /auth/login/takeover/confirm` (CSRF) ⇒ 200 như login thành công + hủy phiên Web khác; `POST /auth/login/takeover/cancel` (CSRF) ⇒ đăng xuất lượt chờ. Cả hai luôn xóa cookie lượt chờ. Confirm lỗi: **1018 `WEB_SESSION_TAKEOVER_REJECTED`** (phiên đang dùng chọn ở lại), **1019 `WEB_SESSION_TAKEOVER_EXPIRED`** (hết hạn/không tìm thấy/đã dùng/API restart). Phiên đang dùng: `GET /me/session` ⇒ `data.pendingTakeover {id, requestedAt, expiresAt}` hoặc null; `POST /me/session/takeovers/{id}/reject` (Bearer) ⇒ hủy lượt chờ của chính tài khoản (khác tài khoản/không còn ⇒ 1019). Ai thao tác trước thắng. Sau khi confirm, phiên bị hủy: Trình duyệt cũ nhận 401 `errorCode` **1016 `WEB_SESSION_REPLACED`** ở `POST /auth/refresh` kế tiếp (cookie bị xóa như 1003); hết hạn thường vẫn 1003. Tra cứu lý do lỗi ⇒ trả 1003. Phiên Mobile giữ nguyên. Cờ `CARENEST_AUTH_SINGLE_WEB_SESSION` (mặc định `true`): `false` chỉ dùng ở môi trường test để nhiều người dùng chung tài khoản — login không hỏi, không trả 1017, không hủy phiên nào; production giữ `true`.
+- Chặn ngay: `sid` của phiên bị hủy được lưu (bảng `revoked_web_sessions`, giữ 10 phút > tuổi access token) và kiểm trong bộ lọc JWT ⇒ **mọi request Bearer** của phiên cũ trả 401 `errorCode` 1016 ngay (không gọi Keycloak mỗi request). `GET /me/session` (cần đăng nhập, `Cache-Control: no-store`) để Web hỏi định kỳ: 200 = phiên còn (kèm `pendingTakeover` nếu có), 401 1016 = bị thay thế.
+- FE khi nhận 1016 (từ refresh hoặc retry sau 401): báo "Tài khoản vừa đăng nhập ở trình duyệt khác", không nói "hết hạn". Trang đang có dữ liệu chưa lưu nên giữ bản nháp cục bộ trước khi về màn đăng nhập (kế hoạch năm đã có bản phục hồi). Web hỏi `GET /me/session` mỗi 15 giây khi tab hiển thị và khi quay lại tab ⇒ trình duyệt cũ hiện cảnh báo trong ≤ ~15 giây.
 
 | Client Keycloak | Dùng cho | Loại | Redirect |
 | --- | --- | --- | --- |
@@ -43,7 +46,7 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 
 Mọi response thành công dùng `{code,desc,data}` và `Cache-Control: no-store`. Cookie phiên `CARENEST_SESSION`: HttpOnly, SameSite=Lax, path `{API_PREFIX}/auth`, Secure theo cấu hình; remember bật thì Max-Age tối đa 10 giờ, tắt thì session cookie. Idle 30 phút và trần 10 giờ do Keycloak áp (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`); server chặn thêm absolute 10 giờ từ `loginAt` trong cookie. Refresh trả 503 khi provider tạm lỗi thì cookie được giữ, client thử lại được.
 
-OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
+OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; response forgot/metadata/resend có `expiresAt`, `resendAvailableAt` và `expiresInSeconds`, `resendInSeconds` (tính tại server lúc trả) — client đếm ngược theo số giây tương đối, không so `expiresAt` với giờ máy (máy lệch giờ ⇒ báo hết hạn sai); 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
 
 Recovery/current-password dùng assertion HMAC hạn 60 giây, nonce một lần, ràng buộc realm/subject/issuer/audience/purpose để đổi lấy capability provider 10 phút. Không có API đổi mật khẩu chỉ bằng userId. Native MFA/required actions không được bỏ qua; gateway hiện chưa có UI nhận TOTP, tài khoản yêu cầu TOTP sẽ bị từ chối.
 
@@ -84,6 +87,13 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 | --- | --- | --- |
 | Có tài khoản Keycloak nhưng chưa có hồ sơ CareNest | 403 | `errorCode` 1014 `ACCOUNT_NOT_PROVISIONED` |
 | Tài khoản CareNest bị khóa (token còn hạn vẫn bị chặn) | 403 | `errorCode` 1015 `ACCOUNT_INACTIVE` |
+| Login Web: đúng mật khẩu nhưng tài khoản bị vô hiệu hóa (Keycloak `enabled=false`; sai mật khẩu vẫn 1001, không lộ trạng thái) | 403 | `errorCode` 1015 `ACCOUNT_INACTIVE` — "liên hệ Ban Giám hiệu" |
+| Login Web: Keycloak đang khóa tạm sau 5 lần sai liên tiếp (realm brute-force: 60s tăng dần, tối đa 15 phút, tự mở) | 429 | `errorCode` 1020 `LOGIN_TEMPORARILY_LOCKED`, `data.retryAfterSeconds`, `data.retryAt`; BE hỏi admin API `attack-detection` sau `invalid_grant`, tra cứu lỗi ⇒ 1001 |
+| Login Web: tài khoản còn phiên Web khác (AUTH-28) | 409 | `errorCode` 1017 `WEB_SESSION_CONFLICT`, `data.takeover.expiresAt`, cookie `CARENEST_TAKEOVER` — hỏi "Dùng ở đây / Hủy" |
+| Confirm takeover: phiên đang dùng đã chọn ở lại | 409 | `errorCode` 1018 `WEB_SESSION_TAKEOVER_REJECTED` |
+| Confirm takeover / reject: lượt chờ hết hạn, không tồn tại, đã dùng | 409 | `errorCode` 1019 `WEB_SESSION_TAKEOVER_EXPIRED` — đăng nhập lại |
+| Request Bearer bất kỳ (gồm `GET /me/session`): token thuộc phiên Web đã bị thay thế (AUTH-28) | 401 | `errorCode` 1016 `WEB_SESSION_REPLACED` |
+| Refresh Web: phiên bị đăng nhập Web mới hơn của cùng tài khoản thay thế (AUTH-28) | 401 | `errorCode` 1016 `WEB_SESSION_REPLACED` — báo đăng nhập nơi khác, về màn đăng nhập |
 
 Hai lỗi trên áp dụng cho **mọi** API dưới `{API_PREFIX}` (không riêng `/accounts/me`).
 
@@ -252,6 +262,34 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 | Khóa/mật khẩu: tài khoản không phải phụ huynh / của chính mình | 400 | `This account is not a parent account` / `You cannot manage your own account here` |
 | Khóa/mật khẩu: phụ huynh ngoài phạm vi | 403 | `You cannot manage this account` |
 
+### Mã kích hoạt qua SMS (đã có — AUTH-18, ADR-0026, từ 11/11/2026)
+
+Chỉ áp dụng khi `CARENEST_SMS_PROVIDER` là nhà cung cấp thật (vd. `textbee`); cổng giả `fake` (mặc định) giữ mật khẩu tạm như trên. Khi bật: tài khoản phụ huynh mới tạo ở `POST /children/enrollments` và `POST /children/{childId}/guardians/activate` không có mật khẩu; SMS chứa tên đăng nhập + mã 6 số, hạn 72 giờ, sai 5 lần thì mã hủy, dùng một lần. Response hai API đó không đổi shape. `POST /children/{childId}/guardians` (kiểu cũ) vẫn trả mật khẩu tạm.
+
+| Method + path | Body | `data` |
+| --- | --- | --- |
+| `POST /parent-activation` (công khai, không Bearer/cookie/CSRF — App) | `{ "phone", "code" (6 số), "newPassword", "confirmPassword" }` (mật khẩu 8–128) | `{ username }` ⇒ App đăng nhập PKCE bằng tên này + mật khẩu mới |
+| `POST /parent-accounts/{userId}/activation-code` (`PARENT_ACCOUNT_MANAGE`, phạm vi như trên) | — | `{ userId, username, smsStatus, expiresAt, activationCode }` — `activationCode` chỉ có khi không gửi được SMS thật (cổng giả hoặc `FAILED`) để in phiếu; mã cũ mất hiệu lực |
+
+| Tình huống | HTTP / `errorCode` |
+| --- | --- |
+| SĐT không có mã chờ, mã sai/hết hạn/hết lượt/đã dùng, tài khoản khóa (một lỗi chung) | 400 / 1006 `OTP_INVALID_OR_EXPIRED` |
+| Hai mật khẩu khác nhau | 400 / 9002 `MALFORMED_REQUEST` |
+| Keycloak từ chối mật khẩu (mã giữ nguyên, không tính lần sai) | 400 / 1009 `PASSWORD_POLICY_VIOLATION` |
+| Gửi lại trong 60 giây | 429 / 1007 `OTP_RESEND_TOO_SOON` |
+| Gửi lại cho tài khoản đã kích hoạt hoặc tạo bằng mật khẩu tạm | 409 / 1144 `ACTIVATION_NOT_PENDING` |
+
+### Ảnh đại diện tài khoản (AUTH-27, từ 14/11/2026)
+
+| Endpoint | Ai gọi | Ghi chú |
+| --- | --- | --- |
+| `PUT /accounts/me/photo` (multipart `file`) | mọi tài khoản đăng nhập | JPG/PNG/WEBP ≤ 2 MB, kho `USER_AVATAR` (`avatars/users/`); thay ảnh cũ |
+| `DELETE /accounts/me/photo` | mọi tài khoản đăng nhập | Bỏ ảnh; chưa có ảnh vẫn 200. Tài khoản có role phụ huynh ⇒ 403 / 1145 `ACCOUNT_PHOTO_REQUIRED` |
+| `GET /accounts/me/photo`, `GET /accounts/me/photo/url` | mọi tài khoản đăng nhập | Chưa có ảnh ⇒ 404 / 1132 |
+| `POST /accounts/photos/urls` `{ userIds: [1..100] }` | mọi tài khoản đăng nhập | `[{ userId, url, expiresAt }]` chỉ người có ảnh, là nhân sự (hoặc chính mình) và được xem theo AUTH-27; người khác bị bỏ qua, không báo lỗi. Rỗng/>100/id ≤ 0 ⇒ 400 |
+
+Quyền xem (`AccountPhotoAccessPolicy`): Admin/HT xem mọi nhân sự; PHT/GV/bếp xem nhân sự cùng điểm trường theo phân công hôm nay (GV qua lớp) và mọi HT; phụ huynh xem GV đang dạy lớp con; ai cũng xem ảnh mình. Ảnh phụ huynh vẫn chỉ xem qua `/children/{childId}/guardians/{userId}/photo[/url]`.
+
 ## Tác động FE/APP (BE không sửa repo khác)
 
 Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `FE:docs/integration/AUTH_FLOW.md`, `APP:docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
@@ -266,6 +304,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
 - PHT xem mọi cơ sở (AUTH-20, chốt 31/10): mã `ALL_CAMPUS_VIEW` đã bỏ khỏi `Permission` (V39 xóa dòng ma trận/ngoại lệ cũ; lịch sử giữ chuỗi gốc). FE bỏ mã này ở danh mục quyền/ngoại lệ (`permissionConstants.js`, `permissionCatalog.js`) và luôn hiện bộ lọc điểm trường cho PHT; gửi mã cũ trong `PUT .../permission-overrides` ⇒ 400.
+- Mã kích hoạt (ADR-0026): APP thêm màn "Kích hoạt tài khoản" (chưa đăng nhập) gọi `POST /parent-activation`, xong thì vào đăng nhập PKCE với `username` trả về; 400 1006 ⇒ báo mã sai/hết hạn, liên hệ nhà trường gửi lại. FE màn Tài khoản phụ huynh thêm "Gửi lại mã" (`POST /parent-accounts/{userId}/activation-code`); có `activationCode` ⇒ in phiếu mã (không in mật khẩu); 409 1136 ⇒ dùng "Cấp lại mật khẩu tạm".
 - Types: sinh lại từ `docs/api/openapi.yaml`.
 
 ## Còn chờ

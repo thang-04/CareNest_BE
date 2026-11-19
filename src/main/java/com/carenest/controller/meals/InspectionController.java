@@ -1,5 +1,6 @@
 package com.carenest.controller.meals;
 
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.dto.meals.InspectionDayResponse;
 import com.carenest.dto.meals.InspectionReopenRequest;
@@ -102,6 +103,18 @@ public class InspectionController {
         InspectionSheetResponse sheet = inspectionService.reopen(currentUser, campusId, date, tab, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reopen inspection success", sheet);
+    }
+
+    @GetMapping("/signatures/{imageKey}/url")
+    @PreAuthorize(MANAGERS)
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getSignatureImageUrl(
+            @PathVariable String imageKey, @RequestParam Long campusId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getSignatureImageUrl|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = inspectionService.getSignatureImageUrl(currentUser, campusId, imageKey);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get signature image url success", url);
     }
 
     @GetMapping("/signatures/{imageKey}")

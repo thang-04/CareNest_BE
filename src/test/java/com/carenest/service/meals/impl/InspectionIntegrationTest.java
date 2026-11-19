@@ -3,7 +3,6 @@ package com.carenest.service.meals.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
 import com.carenest.dto.common.ImageContent;
 import com.carenest.dto.meals.FoodSampleRequest;
@@ -13,14 +12,14 @@ import com.carenest.dto.meals.InspectionReopenRequest;
 import com.carenest.dto.meals.InspectionSaveRequest;
 import com.carenest.dto.meals.InspectionSheetResponse;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.InspectionSignatureStorage;
-import com.carenest.integration.storage.SignatureStorage;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.FoodSampleService;
 import com.carenest.service.meals.InspectionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.InspectionStatus;
 import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.MealSession;
@@ -45,7 +44,6 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -77,11 +75,9 @@ class InspectionIntegrationTest {
         }
     }
 
-    @MockitoBean
-    private SignatureStorage signatureStorage;
-
-    @MockitoBean
-    private InspectionSignatureStorage inspectionStorage;
+    // Spy kho thật: chỉ chặn phần gọi S3 của ảnh chữ ký
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private FileStorage fileStorage;
 
     @Autowired
     private InspectionService inspectionService;
@@ -132,9 +128,11 @@ class InspectionIntegrationTest {
                         + " VALUES (?, ?, 'image/png', 12, TRUE)",
                 approver.userId(),
                 SIGNATURE_KEY);
-        when(signatureStorage.load(SIGNATURE_KEY)).thenReturn(PNG);
-        when(inspectionStorage.store(any(), any())).thenReturn(COPY_KEY);
-        when(inspectionStorage.load(COPY_KEY)).thenReturn(PNG);
+        org.mockito.Mockito.doReturn(PNG).when(fileStorage).loadBytes(FileCategory.USER_SIGNATURE, SIGNATURE_KEY);
+        org.mockito.Mockito.doReturn(new FileStorage.StoredFile(COPY_KEY, "image/png", PNG.length))
+                .when(fileStorage)
+                .store(org.mockito.ArgumentMatchers.eq(FileCategory.INSPECTION_SIGNATURE), any(), any(byte[].class));
+        org.mockito.Mockito.doReturn(PNG).when(fileStorage).loadBytes(FileCategory.INSPECTION_SIGNATURE, COPY_KEY);
     }
 
     @Test

@@ -1,7 +1,12 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.attendance.DayInfoResponse;
+import com.carenest.dto.child.ClassChildResponse;
+import com.carenest.dto.child.GuardianLinkResponse;
+import com.carenest.dto.meals.MealPlanAmendRequest;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
+import com.carenest.dto.meals.MealPlanRevisionResponse;
 import com.carenest.dto.meals.MealPlanSummaryResponse;
 import com.carenest.dto.meals.MenuStatisticsRequest;
 import com.carenest.dto.meals.MenuStatisticsResponse;
@@ -13,33 +18,43 @@ import com.carenest.entity.meals.DishIngredient;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.MealCount;
 import com.carenest.entity.meals.MealPlanDay;
+import com.carenest.entity.meals.MealPlanDayRevision;
 import com.carenest.entity.meals.MealPlanItem;
 import com.carenest.entity.meals.MealPlanWeek;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.MealCountRepository;
+import com.carenest.repository.meals.MealPlanDayRevisionRepository;
 import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AccountService;
+import com.carenest.service.attendance.AttendanceService;
+import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DayPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.ItemPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Norm;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -48,6 +63,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -65,6 +81,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     private static final String LOG_PREFIX = "[MealPlanServiceImpl]";
     private static final String NONE = "NONE";
     private static final int SCHOOL_DAYS = 5;
+    private static final int MIN_REASON_LENGTH = 10;
 
     private final MealPlanWeekRepository weekRepository;
     private final DishRepository dishRepository;
@@ -76,6 +93,13 @@ public class MealPlanServiceImpl implements MealPlanService {
     private final DryStockOutlook dryStockOutlook;
     private final CampusService campusService;
     private final MealPlanEvaluationSupport evaluationSupport;
+    private final EnrollmentService enrollmentService;
+    private final GuardianChildLinkService guardianChildLinkService;
+    private final NotificationService notificationService;
+    private final MealPlanDayRevisionRepository revisionRepository;
+    private final AttendanceService attendanceService;
+    private final StaffAssignmentService staffAssignmentService;
+    private final AccountService accountService;
     private final Clock clock;
 
     @Override
@@ -168,7 +192,8 @@ public class MealPlanServiceImpl implements MealPlanService {
             }
             week.publish(currentUser.userId(), clock.instant());
             weekRepository.flush();
-            syncConfirmedDays(weekStart);
+            syncConfirmedDays(weekStart, weekStart.plusDays(SCHOOL_DAYS - 1));
+            notifyParents(weekStart);
             MealPlanResponse response = toResponse(currentUser, weekStart, week);
             log.info("{}|END", logPrefix);
             return response;
@@ -178,10 +203,207 @@ public class MealPlanServiceImpl implements MealPlanService {
         }
     }
 
-    // P-38: suất đã chốt trước khi tuần được công bố (hiếm) ⇒ trừ kho ngay khi công bố
-    private void syncConfirmedDays(LocalDate weekStart) {
+    @Override
+    public MealPlanResponse amendMealPlanDay(
+            CurrentUser currentUser, LocalDate weekStart, LocalDate date, MealPlanAmendRequest request) {
+        String logPrefix = LOG_PREFIX + "|amendMealPlanDay|userId=" + currentUser.userId() + "|weekStart=" + weekStart
+                + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            checkCanManage(currentUser);
+            checkMonday(weekStart);
+            checkInWeek(weekStart, date);
+            String reason = request.reason() == null ? "" : request.reason().trim();
+            if (reason.length() < MIN_REASON_LENGTH) {
+                throw GlobalException.of(ApiCode.MEAL_PLAN_REASON_REQUIRED);
+            }
+            MealPlanWeek week = weekRepository
+                    .findForUpdateByWeekStart(weekStart)
+                    .filter(MealPlanWeek::isPublished)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PLAN_NOT_PUBLISHED));
+            MealPlanDay before = week.day(date).orElse(MealPlanDay.of(date, false, "", List.of()));
+            // P-39: chỉ ngày chưa tới hoặc hôm nay trước giờ chốt; ngày nghỉ thuộc lịch năm học, không đổi ở đây
+            if (before.isOff() || !isAmendable(date)) {
+                throw GlobalException.of(ApiCode.MEAL_PLAN_DAY_LOCKED, dayLabel(date));
+            }
+            MealPlanDay wanted = toDays(
+                            weekStart,
+                            new MealPlanRequest(List.of(
+                                    new MealPlanRequest.DayInput(date, false, request.note(), request.items()))))
+                    .stream()
+                    .filter(d -> d.getMenuDate().equals(date))
+                    .findFirst()
+                    .orElseThrow();
+            if (sameContent(before, wanted)) {
+                throw GlobalException.of(ApiCode.MEAL_PLAN_AMEND_NO_CHANGE, dayLabel(date));
+            }
+            List<MealPlanDayRevision.Item> beforeItems = revisionItems(before.getItems());
+            week.amendPublishedDay(date, wanted.getNote(), wanted.getItems(), currentUser.userId());
+            weekRepository.saveAndFlush(week);
+            MealPlanDay after = week.day(date).orElseThrow();
+            // Cân đối chỉ cảnh báo khi sửa ngoại lệ (user chốt 18/11); giữ lại cảnh báo lúc sửa để tra cứu
+            List<MealPlanDayRevision.Issue> issues = evaluate(weekStart, week).issues().stream()
+                    .filter(i -> date.equals(i.date()))
+                    .map(i -> new MealPlanDayRevision.Issue(i.severity(), i.code(), i.message()))
+                    .toList();
+            revisionRepository.save(MealPlanDayRevision.of(
+                    week.getId(),
+                    date,
+                    before.getNote(),
+                    beforeItems,
+                    after.getNote(),
+                    revisionItems(after.getItems()),
+                    reason,
+                    issues,
+                    currentUser.userId(),
+                    clock.instant()));
+            syncConfirmedDays(date, date);
+            notifyMenuChanged(date, reason);
+            MealPlanResponse response = toResponse(currentUser, weekStart, week);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MealPlanRevisionResponse> getMealPlanRevisions(CurrentUser currentUser, LocalDate weekStart) {
+        String logPrefix =
+                LOG_PREFIX + "|getMealPlanRevisions|userId=" + currentUser.userId() + "|weekStart=" + weekStart;
+        log.info("{}|START", logPrefix);
+        try {
+            checkMonday(weekStart);
+            List<MealPlanDayRevision> revisions = weekRepository
+                    .findByWeekStart(weekStart)
+                    .map(w -> revisionRepository.findByWeekIdOrderByChangedAtDescIdDesc(w.getId()))
+                    .orElse(List.of());
+            Map<Long, String> names = accountService.findFullNames(
+                    revisions.stream().map(MealPlanDayRevision::getChangedBy).collect(Collectors.toSet()));
+            List<MealPlanRevisionResponse> response = revisions.stream()
+                    .map(r -> new MealPlanRevisionResponse(
+                            r.getId(),
+                            r.getMenuDate(),
+                            dayContent(r.getBeforeNote(), r.getBeforeItems()),
+                            dayContent(r.getAfterNote(), r.getAfterItems()),
+                            r.getReason(),
+                            r.getIssues().stream()
+                                    .map(i -> new MealPlanRevisionResponse.RevisionIssue(
+                                            i.severity(), i.code(), i.message()))
+                                    .toList(),
+                            r.getChangedBy(),
+                            names.get(r.getChangedBy()),
+                            r.getChangedAt()))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private static MealPlanRevisionResponse.RevisionDay dayContent(String note, List<MealPlanDayRevision.Item> items) {
+        return new MealPlanRevisionResponse.RevisionDay(
+                note,
+                items.stream()
+                        .map(i -> new MealPlanRevisionResponse.RevisionItem(
+                                i.session(), i.block(), i.dishId(), i.dishName()))
+                        .toList());
+    }
+
+    private static void checkInWeek(LocalDate weekStart, LocalDate date) {
+        long offset = date.toEpochDay() - weekStart.toEpochDay();
+        if (offset < 0 || offset >= SCHOOL_DAYS) {
+            throw GlobalException.of(ApiCode.MEAL_PLAN_DATE_INVALID, date);
+        }
+    }
+
+    /** P-39: ngày học chưa qua giờ chốt (ngày tới hoặc hôm nay trước giờ chốt) — cùng nguồn giờ chốt với sổ báo ăn. */
+    private boolean isAmendable(LocalDate date) {
+        if (date.isBefore(LocalDate.now(clock))) {
+            return false;
+        }
+        DayInfoResponse info = attendanceService.getActiveYearDayInfo(date);
+        return info != null && info.schoolDay() && !info.baseLocked();
+    }
+
+    private static boolean sameContent(MealPlanDay a, MealPlanDay b) {
+        return a.getNote().equals(b.getNote()) && slots(a).equals(slots(b));
+    }
+
+    private static List<String> slots(MealPlanDay day) {
+        return day.getItems().stream()
+                .map(i -> i.getSession() + "|" + i.getMenuBlock() + "|" + i.getDishId())
+                .toList();
+    }
+
+    private List<MealPlanDayRevision.Item> revisionItems(List<MealPlanItem> items) {
+        Map<Long, String> names =
+                dishRepository
+                        .findAllById(items.stream().map(MealPlanItem::getDishId).collect(Collectors.toSet()))
+                        .stream()
+                        .collect(Collectors.toMap(Dish::getId, Dish::getName));
+        return items.stream()
+                .map(i -> new MealPlanDayRevision.Item(
+                        i.getSession(), i.getMenuBlock(), i.getDishId(), names.get(i.getDishId())))
+                .toList();
+    }
+
+    /** P-39: sửa ngoại lệ ⇒ báo phụ huynh của trẻ đang học và bếp hai điểm trường. */
+    private void notifyMenuChanged(LocalDate date, String reason) {
+        LocalDate today = LocalDate.now(clock);
+        Set<Long> recipients = new LinkedHashSet<>(parentIds(today));
+        classroomService.findActiveYearClassrooms().stream()
+                .map(ClassroomInfoResponse::campusId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .forEach(campusId -> recipients.addAll(staffAssignmentService.findCampusKitchenIds(campusId, today)));
+        if (recipients.isEmpty()) {
+            return;
+        }
+        notificationService.notifyEvent(
+                recipients,
+                NotificationType.MENU_CHANGED,
+                Map.of("ngay", DateTimeFormatter.ofPattern("dd/MM").format(date), "lyDo", reason),
+                null);
+    }
+
+    private List<Long> parentIds(LocalDate today) {
+        Set<Long> childIds = new LinkedHashSet<>();
+        for (var cls : classroomService.findActiveYearClassrooms()) {
+            enrollmentService.findChildrenInClassroom(cls.id(), today).stream()
+                    .map(ClassChildResponse::id)
+                    .forEach(childIds::add);
+        }
+        if (childIds.isEmpty()) {
+            return List.of();
+        }
+        return guardianChildLinkService.findLinksOfChildren(childIds).stream()
+                .map(GuardianLinkResponse::userId)
+                .toList();
+    }
+
+    /** NUT-08: công bố thực đơn tuần ⇒ báo phụ huynh của trẻ đang học (HT tắt được — PAR-09). */
+    private void notifyParents(LocalDate weekStart) {
+        List<Long> parents = parentIds(LocalDate.now(clock));
+        if (parents.isEmpty()) {
+            return;
+        }
+        DateTimeFormatter dm = DateTimeFormatter.ofPattern("dd/MM");
+        notificationService.notifyEvent(
+                parents,
+                NotificationType.MENU_PUBLISHED,
+                Map.of("tuan", dm.format(weekStart) + " – " + dm.format(weekStart.plusDays(SCHOOL_DAYS - 1))),
+                null);
+    }
+
+    // P-38: suất đã chốt trước khi công bố (hiếm) hoặc trước khi sửa ngoại lệ ⇒ trừ kho lại theo thực đơn mới
+    private void syncConfirmedDays(LocalDate from, LocalDate to) {
         Set<String> done = new LinkedHashSet<>();
-        for (MealCount count : mealCountRepository.findByDateBetween(weekStart, weekStart.plusDays(SCHOOL_DAYS - 1))) {
+        for (MealCount count : mealCountRepository.findByDateBetween(from, to)) {
             if (count.isConfirmed() && done.add(count.getCampusId() + "|" + count.getDate())) {
                 stockLedgerService.syncDay(count.getCampusId(), count.getDate());
             }
@@ -311,7 +533,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .toList();
         long enrolled = classIds.isEmpty()
                 ? 0
-                : classroomService.countActiveChildren(classIds, date).values().stream()
+                : classroomService.countMealRegisteredChildren(classIds, date).values().stream()
                         .mapToLong(Long::longValue)
                         .sum();
         return new Headcount((int) enrolled, "ENROLLED");
@@ -469,13 +691,16 @@ public class MealPlanServiceImpl implements MealPlanService {
                         .collect(Collectors.toSet()))
                 .stream()
                 .collect(Collectors.toMap(Dish::getId, Function.identity()));
+        boolean manage = currentUser.hasPermission(Permission.MENU_MANAGE);
+        boolean published = week != null && week.isPublished();
         List<MealPlanResponse.Day> dayViews = new ArrayList<>();
         for (int i = 0; i < SCHOOL_DAYS; i++) {
             LocalDate date = weekStart.plusDays(i);
             MealPlanDay day = week == null ? null : week.day(date).orElse(null);
+            boolean canAmend = manage && published && (day == null || !day.isOff()) && isAmendable(date);
             dayViews.add(
                     day == null
-                            ? new MealPlanResponse.Day(date, false, "", List.of())
+                            ? new MealPlanResponse.Day(date, false, "", List.of(), canAmend)
                             : new MealPlanResponse.Day(
                                     date,
                                     day.isOff(),
@@ -490,15 +715,14 @@ public class MealPlanServiceImpl implements MealPlanService {
                                                         dish == null ? null : dish.getName(),
                                                         dish == null ? null : dish.getDishType());
                                             })
-                                            .toList()));
+                                            .toList(),
+                                    canAmend));
         }
         MealPlanEvaluator.Result result = evaluate(weekStart, week, groups, dishes);
         List<MealPlanResponse.Issue> issues = new ArrayList<>(result.issues());
         if (week != null) {
             issues.addAll(dryStockIssues(currentUser, weekStart));
         }
-        boolean manage = currentUser.hasPermission(Permission.MENU_MANAGE);
-        boolean published = week != null && week.isPublished();
         return new MealPlanResponse(
                 week == null ? null : week.getId(),
                 weekStart,
@@ -511,7 +735,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 blocks,
                 dayViews,
                 result.evaluations(),
-                issues);
+                issues,
+                week == null || week.getId() == null ? 0 : revisionRepository.countByWeekId(week.getId()));
     }
 
     /**

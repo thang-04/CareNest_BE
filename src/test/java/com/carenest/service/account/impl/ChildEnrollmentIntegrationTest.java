@@ -114,8 +114,9 @@ class ChildEnrollmentIntegrationTest {
     @MockitoBean
     private SmsGateway smsGateway;
 
-    @MockitoBean
-    private com.carenest.integration.storage.ChildPhotoStorage childPhotoStorage;
+    // Spy kho thật: giới hạn/định dạng lấy từ cấu hình, chỉ chặn phần gọi S3
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private com.carenest.integration.storage.FileStorage childPhotoStorage;
 
     @Autowired
     private com.carenest.service.child.ChildPhotoService childPhotos;
@@ -206,8 +207,14 @@ class ChildEnrollmentIntegrationTest {
         Set<Permission> permissions = new java.util.HashSet<>(principal.permissions());
         permissions.remove(Permission.PARENT_ACCOUNT_MANAGE);
         CurrentUser withoutAccounts = user(principal.userId(), CareNestRole.PRINCIPAL, permissions);
-        given(childPhotoStorage.store(any(), eq("image/png"))).willReturn("child-photo", "parent-photo");
-        given(childPhotoStorage.load("parent-photo")).willReturn(new byte[] {7, 8, 9});
+        org.mockito.Mockito.doReturn(
+                        new com.carenest.integration.storage.FileStorage.StoredFile("child-photo", "image/png", 3),
+                        new com.carenest.integration.storage.FileStorage.StoredFile("parent-photo", "image/png", 3))
+                .when(childPhotoStorage)
+                .store(eq(com.carenest.utils.enums.FileCategory.CHILD_AVATAR), any(), any(byte[].class));
+        org.mockito.Mockito.doReturn(new byte[] {7, 8, 9})
+                .when(childPhotoStorage)
+                .loadBytes(com.carenest.utils.enums.FileCategory.CHILD_AVATAR, "parent-photo");
         var request = request("Trẻ ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000711", "999000000711"));
         var result = enrollmentService.enrollWithPhotos(
                 withoutAccounts,
@@ -250,15 +257,18 @@ class ChildEnrollmentIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "select count(*) from children where full_name = ?", Integer.class, "Trẻ ảnh lỗi giả"))
                 .isZero();
-        verifyNoInteractions(identityProviderClient, smsGateway, childPhotoStorage);
+        verifyNoInteractions(identityProviderClient, smsGateway);
+        verify(childPhotoStorage, org.mockito.Mockito.never()).store(any(), any(), any(byte[].class));
     }
 
     @Test
     @DisplayName("CHD-02: S3 lỗi giữa chừng rollback hồ sơ, dọn object ảnh mới và bù trừ Keycloak")
     void uploadFailureRollsBackEnrollment() throws Exception {
-        given(childPhotoStorage.store(any(), eq("image/png")))
-                .willReturn("new-object")
-                .willThrow(GlobalException.of(ApiCode.STORAGE_UNAVAILABLE));
+        org.mockito.Mockito.doReturn(
+                        new com.carenest.integration.storage.FileStorage.StoredFile("new-object", "image/png", 3))
+                .doThrow(GlobalException.of(ApiCode.STORAGE_UNAVAILABLE))
+                .when(childPhotoStorage)
+                .store(eq(com.carenest.utils.enums.FileCategory.CHILD_AVATAR), any(), any(byte[].class));
         var request =
                 request("Trẻ rollback ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000713", "999000000713"));
         var files = Map.<String, List<org.springframework.web.multipart.MultipartFile>>of(
@@ -270,7 +280,7 @@ class ChildEnrollmentIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "select count(*) from children where full_name = ?", Integer.class, "Trẻ rollback ảnh giả"))
                 .isZero();
-        verify(childPhotoStorage).removeQuietly("new-object");
+        verify(childPhotoStorage).removeQuietly(com.carenest.utils.enums.FileCategory.CHILD_AVATAR, "new-object");
         verify(identityProviderClient).deleteUser("kc-new-1");
         verifyNoInteractions(smsGateway);
     }
@@ -280,6 +290,55 @@ class ChildEnrollmentIntegrationTest {
         javax.imageio.ImageIO.write(
                 new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", bytes);
         return new org.springframework.mock.web.MockMultipartFile(part, "fake.png", "image/png", bytes.toByteArray());
+    }
+
+    @Autowired
+    private com.carenest.service.child.ChildListService childListService;
+
+    @Test
+    @DisplayName("CHD-13: trẻ tiếp nhận không gửi cờ thì báo ăn")
+    void enrolledChildIsMealRegisteredByDefault() {
+        ChildEnrollmentResponse response = enrollmentService.enroll(
+                principal,
+                request("Nguyễn Minh An", "2023-03-01", null, campusA, newGuardian("0912345678", "001234567890")));
+
+        assertThat(response.child().mealRegistered()).isTrue();
+        var items = childListService
+                .searchChildren(
+                        principal, new com.carenest.dto.child.ChildListFilter(null, campusA, null, null, null, 0, 100))
+                .items();
+        assertThat(items)
+                .filteredOn(i -> i.id().equals(response.child().id()))
+                .singleElement()
+                .satisfies(i -> assertThat(i.mealRegistered()).isTrue());
+    }
+
+    @Test
+    @DisplayName("CHD-13: tiếp nhận không báo ăn ⇒ lưu cờ, khai báo dị ứng Chưa cung cấp, không có dòng dị ứng")
+    void enrollWithoutMealsStoresFlagAndNoAllergies() {
+        EnrollChildRequest base =
+                request("Trẻ Không Ăn", "2023-03-01", null, campusA, newGuardian("0912345680", "001234567892"));
+        HealthDeclarationInput d = base.declaration();
+        EnrollChildRequest noMeal = new EnrollChildRequest(
+                base.child(),
+                new HealthDeclarationInput(d.allergies(), d.diet(), d.otherNotes(), d.medicalHistory(), false),
+                null,
+                campusA);
+
+        ChildEnrollmentResponse response = enrollmentService.enroll(principal, noMeal);
+        entityManager.flush();
+
+        Long childId = response.child().id();
+        assertThat(response.child().mealRegistered()).isFalse();
+        assertThat(jdbc.queryForObject("SELECT meal_registered FROM children WHERE id = ?", Boolean.class, childId))
+                .isFalse();
+        assertThat(jdbc.queryForObject(
+                        "SELECT allergies_state FROM child_health_declarations WHERE child_id = ?",
+                        String.class,
+                        childId))
+                .isEqualTo("NOT_PROVIDED");
+        assertThat(count("SELECT count(*) FROM child_allergies WHERE child_id = ?", childId))
+                .isZero();
     }
 
     @Test

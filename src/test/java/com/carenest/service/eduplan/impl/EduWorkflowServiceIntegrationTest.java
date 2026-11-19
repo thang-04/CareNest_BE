@@ -392,6 +392,26 @@ class EduWorkflowServiceIntegrationTest {
         assertThat(teams.getLast().getCurriculumSourcePlanId()).isEqualTo(version3.id());
     }
 
+    @Test
+    @DisplayName("Khởi động: tạo bù bản in cho giáo án lớp đã duyệt giữ nguyên người sửa cuối")
+    void legacyBackfillKeepsUpdatedByOfApprovedClassDoc() {
+        var fixture = classFixture(true, true);
+        Long id = jdbc.queryForObject(
+                "SELECT min(id) FROM edu_class_docs WHERE team_plan_id=?", Long.class, fixture.planId());
+        jdbc.update("UPDATE edu_class_docs SET status='APPROVED', print_snapshot=NULL WHERE id=?", id);
+        Long updatedBy = jdbc.queryForObject("SELECT updated_by FROM edu_class_docs WHERE id=?", Long.class, id);
+        entityManager.clear();
+
+        workflowService.activateLegacyPending(java.time.Instant.now());
+        entityManager.flush();
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT print_snapshot IS NOT NULL FROM edu_class_docs WHERE id=?", Boolean.class, id))
+                .isTrue();
+        assertThat(jdbc.queryForObject("SELECT updated_by FROM edu_class_docs WHERE id=?", Long.class, id))
+                .isEqualTo(updatedBy);
+    }
+
     private com.carenest.dto.eduplan.YearPlanEditRequest editContext(Long revision) {
         return new com.carenest.dto.eduplan.YearPlanEditRequest(null, revision, java.util.UUID.randomUUID());
     }

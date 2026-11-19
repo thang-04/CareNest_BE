@@ -36,7 +36,7 @@ public class MealPhoto {
     @Column(nullable = false, length = 20)
     private MealSession session;
 
-    @Column(name = "storage_key", nullable = false, length = 64)
+    @Column(name = "storage_key", nullable = false, length = 255)
     private String storageKey;
 
     @Column(name = "content_type", nullable = false, length = 50)

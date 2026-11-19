@@ -3,11 +3,12 @@ package com.carenest.service.child.impl;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.EnrollmentPhotos;
 import com.carenest.dto.common.FieldErrorResponse;
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildGuardian;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.ChildPhotoStorage;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.child.ChildGuardianRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
@@ -18,6 +19,7 @@ import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildPhotoService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ImageFiles;
+import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.Permission;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -43,10 +45,9 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 public class ChildPhotoServiceImpl implements ChildPhotoService {
     private static final String LOG_PREFIX = "[ChildPhotoServiceImpl]";
-    private static final int MAX_BYTES = 2 * 1024 * 1024;
     private final ChildRepository childRepository;
     private final ChildGuardianRepository guardianRepository;
-    private final ChildPhotoStorage storage;
+    private final FileStorage storage;
     private final ChildIntakeService intakeService;
     private final ChildAccessPolicy childAccess;
     private final CampusAccessPolicy campusAccess;
@@ -101,7 +102,8 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
                         .findById(childId)
                         .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
                 ImageContent image = photos.child();
-                child.assignEnrollmentPhoto(store(image), image.contentType(), image.content().length, clock.instant());
+                child.assignEnrollmentPhoto(
+                        store(childId, image), image.contentType(), image.content().length, clock.instant());
                 childRepository.save(child);
             }
             if (!photos.guardians().isEmpty()) {
@@ -113,7 +115,7 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
                             .orElseThrow(() -> GlobalException.of(ApiCode.INVALID_REQUEST_DATA));
                     ImageContent image = entry.getValue();
                     guardian.assignEnrollmentPhoto(
-                            store(image), image.contentType(), image.content().length, clock.instant());
+                            store(childId, image), image.contentType(), image.content().length, clock.instant());
                     guardianRepository.save(guardian);
                 }
             }
@@ -130,12 +132,9 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
         String logPrefix = LOG_PREFIX + "|getChildPhoto|childId=" + childId + "|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
-            readableProfile(actor, childId);
-            Child child = childRepository
-                    .findById(childId)
-                    .filter(c -> c.getPhotoKey() != null)
-                    .orElseThrow(() -> GlobalException.of(ApiCode.FILE_NOT_FOUND));
-            ImageContent result = new ImageContent(storage.load(child.getPhotoKey()), child.getPhotoContentType());
+            Child child = photoChild(actor, childId);
+            ImageContent result = new ImageContent(
+                    storage.loadBytes(FileCategory.CHILD_AVATAR, child.getPhotoKey()), child.getPhotoContentType());
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
@@ -151,19 +150,70 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
                 + "|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
-            readableProfile(actor, childId);
-            ChildGuardian guardian = guardianRepository
-                    .findById(guardianId)
-                    .filter(g -> childId.equals(g.getChildId()) && g.getPhotoKey() != null)
-                    .orElseThrow(() -> GlobalException.of(ApiCode.FILE_NOT_FOUND));
-            ImageContent result =
-                    new ImageContent(storage.load(guardian.getPhotoKey()), guardian.getPhotoContentType());
+            ChildGuardian guardian = photoGuardian(actor, childId, guardianId);
+            ImageContent result = new ImageContent(
+                    storage.loadBytes(FileCategory.CHILD_AVATAR, guardian.getPhotoKey()),
+                    guardian.getPhotoContentType());
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FileUrlResponse getChildPhotoUrl(CurrentUser actor, Long childId) {
+        String logPrefix = LOG_PREFIX + "|getChildPhotoUrl|childId=" + childId + "|userId=" + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            Child child = photoChild(actor, childId);
+            FileUrlResponse result = url(child.getPhotoKey(), child.getPhotoContentType());
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FileUrlResponse getGuardianPhotoUrl(CurrentUser actor, Long childId, Long guardianId) {
+        String logPrefix = LOG_PREFIX + "|getGuardianPhotoUrl|childId=" + childId + "|guardianId=" + guardianId
+                + "|userId=" + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            ChildGuardian guardian = photoGuardian(actor, childId, guardianId);
+            FileUrlResponse result = url(guardian.getPhotoKey(), guardian.getPhotoContentType());
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private Child photoChild(CurrentUser actor, Long childId) {
+        readableProfile(actor, childId);
+        return childRepository
+                .findById(childId)
+                .filter(c -> c.getPhotoKey() != null)
+                .orElseThrow(() -> GlobalException.of(ApiCode.FILE_NOT_FOUND));
+    }
+
+    private ChildGuardian photoGuardian(CurrentUser actor, Long childId, Long guardianId) {
+        readableProfile(actor, childId);
+        return guardianRepository
+                .findById(guardianId)
+                .filter(g -> childId.equals(g.getChildId()) && g.getPhotoKey() != null)
+                .orElseThrow(() -> GlobalException.of(ApiCode.FILE_NOT_FOUND));
+    }
+
+    private FileUrlResponse url(String key, String contentType) {
+        var url = storage.presignGet(FileCategory.CHILD_AVATAR, key, contentType, null);
+        return new FileUrlResponse(url.url(), url.expiresAt());
     }
 
     @Override
@@ -196,24 +246,28 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
         return view;
     }
 
-    private String store(ImageContent image) {
-        String key = storage.store(image.content(), image.contentType());
+    /** Ảnh trẻ và ảnh phụ huynh trên hồ sơ đều thuộc thư mục ảnh trẻ, mã đối tượng là mã trẻ. */
+    private String store(Long childId, ImageContent image) {
+        String key = storage.store(FileCategory.CHILD_AVATAR, childId, image.content())
+                .key();
         // Cùng transaction với hồ sơ: dọn object mới nếu DB/ảnh sau đó lỗi, kể cả lỗi lúc commit.
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) storage.removeQuietly(key);
+                if (status != STATUS_COMMITTED) storage.removeQuietly(FileCategory.CHILD_AVATAR, key);
             }
         });
         return key;
     }
 
-    private static ImageContent inspect(MultipartFile file, String field) {
+    private ImageContent inspect(MultipartFile file, String field) {
         if (file == null || file.isEmpty()) invalid(field, "Chọn tệp ảnh có nội dung");
-        if (file.getSize() > MAX_BYTES) invalid(field, "Ảnh tối đa 2 MB");
+        long maxBytes = storage.maxBytes(FileCategory.CHILD_AVATAR, null);
+        String tooLarge = "Ảnh tối đa " + storage.maxSizeText(FileCategory.CHILD_AVATAR, null);
+        if (file.getSize() > maxBytes) invalid(field, tooLarge);
         try {
             byte[] content = file.getBytes();
-            if (content.length == 0 || content.length > MAX_BYTES) invalid(field, "Ảnh tối đa 2 MB");
+            if (content.length == 0 || content.length > maxBytes) invalid(field, tooLarge);
             String type = ImageFiles.sniff(content);
             if (type == null || !validImage(content, type)) invalid(field, "Chọn ảnh JPG, PNG hoặc WEBP hợp lệ");
             return new ImageContent(content, type);

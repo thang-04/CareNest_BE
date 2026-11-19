@@ -128,6 +128,29 @@ class CampusServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Tên điểm trường chuẩn hóa: 2 dấu cách, kiểu gõ dấu khác, hoa thường vẫn tính là trùng (2106)")
+    void campusNameDuplicateIgnoresSpacesAccentFormAndCase() {
+        service.updateCampus(
+                principal, campusB, new CampusRequest("CS-B", "  Cơ   sở 2 ", "B", "Địa chỉ B", null, false));
+        assertThat(jdbc.queryForObject("SELECT name FROM campuses WHERE id = ?", String.class, campusB))
+                .isEqualTo("Cơ sở 2");
+        // "Cơ sở 2" gõ dấu tổ hợp (NFD) và viết hoa
+        String decomposed = java.text.Normalizer.normalize("CƠ SỞ 2", java.text.Normalizer.Form.NFD);
+        for (String name : List.of("Cơ  sở 2", decomposed)) {
+            assertThatThrownBy(() -> service.createCampus(
+                            principal, new CampusRequest("CS-C", name, "C", "Địa chỉ C", null, false)))
+                    .isInstanceOf(GlobalException.class)
+                    .extracting(ex -> ((GlobalException) ex).getApiCode())
+                    .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+        }
+        assertThatThrownBy(() -> service.updateCampus(
+                        principal, campusA, new CampusRequest("CS-A", decomposed, "A", "Địa chỉ A", null, true)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+    }
+
+    @Test
     void switchingMainKeepsOneMainCampus() {
         service.updateCampus(principal, campusB, new CampusRequest("CS-B", "Campus B", "B", "Địa chỉ B", null, true));
 
@@ -143,6 +166,124 @@ class CampusServiceIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
                 .isEqualTo(ApiCode.CONFLICT.getHttpStatus());
+    }
+
+    @Test
+    @DisplayName("Cần chốt 19/11/2026: chỉ HT xóa điểm trường trống; còn dữ liệu thì báo đủ lý do (2124)")
+    void campusWithDataCannotBeDeletedAndListShowsReason() {
+        assertThat(service.getCampuses(principal, null))
+                .extracting(CampusResponse::deleteBlockedReason)
+                .containsExactly("Điểm trường chính, không xóa được", null);
+        assertThatThrownBy(() -> service.deleteCampus(vicePrincipal, campusB))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
+
+        jdbc.update(
+                "INSERT INTO rooms (campus_id, code, name, room_type, capacity) VALUES (?, 'P.1', 'Phòng 1', 'CLASS', 20)",
+                campusB);
+        expectNotEmpty("1 phòng");
+        jdbc.update("DELETE FROM rooms WHERE campus_id = ?", campusB);
+
+        long year = jdbc.queryForObject("SELECT id FROM school_years LIMIT 1", Long.class);
+        jdbc.update("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (?, ?, 'Lớp B1')", campusB, year);
+        expectNotEmpty("1 lớp");
+        jdbc.update("DELETE FROM classrooms WHERE campus_id = ?", campusB);
+
+        jdbc.update(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, intake_campus_id)"
+                        + " VALUES ('IT-B1', 'Trẻ B', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE, ?)",
+                campusB);
+        expectNotEmpty("1 trẻ");
+        jdbc.update("DELETE FROM children WHERE code = 'IT-B1'");
+
+        // Phân công đã kết thúc vẫn tính (lịch sử)
+        long vp = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-vp2', 'vp2.it', 'Phó HT Cũ') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2025-01-01', '2025-12-31')",
+                vp,
+                campusB);
+        expectNotEmpty("PHT Phó HT Cũ");
+        assertThat(service.getCampuses(principal, null).get(1).deleteBlockedReason())
+                .isEqualTo("PHT Phó HT Cũ");
+    }
+
+    private void expectNotEmpty(String part) {
+        assertThatThrownBy(() -> service.deleteCampus(principal, campusB))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.CAMPUS_NOT_EMPTY);
+                    assertThat(ex.getMessage()).contains("Campus B còn " + part);
+                });
+    }
+
+    @Test
+    @DisplayName("Cần chốt 22/10/2026: điểm trường theo năm học — thêm / xóa ở năm nào chỉ năm đó đổi (V151)")
+    void campusesArePerSchoolYear() {
+        long active = jdbc.queryForObject("SELECT id FROM school_years WHERE status = 'ACTIVE'", Long.class);
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id) SELECT ?, id FROM campuses",
+                active);
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id) SELECT ?, id FROM campuses",
+                planned);
+
+        CampusResponse created = service.createCampus(
+                principal, new CampusRequest("CS-D3", "Cơ sở 3", "CS3", "Địa chỉ 3", null, false), planned);
+        assertThat(service.getCampuses(principal, planned))
+                .extracting(CampusResponse::id)
+                .contains(created.id());
+        assertThat(service.getCampuses(principal, active))
+                .extracting(CampusResponse::id)
+                .doesNotContain(created.id());
+
+        // Sửa thông tin ở năm sắp diễn ra: chỉ năm đó đổi (V152); trùng tên trong năm bị chặn
+        service.updateCampus(
+                principal,
+                campusB,
+                new CampusRequest("CS-B", "Cơ sở Hòa Bình", "Hòa Bình", "Địa chỉ mới", null, false),
+                planned);
+        assertThat(service.getCampuses(principal, planned))
+                .filteredOn(c -> c.id().equals(campusB))
+                .extracting(CampusResponse::name)
+                .containsExactly("Cơ sở Hòa Bình");
+        assertThat(service.getCampuses(principal, active))
+                .filteredOn(c -> c.id().equals(campusB))
+                .extracting(CampusResponse::name)
+                .containsExactly("Campus B");
+        assertThatThrownBy(() -> service.updateCampus(
+                        principal,
+                        campusA,
+                        new CampusRequest("CS-A", "cơ sở hòa bình", "A", "Địa chỉ A", null, true),
+                        planned))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+
+        // Xóa ở năm đang hoạt động: chỉ bỏ khỏi năm đó, năm sau vẫn còn
+        service.deleteCampus(principal, campusB, active);
+        assertThat(service.getCampuses(principal, active))
+                .extracting(CampusResponse::id)
+                .doesNotContain(campusB);
+        assertThat(service.getCampuses(principal, planned))
+                .extracting(CampusResponse::id)
+                .contains(campusB);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM campuses WHERE id = ?", Integer.class, campusB))
+                .isOne();
+
+        // Chỉ còn ở một năm: xóa hẳn
+        service.deleteCampus(principal, created.id(), planned);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM campuses WHERE id = ?", Integer.class, created.id()))
+                .isZero();
+        // Năm còn lớp ở điểm trường: không bỏ được khỏi năm đó
+        assertThatThrownBy(() -> service.deleteCampus(principal, campusA, planned))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.MAIN_CAMPUS_NOT_DELETABLE);
     }
 
     @Test

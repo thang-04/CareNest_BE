@@ -121,6 +121,17 @@ paths:
       tags:
       - account-controller
   /api/accounts/me/photo:
+    delete:
+      operationId: deleteMyPhoto
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountPhotoResponse"
+          description: OK
+      tags:
+      - account-photo-controller
     get:
       operationId: getMyPhoto
       responses:
@@ -152,6 +163,36 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonAccountPhotoResponse"
+          description: OK
+      tags:
+      - account-photo-controller
+  /api/accounts/me/photo/url:
+    get:
+      operationId: getMyPhotoUrl
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - account-photo-controller
+  /api/accounts/photos/urls:
+    post:
+      operationId: findPhotoUrls
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPhotoUrlsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAccountPhotoUrlResponse"
           description: OK
       tags:
       - account-photo-controller
@@ -339,6 +380,13 @@ paths:
   /api/age-groups:
     get:
       operationId: getAgeGroups
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -350,6 +398,13 @@ paths:
       - age-group-controller
     post:
       operationId: createAgeGroup
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -372,6 +427,12 @@ paths:
       - in: path
         name: ageGroupId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -439,6 +500,477 @@ paths:
           description: OK
       tags:
       - teacher-assignment-controller
+  /api/announcement-attachments/{attachmentId}/content:
+    get:
+      operationId: downloadAttachment
+      parameters:
+      - in: path
+        name: attachmentId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcement-schedules:
+    get:
+      operationId: listSchedules
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAnnouncementScheduleResponse"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+    post:
+      operationId: createScheduleWithFiles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementScheduleRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/AnnouncementScheduleRequest"
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - data
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
+          description: OK
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
+          description: Created
+      tags:
+      - announcement-schedule-controller
+  /api/announcement-schedules/activation:
+    post:
+      operationId: activateSchedules
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleActivationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInteger"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+  /api/announcement-schedules/delete-selection:
+    post:
+      operationId: deleteSchedules
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleSelectionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInteger"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+  /api/announcement-schedules/{scheduleId}:
+    delete:
+      operationId: deleteSchedule
+      parameters:
+      - in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+    get:
+      operationId: getSchedule
+      parameters:
+      - in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+    put:
+      operationId: updateScheduleWithFiles
+      parameters:
+      - in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementScheduleRequest"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/AnnouncementScheduleRequest"
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - data
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+  /api/announcement-templates:
+    get:
+      operationId: listTemplates
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAnnouncementTemplateResponse"
+          description: OK
+      tags:
+      - announcement-template-controller
+    post:
+      operationId: createTemplate_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementTemplateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementTemplateResponse"
+          description: Created
+      tags:
+      - announcement-template-controller
+  /api/announcement-templates/{templateId}:
+    delete:
+      operationId: deleteTemplate
+      parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - announcement-template-controller
+    put:
+      operationId: updateTemplate_1
+      parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementTemplateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementTemplateResponse"
+          description: OK
+      tags:
+      - announcement-template-controller
+  /api/announcements:
+    get:
+      operationId: listAnnouncements
+      parameters:
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - SCHEDULED
+          - SENDING
+          - SENT
+          - CANCELLED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementListResponse"
+          description: OK
+      tags:
+      - announcement-controller
+    post:
+      operationId: createAnnouncement
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/AnnouncementRequest"
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - data
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementResponse"
+          description: Created
+      tags:
+      - announcement-controller
+  /api/announcements/cancelled:
+    delete:
+      operationId: deleteCancelledAnnouncements
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - SCHEDULED
+          - SENDING
+          - SENT
+          - CANCELLED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInteger"
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcements/delete-selection:
+    post:
+      operationId: deleteSelectedAnnouncements
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementSelectionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInteger"
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcements/recipient-preview:
+    post:
+      operationId: previewRecipients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipientTargetRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonRecipientPreviewResponse"
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcements/{announcementId}:
+    delete:
+      operationId: deleteAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - announcement-controller
+    get:
+      operationId: getAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
+    put:
+      operationId: updateAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/AnnouncementRequest"
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - data
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcements/{announcementId}/cancel:
+    post:
+      operationId: cancelAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
   /api/assessment/behaviour-tickets:
     post:
       operationId: issue
@@ -459,7 +991,7 @@ paths:
       - behaviour-ticket-controller
   /api/assessment/behaviour-tickets/board:
     get:
-      operationId: getBoard_1
+      operationId: getBoard_2
       parameters:
       - in: query
         name: classId
@@ -492,7 +1024,7 @@ paths:
       - behaviour-ticket-controller
   /api/assessment/behaviour-tickets/overview:
     get:
-      operationId: getOverview_2
+      operationId: getOverview_3
       parameters:
       - in: query
         name: schoolYearId
@@ -602,66 +1134,6 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
-  /api/assessment/class-monthly-comments:
-    get:
-      operationId: getComment
-      parameters:
-      - in: query
-        name: classId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      - in: query
-        name: month
-        required: true
-        schema:
-          type: string
-          format: date
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
-          description: OK
-      tags:
-      - class-monthly-comment-controller
-    put:
-      operationId: saveComment
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
-          description: OK
-      tags:
-      - class-monthly-comment-controller
-  /api/assessment/class-monthly-comments/confirm:
-    post:
-      operationId: confirmComment
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
-          description: OK
-      tags:
-      - class-monthly-comment-controller
   /api/assessment/class-ratings:
     get:
       operationId: listRatings
@@ -715,7 +1187,7 @@ paths:
       - class-rating-controller
   /api/assessment/day-unlocks:
     get:
-      operationId: getUnlocks_1
+      operationId: getUnlocks_3
       parameters:
       - in: query
         name: campusId
@@ -774,7 +1246,7 @@ paths:
       - assessment-day-unlock-controller
   /api/assessment/day-unlocks/{unlockId}/revoke:
     post:
-      operationId: revokeUnlock_1
+      operationId: revokeUnlock_3
       parameters:
       - in: path
         name: unlockId
@@ -791,9 +1263,103 @@ paths:
           description: OK
       tags:
       - assessment-day-unlock-controller
+  /api/assessment/evaluation-periods:
+    get:
+      operationId: getPeriods
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListEvaluationPeriod"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
+  /api/assessment/evaluation-unlocks:
+    get:
+      operationId: getUnlocks_2
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: string
+          enum:
+          - THEME
+          - SEMESTER
+          - YEAR
+      - in: query
+        name: active
+        required: false
+        schema:
+          type: boolean
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListEvaluationUnlockResponse"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
+    post:
+      operationId: unlock_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvaluationUnlockRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEvaluationUnlockResponse"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
+  /api/assessment/evaluation-unlocks/{unlockId}/revoke:
+    post:
+      operationId: revokeUnlock_2
+      parameters:
+      - in: path
+        name: unlockId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEvaluationUnlockResponse"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
   /api/assessment/evaluations:
     get:
-      operationId: list_1
+      operationId: list_2
       parameters:
       - in: query
         name: periodType
@@ -987,9 +1553,34 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
+  /api/assessment/overdue:
+    get:
+      operationId: getOverdue
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListOverdueClassItem"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
   /api/assessment/overview:
     get:
-      operationId: getOverview_1
+      operationId: getOverview_2
       parameters:
       - in: query
         name: period
@@ -1396,6 +1987,187 @@ paths:
           description: OK
       tags:
       - theme-evaluation-controller
+  /api/assessment/weekly-comments:
+    get:
+      operationId: getBoard
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: weekStart
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+    put:
+      operationId: saveDraft
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentSaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/drafts:
+    post:
+      operationId: writeDrafts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentDraftRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/overview:
+    get:
+      operationId: getOverview_1
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: weekStart
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListWeeklyCommentClassSummary"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/send:
+    post:
+      operationId: send
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentSendRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/unlocks:
+    get:
+      operationId: getUnlocks_1
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: active
+        required: false
+        schema:
+          type: boolean
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListWeeklyCommentUnlockResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+    post:
+      operationId: unlock
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentUnlockRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentUnlockResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/unlocks/{unlockId}/revoke:
+    post:
+      operationId: revokeUnlock_1
+      parameters:
+      - in: path
+        name: unlockId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentUnlockResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
   /api/attendance/classes:
     get:
       operationId: getClasses
@@ -1505,6 +2277,12 @@ paths:
           type: integer
           format: int64
       - in: query
+        name: ageGroupId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
         name: from
         required: false
         schema:
@@ -1560,6 +2338,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonLoginData"
           description: Verified temporary password requires first-login setup
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/login/takeover/cancel:
+    post:
+      operationId: cancelTakeover
+      parameters:
+      - in: cookie
+        name: CARENEST_TAKEOVER
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/login/takeover/confirm:
+    post:
+      operationId: confirmTakeover
+      parameters:
+      - in: cookie
+        name: CARENEST_TAKEOVER
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLoginData"
+          description: Session issued here; other Web sessions revoked
+        "409":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLoginData"
+          description: Takeover rejected by the active session or expired
       security: []
       tags:
       - auth-controller
@@ -1734,6 +2556,13 @@ paths:
       - campus-controller
     post:
       operationId: createCampus
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -1768,6 +2597,12 @@ paths:
       - in: path
         name: campusId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -1816,6 +2651,12 @@ paths:
       - in: path
         name: campusId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -2171,6 +3012,13 @@ paths:
   /api/children/placement-classes:
     get:
       operationId: listPlacementClasses
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -2314,6 +3162,31 @@ paths:
               schema:
                 type: string
                 format: byte
+          description: OK
+      tags:
+      - child-photo-controller
+  /api/children/{childId}/guardian-photos/{guardianId}/url:
+    get:
+      operationId: getGuardianPhotoUrl_1
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: guardianId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
           description: OK
       tags:
       - child-photo-controller
@@ -2511,6 +3384,31 @@ paths:
           description: OK
       tags:
       - account-photo-controller
+  /api/children/{childId}/guardians/{userId}/photo/url:
+    get:
+      operationId: getGuardianPhotoUrl
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - account-photo-controller
   /api/children/{childId}/health:
     get:
       operationId: getHealthRecord
@@ -2658,6 +3556,16 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: period
+        required: false
+        schema:
+          type: string
+          default: ALL
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
       responses:
         "200":
           content:
@@ -2714,6 +3622,25 @@ paths:
               schema:
                 type: string
                 format: byte
+          description: OK
+      tags:
+      - child-photo-controller
+  /api/children/{childId}/photo/url:
+    get:
+      operationId: getChildPhotoUrl
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
           description: OK
       tags:
       - child-photo-controller
@@ -2786,6 +3713,25 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/{childId}/weekly-comments:
+    get:
+      operationId: listForParent
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListParentWeeklyCommentResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
   /api/children/{childId}/withdraw:
     post:
       operationId: withdraw
@@ -2912,6 +3858,37 @@ paths:
             schema:
               $ref: "#/components/schemas/SaveAttendanceRequest"
         required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/classes/{classId}/attendance/children/{childId}/arrived:
+    post:
+      operationId: markArrived
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
       responses:
         "200":
           content:
@@ -3060,7 +4037,7 @@ paths:
       - daily-assessment-controller
   /api/classes/{classId}/pickups:
     get:
-      operationId: getBoard
+      operationId: getBoard_1
       parameters:
       - in: path
         name: classId
@@ -3277,23 +4254,7 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
-  /api/education-plans/class-docs/releases/{releaseId}:
-    get:
-      operationId: getClassDocRelease
-      parameters:
-      - in: path
-        name: releaseId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content: {}
-          description: OK
-      tags:
-      - edu-class-doc-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources:
     get:
       operationId: list
       parameters:
@@ -3335,15 +4296,12 @@ paths:
                   type: string
                 activityLabel:
                   type: string
-                activitySignature:
-                  type: string
                 file:
                   type: string
                   format: binary
               required:
               - activityKey
               - activityLabel
-              - activitySignature
               - file
       responses:
         "200":
@@ -3354,7 +4312,133 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/attach:
+    post:
+      operationId: attach
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceAttachRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/confirm:
+    post:
+      operationId: confirmUpload
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningResourceConfirmRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/links:
+    post:
+      operationId: addLink
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceLinkRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/order:
+    put:
+      operationId: reorder
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceOrderRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/upload-url:
+    post:
+      operationId: uploadUrl
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningResourceUploadUrlRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPresignedUploadResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}:
     delete:
       operationId: detach
       parameters:
@@ -3378,37 +4462,7 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/activity:
-    patch:
-      operationId: bind
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LearningResourceBinding"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
-          description: OK
-      tags:
-      - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/content:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/content:
     get:
       operationId: content
       parameters:
@@ -3433,6 +4487,46 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/url:
+    get:
+      operationId: contentUrl_1
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/releases/{releaseId}:
+    get:
+      operationId: getClassDocRelease
+      parameters:
+      - in: path
+        name: releaseId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/{kind}/{docKey}:
     put:
       operationId: saveClassDoc
@@ -4219,6 +5313,170 @@ paths:
           description: Created
       tags:
       - edu-year-plan-controller
+  /api/education-plans/resources:
+    get:
+      operationId: list_1
+      parameters:
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: ageGroupId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: themeId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: themeName
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: goalIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: integer
+            format: int64
+      - in: query
+        name: docKey
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: activityKey
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: teachThemeName
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponseResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}:
+    delete:
+      operationId: delete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonString"
+          description: OK
+      tags:
+      - resource-library-controller
+    patch:
+      operationId: update_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceItemUpdateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}/url:
+    get:
+      operationId: contentUrl
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}/usages:
+    get:
+      operationId: usages
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResourceUsagesResponse"
+          description: OK
+      tags:
+      - resource-library-controller
   /api/education-plans/workflow-policy:
     get:
       operationId: getWorkflowPolicy
@@ -4763,6 +6021,30 @@ paths:
           description: OK
       tags:
       - inspection-controller
+  /api/inspections/signatures/{imageKey}/url:
+    get:
+      operationId: getSignatureImageUrl
+      parameters:
+      - in: path
+        name: imageKey
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - inspection-controller
   /api/leave-requests:
     get:
       operationId: searchLeaveRequests
@@ -4970,6 +6252,25 @@ paths:
           description: OK
       tags:
       - room-controller
+  /api/me/announcements/{announcementId}:
+    get:
+      operationId: getMyAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMyAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
   /api/me/devices:
     delete:
       operationId: unregisterDevice
@@ -5037,6 +6338,25 @@ paths:
           description: OK
       tags:
       - notification-controller
+  /api/me/notifications/{notificationId}:
+    get:
+      operationId: getMyNotification
+      parameters:
+      - in: path
+        name: notificationId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonNotificationResponse"
+          description: OK
+      tags:
+      - notification-controller
   /api/me/notifications/{notificationId}/read:
     post:
       operationId: markRead
@@ -5074,6 +6394,36 @@ paths:
           description: OK
       tags:
       - password-controller
+  /api/me/session:
+    get:
+      operationId: checkSession
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSessionStatus"
+          description: OK
+      tags:
+      - session-controller
+  /api/me/session/takeovers/{takeoverId}/reject:
+    post:
+      operationId: rejectTakeover
+      parameters:
+      - in: path
+        name: takeoverId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - session-controller
   /api/meal-counts:
     get:
       operationId: getMealCounts
@@ -5173,6 +6523,80 @@ paths:
           description: OK
       tags:
       - meal-count-controller
+  /api/notification-rules:
+    get:
+      operationId: listRules
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListNotificationRuleResponse"
+          description: OK
+      tags:
+      - notification-rule-controller
+  /api/notification-rules/{type}:
+    put:
+      operationId: updateRule
+      parameters:
+      - in: path
+        name: type
+        required: true
+        schema:
+          type: string
+          enum:
+          - CHILD_PICKED_UP
+          - MEAL_COUNT_RECONFIRM
+          - CHILD_WITHDRAWN
+          - GUARDIAN_PHONE_CHANGE_REQUESTED
+          - GUARDIAN_PHONE_CHANGE_DECIDED
+          - CHILD_TB_CONTACT
+          - CHILD_TB_CONTACT_DATE_CHANGED
+          - HEALTH_RESULT_PUBLISHED
+          - HEALTH_RESULT_UPDATED
+          - HEALTH_CHECK_OPENED
+          - HEALTH_TREND_APPROVED
+          - CHILD_PLACED
+          - ATTENDANCE_DAY_UNLOCKED
+          - EDU_SUBMITTED
+          - EDU_STEP_APPROVED
+          - EDU_RELEASED
+          - EDU_RETURNED
+          - EDU_DEADLINE_EXTENDED
+          - EDU_DEADLINE_NEAR
+          - SCHOOL_ANNOUNCEMENT
+          - DAILY_HEALTH_NOTED
+          - MENU_PUBLISHED
+          - MENU_CHANGED
+          - LEAVE_REQUEST_CREATED
+          - CHILD_EVALUATION_CONFIRMED
+          - THEME_EVALUATION_CONFIRMED
+          - WEEKLY_COMMENT_SENT
+          - ATTENDANCE_REMINDER
+          - ASSESSMENT_REMINDER
+          - ASSESSMENT_REOPENED
+          - LEADER_REMINDER
+          - STAFF_ASSIGNED
+          - CUTOFF_CHANGED
+          - LEAVE_REQUEST_CHANGED
+          - MEAL_COUNT_CONFIRMED
+          - REWARD_LIST_UPDATED
+          - SCHOOL_YEAR_ACTIVATED
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRuleRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonNotificationRuleResponse"
+          description: OK
+      tags:
+      - notification-rule-controller
   /api/nutrition/age-group-configs:
     get:
       operationId: getEffectiveConfigs
@@ -6058,6 +7482,25 @@ paths:
           description: OK
       tags:
       - kitchen-records-controller
+  /api/nutrition/meal-photos/{photoId}/url:
+    get:
+      operationId: getPhotoUrl
+      parameters:
+      - in: path
+        name: photoId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
   /api/nutrition/meal-plans:
     get:
       operationId: getMealPlans
@@ -6126,6 +7569,37 @@ paths:
           description: OK
       tags:
       - meal-plan-controller
+  /api/nutrition/meal-plans/{weekStart}/days/{date}/amend:
+    put:
+      operationId: amendMealPlanDay
+      parameters:
+      - in: path
+        name: weekStart
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: path
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealPlanAmendRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealPlanResponse"
+          description: OK
+      tags:
+      - meal-plan-controller
   /api/nutrition/meal-plans/{weekStart}/publish:
     post:
       operationId: publishMealPlan
@@ -6142,6 +7616,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonMealPlanResponse"
+          description: OK
+      tags:
+      - meal-plan-controller
+  /api/nutrition/meal-plans/{weekStart}/revisions:
+    get:
+      operationId: getMealPlanRevisions
+      parameters:
+      - in: path
+        name: weekStart
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListMealPlanRevisionResponse"
           description: OK
       tags:
       - meal-plan-controller
@@ -6896,6 +8389,25 @@ paths:
           description: OK
       tags:
       - guardian-phone-change-controller
+  /api/parent-accounts/{userId}/activation-code:
+    post:
+      operationId: resendActivationCode
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonActivationCodeResponse"
+          description: OK
+      tags:
+      - guardian-controller
   /api/parent-accounts/{userId}/status:
     patch:
       operationId: updateParentStatus
@@ -6940,6 +8452,24 @@ paths:
           description: OK
       tags:
       - guardian-controller
+  /api/parent-activation:
+    post:
+      operationId: activateParentAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentActivationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentActivationResponse"
+          description: OK
+      tags:
+      - parent-activation-controller
   /api/permission-change-logs:
     get:
       operationId: getPermissionChangeLogs
@@ -7053,6 +8583,18 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonPickupChildResponse"
+          description: OK
+      tags:
+      - pickup-controller
+  /api/pickups/classes:
+    get:
+      operationId: listClasses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListPickupClassResponse"
           description: OK
       tags:
       - pickup-controller
@@ -7734,6 +9276,25 @@ paths:
           description: OK
       tags:
       - user-signature-controller
+  /api/signatures/me/{signatureId}/url:
+    get:
+      operationId: getSignatureUrl
+      parameters:
+      - in: path
+        name: signatureId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - user-signature-controller
   /api/staff-assignments:
     post:
       operationId: assignStaff
@@ -7939,6 +9500,30 @@ components:
           type: boolean
         profileUpdateRequired:
           type: boolean
+    AccountPhotoUrlResponse:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+        userId:
+          type: integer
+          format: int64
+    AccountPhotoUrlsRequest:
+      type: object
+      properties:
+        userIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+            exclusiveMinimum: 0
+          maxItems: 100
+          minItems: 0
+      required:
+      - userIds
     AccountResponse:
       type: object
       properties:
@@ -7995,6 +9580,24 @@ components:
           minLength: 1
       required:
       - confirmName
+    ActivationCodeResponse:
+      type: object
+      properties:
+        activationCode:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
     ActivationResult:
       type: object
       properties:
@@ -8588,6 +10191,228 @@ components:
             type: string
         state:
           type: string
+    AnnouncementAttachmentResponse:
+      type: object
+      properties:
+        contentType:
+          type: string
+        fileName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        sizeBytes:
+          type: integer
+          format: int64
+    AnnouncementListResponse:
+      type: object
+      properties:
+        cancelledCount:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    AnnouncementRequest:
+      type: object
+      properties:
+        body:
+          type: string
+        keepAttachmentIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        sendAt:
+          type: string
+          format: date-time
+        target:
+          $ref: "#/components/schemas/RecipientTargetRequest"
+        title:
+          type: string
+    AnnouncementResponse:
+      type: object
+      properties:
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementAttachmentResponse"
+        body:
+          type: string
+        canDelete:
+          type: boolean
+        canEdit:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        recipientCount:
+          type: integer
+          format: int32
+        sendAt:
+          type: string
+          format: date-time
+        senderId:
+          type: integer
+          format: int64
+        senderName:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - SCHEDULED
+          - SENDING
+          - SENT
+          - CANCELLED
+        target:
+          $ref: "#/components/schemas/RecipientTargetRequest"
+        title:
+          type: string
+    AnnouncementScheduleRequest:
+      type: object
+      properties:
+        active:
+          type: boolean
+        body:
+          type: string
+        dayOfMonth:
+          type: integer
+          format: int32
+        dayOfWeek:
+          type: integer
+          format: int32
+        frequency:
+          type: string
+          enum:
+          - WEEKLY
+          - MONTHLY
+        keepAttachmentIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        sendTime:
+          type: string
+          format: time-local
+        target:
+          $ref: "#/components/schemas/RecipientTargetRequest"
+        templateId:
+          type: integer
+          format: int64
+        title:
+          type: string
+    AnnouncementScheduleResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementAttachmentResponse"
+        body:
+          type: string
+        dayOfMonth:
+          type: integer
+          format: int32
+        dayOfWeek:
+          type: integer
+          format: int32
+        frequency:
+          type: string
+          enum:
+          - WEEKLY
+          - MONTHLY
+        id:
+          type: integer
+          format: int64
+        nextRunAt:
+          type: string
+          format: date-time
+        sendTime:
+          type: string
+          format: time-local
+        target:
+          $ref: "#/components/schemas/RecipientTargetRequest"
+        templateId:
+          type: integer
+          format: int64
+        templateName:
+          type: string
+        title:
+          type: string
+    AnnouncementSelectionRequest:
+      type: object
+      properties:
+        allMatching:
+          type: boolean
+        excludedIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+        q:
+          type: string
+        status:
+          type: string
+          enum:
+          - SCHEDULED
+          - SENDING
+          - SENT
+          - CANCELLED
+    AnnouncementTemplateRequest:
+      type: object
+      properties:
+        body:
+          type: string
+        campusId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        title:
+          type: string
+    AnnouncementTemplateResponse:
+      type: object
+      properties:
+        body:
+          type: string
+        campusId:
+          type: integer
+          format: int64
+        canEdit:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
     ApprovalItem:
       type: object
       properties:
@@ -8630,9 +10455,19 @@ components:
         approvedAt:
           type: string
           format: date-time
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
         id:
           type: integer
           format: int64
+        period:
+          type: string
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
+        stale:
+          type: boolean
         summary:
           type: string
         warnings:
@@ -8868,6 +10703,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DailyHealthEntryResponse"
+    AttentionPoint:
+      type: object
+      properties:
+        text:
+          type: string
+        warningCode:
+          type: string
+          enum:
+          - WEIGHT_DROP
+          - HEIGHT_STALL
+          - WFA_LOW
+          - HFA_LOW
+          - BMI_OUT_OF_RANGE
+          - BMI_Z_JUMP
+          - NORMAL
     AutoPlaceRequest:
       type: object
       properties:
@@ -9090,6 +10940,8 @@ components:
           format: int64
         code:
           type: string
+        deleteBlockedReason:
+          type: string
         id:
           type: integer
           format: int64
@@ -9273,9 +11125,13 @@ components:
           format: date
         fullName:
           type: string
+        hasAllergy:
+          type: boolean
         id:
           type: integer
           format: int64
+        mealRegistered:
+          type: boolean
     ChildClassResponse:
       type: object
       properties:
@@ -9393,6 +11249,8 @@ components:
           format: date
         leftReason:
           type: string
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         profile:
@@ -9564,6 +11422,8 @@ components:
         leftAt:
           type: string
           format: date
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         readmittedAt:
@@ -9731,12 +11591,26 @@ components:
     ChildTotal:
       type: object
       properties:
+        afternoonOff:
+          type: integer
+          format: int32
+        attendedDays:
+          type: number
+          format: double
         child:
           $ref: "#/components/schemas/ChildBrief"
         excused:
           type: integer
           format: int32
+        mealCounts:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
         meals:
+          type: integer
+          format: int32
+        morningOff:
           type: integer
           format: int32
         present:
@@ -9809,6 +11683,8 @@ components:
           format: date
         leftReason:
           type: string
+        mealRegistered:
+          type: boolean
         photoUrl:
           type: string
         profile:
@@ -9906,6 +11782,9 @@ components:
           type: string
         day:
           $ref: "#/components/schemas/DayInfoResponse"
+        latestAfternoonArrival:
+          type: string
+          format: time-local
         mealSessions:
           type: array
           items:
@@ -10044,47 +11923,6 @@ components:
         today:
           type: string
           format: date
-    ClassMonthlyCommentRequest:
-      type: object
-      properties:
-        classId:
-          type: integer
-          format: int64
-        content:
-          type: string
-        month:
-          type: string
-          format: date
-      required:
-      - classId
-      - month
-    ClassMonthlyCommentResponse:
-      type: object
-      properties:
-        canEdit:
-          type: boolean
-        classId:
-          type: integer
-          format: int64
-        className:
-          type: string
-        confirmedAt:
-          type: string
-          format: date-time
-        confirmedByName:
-          type: string
-        content:
-          type: string
-        draft:
-          type: string
-        month:
-          type: string
-          format: date
-        status:
-          type: string
-        updatedAt:
-          type: string
-          format: date-time
     ClassOption:
       type: object
       properties:
@@ -10189,6 +12027,8 @@ components:
         campusId:
           type: integer
           format: int64
+        canConfirm:
+          type: boolean
         canEdit:
           type: boolean
         id:
@@ -10376,7 +12216,7 @@ components:
           items:
             type: integer
             format: int64
-          maxItems: 2
+          maxItems: 3
           minItems: 0
       required:
       - teacherIds
@@ -10567,9 +12407,17 @@ components:
         childId:
           type: integer
           format: int64
+        eats:
+          type: boolean
         fromDate:
           type: string
           format: date
+        part:
+          type: string
+          enum:
+          - FULL_DAY
+          - MORNING
+          - AFTERNOON
         reason:
           type: string
           maxLength: 500
@@ -10717,6 +12565,9 @@ components:
         effectiveFrom:
           type: string
           format: date
+        latestAfternoonArrival:
+          type: string
+          format: time-local
         note:
           type: string
           maxLength: 500
@@ -10871,6 +12722,7 @@ components:
       - date
       - observation
       - requestId
+      - temperature
     DailySheetResponse:
       type: object
       properties:
@@ -10933,6 +12785,8 @@ components:
     Day:
       type: object
       properties:
+        canAmend:
+          type: boolean
         date:
           type: string
           format: date
@@ -11147,6 +13001,9 @@ components:
     DayRow:
       type: object
       properties:
+        afternoonOff:
+          type: integer
+          format: int32
         date:
           type: string
           format: date
@@ -11162,6 +13019,9 @@ components:
             type: integer
             format: int32
         missing:
+          type: integer
+          format: int32
+        morningOff:
           type: integer
           format: int32
         present:
@@ -11842,6 +13702,12 @@ components:
           format: int64
         declaration:
           $ref: "#/components/schemas/HealthDeclarationInput"
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
     EnrollmentChildInput:
       type: object
       properties:
@@ -11888,6 +13754,9 @@ components:
         id:
           type: integer
           format: int64
+        latestAfternoonArrival:
+          type: string
+          format: time-local
         note:
           type: string
         previousTime:
@@ -12027,6 +13896,35 @@ components:
             $ref: "#/components/schemas/EvaluationRow"
         summary:
           $ref: "#/components/schemas/SummaryInfo"
+    EvaluationPeriod:
+      type: object
+      properties:
+        deadline:
+          type: string
+          format: date
+        kind:
+          type: string
+          enum:
+          - THEME
+          - SEMESTER
+          - YEAR
+        label:
+          type: string
+        locked:
+          type: boolean
+        open:
+          type: boolean
+        openFrom:
+          type: string
+          format: date
+        periodKey:
+          type: string
+        themeId:
+          type: integer
+          format: int64
+        unlockedUntil:
+          type: string
+          format: date-time
     EvaluationRow:
       type: object
       properties:
@@ -12089,6 +13987,82 @@ components:
           enum:
           - AWAITING_REVIEW
           - CONFIRMED
+    EvaluationUnlockRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - THEME
+          - SEMESTER
+          - YEAR
+        periodKey:
+          type: string
+          maxLength: 40
+          minLength: 0
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+        validUntil:
+          type: string
+          format: date-time
+      required:
+      - classId
+      - kind
+      - periodKey
+      - reason
+      - validUntil
+    EvaluationUnlockResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - THEME
+          - SEMESTER
+          - YEAR
+        periodKey:
+          type: string
+        periodLabel:
+          type: string
+        reason:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: integer
+          format: int64
+        revokedByName:
+          type: string
+        unlockedAt:
+          type: string
+          format: date-time
+        unlockedBy:
+          type: integer
+          format: int64
+        unlockedByName:
+          type: string
+        validUntil:
+          type: string
+          format: date-time
     Event:
       type: object
       properties:
@@ -12124,6 +14098,25 @@ components:
           format: int64
         userName:
           type: string
+    FileUrlResponse:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+    FollowUp:
+      type: object
+      properties:
+        text:
+          type: string
+        type:
+          type: string
+          enum:
+          - RECHECK_NEXT_ROUND
+          - TALK_TO_PARENT
+          - REMEASURE
     FoodImportRequest:
       type: object
       properties:
@@ -12873,6 +14866,14 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/GoalCount"
+    GoalTag:
+      type: object
+      properties:
+        goalId:
+          type: integer
+          format: int64
+      required:
+      - goalId
     GroupStat:
       type: object
       properties:
@@ -13456,6 +15457,8 @@ components:
           $ref: "#/components/schemas/AllergiesInput"
         diet:
           $ref: "#/components/schemas/DeclarationAnswerInput"
+        mealRegistered:
+          type: boolean
         medicalHistory:
           $ref: "#/components/schemas/MedicalHistoryInput"
         otherNotes:
@@ -14340,6 +16343,8 @@ components:
           format: int64
         approvedByName:
           type: string
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
         draft:
           type: boolean
         generatedAt:
@@ -14350,8 +16355,16 @@ components:
           format: int64
         model:
           type: string
+        period:
+          type: string
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
         source:
           type: string
+        stale:
+          type: boolean
         status:
           type: string
         summary:
@@ -14363,8 +16376,27 @@ components:
     HealthTrendApproveRequest:
       type: object
       properties:
-        summary:
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
+    HealthTrendContent:
+      type: object
+      properties:
+        attentionPoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttentionPoint"
+        followUps:
+          type: array
+          items:
+            $ref: "#/components/schemas/FollowUp"
+        limitations:
           type: string
+        overview:
+          type: string
+        positives:
+          type: array
+          items:
+            type: string
     History:
       type: object
       properties:
@@ -14771,25 +16803,36 @@ components:
           type: string
         shortName:
           type: string
-    LearningResourceBinding:
+    LearningResourceConfirmRequest:
       type: object
       properties:
         activityKey:
           type: string
-          maxLength: 180
-          minLength: 0
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
         activityLabel:
           type: string
           maxLength: 1000
           minLength: 0
-        activitySignature:
+        fileName:
           type: string
-          minLength: 1
-          pattern: "[a-f0-9]{64}"
+          maxLength: 255
+          minLength: 0
+        tags:
+          $ref: "#/components/schemas/ResourceTagsRequest"
+        title:
+          type: string
+          maxLength: 255
+          minLength: 0
+        uploadId:
+          type: string
+          maxLength: 120
+          minLength: 0
       required:
       - activityKey
       - activityLabel
-      - activitySignature
+      - fileName
+      - uploadId
     LearningResourceResponse:
       type: object
       properties:
@@ -14798,8 +16841,6 @@ components:
         activityKey:
           type: string
         activityLabel:
-          type: string
-        activitySignature:
           type: string
         byteSize:
           type: integer
@@ -14816,12 +16857,42 @@ components:
         id:
           type: integer
           format: int64
+        itemId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        title:
+          type: string
         uploadedBy:
           type: integer
           format: int64
+        url:
+          type: string
+    LearningResourceUploadUrlRequest:
+      type: object
+      properties:
+        contentType:
+          type: string
+          maxLength: 120
+          minLength: 0
+        fileName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        size:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
+      required:
+      - contentType
+      - fileName
     LeaveRequestResponse:
       type: object
       properties:
+        ageGroupId:
+          type: integer
+          format: int64
         appliedDates:
           type: array
           items:
@@ -14851,6 +16922,16 @@ components:
           format: int64
         createdByName:
           type: string
+        eats:
+          type: boolean
+        eatsMeals:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
         effectiveTo:
           type: string
           format: date
@@ -14860,6 +16941,12 @@ components:
         id:
           type: integer
           format: int64
+        part:
+          type: string
+          enum:
+          - FULL_DAY
+          - MORNING
+          - AFTERNOON
         reason:
           type: string
         skippedDates:
@@ -15020,6 +17107,8 @@ components:
           format: date-time
         passwordChangeRequired:
           type: boolean
+        takeover:
+          $ref: "#/components/schemas/Takeover"
     Match:
       type: object
       properties:
@@ -15239,6 +17328,23 @@ components:
           minItems: 1
       required:
       - windows
+    MealPlanAmendRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemInput"
+        note:
+          type: string
+          maxLength: 300
+          minLength: 0
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - items
     MealPlanRequest:
       type: object
       properties:
@@ -15282,11 +17388,41 @@ components:
         publishedBy:
           type: integer
           format: int64
+        revisionCount:
+          type: integer
+          format: int64
         status:
           type: string
         weekStart:
           type: string
           format: date
+    MealPlanRevisionResponse:
+      type: object
+      properties:
+        after:
+          $ref: "#/components/schemas/RevisionDay"
+        before:
+          $ref: "#/components/schemas/RevisionDay"
+        changedAt:
+          type: string
+          format: date-time
+        changedBy:
+          type: integer
+          format: int64
+        changedByName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/RevisionIssue"
+        menuDate:
+          type: string
+          format: date
+        reason:
+          type: string
     MealPlanSummaryResponse:
       type: object
       properties:
@@ -15682,6 +17818,14 @@ components:
         from:
           type: string
           format: date
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
         size:
           type: integer
           format: int32
@@ -15791,6 +17935,62 @@ components:
           format: int64
         username:
           type: string
+    MyAnnouncementResponse:
+      type: object
+      properties:
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementAttachmentResponse"
+        body:
+          type: string
+        id:
+          type: integer
+          format: int64
+        senderName:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        title:
+          type: string
+    NewAdmission:
+      type: object
+      properties:
+        admissionId:
+          type: integer
+          format: int64
+        ageGroupId:
+          type: integer
+          format: int64
+        birthDate:
+          type: string
+          format: date
+        campusId:
+          type: integer
+          format: int64
+        childId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        targetClassId:
+          type: integer
+          format: int64
+    NewAdmissionItem:
+      type: object
+      properties:
+        admissionId:
+          type: integer
+          format: int64
+        toClassId:
+          type: integer
+          format: int64
+      required:
+      - admissionId
     NewItem:
       type: object
       properties:
@@ -15841,6 +18041,9 @@ components:
     NotificationResponse:
       type: object
       properties:
+        announcementId:
+          type: integer
+          format: int64
         body:
           type: string
         childId:
@@ -15872,6 +18075,7 @@ components:
           - HEALTH_RESULT_PUBLISHED
           - HEALTH_RESULT_UPDATED
           - HEALTH_CHECK_OPENED
+          - HEALTH_TREND_APPROVED
           - CHILD_PLACED
           - ATTENDANCE_DAY_UNLOCKED
           - EDU_SUBMITTED
@@ -15880,6 +18084,98 @@ components:
           - EDU_RETURNED
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
+          - SCHOOL_ANNOUNCEMENT
+          - DAILY_HEALTH_NOTED
+          - MENU_PUBLISHED
+          - MENU_CHANGED
+          - LEAVE_REQUEST_CREATED
+          - CHILD_EVALUATION_CONFIRMED
+          - THEME_EVALUATION_CONFIRMED
+          - WEEKLY_COMMENT_SENT
+          - ATTENDANCE_REMINDER
+          - ASSESSMENT_REMINDER
+          - ASSESSMENT_REOPENED
+          - LEADER_REMINDER
+          - STAFF_ASSIGNED
+          - CUTOFF_CHANGED
+          - LEAVE_REQUEST_CHANGED
+          - MEAL_COUNT_CONFIRMED
+          - REWARD_LIST_UPDATED
+          - SCHOOL_YEAR_ACTIVATED
+        typeLabel:
+          type: string
+    NotificationRuleRequest:
+      type: object
+      properties:
+        bodyTemplate:
+          type: string
+        enabled:
+          type: boolean
+        titleTemplate:
+          type: string
+    NotificationRuleResponse:
+      type: object
+      properties:
+        bodyTemplate:
+          type: string
+        customized:
+          type: boolean
+        editable:
+          type: boolean
+        enabled:
+          type: boolean
+        label:
+          type: string
+        mandatory:
+          type: boolean
+        ruleCode:
+          type: string
+        titleTemplate:
+          type: string
+        type:
+          type: string
+          enum:
+          - CHILD_PICKED_UP
+          - MEAL_COUNT_RECONFIRM
+          - CHILD_WITHDRAWN
+          - GUARDIAN_PHONE_CHANGE_REQUESTED
+          - GUARDIAN_PHONE_CHANGE_DECIDED
+          - CHILD_TB_CONTACT
+          - CHILD_TB_CONTACT_DATE_CHANGED
+          - HEALTH_RESULT_PUBLISHED
+          - HEALTH_RESULT_UPDATED
+          - HEALTH_CHECK_OPENED
+          - HEALTH_TREND_APPROVED
+          - CHILD_PLACED
+          - ATTENDANCE_DAY_UNLOCKED
+          - EDU_SUBMITTED
+          - EDU_STEP_APPROVED
+          - EDU_RELEASED
+          - EDU_RETURNED
+          - EDU_DEADLINE_EXTENDED
+          - EDU_DEADLINE_NEAR
+          - SCHOOL_ANNOUNCEMENT
+          - DAILY_HEALTH_NOTED
+          - MENU_PUBLISHED
+          - MENU_CHANGED
+          - LEAVE_REQUEST_CREATED
+          - CHILD_EVALUATION_CONFIRMED
+          - THEME_EVALUATION_CONFIRMED
+          - WEEKLY_COMMENT_SENT
+          - ATTENDANCE_REMINDER
+          - ASSESSMENT_REMINDER
+          - ASSESSMENT_REOPENED
+          - LEADER_REMINDER
+          - STAFF_ASSIGNED
+          - CUTOFF_CHANGED
+          - LEAVE_REQUEST_CHANGED
+          - MEAL_COUNT_CONFIRMED
+          - REWARD_LIST_UPDATED
+          - SCHOOL_YEAR_ACTIVATED
+        variables:
+          type: array
+          items:
+            type: string
     NutritionTotals:
       type: object
       properties:
@@ -15940,11 +18236,43 @@ components:
         expiresAt:
           type: string
           format: date-time
+        expiresInSeconds:
+          type: integer
+          format: int64
         requestId:
           type: string
         resendAvailableAt:
           type: string
           format: date-time
+        resendInSeconds:
+          type: integer
+          format: int64
+    OverdueClassItem:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        deadline:
+          type: string
+          format: date
+        done:
+          type: integer
+          format: int32
+        kind:
+          type: string
+        label:
+          type: string
+        periodKey:
+          type: string
+        total:
+          type: integer
+          format: int32
     OverrideItem:
       type: object
       properties:
@@ -16091,6 +18419,25 @@ components:
         totalPages:
           type: integer
           format: int32
+    PageResponseResourceItemResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceItemResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
     PageResponseStockMovementResponse:
       type: object
       properties:
@@ -16187,6 +18534,35 @@ components:
           format: int32
         username:
           type: string
+    ParentActivationRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          pattern: "\\d{6}"
+        confirmPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+        newPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 0
+      required:
+      - code
+      - confirmPassword
+      - newPassword
+      - phone
+    ParentActivationResponse:
+      type: object
+      properties:
+        username:
+          type: string
     ParentPasswordResponse:
       type: object
       properties:
@@ -16197,6 +18573,46 @@ components:
           format: int64
         username:
           type: string
+    ParentWeeklyCommentResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        content:
+          type: string
+        id:
+          type: integer
+          format: int64
+        sentAt:
+          type: string
+          format: date-time
+        teacherName:
+          type: string
+        weekEnd:
+          type: string
+          format: date
+        weekFrom:
+          type: string
+          format: date
+        weekLabel:
+          type: string
+        weekStart:
+          type: string
+          format: date
+    PendingTakeover:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        id:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
     PermissionChangeLogResponse:
       type: object
       properties:
@@ -16382,6 +18798,8 @@ components:
           type: boolean
         canEdit:
           type: boolean
+        canExport:
+          type: boolean
         canIssue:
           type: boolean
         canReturn:
@@ -16452,6 +18870,20 @@ components:
             $ref: "#/components/schemas/PickupGuardian"
         row:
           $ref: "#/components/schemas/PickupRow"
+    PickupClassResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     PickupGuardian:
       type: object
       properties:
@@ -16634,6 +19066,10 @@ components:
             $ref: "#/components/schemas/SourceClass"
         editable:
           type: boolean
+        newAdmissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewAdmission"
         sourceYear:
           $ref: "#/components/schemas/YearBrief"
         targets:
@@ -16746,6 +19182,22 @@ components:
         startDate:
           type: string
           format: date
+    PresignedUploadResponse:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        method:
+          type: string
+        uploadId:
+          type: string
+        url:
+          type: string
     Preview:
       type: object
       properties:
@@ -17018,8 +19470,8 @@ components:
           type: integer
           format: int32
         presentDays:
-          type: integer
-          format: int32
+          type: number
+          format: double
         schoolDays:
           type: integer
           format: int32
@@ -17129,6 +19581,17 @@ components:
       - lotNo
       - quantity
       - unitPrice
+    RecipientPreviewResponse:
+      type: object
+      properties:
+        byRole:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        total:
+          type: integer
+          format: int32
     RecipientRequest:
       type: object
       properties:
@@ -17137,6 +19600,35 @@ components:
           format: int64
       required:
       - guardianId
+    RecipientTargetRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - PARENT
+            - TEACHER
+            - KITCHEN
+            - BGH
+          uniqueItems: true
+        scopeType:
+          type: string
+          enum:
+          - SCHOOL
+          - CAMPUS
+          - AGE_GROUP
+          - CLASSROOM
     Referral:
       type: object
       properties:
@@ -17200,6 +19692,216 @@ components:
           format: date-time
         resetToken:
           type: string
+    ResourceAttachRequest:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
+        activityLabel:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        itemIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 20
+          minItems: 0
+        tags:
+          $ref: "#/components/schemas/ResourceTagsRequest"
+      required:
+      - activityKey
+      - activityLabel
+      - itemIds
+    ResourceItemResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        attached:
+          type: boolean
+        byteSize:
+          type: integer
+          format: int64
+        contentType:
+          type: string
+        fileName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        match:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceTagResponse"
+        taughtThemes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaughtTheme"
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+        usageCount:
+          type: integer
+          format: int64
+    ResourceItemUpdateRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        clearAgeGroup:
+          type: boolean
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalTag"
+          maxItems: 50
+          minItems: 0
+        removeTagIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 100
+          minItems: 0
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThemeTag"
+          maxItems: 50
+          minItems: 0
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+    ResourceLinkRequest:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
+        activityLabel:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        tags:
+          $ref: "#/components/schemas/ResourceTagsRequest"
+        title:
+          type: string
+          maxLength: 255
+          minLength: 0
+        url:
+          type: string
+          maxLength: 2000
+          minLength: 0
+      required:
+      - activityKey
+      - activityLabel
+      - url
+    ResourceOrderRequest:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 20
+          minItems: 0
+      required:
+      - activityKey
+      - ids
+    ResourceTagResponse:
+      type: object
+      properties:
+        auto:
+          type: boolean
+        curriculumGoalId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        name:
+          type: string
+        refId:
+          type: integer
+          format: int64
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
+    ResourceTagsRequest:
+      type: object
+      properties:
+        goalIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 50
+          minItems: 0
+        themeId:
+          type: integer
+          format: int64
+        themeName:
+          type: string
+          maxLength: 500
+          minLength: 0
+    ResourceUsageResponse:
+      type: object
+      properties:
+        activityKey:
+          type: string
+        activityLabel:
+          type: string
+        attachmentId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        date:
+          type: string
+        docKey:
+          type: string
+        locked:
+          type: boolean
+        status:
+          type: string
+    ResourceUsagesResponse:
+      type: object
+      properties:
+        deletableFrom:
+          type: string
+          format: date
+        locked:
+          type: boolean
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceUsageResponse"
     ResponseJsonAccessToken:
       type: object
       properties:
@@ -17265,6 +19967,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonActivationCodeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ActivationCodeResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAddGuardianResponse:
       type: object
       properties:
@@ -17299,6 +20014,58 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AgeGroupMealConfigResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAnnouncementListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AnnouncementListResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAnnouncementResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AnnouncementResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAnnouncementScheduleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AnnouncementScheduleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAnnouncementTemplateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AnnouncementTemplateResponse"
         desc:
           type: string
         errorCode:
@@ -17520,19 +20287,6 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassMealCountResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonClassMonthlyCommentResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/ClassMonthlyCommentResponse"
         desc:
           type: string
         errorCode:
@@ -17824,6 +20578,32 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonEvaluationUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/EvaluationUnlockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonFileUrlResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/FileUrlResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonFoodImportResponse:
       type: object
       properties:
@@ -18110,6 +20890,20 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonInteger:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: integer
+          format: int32
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonKitchenDayResponse:
       type: object
       properties:
@@ -18144,6 +20938,21 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/LeaveRequestResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListAccountPhotoUrlResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountPhotoUrlResponse"
         desc:
           type: string
         errorCode:
@@ -18204,6 +21013,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AllergenResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListAnnouncementScheduleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementScheduleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListAnnouncementTemplateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementTemplateResponse"
         desc:
           type: string
         errorCode:
@@ -18419,6 +21258,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListEvaluationPeriod:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluationPeriod"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListEvaluationRow:
       type: object
       properties:
@@ -18429,6 +21283,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EvaluationRow"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListEvaluationUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluationUnlockResponse"
         desc:
           type: string
         errorCode:
@@ -18614,6 +21483,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListMealPlanRevisionResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealPlanRevisionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListMealPlanSummaryResponse:
       type: object
       properties:
@@ -18644,6 +21528,36 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListNotificationRuleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationRuleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListOverdueClassItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverdueClassItem"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListParentAccountRowResponse:
       type: object
       properties:
@@ -18659,6 +21573,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListParentWeeklyCommentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentWeeklyCommentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListPermissionResponse:
       type: object
       properties:
@@ -18669,6 +21598,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PermissionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListPickupClassResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupClassResponse"
         desc:
           type: string
         errorCode:
@@ -18869,6 +21813,36 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListWeeklyCommentClassSummary:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyCommentClassSummary"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListWeeklyCommentUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyCommentUnlockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListYearPlanSummaryResponse:
       type: object
       properties:
@@ -19056,6 +22030,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonMyAnnouncementResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MyAnnouncementResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonNotificationListResponse:
       type: object
       properties:
@@ -19077,6 +22064,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/NotificationResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonNotificationRuleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/NotificationRuleResponse"
         desc:
           type: string
         errorCode:
@@ -19160,6 +22160,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonPageResponseResourceItemResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponseResourceItemResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonPageResponseStockMovementResponse:
       type: object
       properties:
@@ -19194,6 +22207,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentAccountLookupResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentActivationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentActivationResponse"
         desc:
           type: string
         errorCode:
@@ -19277,6 +22303,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonPresignedUploadResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PresignedUploadResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonPreview:
       type: object
       properties:
@@ -19329,6 +22368,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonRecipientPreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/RecipientPreviewResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonResetToken:
       type: object
       properties:
@@ -19337,6 +22389,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ResetToken"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonResourceItemResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ResourceItemResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonResourceUsagesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ResourceUsagesResponse"
         desc:
           type: string
         errorCode:
@@ -19454,6 +22532,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/SemesterLockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonSessionStatus:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SessionStatus"
         desc:
           type: string
         errorCode:
@@ -19640,6 +22731,32 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonWeeklyCommentBoardResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/WeeklyCommentBoardResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonWeeklyCommentUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/WeeklyCommentUnlockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonYearCopyResponse:
       type: object
       properties:
@@ -19737,6 +22854,43 @@ components:
           format: int64
       required:
       - expectedSourcePlanId
+    RevisionDay:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RevisionItem"
+        note:
+          type: string
+    RevisionIssue:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        severity:
+          type: string
+    RevisionItem:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        dishId:
+          type: integer
+          format: int64
+        dishName:
+          type: string
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
     RewardChildRow:
       type: object
       properties:
@@ -19757,8 +22911,8 @@ components:
         note:
           type: string
         presentDays:
-          type: integer
-          format: int32
+          type: number
+          format: double
         programCompleted:
           type: boolean
         schoolDays:
@@ -19788,6 +22942,8 @@ components:
         canEdit:
           type: boolean
         canReview:
+          type: boolean
+        canSubmit:
           type: boolean
         children:
           type: array
@@ -20185,9 +23341,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Item"
-          minItems: 1
-      required:
-      - items
+        newAdmissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewAdmissionItem"
+    ScheduleActivationRequest:
+      type: object
+      properties:
+        active:
+          type: boolean
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+    ScheduleSelectionRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
     SchoolHolidayItem:
       type: object
       properties:
@@ -20527,6 +23702,11 @@ components:
           - MORNING
           - LUNCH
           - AFTERNOON
+    SessionStatus:
+      type: object
+      properties:
+        pendingTakeover:
+          $ref: "#/components/schemas/PendingTakeover"
     Setting:
       type: object
       properties:
@@ -20537,6 +23717,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Entry"
+        latestAfternoonArrival:
+          type: string
+          format: time-local
         note:
           type: string
         schoolYear:
@@ -20682,6 +23865,7 @@ components:
           - CLASSES
           - TEACHERS
           - TEAM_LEADERS
+          - VICE_PRINCIPALS
           - CUTOFF
           - SEMESTER
         reason:
@@ -21126,6 +24310,12 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    Takeover:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
     TargetClass:
       type: object
       properties:
@@ -21146,6 +24336,16 @@ components:
         taken:
           type: integer
           format: int64
+    TaughtTheme:
+      type: object
+      properties:
+        name:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
     TbContactInput:
       type: object
       properties:
@@ -21365,6 +24565,19 @@ components:
             type: string
         vicePrincipal:
           type: string
+    ThemeTag:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 500
+          minLength: 0
+        schoolYearId:
+          type: integer
+          format: int64
+        themeId:
+          type: integer
+          format: int64
     TicketBoardResponse:
       type: object
       properties:
@@ -21604,6 +24817,16 @@ components:
     TrendWarning:
       type: object
       properties:
+        code:
+          type: string
+          enum:
+          - WEIGHT_DROP
+          - HEIGHT_STALL
+          - WFA_LOW
+          - HFA_LOW
+          - BMI_OUT_OF_RANGE
+          - BMI_Z_JUMP
+          - NORMAL
         level:
           type: string
         text:
@@ -21882,6 +25105,36 @@ components:
         row:
           type: integer
           format: int32
+    WeekData:
+      type: object
+      properties:
+        flagCount:
+          type: integer
+          format: int32
+        goalsMet:
+          type: integer
+          format: int32
+        goalsTotal:
+          type: integer
+          format: int32
+        lunchDays:
+          type: integer
+          format: int32
+        lunchFinished:
+          type: integer
+          format: int32
+        presentDays:
+          type: integer
+          format: int32
+        schoolDays:
+          type: integer
+          format: int32
+        unmetGoals:
+          type: array
+          items:
+            type: string
+        weeklyTicket:
+          type: boolean
     WeekMenu:
       type: object
       properties:
@@ -21894,6 +25147,35 @@ components:
           type: string
         status:
           type: string
+        weekStart:
+          type: string
+          format: date
+    WeekOption:
+      type: object
+      properties:
+        deadline:
+          type: string
+          format: date
+        from:
+          type: string
+          format: date
+        label:
+          type: string
+        locked:
+          type: boolean
+        open:
+          type: boolean
+        openFrom:
+          type: string
+          format: date
+        source:
+          type: string
+        to:
+          type: string
+          format: date
+        unlockedUntil:
+          type: string
+          format: date-time
         weekStart:
           type: string
           format: date
@@ -21919,6 +25201,210 @@ components:
       required:
       - key
       - label
+    WeeklyCommentBoardResponse:
+      type: object
+      properties:
+        aiEnabled:
+          type: boolean
+        aiFallback:
+          type: boolean
+        canEdit:
+          type: boolean
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyCommentChildRow"
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        week:
+          $ref: "#/components/schemas/WeekOption"
+        weekEnd:
+          type: string
+          format: date
+        weekStart:
+          type: string
+          format: date
+        weeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekOption"
+    WeeklyCommentChildRow:
+      type: object
+      properties:
+        absentAllWeek:
+          type: boolean
+        childId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        data:
+          $ref: "#/components/schemas/WeekData"
+        draftSource:
+          type: string
+          enum:
+          - TEMPLATE
+          - AI
+          - MANUAL
+        fullName:
+          type: string
+        reopened:
+          type: boolean
+        sentAt:
+          type: string
+          format: date-time
+        sentByName:
+          type: string
+        status:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    WeeklyCommentClassSummary:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        overdue:
+          type: boolean
+        sent:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        week:
+          $ref: "#/components/schemas/WeekOption"
+    WeeklyCommentDraftRequest:
+      type: object
+      properties:
+        ai:
+          type: boolean
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        overwrite:
+          type: boolean
+        weekStart:
+          type: string
+          format: date
+      required:
+      - classId
+      - weekStart
+    WeeklyCommentSaveRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        weekStart:
+          type: string
+          format: date
+      required:
+      - childId
+      - classId
+      - weekStart
+    WeeklyCommentSendRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        weekStart:
+          type: string
+          format: date
+      required:
+      - classId
+      - weekStart
+    WeeklyCommentUnlockRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+        validUntil:
+          type: string
+          format: date-time
+        weekStart:
+          type: string
+          format: date
+      required:
+      - classId
+      - reason
+      - validUntil
+      - weekStart
+    WeeklyCommentUnlockResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: integer
+          format: int64
+        revokedByName:
+          type: string
+        unlockedAt:
+          type: string
+          format: date-time
+        unlockedBy:
+          type: integer
+          format: int64
+        unlockedByName:
+          type: string
+        validUntil:
+          type: string
+          format: date-time
+        weekEnd:
+          type: string
+          format: date
+        weekFrom:
+          type: string
+          format: date
+        weekStart:
+          type: string
+          format: date
     WindowInput:
       type: object
       properties:
@@ -21984,6 +25470,7 @@ components:
             - CLASSES
             - TEACHERS
             - TEAM_LEADERS
+            - VICE_PRINCIPALS
             - CUTOFF
             - SEMESTER
           uniqueItems: true
@@ -22012,6 +25499,9 @@ components:
           type: integer
           format: int32
         teamLeaders:
+          type: integer
+          format: int32
+        vicePrincipals:
           type: integer
           format: int32
         withoutRoom:

@@ -28,13 +28,16 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.AttendanceService.ClassChildDay;
 import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.observation.RewardListService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationPeriodType;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RewardAction;
 import com.carenest.utils.enums.RewardStatus;
@@ -46,6 +49,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -101,6 +105,8 @@ public class RewardListServiceImpl implements RewardListService {
     private final RewardListEventRepository eventRepository;
     private final ChildEvaluationRepository evaluationRepository;
     private final BehaviourTicketRepository ticketRepository;
+    private final StaffAssignmentService staffAssignmentService;
+    private final NotificationService notificationService;
 
     @Override
     public List<RewardClassRow> classes(CurrentUser currentUser, Long schoolYearId) {
@@ -185,7 +191,7 @@ public class RewardListServiceImpl implements RewardListService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecordPeriod(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.REWARD_EDIT_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -202,6 +208,10 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
             }
             List<RewardItemRequest> items = checkItems(cls, request == null ? null : request.items());
+            // Cần chốt 15/11/2026: GV lớp cùng lập / lưu nháp, chỉ GV chủ nhiệm gửi duyệt
+            if (submit && !rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.SUBMIT_HOMEROOM_ONLY);
+            }
             if (submit && items.isEmpty()) {
                 throw GlobalException.of(ApiCode.REWARD_LIST_EMPTY);
             }
@@ -235,6 +245,10 @@ public class RewardListServiceImpl implements RewardListService {
                         currentUser.userId(),
                         at,
                         null));
+                notifyReward(
+                        staffAssignmentService.findCampusVicePrincipalIds(cls.campusId(), rules.today()),
+                        "Đề xuất khen thưởng chờ xét",
+                        "Lớp " + cls.name() + " gửi đề xuất khen thưởng cuối năm.");
             }
             log.info("{}|listId={}|items={}|status={}|END", logPrefix, listId, items.size(), list.getStatus());
             return toDetail(currentUser, cls, list);
@@ -242,6 +256,18 @@ public class RewardListServiceImpl implements RewardListService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // OBS-31: luồng khen thưởng — GV gửi báo PHT, PHT chuyển báo HT, trả lại / duyệt báo GV lớp
+    private void notifyReward(Collection<Long> users, String title, String body) {
+        if (!users.isEmpty()) {
+            notificationService.notifyUsers(
+                    users, NotificationType.REWARD_LIST_UPDATED, title, body, "/assessment/rewards", false);
+        }
+    }
+
+    private List<Long> teachersOf(ClassroomInfoResponse cls) {
+        return rules.periodTeacherIds(cls);
     }
 
     @Override
@@ -258,6 +284,7 @@ public class RewardListServiceImpl implements RewardListService {
                 }
                 throw GlobalException.of(ApiCode.REWARD_REVIEW_FORBIDDEN);
             }
+            checkYearActive(cls);
             String decision = request == null ? null : request.decision();
             if (!"FORWARD".equals(decision) && !"RETURN".equals(decision)) {
                 throw GlobalException.of(ApiCode.REWARD_DECISION_INVALID);
@@ -273,6 +300,14 @@ public class RewardListServiceImpl implements RewardListService {
                     currentUser.userId(),
                     at,
                     comment));
+            if (forward) {
+                notifyReward(
+                        staffAssignmentService.findPrincipalIds(rules.today()),
+                        "Đề xuất khen thưởng chờ duyệt",
+                        "Phó hiệu trưởng đã xét đề xuất khen thưởng lớp " + cls.name() + ".");
+            } else {
+                notifyReward(teachersOf(cls), "Đề xuất khen thưởng bị trả lại", "Lý do: " + comment);
+            }
             log.info("{}|decision={}|END", logPrefix, decision);
             return toDetail(currentUser, cls, list);
         } catch (RuntimeException ex) {
@@ -293,6 +328,7 @@ public class RewardListServiceImpl implements RewardListService {
             if (!currentUser.hasRole(CareNestRole.PRINCIPAL) || !rules.leadsCampus(currentUser, cls.campusId())) {
                 throw GlobalException.of(ApiCode.REWARD_REVIEW_FORBIDDEN);
             }
+            checkYearActive(cls);
             if (!canDecide(currentUser, list)) {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
             }
@@ -313,6 +349,10 @@ public class RewardListServiceImpl implements RewardListService {
                     currentUser.userId(),
                     at,
                     comment));
+            notifyReward(
+                    teachersOf(cls),
+                    approve ? "Đề xuất khen thưởng đã duyệt" : "Đề xuất khen thưởng bị trả lại",
+                    approve ? "Hiệu trưởng đã duyệt đề xuất khen thưởng lớp " + cls.name() + "." : "Lý do: " + comment);
             log.info("{}|decision={}|END", logPrefix, decision);
             return toDetail(currentUser, cls, list);
         } catch (RuntimeException ex) {
@@ -342,7 +382,7 @@ public class RewardListServiceImpl implements RewardListService {
 
     private boolean canEdit(CurrentUser user, ClassroomInfoResponse cls, RewardList list) {
         return user.hasPermission(Permission.ASSESSMENT_RECORD)
-                && rules.canRecord(user, cls)
+                && rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && !rules.today().isBefore(rules.yearEndOpensOn(user, cls))
                 && (list == null || list.isEditable());
@@ -352,6 +392,13 @@ public class RewardListServiceImpl implements RewardListService {
         return user.hasRole(CareNestRole.VICE_PRINCIPAL)
                 && user.hasPermission(Permission.REWARD_REVIEW)
                 && rules.leadsCampus(user, Permission.REWARD_REVIEW, list.getCampusId());
+    }
+
+    // Năm học đã kết thúc: danh sách khen thưởng chỉ xem, không xét / duyệt tiếp
+    private static void checkYearActive(ClassroomInfoResponse cls) {
+        if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
+            throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+        }
     }
 
     private boolean canReview(CurrentUser user, RewardList list) {
@@ -479,15 +526,16 @@ public class RewardListServiceImpl implements RewardListService {
                 schoolDays.add(d);
             }
         }
-        Map<Long, Integer> present = new HashMap<>();
+        Map<Long, Double> present = new HashMap<>();
         if (!to.isBefore(cls.yearStart())) {
             for (ClassChildDay d : attendanceService.findClassDays(List.of(cls.id()), cls.yearStart(), to)) {
                 if (!schoolDays.contains(d.date())) {
                     continue;
                 }
                 recorded.add(d.date());
+                // ATT-14: nghỉ nửa buổi tính 0,5 ngày có mặt
                 if (d.status() == AttendanceStatus.PRESENT) {
-                    present.merge(d.childId(), 1, Integer::sum);
+                    present.merge(d.childId(), d.presentDays(), Double::sum);
                 }
             }
         }
@@ -524,9 +572,9 @@ public class RewardListServiceImpl implements RewardListService {
 
         List<RewardChildRow> rows = children.stream()
                 .map(c -> {
-                    int presentDays = present.getOrDefault(c.id(), 0);
+                    double presentDays = present.getOrDefault(c.id(), 0.0);
                     List<LocalDate> own = expectedDays.getOrDefault(c.id(), List.of());
-                    Integer rate = own.isEmpty() ? null : Math.round(presentDays * 100f / own.size());
+                    Integer rate = own.isEmpty() ? null : (int) Math.round(presentDays * 100 / own.size());
                     long weeks = own.stream()
                             .map(d -> d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
                             .distinct()
@@ -631,8 +679,9 @@ public class RewardListServiceImpl implements RewardListService {
                                 e.getNote()))
                         .toList(),
                 canEdit(user, cls, list),
-                canReview(user, list),
-                canDecide(user, list),
+                canEdit(user, cls, list) && rules.isHomeroom(user, cls),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE && canReview(user, list),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE && canDecide(user, list),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE ? rules.yearEndOpensOn(user, cls) : null,
                 schoolDays.stream()
                         .filter(day -> day.isBefore(today)

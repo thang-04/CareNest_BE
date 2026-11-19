@@ -48,7 +48,21 @@ public enum ApiCode {
     AUTH_SERVICE_UNAVAILABLE(
             1013, HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ đăng nhập đang gián đoạn, vui lòng thử lại sau"),
     ACCOUNT_NOT_PROVISIONED(1014, HttpStatus.FORBIDDEN, "Tài khoản chưa được cấp quyền truy cập hệ thống"),
-    ACCOUNT_INACTIVE(1015, HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa"),
+    ACCOUNT_INACTIVE(
+            1015,
+            HttpStatus.FORBIDDEN,
+            "Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Ban Giám hiệu để được hỗ trợ mở lại."),
+    WEB_SESSION_REPLACED(
+            1016, HttpStatus.UNAUTHORIZED, "Tài khoản vừa đăng nhập ở trình duyệt khác, phiên này đã kết thúc"),
+    WEB_SESSION_CONFLICT(1017, HttpStatus.CONFLICT, "Tài khoản đang được dùng ở trình duyệt khác, hãy chọn dùng ở đâu"),
+    WEB_SESSION_TAKEOVER_REJECTED(
+            1018, HttpStatus.CONFLICT, "Trình duyệt đang dùng tài khoản đã chọn tiếp tục, lần đăng nhập này bị hủy"),
+    WEB_SESSION_TAKEOVER_EXPIRED(
+            1019, HttpStatus.CONFLICT, "Lượt đăng nhập đã hết hạn chờ xác nhận, vui lòng đăng nhập lại"),
+    LOGIN_TEMPORARILY_LOCKED(
+            1020,
+            HttpStatus.TOO_MANY_REQUESTS,
+            "Tài khoản tạm bị khóa do nhập sai mật khẩu nhiều lần. Vui lòng thử lại sau {0}"),
 
     // ========== 11xx TÀI KHOẢN & PHÂN QUYỀN ==========
     FORBIDDEN(1101, HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này"),
@@ -84,6 +98,10 @@ public enum ApiCode {
     PERMISSION_DUPLICATED(1122, HttpStatus.BAD_REQUEST, "Quyền {0} bị chọn trùng"),
     PERMISSION_NOT_CONFIGURABLE_FOR_ACCOUNT(
             1123, HttpStatus.BAD_REQUEST, "Quyền {0} không cấu hình được cho tài khoản này"),
+    PERMISSION_SCOPE_NOT_ALLOWED(
+            1125,
+            HttpStatus.BAD_REQUEST,
+            "Việc được giao có nơi áp dụng không phù hợp. Vui lòng tải lại trang rồi giao lại việc"),
     PHONE_NUMBER_INVALID(
             1124, HttpStatus.BAD_REQUEST, "Số điện thoại di động gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09"),
     NOT_PARENT_ACCOUNT(1126, HttpStatus.BAD_REQUEST, "Tài khoản này không phải tài khoản phụ huynh"),
@@ -99,13 +117,13 @@ public enum ApiCode {
     // Form tiếp nhận trẻ (ChildEnrollmentService) chưa có bước xác nhận đúng người như thêm phụ huynh ⇒ tạm chặn SĐT
     // nhân sự
     PHONE_OF_STAFF_ACCOUNT(1130, HttpStatus.CONFLICT, "Số điện thoại này là tên đăng nhập của tài khoản nhân sự"),
-    ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP, tối đa 2 MB"),
+    ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP"),
     ACCOUNT_PHOTO_NOT_FOUND(1132, HttpStatus.NOT_FOUND, "Chưa có ảnh hoặc bạn không có quyền xem ảnh này"),
     STAFF_ROLE_NOT_CHANGEABLE(
             1133, HttpStatus.BAD_REQUEST, "Chỉ đổi vai trò giữa Phó hiệu trưởng, giáo viên và nhân viên bếp"),
     STAFF_ROLE_UNCHANGED(1134, HttpStatus.BAD_REQUEST, "Tài khoản đang có vai trò này"),
     ACCOUNT_PROFILE_NOT_EDITABLE(1135, HttpStatus.BAD_REQUEST, "Chỉ sửa hồ sơ tài khoản nhân sự tại đây"),
-    SIGNATURE_INVALID(1140, HttpStatus.BAD_REQUEST, "Chọn ảnh chữ ký PNG hoặc JPG, tối đa 2 MB"),
+    SIGNATURE_INVALID(1140, HttpStatus.BAD_REQUEST, "Chọn ảnh chữ ký PNG hoặc JPG"),
     SIGNATURE_LIMIT_REACHED(1141, HttpStatus.CONFLICT, "Mỗi tài khoản lưu tối đa {0} chữ ký, hãy xóa bớt chữ ký cũ"),
     SIGNATURE_NOT_FOUND(1142, HttpStatus.NOT_FOUND, "Không tìm thấy chữ ký"),
     // G94-180/AUTH-21 (user chốt 2026-11-10): đổi SĐT phụ huynh có tài khoản phải qua duyệt. Trước khi gộp dev
@@ -121,9 +139,33 @@ public enum ApiCode {
             1143,
             HttpStatus.SERVICE_UNAVAILABLE,
             "Hệ thống đăng nhập chưa cho đổi tên đăng nhập. Báo quản trị viên, chưa đổi số điện thoại."),
+    ACTIVATION_NOT_PENDING(
+            1144,
+            HttpStatus.CONFLICT,
+            "Tài khoản không chờ kích hoạt bằng mã; dùng cấp lại mật khẩu tạm nếu phụ huynh quên mật khẩu"),
+    // AUTH-27: ảnh phụ huynh bắt buộc (App chặn khi thiếu) ⇒ tài khoản có role phụ huynh chỉ thay, không xóa
+    ACCOUNT_PHOTO_REQUIRED(
+            1145, HttpStatus.FORBIDDEN, "Tài khoản phụ huynh bắt buộc có ảnh chân dung, chỉ đổi được sang ảnh khác"),
 
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
+    ANNOUNCEMENT_NOT_FOUND(1202, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo của trường"),
+    ANNOUNCEMENT_SCOPE_DENIED(
+            1203, HttpStatus.FORBIDDEN, "Chỉ gửi được cho người nhận thuộc điểm trường bạn phụ trách"),
+    ANNOUNCEMENT_NOT_EDITABLE(1204, HttpStatus.CONFLICT, "Thông báo đã hoặc đang được gửi, không sửa hay hủy được nữa"),
+    ANNOUNCEMENT_NO_RECIPIENTS(1205, HttpStatus.BAD_REQUEST, "Không có người nhận nào trong phạm vi đã chọn"),
+    ANNOUNCEMENT_TOO_MANY_FILES(1206, HttpStatus.BAD_REQUEST, "Chỉ đính kèm tối đa {0} tệp"),
+    ANNOUNCEMENT_INVALID_SEND_AT(
+            1207, HttpStatus.BAD_REQUEST, "Giờ hẹn gửi phải sau thời điểm hiện tại và trong vòng {0} ngày tới"),
+    ANNOUNCEMENT_TEMPLATE_NOT_FOUND(1208, HttpStatus.NOT_FOUND, "Không tìm thấy mẫu thông báo"),
+    ANNOUNCEMENT_TEMPLATE_IN_USE(1209, HttpStatus.CONFLICT, "Mẫu đang được dùng cho lịch gửi lặp, xóa lịch trước"),
+    NOTIFICATION_RULE_MANDATORY(1210, HttpStatus.BAD_REQUEST, "Loại thông báo này bắt buộc, không tắt được"),
+    NOTIFICATION_RULE_READ_ONLY(1211, HttpStatus.BAD_REQUEST, "Loại thông báo này chỉ xem, không sửa câu chữ được"),
+    NOTIFICATION_RULE_UNKNOWN_VARIABLE(
+            1212, HttpStatus.BAD_REQUEST, "Câu chữ chỉ được dùng các biến cho phép của loại thông báo"),
+    ANNOUNCEMENT_SCHEDULE_NOT_FOUND(1213, HttpStatus.NOT_FOUND, "Không tìm thấy lịch gửi lặp"),
+    ANNOUNCEMENT_NOT_DELETABLE(1214, HttpStatus.CONFLICT, "Chỉ được xóa thông báo đã hủy"),
+    ANNOUNCEMENT_SCHEDULE_ACTIVE(1215, HttpStatus.CONFLICT, "Chỉ được xóa lịch gửi đã tắt, hãy tắt lịch trước"),
 
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),
@@ -168,6 +210,10 @@ public enum ApiCode {
     SCHOOL_YEAR_PREP_IN_PAST(2037, HttpStatus.BAD_REQUEST, "Ngày mở chuẩn bị không được trước hôm nay"),
     SCHOOL_YEAR_PREP_LOCKED(
             2038, HttpStatus.CONFLICT, "Năm học đã bắt đầu hoặc đã kết thúc, không đổi được ngày mở chuẩn bị"),
+    ACTIVATION_BEFORE_PREP(
+            2039, HttpStatus.CONFLICT, "Năm học chưa tới ngày mở chuẩn bị, chỉ kích hoạt được từ ngày {0}"),
+    SCHOOL_YEAR_NOT_PREPARING(
+            2040, HttpStatus.CONFLICT, "Năm học {0} chưa tới ngày mở chuẩn bị, lập và sửa kế hoạch từ ngày {1}"),
     SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
@@ -181,6 +227,11 @@ public enum ApiCode {
             2107, HttpStatus.CONFLICT, "Trường cần một điểm trường chính, chọn điểm trường chính khác trước"),
     MAIN_CAMPUS_NOT_DELETABLE(2108, HttpStatus.CONFLICT, "Không xóa được điểm trường chính"),
     CAMPUS_HAS_DEPENDENTS(2109, HttpStatus.CONFLICT, "Điểm trường đã có {0}, không xóa được"),
+    // Cần chốt 19/11/2026: chỉ xóa điểm trường chưa có dữ liệu, báo rõ còn gì và gợi ý ngừng hoạt động
+    CAMPUS_NOT_IN_YEAR(
+            2125, HttpStatus.BAD_REQUEST, "Điểm trường không có trong năm học này, thêm điểm trường vào năm trước"),
+    CAMPUS_NOT_EMPTY(
+            2124, HttpStatus.CONFLICT, "{0} còn {1}, không xóa được. Nếu không dùng nữa, chọn Ngừng hoạt động"),
     MAIN_CAMPUS_NOT_DEACTIVATABLE(2110, HttpStatus.CONFLICT, "Không ngừng hoạt động được điểm trường chính"),
     CAMPUS_HAS_ACTIVE_CLASSES(
             2111,
@@ -201,6 +252,8 @@ public enum ApiCode {
     ROOM_NOT_IN_CAMPUS(2120, HttpStatus.BAD_REQUEST, "Phòng không thuộc điểm trường đã chọn"),
     ROOM_INACTIVE(2121, HttpStatus.CONFLICT, "Phòng đã ngừng sử dụng"),
     ROOM_TAKEN(2122, HttpStatus.CONFLICT, "Phòng đã được lớp khác dùng trong năm học này"),
+    ROOM_KITCHEN_MANAGER_INVALID(
+            2123, HttpStatus.BAD_REQUEST, "Phụ trách bếp phải là nhân viên bếp, PHT của điểm trường hoặc Hiệu trưởng"),
 
     // ========== 22xx NHÓM TUỔI & LỚP ==========
     CLASS_ACCESS_DENIED(2201, HttpStatus.FORBIDDEN, "Bạn không có quyền với lớp này"),
@@ -225,7 +278,7 @@ public enum ApiCode {
     // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
     REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),
     TEACHERS_MUST_DIFFER(2302, HttpStatus.BAD_REQUEST, "Chọn 2 giáo viên khác nhau cho lớp"),
-    HOMEROOM_NOT_IN_CLASS(2303, HttpStatus.BAD_REQUEST, "Giáo viên chủ nhiệm phải là một trong các giáo viên của lớp"),
+    HOMEROOM_NOT_IN_CLASS(2303, HttpStatus.BAD_REQUEST, "GV phụ trách chính phải là một trong các giáo viên của lớp"),
     TEACHER_WRONG_CAMPUS(2304, HttpStatus.BAD_REQUEST, "Chỉ phân công giáo viên thuộc điểm trường của lớp"),
     TEACHER_ACCOUNT_LOCKED(2305, HttpStatus.CONFLICT, "Tài khoản giáo viên đã bị khóa"),
     TEACHER_ALREADY_ASSIGNED(2306, HttpStatus.CONFLICT, "Giáo viên {0} đang dạy lớp {1}, gỡ ở lớp đó trước"),
@@ -254,15 +307,16 @@ public enum ApiCode {
             "Thay hoặc gỡ giáo viên của lớp tại màn Phân công giáo viên (năm đang học lớp phải còn giáo viên)"),
     ASSIGNMENT_END_IN_PAST(2325, HttpStatus.BAD_REQUEST, "Không kết thúc phân công lùi về trước hôm qua"),
     STAFF_ACCOUNT_LOCKED(2326, HttpStatus.CONFLICT, "Tài khoản nhân sự đã bị khóa"),
-    CLASS_NEEDS_TWO_TEACHERS(
-            2328, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: mỗi lớp phải có đúng 2 giáo viên đứng lớp"),
-    HOMEROOM_REQUIRED(2329, HttpStatus.BAD_REQUEST, "Chọn giáo viên chủ nhiệm trong 2 giáo viên của lớp"),
+    CLASS_NEEDS_TWO_TEACHERS(2328, HttpStatus.BAD_REQUEST, "Mỗi lớp phải có ít nhất 2 giáo viên đứng lớp"),
+    HOMEROOM_REQUIRED(2329, HttpStatus.BAD_REQUEST, "Chọn GV phụ trách chính trong các giáo viên của lớp"),
+    CLASS_TOO_MANY_TEACHERS(2335, HttpStatus.BAD_REQUEST, "Mỗi lớp tối đa 3 giáo viên đứng lớp"),
     SUBSTITUTE_REPLACED_REQUIRED(2330, HttpStatus.BAD_REQUEST, "Chọn giáo viên được dạy thay"),
     SUBSTITUTE_REPLACED_NOT_IN_CLASS(
             2331, HttpStatus.BAD_REQUEST, "Giáo viên được dạy thay phải đang đứng lớp này vào ngày bắt đầu"),
     SUBSTITUTE_IS_CLASS_TEACHER(2332, HttpStatus.BAD_REQUEST, "Giáo viên đứng lớp này không dạy thay cho lớp mình"),
     SUBSTITUTE_ALREADY_COVERED(
             2333, HttpStatus.CONFLICT, "Giáo viên này đã có người dạy thay trong khoảng ngày đã chọn"),
+    SUBSTITUTE_TEACHER_BUSY(2334, HttpStatus.CONFLICT, "GV đang dạy thay lớp khác trong khoảng ngày này"),
     VICE_PRINCIPAL_CAMPUS_TAKEN(
             2327,
             HttpStatus.CONFLICT,
@@ -281,6 +335,12 @@ public enum ApiCode {
     PREP_YEAR_NOT_OPEN(2412, HttpStatus.CONFLICT, "Năm học {0} chưa tới ngày mở chuẩn bị ({1})"),
     NO_ACTIVE_YEAR_TO_MOVE_FROM(2410, HttpStatus.CONFLICT, "Không có năm học đang hoạt động để chuyển trẻ"),
     PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
+    PLACEMENT_CHILD_ALREADY_ENROLLED(
+            2413, HttpStatus.CONFLICT, "{0} đang có lớp, không vào lớp năm học mới theo đăng ký tiếp nhận được"),
+    PLACEMENT_ADMISSION_WRONG_CAMPUS(2415, HttpStatus.BAD_REQUEST, "Lớp {0} không thuộc điểm trường đăng ký của {1}"),
+    PLACEMENT_ADMISSION_WRONG_AGE_GROUP(2416, HttpStatus.BAD_REQUEST, "{0} ({1} tháng) không thuộc nhóm tuổi của {2}"),
+    CHILD_PLANNED_FOR_NEXT_YEAR(
+            2414, HttpStatus.CONFLICT, "{0} đã đăng ký cho năm học sắp tới, xếp lớp tại màn Xếp lớp năm học mới"),
 
     // ========== 30xx HỒ SƠ TRẺ ==========
     CHILD_ACCESS_DENIED(3001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem thông tin trẻ này"),
@@ -340,6 +400,11 @@ public enum ApiCode {
     LEAVE_NOT_FOUND(4023, HttpStatus.NOT_FOUND, "Không tìm thấy đơn nghỉ"),
     LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
     LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
+    // ATT-12, ATT-13 (Cần chốt 18/11/2026): nghỉ nửa buổi
+    LEAVE_HALF_DAY_SINGLE_DAY(4031, HttpStatus.BAD_REQUEST, "Nghỉ buổi sáng hoặc buổi chiều chỉ chọn cho một ngày"),
+    CUTOFF_LATEST_ARRIVAL_INVALID(4030, HttpStatus.BAD_REQUEST, "Giờ đến muộn nhất buổi chiều phải sau giờ chốt {0}"),
+    ATTENDANCE_ARRIVAL_NOT_ALLOWED(
+            4033, HttpStatus.CONFLICT, "Chỉ ghi Đã đến cho trẻ nghỉ buổi sáng chưa đến, từ giờ chốt tới {0}"),
     ATTENDANCE_EXCUSED_NOT_ALLOWED(
             4018,
             HttpStatus.BAD_REQUEST,
@@ -412,6 +477,8 @@ public enum ApiCode {
     HEALTH_MEASUREMENT_IS_EXAM(5034, HttpStatus.CONFLICT, "Kết quả này là phiếu khám. Sửa ở trang phiếu khám của đợt"),
     // 5035–5039 của phiếu theo dõi sức khỏe đã bỏ (HLT-16, 2026-11-04); không dùng lại mã
     HEALTH_INTERPRETATION_NOT_FOUND(5040, HttpStatus.NOT_FOUND, "Không tìm thấy bản giải thích xu hướng sức khỏe"),
+    HEALTH_INTERPRETATION_APPROVE_DENIED(
+            5041, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được sửa và duyệt giải thích xu hướng"),
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),
@@ -492,7 +559,7 @@ public enum ApiCode {
             6064, HttpStatus.BAD_REQUEST, "Khung giờ đăng ảnh không hợp lệ: giờ bắt đầu phải trước giờ kết thúc"),
     MEAL_PHOTO_OUT_OF_WINDOW(6065, HttpStatus.CONFLICT, "Ngoài khung giờ đăng ảnh bữa {0}"),
     MEAL_PHOTO_WINDOW_NOT_CONFIGURED(6066, HttpStatus.CONFLICT, "Chưa cấu hình khung giờ đăng ảnh bữa {0}"),
-    MEAL_PHOTO_INVALID(6067, HttpStatus.BAD_REQUEST, "Ảnh không hợp lệ: chỉ nhận JPEG, PNG, WebP tối đa 10 MB"),
+    MEAL_PHOTO_INVALID(6067, HttpStatus.BAD_REQUEST, "Ảnh không hợp lệ: chỉ nhận JPEG, PNG, WebP"),
     MEAL_PHOTO_NOT_FOUND(6068, HttpStatus.NOT_FOUND, "Không tìm thấy ảnh bữa ăn"),
     FOOD_SAFETY_ACCESS_DENIED(
             6069, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt lưu mẫu, hủy mẫu ở điểm trường này"),
@@ -516,17 +583,21 @@ public enum ApiCode {
             6090,
             HttpStatus.UNPROCESSABLE_ENTITY,
             "Còn {0} dòng Không đạt chưa ghi biện pháp xử lý (loại bỏ, trả lại, tiêu hủy...)"),
-    // AI-07: nháp gợi ý thực đơn
-    MENU_AI_DRAFT_NOT_FOUND(6091, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
+    MEAL_PLAN_NOT_PUBLISHED(6091, HttpStatus.CONFLICT, "Thực đơn tuần chưa công bố, sửa ở bản nháp"),
+    MEAL_PLAN_DAY_LOCKED(6092, HttpStatus.CONFLICT, "Ngày {0} đã qua giờ chốt hoặc là ngày nghỉ, không sửa được"),
+    MEAL_PLAN_REASON_REQUIRED(6093, HttpStatus.BAD_REQUEST, "Cần nhập lý do sửa thực đơn (10–500 ký tự)"),
+    MEAL_PLAN_AMEND_NO_CHANGE(6094, HttpStatus.BAD_REQUEST, "Thực đơn ngày {0} không có thay đổi"),
+    // AI-07: nháp gợi ý thực đơn (6095–6098; 6091–6094 của dev dành cho sửa ngoại lệ thực đơn đã công bố)
+    MENU_AI_DRAFT_NOT_FOUND(6095, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
     MENU_AI_DRAFT_NOT_PENDING(
-            6092,
+            6096,
             HttpStatus.CONFLICT,
             "Gợi ý thực đơn đã dùng, đã bỏ hoặc không có phương án, không thao tác tiếp được"),
     MENU_AI_DRAFT_STALE(
-            6093,
+            6097,
             HttpStatus.CONFLICT,
             "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
-    MENU_AI_DRAFT_KIND_INVALID(6094, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
+    MENU_AI_DRAFT_KIND_INVALID(6098, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
@@ -588,20 +659,32 @@ public enum ApiCode {
     THEME_NOT_IN_PLAN(7104, HttpStatus.BAD_REQUEST, "Chủ đề không thuộc kế hoạch năm học"),
     WEEK_NOT_IN_THEME(7105, HttpStatus.BAD_REQUEST, "Tuần không phải tuần học của chủ đề"),
     CLASS_DOC_SUBMITTED(7106, HttpStatus.CONFLICT, "Tài liệu đã gửi duyệt, không sửa được"),
-    WEEKLY_LESSON_VIA_THEME(7107, HttpStatus.BAD_REQUEST, "Giáo án tuần được gửi và duyệt cùng kế hoạch chủ đề"),
+    WEEKLY_LESSON_VIA_THEME(7107, HttpStatus.BAD_REQUEST, "Kế hoạch tuần được gửi và duyệt cùng kế hoạch chủ đề"),
     YEAR_PLAN_CLASS_MISMATCH(7108, HttpStatus.BAD_REQUEST, "Kế hoạch năm học không khớp với lớp"),
     YEAR_PLAN_NOT_ISSUED(7109, HttpStatus.CONFLICT, "Kế hoạch năm học của nhóm tuổi chưa được ban hành"),
     BRANCH_THEMES_NOT_APPROVED(7110, HttpStatus.CONFLICT, "Dự kiến chủ đề nhánh của lớp cần được duyệt trước"),
     THEME_PLAN_NOT_SAVED(7111, HttpStatus.CONFLICT, "Cần lưu kế hoạch giáo dục chủ đề trước"),
     BRANCH_WEEKS_UNNAMED(7112, HttpStatus.CONFLICT, "Còn {0} tuần chưa đặt tên chủ đề nhánh"),
     WEEKLY_LESSONS_MISSING(
-            7113, HttpStatus.CONFLICT, "Còn thiếu giáo án {0}. Soạn và lưu đủ giáo án các nhánh rồi mới gửi duyệt"),
+            7113,
+            HttpStatus.CONFLICT,
+            "Còn thiếu kế hoạch giáo dục ngày {0}. Soạn và lưu đủ kế hoạch giáo dục ngày các nhánh rồi mới gửi duyệt"),
     NOT_YOUR_REVIEW_STEP(7114, HttpStatus.FORBIDDEN, "Bạn không {0} được ở bước này"),
     THEME_PLAN_NOT_FOUND(7115, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch chủ đề"),
-    RESOURCE_THEME_ONLY(7116, HttpStatus.BAD_REQUEST, "Học liệu chỉ thuộc kế hoạch chủ đề"),
+    RESOURCE_DAY_ONLY(7116, HttpStatus.BAD_REQUEST, "Học liệu chỉ thuộc kế hoạch giáo dục ngày"),
     CLASS_DOC_LOCKED(7117, HttpStatus.CONFLICT, "Tài liệu đã khóa chỉnh sửa"),
     LEARNING_RESOURCE_NOT_FOUND(7118, HttpStatus.NOT_FOUND, "Không tìm thấy học liệu"),
     LEARNING_RESOURCE_UNBOUND(7119, HttpStatus.NOT_FOUND, "Học liệu chưa gắn với hoạt động hiện tại"),
+    // Spec 900 kho học liệu (EDU-82…88)
+    RESOURCE_LINK_INVALID(7127, HttpStatus.BAD_REQUEST, "Chỉ nhận link YouTube hoặc Google Drive/Docs (https)"),
+    RESOURCE_ITEM_NOT_FOUND(7128, HttpStatus.NOT_FOUND, "Không tìm thấy học liệu trong kho"),
+    RESOURCE_ALREADY_ATTACHED(7130, HttpStatus.CONFLICT, "Học liệu đã gắn vào mục này"),
+    RESOURCE_SECTION_FULL(7131, HttpStatus.CONFLICT, "Mỗi mục hoạt động gắn tối đa {0} học liệu"),
+    RESOURCE_ITEM_FORBIDDEN(7132, HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác học liệu này"),
+    RESOURCE_ORDER_STALE(7136, HttpStatus.CONFLICT, "Học liệu của mục đã thay đổi, tải lại trang rồi sắp xếp lại"),
+    // EDU-85/88: đang gắn giáo án Chờ duyệt hoặc đã ban hành chưa qua ngày dạy ⇒ không xóa, không đổi tên
+    RESOURCE_ITEM_LOCKED(
+            7137, HttpStatus.CONFLICT, "Học liệu đang dùng ở giáo án chờ duyệt hoặc chưa qua ngày dạy: {0}. {1}"),
     ACTIVITY_CHANGED(7120, HttpStatus.CONFLICT, "Hoạt động đã thay đổi. Lưu và chọn lại hoạt động trước khi gắn tệp"),
     CLASS_DOC_VERSION_FIX_REQUIRED(
             7121, HttpStatus.CONFLICT, "Còn {0} mục đổi theo kế hoạch năm mới chưa sửa (ô đỏ). Sửa hết rồi mới gửi"),
@@ -681,7 +764,7 @@ public enum ApiCode {
             7329,
             HttpStatus.BAD_REQUEST,
             "Kỳ phát phiếu không hợp lệ: tuần bắt đầu thứ Hai, tháng bắt đầu ngày 1 và nằm trong năm học của lớp"),
-    TICKET_PERIOD_NOT_ENDED(7330, HttpStatus.BAD_REQUEST, "Chỉ phát phiếu khi kỳ đã kết thúc (sau ngày {0})"),
+    TICKET_PERIOD_NOT_ENDED(7330, HttpStatus.BAD_REQUEST, "Chưa tới ngày phát phiếu, phát được từ ngày {0}"),
     TICKET_NO_CHILDREN(7331, HttpStatus.BAD_REQUEST, "Chọn ít nhất một trẻ để phát phiếu"),
     TICKET_TOO_MANY_CHILDREN(7332, HttpStatus.BAD_REQUEST, "Danh sách trẻ có mã trùng hoặc nhiều hơn sĩ số lớp"),
     TICKET_CHILD_NOT_IN_CLASS(7333, HttpStatus.BAD_REQUEST, "Có trẻ không thuộc lớp trong kỳ này"),
@@ -756,7 +839,7 @@ public enum ApiCode {
             7388, HttpStatus.CONFLICT, "Đã tới hạn, tài liệu đã khóa. Bản chưa ban hành cần Hiệu trưởng mở hạn"),
     PLAN_TIME_LOCKED(7389, HttpStatus.CONFLICT, "Năm học đã bắt đầu, kế hoạch đã khóa. Cần Hiệu trưởng mở khóa"),
     // Spec 005 FR-007a: data.details = [{ date, section }] để Web ghi chữ đỏ đúng mục
-    DAY_PLAN_SECTION_EMPTY(7390, HttpStatus.BAD_REQUEST, "Giáo án ngày còn mục chưa có nội dung: {0}"),
+    DAY_PLAN_SECTION_EMPTY(7390, HttpStatus.BAD_REQUEST, "Kế hoạch giáo dục ngày còn mục chưa có nội dung: {0}"),
     // Đánh giá học kỳ / cuối năm (Cần): dời từ 7384–7387 sang 7391–7394 khi gộp nhánh kế hoạch giáo dục (trùng số)
     SEMESTER_ASSESSMENT_INCOMPLETE(
             7391, HttpStatus.CONFLICT, "Còn mục tiêu chưa được đánh giá, bổ sung trước khi xác nhận"),
@@ -764,19 +847,43 @@ public enum ApiCode {
     YEAR_SHEET_DOMAIN_INVALID(7393, HttpStatus.BAD_REQUEST, "Có lĩnh vực không thuộc phiếu đánh giá, tải lại trang"),
     YEAR_END_NOT_OPEN(7394, HttpStatus.CONFLICT, "Học kỳ II chưa kết thúc, chưa xác nhận được đánh giá cuối năm"),
     REWARD_NOT_OPEN(7395, HttpStatus.CONFLICT, "Học kỳ II chưa kết thúc, chưa lập được danh sách khen thưởng cuối năm"),
-    CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
+    // EDU-80: data.details = [{ goalId, goalNo }]
+    THEME_GOALS_NOT_COVERED(7396, HttpStatus.BAD_REQUEST, "Chủ đề còn mục tiêu chưa được dạy ngày nào: {0}"),
+    YEAR_GOALS_NOT_COVERED(7397, HttpStatus.BAD_REQUEST, "Năm học còn mục tiêu chưa được dạy: {0}"),
     REWARD_REVIEW_FORBIDDEN(
             7364,
             HttpStatus.FORBIDDEN,
             "Chỉ Phó hiệu trưởng điểm trường xem xét, Hiệu trưởng phê duyệt danh sách khen thưởng"),
     EVALUATION_MONTH_INVALID(7344, HttpStatus.BAD_REQUEST, "Chọn tháng trong năm học, từ tháng {0} đến tháng {1}"),
+    // OBS-29 nhận xét tuần theo trẻ
+    WEEKLY_COMMENT_WEEK_INVALID(
+            7365, HttpStatus.BAD_REQUEST, "Chọn tuần trong năm học của lớp, từ tuần có ngày {0} đến tuần có ngày {1}"),
+    WEEKLY_COMMENT_FUTURE_WEEK(7366, HttpStatus.BAD_REQUEST, "Tuần này chưa bắt đầu, chưa viết nhận xét được"),
+    WEEKLY_COMMENT_CHILD_NOT_IN_CLASS(7368, HttpStatus.BAD_REQUEST, "Trẻ không thuộc lớp trong tuần này"),
+    WEEKLY_COMMENT_PARENT_FORBIDDEN(7369, HttpStatus.FORBIDDEN, "Bạn không xem được nhận xét của trẻ này"),
+    WEEKLY_COMMENT_NOTHING_TO_SEND(7399, HttpStatus.BAD_REQUEST, "Chưa có nhận xét nào viết xong để gửi phụ huynh"),
+    WEEKLY_COMMENT_LOCKED(
+            7400, HttpStatus.CONFLICT, "Nhận xét tuần đã khóa từ {0}. Liên hệ PHT hoặc Hiệu trưởng để mở lại."),
+    WEEKLY_COMMENT_NOT_LOCKED_YET(7401, HttpStatus.CONFLICT, "Tuần này chưa khóa, giáo viên vẫn sửa và gửi được"),
+    WEEKLY_COMMENT_UNLOCK_ALREADY_ACTIVE(7402, HttpStatus.CONFLICT, "Lớp / tuần này đang có lần mở lại còn hiệu lực"),
+    WEEKLY_COMMENT_UNLOCK_NOT_FOUND(7403, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại nhận xét tuần"),
+    WEEKLY_COMMENT_WEEK_NOT_ENDED(7398, HttpStatus.CONFLICT, "Tuần này chưa kết thúc. Nhận xét tuần mở từ ngày {0}"),
+    EVALUATION_LOCKED(7404, HttpStatus.CONFLICT, "{0} đã khóa từ ngày {1}. Liên hệ PHT hoặc Hiệu trưởng để mở lại."),
+    EVALUATION_NOT_LOCKED_YET(7405, HttpStatus.CONFLICT, "{0} chưa quá hạn, chưa cần mở lại"),
+    EVALUATION_UNLOCK_ALREADY_ACTIVE(7406, HttpStatus.CONFLICT, "{0} của lớp này đang được mở lại"),
+    EVALUATION_UNLOCK_NOT_FOUND(7407, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại đánh giá"),
+    EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
+    SUBMIT_HOMEROOM_ONLY(7409, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được gửi duyệt"),
+    CONFIRM_HOMEROOM_ONLY(7410, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được xác nhận đánh giá"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),
     AI_TIMEOUT(8002, HttpStatus.GATEWAY_TIMEOUT, "Trợ lý AI phản hồi quá lâu, vui lòng thử lại"),
     STORAGE_UNAVAILABLE(8003, HttpStatus.SERVICE_UNAVAILABLE, "Không lưu được tệp, vui lòng thử lại sau"),
-    UNSUPPORTED_MEDIA_TYPE(8004, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Định dạng tệp không được hỗ trợ"),
-    FILE_TOO_LARGE(8005, HttpStatus.PAYLOAD_TOO_LARGE, "Tệp vượt quá dung lượng cho phép"),
+    // {0}: phần nêu định dạng được nhận (", chỉ nhận: jpg, png") hoặc rỗng
+    UNSUPPORTED_MEDIA_TYPE(8004, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Định dạng tệp không được hỗ trợ{0}"),
+    // {0}: phần nêu giới hạn (" (tối đa 5 MB)") hoặc rỗng
+    FILE_TOO_LARGE(8005, HttpStatus.PAYLOAD_TOO_LARGE, "Tệp vượt quá dung lượng cho phép{0}"),
     UPLOAD_REQUEST_ID_REQUIRED(8006, HttpStatus.BAD_REQUEST, "Thiếu mã lần tải"),
     FILE_UNREADABLE(8007, HttpStatus.BAD_REQUEST, "Không đọc được tệp"),
     FILE_NOT_FOUND(8008, HttpStatus.NOT_FOUND, "Không tìm thấy tệp"),

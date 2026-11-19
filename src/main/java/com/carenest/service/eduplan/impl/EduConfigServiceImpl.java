@@ -183,8 +183,8 @@ public class EduConfigServiceImpl implements EduConfigService {
             LocalDate at =
                     !today.isBefore(year.startDate()) && !today.isAfter(year.endDate()) ? today : year.startDate();
             Map<String, Set<Long>> byGroup = new LinkedHashMap<>();
-            ageGroups.forEach(
-                    ag -> byGroup.put(ag.code(), staffAssignmentService.findActiveTeamLeaderIds(ag.id(), at)));
+            ageGroups.forEach(ag ->
+                    byGroup.put(ag.code(), staffAssignmentService.findActiveTeamLeaderIds(year.id(), ag.id(), at)));
             leaderIds.put(year.name(), byGroup);
         }
         Map<Long, String> names = accountService.findFullNames(leaderIds.values().stream()

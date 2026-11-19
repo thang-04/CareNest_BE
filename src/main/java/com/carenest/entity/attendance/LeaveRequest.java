@@ -1,7 +1,10 @@
 package com.carenest.entity.attendance;
 
+import com.carenest.utils.enums.LeavePart;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -41,6 +44,17 @@ public class LeaveRequest {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    /**
+     * ATT-12: cả ngày hoặc một buổi (đơn 1 ngày); eats: công tắc ăn cho các bữa của buổi còn học, null = không áp dụng
+     * (đơn cả ngày, hoặc buổi còn học không có bữa nào).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private LeavePart part = LeavePart.FULL_DAY;
+
+    @Column(nullable = false)
+    private Boolean eats;
+
     @Column(name = "cancelled_from")
     private LocalDate cancelledFrom;
 
@@ -60,6 +74,12 @@ public class LeaveRequest {
         r.createdBy = createdBy;
         r.createdAt = at;
         return r;
+    }
+
+    public LeaveRequest withPart(LeavePart part, Boolean eats) {
+        this.part = part == null ? LeavePart.FULL_DAY : part;
+        this.eats = eats;
+        return this;
     }
 
     /** Ngày cuối còn hiệu lực; trước from_date nghĩa là đã hủy toàn bộ. */

@@ -1,6 +1,7 @@
 package com.carenest.controller.account;
 
 import com.carenest.dto.account.UserSignatureResponse;
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.UserSignatureService;
@@ -80,6 +81,18 @@ public class UserSignatureController {
         signatureService.delete(currentUser, signatureId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Delete signature success");
+    }
+
+    @GetMapping("/signatures/me/{signatureId}/url")
+    @PreAuthorize(STAFF)
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getSignatureUrl(
+            @PathVariable Long signatureId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getSignatureUrl|userId=" + currentUser.userId() + "|signatureId=" + signatureId;
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = signatureService.getContentUrl(currentUser, signatureId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get signature url success", url);
     }
 
     @GetMapping("/signatures/me/{signatureId}/content")

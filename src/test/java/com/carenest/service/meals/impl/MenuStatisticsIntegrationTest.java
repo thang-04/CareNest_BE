@@ -8,6 +8,7 @@ import com.carenest.dto.meals.MenuStatisticsResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.MealPlanService;
+import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
@@ -40,6 +41,9 @@ class MenuStatisticsIntegrationTest {
 
     @Autowired
     private MealPlanService mealPlanService;
+
+    @Autowired
+    private ClassroomService classroomService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -172,6 +176,47 @@ class MenuStatisticsIntegrationTest {
         assertThat(stats.ingredients())
                 .singleElement()
                 .satisfies(i -> assertThat(i.cost()).isEqualByComparingTo("0"));
+    }
+
+    @Test
+    @DisplayName("NUT-07/CHD-13: sĩ số mặc định không đếm trẻ không báo ăn, sĩ số lớp vẫn đủ")
+    void enrolledHeadcountSkipsChildrenWithoutMeals() {
+        long campus = jdbc.queryForObject(
+                "INSERT INTO campuses (code, name, is_main) VALUES ('CS-H', 'H', TRUE) RETURNING id", Long.class);
+        long year = jdbc.queryForObject(
+                "INSERT INTO school_years (name, start_date, end_date, status)"
+                        + " VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id",
+                Long.class);
+        long classroom = jdbc.queryForObject(
+                "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (?, ?, 'Lớp H', ?)"
+                        + " RETURNING id",
+                Long.class,
+                campus,
+                year,
+                ag3);
+        for (int i = 0; i < 3; i++) {
+            long child = jdbc.queryForObject(
+                    "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, meal_registered)"
+                            + " VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ ' || ?, '2022-06-01',"
+                            + " 'MALE', 'ACTIVE', CURRENT_DATE, ?) RETURNING id",
+                    Long.class,
+                    String.valueOf(i),
+                    i != 2);
+            jdbc.update(
+                    "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
+                    child,
+                    classroom);
+        }
+
+        MenuStatisticsResponse stats = mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        ag3, DAY, campus, null, List.of(new MenuStatisticsRequest.Item(MealSession.LUNCH, com))));
+
+        assertThat(stats.childrenSource()).isEqualTo("ENROLLED");
+        assertThat(stats.children()).isEqualTo(2);
+        assertThat(classroomService.countActiveChildren(List.of(classroom), DAY))
+                .containsEntry(classroom, 3L);
     }
 
     @Test

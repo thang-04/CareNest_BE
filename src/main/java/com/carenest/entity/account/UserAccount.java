@@ -58,7 +58,7 @@ public class UserAccount {
     private CareNestRole primaryRole;
 
     /** Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, GV đối chiếu khi trả trẻ — PCK-02); tệp ở S3. */
-    @Column(name = "photo_key", length = 36)
+    @Column(name = "photo_key", length = 255)
     private String photoKey;
 
     @Column(name = "photo_content_type", length = 30)
@@ -172,6 +172,16 @@ public class UserAccount {
         this.photoContentType = contentType;
         this.photoSizeBytes = sizeBytes;
         this.photoUpdatedAt = at;
+        return old;
+    }
+
+    /** Bỏ ảnh chân dung; trả mã tệp cũ để dọn sau khi lưu (null khi chưa có). */
+    public String clearPhoto() {
+        String old = this.photoKey;
+        this.photoKey = null;
+        this.photoContentType = null;
+        this.photoSizeBytes = null;
+        this.photoUpdatedAt = null;
         return old;
     }
 }

@@ -36,7 +36,7 @@ Mọi feature ─► Báo cáo (chỉ đọc, trong scope)
 
 | Dữ liệu | Được đi tới | Không được đi tới |
 | --- | --- | --- |
-| Tên/ngày sinh/ảnh trẻ | DB, client có quyền; ảnh qua `StorageService` | AI provider, log, nội dung push |
+| Tên/ngày sinh/ảnh trẻ | DB, client có quyền; ảnh qua `FileStorage` | AI provider, log, nội dung push |
 | Sức khỏe, quan sát, đánh giá | DB, staff có quyền, phụ huynh theo policy | Log, push, bếp, AI (trừ số liệu bí danh) |
 | Dị ứng | Bếp (phần cần cho nấu), AI dạng tổng hợp | Log |
 

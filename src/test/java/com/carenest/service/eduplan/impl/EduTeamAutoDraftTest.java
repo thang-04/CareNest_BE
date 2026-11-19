@@ -109,7 +109,9 @@ class EduTeamAutoDraftTest {
                 .thenReturn(List.of(annual));
         when(plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(EduPlanLevel.TEAM, 1L, 2L))
                 .thenReturn(List.of());
-        lenient().when(assignments.findActiveTeamLeaderIds(eq(2L), any())).thenReturn(Set.of(7L));
+        lenient()
+                .when(assignments.findActiveTeamLeaderIds(eq(1L), eq(2L), any()))
+                .thenReturn(Set.of(7L));
         lenient().when(accounts.findActiveUserIds(Set.of(7L))).thenReturn(Set.of(7L));
         lenient().when(clock.getZone()).thenReturn(ZoneId.of("Asia/Ho_Chi_Minh"));
         lenient().when(plans.saveAndFlush(any())).thenAnswer(call -> {

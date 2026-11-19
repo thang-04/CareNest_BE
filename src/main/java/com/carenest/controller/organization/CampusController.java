@@ -73,10 +73,12 @@ public class CampusController {
     // Để OpenAPI ghi 201 khớp ApiCode.CREATED
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<CampusResponse>> createCampus(
-            @Valid @RequestBody CampusRequest request, CurrentUser currentUser) {
+            @Valid @RequestBody CampusRequest request,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|createCampus|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        CampusResponse campus = campusService.createCampus(currentUser, request);
+        CampusResponse campus = campusService.createCampus(currentUser, request, schoolYearId);
         log.info("{}|campusId={}|END", logPrefix, campus.id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create campus success", campus);
     }
@@ -84,20 +86,24 @@ public class CampusController {
     @PutMapping("/{campusId}")
     @PreAuthorize("hasRole('PRINCIPAL')")
     public ResponseEntity<ResponseJson<CampusResponse>> updateCampus(
-            @PathVariable Long campusId, @Valid @RequestBody CampusRequest request, CurrentUser currentUser) {
+            @PathVariable Long campusId,
+            @Valid @RequestBody CampusRequest request,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|updateCampus|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
-        CampusResponse campus = campusService.updateCampus(currentUser, campusId, request);
+        CampusResponse campus = campusService.updateCampus(currentUser, campusId, request, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update campus success", campus);
     }
 
     @DeleteMapping("/{campusId}")
     @PreAuthorize("hasRole('PRINCIPAL')")
-    public ResponseEntity<ResponseJson<Void>> deleteCampus(@PathVariable Long campusId, CurrentUser currentUser) {
+    public ResponseEntity<ResponseJson<Void>> deleteCampus(
+            @PathVariable Long campusId, @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|deleteCampus|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
-        campusService.deleteCampus(currentUser, campusId);
+        campusService.deleteCampus(currentUser, campusId, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Delete campus success");
     }

@@ -293,6 +293,9 @@ public class EduClassDoc {
         if (this.authorCoverage == null) {
             this.authorCoverage = authorCoverage;
         }
-        this.updatedBy = userId;
+        // Tạo bù lúc khởi động không có người sửa: giữ người sửa cũ (updated_by NOT NULL)
+        if (userId != null) {
+            this.updatedBy = userId;
+        }
     }
 }

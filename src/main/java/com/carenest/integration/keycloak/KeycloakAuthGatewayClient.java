@@ -4,7 +4,9 @@ import com.carenest.config.AuthProperties;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
@@ -57,6 +59,41 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
     }
 
     @Override
+    public Optional<Instant> loginBlockedUntil(String identifier) {
+        try {
+            String userId = findUserId("username", identifier);
+            if (userId == null && identifier.contains("@")) userId = findUserId("email", identifier);
+            if (userId == null) return Optional.empty();
+            BruteForceStatus status = client.get()
+                    .uri("/admin/realms/{realm}/attack-detection/brute-force/users/{id}", admin.realm(), userId)
+                    .headers(headers -> headers.setBearerAuth(adminToken()))
+                    .retrieve()
+                    .body(BruteForceStatus.class);
+            if (status == null || !Boolean.TRUE.equals(status.disabled()) || status.failedLoginNotBefore() == null)
+                return Optional.empty();
+            return Optional.of(Instant.ofEpochSecond(status.failedLoginNotBefore()));
+        } catch (ProviderUnavailable | RestClientException ex) {
+            log.warn(
+                    "[authGatewayBruteForce]|lookupFailed|type={}",
+                    ex.getClass().getSimpleName());
+            return Optional.empty();
+        }
+    }
+
+    private String findUserId(String field, String value) {
+        List<UserRef> users = client.get()
+                .uri(
+                        "/admin/realms/{realm}/users?{field}={value}&exact=true&briefRepresentation=true&max=2",
+                        admin.realm(),
+                        field,
+                        value)
+                .headers(headers -> headers.setBearerAuth(adminToken()))
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        return users != null && users.size() == 1 ? users.get(0).id() : null;
+    }
+
+    @Override
     public Tokens refresh(String refreshToken) {
         var form = form("refresh_token");
         form.add("refresh_token", refreshToken);
@@ -77,6 +114,104 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
         } catch (RestClientException ex) {
             // Best-effort: caller vẫn xóa cookie phiên; không log token.
             log.warn("[authGatewayLogout]|keycloakUnavailable");
+        }
+    }
+
+    @Override
+    public List<String> revokeOtherWebSessions(String keycloakUserId, String keepSessionId) {
+        List<String> revoked = new java.util.ArrayList<>();
+        try {
+            for (UserSession session : webSessions(keycloakUserId)) {
+                if (session.id().equals(keepSessionId)) continue;
+                deleteSession(session.id());
+                revoked.add(session.id());
+            }
+        } catch (ProviderUnavailable | RestClientException ex) {
+            // Best-effort: phiên cũ vẫn tự hết khi idle 30 phút; không chặn lần đăng nhập vừa thành công.
+            log.warn(
+                    "[authGatewaySessionLimit]|revokeFailed|type={}",
+                    ex.getClass().getSimpleName());
+        }
+        return revoked;
+    }
+
+    @Override
+    public boolean hasOtherWebSessions(String keycloakUserId, String keepSessionId) {
+        try {
+            return webSessions(keycloakUserId).stream()
+                    .anyMatch(session -> !session.id().equals(keepSessionId));
+        } catch (ProviderUnavailable | RestClientException ex) {
+            log.warn(
+                    "[authGatewaySessionLimit]|lookupFailed|type={}",
+                    ex.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    @Override
+    public void revokeSession(String sessionId) {
+        try {
+            deleteSession(sessionId);
+        } catch (ProviderUnavailable | RestClientException ex) {
+            log.warn(
+                    "[authGatewaySessionLimit]|revokeFailed|type={}",
+                    ex.getClass().getSimpleName());
+        }
+    }
+
+    private void deleteSession(String sessionId) {
+        client.delete()
+                .uri("/admin/realms/{realm}/sessions/{session}", admin.realm(), sessionId)
+                .headers(headers -> headers.setBearerAuth(adminToken()))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
+    @Override
+    public boolean replacedByNewerWebSession(String rejectedRefreshToken, Instant loginAt) {
+        // Refresh token đến từ cookie đã niêm phong AES-GCM nên payload là bản Keycloak cấp; chỉ đọc sub/sid, không xác
+        // thực lại
+        Map<String, Object> claims = unverifiedClaims(rejectedRefreshToken);
+        if (!(claims.get("sub") instanceof String userId) || !(claims.get("sid") instanceof String sessionId))
+            return false;
+        try {
+            return webSessions(userId).stream()
+                    .anyMatch(session -> !session.id().equals(sessionId)
+                            && session.start() != null
+                            && session.start() >= loginAt.toEpochMilli());
+        } catch (ProviderUnavailable | RestClientException ex) {
+            log.warn(
+                    "[authGatewaySessionLimit]|lookupFailed|type={}",
+                    ex.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    // Chỉ phiên có client Web gateway; phiên Mobile (PKCE) của cùng tài khoản không tính
+    private List<UserSession> webSessions(String keycloakUserId) {
+        List<UserSession> sessions = client.get()
+                .uri("/admin/realms/{realm}/users/{id}/sessions", admin.realm(), keycloakUserId)
+                .headers(headers -> headers.setBearerAuth(adminToken()))
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        if (sessions == null) return List.of();
+        return sessions.stream()
+                .filter(session -> session.id() != null
+                        && session.clients() != null
+                        && session.clients().containsValue(web.clientId()))
+                .toList();
+    }
+
+    private static Map<String, Object> unverifiedClaims(String jwt) {
+        String[] parts = jwt == null ? new String[0] : jwt.split("\\.");
+        if (parts.length != 3) return Map.of();
+        try {
+            String json = new String(
+                    java.util.Base64.getUrlDecoder().decode(parts[1]), java.nio.charset.StandardCharsets.UTF_8);
+            return org.springframework.boot.json.JsonParserFactory.getJsonParser()
+                    .parseMap(json);
+        } catch (IllegalArgumentException ex) {
+            return Map.of();
         }
     }
 
@@ -210,7 +345,7 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
                 throw new ProviderUnavailable();
             }
             return response;
-        } catch (FirstLoginRequired | InvalidCredentials | ProviderUnavailable ex) {
+        } catch (FirstLoginRequired | InvalidCredentials | AccountDisabled | ProviderUnavailable ex) {
             throw ex;
         } catch (RestClientResponseException ex) {
             ErrorBody body = null;
@@ -239,7 +374,11 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
             if ("password".equals(form.getFirst("grant_type"))
                     && ex.getStatusCode().value() == 400
                     && body != null
-                    && "invalid_grant".equals(body.error())) throw new InvalidCredentials();
+                    && "invalid_grant".equals(body.error())) {
+                // Keycloak chỉ báo "Account disabled" khi mật khẩu đúng nên không lộ trạng thái cho người đoán mật khẩu
+                if ("Account disabled".equals(body.errorDescription())) throw new AccountDisabled();
+                throw new InvalidCredentials();
+            }
             if ("refresh_token".equals(form.getFirst("grant_type"))
                     && ex.getStatusCode().value() == 400
                     && body != null
@@ -269,9 +408,25 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record ErrorBody(
             @JsonProperty("error") String error,
+            @JsonProperty("error_description") String errorDescription,
             @JsonProperty("user_id") String userId,
             @JsonProperty("setup_token") String setupToken,
             @JsonProperty("expires_in") Long expiresIn) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record UserRef(@JsonProperty("id") String id) {}
+
+    // failedLoginNotBefore: giây epoch Keycloak cho thử lại; disabled = đang bị brute-force chặn tạm
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record BruteForceStatus(
+            @JsonProperty("disabled") Boolean disabled,
+            @JsonProperty("failedLoginNotBefore") Long failedLoginNotBefore) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record UserSession(
+            @JsonProperty("id") String id,
+            @JsonProperty("start") Long start,
+            @JsonProperty("clients") Map<String, String> clients) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record AdminToken(

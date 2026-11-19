@@ -80,8 +80,14 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
     @Query(
             value =
                     "insert into school_year_campuses (school_year_id, campus_id, code, name, short_name, address, phone,"
-                            + " is_main) select :yearId, c.id, c.code, c.name, c.short_name, c.address, c.phone, c.is_main"
-                            + " from campuses c",
+                            + " is_main) select :yearId, c.id, coalesce(m.code, c.code), coalesce(m.name, c.name),"
+                            + " coalesce(m.short_name, c.short_name), coalesce(m.address, c.address),"
+                            + " coalesce(m.phone, c.phone), c.is_main from campuses c"
+                            // V151/V152: chụp điểm trường của năm, theo thông tin riêng của năm (năm chưa có
+                            // danh sách riêng thì cả danh mục)
+                            + " left join school_year_campus_members m on m.campus_id = c.id and m.school_year_id = :yearId"
+                            + " where m.campus_id is not null or not exists (select 1 from school_year_campus_members x"
+                            + " where x.school_year_id = :yearId)",
             nativeQuery = true)
     void snapshotCampuses(@Param("yearId") Long yearId);
 
@@ -91,7 +97,11 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
                     "insert into school_year_age_groups (school_year_id, age_group_id, code, name, short_name, sort_order,"
                             + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
                             + " select :yearId, g.id, g.code, g.name, g.short_name, g.sort_order, g.age_from_months,"
-                            + " g.age_to_months, g.meal_sessions, g.max_class_size, g.nutrition_note from age_groups g",
+                            + " g.age_to_months, g.meal_sessions, g.max_class_size, g.nutrition_note from age_groups g"
+                            // Chỉ nhóm tuổi của năm đó (V148); năm chưa có danh sách riêng thì cả danh mục
+                            + " where not exists (select 1 from school_year_age_group_members m"
+                            + " where m.school_year_id = :yearId) or g.id in (select m.age_group_id"
+                            + " from school_year_age_group_members m where m.school_year_id = :yearId)",
             nativeQuery = true)
     void snapshotAgeGroups(@Param("yearId") Long yearId);
 

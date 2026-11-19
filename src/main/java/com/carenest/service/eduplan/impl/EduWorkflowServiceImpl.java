@@ -23,6 +23,7 @@ import com.carenest.service.eduplan.impl.EduWorkflowPolicy.Role;
 import com.carenest.service.eduplan.impl.EduWorkflowPolicy.RolePolicy;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.RequestMemo;
 import com.carenest.utils.enums.EduClassDocStatus;
 import com.carenest.utils.enums.EduPlanStatus;
 import com.carenest.utils.enums.StaffRole;
@@ -144,7 +145,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             int round = plan.getReviewRound();
             List<Approval> approvals = parseApprovals(plan.getApprovals());
             Set<Long> excludedAuthors = getAuthorUserIdsForYearPlan(plan.getId());
-            Map<Role, Set<Long>> candidates = resolveActiveCandidates(policy, plan.getAgeGroupId(), null, date);
+            Map<Role, Set<Long>> candidates =
+                    resolveActiveCandidates(policy, plan.getAgeGroupId(), plan.getSchoolYearId(), null, date);
             var result = evaluator.evaluate(policy, round, approvals, excludedAuthors, candidates);
             log.info("{}|END", logPrefix);
             return result;
@@ -165,7 +167,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             int round = doc.getReviewRound();
             List<Approval> approvals = parseApprovals(doc.getApprovals());
             Set<Long> excludedAuthors = getUnionAuthorUserIdsForDossier(doc);
-            Map<Role, Set<Long>> candidates = resolveActiveCandidates(policy, ageGroupId, doc.getClassroomId(), date);
+            Map<Role, Set<Long>> candidates =
+                    resolveActiveCandidates(policy, ageGroupId, null, doc.getClassroomId(), date);
             var result = evaluator.evaluate(policy, round, approvals, excludedAuthors, candidates);
             log.info("{}|END", logPrefix);
             return result;
@@ -203,7 +206,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                                 doc.getReviewRound(),
                                 parseApprovals(doc.getApprovals()),
                                 classAuthors.get(doc.getId()),
-                                candidatesForClassroom(policy, null, classroom, assignments, activeIds)));
+                                candidatesForClassroom(policy, null, null, classroom, assignments, activeIds, date)));
             }
             log.info("{}|END", logPrefix);
             return Map.copyOf(results);
@@ -316,7 +319,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Map<Role, Set<Long>> resolveActiveCandidates(
-            RolePolicy policy, Long ageGroupId, Long classroomId, LocalDate date) {
+            RolePolicy policy, Long ageGroupId, Long schoolYearId, Long classroomId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|resolveActiveCandidates";
         log.info("{}|START", logPrefix);
         try {
@@ -324,9 +327,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             var result = candidatesFromAssignments(
                     policy,
                     ageGroupId,
+                    schoolYearId,
                     classroomId,
                     assignments,
-                    accountService.findActiveUserIds(assignments.keySet()));
+                    accountService.findActiveUserIds(assignments.keySet()),
+                    date);
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
@@ -338,24 +343,36 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     private Map<Role, Set<Long>> candidatesFromAssignments(
             RolePolicy policy,
             Long ageGroupId,
+            Long schoolYearId,
             Long classroomId,
             Map<Long, List<StaffAssignmentSummaryResponse>> assignmentsByUserId,
-            Set<Long> activeUserIds) {
+            Set<Long> activeUserIds,
+            LocalDate date) {
         var classroom = classroomId == null
                 ? null
                 : classroomService
                         .findClassroomInfo(classroomId)
                         .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
-        return candidatesForClassroom(policy, ageGroupId, classroom, assignmentsByUserId, activeUserIds);
+        return candidatesForClassroom(
+                policy, ageGroupId, schoolYearId, classroom, assignmentsByUserId, activeUserIds, date);
     }
 
     private Map<Role, Set<Long>> candidatesForClassroom(
             RolePolicy policy,
             Long ageGroupId,
+            Long schoolYearId,
             ClassroomInfoResponse classroom,
             Map<Long, List<StaffAssignmentSummaryResponse>> assignmentsByUserId,
-            Set<Long> activeUserIds) {
+            Set<Long> activeUserIds,
+            LocalDate date) {
         Long scopedAgeGroup = classroom == null ? ageGroupId : classroom.ageGroupId();
+        Long scopedYear = classroom == null ? schoolYearId : classroom.schoolYearId();
+        // Tổ trưởng theo đúng năm học của kế hoạch/lớp: hai năm cùng hiệu lực (chuẩn bị năm sau) không gộp người duyệt
+        Set<Long> yearLeaders = scopedYear == null
+                        || scopedAgeGroup == null
+                        || !policy.reviewers().contains(Role.TEAM_LEADER)
+                ? null
+                : staffAssignmentService.findYearTeamLeaderIds(scopedAgeGroup, scopedYear, date);
         Map<Role, Set<Long>> result = new EnumMap<>(Role.class);
         for (Role role : policy.reviewers()) {
             Set<Long> matchingIds = new HashSet<>();
@@ -370,6 +387,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                                 && (classroom == null || Objects.equals(a.campusId(), classroom.campusId()));
                     }
                     if (role == Role.TEAM_LEADER) {
+                        if (yearLeaders != null) return yearLeaders.contains(userId);
                         return a.staffRole() == StaffRole.AGE_GROUP_TEAM_LEADER
                                 && scopedAgeGroup != null
                                 && Objects.equals(a.ageGroupId(), scopedAgeGroup);
@@ -411,7 +429,13 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                         parseApprovals(plan.getApprovals()),
                         getAuthorUserIdsForYearPlan(plan.getId()),
                         candidatesFromAssignments(
-                                yearPolicy, plan.getAgeGroupId(), null, assignmentSnapshot, activeSnapshot));
+                                yearPolicy,
+                                plan.getAgeGroupId(),
+                                plan.getSchoolYearId(),
+                                null,
+                                assignmentSnapshot,
+                                activeSnapshot,
+                                today));
                 if (!eval.complete() && Objects.equals(plan.getAppliedPolicyRevision(), revision)) continue;
                 if (eval.complete()) {
                     publicationValidator.validateForPublication(plan);
@@ -504,7 +528,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                         doc.getReviewRound(),
                         parseApprovals(doc.getApprovals()),
                         excludedAuthors,
-                        candidatesForClassroom(currentPolicy, null, classroom, assignmentSnapshot, activeSnapshot));
+                        candidatesForClassroom(
+                                currentPolicy, null, null, classroom, assignmentSnapshot, activeSnapshot, today));
                 if (!eval.complete() && Objects.equals(doc.getAppliedPolicyRevision(), revision)) continue;
                 if (eval.complete()) {
                     List<Approval> approvals = parseApprovals(doc.getApprovals());
@@ -745,7 +770,12 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         }
     }
 
+    // Một request đọc chỉ đọc cấu hình duyệt một lần (trước đây ~50 lần khi mở chi tiết một kế hoạch)
     private JsonNode loadSettingsPolicyNode() {
+        return RequestMemo.get("eduWorkflowPolicy", this::readSettingsPolicyNode);
+    }
+
+    private JsonNode readSettingsPolicyNode() {
         return settingsRepository
                 .findById((short) 1)
                 .map(EduSettings::getWorkflowPolicy)
@@ -966,7 +996,14 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public boolean isAuthorEligible(CurrentUser user, String docType, Long ageGroupId, Long classroomId) {
-        String logPrefix = LOG_PREFIX + "|isAuthorEligible";
+        return isAuthorEligible(user, docType, null, ageGroupId, classroomId);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public boolean isAuthorEligible(
+            CurrentUser user, String docType, Long schoolYearId, Long ageGroupId, Long classroomId) {
+        String logPrefix = LOG_PREFIX + "|isAuthorEligible|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             if (user == null) {
@@ -976,11 +1013,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             }
             RolePolicy policy = loadPolicy(docType);
             if (("year".equals(docType) || "schoolYear".equals(docType))) {
-                var result = accessPolicy.canAuthorYearPlan(user, policy, ageGroupId);
+                var result = accessPolicy.canAuthorYearPlan(user, policy, schoolYearId, ageGroupId);
                 log.info("{}|END", logPrefix);
                 return result;
             }
-            var result = accessPolicy.canAuthorClassDoc(user, policy, ageGroupId, classroomId);
+            var result = accessPolicy.canAuthorClassDoc(user, policy, schoolYearId, ageGroupId, classroomId);
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
