@@ -1,14 +1,18 @@
 package com.carenest.controller.meals;
 
 import com.carenest.dto.meals.CatalogStatusRequest;
+import com.carenest.dto.meals.SupplierContractRequest;
+import com.carenest.dto.meals.SupplierFoodResponse;
 import com.carenest.dto.meals.SupplierRequest;
 import com.carenest.dto.meals.SupplierResponse;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.SupplierService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import com.carenest.utils.enums.CatalogStatus;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +39,7 @@ public class SupplierController {
     private static final String LOG_PREFIX = "[SupplierController]";
 
     private final SupplierService supplierService;
+    private final FoodPriceService foodPriceService;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
@@ -93,5 +98,30 @@ public class SupplierController {
         SupplierResponse supplier = supplierService.changeSupplierStatus(currentUser, supplierId, request.status());
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Change supplier status success", supplier);
+    }
+
+    @GetMapping("/{supplierId}/foods")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<SupplierFoodResponse>>> getSupplierFoods(
+            @PathVariable Long supplierId, @RequestParam(required = false) LocalDate date, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getSupplierFoods|userId=" + currentUser.userId() + "|supplierId=" + supplierId;
+        log.info("{}|START", logPrefix);
+        List<SupplierFoodResponse> foods = foodPriceService.getSupplierFoods(supplierId, date);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get supplier foods success", foods);
+    }
+
+    @PostMapping("/{supplierId}/apply-contract")
+    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    public ResponseEntity<ResponseJson<SupplierResponse>> applyContract(
+            @PathVariable Long supplierId,
+            @Valid @RequestBody SupplierContractRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|applyContract|userId=" + currentUser.userId() + "|supplierId=" + supplierId;
+        log.info("{}|START", logPrefix);
+        SupplierResponse supplier = foodPriceService.applyContract(currentUser, supplierId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Apply supplier contract success", supplier);
     }
 }

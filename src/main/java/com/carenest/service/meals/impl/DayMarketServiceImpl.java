@@ -19,6 +19,8 @@ import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.DayMarketService;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.FoodStorage;
@@ -65,6 +67,7 @@ public class DayMarketServiceImpl implements DayMarketService {
     private final AgeGroupService ageGroupService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final StockMapper stockMapper;
+    private final FoodPriceService foodPriceService;
     private final Clock clock;
 
     /** Lượng và tiền của một thực phẩm cho một nhóm tuổi. */
@@ -151,6 +154,8 @@ public class DayMarketServiceImpl implements DayMarketService {
                 : foodRepository.findAllById(quantities.keySet()).stream()
                         .collect(Collectors.toMap(Food::getId, Function.identity()));
 
+        // NUT-27: giá và NCC tại ngày đi chợ
+        FoodPriceBook book = foodPriceService.book(foods.keySet());
         List<DayMarketResponse.DayMarketLine> lines = new ArrayList<>();
         Map<Long, BigDecimal> costByGroup = new HashMap<>();
         BigDecimal freshCost = BigDecimal.ZERO;
@@ -160,12 +165,13 @@ public class DayMarketServiceImpl implements DayMarketService {
             if (food == null) {
                 continue;
             }
+            FoodPriceBook.PriceAt price = book.at(food.getId(), date);
             List<DayMarketResponse.DayMarketGroupShare> shares = new ArrayList<>();
             BigDecimal quantity = BigDecimal.ZERO;
             BigDecimal cost = BigDecimal.ZERO;
             for (AgeGroupDetailResponse group : ageGroups) {
                 BigDecimal qty = entry.getValue().get(group.id());
-                Share share = qty == null ? Share.NONE : new Share(qty, costOf(qty, food));
+                Share share = qty == null ? Share.NONE : new Share(qty, costOf(qty, food, price.price()));
                 shares.add(new DayMarketResponse.DayMarketGroupShare(group.id(), share.quantity(), share.cost()));
                 quantity = quantity.add(share.quantity());
                 cost = cost.add(share.cost());
@@ -179,11 +185,14 @@ public class DayMarketServiceImpl implements DayMarketService {
             lines.add(new DayMarketResponse.DayMarketLine(
                     stockMapper.toFoodRef(food),
                     food.getStorage().name(),
-                    food.getUnitPrice(),
+                    price.price(),
                     quantity,
                     PurchaseUnits.roundUp(quantity, food),
                     cost,
-                    shares));
+                    shares,
+                    price.supplierId(),
+                    price.supplierName(),
+                    price.contractStatus()));
         }
         // Hàng mua chợ trước, hàng xuất kho sau; trong mỗi phần theo tên
         lines.sort(Comparator.comparing((DayMarketResponse.DayMarketLine line) ->
@@ -246,12 +255,12 @@ public class DayMarketServiceImpl implements DayMarketService {
     }
 
     // Tiền theo lượng thực dùng: lượng ÷ quy cách mua × đơn giá đơn vị mua, làm tròn đồng (cùng cách thống kê thực đơn)
-    private static BigDecimal costOf(BigDecimal quantity, Food food) {
+    private static BigDecimal costOf(BigDecimal quantity, Food food, BigDecimal unitPrice) {
         BigDecimal size = food.getPurchaseUnitSize();
-        if (size == null || size.signum() <= 0 || food.getUnitPrice() == null) {
+        if (size == null || size.signum() <= 0 || unitPrice == null) {
             return BigDecimal.ZERO;
         }
-        return quantity.multiply(food.getUnitPrice()).divide(size, 0, RoundingMode.HALF_UP);
+        return quantity.multiply(unitPrice).divide(size, 0, RoundingMode.HALF_UP);
     }
 
     // Tiền ăn thu theo trẻ/ngày ⇒ suất tính tiền lấy bữa trưa; nhóm không ăn trưa lấy bữa đầu tiên có suất
