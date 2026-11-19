@@ -284,6 +284,18 @@ class YearConfigPerYearIntegrationTest {
     }
 
     @Test
+    @DisplayName("Năm chưa phòng nào có người phụ trách: phòng không phải phòng học vẫn liệt kê được")
+    void roomsWithoutAnyManagerAreListed() {
+        RoomResponse kitchen = roomService.createRoom(
+                principal, new RoomRequest(campusA, "BEP1", "Bếp", RoomType.KITCHEN, null, null, ""), active);
+
+        assertThat(rooms(active))
+                .filteredOn(r -> r.id().equals(kitchen.id()))
+                .singleElement()
+                .satisfies(r -> assertThat(r.managerName()).isNull());
+    }
+
+    @Test
     @DisplayName("Danh sách cấu hình rỗng của một năm không tự rơi về toàn bộ danh mục")
     void emptyYearConfigurationStaysEmpty() {
         // Phòng phụ thuộc điểm trường trong cùng năm; xóa theo đúng thứ tự quan hệ.

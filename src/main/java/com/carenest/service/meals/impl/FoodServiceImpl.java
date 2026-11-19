@@ -10,12 +10,17 @@ import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.meals.FoodService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.Allergen;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodGroup;
 import com.carenest.utils.enums.FoodStorage;
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -40,6 +45,8 @@ public class FoodServiceImpl implements FoodService {
 
     private final FoodRepository foodRepository;
     private final NutritionCatalogMapper mapper;
+    private final FoodPriceService foodPriceService;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -64,6 +71,8 @@ public class FoodServiceImpl implements FoodService {
         log.info("{}|START", logPrefix);
         try {
             String term = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
+            FoodPriceBook book = foodPriceService.bookAll();
+            LocalDate today = LocalDate.now(clock);
             List<FoodResponse> response = foodRepository.findAllByOrderByNameAsc().stream()
                     .filter(food -> term.isEmpty()
                             || food.getName().toLowerCase(Locale.ROOT).contains(term)
@@ -71,7 +80,7 @@ public class FoodServiceImpl implements FoodService {
                     .filter(food -> foodGroup == null || food.getFoodGroup() == foodGroup)
                     .filter(food -> storage == null || food.getStorage() == storage)
                     .filter(food -> status == null || food.getStatus() == status)
-                    .map(mapper::toResponse)
+                    .map(food -> mapper.toResponse(food, book.at(food.getId(), today)))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -87,7 +96,7 @@ public class FoodServiceImpl implements FoodService {
         String logPrefix = LOG_PREFIX + "|getFood|foodId=" + foodId;
         log.info("{}|START", logPrefix);
         try {
-            FoodResponse response = mapper.toResponse(findFood(foodId));
+            FoodResponse response = toResponse(findFood(foodId));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -109,10 +118,18 @@ public class FoodServiceImpl implements FoodService {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
             Food food = Food.create(currentUser.userId());
-            apply(food, request, code, resolveAllergens(request.allergenIds()), currentUser.userId());
+            apply(
+                    food,
+                    request,
+                    code,
+                    request.unitPrice(),
+                    resolveAllergens(request.allergenIds()),
+                    currentUser.userId());
             food = foodRepository.save(food);
+            foodPriceService.recordInitialPrice(
+                    food.getId(), request.supplierId(), request.unitPrice(), currentUser.userId());
             log.info("{}|foodId={}|END", logPrefix, food.getId());
-            return mapper.toResponse(food);
+            return toResponse(food);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -132,10 +149,17 @@ public class FoodServiceImpl implements FoodService {
             if (foodRepository.existsByCodeAndIdNot(code, foodId)) {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
-            apply(food, request, code, resolveAllergens(request.allergenIds()), currentUser.userId());
+            requireSamePrice(food, request);
+            apply(
+                    food,
+                    request,
+                    code,
+                    food.getUnitPrice(),
+                    resolveAllergens(request.allergenIds()),
+                    currentUser.userId());
             foodRepository.flush();
             log.info("{}|END", logPrefix);
-            return mapper.toResponse(food);
+            return toResponse(food);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -152,7 +176,7 @@ public class FoodServiceImpl implements FoodService {
             food.changeStatus(status, currentUser.userId());
             foodRepository.flush();
             log.info("{}|END", logPrefix);
-            return mapper.toResponse(food);
+            return toResponse(food);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -229,18 +253,49 @@ public class FoodServiceImpl implements FoodService {
                     code = nextCode(reserved);
                 }
                 reserved.add(code);
-                apply(food, data, code, resolveAllergens(data.allergenIds()), currentUser.userId());
+                // NUT-27: dòng sửa giữ giá hiện tại; đổi giá qua điều chỉnh giá
+                BigDecimal price = item.id() == null ? data.unitPrice() : food.getUnitPrice();
+                apply(food, data, code, price, resolveAllergens(data.allergenIds()), currentUser.userId());
                 if (item.id() == null) {
                     created++;
                 }
                 foods.add(food);
             }
             foodRepository.saveAll(foods);
+            for (int i = 0; i < items.size(); i++) {
+                if (items.get(i).id() == null) {
+                    FoodRequest data = items.get(i).data();
+                    foodPriceService.recordInitialPrice(
+                            foods.get(i).getId(), data.supplierId(), data.unitPrice(), currentUser.userId());
+                }
+            }
             log.info("{}|created={}|END", logPrefix, created);
             return new FoodImportResponse(created, foods.size() - created);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    private FoodResponse toResponse(Food food) {
+        return mapper.toResponse(food, priceToday(food));
+    }
+
+    private FoodPriceBook.PriceAt priceToday(Food food) {
+        List<Long> ids = food.getId() == null ? List.of() : List.of(food.getId());
+        return foodPriceService.book(ids).at(food.getId(), LocalDate.now(clock));
+    }
+
+    // NUT-27: sau khi tạo, giá và NCC chỉ đổi qua điều chỉnh giá để chi phí các ngày đã qua giữ nguyên
+    private void requireSamePrice(Food food, FoodRequest request) {
+        FoodPriceBook.PriceAt current = priceToday(food);
+        boolean priceChanged = request.unitPrice() != null
+                && current.price() != null
+                && request.unitPrice().compareTo(current.price()) != 0;
+        boolean supplierChanged =
+                request.supplierId() != null && !request.supplierId().equals(current.supplierId());
+        if (priceChanged || supplierChanged) {
+            throw GlobalException.of(ApiCode.FOOD_PRICE_CHANGE_VIA_ADJUST);
         }
     }
 
@@ -285,7 +340,8 @@ public class FoodServiceImpl implements FoodService {
         return code;
     }
 
-    private static void apply(Food food, FoodRequest request, String code, Set<Allergen> allergens, Long userId) {
+    private static void apply(
+            Food food, FoodRequest request, String code, BigDecimal unitPrice, Set<Allergen> allergens, Long userId) {
         food.changeInfo(
                 new Food.Info(
                         code,
@@ -294,7 +350,7 @@ public class FoodServiceImpl implements FoodService {
                         request.unit(),
                         request.purchaseUnit().trim(),
                         request.purchaseUnitSize(),
-                        request.unitPrice(),
+                        unitPrice,
                         request.wastePct(),
                         request.storage(),
                         request.origin(),

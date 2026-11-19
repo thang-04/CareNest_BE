@@ -7,6 +7,7 @@ import com.carenest.dto.meals.SupplierResponse;
 import com.carenest.entity.meals.AgeGroupMealConfig;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.Supplier;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.utils.enums.Allergen;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -24,7 +25,7 @@ public class NutritionCatalogMapper {
         return allergens.stream().distinct().sorted().map(this::toResponse).toList();
     }
 
-    public FoodResponse toResponse(Food food) {
+    public FoodResponse toResponse(Food food, FoodPriceBook.PriceAt price) {
         return new FoodResponse(
                 food.getId(),
                 food.getCode(),
@@ -33,7 +34,7 @@ public class NutritionCatalogMapper {
                 food.getUnit(),
                 food.getPurchaseUnit(),
                 food.getPurchaseUnitSize(),
-                food.getUnitPrice(),
+                price.price(),
                 food.getKcal(),
                 food.getProtein(),
                 food.getLipid(),
@@ -53,7 +54,10 @@ public class NutritionCatalogMapper {
                 food.getOrigin(),
                 food.getNote(),
                 food.getStatus(),
-                toAllergenResponses(food.getAllergens()));
+                toAllergenResponses(food.getAllergens()),
+                price.supplierId(),
+                price.supplierName(),
+                price.contractStatus());
     }
 
     public AgeGroupMealConfigResponse toResponse(AgeGroupMealConfig config, LocalDate today) {
@@ -107,7 +111,7 @@ public class NutritionCatalogMapper {
                 config.getEffectiveFrom().isAfter(today));
     }
 
-    public SupplierResponse toResponse(Supplier supplier, boolean showIdCard) {
+    public SupplierResponse toResponse(Supplier supplier, boolean showIdCard, LocalDate today) {
         return new SupplierResponse(
                 supplier.getId(),
                 supplier.getName(),
@@ -115,6 +119,17 @@ public class NutritionCatalogMapper {
                 supplier.getAddress(),
                 showIdCard ? supplier.getIdCard() : null,
                 supplier.getDeliveryPerson(),
-                supplier.getStatus());
+                supplier.getStatus(),
+                supplier.getContractNo(),
+                supplier.getContractStart(),
+                supplier.getContractEnd(),
+                FoodPriceBook.contractStatus(
+                        new FoodPriceBook.SupplierInfo(
+                                supplier.getId(),
+                                supplier.getName(),
+                                supplier.getContractNo(),
+                                supplier.getContractStart(),
+                                supplier.getContractEnd()),
+                        today));
     }
 }

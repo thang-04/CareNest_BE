@@ -15,6 +15,7 @@ import java.util.List;
 /**
  * Thực phẩm: dinh dưỡng trên 100 đơn vị; giá theo đơn vị mua ({@code purchaseUnitSize} đơn vị trong một đơn vị mua).
  * Vi chất (NUT-26, trên 100 đơn vị ăn được) tùy chọn, để trống = chưa có số liệu.
+ * Giá và NCC chỉ dùng khi tạo mới (mức giá đầu tiên); sau đó đổi qua điều chỉnh giá (NUT-27).
  * Nguồn dinh dưỡng và nguồn gốc (NUT-24) kiểm ở service để trả mã lỗi riêng (NUT-05). Mã để trống ⇒ hệ thống tự sinh (TP001…).
  */
 public record FoodRequest(
@@ -46,4 +47,5 @@ public record FoodRequest(
         @NotNull FoodStorage storage,
         FoodOrigin origin,
         @Size(max = 500) String note,
-        List<@NotNull Long> allergenIds) {}
+        List<@NotNull Long> allergenIds,
+        Long supplierId) {}

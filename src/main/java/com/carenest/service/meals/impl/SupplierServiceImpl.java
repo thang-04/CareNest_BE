@@ -11,6 +11,8 @@ import com.carenest.service.meals.SupplierService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.Permission;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class SupplierServiceImpl implements SupplierService {
 
     private final SupplierRepository supplierRepository;
     private final NutritionCatalogMapper mapper;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -36,12 +39,13 @@ public class SupplierServiceImpl implements SupplierService {
         try {
             String term = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
             boolean showIdCard = canSeeIdCard(currentUser);
+            LocalDate today = LocalDate.now(clock);
             List<SupplierResponse> response = supplierRepository.findAllByOrderByNameAsc().stream()
                     .filter(supplier -> term.isEmpty()
                             || supplier.getName().toLowerCase(Locale.ROOT).contains(term)
                             || supplier.getPhone().contains(term))
                     .filter(supplier -> status == null || supplier.getStatus() == status)
-                    .map(supplier -> mapper.toResponse(supplier, showIdCard))
+                    .map(supplier -> mapper.toResponse(supplier, showIdCard, today))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -57,7 +61,8 @@ public class SupplierServiceImpl implements SupplierService {
         String logPrefix = LOG_PREFIX + "|getSupplier|userId=" + currentUser.userId() + "|supplierId=" + supplierId;
         log.info("{}|START", logPrefix);
         try {
-            SupplierResponse response = mapper.toResponse(findSupplier(supplierId), canSeeIdCard(currentUser));
+            SupplierResponse response =
+                    mapper.toResponse(findSupplier(supplierId), canSeeIdCard(currentUser), LocalDate.now(clock));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -75,7 +80,7 @@ public class SupplierServiceImpl implements SupplierService {
             apply(supplier, request, currentUser.userId());
             supplier = supplierRepository.save(supplier);
             log.info("{}|supplierId={}|END", logPrefix, supplier.getId());
-            return mapper.toResponse(supplier, true);
+            return mapper.toResponse(supplier, true, LocalDate.now(clock));
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -91,7 +96,7 @@ public class SupplierServiceImpl implements SupplierService {
             apply(supplier, request, currentUser.userId());
             supplierRepository.flush();
             log.info("{}|END", logPrefix);
-            return mapper.toResponse(supplier, true);
+            return mapper.toResponse(supplier, true, LocalDate.now(clock));
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -108,7 +113,7 @@ public class SupplierServiceImpl implements SupplierService {
             supplier.changeStatus(status, currentUser.userId());
             supplierRepository.flush();
             log.info("{}|END", logPrefix);
-            return mapper.toResponse(supplier, true);
+            return mapper.toResponse(supplier, true, LocalDate.now(clock));
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -127,6 +132,11 @@ public class SupplierServiceImpl implements SupplierService {
     }
 
     private static void apply(Supplier supplier, SupplierRequest request, Long userId) {
+        if (request.contractStart() != null
+                && request.contractEnd() != null
+                && request.contractEnd().isBefore(request.contractStart())) {
+            throw GlobalException.of(ApiCode.SUPPLIER_CONTRACT_RANGE_INVALID);
+        }
         supplier.changeInfo(
                 request.name().trim(),
                 request.phone().trim(),
@@ -135,6 +145,14 @@ public class SupplierServiceImpl implements SupplierService {
                         ? null
                         : request.idCard().trim(),
                 request.deliveryPerson() == null ? "" : request.deliveryPerson().trim(),
+                userId);
+        // NUT-27: gia hạn = cập nhật ngày hợp đồng
+        supplier.changeContract(
+                request.contractNo() == null || request.contractNo().isBlank()
+                        ? null
+                        : request.contractNo().trim(),
+                request.contractStart(),
+                request.contractEnd(),
                 userId);
     }
 }
