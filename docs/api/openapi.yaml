@@ -17115,6 +17115,8 @@ components:
     PermissionChangeLogResponse:
       type: object
       properties:
+        actorName:
+          type: string
         actorUserId:
           type: integer
           format: int64
@@ -17170,6 +17172,8 @@ components:
         targetUserId:
           type: integer
           format: int64
+        targetUserName:
+          type: string
     PermissionOverrideResponse:
       type: object
       properties:
