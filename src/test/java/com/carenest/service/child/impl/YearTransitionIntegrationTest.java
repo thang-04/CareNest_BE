@@ -358,13 +358,13 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
-    @DisplayName("Trẻ mới đăng ký năm sau: đúng nhóm tuổi; kích hoạt vào lớp đã xếp, chưa có lớp thì Chờ xếp lớp")
+    @DisplayName("Trẻ mới đăng ký năm sau: đúng nhóm tuổi; còn trẻ chưa xếp lớp thì chặn kích hoạt, xếp xong vào lớp")
     void plannedAdmissionsEnterNewYearOnActivation() {
         long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, newClass3);
         long placedChild = newChild("Trẻ mới có lớp", "2024-06-01", campus);
         long waitingChild = newChild("Trẻ mới chờ lớp", "2024-06-01", campus);
         long placedAdmission = admission(placedChild, campus);
-        admission(waitingChild, campus);
+        long waitingAdmission = admission(waitingChild, campus);
         // Nhóm tuổi của trẻ mới tính tại ngày bắt đầu năm mới, cùng nhóm với lớp năm mới đúng tuổi
         Long group3 = jdbc.queryForObject("SELECT age_group_id FROM classrooms WHERE id = ?", Long.class, newClass3);
         assertThat(service.getPlacements(principal, newYear).newAdmissions())
@@ -396,20 +396,25 @@ class YearTransitionIntegrationTest {
                                 new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass4)),
                         List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass3))));
 
+        // Cần chốt 19/11/2026: còn trẻ đã tiếp nhận chưa xếp lớp thì chặn kích hoạt
+        assertThatThrownBy(() -> service.activateSchoolYear(principal, newYear, "2027-2028"))
+                .hasMessageContaining(
+                        "Còn 1 trẻ đã tiếp nhận chưa xếp lớp (Trẻ mới chờ lớp), xếp lớp trước khi kích hoạt năm");
+        // Lớp đã đủ sĩ số: HT hủy tiếp nhận trẻ chờ lớp thì kích hoạt được
+        jdbc.update("UPDATE planned_admissions SET status = 'CANCELLED' WHERE id = ?", waitingAdmission);
+
         service.activateSchoolYear(principal, newYear, "2027-2028");
 
         LocalDate firstDay = LocalDate.of(2027, 9, 5);
         assertThat(enrollmentService.findActiveClassroomIds(placedChild, firstDay))
                 .containsExactly(newClass3);
-        assertThat(jdbc.queryForObject("SELECT status FROM children WHERE id = ?", String.class, waitingChild))
-                .isEqualTo("PENDING_PLACEMENT");
-        assertThat(jdbc.queryForObject("SELECT intake_campus_id FROM children WHERE id = ?", Long.class, waitingChild))
-                .isEqualTo(campus);
+        assertThat(enrollmentService.findActiveClassroomIds(waitingChild, firstDay))
+                .isEmpty();
         assertThat(jdbc.queryForList(
                         "SELECT DISTINCT status FROM planned_admissions WHERE school_year_id = ?",
                         String.class,
                         newYear))
-                .containsExactly("ACTIVATED");
+                .containsExactlyInAnyOrder("ACTIVATED", "CANCELLED");
     }
 
     private long newChild(String name, String dateOfBirth, long campusId) {

@@ -64,7 +64,11 @@ public class YearSetupServiceImpl implements YearSetupService {
                     .orElse(null);
             LocalDate today = schoolConfigAccess.today();
             List<AgeGroupDetailResponse> ageGroups = yearSnapshotReader.yearAgeGroups(year.getId());
-            List<Campus> campuses = campusRepository.findAllByOrderByMainDescCodeAsc();
+            // Điểm trường của năm (V151); năm chưa có danh sách riêng thì cả danh mục
+            Set<Long> yearCampusIds = Set.copyOf(campusRepository.findYearCampusIds(year.getId()));
+            List<Campus> campuses = campusRepository.findAllByOrderByMainDescCodeAsc().stream()
+                    .filter(c -> yearCampusIds.isEmpty() || yearCampusIds.contains(c.getId()))
+                    .toList();
             LocalDate leaderFrom = today.isAfter(year.getStartDate()) ? today : year.getStartDate();
             // Năm sắp tới: PHT phụ trách tính tại ngày bắt đầu năm học (phân công cho năm mới bắt đầu từ ngày đó)
             Set<Long> campusesWithVicePrincipal = campusRepository.findActiveCampusStaff(leaderFrom).stream()

@@ -50,6 +50,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class CampusServiceImpl implements CampusService {
     private static final String LOG_PREFIX = "[CampusServiceImpl]";
+    private static final Map<String, String> STAFF_LABELS = Map.of(
+            "VICE_PRINCIPAL",
+            "PHT",
+            "TEACHER",
+            "GV",
+            "KITCHEN_STAFF",
+            "nhân viên bếp",
+            "AGE_GROUP_TEAM_LEADER",
+            "tổ trưởng");
 
     private final CampusRepository campusRepository;
     private final ClassroomRepository classroomRepository;
@@ -525,17 +534,43 @@ public class CampusServiceImpl implements CampusService {
     }
 
     // Bỏ khỏi một năm: chặn khi năm đó còn lớp hoặc PHT phụ trách
+    // Bỏ khỏi 1 năm: chặn khi năm đó còn lớp (kéo theo trẻ, điểm danh, đánh giá, sức khỏe), nhân sự, phòng, trẻ đã
+    // tiếp nhận chưa vào lớp, sổ suất ăn / kho bếp; null = trống (BUG-43)
     private String yearBlockers(Long campusId, Long yearId) {
         List<String> parts = new ArrayList<>();
         long classes = campusRepository.countClassesInYear(campusId, yearId);
         if (classes > 0) {
             parts.add(classes + " lớp năm này");
         }
-        List<String> vps = campusRepository.findYearVicePrincipalNames(campusId, yearId);
-        if (!vps.isEmpty()) {
-            parts.add("PHT " + String.join(", ", vps));
+        List<String> admitted = campusRepository.findYearAdmissionNames(campusId, yearId);
+        if (!admitted.isEmpty()) {
+            parts.add(admitted.size() + " trẻ đã tiếp nhận (" + firstNames(admitted) + ")");
+        }
+        addStaff(parts, campusRepository.findYearStaffNames(campusId, yearId));
+        long rooms = campusRepository.countYearRooms(campusId, yearId);
+        if (rooms > 0) {
+            parts.add(rooms + " phòng năm này");
+        }
+        long kitchen = campusRepository.countYearKitchenData(campusId, yearId);
+        if (kitchen > 0) {
+            parts.add("dữ liệu suất ăn, kho bếp năm này");
         }
         return parts.isEmpty() ? null : String.join(", ", parts);
+    }
+
+    // Nhân sự theo vai trò, mỗi vai trò tối đa 3 tên
+    private static void addStaff(List<String> parts, List<CampusRepository.StaffName> people) {
+        Map<String, List<String>> staff = new LinkedHashMap<>();
+        people.forEach(s -> staff.computeIfAbsent(
+                        STAFF_LABELS.getOrDefault(s.getStaffRole(), "nhân sự"), k -> new ArrayList<>())
+                .add(s.getFullName()));
+        staff.forEach((role, names) -> parts.add(role + " " + firstNames(names)));
+    }
+
+    private static String firstNames(List<String> names) {
+        return names.size() > 3
+                ? String.join(", ", names.subList(0, 3)) + " và " + (names.size() - 3) + " người khác"
+                : String.join(", ", names);
     }
 
     // Lớp (mọi năm), phòng, trẻ (đăng ký / từng học / xếp năm sau), nhân sự (cả lịch sử); null = trống
@@ -553,19 +588,7 @@ public class CampusServiceImpl implements CampusService {
         if (children > 0) {
             parts.add(children + " trẻ");
         }
-        Map<String, List<String>> staff = new LinkedHashMap<>();
-        campusRepository
-                .findStaffNamesEver(campusId)
-                .forEach(s -> staff.computeIfAbsent(
-                                "VICE_PRINCIPAL".equals(s.getStaffRole())
-                                        ? "PHT"
-                                        : "TEACHER".equals(s.getStaffRole()) ? "GV" : "nhân sự",
-                                k -> new ArrayList<>())
-                        .add(s.getFullName()));
-        staff.forEach((role, names) -> parts.add(role + " "
-                + (names.size() > 3
-                        ? String.join(", ", names.subList(0, 3)) + " và " + (names.size() - 3) + " người khác"
-                        : String.join(", ", names))));
+        addStaff(parts, campusRepository.findStaffNamesEver(campusId));
         return parts.isEmpty() ? null : String.join(", ", parts);
     }
 

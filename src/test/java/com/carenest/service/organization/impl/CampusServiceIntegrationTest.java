@@ -264,6 +264,21 @@ class CampusServiceIntegrationTest {
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
 
+        // BUG-43: trẻ đã tiếp nhận cho năm sắp diễn ra ở điểm trường (chưa có lớp) chặn bỏ điểm trường khỏi năm đó
+        long child = insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on)"
+                + " VALUES ('IT-PA1', 'Trẻ Tiếp Nhận', '2023-01-01', 'FEMALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
+        jdbc.update(
+                "INSERT INTO planned_admissions (child_id, school_year_id, campus_id, start_date)"
+                        + " VALUES (?, ?, ?, '2027-09-01')",
+                child,
+                planned,
+                campusB);
+        assertThatThrownBy(() -> service.deleteCampus(principal, campusB, planned))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.CAMPUS_NOT_EMPTY))
+                .hasMessageContaining("1 trẻ đã tiếp nhận (Trẻ Tiếp Nhận)");
+        jdbc.update("DELETE FROM planned_admissions WHERE child_id = ?", child);
+
         // Xóa ở năm đang hoạt động: chỉ bỏ khỏi năm đó, năm sau vẫn còn
         service.deleteCampus(principal, campusB, active);
         assertThat(service.getCampuses(principal, active))

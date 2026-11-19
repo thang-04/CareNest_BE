@@ -209,6 +209,41 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
             nativeQuery = true)
     List<StaffName> findStaffNamesEver(@Param("campusId") Long campusId);
 
+    /** Trẻ đã tiếp nhận cho năm học ở điểm trường, chưa hủy / chưa kích hoạt (họ tên chỉ để báo lý do chặn). */
+    @Query(
+            value = "select ch.full_name from planned_admissions p join children ch on ch.id = p.child_id"
+                    + " where p.campus_id = :campusId and p.school_year_id = :yearId"
+                    + " and p.status in ('PENDING', 'PLACED') order by ch.full_name",
+            nativeQuery = true)
+    List<String> findYearAdmissionNames(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
+
+    /** Nhân sự phân công ở điểm trường trong khoảng của năm học (theo điểm trường hoặc theo lớp của điểm trường). */
+    @Query(
+            value = "select distinct u.full_name as fullName, s.staff_role as staffRole from staff_assignments s"
+                    + " join user_accounts u on u.id = s.user_id join school_years y on y.id = :yearId"
+                    + " left join classrooms c on c.id = s.classroom_id"
+                    + " where coalesce(s.campus_id, c.campus_id) = :campusId"
+                    + " and (s.school_year_id = :yearId or (s.school_year_id is null"
+                    + " and s.valid_from <= y.end_date and (s.valid_to is null or s.valid_to >= y.start_date)))"
+                    + " order by s.staff_role, u.full_name",
+            nativeQuery = true)
+    List<StaffName> findYearStaffNames(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
+
+    @Query(
+            value = "select count(*) from school_year_rooms where campus_id = :campusId and school_year_id = :yearId",
+            nativeQuery = true)
+    long countYearRooms(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
+
+    /** Sổ suất ăn và dữ liệu kho bếp của điểm trường trong khoảng của năm học. */
+    @Query(
+            value = "select (select count(*) from meal_counts where campus_id = :campusId and school_year_id = :yearId)"
+                    + " + (select count(*) from stock_movements m join school_years y on y.id = :yearId"
+                    + " where m.campus_id = :campusId and m.meal_date between y.start_date and y.end_date)"
+                    + " + (select count(*) from stock_daily_demands d join school_years y on y.id = :yearId"
+                    + " where d.campus_id = :campusId and d.meal_date between y.start_date and y.end_date)",
+            nativeQuery = true)
+    long countYearKitchenData(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
+
     interface StaffName {
         String getFullName();
 
