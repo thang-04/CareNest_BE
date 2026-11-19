@@ -29,7 +29,9 @@ public record StockReceiptResponse(
         boolean canManage,
         Long forecastId,
         boolean fromIntake,
-        List<RejectedLine> rejectedLines) {
+        List<RejectedLine> rejectedLines,
+        // NUT-11: hủy được khi phiếu đã xác nhận, người xem quản lý được và mọi lô chưa bị trừ
+        boolean canCancel) {
 
     /** Dòng kiểm nhận không đạt: không thành lô, {@code note} là biện pháp xử lý. */
     public record RejectedLine(

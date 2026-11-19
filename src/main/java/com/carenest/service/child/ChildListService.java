@@ -18,6 +18,12 @@ public interface ChildListService {
     PageResponse<ChildListItemResponse> searchChildren(CurrentUser actor, ChildListFilter filter);
 
     /**
+     * Như {@link #searchChildren} cho màn Danh sách trẻ: PHT lọc lớp/điểm trường khác thì xem được (AUTH-20, user chốt
+     * 2026-11-15); không lọc thì vẫn điểm trường mình. Nơi gọi nội bộ (tài khoản phụ huynh, xếp lớp) dùng searchChildren.
+     */
+    PageResponse<ChildListItemResponse> browseChildren(CurrentUser actor, ChildListFilter filter);
+
+    /**
      * Mỗi phụ huynh trên hồ sơ trẻ Đang học, Chờ xếp lớp mà người xem quản lý được tài khoản phụ huynh (AUTH-19; phạm vi
      * như {@link #searchChildren}); lọc trạng thái tài khoản và từ khóa (họ tên, mã trẻ, họ tên, SĐT phụ huynh; không
      * phân biệt hoa thường, dấu). Bảng tổng quan PHT đếm phụ huynh chưa kích hoạt (đặc tả FE mục 4.8).

@@ -39,6 +39,7 @@ import com.carenest.repository.child.ChildProfileRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildRecordService;
@@ -48,6 +49,7 @@ import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.ChildEditRoles;
 import com.carenest.utils.enums.ChildHistoryAction;
 import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.DeclarationState;
@@ -97,6 +99,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final ClassroomService classroomService;
     private final StaffAssignmentService staffAssignmentService;
     private final StaffAccessPolicy staffAccessPolicy;
+    private final ChildAccessPolicy childAccessPolicy;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
@@ -164,28 +167,17 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         String logPrefix = LOG_PREFIX + "|saveDeclaration|userId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
+            // CHD-11: GV không ghi thẳng, gửi yêu cầu qua ChildProfileChangeRequestService
+            if (ChildEditRoles.teacherOnly(actor)) {
+                throw GlobalException.of(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL);
+            }
             LocalDate today = LocalDate.now(clock);
             Instant now = clock.instant();
-            Child child = loadInScope(actor, childId, today);
-            if (child.getStatus() == ChildStatus.LEFT) {
-                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
-            }
-            Map<String, String> errors = new LinkedHashMap<>();
-            HealthDeclarationDraft d = EnrollmentFormValidator.validateDeclarationOnly(
-                    request == null ? null : request.declaration(), child.getDateOfBirth(), today, errors);
-            Optional<ChildHealthDeclaration> existing = declarationRepository.findById(childId);
-            String reason = request == null || request.reason() == null
-                    ? ""
-                    : request.reason().strip();
-            if (existing.isPresent() && reason.isEmpty()) {
-                errors.put("reason", "Nhập lý do thay đổi khai báo");
-            } else if (reason.length() > MAX_REASON) {
-                errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
-            }
-            if (!errors.isEmpty()) {
-                throw GlobalException.withFieldErrors(
-                        ApiCode.INVALID_REQUEST_DATA, EnrollmentFormValidator.toList(errors));
-            }
+            ValidDeclaration valid = validateDeclaration(actor, childId, request, today);
+            Child child = valid.child();
+            HealthDeclarationDraft d = valid.draft();
+            Optional<ChildHealthDeclaration> existing = valid.existing();
+            String reason = valid.reason();
 
             HealthDeclarationResponse.DeclarationAllergies beforeAllergies = existing.map(
                             e -> new HealthDeclarationResponse.DeclarationAllergies(
@@ -590,7 +582,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
-            Child child = loadInScope(actor, childId, today);
+            Child child = loadEditable(actor, childId, today);
             if (child.getStatus() == ChildStatus.LEFT) {
                 throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
             }
@@ -755,7 +747,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
-            Child child = loadInScope(actor, childId, today);
+            Child child = loadEditable(actor, childId, today);
             if (child.getStatus() == ChildStatus.LEFT) {
                 throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
             }
@@ -1020,6 +1012,62 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             case GUARDIAN -> "Người giám hộ";
             default -> relationship.name();
         };
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkDeclaration(CurrentUser actor, Long childId, HealthDeclarationRequest request) {
+        String logPrefix = LOG_PREFIX + "|checkDeclaration|userId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            validateDeclaration(actor, childId, request, LocalDate.now(clock));
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private record ValidDeclaration(
+            Child child, HealthDeclarationDraft draft, Optional<ChildHealthDeclaration> existing, String reason) {}
+
+    // Phạm vi + hợp lệ của khai báo (CHD-06); dùng chung khi lưu thẳng và khi GV gửi yêu cầu (CHD-11)
+    private ValidDeclaration validateDeclaration(
+            CurrentUser actor, Long childId, HealthDeclarationRequest request, LocalDate today) {
+        Child child = loadEditable(actor, childId, today);
+        if (child.getStatus() == ChildStatus.LEFT) {
+            throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+        }
+        Map<String, String> errors = new LinkedHashMap<>();
+        HealthDeclarationDraft d = EnrollmentFormValidator.validateDeclarationOnly(
+                request == null ? null : request.declaration(), child.getDateOfBirth(), today, errors);
+        Optional<ChildHealthDeclaration> existing = declarationRepository.findById(childId);
+        String reason = request == null || request.reason() == null
+                ? ""
+                : request.reason().strip();
+        if (existing.isPresent() && reason.isEmpty()) {
+            errors.put("reason", "Nhập lý do thay đổi khai báo");
+        } else if (reason.length() > MAX_REASON) {
+            errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
+        }
+        if (!errors.isEmpty()) {
+            throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, EnrollmentFormValidator.toList(errors));
+        }
+        return new ValidDeclaration(child, d, existing, reason);
+    }
+
+    /**
+     * Phạm vi sửa hồ sơ/khai báo sức khỏe. GV được HT cấp thêm CHILD_PROFILE_EDIT (AUTH-10) chỉ sửa trẻ lớp đang được
+     * phân công (AUTH-03, AUTH-13); trẻ ngoài lớp và trẻ không tồn tại cùng 403. BGH theo {@link #loadInScope}.
+     */
+    private Child loadEditable(CurrentUser actor, Long childId, LocalDate today) {
+        if (ChildEditRoles.teacherOnly(actor)) {
+            if (!childAccessPolicy.canViewChild(actor, childId)) {
+                throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
+            }
+            return childRepository.findById(childId).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_ACCESS_DENIED));
+        }
+        return loadInScope(actor, childId, today);
     }
 
     /** Như mở lại hồ sơ: với PHT, trẻ không tồn tại và trẻ ngoài điểm trường cùng 403 (không dò được id). */

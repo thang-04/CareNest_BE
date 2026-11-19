@@ -67,7 +67,7 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
         String logPrefix = LOG_PREFIX + "|getHealthRecord|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
-            if (!childAccessPolicy.canViewChild(currentUser, childId)) {
+            if (!childAccessPolicy.canReadChild(currentUser, childId)) {
                 throw GlobalException.of(ApiCode.HEALTH_RECORD_ACCESS_DENIED);
             }
             ChildBriefResponse child = brief(childId);

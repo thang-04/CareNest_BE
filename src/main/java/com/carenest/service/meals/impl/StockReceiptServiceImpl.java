@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -409,8 +410,42 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                 .collect(Collectors.toMap(
                         Function.identity(),
                         id -> campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, id)));
+        Set<Long> cancellable = cancellableReceiptIds(receipts, manage);
         return receipts.stream()
-                .map(r -> mapper.toResponse(r, suppliers.get(r.getSupplierId()), foods, manage.get(r.getCampusId())))
+                .map(r -> mapper.toResponse(
+                        r,
+                        suppliers.get(r.getSupplierId()),
+                        foods,
+                        manage.get(r.getCampusId()),
+                        cancellable.contains(r.getId())))
                 .toList();
+    }
+
+    // NUT-11: như cancelReceipt — chỉ phiếu đã xác nhận, người xem quản lý được, mọi lô còn nguyên (chưa bị trừ)
+    private Set<Long> cancellableReceiptIds(List<StockReceipt> receipts, Map<Long, Boolean> manage) {
+        List<StockReceipt> candidates = receipts.stream()
+                .filter(r -> r.getStatus() == StockReceiptStatus.CONFIRMED
+                        && Boolean.TRUE.equals(manage.get(r.getCampusId())))
+                .toList();
+        if (candidates.isEmpty()) {
+            return Set.of();
+        }
+        List<Long> lineIds = candidates.stream()
+                .flatMap(r -> r.getLines().stream())
+                .map(StockReceiptLine::getId)
+                .toList();
+        Map<Long, BigDecimal> quantities = lotRepository.findAllById(lineIds).stream()
+                .collect(Collectors.toMap(StockLot::getId, StockLot::getQuantity));
+        Map<Long, BigDecimal> balances = movementRepository.sumByLotIds(quantities.keySet()).stream()
+                .collect(Collectors.toMap(
+                        StockMovementRepository.LotBalance::getLotId, StockMovementRepository.LotBalance::getBalance));
+        return candidates.stream()
+                .filter(r -> r.getLines().stream().allMatch(line -> {
+                    BigDecimal quantity = quantities.get(line.getId());
+                    return quantity != null
+                            && quantity.compareTo(balances.getOrDefault(line.getId(), BigDecimal.ZERO)) == 0;
+                }))
+                .map(StockReceipt::getId)
+                .collect(Collectors.toSet());
     }
 }
