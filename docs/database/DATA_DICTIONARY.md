@@ -391,7 +391,7 @@ Mục đích: mỗi lần GV xác minh người đón khi trả trẻ (PCK-02, P
 Index: `uk_pickup_records_child_date_handed_over`, `(classroom_id, date)`, `(child_id, date)`.
 
 ## notifications  (module: notification, scope: USER)
-Mục đích: thông báo theo người nhận để App/Web hiện danh sách; đồng thời là hàng chờ đẩy (outbox, spec 019) — worker đẩy tới thiết bị sau khi lưu. Migration: V66, V78, V104, V139.
+Mục đích: thông báo theo người nhận để App/Web hiện danh sách; đồng thời là hàng chờ đẩy (outbox, spec 019) — worker đẩy tới thiết bị sau khi lưu. Migration: V66, V78, V104, V139, V153.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
@@ -803,6 +803,21 @@ Mục đích: yêu cầu đổi SĐT của một phụ huynh trên hồ sơ tr�
 | sms_status | VARCHAR(10) | có | `SENT` / `FAILED` — SMS tên đăng nhập mới sau khi duyệt | L-15 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `uq_phone_change_pending_user` (UNIQUE `user_id` khi `PENDING` — mỗi tài khoản tối đa một yêu cầu chờ), `uq_phone_change_pending_guardian` (UNIQUE `guardian_id` khi `PENDING`, V91), `child_id`, `status`.
+
+## child_profile_change_requests  (module: identity-access, scope: CHILD)
+Mục đích: yêu cầu sửa hồ sơ/khai báo sức khỏe trẻ do GV được cấp thêm CHILD_PROFILE_EDIT gửi; HT hoặc PHT điểm trường của trẻ duyệt mới ghi vào hồ sơ. Migration: V153.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | Trẻ cần sửa (người duyệt theo điểm trường hiện tại của trẻ) | CHD-11 |
+| kind | VARCHAR(30) | không | `PROFILE` / `HEALTH_DECLARATION` | CHD-11 |
+| payload | JSONB | không | Nguyên body GV gửi (`UpdateChildRequest` hoặc `HealthDeclarationRequest`); áp khi duyệt | CHD-11 |
+| status | VARCHAR(20) | không | `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED` (yêu cầu mới cùng loại cùng trẻ thay thế) | CHD-11 |
+| requested_by, requested_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | GV gửi, lúc gửi | CHD-11 |
+| decided_by, decided_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Có khi và chỉ khi `APPROVED`/`REJECTED` | CHD-11 |
+| decision_note | VARCHAR(500) | có | Lý do từ chối (bắt buộc khi `REJECTED`) | CHD-11 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `uq_profile_change_pending` (UNIQUE `child_id, kind` khi `PENDING`), `status`, `requested_by`.
 
 ## parent_sms_logs  (module: identity-access, scope: ACCOUNT)
 Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V63.

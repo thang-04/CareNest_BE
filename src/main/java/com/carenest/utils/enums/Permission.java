@@ -26,11 +26,12 @@ public enum Permission {
             "Tiếp nhận trẻ, nhập Excel, mở lại hồ sơ trẻ đã nghỉ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // AUTH-10 (user chốt 2026-11-15): HT cấp thêm được cho GV, GV chỉ sửa trẻ lớp đang dạy
     CHILD_PROFILE_EDIT(
             "child",
             "Sửa hồ sơ trẻ, khai báo sức khỏe",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER)),
     CHILD_PLACEMENT(
             "child",
             "Xếp lớp, chuyển lớp, cho trẻ nghỉ học",
@@ -152,9 +153,15 @@ public enum Permission {
     // AUTH-20: danh mục bán trú dùng chung cả trường (SCH-06); PHT mặc định tắt, HT cấp cho PHT dinh dưỡng
     NUTRITION_MANAGE(
             "meals",
-            "Quản lý danh mục bán trú: thực phẩm, món, cấu hình nhóm tuổi, nhà cung cấp",
+            "Quản lý danh mục bán trú: thực phẩm, món, nhà cung cấp",
             EnumSet.of(CareNestRole.PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // NUT-17 (user chốt 2026-11-15): chỉ HT cấu hình bữa, chuẩn, giá suất theo nhóm tuổi; cố định, không giao được
+    MEAL_CONFIG_MANAGE(
+            "meals",
+            "Cấu hình bữa, chuẩn dinh dưỡng, giá suất theo nhóm tuổi",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.noneOf(CareNestRole.class)),
     // NUT-08 + AUTH-20: lập và công bố thực đơn tuần cả trường (công bố là duyệt); PHT mặc định tắt
     MENU_MANAGE(
             "meals",

@@ -5,8 +5,8 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 ## Thiết lập (NUT-05, NUT-17, NUT-18)
 
 ```text
-[S] PHT phụ trách dinh dưỡng cấu hình theo nhóm tuổi: các bữa/ngày, chuẩn dinh dưỡng,
-    giá suất, ngày hiệu lực                                                           (NUT-17, NUT-19)
+[S] Hiệu trưởng cấu hình theo nhóm tuổi: các bữa/ngày, chuẩn dinh dưỡng, giá suất,
+    ngày hiệu lực; PHT chỉ xem (user chốt 15/11/2026)                                 (NUT-17, NUT-19)
 [S] Danh mục thực phẩm: đơn vị, giá, dinh dưỡng có nguồn, chất dị ứng, Fresh/Stored,
     hệ số thải bỏ; nhập hàng loạt được                                                (NUT-05, NUT-10, NUT-18)
 [S] Thực phẩm có nguồn gốc động vật / thực vật; món, bữa, ngày tính 6 chỉ số

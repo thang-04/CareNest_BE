@@ -56,7 +56,7 @@ public class ChildController {
         String logPrefix = LOG_PREFIX + "|searchChildren|userId=" + currentUser.userId() + "|schoolYear=" + schoolYear
                 + "|campusId=" + campusId + "|classId=" + (classId != null ? classId : classroomId);
         log.info("{}|START", logPrefix);
-        PageResponse<ChildListItemResponse> children = childListService.searchChildren(
+        PageResponse<ChildListItemResponse> children = childListService.browseChildren(
                 currentUser,
                 new ChildListFilter(
                         schoolYear,

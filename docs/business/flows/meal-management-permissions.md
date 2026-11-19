@@ -76,7 +76,7 @@ Cột actor ghi phạm vi được làm; "—" = không. Admin không có quyề
 | | Delete | T | T | — | — | — | — | Chỉ ngừng dùng (INACTIVE), không xóa cứng | Có | P |
 | | Import | T | T | — | — | — | — | Tất cả hoặc không | Có | P |
 | Cấu hình nhóm tuổi (bữa, chuẩn, giá suất) | View | T | T | T | — | — | — | | — | C |
-| | Create/Update | T | T (`NUTRITION_MANAGE`) | — | — | — | — | Chỉ bản có ngày hiệu lực > hôm nay | Có | C (NUT-17); khóa bản đã hiệu lực P |
+| | Create/Update | T | — (chỉ HT, NUT-17 chốt 15/11/2026; code còn `NUTRITION_MANAGE` tới khi sửa) | — | — | — | — | Chỉ bản có ngày hiệu lực > hôm nay | Có | C (NUT-17); khóa bản đã hiệu lực P |
 | Nhà cung cấp | View | T | T | T (ẩn CCCD) | — | — | — | CCCD chỉ người có mã | — | C (NUT-12); ẩn CCCD P |
 | | Create/Update/Delete | T | T (`NUTRITION_MANAGE`) | — | — | — | — | Delete = ngừng dùng | Có | C (NUT-12) |
 | Bộ mẫu, kế hoạch tuần, món thay thế | View | T | T | T | — | — | — | Bản nháp chỉ BGH thấy | — | C |
