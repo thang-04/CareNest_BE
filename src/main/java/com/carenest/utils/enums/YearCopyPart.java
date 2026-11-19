@@ -7,5 +7,6 @@ public enum YearCopyPart {
     TEAM_LEADERS,
     VICE_PRINCIPALS,
     CUTOFF,
-    SEMESTER
+    SEMESTER,
+    HOLIDAYS
 }

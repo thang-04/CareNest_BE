@@ -17,6 +17,7 @@ public record YearCopyResponse(
         int vicePrincipals,
         @JsonFormat(pattern = "HH:mm") LocalTime cutoffTime,
         boolean semesterCopied,
+        int holidays,
         List<Skipped> skipped) {
 
     public record Skipped(YearCopyPart part, String name, String reason) {}

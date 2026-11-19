@@ -454,6 +454,12 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -2682,6 +2688,12 @@ paths:
       - in: path
         name: campusId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -6169,6 +6181,13 @@ paths:
       - room-controller
     post:
       operationId: createRoom
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -6194,6 +6213,12 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -6209,6 +6234,12 @@ paths:
       - in: path
         name: roomId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -6234,6 +6265,12 @@ paths:
       - in: path
         name: roomId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -23422,6 +23459,7 @@ components:
           - VICE_PRINCIPALS
           - CUTOFF
           - SEMESTER
+          - HOLIDAYS
         reason:
           type: string
     SourceClass:
@@ -25002,6 +25040,7 @@ components:
             - VICE_PRINCIPALS
             - CUTOFF
             - SEMESTER
+            - HOLIDAYS
           uniqueItems: true
         sourceYearId:
           type: integer
@@ -25018,6 +25057,9 @@ components:
         cutoffTime:
           type: string
           format: time-local
+        holidays:
+          type: integer
+          format: int32
         semesterCopied:
           type: boolean
         skipped:

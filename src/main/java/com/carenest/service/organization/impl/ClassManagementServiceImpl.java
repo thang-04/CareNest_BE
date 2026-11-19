@@ -26,7 +26,6 @@ import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.DisplayNames;
-import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -266,6 +265,12 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                             .toList();
             Map<Long, AgeGroup> ageGroups = ageGroupRepository.findAll().stream()
                     .collect(Collectors.toMap(AgeGroup::getId, Function.identity()));
+            Map<Long, AgeGroupRepository.YearAgeGroupInfo> targetAgeGroups =
+                    YearAgeGroups.infoOf(ageGroupRepository, target.getId());
+            Set<Long> targetAgeGroupIds = Set.copyOf(ageGroupRepository.findYearAgeGroupIds(target.getId()));
+            Map<Long, RoomRepository.YearRoomInfo> targetRooms =
+                    roomRepository.findYearRoomInfo(target.getId()).stream()
+                            .collect(Collectors.toMap(RoomRepository.YearRoomInfo::getRoomId, Function.identity()));
             Map<Long, Room> rooms = roomRepository
                     .findAllById(sourceClasses.stream()
                             .map(Classroom::getRoomId)
@@ -278,7 +283,8 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             List<String> withoutRoom = new ArrayList<>();
             // Chỉ sao chép tên, nhóm tuổi, điểm trường, phòng, sĩ số — không bao giờ sao chép giáo viên hay trẻ
             for (Classroom c : sourceClasses) {
-                if (!campusRepository.existsByIdAndStatus(c.getCampusId(), CampusStatus.ACTIVE)) {
+                // V154: trạng thái điểm trường của năm đích
+                if (!Boolean.TRUE.equals(campusRepository.isActiveInYear(target.getId(), c.getCampusId()))) {
                     skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Điểm trường đã ngừng hoạt động"));
                     continue;
                 }
@@ -287,38 +293,32 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                     continue;
                 }
                 AgeGroup group = c.getAgeGroupId() == null ? null : ageGroups.get(c.getAgeGroupId());
-                if (group == null) {
-                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Nhóm tuổi không còn tồn tại"));
+                if (group == null || !targetAgeGroupIds.contains(group.getId())) {
+                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Nhóm tuổi không có trong năm đích"));
                     continue;
                 }
                 Room room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
-                boolean roomFree = room != null
-                        && room.getStatus() == RoomStatus.ACTIVE
+                RoomRepository.YearRoomInfo targetRoom = room == null ? null : targetRooms.get(room.getId());
+                boolean roomFree = targetRoom != null
+                        && RoomStatus.ACTIVE.name().equals(targetRoom.getStatus())
+                        && c.getCampusId().equals(targetRoom.getCampusId())
                         && !classroomRepository.existsRoomInYear(target.getId(), room.getId(), null);
                 if (room != null && !roomFree) {
                     withoutRoom.add(c.getName());
                 }
                 int capacity = c.getCapacity() == null ? Short.MAX_VALUE : c.getCapacity();
-                if (roomFree && room.getCapacity() != null) {
-                    capacity = Math.min(capacity, room.getCapacity());
+                if (roomFree && targetRoom.getCapacity() != null) {
+                    capacity = Math.min(capacity, targetRoom.getCapacity());
                 }
-                if (group.getMaxClassSize() != null) {
-                    capacity = Math.min(capacity, group.getMaxClassSize());
+                AgeGroupRepository.YearAgeGroupInfo targetGroup = targetAgeGroups.get(group.getId());
+                Short targetMax = targetGroup == null ? group.getMaxClassSize() : targetGroup.getMaxClassSize();
+                if (targetMax != null) {
+                    capacity = Math.min(capacity, targetMax);
                 }
                 Classroom copy = Classroom.create(target.getId(), c.getCampusId());
                 copy.changeInfo(
                         c.getName(), c.getCampusId(), group.getId(), roomFree ? room.getId() : null, (short) capacity);
                 classroomRepository.saveAndFlush(copy);
-                // Sao chép lớp mang nhóm tuổi sang năm đích nếu năm đó chưa có nhóm này
-                if (ageGroupRepository.findYearAgeGroupIds(target.getId()).isEmpty()) {
-                    ageGroupRepository.addAllToYear(target.getId());
-                }
-                ageGroupRepository.addToYear(target.getId(), group.getId());
-                // Lớp chép sang năm đích mang theo điểm trường (V151)
-                if (campusRepository.findYearCampusIds(target.getId()).isEmpty()) {
-                    campusRepository.addAllToYear(target.getId());
-                }
-                campusRepository.addToYear(target.getId(), c.getCampusId());
                 copied.add(c.getName());
             }
             CopyClassesResponse response = new CopyClassesResponse(copied, skipped, withoutRoom);
@@ -340,29 +340,33 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         }
         // V151: lớp chỉ mở ở điểm trường của năm học đó (Cần chốt 22/10/2026)
         List<Long> yearCampuses = campusRepository.findYearCampusIds(request.schoolYearId());
-        if (!yearCampuses.isEmpty() && !yearCampuses.contains(request.campusId())) {
+        if (!yearCampuses.contains(request.campusId())) {
             throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
         }
-        if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
+        if (!Boolean.TRUE.equals(campusRepository.isActiveInYear(request.schoolYearId(), request.campusId()))) {
             throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);
         }
         AgeGroup ageGroup = ageGroupRepository
                 .findById(request.ageGroupId())
                 .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
-        // Lớp chỉ thuộc nhóm tuổi có trong năm học của lớp (năm chưa có danh sách riêng thì mọi nhóm)
+        // Lớp chỉ thuộc nhóm tuổi có trong năm học của lớp. Migration đã backfill dữ liệu cũ.
         List<Long> yearGroups = ageGroupRepository.findYearAgeGroupIds(request.schoolYearId());
-        if (!yearGroups.isEmpty() && !yearGroups.contains(ageGroup.getId())) {
+        if (!yearGroups.contains(ageGroup.getId())) {
             throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
         }
         Room room = roomRepository
                 .findById(request.locationId())
                 .filter(r -> r.getStatus() != RoomStatus.DELETED)
                 .orElseThrow(() -> GlobalException.of(ApiCode.ROOM_NOT_FOUND));
-        if (!room.getCampusId().equals(request.campusId())) {
+        RoomRepository.YearRoomInfo yearRoom = roomRepository
+                .findYearRoomInfoById(request.schoolYearId(), room.getId())
+                .orElseThrow(() -> GlobalException.of(ApiCode.ROOM_NOT_FOUND));
+        if (!yearRoom.getCampusId().equals(request.campusId())) {
             throw GlobalException.of(ApiCode.ROOM_NOT_IN_CAMPUS);
         }
         Long currentRoomId = classId == null ? null : findClass(classId).getRoomId();
-        if (room.getStatus() != RoomStatus.ACTIVE && !room.getId().equals(currentRoomId)) {
+        if (!RoomStatus.ACTIVE.name().equals(yearRoom.getStatus())
+                && !room.getId().equals(currentRoomId)) {
             throw GlobalException.of(ApiCode.ROOM_INACTIVE);
         }
         if (classroomRepository.existsName(request.schoolYearId(), request.campusId(), name, classId)) {
@@ -372,11 +376,14 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             throw GlobalException.of(ApiCode.ROOM_TAKEN);
         }
         int max = Integer.MAX_VALUE;
-        if (ageGroup.getMaxClassSize() != null) {
-            max = Math.min(max, ageGroup.getMaxClassSize());
+        AgeGroupRepository.YearAgeGroupInfo yearAgeGroup =
+                YearAgeGroups.infoOf(ageGroupRepository, request.schoolYearId()).get(ageGroup.getId());
+        Short maxClassSize = yearAgeGroup == null ? ageGroup.getMaxClassSize() : yearAgeGroup.getMaxClassSize();
+        if (maxClassSize != null) {
+            max = Math.min(max, maxClassSize);
         }
-        if (room.getCapacity() != null) {
-            max = Math.min(max, room.getCapacity());
+        if (yearRoom.getCapacity() != null) {
+            max = Math.min(max, yearRoom.getCapacity());
         }
         long min = Math.max(1, enrolled);
         if (request.capacity() < min || request.capacity() > max) {
@@ -444,19 +451,23 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                 : roomRepository.findUserNames(teacherUserIds).stream()
                         .collect(Collectors.toMap(
                                 RoomRepository.UserName::getUserId, RoomRepository.UserName::getFullName));
-        Map<Long, Room> rooms = roomRepository
-                .findAllById(classes.stream()
-                        .map(Classroom::getRoomId)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(Room::getId, r -> r));
+        Map<Long, Map<Long, RoomRepository.YearRoomInfo>> yearRooms = classes.stream()
+                .map(Classroom::getSchoolYearId)
+                .distinct()
+                .collect(Collectors.toMap(
+                        yearId -> yearId,
+                        yearId -> roomRepository.findYearRoomInfo(yearId).stream()
+                                .collect(Collectors.toMap(RoomRepository.YearRoomInfo::getRoomId, room -> room))));
         // Năm đã kết thúc: mã/tên phòng theo bản chụp
         Map<Long, Map<Long, SchoolYearRepository.RoomSnapshot>> roomSnapshots = new HashMap<>();
         return classes.stream()
                 .map(c -> {
                     long childCount = children.getOrDefault(c.getId(), 0L);
-                    Room room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
+                    RoomRepository.YearRoomInfo room = c.getRoomId() == null
+                            ? null
+                            : yearRooms
+                                    .getOrDefault(c.getSchoolYearId(), Map.of())
+                                    .get(c.getRoomId());
                     SchoolYearRepository.RoomSnapshot frozen = c.getRoomId() == null
                             ? null
                             : roomSnapshots

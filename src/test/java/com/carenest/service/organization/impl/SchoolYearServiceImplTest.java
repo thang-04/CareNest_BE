@@ -68,6 +68,7 @@ class SchoolYearServiceImplTest {
             holidayRepository,
             List.of(dayUsage),
             mock(com.carenest.repository.organization.CampusRepository.class),
+            mock(com.carenest.repository.organization.RoomRepository.class),
             mock(com.carenest.service.notification.NotificationService.class));
 
     @BeforeEach

@@ -14,6 +14,10 @@ public interface AgeGroupService {
 
     AgeGroupDetailResponse updateAgeGroup(CurrentUser currentUser, Long ageGroupId, AgeGroupRequest request);
 
+    /** Sửa thông tin nhóm tuổi của năm học (V154): năm khác không đổi; năm đang hoạt động cập nhật cả bảng chung. */
+    AgeGroupDetailResponse updateAgeGroup(
+            CurrentUser currentUser, Long ageGroupId, AgeGroupRequest request, Long schoolYearId);
+
     void deleteAgeGroup(CurrentUser currentUser, Long ageGroupId);
 
     /** Nhóm tuổi của một năm học (Cần chốt 22/10/2026: mỗi năm danh sách riêng, mã nhóm giữ nguyên). */

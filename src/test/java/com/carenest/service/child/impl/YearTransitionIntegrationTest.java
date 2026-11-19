@@ -113,6 +113,24 @@ class YearTransitionIntegrationTest {
         long room1 = room(campus, "P.1");
         long room2 = room(campus, "P.2");
         long room3 = room(campus, "P.3");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT y.id, c.id, c.code, c.name, c.short_name, c.address, c.phone, c.status "
+                        + "FROM school_years y CROSS JOIN campuses c WHERE y.id IN (?, ?)",
+                oldYear,
+                newYear);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT y.id, g.id, g.name, g.short_name, g.age_from_months, g.age_to_months, g.meal_sessions, g.max_class_size, g.nutrition_note "
+                        + "FROM school_years y CROSS JOIN age_groups g WHERE y.id IN (?, ?)",
+                oldYear,
+                newYear);
+        jdbc.update(
+                "INSERT INTO school_year_room_members (school_year_id, room_id, campus_id, code, name, room_type, capacity, manager_user_id, status, note) "
+                        + "SELECT y.id, r.id, r.campus_id, r.code, r.name, r.room_type, r.capacity, r.manager_user_id, r.status, r.note "
+                        + "FROM school_years y CROSS JOIN rooms r WHERE y.id IN (?, ?)",
+                oldYear,
+                newYear);
         oldClass = classroom(campus, oldYear, "Lớp cũ", ag3, room1, 25);
         newClass4 = classroom(campus, newYear, "Lớp nhỡ", ag4, room2, 25);
         newClass3 = classroom(campus, newYear, "Lớp bé", ag3, room3, 1);

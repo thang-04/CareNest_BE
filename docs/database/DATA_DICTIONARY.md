@@ -218,16 +218,29 @@ Mục đích: bản chụp phòng, điểm trường, nhóm tuổi lúc năm h�
 Ghi khi năm chuyển CLOSED (kết thúc tay hoặc tự đóng khi kích hoạt năm mới), trong cùng transaction.
 
 ## school_year_campus_members  (module: school-structure, scope: SCHOOL)
-Mục đích: danh sách điểm trường riêng của từng năm học (Cần chốt 22/10/2026), như `school_year_age_group_members`. Thêm điểm trường ở năm đang chọn chỉ thêm vào năm đó; xóa ở một năm chỉ bỏ khỏi năm đó (còn lớp / PHT năm đó thì chặn), không còn năm nào thì xóa hẳn (chỉ khi chưa có dữ liệu). Tạo năm mới chép danh sách của năm gần nhất; sao chép lớp mang điểm trường sang năm đích; lớp chỉ mở ở điểm trường của năm. Năm chưa có dòng nào thấy cả danh mục. Migration: `V151__school_year_campus_members.sql` (năm đã đóng theo bản chụp, năm còn mở nhận cả danh mục), `V152__school_year_campus_info.sql` (thông tin riêng từng năm: sửa ở năm nào chỉ năm đó đổi; `campuses` giữ thông tin năm đang hoạt động cho module khác; trạng thái hoạt động vẫn chung).
+Mục đích: danh sách điểm trường riêng của từng năm học (Cần chốt 22/10/2026), như `school_year_age_group_members`. Thêm điểm trường ở năm đang chọn chỉ thêm vào năm đó; xóa ở một năm chỉ bỏ khỏi năm đó (còn lớp / PHT / phòng năm đó thì chặn), không còn năm nào thì xóa hẳn (chỉ khi chưa có dữ liệu). Tạo năm mới chép danh sách của năm gần nhất; lớp và phòng chỉ mở ở điểm trường của năm. Migration: `V151__school_year_campus_members.sql`, `V152__school_year_campus_info.sql`, `V154__school_year_config_per_year.sql`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng campus_id | — |
 | campus_id | BIGINT FK campuses (ON DELETE CASCADE) | không | Điểm trường | — |
-| code | VARCHAR(30) | có | Mã điểm trường của năm; không trùng trong cùng năm (V152) | — |
-| name | VARCHAR(150) | có | Tên của năm; không trùng trong cùng năm; null = dùng `campuses` (V152) | — |
-| short_name | VARCHAR(50) | có | Tên ngắn của năm (V152) | — |
-| address | VARCHAR(255) | có | Địa chỉ của năm (V152) | — |
+| code | VARCHAR(30) | không | Mã của năm; unique không phân biệt hoa thường trong cùng năm | — |
+| name | VARCHAR(150) | không | Tên của năm; unique không phân biệt hoa thường trong cùng năm | — |
+| short_name | VARCHAR(50) | không | Tên ngắn của năm | — |
+| address | VARCHAR(255) | không | Địa chỉ của năm | — |
 | phone | VARCHAR(20) | có | SĐT của năm (V152) | — |
+| status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE` của năm; `campuses.status` = trạng thái năm đang hoạt động | CFG-CP-01 |
+
+## school_year_room_members  (module: school-structure, scope: SCHOOL)
+Mục đích: phòng / phòng ban của từng năm học còn mở (Cần chốt 19/11/2026): thêm, sửa, ngừng, xóa ở năm nào chỉ năm đó. `rooms` giữ thông tin năm đang hoạt động cho module khác; kích hoạt năm áp phòng của năm mới, phòng không có trong năm mới ngừng sử dụng. Năm đã kết thúc vẫn đọc bản chụp `school_year_rooms`. Tạo năm mới chép từ năm gần nhất. Migration: `V154__school_year_config_per_year.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng room_id | — |
+| room_id | BIGINT FK rooms (ON DELETE CASCADE) | không | Phòng | — |
+| campus_id | BIGINT FK campuses; FK ghép tới school_year_campus_members | không | Điểm trường phải có trong chính năm của phòng | — |
+| code, name | như `rooms` | không | Unique không phân biệt hoa thường trong cùng điểm trường – năm | — |
+| room_type, capacity, status | như `rooms` | (như rooms) | Giữ cùng CHECK loại phòng, trạng thái và sức chứa như bảng `rooms` | — |
+| manager_user_id | BIGINT FK user_accounts | có | Người phụ trách; có index cho tra cứu ngược | — |
+| note | VARCHAR(500) | không | Ghi chú của năm | — |
 
 ## school_year_age_group_members  (module: school-structure, scope: SCHOOL)
 Mục đích: danh sách nhóm tuổi riêng của từng năm học (Cần chốt 22/10/2026). Thêm, xóa nhóm tuổi ở năm nào chỉ đổi năm đó; mã nhóm (`age_groups.id`) giữ nguyên cho kế hoạch giáo dục, thực đơn, sức khỏe. Tạo năm mới sao chép danh sách của năm gần nhất; sao chép lớp mang nhóm tuổi sang năm đích; bản chụp lúc đóng năm chỉ chụp nhóm của năm. Năm chưa có dòng nào thấy cả danh mục. Migration: `V148__school_year_age_group_members.sql` (năm đã đóng theo bản chụp, năm còn mở nhận cả danh mục).
@@ -235,6 +248,8 @@ Mục đích: danh sách nhóm tuổi riêng của từng năm học (Cần ch�
 | --- | --- | --- | --- | --- |
 | school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng age_group_id | CFG-YR-02 |
 | age_group_id | BIGINT FK age_groups (ON DELETE CASCADE) | không | Nhóm tuổi dùng trong năm | — |
+| name, short_name, meal_sessions, nutrition_note | như `age_groups` | không | Thông tin riêng của năm; tên unique không phân biệt hoa thường trong năm | — |
+| age_from_months, age_to_months, max_class_size | như `age_groups` | có | Giữ cùng CHECK khoảng tuổi và sĩ số dương như bảng `age_groups` | — |
 
 ## children  (module: child, scope: CHILD)
 Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`, `V146__child_meal_registered.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
