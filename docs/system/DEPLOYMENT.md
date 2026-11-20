@@ -97,7 +97,9 @@ docker compose -f compose.vps.yaml up -d --no-build
 
 Tắt gateway khẩn cấp: `.env` `CARENEST_AUTH_ENABLED=false` rồi `up -d --no-build api`; disable client `carenest-auth-gateway` trong admin console.
 
-Ép build lại một image khi nội dung không đổi (vd. cập nhật base image): xoá tag tương ứng trên Docker Hub rồi Run workflow trên `main`.
+Ép build lại image api khi nội dung không đổi (vd. cập nhật base image): Run workflow trên `main` với `force_api` (chạy lại test + build + push cùng tag). Image Keycloak: xoá tag tương ứng trên Docker Hub rồi Run workflow. Run workflow với `force_api` trên nhánh khác chỉ chạy test (đo thời gian CI), không push.
+
+Test api chạy song song 4 job (`api-test`), mỗi job 2 JVM; artifact `api-verify-reports-<n>` giữ log và thời gian từng class 7 ngày. PR từ nhánh trong repo push image sau khi test xanh ⇒ merge vào `dev` không chạy lại test nếu nội dung không đổi.
 
 ## Môi trường dev (nhánh `dev`)
 
@@ -209,6 +211,10 @@ Gọi từ service (gửi đồng bộ; email không phải bước bắt buộc
 ```java
 emailGateway.send(EmailMessage.html(guardianEmail, "Thông báo từ CareNest", html));
 ```
+
+Thiết kế email đồng bộ: HTML dựng qua `CareNestEmailLayout` (cùng màu, header, nút, footer với `carenest-layout.ftl` của Keycloak; `CareNestEmailLayoutTest` kiểm token chung), không tự viết khung HTML riêng.
+
+Email thông báo kế hoạch giáo dục (G94-386): không gửi đồng bộ — `NotificationService` xếp hàng `notification_email_deliveries` cùng giao dịch, `EmailOutboxWorker` gửi sau commit (cấu hình `carenest.email.outbox.*`). Nút "Mở hồ sơ" = `CARENEST_WEB_BASE_URL` + đường dẫn thông báo. Kiểm tra: `SELECT state, last_error_kind, count(*) FROM notification_email_deliveries GROUP BY 1, 2;` (`SKIPPED/NO_EMAIL` = người nhận chưa có email).
 
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 

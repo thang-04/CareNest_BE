@@ -7685,6 +7685,37 @@ paths:
           description: OK
       tags:
       - fresh-goods-controller
+  /api/nutrition/fresh-checks/dry-receipts:
+    post:
+      operationId: recordDryIntake
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DryIntakeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFreshCheckResponse"
+          description: OK
+      tags:
+      - fresh-goods-controller
   /api/nutrition/fresh-forecasts:
     get:
       operationId: getForecasts
@@ -13905,6 +13936,76 @@ components:
         generatedAt:
           type: string
           format: date-time
+    DryIntake:
+      type: object
+      properties:
+        forecastId:
+          type: integer
+          format: int64
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/DryOrderStatus"
+        periodFrom:
+          type: string
+          format: date
+        periodTo:
+          type: string
+          format: date
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockReceiptResponse"
+    DryIntakeLineInput:
+      type: object
+      properties:
+        expiryDate:
+          type: string
+          format: date
+        foodId:
+          type: integer
+          format: int64
+        lotNo:
+          type: string
+          maxLength: 50
+          minLength: 0
+        note:
+          type: string
+          maxLength: 300
+          minLength: 0
+        passed:
+          type: boolean
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+        unitPrice:
+          type: number
+          minimum: 0
+      required:
+      - expiryDate
+      - foodId
+      - lotNo
+      - passed
+      - quantity
+      - unitPrice
+    DryIntakeRequest:
+      type: object
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DryIntakeLineInput"
+          minItems: 1
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        supplierId:
+          type: integer
+          format: int64
+      required:
+      - lines
+      - supplierId
     DryLine:
       type: object
       properties:
@@ -13919,12 +14020,42 @@ components:
           format: date
         shortQty:
           type: number
+    DryOrderInput:
+      type: object
+      properties:
+        foodId:
+          type: integer
+          format: int64
+        quantity:
+          type: number
+          minimum: 0
+      required:
+      - foodId
+      - quantity
+    DryOrderLine:
+      type: object
+      properties:
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        quantity:
+          type: number
+    DryOrderStatus:
+      type: object
+      properties:
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        ordered:
+          type: number
+        received:
+          type: number
     DryStock:
       type: object
       properties:
         foodCount:
           type: integer
           format: int32
+        m1DrySigned:
+          type: boolean
         openShortfallCount:
           type: integer
           format: int32
@@ -14972,6 +15103,8 @@ components:
         disposedAt:
           type: string
           format: date-time
+        editable:
+          type: boolean
         id:
           type: integer
           format: int64
@@ -15075,6 +15208,15 @@ components:
         date:
           type: string
           format: date
+        dry:
+          $ref: "#/components/schemas/DryIntake"
+        editable:
+          type: boolean
+        lockReason:
+          type: string
+          enum:
+          - NOT_TODAY
+          - M1_SIGNED
         rounds:
           type: array
           items:
@@ -15188,6 +15330,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FreshForecastCountInput"
+        dryOrder:
+          type: array
+          items:
+            $ref: "#/components/schemas/DryOrderInput"
         note:
           type: string
           maxLength: 500
@@ -15224,10 +15370,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FreshForecastDay"
+        deletable:
+          type: boolean
         dryLines:
           type: array
           items:
             $ref: "#/components/schemas/DryLine"
+        dryOrder:
+          type: array
+          items:
+            $ref: "#/components/schemas/DryOrderLine"
         id:
           type: integer
           format: int64
@@ -15252,6 +15404,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        deletable:
+          type: boolean
         foodCount:
           type: integer
           format: int32
@@ -17817,6 +17971,8 @@ components:
         id:
           type: integer
           format: int64
+        inspectionSigned:
+          type: boolean
         needsReconfirmation:
           type: boolean
         schoolYearId:
@@ -20030,6 +20186,20 @@ components:
       properties:
         force:
           type: boolean
+    RejectedLine:
+      type: object
+      properties:
+        expiryDate:
+          type: string
+          format: date
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        lotNo:
+          type: string
+        note:
+          type: string
+        quantity:
+          type: number
     RequiredNote:
       type: object
       properties:
@@ -24554,6 +24724,9 @@ components:
         campusId:
           type: integer
           format: int64
+        correctionFor:
+          type: string
+          format: date
         createdAt:
           type: string
           format: date-time
@@ -24650,6 +24823,11 @@ components:
         createdAt:
           type: string
           format: date-time
+        forecastId:
+          type: integer
+          format: int64
+        fromIntake:
+          type: boolean
         id:
           type: integer
           format: int64
@@ -24662,6 +24840,10 @@ components:
         receivedDate:
           type: string
           format: date
+        rejectedLines:
+          type: array
+          items:
+            $ref: "#/components/schemas/RejectedLine"
         status:
           type: string
           enum:

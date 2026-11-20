@@ -528,7 +528,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                                 + deadline.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                                 + ". Lý do: " + reason,
                         planLink(plan),
-                        false);
+                        false,
+                        planScope(plan));
             YearPlanDetailResponse response = toDetail(currentUser, plan);
             log.info("{}|END", logPrefix);
             return response;
@@ -2158,6 +2159,28 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 + plan.getId();
     }
 
+    // Phạm vi hiện trong email thông báo (G94-386)
+    private String planScope(EduPlan plan) {
+        return emailScope(
+                schoolStructureService
+                        .findSchoolYear(plan.getSchoolYearId())
+                        .map(SchoolYearResponse::name)
+                        .orElse(null),
+                schoolStructureService
+                        .findAgeGroup(plan.getAgeGroupId())
+                        .map(AgeGroupResponse::name)
+                        .orElse(null),
+                null);
+    }
+
+    static String emailScope(String schoolYear, String ageGroup, String classroom) {
+        List<String> parts = new java.util.ArrayList<>();
+        if (schoolYear != null && !schoolYear.isBlank()) parts.add("Năm học " + schoolYear);
+        if (ageGroup != null && !ageGroup.isBlank()) parts.add("Nhóm tuổi " + ageGroup);
+        if (classroom != null && !classroom.isBlank()) parts.add("Lớp " + classroom);
+        return parts.isEmpty() ? null : String.join(" · ", parts);
+    }
+
     private String planLabel(EduPlan plan) {
         return (plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR ? "Kế hoạch năm học " : "Kế hoạch tổ ")
                 + plan.getTitle();
@@ -2187,7 +2210,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         + (submit ? " gửi duyệt" : " đã duyệt bước trước")
                         + (note == null || note.isBlank() ? "" : ". Ghi chú: " + note),
                 planLink(plan),
-                false);
+                false,
+                planScope(plan));
     }
 
     private void notifyAuthor(
@@ -2205,7 +2229,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 titlePrefix + planLabel(plan),
                 user.fullName() + verb + (note == null || note.isBlank() ? "" : ": " + note),
                 planLink(plan),
-                false);
+                false,
+                planScope(plan));
     }
 
     private String roleLabel(CurrentUser user) {

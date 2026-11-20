@@ -50,6 +50,11 @@ public class FreshForecast {
     @Column(nullable = false, columnDefinition = "jsonb")
     private List<FreshForecastCount> counts = List.of();
 
+    @Convert(converter = JsonListConverter.ForecastDryOrders.class)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "dry_order", nullable = false, columnDefinition = "jsonb")
+    private List<FreshForecastDryOrder> dryOrder = List.of();
+
     @OneToMany(mappedBy = "forecast", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("menuDate, id")
     private List<FreshForecastLine> lines = new ArrayList<>();
@@ -85,6 +90,11 @@ public class FreshForecast {
             forecast.lines.add(line);
         });
         return forecast;
+    }
+
+    /** Lượng hàng khô đặt cho kỳ; chỉ gán trước khi lưu (bản dự trù lưu xong không sửa). */
+    public void orderDry(List<FreshForecastDryOrder> order) {
+        this.dryOrder = List.copyOf(order);
     }
 
     public boolean covers(LocalDate date) {

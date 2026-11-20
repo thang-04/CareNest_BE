@@ -103,6 +103,7 @@ services:
       CARENEST_EMAIL_SMTP_STARTTLS: ${CARENEST_EMAIL_SMTP_STARTTLS:-true}
       CARENEST_EMAIL_FROM: ${CARENEST_EMAIL_FROM:-}
       CARENEST_EMAIL_FROM_NAME: ${CARENEST_EMAIL_FROM_NAME:-CareNest}
+      CARENEST_WEB_BASE_URL: ${CARENEST_WEB_BASE_URL:-https://dev.carenest.edu.vn}
       # Trợ lý AI; khóa trống ⇒ AI tắt (AI-03)
       CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       CARENEST_AI_API_KEY: ${CARENEST_AI_API_KEY:-}

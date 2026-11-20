@@ -26,6 +26,19 @@ public interface NotificationService {
             Collection<Long> userIds, NotificationType type, String title, String body, String link, boolean once);
 
     /**
+     * Như trên, kèm phạm vi hồ sơ cho email (G94-386): thông báo kế hoạch giáo dục ({@code EDU_*}) có đường dẫn ⇒ mỗi
+     * người nhận thêm một email, gửi sau khi giao dịch của người gọi đã lưu.
+     */
+    void notifyUsers(
+            Collection<Long> userIds,
+            NotificationType type,
+            String title,
+            String body,
+            String link,
+            boolean once,
+            String scope);
+
+    /**
      * Thông báo tự động theo quy tắc (PAR-09): loại đang tắt thì bỏ; câu chữ theo mẫu HT đã sửa hoặc mặc định, điền
      * {@code values} vào các biến. Chạy trong giao dịch của người gọi.
      */

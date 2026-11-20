@@ -470,6 +470,19 @@ Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một 
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `uk_device_tokens_token`, `(user_id)`, V130 `(updated_at)`.
 
+## notification_email_deliveries  (module: notification, scope: USER)
+Mục đích: hàng chờ email của thông báo kế hoạch giáo dục (`EDU_*`); tạo cùng giao dịch với thông báo, `EmailOutboxWorker` gửi sau commit. Migration: V158 (G94-386).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| notification_id | BIGINT FK notifications (cascade) | không | UNIQUE: mỗi thông báo (1 người nhận × 1 sự kiện) tối đa 1 email | EDU-74 |
+| scope | VARCHAR(300) | có | Phạm vi hiện trong email: năm học · nhóm tuổi · lớp | EDU-74 |
+| state | VARCHAR(10) | không | `PENDING` / `SENT` / `FAILED` / `SKIPPED` | — |
+| attempts | INTEGER | không | Số lần gửi đã thử (≥0) | — |
+| next_attempt_at, last_attempt_at, completed_at | TIMESTAMPTZ | có | Hẹn thử lại / lần thử cuối / lúc kết thúc; CHECK: PENDING ⇔ chưa kết thúc | — |
+| last_error_kind | VARCHAR(32) | có | `NO_EMAIL`, `NO_NOTIFICATION`, `SEND_FAILED`, `INVALID_MESSAGE`; không lưu địa chỉ/nội dung | — |
+| created_at | TIMESTAMPTZ | không | | — |
+Index: `uq_notification_email_delivery`, `idx_notification_email_due (next_attempt_at, id) WHERE state = 'PENDING'`.
+
 ## daily_observations  (module: learning-observation, scope: CHILD)
 Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V41__create_daily_observations.sql`. Dữ liệu quan sát — không log.
 | Column | Type | Null | Ý nghĩa | Rule ID |
@@ -863,7 +876,7 @@ Kho khô từng điểm trường theo lô (NUT-11). Tồn lô = Σ `stock_movem
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| stock_receipts | campus_id, supplier_id, received_date, status `DRAFT`/`CONFIRMED`/`CANCELLED`, note, confirmed_by/at, cancelled_by/at, cancel_reason | Nháp sửa/xóa được; hủy chỉ khi lô chưa bị trừ | NUT-11 |
+| stock_receipts | campus_id, supplier_id, received_date, status `DRAFT`/`CONFIRMED`/`CANCELLED`, note, confirmed_by/at, cancelled_by/at, cancel_reason; V156: forecast_id (FK `fresh_forecasts`, `ON DELETE SET NULL`), from_intake (phiếu sinh từ kiểm nhận hàng khô trong ngày), rejected_lines (jsonb `[{foodId, lotNo, expiryDate, quantity, note}]`: dòng không đạt, không thành lô) | Nháp sửa/xóa được; hủy chỉ khi lô chưa bị trừ; phiếu kiểm nhận lập thẳng `CONFIRMED` | NUT-11 |
 | stock_receipt_lines | receipt_id (CASCADE), food_id (chỉ `DRY` — kiểm ở service), lot_no, expiry_date (≥ ngày nhận — service), quantity > 0, unit_price ≥ 0 | Phiếu đã xác nhận ⇒ mỗi dòng là một **lô** (V83 bỏ bảng `stock_lots`); index FIFO (food, expiry, id) | NUT-10, NUT-11 |
 | stock_movements | lot_id (FK `stock_receipt_lines` = lô), campus_id, food_id, movement_type `RECEIPT`/`DEDUCT`/`ADJUST`/`SHORTFALL_DEDUCT`/`RECEIPT_CANCEL`, quantity ≠ 0 (dương vào, âm ra), meal_date (ngày ăn của bút toán trừ), receipt_id, reason, created_by (null = hệ thống) | | NUT-11, P-38 |
 
@@ -882,7 +895,7 @@ Hàng tươi (`foods.storage = FRESH`) không vào kho (NUT-12): chỉ có bản
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| fresh_forecasts | campus_id, period_from, period_to, note, counts (V83, jsonb `[{ageGroupId, enrolledCount, expectedCount}]`: số đang học lúc lập, số PHT chốt), created_by, created_at, updated_at | CHECK from ≤ to và ≤ 31 ngày; lưu xong không sửa (đổi = lập bản mới), xóa được | NUT-07 |
+| fresh_forecasts | campus_id, period_from, period_to, note, counts (V83, jsonb `[{ageGroupId, enrolledCount, expectedCount}]`: số đang học lúc lập, số PHT chốt), dry_order (V156, jsonb `[{foodId, quantity}]`: lượng hàng khô đặt cho kỳ, chụp lúc lưu, đơn vị gốc), created_by, created_at, updated_at | CHECK from ≤ to và ≤ 31 ngày; lưu xong không sửa (đổi = lập bản mới), xóa được | NUT-07 |
 | fresh_forecast_lines | forecast_id (CASCADE), menu_date, food_id (chỉ `FRESH` — do service tính), quantity | UK (forecast, date, food); quantity ≥ 0 | NUT-07, NUT-10 |
 | fresh_checks | campus_id, check_date, round 1\|2, forecast_id (null ở lần 2; `ON DELETE SET NULL` — xóa bản dự trù giữ lịch sử), checked_by, checked_at, note | UK (campus, date, round) | NUT-12 |
 | fresh_check_lines | check_id (CASCADE), food_id, supplier_id (V155, NCC theo dòng; backfill từ `fresh_checks.supplier_id`), expected_qty (chụp lúc ghi), received_qty (không bắt buộc), result `ENOUGH`/`SHORT`/`OVER`, note | UK (check, food) | NUT-12, NUT-27 |

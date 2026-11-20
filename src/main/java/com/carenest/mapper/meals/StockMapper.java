@@ -58,6 +58,16 @@ public class StockMapper {
                 receipt.getCancelReason(),
                 receipt.getCreatedAt(),
                 canManage,
+                receipt.getForecastId(),
+                receipt.isFromIntake(),
+                receipt.getRejectedLines().stream()
+                        .map(line -> new StockReceiptResponse.RejectedLine(
+                                toFoodRef(foods.get(line.foodId())),
+                                line.lotNo(),
+                                line.expiryDate(),
+                                line.quantity(),
+                                line.note()))
+                        .toList(),
                 canCancel);
     }
 
@@ -86,6 +96,7 @@ public class StockMapper {
                 movement.getMovementType(),
                 movement.getQuantity(),
                 movement.getMealDate(),
+                movement.getCorrectionFor(),
                 movement.getReceiptId(),
                 movement.getReason(),
                 movement.getCreatedBy(),
