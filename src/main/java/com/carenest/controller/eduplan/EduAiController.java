@@ -1,0 +1,96 @@
+package com.carenest.controller.eduplan;
+
+import com.carenest.dto.eduplan.EduAiRequest;
+import com.carenest.dto.eduplan.EduAiResponse;
+import com.carenest.security.CurrentUser;
+import com.carenest.service.eduplan.EduAiService;
+import com.carenest.utils.ApiCode;
+import com.carenest.utils.ResponseJson;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/** AI hỗ trợ soạn và duyệt kế hoạch giáo dục (EDU-95, EDU-96): kết quả là nháp, không lưu. */
+@Slf4j
+@RestController
+@RequestMapping("/education-plans/ai")
+@RequiredArgsConstructor
+public class EduAiController {
+    private static final String LOG_PREFIX = "[EduAiController]";
+
+    private final EduAiService eduAiService;
+
+    @PostMapping("/branch-names")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ResponseJson<EduAiResponse.BranchNames>> suggestBranchNames(
+            @Valid @RequestBody EduAiRequest.BranchNames request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|suggestBranchNames|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        EduAiResponse.BranchNames result = eduAiService.suggestBranchNames(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Suggest branch names success", result);
+    }
+
+    @PostMapping("/branch-names/rewrite")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ResponseJson<EduAiResponse.BranchName>> rewriteBranchName(
+            @Valid @RequestBody EduAiRequest.RewriteBranchName request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|rewriteBranchName|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        EduAiResponse.BranchName result = eduAiService.rewriteBranchName(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Rewrite branch name success", result);
+    }
+
+    @PostMapping("/lesson-steps")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ResponseJson<EduAiResponse.LessonSteps>> suggestLessonSteps(
+            @Valid @RequestBody EduAiRequest.LessonSteps request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|suggestLessonSteps|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        EduAiResponse.LessonSteps result = eduAiService.suggestLessonSteps(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Suggest lesson steps success", result);
+    }
+
+    @PostMapping("/activities")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ResponseJson<List<EduAiResponse.Activity>>> suggestActivities(
+            @Valid @RequestBody EduAiRequest.Activities request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|suggestActivities|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        List<EduAiResponse.Activity> result = eduAiService.suggestActivities(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Suggest activities success", result);
+    }
+
+    @PostMapping("/class-docs/day/{docKey}/edit")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ResponseJson<EduAiResponse.DayEdit>> editDay(
+            @PathVariable String docKey, @Valid @RequestBody EduAiRequest.EditDay request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|editDay|userId=" + currentUser.userId() + "|docKey=" + docKey;
+        log.info("{}|START", logPrefix);
+        EduAiResponse.DayEdit result = eduAiService.editDay(currentUser, docKey, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Edit day plan by request success", result);
+    }
+
+    @PostMapping("/class-docs/day/{docKey}/review")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<EduAiResponse.DayReview>> reviewDay(
+            @PathVariable String docKey, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|reviewDay|userId=" + currentUser.userId() + "|docKey=" + docKey;
+        log.info("{}|START", logPrefix);
+        EduAiResponse.DayReview result = eduAiService.reviewDay(currentUser, docKey);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Review day plan success", result);
+    }
+}

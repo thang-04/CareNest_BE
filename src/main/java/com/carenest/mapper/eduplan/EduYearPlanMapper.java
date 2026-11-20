@@ -32,7 +32,8 @@ public class EduYearPlanMapper {
             boolean current,
             com.carenest.dto.eduplan.EduReviewStateResponse review,
             YearPlanDetailResponse.Permissions permissions,
-            YearPlanDetailResponse.TimeLock timeLock) {
+            YearPlanDetailResponse.TimeLock timeLock,
+            boolean returned) {
         Long publisherId = plan.getPublishedBy() != null ? plan.getPublishedBy() : plan.getIssuedBy();
         Instant publishedAt = plan.getCompletedAt() != null ? plan.getCompletedAt() : plan.getIssuedAt();
         return new YearPlanSummaryResponse(
@@ -63,7 +64,8 @@ public class EduYearPlanMapper {
                 plan.getCurriculumSourcePlanId(),
                 plan.sourceMode(),
                 plan.getDurationPolicySnapshot(),
-                timeLock);
+                timeLock,
+                returned);
     }
 
     public PlanActorResponse toOwner(EduPlan plan, Map<Long, String> userNames) {

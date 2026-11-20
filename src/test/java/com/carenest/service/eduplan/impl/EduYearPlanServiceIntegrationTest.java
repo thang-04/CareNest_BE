@@ -1603,14 +1603,16 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(underReview.review()).isNotNull();
         assertThat(underReview.review().waitingRole()).isEqualTo("VICE_PRINCIPAL");
 
-        // PRINCIPAL chưa tới lượt: không mở được bản Chờ duyệt (EDU-73(2)(3) ⇒ 7384)
+        // PRINCIPAL ở bước sau của chuỗi: xem được bản Chờ duyệt nhưng chưa tới lượt duyệt (EDU-93)
+        assertThat(service.getYearPlan(principal, draft.id()).permissions().canApprove())
+                .isFalse();
         assertErrorCode(
                 () -> service.issueYearPlan(
                         principal,
                         draft.id(),
                         "HT duyệt sớm",
                         new YearPlanEditRequest(null, underReview.revision(), UUID.randomUUID())),
-                ApiCode.EDU_PLAN_NOT_RELEASED);
+                ApiCode.NOT_YOUR_REVIEW_STEP);
 
         // VICE_PRINCIPAL duyệt bước 1: vẫn giữ REVIEW, chuyển waitingRole sang PRINCIPAL
         YearPlanDetailResponse advanced = service.issueYearPlan(
@@ -1651,6 +1653,39 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
+    void principalCanListAndReopenExpiredTeamReviewOutsideApprovalChain() {
+        YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
+        YearPlanDetailResponse reviewed =
+                service.submitYearPlan(leader3, draft.id(), "Gửi duyệt", edit(leader3, draft.id(), true));
+        assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .noneMatch(plan -> plan.id().equals(draft.id()));
+
+        entityManager.flush();
+        int changed = jdbc.update(
+                "UPDATE edu_plan_events SET occurred_at='2026-10-01T03:00:00Z', deadline='2026-10-01' "
+                        + "WHERE team_plan_id=? AND action='SUBMIT'",
+                draft.id());
+        assertThat(changed).isEqualTo(1);
+        entityManager.clear();
+        assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .filteredOn(plan -> plan.id().equals(draft.id()))
+                .singleElement()
+                .satisfies(plan -> {
+                    assertThat(plan.timeLock().reviewDeadline().canReopen()).isTrue();
+                    assertThat(plan.timeLock().canUnlock()).isFalse();
+                    assertThat(plan.permissions().canApprove()).isFalse();
+                });
+        var reopened = service.reopenReviewDeadline(
+                principal, reviewed.id(), "Mở lại hạn duyệt", LocalDate.parse("2026-10-28"));
+        assertThat(reopened.timeLock().reviewDeadline().locked()).isFalse();
+        assertThat(reopened.permissions().canApprove()).isFalse();
+        assertThat(service.getYearPlan(vicePrincipal, draft.id()).permissions().canApprove())
+                .isTrue();
+    }
+
+    @Test
     @DisplayName("T027 [US2]: returnYearPlan trả về DRAFT kèm note; cấm return nếu thiếu note")
     void returnYearPlanRevertsToDraftWithReason() {
         YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
@@ -1674,6 +1709,15 @@ class EduYearPlanServiceIntegrationTest {
                 new YearPlanEditRequest(null, reviewed.revision(), UUID.randomUUID()));
         assertThat(returned.status()).isEqualTo(EduPlanStatus.DRAFT);
         assertThat(returned.lastReturnNote()).isEqualTo("Cần bổ sung tiêu đề cụ thể");
+        assertThat(returned.returned()).isTrue();
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .filteredOn(plan -> plan.id().equals(draft.id()))
+                .singleElement()
+                .satisfies(plan -> {
+                    assertThat(plan.status()).isEqualTo(EduPlanStatus.DRAFT);
+                    assertThat(plan.returned()).isTrue();
+                });
 
         // Sau khi về DRAFT, tác giả có thể sửa lại
         assertThat(service.getYearPlan(leader3, draft.id()).permissions().canEdit())

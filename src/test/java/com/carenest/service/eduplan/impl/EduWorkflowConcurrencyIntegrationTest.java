@@ -107,7 +107,7 @@ class EduWorkflowConcurrencyIntegrationTest {
                 plan);
         String rootKey = "ds_" + classroom + "_" + theme;
         String weekKey = "wp_" + classroom + "_2026-09-07";
-        // Spec 003: hồ sơ chủ đề là gốc duyệt; kế hoạch chủ đề là thành viên
+        // Spec 003: kế hoạch giáo dục ngày là gốc duyệt; kế hoạch chủ đề là thành viên
         jdbc.update(
                 "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,team_plan_id,theme_id,status,created_by,updated_by,review_round) VALUES (?,'theme',?,?,?,'REVIEW',?,?,1)",
                 "tp_" + classroom + "_" + theme,

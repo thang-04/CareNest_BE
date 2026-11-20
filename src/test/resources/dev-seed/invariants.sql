@@ -182,6 +182,19 @@ WHERE i.kind <> 'LINK' OR i.storage_key IS NOT NULL
    OR NOT EXISTS (SELECT 1 FROM staff_assignments sa WHERE sa.user_id = i.owner_id AND sa.staff_role = 'TEACHER')
 UNION ALL SELECT t.item_id FROM edu_resource_item_tags t WHERE t.attachment_id IS NOT NULL
 ) x)
+UNION ALL SELECT 'edu_i15_ho_so_chu_de_da_gui_phai_du_tieu_chi_gui_moi_tuan_nhanh_co_ten_va_giao_an_ngay_7112', (SELECT count(*) FROM (
+SELECT ds.doc_key, b.start_date
+FROM edu_class_docs ds
+JOIN edu_plan_branch_templates b ON b.team_plan_id = ds.team_plan_id AND b.theme_id = ds.theme_id
+LEFT JOIN edu_class_docs bp ON bp.kind = 'branch' AND bp.classroom_id = ds.classroom_id AND bp.team_plan_id = ds.team_plan_id
+WHERE ds.kind = 'dossier' AND ds.review_round > 0
+  AND (COALESCE(bp.content -> 'names' ->> b.start_date::text, '') = ''
+       OR NOT EXISTS (SELECT 1 FROM edu_class_docs d WHERE d.kind = 'day' AND d.classroom_id = ds.classroom_id
+                      AND d.team_plan_id = ds.team_plan_id AND d.week_start = b.start_date))
+UNION ALL SELECT ds.doc_key, NULL FROM edu_class_docs ds
+WHERE ds.kind = 'dossier' AND ds.review_round > 0
+  AND NOT EXISTS (SELECT 1 FROM edu_plan_branch_templates b WHERE b.team_plan_id = ds.team_plan_id AND b.theme_id = ds.theme_id)
+) x)
 UNION ALL SELECT 'dar_child_not_present', count(*) FROM daily_activity_results r WHERE NOT EXISTS (SELECT 1 FROM attendance_records a WHERE a.child_id=r.child_id AND a.date=r.date AND a.classroom_id=r.classroom_id AND a.status='PRESENT')
 UNION ALL SELECT 'dar_doc_not_released_week', count(*) FROM daily_activity_results r LEFT JOIN edu_class_docs d ON d.id=r.class_doc_id WHERE d.kind IS DISTINCT FROM 'week' OR d.classroom_id<>r.classroom_id OR r.date NOT BETWEEN d.week_start AND d.week_start+4 OR (d.status<>'APPROVED' AND d.history::text NOT LIKE '%"revise_future"%')
 UNION ALL SELECT 'dar_goal_not_in_theme', count(*) FROM daily_activity_results r JOIN edu_class_docs d ON d.id=r.class_doc_id CROSS JOIN LATERAL unnest(string_to_array(nullif(concat_ws(',', nullif(r.goals_met,''), nullif(r.goals_not_met,'')),''),',')) g(id) WHERE NOT EXISTS (SELECT 1 FROM edu_goal_contents c JOIN edu_content_theme_ticks k ON k.content_id=c.id WHERE c.goal_id=g.id::bigint AND k.theme_id=d.theme_id)

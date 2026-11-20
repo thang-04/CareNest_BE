@@ -74,12 +74,17 @@ class MenuAiDraftIntegrationTest {
     private static final LocalDate MONDAY = LocalDate.of(2026, 11, 16);
     private static final ZoneId SCHOOL_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
-    /** Đồng hồ giờ trường chỉnh được; mặc định chạy theo giờ thật nên các test khác không đổi. */
+    /**
+     * Đồng hồ giờ trường chỉnh được. Mặc định cố định giữa tuần {@link #MONDAY} (không theo giờ thật): tuần test cố định
+     * nên chạy theo giờ thật thì sau tuần đó mọi thao tác bị chặn "tuần đã qua".
+     */
     static class MutableClock extends Clock {
-        private Instant instant = Instant.now();
+        private static final Instant DEFAULT =
+                MONDAY.plusDays(3).atTime(10, 0).atZone(SCHOOL_ZONE).toInstant();
+        private Instant instant = DEFAULT;
 
         void reset() {
-            instant = Instant.now();
+            instant = DEFAULT;
         }
 
         void set(LocalDate date, String time) {

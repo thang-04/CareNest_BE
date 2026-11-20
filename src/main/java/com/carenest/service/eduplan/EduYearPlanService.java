@@ -46,6 +46,8 @@ public interface EduYearPlanService {
     /** Spec 004 (Q5): Hiệu trưởng mở khóa kế hoạch năm học / tổ đã khóa theo ngày bắt đầu năm học. */
     YearPlanDetailResponse unlockYearPlan(CurrentUser currentUser, Long planId, String note, LocalDate deadline);
 
+    YearPlanDetailResponse reopenReviewDeadline(CurrentUser currentUser, Long planId, String note, LocalDate deadline);
+
     void deleteYearPlan(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
     YearPlanDetailResponse resolveReview(

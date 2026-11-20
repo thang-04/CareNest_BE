@@ -920,6 +920,10 @@ public enum ApiCode {
     EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
     SUBMIT_HOMEROOM_ONLY(7409, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được gửi duyệt"),
     CONFIRM_HOMEROOM_ONLY(7410, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được xác nhận đánh giá"),
+    // EDU-95: còn phần AI gợi ý chưa Giữ / Bỏ thì chưa gửi duyệt
+    AI_DRAFT_PENDING(7411, HttpStatus.CONFLICT, "Còn {0} ngày có phần AI gợi ý chưa Giữ / Bỏ"),
+    // EDU-97: REVIEW quá hạn phải được Hiệu trưởng mở lại trước khi xử lý tiếp.
+    EDU_REVIEW_DEADLINE_PASSED(7412, HttpStatus.CONFLICT, "Đã quá hạn duyệt, cần Hiệu trưởng mở lại hạn"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),

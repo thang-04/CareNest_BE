@@ -3,14 +3,17 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.entity.eduplan.EduPlanEvent;
+import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.repository.eduplan.EduPlanEventRepository;
 import com.carenest.repository.eduplan.EduPlanRepository;
+import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,10 +27,12 @@ import org.springframework.stereotype.Component;
 @Component
 class EduPlanTimeLock {
     static final String ACTION_UNLOCK = "unlock";
+    static final String ACTION_RETURN = "RETURN";
 
     private final SchoolStructureService schoolStructureService;
     private final EduPlanEventRepository eventRepository;
     private final EduPlanRepository planRepository;
+    private final EduSettingsRepository settingsRepository;
     private final Clock clock;
     private final boolean enabled;
 
@@ -36,11 +41,13 @@ class EduPlanTimeLock {
             SchoolStructureService schoolStructureService,
             EduPlanEventRepository eventRepository,
             EduPlanRepository planRepository,
+            EduSettingsRepository settingsRepository,
             Clock clock,
             @Value("${carenest.eduplan.plan-time-lock-enabled:true}") boolean enabled) {
         this.schoolStructureService = schoolStructureService;
         this.eventRepository = eventRepository;
         this.planRepository = planRepository;
+        this.settingsRepository = settingsRepository;
         this.clock = clock;
         this.enabled = enabled;
     }
@@ -61,15 +68,40 @@ class EduPlanTimeLock {
                 .map(EduPlan::getId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         chain.add(plan.getId());
-        LocalDate unlockedTo = chain.stream()
+        List<EduPlanEvent> events = chain.stream()
                 .filter(Objects::nonNull)
                 .flatMap(id -> eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(id).stream())
+                .sorted(Comparator.comparing(EduPlanEvent::getOccurredAt))
+                .toList();
+        LocalDate unlockedTo = events.stream()
                 .filter(e -> ACTION_UNLOCK.equals(e.getAction()) && e.getDeadline() != null)
-                .max(Comparator.comparing(EduPlanEvent::getOccurredAt))
+                .reduce((a, b) -> b)
                 .map(EduPlanEvent::getDeadline)
                 .orElse(null);
+        // Trả lại sau hạn: người soạn được gửi lại thêm N ngày, một lần cho cả chuỗi phiên bản (Tiền 18/11/2026)
+        LocalDate grace = EduDeadline.graceTo(
+                start,
+                events.stream()
+                        .filter(e -> ACTION_RETURN.equals(e.getAction())
+                                || ACTION_UNLOCK.equals(e.getAction()) && e.getDeadline() != null)
+                        .map(e -> new EduDeadline.Event(
+                                LocalDate.ofInstant(e.getOccurredAt(), clock.getZone()),
+                                ACTION_RETURN.equals(e.getAction()),
+                                e.getDeadline()))
+                        .toList(),
+                graceDays());
         LocalDate issued = plan.getIssuedAt() == null ? null : LocalDate.ofInstant(plan.getIssuedAt(), clock.getZone());
-        return EduDeadline.of(start, unlockedTo, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued, null);
+        return EduDeadline.of(
+                start, unlockedTo, grace, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued, null);
+    }
+
+    private int graceDays() {
+        if (settingsRepository == null) return 2;
+        return settingsRepository
+                .findById(EduSettings.SINGLETON_ID)
+                .map(EduSettings::getLateReturnGraceDays)
+                .map(Short::intValue)
+                .orElse(2);
     }
 
     /** Spec 005 FR-021: chuỗi phiên bản đã có bản ban hành ⇒ không mở khóa nữa. */
