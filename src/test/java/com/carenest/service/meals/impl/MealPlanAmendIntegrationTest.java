@@ -11,7 +11,6 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.MealPlanService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
@@ -31,15 +30,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Sửa ngoại lệ một ngày của thực đơn tuần đã công bố (NUT-08, P-39). Giờ chốt mặc định 08:45 giờ trường. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -51,6 +51,10 @@ class MealPlanAmendIntegrationTest {
     private static final LocalDate WEDNESDAY = MONDAY.plusDays(2);
     private static final LocalDate THURSDAY = MONDAY.plusDays(3);
     private static final String REASON = "Nhà cung cấp báo hết thịt heo";
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class ClockConfig {

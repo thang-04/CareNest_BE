@@ -18,7 +18,6 @@ import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.FreshGoodsService;
 import com.carenest.service.meals.StockReceiptService;
 import com.carenest.support.MovableClock;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FreshCheckLock;
@@ -40,15 +39,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Hàng tươi (L4): bản dự trù theo kỳ (NUT-07), kiểm nhận 2 lần (NUT-12), trạng thái trên trang Bán trú hôm nay. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -69,6 +69,10 @@ class FreshGoodsIntegrationTest {
             return CLOCK;
         }
     }
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private FreshGoodsService freshService;

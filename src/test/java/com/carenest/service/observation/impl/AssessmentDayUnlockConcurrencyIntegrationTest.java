@@ -6,7 +6,6 @@ import com.carenest.dto.observation.AssessmentDayUnlockRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.AssessmentDayUnlockService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import java.time.Clock;
@@ -24,20 +23,25 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** OBS-19 trên PostgreSQL thật: HT và PHT mở lại cùng một ngày đánh giá cùng lúc chỉ tạo một lần mở. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class AssessmentDayUnlockConcurrencyIntegrationTest {
 
     private static final LocalDate YESTERDAY = LocalDate.of(2026, 10, 27);
     private static final Instant NOW = Instant.parse("2026-10-28T01:00:00Z");
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class ClockConfig {

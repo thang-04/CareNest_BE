@@ -12,7 +12,6 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.eduplan.EduYearPlanService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanStatus;
@@ -33,23 +32,28 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Luồng kế hoạch năm học SD-01..SD-08 qua service + policy thật trên
  * PostgreSQL. Mỗi test rollback. Cần Docker.
  */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class EduYearPlanServiceIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

@@ -19,7 +19,6 @@ import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.RoomService;
 import com.carenest.service.organization.YearSetupService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
@@ -37,19 +36,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Cấu hình theo năm học (V154, Cần chốt 19/11/2026): sửa ở năm nào chỉ năm đó đổi. Mỗi test rollback. Cần Docker. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class YearConfigPerYearIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

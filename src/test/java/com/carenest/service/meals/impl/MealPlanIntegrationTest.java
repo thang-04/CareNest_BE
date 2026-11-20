@@ -12,7 +12,6 @@ import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.support.MovableClock;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
@@ -30,21 +29,26 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Kế hoạch tuần theo khối, kiểm và công bố cả tuần (NUT-08), trang Bán trú hôm nay. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class MealPlanIntegrationTest {
 
     private static final LocalDate MONDAY = LocalDate.of(2026, 11, 9);
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private MealPlanService mealPlanService;

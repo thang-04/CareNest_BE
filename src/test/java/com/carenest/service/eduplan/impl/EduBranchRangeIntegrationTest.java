@@ -8,7 +8,6 @@ import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduYearPlanService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanLevel;
 import java.time.Clock;
@@ -23,19 +22,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.ObjectMapper;
 
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class EduBranchRangeIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

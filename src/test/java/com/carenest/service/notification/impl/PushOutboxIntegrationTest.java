@@ -11,7 +11,6 @@ import com.carenest.integration.push.PushException;
 import com.carenest.integration.push.PushGateway;
 import com.carenest.repository.notification.NotificationRepository;
 import com.carenest.service.notification.NotificationService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.PushState;
 import java.util.List;
@@ -23,18 +22,23 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Hàng chờ đẩy trên PostgreSQL thật: V130, worker đẩy rồi ghi SENT, SKIP LOCKED chặn hai máy đẩy trùng. Cần Docker. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest(properties = "carenest.push.worker-delay=1h")
 @Testcontainers(disabledWithoutDocker = true)
 class PushOutboxIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @MockitoBean
     private PushGateway pushGateway;

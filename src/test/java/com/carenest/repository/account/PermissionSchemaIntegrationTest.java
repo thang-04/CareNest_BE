@@ -7,7 +7,6 @@ import com.carenest.entity.account.PermissionChangeLog;
 import com.carenest.entity.account.RolePermission;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.entity.account.UserPermissionOverride;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
@@ -21,16 +20,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Migration V7 trên PostgreSQL thật: seed giữ hành vi cũ, CHECK chặn dữ liệu leo quyền. Cần Docker. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class PermissionSchemaIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private RolePermissionRepository rolePermissionRepository;

@@ -21,7 +21,6 @@ import com.carenest.repository.health.HealthCheckCampaignRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthCheckService;
 import com.carenest.service.health.HealthMeasurementService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthCheckAction;
@@ -45,21 +44,26 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Đợt khám, kỳ cân đo, số đo trong kỳ (plan docs/plans/completed/2026-10-31-health-check-rounds.md). Dữ liệu giả. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class HealthCheckIntegrationTest {
 
     // Hôm nay 2026-11-10 (giờ trường)
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+
     @TestConfiguration
     static class ClockConfig {
         @Bean

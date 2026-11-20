@@ -20,7 +20,6 @@ import com.carenest.service.meals.FoodSampleService;
 import com.carenest.service.meals.KitchenDayService;
 import com.carenest.service.meals.MealPhotoService;
 import com.carenest.support.MovableClock;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FoodSampleDisposalStatus;
@@ -41,17 +40,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Bếp hôm nay, lưu/hủy mẫu thức ăn (NUT-21), khung giờ và ảnh bữa (NUT-16), trạng thái lưu mẫu trên trang Bán trú hôm nay. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest(properties = "carenest.storage.bucket=test-bucket")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -62,6 +62,10 @@ class KitchenRecordsIntegrationTest {
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     // 10:30 sáng thứ Hai; đồng hồ cố định để khung giờ ảnh và mốc 24 giờ không phụ thuộc giờ chạy test
     private static final Instant NOW = MONDAY.atTime(10, 30).atZone(ZONE).toInstant();
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     private static final MovableClock CLOCK = new MovableClock();
 

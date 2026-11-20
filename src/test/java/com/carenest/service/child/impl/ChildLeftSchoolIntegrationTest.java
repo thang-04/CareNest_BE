@@ -7,7 +7,6 @@ import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
@@ -23,25 +22,30 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Trẻ đã nghỉ học tính tới một ngày (CHD-03, CHD-04): cho nghỉ theo {@code children.status}, ra trường theo lớp đã đóng;
  * chờ xếp lớp (mới tiếp nhận hoặc mở lại hồ sơ) không tính là nghỉ. Kết quả quyết định phụ huynh xem trẻ, danh sách con ở
  * {@code GET /accounts/me} và khóa tài khoản. Hôm nay = 11/11/2026. Dữ liệu giả.
  */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class ChildLeftSchoolIntegrationTest {
     private static final AtomicInteger SEQ = new AtomicInteger();
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 11);
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

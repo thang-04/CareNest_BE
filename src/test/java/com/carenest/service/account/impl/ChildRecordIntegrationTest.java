@@ -28,7 +28,6 @@ import com.carenest.security.TestPermissions;
 import com.carenest.service.account.ChildProfileEditService;
 import com.carenest.service.account.GuardianPhoneChangeService;
 import com.carenest.service.child.ChildRecordService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
@@ -50,19 +49,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Cho nghỉ học, Sửa hồ sơ, duyệt đổi SĐT phụ huynh trên PostgreSQL thật (V87 + ràng buộc V63): trạng thái, lớp, lịch sử
  * JSONB, thông báo, yêu cầu đổi SĐT, tên đăng nhập. Keycloak, SMS giả lập. Hôm nay = 10/11/2026.
  */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -72,6 +72,10 @@ class ChildRecordIntegrationTest {
     private static final String OLD_PHONE = "0902000001";
     private static final String NEW_PHONE = "0902000099";
     private static final String CITIZEN = "001190000101";
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

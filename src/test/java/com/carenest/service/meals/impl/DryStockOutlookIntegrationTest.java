@@ -13,7 +13,6 @@ import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.FreshGoodsService;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.service.meals.StockReceiptService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -29,18 +28,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Kho khô sắp thiếu (NUT-11, P-38): hàng khô cần nhập thêm trong bản dự trù (P-24 user đổi 08/11/2026), cảnh báo trong
  * kế hoạch tuần và trên trang Bán trú hôm nay. Hôm nay cố định Chủ nhật 08/11/2026, tuần tính là 09–13/11.
  */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -49,6 +49,10 @@ class DryStockOutlookIntegrationTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 8);
     private static final LocalDate MONDAY = LocalDate.of(2026, 11, 9);
     private static final LocalDate FRIDAY = MONDAY.plusDays(4);
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

@@ -9,7 +9,6 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.service.organization.ClassroomService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
@@ -21,19 +20,24 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Thống kê một ngày thực đơn cho N trẻ: lượng ăn, lượng mua có thải bỏ (NUT-07), tiền, bảng kiểm dinh dưỡng. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class MenuStatisticsIntegrationTest {
 
     private static final LocalDate DAY = LocalDate.of(2026, 11, 9);
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private MealPlanService mealPlanService;

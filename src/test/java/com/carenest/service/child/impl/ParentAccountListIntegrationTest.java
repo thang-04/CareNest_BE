@@ -7,7 +7,6 @@ import com.carenest.dto.child.ParentAccountRowResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.child.ChildListService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianAccountStatus;
 import jakarta.persistence.EntityManager;
@@ -26,24 +25,29 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Bảng tổng quan PHT ({@code GET /children/parent-accounts}, đặc tả FE mục 4.8): mỗi phụ huynh trên hồ sơ trẻ chưa nghỉ
  * trong phạm vi quản lý tài khoản phụ huynh, kèm trạng thái và tên đăng nhập; số truy vấn không tăng theo số trẻ. Dữ liệu
  * giả.
  */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class ParentAccountListIntegrationTest {
     private static final AtomicInteger SEQ = new AtomicInteger();
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

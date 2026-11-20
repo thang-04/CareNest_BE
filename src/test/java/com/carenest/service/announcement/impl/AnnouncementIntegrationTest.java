@@ -12,7 +12,6 @@ import com.carenest.repository.announcement.SchoolAnnouncementRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.announcement.AnnouncementService;
 import com.carenest.service.notification.NotificationService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.AnnouncementScopeType;
 import com.carenest.utils.enums.AnnouncementStatus;
 import com.carenest.utils.enums.CareNestRole;
@@ -25,18 +24,23 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** V131 trên PostgreSQL thật: gửi ngay tạo thông báo cho từng người nhận, worker gửi hẹn, gửi lại không trùng. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest(properties = {"carenest.push.worker-delay=1h", "carenest.announcement.worker-delay=1h"})
 @Testcontainers(disabledWithoutDocker = true)
 class AnnouncementIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @MockitoBean
     private RecipientResolver recipientResolver;

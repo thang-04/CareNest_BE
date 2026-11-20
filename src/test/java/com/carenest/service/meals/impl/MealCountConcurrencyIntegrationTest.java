@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.carenest.entity.meals.MealCount;
 import com.carenest.service.meals.MealCountService;
 import com.carenest.service.organization.ClassroomService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.StaffRole;
 import jakarta.persistence.EntityManager;
@@ -18,16 +17,21 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class MealCountConcurrencyIntegrationTest {
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+
     @Autowired
     JdbcTemplate jdbc;
 

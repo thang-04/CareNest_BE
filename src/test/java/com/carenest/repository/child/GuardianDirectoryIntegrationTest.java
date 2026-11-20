@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.entity.child.ChildGuardian;
 import com.carenest.repository.account.UserAccountRepository;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
 import java.time.LocalDate;
@@ -17,18 +16,23 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Danh sách trẻ theo lớp đang học + liên kết phụ huynh (V3 + V9) trên PostgreSQL thật. Cần Docker. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class GuardianDirectoryIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 17);
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private JdbcTemplate jdbc;

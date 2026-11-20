@@ -14,7 +14,6 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.child.ChildListService;
 import com.carenest.service.child.ChildRecordService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
@@ -33,18 +32,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Xếp / chuyển lớp và danh sách trẻ trên PostgreSQL thật (V89): enrollment theo ngày, lịch sử xếp lớp, thông báo
  * {@code CHILD_PLACED}, chuyển điểm trường, quy tắc năm học của danh sách (CHD-09). Hôm nay = 10/11/2026.
  */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -52,6 +52,10 @@ class ChildPlacementListIntegrationTest {
     private static final AtomicInteger SEQ = new AtomicInteger();
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
     private static final Set<ChildStatus> ALL = EnumSet.allOf(ChildStatus.class);
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

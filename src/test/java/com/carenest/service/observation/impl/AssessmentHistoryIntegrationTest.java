@@ -12,7 +12,6 @@ import com.carenest.service.observation.BehaviourTicketService;
 import com.carenest.service.observation.ChildEvaluationService;
 import com.carenest.service.observation.ClassAssessmentOverviewService;
 import com.carenest.service.organization.ClassroomService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
@@ -27,18 +26,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Trẻ chuyển lớp A → B ngày 15/10 và trẻ đã nghỉ: số liệu từng lớp chỉ lấy dữ liệu ghi ở lớp đó, trẻ đã rời vẫn còn
  * trong kỳ cũ (BUG-261102). Hôm nay = thứ 4, 21/10/2026.
  */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -46,6 +46,10 @@ class AssessmentHistoryIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 21);
     private static final LocalDate MOVE = LocalDate.of(2026, 10, 15);
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     static final class FixedClock extends Clock {
         @Override

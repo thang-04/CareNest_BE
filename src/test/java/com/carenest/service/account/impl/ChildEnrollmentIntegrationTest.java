@@ -39,7 +39,6 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.account.ChildEnrollmentService;
 import com.carenest.service.child.ChildIntakeService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildHistoryAction;
@@ -70,21 +69,22 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Tiếp nhận trẻ trên PostgreSQL thật (V10 + school-structure): kiểm trùng, lớp tiếp nhận, tra tài khoản theo CCCD,
  * lưu form kèm tạo/liên kết tài khoản (Keycloak, SMS giả lập), mở lại hồ sơ. Hôm nay = 29/10/2026.
  */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -92,6 +92,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class ChildEnrollmentIntegrationTest {
     // Mã phòng duy nhất trong lần chạy (nanoTime % 100000 trùng khi hai lần gọi sát nhau)
     private static final AtomicInteger ROOM_SEQ = new AtomicInteger();
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

@@ -15,7 +15,6 @@ import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.organization.RoomService;
 import com.carenest.service.organization.SchoolYearService;
-import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
@@ -36,22 +35,27 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
+import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Chuyển năm học trên PostgreSQL thật (V19): xếp lớp, readiness, kích hoạt chuyển trẻ. Hôm nay = 30/08/2027. */
-@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @RecordApplicationEvents
 @Testcontainers(disabledWithoutDocker = true)
 class YearTransitionIntegrationTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {
