@@ -103,7 +103,7 @@ class DayMarketIntegrationTest {
     @Test
     @DisplayName("Chưa chốt suất ⇒ tính theo sĩ số đang học; hàng tươi trước, hàng khô sau; tiền theo lượng thực dùng")
     void forecastBasisUsesEnrolmentAndSplitsFreshAndDry() {
-        mealPrice(30000);
+        mealPrice(30000, 5000);
 
         DayMarketResponse market = dayMarketService.getDayMarket(principal, campus, MONDAY);
 
@@ -114,7 +114,10 @@ class DayMarketIntegrationTest {
             assertThat(g.ageGroupId()).isEqualTo(ag3);
             assertThat(g.servings()).isEqualTo(2);
             assertThat(g.mealPrice()).isEqualByComparingTo("30000");
+            assertThat(g.serviceFee()).isEqualByComparingTo("5000");
             assertThat(g.revenue()).isEqualByComparingTo("60000");
+            // NUT-19: ngân sách thực phẩm = (30.000 − 5.000) × 2 suất
+            assertThat(g.foodBudget()).isEqualByComparingTo("50000");
         });
         // Rau 2 × 50 g ÷ 0,8 = 125 g ⇒ 2.500đ; thịt 2 × 40 g = 80 g ⇒ 1.600đ; gạo 2 × 60 g ÷ 0,8 = 150 g ⇒ 3.000đ
         assertThat(market.lines())
@@ -141,7 +144,8 @@ class DayMarketIntegrationTest {
         assertThat(totals.dryCost()).isEqualByComparingTo("3000");
         assertThat(totals.cost()).isEqualByComparingTo("7100");
         assertThat(totals.revenue()).isEqualByComparingTo("60000");
-        assertThat(totals.balance()).isEqualByComparingTo("52900");
+        assertThat(totals.foodBudget()).isEqualByComparingTo("50000");
+        assertThat(totals.balance()).isEqualByComparingTo("42900");
         assertThat(totals.groups())
                 .singleElement()
                 .satisfies(g -> assertThat(g.cost()).isEqualByComparingTo("7100"));
@@ -250,12 +254,17 @@ class DayMarketIntegrationTest {
     }
 
     private void mealPrice(int price) {
+        mealPrice(price, 0);
+    }
+
+    private void mealPrice(int price, int serviceFee) {
         jdbc.update(
-                "INSERT INTO age_group_meal_configs (age_group_id, effective_from, meal_price, kcal_min, kcal_max,"
-                        + " protein_pct_min, protein_pct_max, lipid_pct_min, lipid_pct_max, glucid_pct_min, glucid_pct_max)"
-                        + " VALUES (?, '2026-09-01', ?, 300, 600, 12, 25, 15, 35, 40, 70)",
+                "INSERT INTO age_group_meal_configs (age_group_id, effective_from, meal_price, service_fee, kcal_min,"
+                        + " kcal_max, protein_pct_min, protein_pct_max, lipid_pct_min, lipid_pct_max, glucid_pct_min,"
+                        + " glucid_pct_max) VALUES (?, '2026-09-01', ?, ?, 300, 600, 12, 25, 15, 35, 40, 70)",
                 ag3,
-                price);
+                price,
+                serviceFee);
     }
 
     private long insertCount(String status) {

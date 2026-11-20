@@ -24,7 +24,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
       ↓
 [S] Kiểm tra xác định từng ngày trong tuần
     cân đối theo nhu cầu của Bộ — chưa đạt ⇒ chặn công bố                             (NUT-08, NUT-18)
-    giá vượt giá suất/ngày ⇒ cảnh báo                                                 (NUT-19)
+    chi phí vượt ngân sách thực phẩm (giá suất − phí dịch vụ) ⇒ cảnh báo              (NUT-19)
     món lặp trong tuần ⇒ cảnh báo                                                     (NUT-20)
     dị ứng                                                                            (NUT-09)
     kho khô không đủ theo sĩ số dự kiến ⇒ cảnh báo, chưa trừ                          (NUT-11, P-38)

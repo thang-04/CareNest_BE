@@ -127,7 +127,48 @@ final class MealPlanEvaluator {
             Range glucidG,
             Map<MealSession, Range> sessionKcalPct,
             BigDecimal dailyKcalNeed,
-            Map<Micronutrient, Range> micro) {
+            Map<Micronutrient, Range> micro,
+            BigDecimal serviceFee) {
+
+        /** Chưa có phí dịch vụ (= 0). */
+        Norm(
+                BigDecimal mealPrice,
+                Range kcal,
+                Range proteinPct,
+                Range lipidPct,
+                Range glucidPct,
+                Range animalProteinG,
+                Range plantProteinG,
+                Range animalLipidG,
+                Range plantLipidG,
+                Range glucidG,
+                Map<MealSession, Range> sessionKcalPct,
+                BigDecimal dailyKcalNeed,
+                Map<Micronutrient, Range> micro) {
+            this(
+                    mealPrice,
+                    kcal,
+                    proteinPct,
+                    lipidPct,
+                    glucidPct,
+                    animalProteinG,
+                    plantProteinG,
+                    animalLipidG,
+                    plantLipidG,
+                    glucidG,
+                    sessionKcalPct,
+                    dailyKcalNeed,
+                    micro,
+                    BigDecimal.ZERO);
+        }
+
+        /** NUT-19: ngân sách thực phẩm/trẻ/ngày = giá suất − phí dịch vụ; null khi chưa có giá suất. */
+        BigDecimal foodBudget() {
+            if (mealPrice == null) {
+                return null;
+            }
+            return serviceFee == null ? mealPrice : mealPrice.subtract(serviceFee);
+        }
 
         /** Chưa đặt định mức vi chất nào. */
         Norm(
@@ -322,6 +363,8 @@ final class MealPlanEvaluator {
                 .filter(i -> i.block() == group.block() && group.sessions().contains(i.session()))
                 .toList();
         BigDecimal mealPrice = norm == null ? null : norm.mealPrice();
+        BigDecimal serviceFee = norm == null || mealPrice == null ? null : norm.serviceFee();
+        BigDecimal foodBudget = norm == null ? null : norm.foodBudget();
         if (items.isEmpty()) {
             return new Evaluation(
                     day.date(),
@@ -332,6 +375,8 @@ final class MealPlanEvaluator {
                     new Acc().toTotals(),
                     BigDecimal.ZERO,
                     mealPrice,
+                    serviceFee,
+                    foodBudget,
                     List.of(),
                     List.of());
         }
@@ -377,6 +422,8 @@ final class MealPlanEvaluator {
                 totals.toTotals(),
                 BigDecimal.valueOf(cost),
                 mealPrice,
+                serviceFee,
+                foodBudget,
                 rows,
                 sessions);
     }
@@ -667,8 +714,8 @@ final class MealPlanEvaluator {
             }
         }
         microIssues(date, group, evaluation, prefix, issues);
-        // NUT-19: vượt giá suất chỉ cảnh báo
-        if (evaluation.mealPrice() != null && evaluation.cost().compareTo(evaluation.mealPrice()) > 0) {
+        // NUT-19: chi phí vượt ngân sách thực phẩm (giá suất − phí dịch vụ) chỉ cảnh báo
+        if (evaluation.foodBudget() != null && evaluation.cost().compareTo(evaluation.foodBudget()) > 0) {
             issues.add(new Issue(
                     WARNING,
                     "OVER_BUDGET",
@@ -676,8 +723,8 @@ final class MealPlanEvaluator {
                     group.id(),
                     group.block(),
                     null,
-                    prefix + "chi phí " + plain(evaluation.cost()) + "đ/trẻ vượt giá suất "
-                            + plain(evaluation.mealPrice()) + "đ"));
+                    prefix + "chi phí " + plain(evaluation.cost()) + "đ/trẻ vượt ngân sách thực phẩm "
+                            + plain(evaluation.foodBudget()) + "đ"));
         }
         List<SessionRow> offSessions = evaluation.sessions().stream()
                 .filter(r -> LOW.equals(r.status()) || HIGH.equals(r.status()))

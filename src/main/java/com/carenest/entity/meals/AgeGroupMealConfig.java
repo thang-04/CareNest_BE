@@ -38,6 +38,10 @@ public class AgeGroupMealConfig {
     @Column(name = "meal_price", nullable = false)
     private BigDecimal mealPrice;
 
+    /** NUT-19: phần giá suất dành cho dịch vụ; ngân sách thực phẩm = mealPrice − serviceFee. */
+    @Column(name = "service_fee", nullable = false)
+    private BigDecimal serviceFee = BigDecimal.ZERO;
+
     @Column(name = "kcal_min")
     private BigDecimal kcalMin;
 
@@ -188,9 +192,15 @@ public class AgeGroupMealConfig {
     }
 
     public void changeInfo(
-            LocalDate effectiveFrom, BigDecimal mealPrice, Norms norms, String normBasis, Long updatedBy) {
+            LocalDate effectiveFrom,
+            BigDecimal mealPrice,
+            BigDecimal serviceFee,
+            Norms norms,
+            String normBasis,
+            Long updatedBy) {
         this.effectiveFrom = effectiveFrom;
         this.mealPrice = mealPrice;
+        this.serviceFee = serviceFee;
         this.kcalMin = norms.kcalMin();
         this.kcalMax = norms.kcalMax();
         this.proteinPctMin = norms.proteinPctMin();

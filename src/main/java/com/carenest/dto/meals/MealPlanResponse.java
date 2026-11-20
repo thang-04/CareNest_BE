@@ -35,7 +35,10 @@ public record MealPlanResponse(
 
     public record Item(MealSession session, MenuBlock block, Long dishId, String dishName, DishType dishType) {}
 
-    /** {@code status}: OK, LOW, HIGH, NA (chưa đặt định mức), INCOMPLETE (thiếu số liệu), NO_DISHES. */
+    /**
+     * {@code status}: OK, LOW, HIGH, NA (chưa đặt định mức), INCOMPLETE (thiếu số liệu), NO_DISHES. {@code cost}
+     * đồng/trẻ; {@code foodBudget} = {@code mealPrice} − {@code serviceFee} (NUT-19), null khi chưa có giá suất.
+     */
     public record Evaluation(
             LocalDate date,
             Long ageGroupId,
@@ -45,6 +48,8 @@ public record MealPlanResponse(
             NutritionTotals totals,
             BigDecimal cost,
             BigDecimal mealPrice,
+            BigDecimal serviceFee,
+            BigDecimal foodBudget,
             List<NormRow> rows,
             List<SessionRow> sessions) {}
 
