@@ -124,7 +124,7 @@ public class EduAiServiceImpl implements EduAiService {
                     + (request.themeName() == null ? "" : " của chủ đề \"" + request.themeName() + "\"")
                     + " cho hay, gọn, hợp trẻ mầm non (cách viết thứ " + attempt
                     + ", khác các lần trước). Trả về {\"name\":\"...\"}.";
-            String name = clip(ask("edu-branch-rewrite", p, 200).path("name").asString(""), NAME_MAX);
+            String name = clip(ask("edu-branch-rewrite", p).path("name").asString(""), NAME_MAX);
             if (name.isBlank()) throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
             log.info("{}|END", logPrefix);
             return new EduAiResponse.BranchName(name);
