@@ -40,12 +40,13 @@ env:
   DOCKERHUB_USER: thangnd04
   # Repo private duy nhất của tài khoản free: api và Keycloak phân biệt bằng tiền tố tag
   IMAGE: thangnd04/carenest-be
-  # Chỉ main/dev được push image (sau verify) và deploy; PR hoặc chạy tay trên nhánh khác chỉ verify.
-  # Image đẩy từ dev đã verify ⇒ release cùng nội dung vào main dùng lại tag, không verify/build lại
-  IS_DEPLOY_BRANCH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
+  # Push image (sau verify) khi push main/dev hoặc PR từ nhánh trong repo; PR từ fork, chạy tay nhánh khác chỉ verify.
+  # Tag = hash nội dung đã verify ⇒ merge PR vào dev (dev chưa đổi thêm) hoặc release dev vào main dùng lại tag,
+  # không verify/build lại. Chỉ main/dev được deploy
+  PUSH_IMAGE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')) }}
 
 jobs:
-  # Tag image = hash nội dung đầu vào. Tag đã có trên Docker Hub ⇒ nội dung đó đã verify + build trên main/dev ⇒ bỏ qua;
+  # Tag image = hash nội dung đầu vào. Tag đã có trên Docker Hub ⇒ nội dung đó đã verify + build (main/dev hoặc PR) ⇒ bỏ qua;
   # tag không đổi ⇒ compose không recreate container (Keycloak không restart khi không đổi)
   plan:
     runs-on: ubuntu-latest
@@ -112,16 +113,26 @@ jobs:
       - run: node scripts/verify.mjs
       - if: failure()
         run: tail -n 200 target/verify.log
+      # Log Maven chỉ ghi ra file ⇒ giữ log + surefire-reports (thời gian từng class) để soi test chậm/lỗi
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-verify-reports
+          path: |
+            target/verify.log
+            target/surefire-reports/
+          retention-days: 7
+          if-no-files-found: ignore
 
-      - if: env.IS_DEPLOY_BRANCH == 'true'
+      - if: env.PUSH_IMAGE == 'true'
         uses: docker/setup-buildx-action@v3
-      - if: env.IS_DEPLOY_BRANCH == 'true'
+      - if: env.PUSH_IMAGE == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push api image
-        if: env.IS_DEPLOY_BRANCH == 'true'
+        if: env.PUSH_IMAGE == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -149,15 +160,15 @@ jobs:
       - run: ./mvnw -B -f docker/keycloak/extensions/carenest-auth/pom.xml verify
       - run: node --test docker/keycloak/auth/*.test.mjs
 
-      - if: env.IS_DEPLOY_BRANCH == 'true'
+      - if: env.PUSH_IMAGE == 'true'
         uses: docker/setup-buildx-action@v3
-      - if: env.IS_DEPLOY_BRANCH == 'true'
+      - if: env.PUSH_IMAGE == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push Keycloak image
-        if: env.IS_DEPLOY_BRANCH == 'true'
+        if: env.PUSH_IMAGE == 'true'
         uses: docker/build-push-action@v6
         with:
           context: docker/keycloak
