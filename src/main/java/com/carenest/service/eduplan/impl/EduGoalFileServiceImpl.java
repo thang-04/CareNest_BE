@@ -37,8 +37,7 @@ public class EduGoalFileServiceImpl implements EduGoalFileService {
         try {
             // Quyền xem trước file theo vai trò soạn kế hoạch năm hiện hành.
             var groups = schoolStructure.findAgeGroups();
-            if (groups.stream()
-                    .noneMatch(age -> workflow.isAuthorEligible(user, "schoolYear", age.id(), null))) {
+            if (groups.stream().noneMatch(age -> workflow.isAuthorEligible(user, "schoolYear", age.id(), null))) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
             }
             if (file == null || file.isEmpty()) {
@@ -68,14 +67,24 @@ public class EduGoalFileServiceImpl implements EduGoalFileService {
             var meta = preview.metadata();
             if (meta == null || meta.ageFromMonths() == null || meta.ageToMonths() == null) return preview;
             var matching = groups.stream()
-                    .filter(group -> group.ageFromMonths() != null && group.ageToMonths() != null
+                    .filter(group -> group.ageFromMonths() != null
+                            && group.ageToMonths() != null
                             && group.ageFromMonths().intValue() == meta.ageFromMonths()
                             && group.ageToMonths().intValue() == meta.ageToMonths())
                     .toList();
-            var resolved = new GoalFilePreviewResponse.Metadata(meta.title(), meta.schoolYear(),
-                    meta.ageFromMonths(), meta.ageToMonths(), matching.size() == 1 ? matching.get(0).code() : null);
-            return new GoalFilePreviewResponse(preview.domains(), preview.themeAbbrs(), preview.warnings(),
-                    resolved, preview.themes(), preview.breaks());
+            var resolved = new GoalFilePreviewResponse.Metadata(
+                    meta.title(),
+                    meta.schoolYear(),
+                    meta.ageFromMonths(),
+                    meta.ageToMonths(),
+                    matching.size() == 1 ? matching.get(0).code() : null);
+            return new GoalFilePreviewResponse(
+                    preview.domains(),
+                    preview.themeAbbrs(),
+                    preview.warnings(),
+                    resolved,
+                    preview.themes(),
+                    preview.breaks());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

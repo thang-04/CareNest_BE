@@ -1677,7 +1677,8 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(returned.status()).isEqualTo(EduPlanStatus.DRAFT);
         assertThat(returned.lastReturnNote()).isEqualTo("Cần bổ sung tiêu đề cụ thể");
         assertThat(returned.returned()).isTrue();
-        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20)).items())
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
                 .filteredOn(plan -> plan.id().equals(draft.id()))
                 .singleElement()
                 .satisfies(plan -> {

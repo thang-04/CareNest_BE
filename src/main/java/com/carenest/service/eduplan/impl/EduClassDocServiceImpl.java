@@ -2189,8 +2189,10 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             node.put("containerKey", containerKey);
             node.put("containerStatus", root.getStatus().name());
         }
-        node.put("returned", doc.publicStatus() == EduClassDocStatus.DRAFT
-                && lastClassReviewWasReturned(readArray(root.getHistory())));
+        node.put(
+                "returned",
+                doc.publicStatus() == EduClassDocStatus.DRAFT
+                        && lastClassReviewWasReturned(readArray(root.getHistory())));
         node.put("dossierVersion", root.getVersion() == null ? 0L : root.getVersion());
         boolean author = isHomeroomAuthor(currentUser, cls);
         // EDU-89: năm đã kết thúc / năm sắp tới chưa tới ngày mở chuẩn bị ⇒ chỉ xem

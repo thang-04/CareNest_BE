@@ -21,7 +21,8 @@ public record GoalFilePreviewResponse(
     }
 
     @Schema(name = "GoalFileMetadata")
-    public record Metadata(String title, String schoolYear, Integer ageFromMonths, Integer ageToMonths, String ageGroupCode) {
+    public record Metadata(
+            String title, String schoolYear, Integer ageFromMonths, Integer ageToMonths, String ageGroupCode) {
         public Metadata(String title, String schoolYear, Integer ageFromMonths, Integer ageToMonths) {
             this(title, schoolYear, ageFromMonths, ageToMonths, null);
         }
