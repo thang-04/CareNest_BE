@@ -94,3 +94,11 @@ Không đổi nghiệp vụ, API, quyền, dữ liệu. Chỉ đổi hạ tầng
 - User duyệt plan (hướng A, "làm luôn") 2026-11-20.
 - Kiểm cục bộ: mô phỏng bước chọn class cho 4 shard ⇒ 270/270 class, không trùng; `ChildEnrollmentImportMealColumnTest$*` thêm cho `@Nested`; YAML parse được. Chưa có actionlint.
 - Tiếp: đo trên PR #88 (AC-1…AC-5).
+
+### 2026-11-20 — Phase 1 đo trên CI (chờ review)
+- Commit: `922c906e` (4 shard), `c654ca39` (`force_api`).
+- Run 44703190090 (`workflow_dispatch`, `force_api=true`, nhánh feature ⇒ không push/deploy): 4 shard xanh. Shard 1: 4m58s · 2: 4m57s · 3: 6m34s · 4: 4m08s. Từ `plan` xong tới shard cuối xong 6m36s (mốc tuần tự 18 phút) ⇒ AC-3 đạt.
+- AC-1: 268 class trong surefire, số test từng class trùng khớp run tuần tự 44692692339 (so từng dòng `Tests run ... in <class>`); tổng 2097, fail 0, err 0, skip 0. Tổng surefire run cũ 2092 lệch do run đó có class lỗi ở setup.
+- AC-5: 4 artifact `api-verify-reports-<n>` tải được.
+- AC-2, AC-4: theo `needs`/`if` trong `deploy.yml`; luồng push image trên PR chưa chạy thật (nội dung `src/` trùng `dev`).
+- Shard 3 chậm nhất vì `DevSeedIntegrationTest` 153s ⇒ cân lại shard theo thời gian có thể còn ~5 phút; chưa làm.
