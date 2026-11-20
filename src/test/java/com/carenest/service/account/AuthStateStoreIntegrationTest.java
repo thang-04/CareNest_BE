@@ -5,16 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import com.carenest.entity.account.*;
 import com.carenest.repository.account.*;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.PasswordTokenPurpose;
 import java.time.Instant;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
+import org.springframework.context.annotation.Import;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class AuthStateStoreIntegrationTest {
@@ -49,10 +49,6 @@ class AuthStateStoreIntegrationTest {
         assertThat(suppressed.status()).isEqualTo(AuthStateStore.Status.READY);
         assertThat(suppressed.data().userId()).isNull();
     }
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     AuthStateStore store;

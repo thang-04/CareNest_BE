@@ -6,6 +6,7 @@ import com.carenest.entity.account.UserAccount;
 import com.carenest.entity.organization.StaffAssignment;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.repository.account.UserAccountSpecifications;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
@@ -17,24 +18,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Query phân công/danh sách nhân sự (V2 + V8) trên PostgreSQL thật. Cần Docker. */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class StaffDirectoryIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 17);
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private JdbcTemplate jdbc;

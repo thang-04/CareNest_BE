@@ -14,6 +14,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.DishService;
 import com.carenest.service.meals.FoodService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.Allergen;
 import com.carenest.utils.enums.CareNestRole;
@@ -31,22 +32,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Danh mục bán trú trên PostgreSQL thật: V54, V55, mapping JPA, cách tính dinh dưỡng/giá, món tham khảo. */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class NutritionCatalogIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private FoodService foodService;

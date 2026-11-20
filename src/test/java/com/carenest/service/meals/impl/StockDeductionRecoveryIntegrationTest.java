@@ -20,6 +20,7 @@ import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.MealCountService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.meals.StockReceiptService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
@@ -38,30 +39,25 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Trừ kho sau commit lỗi (lock timeout, DB chập chờn) thì xác nhận suất vẫn thành công (P-38) nhưng kho không được trừ:
  * hub phải báo lệch thay vì "không có thực phẩm khô", và có thao tác đồng bộ lại trừ đúng một lần. Không bọc
  * @Transactional để listener sau commit chạy thật.
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class StockDeductionRecoveryIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 21);
     private static final Instant AFTER_CUTOFF = Instant.parse("2026-10-21T02:00:00Z"); // 09:00 giờ trường
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class ClockConfig {

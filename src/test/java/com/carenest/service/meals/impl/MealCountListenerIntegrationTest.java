@@ -11,6 +11,7 @@ import com.carenest.security.TestPermissions;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.meals.MealCountService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
@@ -26,28 +27,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Listener AttendanceChangedEvent chạy sau commit (ADR-0004) nên test không bọc @Transactional: mỗi lời gọi service
  * tự commit. Container riêng, chỉ một kịch bản: trẻ đến muộn sau khi suất đã xác nhận (ATT-07).
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class MealCountListenerIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 21);
     private static final Instant AFTER_CUTOFF = Instant.parse("2026-10-21T02:00:00Z"); // 09:00 giờ trường
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class ClockConfig {

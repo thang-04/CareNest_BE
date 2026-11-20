@@ -12,6 +12,7 @@ import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.eduplan.EduYearPlanService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Clock;
@@ -29,13 +30,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -46,13 +45,10 @@ import tools.jackson.databind.ObjectMapper;
  * - Tạo phiên bản mới (createVersion) khởi tạo document mới với reviewRound = 0 và approvals = [].
  * - Policy change làm cho tất cả các reviewer trong chuỗi mới đều đã được duyệt trước đó -> auto completion với completionMode = "POLICY_CHANGE" và không tạo fake approval.
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers
 class EduReviewRoundIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

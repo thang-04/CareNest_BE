@@ -6,6 +6,7 @@ import com.carenest.dto.meals.InspectionSaveRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.InspectionService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.InspectionTab;
@@ -22,24 +23,19 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Hai người cùng lưu một biên bản ở phiên bản 0: khóa dòng điểm trường làm hai lần ghi chạy tuần tự, người sau thấy phiên bản
  * mới và nhận xung đột 6082 thay vì ghi đè hoặc đụng khóa duy nhất (INS-01). Không dùng giao dịch của test để hai luồng thật sự
  * tranh nhau.
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
 class InspectionConcurrencyIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     JdbcTemplate jdbc;

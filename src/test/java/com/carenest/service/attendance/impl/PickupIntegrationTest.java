@@ -17,6 +17,7 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.attendance.PickupService;
 import com.carenest.service.notification.NotificationService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.DevicePlatform;
@@ -42,28 +43,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Đón trẻ, ảnh phụ huynh, thông báo khi trẻ được đón (plan docs/plans/completed/2026-10-31-child-pickup.md). Dữ liệu giả. */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest(properties = "carenest.storage.bucket=test-bucket")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class PickupIntegrationTest {
 
     // Hôm nay thứ Ba 2026-11-10, 16:00 giờ trường
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
-
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
     // Ảnh PNG 1x1 (giả)
     private static final byte[] PNG = Base64.getDecoder()

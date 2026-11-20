@@ -9,6 +9,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.DailyHealthService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.Permission;
@@ -24,26 +25,21 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Tổng hợp theo sĩ số từng ngày và sức khỏe ngày mở lại (BUG-261103). Hôm nay = thứ 4, 21/10/2026, 09:00. */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class AttendanceHistoryIntegrationTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 21);
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     static final class FixedClock extends Clock {
         @Override

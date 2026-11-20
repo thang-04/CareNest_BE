@@ -5,24 +5,24 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.carenest.support.PostgresTestcontainer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Khóa hợp đồng API: OpenAPI sinh từ code phải trùng docs/api/openapi.yaml (ADR-0012).
  * Đổi có chủ đích ⇒ chạy với -Dopenapi.snapshot.update=true, commit file, nêu consumer FE/APP.
  * Không có Docker ⇒ test bị skip = CHƯA kiểm chứng (docs/quality/VERIFICATION.md).
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest(
         properties = {
             // Snapshot không phụ thuộc API_PREFIX của máy chạy
@@ -39,10 +39,6 @@ class OpenApiSnapshotTest {
 
     // Surefire chạy với working directory = thư mục gốc module
     private static final Path SNAPSHOT = Path.of("docs/api/openapi.yaml");
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private MockMvc mockMvc;

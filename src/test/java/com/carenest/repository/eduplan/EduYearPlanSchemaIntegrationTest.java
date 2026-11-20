@@ -10,6 +10,7 @@ import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.entity.eduplan.EduPlanGoal;
 import com.carenest.entity.eduplan.EduPlanSubDomain;
 import com.carenest.entity.eduplan.EduTheme;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.EduGoalRowKind;
 import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
@@ -22,27 +23,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Migration V10/V11 (nhóm tuổi, phân công Tổ trưởng, bảng edu_*) trên PostgreSQL thật. Mỗi test rollback. Cần Docker. */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class EduYearPlanSchemaIntegrationTest {
 
     private static final Instant NOW = Instant.parse("2026-10-22T03:00:00Z");
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private JdbcTemplate jdbc;

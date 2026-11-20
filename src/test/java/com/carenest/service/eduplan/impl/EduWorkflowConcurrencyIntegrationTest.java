@@ -9,30 +9,26 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.service.organization.StaffAssignmentService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+@Import(PostgresTestcontainer.class)
 @SpringBootTest(
         properties = {"spring.jpa.properties.hibernate.generate_statistics=true", "carenest.storage.bucket=test-bucket"
         })
 @Testcontainers(disabledWithoutDocker = true)
 class EduWorkflowConcurrencyIntegrationTest {
-    @Container
-    @ServiceConnection
-    static org.testcontainers.postgresql.PostgreSQLContainer postgres =
-            new org.testcontainers.postgresql.PostgreSQLContainer("postgres:17-alpine");
-
     @Autowired
     JdbcTemplate jdbc;
 

@@ -16,6 +16,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.ChildEvaluationService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.observation.YearEndSheetService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationPeriodType;
@@ -32,27 +33,22 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Đánh giá cuối chủ đề (OBS-27): MT của chủ đề lấy từ kế hoạch năm học đã duyệt, mỗi ô đạt khi có ít nhất một hoạt động
  * trong chủ đề được chấm Đạt; nối MT qua dòng gốc (giáo án có thể chấm theo MT của bản kế hoạch cũ). Hôm nay = 21/10/2026.
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class ThemeEvaluationIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     static final class FixedClock extends Clock {
         @Override

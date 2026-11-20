@@ -28,6 +28,7 @@ import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.health.HealthCheckService;
 import com.carenest.service.health.HealthMeasurementService;
 import com.carenest.service.health.HealthTrendService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.DeclarationState;
@@ -50,29 +51,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Hồ sơ sức khỏe trên PostgreSQL thật (V88): sửa khai báo + thông báo lao (CHD-06, CHD-07), phụ huynh xem kết quả đã công
  * bố + thông báo (PAR-03, HLT-11), giải thích xu hướng AI nháp → duyệt (HLT-05). AI giả lập. Hôm nay = 10/11/2026.
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class HealthRecordIntegrationTest {
     private static final AtomicInteger SEQ = new AtomicInteger();
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

@@ -8,6 +8,7 @@ import com.carenest.dto.common.PageResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.account.GuardianAccountService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.UserStatus;
@@ -26,28 +27,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Màn Tài khoản phụ huynh đọc một lần cho cả trang ({@code GET /children/guardian-overview}): mỗi trẻ kèm tài khoản của
  * phụ huynh nhận tài khoản (như {@code GET /children/{id}/guardians}), số truy vấn không tăng theo số trẻ. Dữ liệu giả.
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class ChildGuardianOverviewIntegrationTest {
     private static final AtomicInteger SEQ = new AtomicInteger();
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class FixedClockConfig {

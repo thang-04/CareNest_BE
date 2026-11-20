@@ -20,6 +20,7 @@ import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.observation.AssessmentDayUnlockService;
 import com.carenest.service.observation.ClassAssessmentOverviewService;
 import com.carenest.service.observation.DailyAssessmentService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
@@ -47,16 +48,15 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Đánh giá trẻ trên PostgreSQL thật (V41). Hôm nay = thứ 4, 28/10/2026, 08:00 giờ trường (trước giờ chốt điểm danh). */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -65,10 +65,6 @@ class DailyAssessmentIntegrationTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 28);
     private static final LocalDate YESTERDAY = TODAY.minusDays(1);
     private static final Instant NOW = Instant.parse("2026-10-28T01:00:00Z");
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     static final class FixedClock extends Clock {
         @Override

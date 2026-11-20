@@ -20,6 +20,7 @@ import com.carenest.service.observation.AssessmentDayUnlockService;
 import com.carenest.service.observation.AssessmentReminderService;
 import com.carenest.service.observation.EvaluationDeadlineService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationLockKind;
@@ -38,20 +39,19 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Hạn, khóa, mở lại đánh giá cuối chủ đề / học kỳ / cuối năm và nhắc việc (OBS-06, OBS-27, OBS-28, OBS-30). Học kỳ I
  * kết thúc thứ 6, 23/10/2026; chủ đề "Gia đình" kết thúc thứ 6, 16/10/2026.
  */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -60,10 +60,6 @@ class EvaluationDeadlineIntegrationTest {
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final MovableClock CLOCK = new MovableClock();
     private static final long THEME_LINEAGE = 900L;
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class ClockConfig {

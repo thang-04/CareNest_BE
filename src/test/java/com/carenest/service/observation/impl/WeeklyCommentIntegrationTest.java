@@ -24,6 +24,7 @@ import com.carenest.integration.ai.AiException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.observation.WeeklyCommentService;
+import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
@@ -43,17 +44,16 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Nhận xét tuần (OBS-29) trên PostgreSQL thật. Hôm nay = thứ 6, 30/10/2026; tuần đang xét 26–30/10/2026. */
+@Import(PostgresTestcontainer.class)
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -62,10 +62,6 @@ class WeeklyCommentIntegrationTest {
     private static final LocalDate WEEK = LocalDate.of(2026, 10, 26);
     private static final Instant NOW = Instant.parse("2026-10-30T03:00:00Z");
     private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @TestConfiguration
     static class ClockConfig {
