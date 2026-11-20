@@ -607,7 +607,7 @@ class MealCountIntegrationTest {
 
     @Test
     @DisplayName(
-            "INS-03: M2 hoặc M3 của ngày đã ký ⇒ không điều chỉnh, không xác nhận lại suất (6046); Sửa lại biên bản thì được")
+            "INS-03: M2 hoặc M3 của ngày đã ký ⇒ không điều chỉnh, không xác nhận lại suất (6106); Sửa lại biên bản thì được")
     void signedProcessOrServeSheetLocksServings() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
         clock.now = AFTER_CUTOFF;

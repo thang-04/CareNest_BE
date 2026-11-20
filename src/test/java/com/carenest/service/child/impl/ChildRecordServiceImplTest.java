@@ -33,6 +33,7 @@ import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.GuardianChildLinkService;
@@ -84,6 +85,7 @@ class ChildRecordServiceImplTest {
     private final ClassroomService classroomService = mock(ClassroomService.class);
     private final StaffAssignmentService assignmentService = mock(StaffAssignmentService.class);
     private final StaffAccessPolicy policy = mock(StaffAccessPolicy.class);
+    private final ChildAccessPolicy childAccessPolicy = mock(ChildAccessPolicy.class);
     private final NotificationService notificationService = mock(NotificationService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final com.carenest.repository.child.ChildHealthDeclarationRepository declarationRepository =
@@ -107,6 +109,7 @@ class ChildRecordServiceImplTest {
             classroomService,
             assignmentService,
             policy,
+            childAccessPolicy,
             notificationService,
             events,
             JsonMapper.builder().build(),
@@ -116,7 +119,8 @@ class ChildRecordServiceImplTest {
             declarationHistoryRepository,
             tbNotifier,
             placementRepository,
-            placementRules);
+            placementRules,
+            org.mockito.Mockito.mock(com.carenest.repository.child.PlannedAdmissionRepository.class));
 
     private Child child;
     private Enrollment enrollment;
@@ -124,7 +128,14 @@ class ChildRecordServiceImplTest {
     @BeforeEach
     void setUp() {
         child = Child.enroll(
-                "HS26001", "Bé An", LocalDate.of(2022, 3, 1), Gender.FEMALE, true, null, LocalDate.of(2026, 9, 1));
+                "HS26001",
+                "Bé An",
+                LocalDate.of(2022, 3, 1),
+                Gender.FEMALE,
+                true,
+                null,
+                LocalDate.of(2026, 9, 1),
+                true);
         ReflectionTestUtils.setField(child, "id", CHILD_ID);
         enrollment = Enrollment.start(CHILD_ID, CLASS_ID, LocalDate.of(2026, 9, 1));
         given(childRepository.findById(CHILD_ID)).willReturn(Optional.of(child));
@@ -166,8 +177,8 @@ class ChildRecordServiceImplTest {
     @Test
     @DisplayName("CHD-10: trẻ chờ xếp lớp ⇒ không cần lý do, thành Đang học, bỏ điểm trường tiếp nhận")
     void placingPendingChildNeedsNoReason() {
-        Child pending =
-                Child.enroll("HS26002", "Bé Bình", LocalDate.of(2022, 5, 1), Gender.MALE, false, CAMPUS_ID, TODAY);
+        Child pending = Child.enroll(
+                "HS26002", "Bé Bình", LocalDate.of(2022, 5, 1), Gender.MALE, false, CAMPUS_ID, TODAY, true);
         ReflectionTestUtils.setField(pending, "id", 2L);
         ClassroomInfoResponse target = classroom(11L, "Lớp Chồi 2");
         given(childRepository.findById(2L)).willReturn(Optional.of(pending));
@@ -404,6 +415,55 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
+    @DisplayName("AUTH-10/AUTH-13: GV được cấp thêm CHILD_PROFILE_EDIT sửa khai báo trẻ lớp mình (qua kiểm phạm vi)")
+    void teacherWithGrantPassesScopeForOwnClassChild() {
+        CurrentUser teacher = new CurrentUser(
+                20L,
+                "kc-20",
+                "gv.lop",
+                "GV",
+                null,
+                java.util.Set.of(CareNestRole.TEACHER),
+                java.util.Set.of(com.carenest.utils.enums.Permission.CHILD_PROFILE_EDIT));
+        given(childAccessPolicy.canViewChild(teacher, CHILD_ID)).willReturn(true);
+        given(declarationRepository.findById(CHILD_ID))
+                .willReturn(Optional.of(declaration(com.carenest.utils.enums.DeclarationState.NONE_REPORTED, null)));
+        var request = new com.carenest.dto.child.HealthDeclarationRequest(
+                declarationInput("REPORTED", List.of(), "NONE_REPORTED", null), " ");
+
+        // Qua được phạm vi thì tới bước kiểm nghiệp vụ (thiếu lý do), không bị CHILD_ACCESS_DENIED
+        assertThatThrownBy(() -> service.checkDeclaration(teacher, CHILD_ID, request))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(FieldErrorResponse::field)
+                                .containsExactly("allergies", "reason"));
+        verify(policy, never()).managesWholeSchool(teacher);
+    }
+
+    @Test
+    @DisplayName("AUTH-13: GV có CHILD_PROFILE_EDIT sửa trẻ lớp khác ⇒ CHILD_ACCESS_DENIED")
+    void teacherWithGrantCannotEditChildOutsideAssignedClass() {
+        CurrentUser teacher = new CurrentUser(
+                20L,
+                "kc-20",
+                "gv.lop",
+                "GV",
+                null,
+                java.util.Set.of(CareNestRole.TEACHER),
+                java.util.Set.of(com.carenest.utils.enums.Permission.CHILD_PROFILE_EDIT));
+        given(childAccessPolicy.canViewChild(teacher, CHILD_ID)).willReturn(false);
+        var request = new com.carenest.dto.child.HealthDeclarationRequest(
+                declarationInput("REPORTED", List.of(), "NONE_REPORTED", null), "Phụ huynh bổ sung");
+
+        assertThatThrownBy(() -> service.checkDeclaration(teacher, CHILD_ID, request))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+        verify(declarationRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName(
             "G94-180/CHD-07: chuyển sang Có tiếp xúc lao ⇒ báo; dị ứng thay danh sách, lịch sử UPDATED kèm thay đổi")
     void saveDeclarationNotifiesTbContactAndReplacesAllergies() {
@@ -446,6 +506,48 @@ class ChildRecordServiceImplTest {
                         "sửa khai báo sức khỏe",
                         PRINCIPAL.userId());
         verify(tbNotifier, never()).contactReported(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("CHD-13: bỏ báo ăn giữ dị ứng, chế độ ăn đã khai")
+    void saveDeclarationWithoutMealsKeepsAllergiesAndDiet() {
+        var reported = com.carenest.utils.enums.DeclarationState.REPORTED;
+        var none = new com.carenest.entity.child.ChildHealthDeclaration.Answer(
+                com.carenest.utils.enums.DeclarationState.NONE_REPORTED, null);
+        var existing = com.carenest.entity.child.ChildHealthDeclaration.declare(
+                CHILD_ID,
+                reported,
+                new com.carenest.entity.child.ChildHealthDeclaration.Answer(reported, "Ăn chay"),
+                new com.carenest.entity.child.ChildHealthDeclaration.Answer(
+                        com.carenest.utils.enums.DeclarationState.NOT_PROVIDED, null),
+                none,
+                none,
+                com.carenest.utils.enums.DeclarationState.NONE_REPORTED,
+                null,
+                9L,
+                Instant.parse("2026-09-01T03:00:00Z"));
+        given(declarationRepository.findById(CHILD_ID)).willReturn(Optional.of(existing));
+        given(allergyRepository.findAllByChildIdOrderByIdAsc(CHILD_ID))
+                .willReturn(List.of(com.carenest.entity.child.ChildAllergy.of(CHILD_ID, "Sữa")));
+        var noneInput = new com.carenest.dto.child.DeclarationAnswerInput("NONE_REPORTED", null);
+        var input = new com.carenest.dto.child.HealthDeclarationInput(
+                new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Tôm")),
+                noneInput,
+                new com.carenest.dto.child.DeclarationAnswerInput("REPORTED", "Ghi chú mới"),
+                new com.carenest.dto.child.MedicalHistoryInput(
+                        noneInput, noneInput, new com.carenest.dto.child.TbContactInput("NONE_REPORTED", null)),
+                false);
+
+        service.saveDeclaration(
+                PRINCIPAL, CHILD_ID, new com.carenest.dto.child.HealthDeclarationRequest(input, "Ngừng ăn bán trú"));
+
+        verify(allergyRepository, never()).deleteByChildId(any());
+        verify(allergyRepository, never()).saveAll(any());
+        assertThat(existing.getAllergiesState()).isEqualTo(reported);
+        assertThat(existing.getDietState()).isEqualTo(reported);
+        assertThat(existing.getDietText()).isEqualTo("Ăn chay");
+        assertThat(existing.getOtherNotesText()).isEqualTo("Ghi chú mới");
+        assertThat(child.isMealRegistered()).isFalse();
     }
 
     private static com.carenest.entity.child.ChildHealthDeclaration declaration(

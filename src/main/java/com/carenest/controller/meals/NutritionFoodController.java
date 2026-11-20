@@ -4,9 +4,12 @@ import com.carenest.dto.meals.AllergenResponse;
 import com.carenest.dto.meals.CatalogStatusRequest;
 import com.carenest.dto.meals.FoodImportRequest;
 import com.carenest.dto.meals.FoodImportResponse;
+import com.carenest.dto.meals.FoodPriceRequest;
+import com.carenest.dto.meals.FoodPriceResponse;
 import com.carenest.dto.meals.FoodRequest;
 import com.carenest.dto.meals.FoodResponse;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
@@ -20,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -43,6 +47,7 @@ public class NutritionFoodController {
     private static final String LOG_PREFIX = "[NutritionFoodController]";
 
     private final FoodService foodService;
+    private final FoodPriceService foodPriceService;
 
     @GetMapping("/allergens")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
@@ -123,5 +128,55 @@ public class NutritionFoodController {
         FoodImportResponse result = foodService.importFoods(currentUser, request);
         log.info("{}|created={}|updated={}|END", logPrefix, result.created(), result.updated());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Import foods success", result);
+    }
+
+    @GetMapping("/foods/{foodId}/prices")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<FoodPriceResponse>>> getFoodPrices(
+            @PathVariable Long foodId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getFoodPrices|userId=" + currentUser.userId() + "|foodId=" + foodId;
+        log.info("{}|START", logPrefix);
+        List<FoodPriceResponse> prices = foodPriceService.getPrices(foodId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get food prices success", prices);
+    }
+
+    @PostMapping("/foods/{foodId}/prices")
+    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<ResponseJson<FoodPriceResponse>> adjustFoodPrice(
+            @PathVariable Long foodId, @Valid @RequestBody FoodPriceRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|adjustFoodPrice|userId=" + currentUser.userId() + "|foodId=" + foodId;
+        log.info("{}|START", logPrefix);
+        FoodPriceResponse price = foodPriceService.adjustPrice(currentUser, foodId, request);
+        log.info("{}|priceId={}|END", logPrefix, price.id());
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Adjust food price success", price);
+    }
+
+    @PutMapping("/foods/{foodId}/prices/{priceId}")
+    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    public ResponseEntity<ResponseJson<FoodPriceResponse>> updateFoodPrice(
+            @PathVariable Long foodId,
+            @PathVariable Long priceId,
+            @Valid @RequestBody FoodPriceRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|updateFoodPrice|userId=" + currentUser.userId() + "|foodId=" + foodId
+                + "|priceId=" + priceId;
+        log.info("{}|START", logPrefix);
+        FoodPriceResponse price = foodPriceService.updatePrice(currentUser, foodId, priceId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update food price success", price);
+    }
+
+    @DeleteMapping("/foods/{foodId}/prices/{priceId}")
+    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    public ResponseEntity<ResponseJson<Void>> deleteFoodPrice(
+            @PathVariable Long foodId, @PathVariable Long priceId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|deleteFoodPrice|userId=" + currentUser.userId() + "|foodId=" + foodId
+                + "|priceId=" + priceId;
+        log.info("{}|START", logPrefix);
+        foodPriceService.deletePrice(currentUser, foodId, priceId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Delete food price success");
     }
 }

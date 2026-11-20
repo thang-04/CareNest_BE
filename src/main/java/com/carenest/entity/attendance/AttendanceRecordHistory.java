@@ -2,6 +2,7 @@ package com.carenest.entity.attendance;
 
 import com.carenest.entity.organization.MealSessionListConverter;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.DayPart;
 import com.carenest.utils.enums.MealSession;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -75,6 +76,10 @@ public class AttendanceRecordHistory {
     @Column(name = "unlock_id")
     private Long unlockId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "absent_part", length = 10)
+    private DayPart absentPart;
+
     public static AttendanceRecordHistory of(AttendanceRecord record, String action, Long unlockId) {
         AttendanceRecordHistory history = new AttendanceRecordHistory();
         history.recordId = record.getId();
@@ -85,6 +90,7 @@ public class AttendanceRecordHistory {
         history.action = action;
         history.status = record.getStatus();
         history.meals = record.getMeals();
+        history.absentPart = record.getAbsentPart();
         history.userId = record.getRecordedBy();
         history.at = record.getRecordedAt();
         history.unlockId = unlockId;

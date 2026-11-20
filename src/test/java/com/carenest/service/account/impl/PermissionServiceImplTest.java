@@ -3,6 +3,7 @@ package com.carenest.service.account.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -37,6 +38,7 @@ import com.carenest.utils.enums.PermissionScope;
 import com.carenest.utils.enums.PermissionState;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -279,6 +282,26 @@ class PermissionServiceImplTest {
         assertThatThrownBy(() -> permissionService.getPermissionChangeLogs(CareNestRole.TEACHER, 5L, 0, 20))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.PERMISSION_LOG_FILTER_INVALID);
+    }
+
+    @Test
+    void changeLogsCarryActorAndTargetNames() {
+        PermissionChangeLog row = PermissionChangeLog.forUser(
+                UUID.randomUUID(), 1L, 5L, "CHILD_PROFILE_EDIT", PermissionState.OFF, PermissionState.GRANT, "Lý do");
+        given(permissionChangeLogRepository.findByTargetUserId(eq(5L), any())).willReturn(new PageImpl<>(List.of(row)));
+        UserAccount actor = UserAccount.create("kc-1", "principal", null, "Hiệu trưởng A");
+        ReflectionTestUtils.setField(actor, "id", 1L);
+        UserAccount target = UserAccount.create("kc-5", "teacher", null, "Giáo viên B");
+        ReflectionTestUtils.setField(target, "id", 5L);
+        given(userAccountRepository.findAllById(any())).willReturn(List.of(actor, target));
+
+        var item = permissionService
+                .getPermissionChangeLogs(null, 5L, 0, 20)
+                .items()
+                .getFirst();
+
+        assertThat(item.actorName()).isEqualTo("Hiệu trưởng A");
+        assertThat(item.targetUserName()).isEqualTo("Giáo viên B");
     }
 
     @Test

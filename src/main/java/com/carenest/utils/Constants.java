@@ -37,4 +37,12 @@ public final class Constants {
 
         private EduPermission() {}
     }
+
+    /** Danh mục bán trú (NUT-27). */
+    public static final class Nutrition {
+        // Hợp đồng NCC còn từng này ngày trở xuống ⇒ cảnh báo sắp hết hạn
+        public static final int CONTRACT_EXPIRING_DAYS = 30;
+
+        private Nutrition() {}
+    }
 }

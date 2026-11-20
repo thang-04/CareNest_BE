@@ -1,5 +1,6 @@
 package com.carenest.dto.meals;
 
+import com.carenest.utils.enums.ContractStatus;
 import com.carenest.utils.enums.MealSession;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -37,10 +38,12 @@ public record DayMarketResponse(
 
     /**
      * @param storage FRESH (mua chợ, NUT-10) | DRY (xuất kho khô, NUT-11)
-     * @param unitPrice đơn giá một đơn vị mua
+     * @param unitPrice đơn giá một đơn vị mua tại ngày đi chợ (NUT-27)
      * @param quantity lượng thực dùng theo đơn vị gốc (NUT-07) = tổng các nhóm tuổi
      * @param orderQuantity lượng cần mua/xuất theo đơn vị gốc, làm tròn lên nguyên đơn vị mua khi đếm được (NUT-12)
      * @param cost tiền theo lượng thực dùng, làm tròn đồng = tổng các nhóm tuổi
+     * @param supplierId NCC của thực phẩm tại ngày (NUT-27) để nhóm và in theo NCC; null khi chưa gán
+     * @param contractStatus trạng thái hợp đồng của NCC tính tại hôm nay
      */
     public record DayMarketLine(
             StockFoodRef food,
@@ -49,7 +52,10 @@ public record DayMarketResponse(
             BigDecimal quantity,
             BigDecimal orderQuantity,
             BigDecimal cost,
-            List<DayMarketGroupShare> groups) {}
+            List<DayMarketGroupShare> groups,
+            Long supplierId,
+            String supplierName,
+            ContractStatus contractStatus) {}
 
     /** Phần của một nhóm tuổi trong một dòng thực phẩm; nhóm không dùng thực phẩm này có lượng và tiền bằng 0. */
     public record DayMarketGroupShare(Long ageGroupId, BigDecimal quantity, BigDecimal cost) {}

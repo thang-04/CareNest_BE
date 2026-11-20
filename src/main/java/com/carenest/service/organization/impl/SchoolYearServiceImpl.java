@@ -12,9 +12,11 @@ import com.carenest.entity.organization.SchoolHoliday;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
+import com.carenest.repository.organization.AgeGroupRepository;
 import com.carenest.repository.organization.AttendanceCutoffRepository;
 import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
+import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolHolidayRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
@@ -60,6 +62,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
 
     private final SchoolYearRepository schoolYearRepository;
     private final ClassroomRepository classroomRepository;
+    private final AgeGroupRepository ageGroupRepository;
     private final AttendanceCutoffRepository attendanceCutoffRepository;
     private final StaffAssignmentService staffAssignmentService;
     private final SchoolStructureMapper schoolStructureMapper;
@@ -69,6 +72,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final SchoolHolidayRepository schoolHolidayRepository;
     private final List<SchoolDayUsageCheck> schoolDayUsageChecks;
     private final CampusRepository campusRepository;
+    private final RoomRepository roomRepository;
     private final NotificationService notificationService;
 
     @Override
@@ -81,7 +85,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             boolean leader = isSchoolLeader(currentUser);
             List<SchoolYear> schoolYears = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
                     .filter(y -> status == null || y.getStatus() == status)
-                    .filter(y -> leader || isVisibleToStaff(currentUser, y, today))
+                    .filter(y -> leaderSees(currentUser, leader, y, today) || isVisibleToStaff(currentUser, y, today))
                     .toList();
             Map<Long, Long> classCounts = schoolYears.isEmpty()
                     ? Map.of()
@@ -112,7 +116,9 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         try {
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
             // CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị, khi có phân công năm đó
-            if (!isSchoolLeader(currentUser) && !isVisibleToStaff(currentUser, schoolYear, LocalDate.now(clock))) {
+            LocalDate today = LocalDate.now(clock);
+            if (!leaderSees(currentUser, isSchoolLeader(currentUser), schoolYear, today)
+                    && !isVisibleToStaff(currentUser, schoolYear, today)) {
                 throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
             }
             SchoolYearDetailResponse response = toDetail(schoolYear);
@@ -133,8 +139,30 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             String name = validateYearInfo(request, null);
             checkFollowsLatest(name, request);
             LocalDate prepDate = resolvePrepDate(request, null);
+            SchoolYear latest = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
+                    .findFirst()
+                    .orElse(null);
             SchoolYear schoolYear =
                     schoolYearRepository.save(SchoolYear.plan(name, request.startDate(), request.endDate(), prepDate));
+            // Năm đầu tiên lấy danh mục hiện có; các năm sau chép nguyên cấu hình năm gần nhất,
+            // kể cả khi danh sách năm nguồn đang rỗng.
+            if (latest == null) {
+                ageGroupRepository.addAllToYear(schoolYear.getId());
+            } else {
+                ageGroupRepository.copyYearAgeGroups(latest.getId(), schoolYear.getId());
+            }
+            // Điểm trường của năm mới cũng chép nguyên từ năm gần nhất.
+            if (latest == null) {
+                campusRepository.addAllToYear(schoolYear.getId());
+            } else {
+                campusRepository.copyYearCampuses(latest.getId(), schoolYear.getId());
+            }
+            // Phòng / phòng ban của năm mới chép nguyên từ năm gần nhất.
+            if (latest == null) {
+                roomRepository.addAllToYear(schoolYear.getId());
+            } else {
+                roomRepository.copyYearRooms(latest.getId(), schoolYear.getId());
+            }
             log.info("{}|schoolYearId={}|END", logPrefix, schoolYear.getId());
             return schoolStructureMapper.toDetailResponse(schoolYear, 0, LocalDate.now(clock));
         } catch (RuntimeException ex) {
@@ -330,6 +358,12 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             });
             schoolYear.activate(currentUser.userId(), now);
             schoolYearRepository.flush();
+            // V154: bảng chung nhận nhóm tuổi, điểm trường, phòng của năm mới (module khác đọc bảng chung)
+            ageGroupRepository.applyYearInfo(schoolYear.getId());
+            campusRepository.applyYearInfo(schoolYear.getId());
+            campusRepository.deactivateOutsideYear(schoolYear.getId());
+            roomRepository.applyYearInfo(schoolYear.getId());
+            roomRepository.deactivateOutsideYear(schoolYear.getId());
             notifyActivated(schoolYear, today);
             SchoolYearDetailResponse response = toDetail(schoolYear);
             log.info("{}|END", logPrefix);
@@ -742,6 +776,17 @@ public class SchoolYearServiceImpl implements SchoolYearService {
 
     // HT, PHT thấy mọi năm (cấu hình, xếp lớp); người khác không thấy năm sắp diễn ra chưa tới ngày mở chuẩn bị.
     // PHT chỉ khi còn phân công điểm trường (Cần chốt 17/11/2026, khớp danh sách lớp — AUTH-20)
+    // Cần chốt 18/11/2026: HT thấy mọi năm; PHT thấy năm sắp diễn ra từ ngày mở chuẩn bị (như GV, tổ trưởng)
+    private static boolean leaderSees(CurrentUser currentUser, boolean leader, SchoolYear year, LocalDate today) {
+        if (!leader) {
+            return false;
+        }
+        return currentUser.hasRole(CareNestRole.PRINCIPAL)
+                || year.getStatus() != SchoolYearStatus.PLANNED
+                || year.getPrepDate() == null
+                || !today.isBefore(year.getPrepDate());
+    }
+
     private boolean isSchoolLeader(CurrentUser currentUser) {
         if (currentUser.hasRole(CareNestRole.PRINCIPAL)) {
             return true;

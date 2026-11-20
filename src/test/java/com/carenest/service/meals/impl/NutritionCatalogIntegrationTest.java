@@ -318,6 +318,7 @@ class NutritionCatalogIntegrationTest {
                 FoodStorage.DRY,
                 origin,
                 null,
-                allergenIds);
+                allergenIds,
+                null);
     }
 }

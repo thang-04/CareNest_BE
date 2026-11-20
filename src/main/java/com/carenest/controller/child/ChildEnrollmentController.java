@@ -120,10 +120,13 @@ public class ChildEnrollmentController {
 
     @GetMapping("/placement-classes")
     @PreAuthorize("@permissionGuard.hasAny('CHILD_ENROLL', 'CHILD_PLACEMENT')")
-    public ResponseEntity<ResponseJson<List<PlacementClassResponse>>> listPlacementClasses(CurrentUser currentUser) {
+    public ResponseEntity<ResponseJson<List<PlacementClassResponse>>> listPlacementClasses(
+            @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|listPlacementClasses|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        List<PlacementClassResponse> classes = childIntakeService.listPlacementClasses(currentUser);
+        List<PlacementClassResponse> classes = schoolYearId == null
+                ? childIntakeService.listPlacementClasses(currentUser)
+                : childIntakeService.listPlacementClasses(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "List placement classes success", classes);
     }

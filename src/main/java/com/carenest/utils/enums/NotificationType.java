@@ -65,7 +65,11 @@ public enum NotificationType {
     MEAL_COUNT_CONFIRMED,
     REWARD_LIST_UPDATED,
     /** Kích hoạt năm học mới: báo GV, PHT, bếp có phân công năm mới (CFG-YR-02). */
-    SCHOOL_YEAR_ACTIVATED;
+    SCHOOL_YEAR_ACTIVATED,
+    /** GV gửi yêu cầu sửa hồ sơ/khai báo sức khỏe trẻ, báo HT và PHT điểm trường có quyền duyệt (CHD-11). */
+    CHILD_PROFILE_CHANGE_REQUESTED,
+    /** Kết quả duyệt/từ chối yêu cầu sửa hồ sơ trẻ, báo GV đã gửi (CHD-11). */
+    CHILD_PROFILE_CHANGE_DECIDED;
 
     public String typeLabel() {
         return switch (this) {
@@ -98,6 +102,7 @@ public enum NotificationType {
             case REWARD_LIST_UPDATED -> "Khen thưởng";
             case SCHOOL_YEAR_ACTIVATED -> "Năm học";
             case LEADER_REMINDER -> "Nhắc việc";
+            case CHILD_PROFILE_CHANGE_REQUESTED, CHILD_PROFILE_CHANGE_DECIDED -> "Hồ sơ trẻ";
         };
     }
 }

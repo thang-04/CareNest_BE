@@ -18,4 +18,14 @@ public interface RoomService {
     RoomResponse changeRoomStatus(CurrentUser currentUser, Long roomId, RoomStatus status);
 
     void deleteRoom(CurrentUser currentUser, Long roomId);
+
+    // Theo năm học (V154, Cần chốt 19/11/2026): thêm, sửa, ngừng, xóa ở năm nào chỉ năm đó; năm đang hoạt động cập
+    // nhật cả bảng chung
+    RoomResponse createRoom(CurrentUser currentUser, RoomRequest request, Long schoolYearId);
+
+    RoomResponse updateRoom(CurrentUser currentUser, Long roomId, RoomRequest request, Long schoolYearId);
+
+    RoomResponse changeRoomStatus(CurrentUser currentUser, Long roomId, RoomStatus status, Long schoolYearId);
+
+    void deleteRoom(CurrentUser currentUser, Long roomId, Long schoolYearId);
 }

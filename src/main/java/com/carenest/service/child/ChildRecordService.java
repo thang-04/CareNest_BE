@@ -74,6 +74,9 @@ public interface ChildRecordService {
      */
     HealthDeclarationResponse saveDeclaration(CurrentUser actor, Long childId, HealthDeclarationRequest request);
 
+    /** Kiểm phạm vi + hợp lệ khai báo sức khỏe mà không lưu (GV gửi yêu cầu duyệt, CHD-11). */
+    void checkDeclaration(CurrentUser actor, Long childId, HealthDeclarationRequest request);
+
     /**
      * Xếp / chuyển lớp (CHD-10, G94-180/CHD-02, mục 4.4): lớp mới từ hôm nay; lớp cũ kết thúc hôm qua (vào lớp cũ hôm nay
      * thì bỏ lớp cũ); lớp điểm trường khác ⇒ chuyển điểm trường; lỗi theo ô {@code classId}, {@code reason}; trẻ đã nghỉ

@@ -64,13 +64,14 @@ class SchoolConfigControllerTest {
     private TeacherAssignmentService teacherAssignmentService;
 
     @Test
-    void classTeachersAtMostTwo() throws Exception {
+    // SCH-04 (Cần chốt 18/11/2026): tối đa 3 giáo viên đứng lớp
+    void classTeachersAtMostThree() throws Exception {
         authenticateAs(CareNestRole.PRINCIPAL);
 
         mockMvc.perform(put("/api/classes/5/teachers")
                         .with(token(CareNestRole.PRINCIPAL))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"teacherIds\":[1,2,3],\"homeroomTeacherId\":1}"))
+                        .content("{\"teacherIds\":[1,2,3,4],\"homeroomTeacherId\":1}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.data[0].field").value("teacherIds"));
         verify(teacherAssignmentService, never()).assignClassTeachers(any(), any(), any());

@@ -33,7 +33,7 @@ Một màn bán trú ngừng cho sửa ở mốc khóa đầu tiên:
 
 ## Đợt 1 — xong (chưa commit)
 
-- `BoardingWriteGuard` (khóa dòng `campuses` + biên bản đã ký); ApiCode 6044–6048, 6051–6056, 6076, 6077.
+- `BoardingWriteGuard` (khóa dòng `campuses` + biên bản đã ký); ApiCode 6047, 6048, 6051–6056, 6076, 6077, 6104–6106 (6104–6106 đổi từ 6044–6046 khi merge dev 20/11 vì dev đã dùng các mã đó).
 - Luồng: `FreshGoodsServiceImpl` (kiểm nhận, dự trù), `MealCountServiceImpl` (confirm/adjust), `StockLedgerServiceImpl` (resyncDay chặn; syncDay/settleShortfalls ghi điều chỉnh hôm nay), `StockReceiptServiceImpl`, `FoodSampleServiceImpl`, `MealPlanServiceImpl`, `MealPhotoServiceImpl`.
 - Migration `V157__add_stock_movement_correction_for.sql`; đọc movement theo ngày hiệu lực ở `returnToLots` và `InspectionIntakeSkeleton.dry`.
 - Cờ response: `FreshCheckResponse.editable/lockReason`, `MealCountResponse.inspectionSigned`, `FoodSampleResponse.editable`, `DayBoardResponse.DryStock.m1DrySigned`, `FreshForecastSummaryResponse.deletable`, `StockMovementResponse.correctionFor`.
@@ -54,5 +54,5 @@ Bảng `boarding_day_unlocks`; `GET|POST /nutrition/boarding-unlocks`, `POST /{i
 
 ## Progress log
 
-- 18/11/2026: vá kiểm nhận hàng tươi (6044/6045) + FE `FreshCheckPage`.
+- 18/11/2026: vá kiểm nhận hàng tươi (nay 6104/6105) + FE `FreshCheckPage`.
 - 19/11/2026: đợt 1 BE xong, test nhóm bán trú xanh; chờ chạy toàn bộ suite, FE, đợt 2–3.

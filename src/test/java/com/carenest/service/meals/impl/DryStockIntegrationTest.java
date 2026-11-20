@@ -195,14 +195,18 @@ class DryStockIntegrationTest {
     @DisplayName("NUT-11: hủy phiếu chỉ khi lô chưa bị trừ, bằng bút toán đảo kèm lý do")
     void cancelReversesUntouchedLotsAndIsBlockedAfterDeduction() {
         StockReceiptResponse untouched = confirmReceipt(line(rice, "L-A", "2027-01-01", "500"));
+        assertThat(untouched.canCancel()).isTrue();
         StockReceiptResponse cancelled = receiptService.cancelReceipt(principal, untouched.id(), " Nhập nhầm ");
         assertThat(cancelled.status()).isEqualTo(StockReceiptStatus.CANCELLED);
+        assertThat(cancelled.canCancel()).isFalse();
         assertThat(cancelled.cancelReason()).isEqualTo("Nhập nhầm");
         assertThat(ledgerService.getLots(principal, campus, rice, false)).isEmpty();
 
         StockReceiptResponse used = confirmReceipt(line(rice, "L-B", "2027-01-01", "5000"));
         confirmServings(10);
         ledgerService.syncDay(campus, MONDAY);
+        // Lô đã bị trừ ⇒ Web khóa nút hủy theo canCancel
+        assertThat(receiptService.getReceipt(principal, used.id()).canCancel()).isFalse();
         expectCode(
                 () -> receiptService.cancelReceipt(principal, used.id(), "Nhập nhầm"), ApiCode.STOCK_RECEIPT_LOT_USED);
     }
@@ -400,13 +404,18 @@ class DryStockIntegrationTest {
     }
 
     private long food(String code, String name, String storage, String wastePct) {
-        return insertId(
+        long foodId = insertId(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('" + code
                         + "', '"
                         + name + "', 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', " + wastePct + ", '"
                         + storage
                         + "', 'PLANT') RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private CurrentUser user(String username, CareNestRole role) {

@@ -18,4 +18,7 @@ public interface ChildService {
 
     /** Trẻ có khai dị ứng trong hồ sơ (CHD-06): suất ăn tính suất thay thế; chỉ dùng nội bộ, không kiểm quyền. */
     Set<Long> findChildIdsWithAllergies(Collection<Long> childIds);
+
+    /** Trẻ không báo ăn (CHD-13) trong danh sách đã cho: điểm danh không cho suất ăn; chỉ dùng nội bộ, không kiểm quyền. */
+    Set<Long> findChildIdsWithoutMeals(Collection<Long> childIds);
 }
