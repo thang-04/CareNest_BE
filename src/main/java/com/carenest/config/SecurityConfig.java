@@ -185,6 +185,8 @@ public class SecurityConfig {
                 // nối
                 "X-Class-Doc-Version",
                 "X-Dossier-Version",
+                // Giờ giả lập cho kiểm thử; server chỉ đọc khi bật carenest.dev.clock.enabled
+                DevClockFilter.HEADER,
                 HttpHeaders.RANGE));
         config.setExposedHeaders(
                 List.of(HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES));
