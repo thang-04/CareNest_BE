@@ -73,7 +73,7 @@ EDU-01..28, EDU-39..43, EDU-46..64 (các ID có trong BUSINESS_RULES; lịch ch�
 - Được dùng bởi: learning-observation (đọc MT, hoạt động của giáo án đã duyệt — EDU-19).
 
 ## API & bảng
-- Có: `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST /education-plans/goals/{planId}/submit|issue|return|start-editing|finish-editing|editing-heartbeat`, `GET/PUT /education-plans/config` (cấu hình: lĩnh vực, người ký, dòng tuần, `lateReturnGraceDays` EDU-94 — PUT cho HT, PHT, quyền `plans.config`; hạn tài liệu lớp trả thêm `graceTo` = ngày đầu quá hạn của lần gửi lại sau trả lại trễ) (`docs/api/openapi.yaml`).
+- Có: `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST /education-plans/goals/{planId}/submit|issue|return|start-editing|finish-editing|editing-heartbeat`, `GET/PUT /education-plans/config` (cấu hình: lĩnh vực, người ký, dòng tuần, `lateReturnGraceDays` EDU-94 — hiện trạng trước spec 903: PUT cho HT, PHT, quyền `plans.config`; hạn tài liệu lớp trả thêm `graceTo` = ngày đầu quá hạn của lần gửi lại sau trả lại trễ) (`docs/api/openapi.yaml`).
 - Có: `GET /education-plans/class-docs?schoolYearId=` (tài liệu + lớp + giáo viên/tổ trưởng trong phạm vi người xem), `PUT /education-plans/class-docs/{kind}/{docKey}` (giáo viên của lớp lưu; tạo mới nếu chưa có), `POST /education-plans/class-docs/{kind}/{docKey}/actions` (`submit|approve|reject` + `note`). `kind` = `branch|theme|week`; `docKey` do Web đặt theo lớp: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`, BE kiểm khớp.
 - Có: `POST /education-plans/goals/file-preview` (multipart `file`, EDU-46): đọc file bảng mục tiêu thành bản xem trước, không lưu — `EduGoalFileService(Impl)`, `GoalFileGrid` (.doc nhị phân qua POI HWPF; .docx/.xlsx/.doc HTML/CSV giữ bộ đọc JDK), `GoalFileTable` (diễn giải). .doc mã hóa/hỏng bị từ chối; fixture tổng hợp kiểm tương đương .docx, ô gộp, giới hạn file/dòng.
 - PROPOSED (AI, chưa làm): `POST /education-plans/ai/branch-names`, `/ai/branch-names/rewrite`, `/ai/lesson-steps`.
@@ -303,3 +303,16 @@ Tiền điều chỉnh tiếp 17/11/2026: thanh thao tác sát dưới header d�
 Ngoại lệ Tiền chốt tiếp 17/11/2026: trang Mở hạn/Kế hoạch quá hạn bỏ thanh header thao tác riêng; Mở hạn hàng loạt đặt sát bảng danh sách, giữ chọn nhiều dòng, mở từng dòng, quyền và hộp xác nhận.
 
 Tiền điều chỉnh tiếp 17/11/2026 (ảnh tên Kế hoạch năm học khi cuộn): bỏ mọi tên ngắn của tài liệu/lớp/chủ đề/tuần tự hiện trong thanh thao tác khi cuộn. Tên trang vẫn ở breadcrumb/header chung; giữ nguyên trạng thái, nút, quyền và ghim thanh thao tác. Thay hành vi hiện tên ngắn lúc dính của quyết định 12/11.
+
+### Hạn duyệt riêng (EDU-97, Tiền 19/11/2026)
+
+- Nghiệp vụ đích, chưa triển khai: thêm số ngày xử lý Chờ duyệt do Hiệu trưởng cấu hình, độc lập với số ngày gửi lại khi bị trả lại trễ (EDU-94). Chỉ Hiệu trưởng có phân công hiệu lực được vào và thay đổi cấu hình kế hoạch giáo dục, gồm hai giá trị này (EDU-11). Hết hạn, chặn duyệt, ban hành và trả lại ở mọi bước, kể cả Hiệu trưởng.
+- Hiệu trưởng mở lại hạn duyệt trên màn Kế hoạch quá hạn, nhập lý do và hạn mới, lưu lịch sử. Sau khi mở, người duyệt vẫn phải đúng lượt và không được tự duyệt. Chi tiết tại [spec 903](../../../specs/903-approval-deadline-lock/spec.md).
+
+EDU-98 (Tiền, 20/11/2026): danh mục, cấu hình, khung giáo án và nhóm tuổi nhận diện khi nhập file do BE cung cấp. BE khởi tạo dữ liệu chuẩn còn thiếu khi chạy lần đầu.
+
+EDU-98 (20/11/2026). Bộ lọc nhóm tuổi dùng danh mục age_groups; ở Dự kiến chủ đề – chủ đề nhánh, Kế hoạch giáo dục chủ đề và Kế hoạch giáo dục ngày, ô Nhóm tuổi hiện toàn bộ danh mục. Ô Lớp chỉ hiện các lớp được phép xem và trang báo Không tìm thấy lớp nếu nhóm đang chọn không có lớp phù hợp. Các màn chọn lớp khác chỉ hiện nhóm có lớp được phép xem. Mọi bộ lọc nhóm tuổi trong kế hoạch giáo dục gộp theo cặp tháng bắt đầu và kết thúc, khớp đúng cả hai đầu mút. Ô chọn hiển thị tên ngắn của nhóm tuổi đại diện cho khoảng tháng, dùng tên đầy đủ nếu thiếu tên ngắn. Chương trình Bộ lưu khoảng tháng trên dòng danh mục và truy vấn trực tiếp theo cặp tháng này. Nhóm trường tạo lại có cùng khoảng tháng vẫn dùng được chương trình tương ứng. Bảng edu_plan_defaults lưu config_reset và day_template.
+
+EDU-99 (Tiền, 20/11/2026): thông báo lỗi và kiểm tra dữ liệu dùng đỏ. Hướng dẫn, mục mới và kết quả đã xử lý dùng xanh lá. Lý do trả lại hiện chữ đỏ, không có nền hoặc khung đỏ.
+
+Lịch sử duyệt (EDU-73/99): dùng cùng thẻ đóng/mở với các phần nội dung. Các sự kiện hiển thị theo thứ tự thời gian, có nhãn tiếng Việt, người thực hiện và thời gian nếu có. Sự kiện tự động hiển thị tên hệ thống khi thiếu người thực hiện và không đưa dữ liệu cấu hình vào ghi chú.

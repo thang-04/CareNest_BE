@@ -78,7 +78,7 @@ Gói học kỳ (hạn = ngày bắt đầu học kỳ)   ──ban hành──�
 Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chưa ban hành: "Quá hạn", khóa gửi → HT mở hạn (lý do, hạn mới)
 ```
 
-- Bản đang Chờ duyệt khi tới hạn vẫn được duyệt; ban hành sau hạn hiện "Ban hành trễ".
+- Nghiệp vụ đích (EDU-97, Tiền 19/11/2026): bản Chờ duyệt được xử lý thêm số ngày do Hiệu trưởng cấu hình. Hết hạn, chặn duyệt, ban hành và trả lại kể cả với Hiệu trưởng. Hiệu trưởng mở lại hạn duyệt tại Kế hoạch quá hạn, ghi lý do, hạn mới và lịch sử. Ban hành sau hạn vẫn hiện "Ban hành trễ". Số ngày để người soạn gửi lại sau khi bị trả lại trễ được cấu hình riêng theo EDU-94. Chỉ Hiệu trưởng được thay đổi cả hai giá trị.
 - Trạng thái duyệt (Nháp/Chờ duyệt/Bị trả lại/Đã ban hành) và trạng thái hạn (Gần đến hạn/Quá hạn/Đúng hạn/Ban hành trễ)
   hiện tách rõ; mở hạn/mở khóa chỉ Hiệu trưởng (Tiền 11/11/2026, spec 005).
 - Người chỉ xem chỉ thấy lịch nhánh của học kỳ đã ban hành.
@@ -101,7 +101,7 @@ Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chư
 | Gói học kỳ | ngày bắt đầu học kỳ | HT/PHT |
 | Hồ sơ chủ đề (giáo án ngày) | ngày bắt đầu chủ đề; sau đó chỉ còn ô điều chỉnh sau dạy (EDU-27) | HT/PHT |
 
-- Phiên bản dở khi tới ngày bắt đầu: Chờ duyệt vẫn duyệt/trả lại cho xong (trả lại thì không gửi lại được); Nháp bị khóa.
+- Phiên bản dở khi tới ngày bắt đầu: Chờ duyệt xử lý trong hạn theo EDU-97; Nháp bị khóa theo EDU-76. Bản đã ban hành trước đó tiếp tục hiệu lực.
 - Phiên bản mới của gói học kỳ ban hành mà đổi kế hoạch tuần ⇒ chỉ giáo án ngày của tuần đó về Nháp (sự kiện `week_changed`,
   báo GVCN); tuần khác giữ ban hành.
 
@@ -140,3 +140,9 @@ Tiền điều chỉnh tiếp 17/11/2026: thanh thao tác sát dưới header d�
 Ngoại lệ Tiền chốt tiếp 17/11/2026: trang Mở hạn/Kế hoạch quá hạn bỏ thanh header thao tác riêng; Mở hạn hàng loạt đặt sát bảng danh sách, giữ chọn nhiều dòng, mở từng dòng, quyền và hộp xác nhận.
 
 Tiền điều chỉnh tiếp 17/11/2026 (ảnh tên Kế hoạch năm học khi cuộn): bỏ mọi tên ngắn của tài liệu/lớp/chủ đề/tuần tự hiện trong thanh thao tác khi cuộn. Tên trang vẫn ở breadcrumb/header chung; giữ nguyên trạng thái, nút, quyền và ghim thanh thao tác. Thay hành vi hiện tên ngắn lúc dính của quyết định 12/11.
+
+EDU-98 (Tiền, 20/11/2026): danh mục, cấu hình, khung giáo án và nhóm tuổi nhận diện khi nhập file do BE cung cấp. BE khởi tạo dữ liệu chuẩn còn thiếu khi chạy lần đầu.
+
+EDU-98 (20/11/2026). Bộ lọc nhóm tuổi dùng danh mục age_groups; ở Dự kiến chủ đề – chủ đề nhánh, Kế hoạch giáo dục chủ đề và Kế hoạch giáo dục ngày, ô Nhóm tuổi hiện toàn bộ danh mục. Ô Lớp chỉ hiện các lớp được phép xem và trang báo Không tìm thấy lớp nếu nhóm đang chọn không có lớp phù hợp. Các màn chọn lớp khác chỉ hiện nhóm có lớp được phép xem. Mọi bộ lọc nhóm tuổi trong kế hoạch giáo dục gộp theo cặp tháng bắt đầu và kết thúc, khớp đúng cả hai đầu mút. Ô chọn hiển thị tên ngắn của nhóm tuổi đại diện cho khoảng tháng, dùng tên đầy đủ nếu thiếu tên ngắn. Chương trình Bộ lưu khoảng tháng trên dòng danh mục và truy vấn trực tiếp theo cặp tháng này. Nhóm trường tạo lại có cùng khoảng tháng vẫn dùng được chương trình tương ứng. Bảng edu_plan_defaults lưu config_reset và day_template.
+
+EDU-99 (Tiền, 20/11/2026): thông báo lỗi và kiểm tra dữ liệu dùng đỏ. Hướng dẫn, mục mới và kết quả đã xử lý dùng xanh lá. Lý do trả lại hiện chữ đỏ, không có nền hoặc khung đỏ.

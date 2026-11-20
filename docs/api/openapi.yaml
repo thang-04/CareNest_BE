@@ -5316,6 +5316,31 @@ paths:
           description: OK
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/review-deadline/reopen:
+    post:
+      operationId: reopenReviewDeadline
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearPlanReviewDeadlineReopenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}/versions:
     post:
       operationId: createVersion
@@ -10026,6 +10051,12 @@ components:
     AgeGroupResponse:
       type: object
       properties:
+        ageFromMonths:
+          type: integer
+          format: int32
+        ageToMonths:
+          type: integer
+          format: int32
         code:
           type: string
         id:
@@ -13383,6 +13414,11 @@ components:
           format: int32
           maximum: 30
           minimum: 0
+        lateApprovalGraceDays:
+          type: integer
+          format: int32
+          maximum: 30
+          minimum: 0
         signers:
           $ref: "#/components/schemas/Signers"
         weekRows:
@@ -13399,17 +13435,25 @@ components:
     EduConfigResponse:
       type: object
       properties:
+        planDefaults:
+          type: object
+          additionalProperties: true
         ageGroups:
           type: array
           items:
             $ref: "#/components/schemas/AgeGroupResponse"
         canConfigure:
           type: boolean
+        canConfigureDeadlines:
+          type: boolean
         domains:
           type: array
           items:
             $ref: "#/components/schemas/EduConfigDomainResponse"
         lateReturnGraceDays:
+          type: integer
+          format: int32
+        lateApprovalGraceDays:
           type: integer
           format: int32
         schoolYearCreationScopes:
@@ -14643,6 +14687,8 @@ components:
     GoalFileMetadata:
       type: object
       properties:
+        ageGroupCode:
+          type: string
         ageFromMonths:
           type: integer
           format: int32
@@ -24341,6 +24387,9 @@ components:
       properties:
         canUnlock:
           type: boolean
+        daysLeft:
+          type: integer
+          format: int64
         deadline:
           type: string
           format: date
@@ -24349,8 +24398,30 @@ components:
         extendedTo:
           type: string
           format: date
+        graceTo:
+          type: string
+          format: date
+        reviewDeadline:
+          $ref: "#/components/schemas/ReviewDeadline"
         timeLocked:
           type: boolean
+    ReviewDeadline:
+      type: object
+      properties:
+        canReopen:
+          type: boolean
+        isCurrentReviewer:
+          type: boolean
+        lockFrom:
+          type: string
+          format: date
+        locked:
+          type: boolean
+        reason:
+          type: string
+        reopenUntil:
+          type: string
+          format: date
     Totals:
       type: object
       properties:
@@ -25281,6 +25352,8 @@ components:
     YearPlanDetailResponse:
       type: object
       properties:
+        returned:
+          type: boolean
         ageGroupId:
           type: integer
           format: int64
@@ -25612,6 +25685,8 @@ components:
     YearPlanSummaryResponse:
       type: object
       properties:
+        returned:
+          type: boolean
         ageGroupId:
           type: integer
           format: int64
@@ -25782,6 +25857,17 @@ components:
           format: date
         note:
           type: string
+    YearPlanReviewDeadlineReopenRequest:
+      type: object
+      properties:
+        deadline:
+          type: string
+          format: date
+        note:
+          type: string
+      required:
+      - deadline
+      - note
     YearPlanVersionRequest:
       type: object
       properties:
