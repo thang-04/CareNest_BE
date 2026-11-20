@@ -14941,6 +14941,8 @@ components:
         date:
           type: string
           format: date
+        dry:
+          $ref: "#/components/schemas/DryIntake"
         editable:
           type: boolean
         lockReason:
@@ -14948,8 +14950,6 @@ components:
           enum:
           - NOT_TODAY
           - M1_SIGNED
-        dry:
-          $ref: "#/components/schemas/DryIntake"
         rounds:
           type: array
           items:
@@ -15103,6 +15103,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FreshForecastDay"
+        deletable:
+          type: boolean
         dryLines:
           type: array
           items:
