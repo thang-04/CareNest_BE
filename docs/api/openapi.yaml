@@ -5393,6 +5393,31 @@ paths:
           description: OK
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/review-deadline/reopen:
+    post:
+      operationId: reopenReviewDeadline
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearPlanReviewDeadlineReopenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}/review/{reviewItemId}/resolve:
     post:
       operationId: resolveReview
@@ -5536,31 +5561,6 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/YearPlanUnlockRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
-          description: OK
-      tags:
-      - edu-year-plan-controller
-  /api/education-plans/goals/{planId}/review-deadline/reopen:
-    post:
-      operationId: reopenReviewDeadline
-      parameters:
-      - in: path
-        name: planId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/YearPlanReviewDeadlineReopenRequest"
         required: true
       responses:
         "200":
@@ -14333,12 +14333,12 @@ components:
             type: string
             maxLength: 150
             minLength: 0
-        lateReturnGraceDays:
+        lateApprovalGraceDays:
           type: integer
           format: int32
           maximum: 30
           minimum: 0
-        lateApprovalGraceDays:
+        lateReturnGraceDays:
           type: integer
           format: int32
           maximum: 30
@@ -14359,9 +14359,6 @@ components:
     EduConfigResponse:
       type: object
       properties:
-        planDefaults:
-          type: object
-          additionalProperties: true
         ageGroups:
           type: array
           items:
@@ -14374,12 +14371,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EduConfigDomainResponse"
-        lateReturnGraceDays:
-          type: integer
-          format: int32
         lateApprovalGraceDays:
           type: integer
           format: int32
+        lateReturnGraceDays:
+          type: integer
+          format: int32
+        planDefaults:
+          type: object
+          additionalProperties: true
         schoolYearCreationScopes:
           type: array
           items:
@@ -15715,11 +15715,11 @@ components:
     GoalFileMetadata:
       type: object
       properties:
-        ageGroupCode:
-          type: string
         ageFromMonths:
           type: integer
           format: int32
+        ageGroupCode:
+          type: string
         ageToMonths:
           type: integer
           format: int32
@@ -23940,6 +23940,23 @@ components:
         errorCode:
           type: integer
           format: int32
+    ReviewDeadline:
+      type: object
+      properties:
+        canReopen:
+          type: boolean
+        isCurrentReviewer:
+          type: boolean
+        lockFrom:
+          type: string
+          format: date
+        locked:
+          type: boolean
+        reason:
+          type: string
+        reopenUntil:
+          type: string
+          format: date
     ReviewItem:
       type: object
       properties:
@@ -26069,23 +26086,6 @@ components:
           $ref: "#/components/schemas/ReviewDeadline"
         timeLocked:
           type: boolean
-    ReviewDeadline:
-      type: object
-      properties:
-        canReopen:
-          type: boolean
-        isCurrentReviewer:
-          type: boolean
-        lockFrom:
-          type: string
-          format: date
-        locked:
-          type: boolean
-        reason:
-          type: string
-        reopenUntil:
-          type: string
-          format: date
     Totals:
       type: object
       properties:
@@ -27023,8 +27023,6 @@ components:
     YearPlanDetailResponse:
       type: object
       properties:
-        returned:
-          type: boolean
         ageGroupId:
           type: integer
           format: int64
@@ -27108,6 +27106,8 @@ components:
           type: array
           items:
             type: string
+        returned:
+          type: boolean
         review:
           $ref: "#/components/schemas/EduReviewStateResponse"
         reviewItems:
@@ -27353,11 +27353,21 @@ components:
           minLength: 0
       required:
       - title
+    YearPlanReviewDeadlineReopenRequest:
+      type: object
+      properties:
+        deadline:
+          type: string
+          format: date
+        note:
+          type: string
+          minLength: 1
+      required:
+      - deadline
+      - note
     YearPlanSummaryResponse:
       type: object
       properties:
-        returned:
-          type: boolean
         ageGroupId:
           type: integer
           format: int64
@@ -27404,6 +27414,8 @@ components:
           - TEAM
         planTypeLabel:
           type: string
+        returned:
+          type: boolean
         review:
           $ref: "#/components/schemas/EduReviewStateResponse"
         revision:
@@ -27528,17 +27540,6 @@ components:
           format: date
         note:
           type: string
-    YearPlanReviewDeadlineReopenRequest:
-      type: object
-      properties:
-        deadline:
-          type: string
-          format: date
-        note:
-          type: string
-      required:
-      - deadline
-      - note
     YearPlanVersionRequest:
       type: object
       properties:

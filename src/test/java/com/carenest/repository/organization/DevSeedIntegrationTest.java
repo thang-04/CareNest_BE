@@ -49,6 +49,8 @@ class DevSeedIntegrationTest {
             "notification_push_deliveries",
             // Hàng chờ email: seed có dòng thì worker gửi thư tới địa chỉ giả
             "notification_email_deliveries",
+            // EduDomainBootstrap fills this table at application startup, outside Flyway.
+            "edu_plan_defaults",
             "user_signatures",
             "meal_photos",
             "inspection_sheets",
@@ -110,6 +112,8 @@ class DevSeedIntegrationTest {
         assertThat(count("announcement_attachments")).isZero();
         assertThat(count("notification_push_deliveries")).isZero();
         assertThat(count("notification_email_deliveries")).isZero();
+        assertThat(jdbc.queryForList("SELECT key FROM public.edu_plan_defaults", String.class))
+                .contains("config_reset", "day_template");
         assertThat(count("user_accounts")).isGreaterThan(200);
         assertThat(count("children")).isGreaterThan(200);
     }

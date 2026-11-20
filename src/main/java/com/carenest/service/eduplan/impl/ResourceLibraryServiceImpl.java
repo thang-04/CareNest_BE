@@ -67,7 +67,9 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
         try {
             String q = normalize(query.q());
             String teach = normalize(query.teachThemeName());
-            var ageIds = query.ageGroupId() == null ? Set.<Long>of() : new HashSet<>(items.matchingAgeGroupIds(query.ageGroupId()));
+            var ageIds = query.ageGroupId() == null
+                    ? Set.<Long>of()
+                    : new HashSet<>(items.matchingAgeGroupIds(query.ageGroupId()));
             List<EduResourceItem> own = items.findAllByOwnerId(user.userId()).stream()
                     .filter(i -> q.isEmpty() || normalize(i.getTitle()).contains(q))
                     .filter(i -> query.kind() == null || query.kind().equals(i.getKind()))

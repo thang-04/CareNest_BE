@@ -21,7 +21,8 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
     List<EduClassDoc> findAllByKindInAndStatusIn(
             Collection<String> kinds, Collection<com.carenest.utils.enums.EduClassDocStatus> statuses);
 
-    // Gửi / duyệt hồ sơ chủ đề đổi trạng thái nhiều tài liệu một lúc: khóa dòng để hai người duyệt không chồng nhau
+    // Gửi / duyệt kế hoạch giáo dục ngày đổi trạng thái nhiều tài liệu một lúc: khóa dòng để hai người duyệt không
+    // chồng nhau
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from EduClassDoc d where d.docKey = :docKey")
     Optional<EduClassDoc> findForUpdateByDocKey(@Param("docKey") String docKey);
@@ -50,4 +51,10 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
             @Param("classroomId") Long classroomId,
             @Param("yearPlanId") Long yearPlanId,
             @Param("themeId") Long themeId);
+
+    // EDU-100: giáo án đã ghi kết quả hoạt động (đánh giá sau dạy) thì không xóa theo nhánh
+    @Query(
+            value = "select exists(select 1 from daily_activity_results r where r.class_doc_id in (:ids))",
+            nativeQuery = true)
+    boolean hasActivityResults(@Param("ids") Collection<Long> ids);
 }

@@ -32,12 +32,12 @@ public class EduClassDoc {
     public static final String BRANCH = "branch";
     public static final String THEME = "theme";
     public static final String WEEK = "week";
-    // Spec 003: gốc gói học kỳ, gốc hồ sơ chủ đề, giáo án ngày (tách khỏi giáo án tuần)
+    // Spec 003: gốc kế hoạch giáo dục chủ đề, gốc kế hoạch giáo dục ngày, giáo án ngày (tách khỏi giáo án tuần)
     public static final String SEMESTER = "semester";
     public static final String DOSSIER = "dossier";
     public static final String DAY = "day";
 
-    /** Loại chuỗi duyệt cấu hình: gói học kỳ theo "chủ đề nhánh", còn lại theo "hồ sơ chủ đề" (EDU-18, Q6). */
+    /** Loại chuỗi duyệt cấu hình: kế hoạch giáo dục chủ đề theo "chủ đề nhánh", còn lại theo "kế hoạch giáo dục ngày" (EDU-18, Q6). */
     public static String policyType(String kind) {
         return BRANCH.equals(kind) || SEMESTER.equals(kind) ? BRANCH : THEME;
     }

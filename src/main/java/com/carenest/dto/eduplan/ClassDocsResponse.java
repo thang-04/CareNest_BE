@@ -15,7 +15,8 @@ public record ClassDocsResponse(
         List<ClassItem> classes,
         List<StaffItem> staff,
         List<CreationCapability> creationCapabilities,
-        // Spec 003: gói học kỳ, hồ sơ chủ đề (kèm hạn), giáo án ngày; năm học chưa cấu hình học kỳ
+        // Spec 003: kế hoạch giáo dục chủ đề, kế hoạch giáo dục ngày (kèm hạn), giáo án ngày; năm học chưa cấu hình học
+        // kỳ
         List<ObjectNode> semesterPackages,
         List<ObjectNode> themeDossiers,
         List<ObjectNode> dayPlans,

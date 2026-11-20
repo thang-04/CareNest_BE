@@ -16,6 +16,7 @@ import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanStatus;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -58,6 +59,9 @@ class EduConfigServiceIntegrationTest {
 
     @Autowired
     private jakarta.persistence.EntityManager entityManager;
+
+    @Autowired
+    private Clock clock;
 
     private CurrentUser vicePrincipal;
     private CurrentUser principal;
@@ -298,7 +302,7 @@ class EduConfigServiceIntegrationTest {
     @Test
     @DisplayName("T016: Hoàn tất do đổi policy chuyển status APPROVED với completionMode=POLICY_CHANGE")
     void savePolicyProspectiveCompletionByPolicyChange() {
-        Instant now = Instant.parse("2026-11-06T00:00:00Z");
+        Instant now = clock.instant();
         long ownerId = account("owner-pc", "Owner PC", "TEACHER", "ACTIVE");
         long leaderId = account("leader-pc", "Leader PC", "TEACHER", "ACTIVE");
         long yearId = jdbc.queryForObject(
@@ -356,7 +360,7 @@ class EduConfigServiceIntegrationTest {
     @Test
     @DisplayName("T016: Rollback toàn bộ policy change khi prospective publication validation thất bại")
     void savePolicyRollsBackWhenPublicationPrerequisitesFail() {
-        Instant now = Instant.parse("2026-11-06T00:00:00Z");
+        Instant now = clock.instant();
         long ownerId = account("owner-rb", "Owner RB", "TEACHER", "ACTIVE");
         long leaderId = account("leader-rb", "Leader RB", "TEACHER", "ACTIVE");
         long yearId = jdbc.queryForObject(

@@ -1653,6 +1653,39 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
+    void principalCanListAndReopenExpiredTeamReviewOutsideApprovalChain() {
+        YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
+        YearPlanDetailResponse reviewed =
+                service.submitYearPlan(leader3, draft.id(), "Gửi duyệt", edit(leader3, draft.id(), true));
+        assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .noneMatch(plan -> plan.id().equals(draft.id()));
+
+        entityManager.flush();
+        int changed = jdbc.update(
+                "UPDATE edu_plan_events SET occurred_at='2026-10-01T03:00:00Z', deadline='2026-10-01' "
+                        + "WHERE team_plan_id=? AND action='SUBMIT'",
+                draft.id());
+        assertThat(changed).isEqualTo(1);
+        entityManager.clear();
+        assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .filteredOn(plan -> plan.id().equals(draft.id()))
+                .singleElement()
+                .satisfies(plan -> {
+                    assertThat(plan.timeLock().reviewDeadline().canReopen()).isTrue();
+                    assertThat(plan.timeLock().canUnlock()).isFalse();
+                    assertThat(plan.permissions().canApprove()).isFalse();
+                });
+        var reopened = service.reopenReviewDeadline(
+                principal, reviewed.id(), "Mở lại hạn duyệt", LocalDate.parse("2026-10-28"));
+        assertThat(reopened.timeLock().reviewDeadline().locked()).isFalse();
+        assertThat(reopened.permissions().canApprove()).isFalse();
+        assertThat(service.getYearPlan(vicePrincipal, draft.id()).permissions().canApprove())
+                .isTrue();
+    }
+
+    @Test
     @DisplayName("T027 [US2]: returnYearPlan trả về DRAFT kèm note; cấm return nếu thiếu note")
     void returnYearPlanRevertsToDraftWithReason() {
         YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
@@ -1677,7 +1710,8 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(returned.status()).isEqualTo(EduPlanStatus.DRAFT);
         assertThat(returned.lastReturnNote()).isEqualTo("Cần bổ sung tiêu đề cụ thể");
         assertThat(returned.returned()).isTrue();
-        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20)).items())
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
                 .filteredOn(plan -> plan.id().equals(draft.id()))
                 .singleElement()
                 .satisfies(plan -> {

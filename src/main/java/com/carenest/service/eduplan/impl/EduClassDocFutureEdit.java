@@ -20,7 +20,7 @@ final class EduClassDocFutureEdit {
         validateWeek(before, after, start, today, true);
     }
 
-    /** {@code released}: hồ sơ chủ đề đã từng ban hành ⇒ chỉ sửa phần tương lai (EDU-64); bản chưa ban hành sửa tự do. */
+    /** {@code released}: kế hoạch giáo dục ngày đã từng ban hành ⇒ chỉ sửa phần tương lai (EDU-64); bản chưa ban hành sửa tự do. */
     static void validateWeek(ObjectNode before, ObjectNode after, LocalDate start, LocalDate today, boolean released) {
         if (start == null) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
         if (after.has("days")) {
@@ -41,7 +41,8 @@ final class EduClassDocFutureEdit {
         if (start.isAfter(today) || !released) return;
         ObjectNode oldShared = before.deepCopy();
         ObjectNode newShared = after.deepCopy();
-        // EDU-79: bản tuần theo hồ sơ chủ đề (khóa "week" của day) khóa theo hồ sơ chủ đề, không theo từng ngày
+        // EDU-79: bản tuần theo kế hoạch giáo dục ngày (khóa "week" của day) khóa theo kế hoạch giáo dục ngày, không
+        // theo từng ngày
         oldShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked", "week"));
         newShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked", "week"));
         unchanged(oldShared, newShared);

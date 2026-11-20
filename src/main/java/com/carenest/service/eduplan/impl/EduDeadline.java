@@ -5,7 +5,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * Hạn gói học kỳ / hồ sơ chủ đề (spec 003, data-model "Hạn"): tính khi đọc, không lưu.
+ * Hạn kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày (spec 003, data-model "Hạn"): tính khi đọc, không lưu.
  * Hạn = ngày bắt đầu học kỳ / chủ đề; mở hạn (HT/PHT) thay bằng hạn mới.
  */
 final class EduDeadline {

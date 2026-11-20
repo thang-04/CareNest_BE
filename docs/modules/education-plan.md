@@ -15,7 +15,7 @@
 - Theo EDU-67/68 PROPOSED (user trực tiếp 09/11), xung đột sửa nội dung năm/tổ giữ bản tổ và báo rà soát; phiên bản năm điều chỉnh chụp cấu hình thời lượng hiện tại, snapshot mất chỉ khôi phục khi có bằng chứng và giữ trạng thái.
 - Theo EDU-69/70 PROPOSED (user trực tiếp 09/11), kiểm 9 chủ đề/nội dung/tick khi gửi; duyệt theo thứ bậc cố định, một người được chỉ định soạn, bỏ hẳn trạng thái/nhãn Đang sửa, lease 90 giây và heartbeat 20 giây khỏi luồng nghiệp vụ và UI; vẫn giữ revision/chống ghi đè. Các mô tả lease cũ bên dưới phản ánh lịch sử hoặc source hiện tại, không phải nghiệp vụ đích; chưa chứng minh đã gỡ khỏi code.
 - Theo EDU-71 PROPOSED (user trực tiếp 09/11), hồ sơ mất giới hạn hoặc chưa phân biệt được legacy thật phải bị chặn gửi và báo kiểm tra; chỉ khôi phục khi có bằng chứng, giữ trạng thái. Legacy thật được xác nhận giữ ngoại lệ thời lượng cũ và vẫn kiểm đủ ngày.
-- Theo EDU-70, PHT soạn năm → chỉ HT duyệt; TT soạn năm hoặc tổ → PHT hoặc HT duyệt; GV soạn hồ sơ chủ đề lớp → chuỗi theo cấu hình HT, không bắt buộc bước TT; chỉ PHT duyệt cũng hợp lệ (user10/11). HT phân công một người soạn theo phạm vi; không tự duyệt hoặc cấp dưới duyệt cấp trên. REVIEW cấm sửa, cuối chuỗi ban hành; không dùng lease. Phần HT cấu hình chuỗi tùy ý và TT duyệt năm/tổ trong quyết định lịch sử đã được EDU-70 thay thế.
+- Theo EDU-70, PHT soạn năm → chỉ HT duyệt; TT soạn năm hoặc tổ → PHT hoặc HT duyệt; GV soạn kế hoạch giáo dục ngày lớp → chuỗi theo cấu hình HT, không bắt buộc bước TT; chỉ PHT duyệt cũng hợp lệ (user10/11). HT phân công một người soạn theo phạm vi; không tự duyệt hoặc cấp dưới duyệt cấp trên. REVIEW cấm sửa, cuối chuỗi ban hành; không dùng lease. Phần HT cấu hình chuỗi tùy ý và TT duyệt năm/tổ trong quyết định lịch sử đã được EDU-70 thay thế.
 - Năm mới ban hành tự chuyển nguồn tổ nháp/chờ (giữ phần nhập, chờ về nháp); tổ đã ban hành có bản cập nhật nháp, giữ bản ban hành cũ cho lớp tới khi cập nhật duyệt. Đỏ phần đổi/xóa/liên kết ảnh hưởng; mục mới riêng để phân bổ, chủ đề kết thúc không đỏ; baseline là nguồn tổ dùng trước chuyển.
 - Không ai xóa tổ kể cả nháp; chỉ điều chỉnh và giữ lịch sử. Chỉ năm hiện phiên bản, tổ giữ lịch sử nội bộ.
 - Mẫu nhánh tùy chọn nhưng gửi phải phủ mọi tuần học bằng nhánh có tên; nhánh nhiều tuần có đủ giáo án từng tuần. Năm nhập file hai chế độ thay toàn bộ/thay phần có, preview/xác nhận nháp/lưu tay; tổ không nhập file sửa cây.
@@ -78,7 +78,7 @@ EDU-01..28, EDU-39..43, EDU-46..64 (các ID có trong BUSINESS_RULES; lịch ch�
 - Có: `POST /education-plans/goals/file-preview` (multipart `file`, EDU-46): đọc file bảng mục tiêu thành bản xem trước, không lưu — `EduGoalFileService(Impl)`, `GoalFileGrid` (.doc nhị phân qua POI HWPF; .docx/.xlsx/.doc HTML/CSV giữ bộ đọc JDK), `GoalFileTable` (diễn giải). .doc mã hóa/hỏng bị từ chối; fixture tổng hợp kiểm tương đương .docx, ô gộp, giới hạn file/dòng.
 - PROPOSED (AI, chưa làm): `POST /education-plans/ai/branch-names`, `/ai/branch-names/rewrite`, `/ai/lesson-steps`.
 - Có: `POST /education-plans/class-docs/branch/file-preview` (EDU-47): giáo viên lớp preview file, kiểm kế hoạch đã ban hành/hiện hành và tài liệu sửa được; ghép tên vào teachingWeeks ở server, trả matches/warnings, không lưu. `BranchFileTable` dùng cùng `GoalFileGrid` (POI cho .doc); không nhận lịch/người ký file. Web chỉ áp key khớp sau xác nhận, giữ ghi chú/key khác và bỏ pending AI ở key thay; hai nút luôn hiện, khóa kèm lý do theo quyền/trạng thái, giữ chuỗi EDU-18.
-- AI (EDU-95/96, `EduAiController` + `EduAiService(Impl)`, qua `AiClient`, không ghi DB): `POST /education-plans/ai/branch-names`, `/ai/branch-names/rewrite`, `/ai/lesson-steps`, `/ai/activities` (GVCN); `POST /education-plans/ai/class-docs/day/{docKey}/edit` (Sửa theo yêu cầu: người soạn, giáo án còn sửa được; trả ô cũ → mới) và `/review` (Tóm tắt: người soạn hoặc người có lượt duyệt hồ sơ chủ đề). Server loại MT, loại giờ, tuần, ô không có trong yêu cầu. `GET /education-plans/class-docs/{kind}/{docKey}/checks` (khung Kiểm tra, cùng tiêu chí với lúc gửi + hạn + phần cần sửa theo phiên bản tổ). Gửi hồ sơ còn ngày có `aiSteps` ⇒ 7411 `AI_DRAFT_PENDING`. AI tắt/lỗi ⇒ 8001/8002.
+- AI (EDU-95/96, `EduAiController` + `EduAiService(Impl)`, qua `AiGateway` tác vụ `EDU_PLAN` — chuỗi gemini → groq, `PUBLIC_CATALOG`, deadline `AI_EDU_PLAN_DEADLINE` mặc định 30s; không ghi DB): `POST /education-plans/ai/branch-names`, `/ai/branch-names/rewrite`, `/ai/lesson-steps`, `/ai/activities` (GVCN); `POST /education-plans/ai/class-docs/day/{docKey}/edit` (Sửa theo yêu cầu: người soạn, giáo án còn sửa được; trả ô cũ → mới) và `/review` (Tóm tắt: người soạn hoặc người có lượt duyệt kế hoạch giáo dục ngày). Server loại MT, loại giờ, tuần, ô không có trong yêu cầu. `GET /education-plans/class-docs/{kind}/{docKey}/checks` (khung Kiểm tra, cùng tiêu chí với lúc gửi + hạn + phần cần sửa theo phiên bản tổ). Gửi hồ sơ còn ngày có `aiSteps` ⇒ 7411 `AI_DRAFT_PENDING`. AI tắt/lỗi ⇒ 8001/8002.
 - Code: `EduYearPlanController`, `EduYearPlanService(Impl)`, `EduConfigService(Impl)`, `EduClassDocController`, `EduClassDocService(Impl)`, quyền ở `security/authorization/EduPlanAccessPolicy` (EDU-06, EDU-08), job nhả khóa `EduPlanLockCleanupConfig`.
 - PUT kế hoạch năm gửi cả cây: dòng/nội dung/chủ đề có id thì cập nhật, không id thì thêm, vắng thì xóa; nội dung tích chủ đề qua `themeKeys` trỏ `themes[].key` (chủ đề mới chưa có id).
 - Bảng `edu_*`: `docs/database/DATA_DICTIONARY.md`.
@@ -117,7 +117,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 - Approval JSON legacy có thể chứa `at` dạng giờ trường `yyyy-MM-dd HH:mm`; giữ parser tương thích với `Instant` ISO mới và mốc giờ `Asia/Ho_Chi_Minh` cũ ([BUG-261106-edu-legacy-approval-time](../knowledge/incidents/BUG-261106-edu-legacy-approval-time.md)).
 - Khóa Đang sửa (EDU-10): mọi thao tác ghi đọc kế hoạch bằng `findForUpdateById` (khóa dòng) để hai người bấm sửa cùng lúc không cùng lấy được khóa; khóa quá hạn coi như trống ngay cả khi job (1 phút/lần) chưa chạy.
 - Tài liệu lớp: lịch tuần (`teachingWeeks`) phải tính giống Web (`yearWeeks` trong `CareNest_FE/src/models/education-plan/classPlan.js`): bỏ tuần trùng đợt nghỉ, chủ đề bắt đầu T7/CN thì từ Thứ Hai kế tiếp; lệch thì giáo án tuần bị từ chối hoặc gửi bị chặn.
-- Gửi / duyệt hồ sơ chủ đề đổi trạng thái cả kế hoạch chủ đề và giáo án các tuần nhánh trong cùng giao dịch (khóa dòng tài liệu chính).
+- Gửi / duyệt kế hoạch giáo dục ngày đổi trạng thái cả kế hoạch chủ đề và giáo án các tuần nhánh trong cùng giao dịch (khóa dòng tài liệu chính).
 - MT đánh số lại khi xóa hoặc chèn dòng; module khác tham chiếu MT qua id dòng, không qua số.
 - Kế hoạch đã ban hành bị khóa sửa, vì lớp dùng chủ đề, đợt nghỉ và MT của nó; sửa = tạo phiên bản mới (EDU-25), không sửa dòng của bản đã ban hành.
 - Seed dev: bản REVIEW mẫu bị bỏ qua vì có bản đang mở khác phải được bỏ khỏi tập dựng cây/lịch sử, tránh owner NULL ([incident](../knowledge/incidents/BUG-261116-education-seed-missing-plan-owner.md)).
@@ -125,7 +125,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 - Thứ tự chủ đề, đợt nghỉ = thứ tự mảng trong PUT (`sort_order`); dấu tích lưu theo chênh lệch, không xóa JPQL rồi ghi lại ([BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)).
 - Kế hoạch chủ đề lưu luôn MT, nội dung lấy từ kế hoạch năm để bản đã duyệt không đổi theo (EDU-15).
 - Lịch sử EDU-18 trước EDU-54 (không áp dụng như policy hiện hành): chuỗi duyệt hồ sơ lớp chụp lúc gửi vào `edu_class_docs.sign_chain` (V41); duyệt/trả lại đi theo chuỗi đã chụp, đổi cấu hình giữa chừng không làm hồ sơ tự APPROVED. Hồ sơ cũ `sign_chain` NULL: dùng cấu hình; cấu hình đã bỏ bước đang chờ thì giữ bước đó + các bước cấu hình chưa duyệt. Đang chờ Tổ trưởng mà nhóm tuổi hết Tổ trưởng (hoặc Tổ trưởng dạy chính lớp) ⇒ `getClassDocs` hiện và `actOnClassDoc` duyệt ở bước kế (DB chỉ đổi khi có người thao tác); chuỗi chỉ còn bước Tổ trưởng thì vẫn chờ tới khi HT phân công Tổ trưởng mới.
-- Hai chỗ comment FE lệch code, làm BE theo code: mock ghi chủ đề nhánh "Phó HT duyệt" nhưng chuỗi mặc định là Tổ trưởng → Phó HT; gợi ý người ký `week` ghi "mỗi tuần duyệt riêng" nhưng code duyệt cả hồ sơ chủ đề một lần (EDU-17).
+- Hai chỗ comment FE lệch code, làm BE theo code: mock ghi chủ đề nhánh "Phó HT duyệt" nhưng chuỗi mặc định là Tổ trưởng → Phó HT; gợi ý người ký `week` ghi "mỗi tuần duyệt riêng" nhưng code duyệt cả kế hoạch giáo dục ngày một lần (EDU-17).
 - Mã YCCĐ (TC1.1…) trong `educationPlanConstants.js` của FE chỉ còn để đọc dữ liệu cũ; không dùng cho dữ liệu mới (EDU-09).
 
 - Lấy mục tiêu giữ context cả sau normalize/mở lại: thêm sub đầu tiên vào lĩnh vực đích vốn không-sub có thể đổi cha goal cũ; xem [case](../knowledge/incidents/CASE-261028-year-plan-import-first-sub-reparent.md). Helper import mới đã có guard và regression round-trip.
@@ -144,7 +144,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 EDU-10/22/23: phiên sửa riêng từng tab, TTL 90s và heartbeat 20s; cùng tài khoản gọi start-editing bằng phiên mới thì nhận quyền ngay (`EduYearPlan.acquireSession`), phiên cũ nhận 409 ở heartbeat/lưu, người khác vẫn 409 tới khi hết hạn; FE chỉ ghi khi bấm Lưu/Ctrl+S hoặc gửi/ban hành (bỏ tự lưu 2s/15s, Tiền chốt 27/10), kiểm revision và request ID chống lưu trùng. DRAFT giữ trạng thái khi giữ lease; REVIEW cấm lease/sửa theo EDU-54; draft giữ nội dung chưa hoàn chỉnh, gửi/ban hành mới kiểm tra đầy đủ. V30 bổ sung phiên/revision; contract hiện hành cần X-Edit-Session, X-Plan-Revision, Idempotency-Key. Bản phục hồi Web riêng theo user/kế hoạch/slot; không trộn hay ghi đè khi xung đột. Chi tiết: [đặc tả](../../specs/001-year-plan-autosave/spec.md).
 
 ## Học liệu hoạt động (Tiền yêu cầu, 27/10/2026; EDU-81 12/11/2026)
-EDU-81: học liệu chỉ thuộc **kế hoạch giáo dục ngày** (`dd_…`), gắn theo ngày + mục hoạt động (`activityKey` = `yyyy-MM-dd#hoc|ngoai_troi|goc|chieu`, ngày trong tuần của kế hoạch ngày); API `/education-plans/class-docs/day/{docKey}/learning-resources` (+ `upload-url`, `confirm` nhận `title` tùy chọn — trống thì lấy tên tệp bỏ đuôi, `{id}/url`); ghi khi hồ sơ chủ đề chứa ngày còn Nháp. Học liệu cũ gắn kế hoạch chủ đề đã xóa (V124), bỏ `activitySignature`. Mọi binary ảnh/video/slide/tệp lưu S3 private thư mục `hoclieu/` (spec 017), metadata trong kho `edu_resource_items` + dòng gắn `edu_resource_attachments` (spec 900/901); backend scope check, không public bucket/URL. Không đổi MT/chuỗi duyệt EDU-12..18. Chi tiết [feature002](../../specs/002-class-plan-teaching-media/spec.md), [S3](../system/EDUCATION_MEDIA_S3.md), ADR-0018. Tích hợp S3 thật cần cấu hình và smoke riêng.
+EDU-81: học liệu chỉ thuộc **kế hoạch giáo dục ngày** (`dd_…`), gắn theo ngày + mục hoạt động (`activityKey` = `yyyy-MM-dd#hoc|ngoai_troi|goc|chieu`, ngày trong tuần của kế hoạch ngày); API `/education-plans/class-docs/day/{docKey}/learning-resources` (+ `upload-url`, `confirm` nhận `title` tùy chọn — trống thì lấy tên tệp bỏ đuôi, `{id}/url`); ghi khi kế hoạch giáo dục ngày chứa ngày còn Nháp. Học liệu cũ gắn kế hoạch chủ đề đã xóa (V124), bỏ `activitySignature`. Mọi binary ảnh/video/slide/tệp lưu S3 private thư mục `hoclieu/` (spec 017), metadata trong kho `edu_resource_items` + dòng gắn `edu_resource_attachments` (spec 900/901); backend scope check, không public bucket/URL. Không đổi MT/chuỗi duyệt EDU-12..18. Chi tiết [feature002](../../specs/002-class-plan-teaching-media/spec.md), [S3](../system/EDUCATION_MEDIA_S3.md), ADR-0018. Tích hợp S3 thật cần cấu hình và smoke riêng.
 
 Spec 900 (EDU-82…88, CONFIRMED 13/11/2026): học liệu lưu một lần trong **kho** `edu_resource_items` (FILE: khóa S3 `hoclieu/`; LINK: YouTube chuẩn hóa `watch?v=<id>` hoặc Google Drive/Docs), nhãn `edu_resource_item_tags` (THEME/GOAL + mã mục tiêu Bộ), giáo án ngày chỉ giữ dòng gắn `edu_resource_attachments` (UNIQUE doc+mục+học liệu, tối đa 20/mục, thứ tự `sort_order` đổi bằng `PUT /order`, lệch ⇒ 7136). API giáo án ngày giữ đường dẫn cũ (`id` = id dòng gắn, thêm `/links`, `/attach`, bỏ `PATCH /{id}/activity`); API kho `/education-plans/resources` (list có gợi ý Cùng MT → Cùng chủ đề, upload, links, patch, share, withdraw, review, delete, usages, url). Phạm vi MINE/CLASS/SCHOOL; đề nghị lên trường do tổ trưởng nhóm tuổi (không tự duyệt) hoặc PHT duyệt; kết quả duyệt/trả lại báo người tạo (`EDU_RESOURCE_APPROVED`/`EDU_RESOURCE_RETURNED`). Xem bất kể phạm vi khi học liệu đã gắn vào giáo án người đó xem được (EDU-86). Migration V126 (chuyển dữ liệu cũ, bảng `edu_learning_resources` giữ lại không dùng), V127 (`sort_order`, 2 loại thông báo). Mã lỗi 7127–7136. Spec: `UI-giaoan/specs/900-learning-resource-library/`. **Spec 901 (Tiền 13–14/11/2026, đã cài đặt; `UI-giaoan/specs/901-personal-resource-library/`)**: kho chỉ cá nhân — bỏ MINE/CLASS/SCHOOL, share/withdraw/review, upload/links ở kho, Ẩn, `EDU_RESOURCE_APPROVED/RETURNED` (V128). `/education-plans/resources` chỉ `hasRole(TEACHER)` và chủ sở hữu (`requireOwned`, khác ⇒ 7128); còn `GET` (lọc thêm `teachThemeName`, `schoolYearId`; trả `taughtThemes`, `tags[].id/auto/schoolYearId`), `PATCH` (đổi tên; nhãn tay `themes`/`goals`/`removeTagIds`), `DELETE` (xóa vĩnh viễn, gỡ khỏi mọi giáo án), `GET /usages` (`{rows[status, locked], locked, deletableFrom}`), `GET /url`. Khóa đổi tên + xóa ⇒ 7137 khi gắn giáo án ngày Chờ duyệt hoặc đã ban hành mà ngày dạy ≥ hôm nay (`EduClassDocService#dayStatus`). Nhãn tự thêm lưu theo dòng gắn (`attachment_id`, cascade) khi upload/links/attach (`attach` nhận `tags`, chỉ học liệu của mình). Mã 7129, 7133–7135 bỏ.
 
@@ -192,21 +192,29 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 - `EduClassDocFutureEdit.validateBranch/validateWeek` nhận tập chủ đề đã ban hành (`releasedThemes`: theme APPROVED hoặc có sự kiện `revise_future`); chủ đề chưa ban hành không bị khóa phần đã qua — sửa lỗi lưu chủ đề nhánh lần đầu bị 409 7117.
 - Kiểm chứng: Playwright `CareNest_FE/tests/e2e/integration/edu-approval-visibility-api.spec.mjs` (4) và `system/edu-approval-visibility-ui.spec.mjs` (5) trên BE thật; JUnit `EduClassDocBranchReleaseLockTest`.
 
+## Chủ đề nhánh của lớp và kế hoạch tổ (EDU-100, EDU-102 — Tiền 20/11/2026)
+
+- Lưu lịch nhánh lớp (`PUT /class-docs/branch/{key}`, schema 2): `EduClassDocServiceImpl.requireBranchesEditable` thay `requireRootsEditable` cho kind `branch`. Theo từng chủ đề có nhánh đổi: kế hoạch giáo dục ngày (`ds_`) đang APPROVED ⇒ 7214 "nhánh của chủ đề này không sửa được"; `ds_` đang REVIEW mà xóa nhánh ⇒ 7214. Theo học kỳ (`sp_`): REVIEW ⇒ 7117; đang APPROVED ⇒ chỉ đổi tên/ngày, thêm/xóa nhánh ⇒ 7214, không xét khóa thời gian; Nháp (kể cả phiên bản điều chỉnh, EDU-100 (2b)) ⇒ thêm/sửa/xóa mọi nhánh kể cả nhánh kế thừa, còn khóa thời gian 7388 như cũ.
+- Xóa nhánh ⇒ xóa tài liệu `week` (`wp_`) và `day` (`dd_`) của các tuần thuộc nhánh đó (kể cả khi nhánh khác kéo dài phủ lại tuần); tài liệu không ở Nháp hoặc đã có `daily_activity_results` ⇒ 7214, không xóa (`EduClassDocRepository.hasActivityResults`).
+- Bản đã ban hành bất biến (EDU-102): người xem đọc bản chụp `edu_class_doc_releases`; sửa nhánh sau ban hành không đổi bản chụp.
+- Kế hoạch tổ: bỏ chặn 7213 khi Tổ trưởng xóa nhánh kế thừa (`EduYearPlanServiceImpl` lưu `branchTemplates`); mẫu nhánh của kế hoạch năm học không đổi.
+- Kiểm chứng: JUnit `EduBranchRangeIntegrationTest.classBranchEditFollowsSemesterAndDossierStatus`; FE `school-year-team.test.mjs` (removeBranch); e2e `system/edu-approval-visibility-ui.spec.mjs` ST-002-06.
+
 ## Mốc duyệt theo thời gian dạy (spec 003 — 10/11/2026, EDU-74)
 
-- Gốc gửi/duyệt mới trong `edu_class_docs` (V103): `semester` (gói học kỳ, `sp_<lớp>_<kế hoạch tổ>_<1|2>`, chuỗi duyệt policy `branch`) và `dossier` (hồ sơ chủ đề, `ds_<lớp>_<chủ đề>`, policy `theme`); `EduClassDoc.policyType/isRoot`. Thành viên (`theme`, `week`, `day`) mang cùng trạng thái gốc. Lịch nhánh (`branch`) không mang trạng thái duyệt; bản ban hành gói học kỳ chụp tên nhánh các tuần của kỳ.
+- Gốc gửi/duyệt mới trong `edu_class_docs` (V103): `semester` (kế hoạch giáo dục chủ đề, `sp_<lớp>_<kế hoạch tổ>_<1|2>`, chuỗi duyệt policy `branch`) và `dossier` (kế hoạch giáo dục ngày, `ds_<lớp>_<chủ đề>`, policy `theme`); `EduClassDoc.policyType/isRoot`. Thành viên (`theme`, `week`, `day`) mang cùng trạng thái gốc. Lịch nhánh (`branch`) không mang trạng thái duyệt; bản ban hành kế hoạch giáo dục chủ đề chụp tên nhánh các tuần của kỳ.
 - Giáo án ngày tách khỏi giáo án tuần: kind `day` (`dd_` + hậu tố của `wp_`) giữ `days`, `dayGoals`; `week` từ chối `days`/`dayGoals`. ~~`PUT /class-docs/{day,week}/{key}/adjustments` (EDU-27)~~ — bỏ ở spec 005.
 - ~~Cách gửi của chủ đề `theme.content.submitMode`~~ — bỏ ở spec 004 (EDU-75), BE bỏ qua nếu nhận được.
 - Hạn tính khi đọc (`EduDeadline`, `EduSemesters`): gói = `semesterN_start`, hồ sơ = ngày bắt đầu chủ đề (lịch lớp, không có thì kế hoạch tổ); mở hạn = sự kiện `extend` trong `history`. `deadlineState`: NORMAL/NEAR (≤7 ngày)/OVERDUE/ON_TIME/LATE; hạn trước ngày mở lớp (`ClassroomService.findOpenedDates`) không quá hạn.
-- `actOnClassDoc`: chỉ nhận `semester`/`dossier`; `submit` quá hạn ⇒ 7385 `CLASS_DOC_DEADLINE_PASSED`; hồ sơ khi gói học kỳ chưa từng ban hành ⇒ 7386 `SEMESTER_PACKAGE_NOT_RELEASED`; `extend` (spec 005: chỉ HT, `note` + `deadline` > hôm nay, chỉ gốc chưa ban hành đã quá hạn). `ClassDocActionRequest.deadline`.
+- `actOnClassDoc`: chỉ nhận `semester`/`dossier`; `submit` quá hạn ⇒ 7385 `CLASS_DOC_DEADLINE_PASSED`; hồ sơ khi kế hoạch giáo dục chủ đề chưa từng ban hành ⇒ 7386 `SEMESTER_PACKAGE_NOT_RELEASED`; `extend` (spec 005: chỉ HT, `note` + `deadline` > hôm nay, chỉ gốc chưa ban hành đã quá hạn). `ClassDocActionRequest.deadline`.
 - `GET /class-docs` thêm `semesterPackages`, `themeDossiers`, `dayPlans`, `semesterConfigMissing`; gốc có `deadline, extendedTo, daysLeft, deadlineState, everReleased, themeIds, semesterNo, branchNames, blockedReason, canExtend`; thành viên có `containerKey`, `containerStatus`. Người không soạn: `branch.names` ghép từ bản ban hành gói từng kỳ + `branchUnreleasedSemesters`.
-- Thông báo (V104, `notifications.link`): `EDU_SUBMITTED`, `EDU_STEP_APPROVED` (người duyệt bước đang chờ), `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED` (GVCN / người gửi kế hoạch năm, tổ), `EDU_DEADLINE_NEAR` (job `remindNearDeadlines` 06:00, một lần mỗi người + đường dẫn). Email (G94-386, V158): mỗi thông báo trên kèm một email riêng cho người nhận qua hàng chờ `notification_email_deliveries` (gửi sau commit, thiết kế `CareNestEmailLayout`, nút "Mở hồ sơ"); phạm vi năm học/nhóm tuổi/lớp truyền qua tham số `scope` của `notifyUsers`. Nhắc gần hạn email chỉ gói học kỳ + hồ sơ chủ đề, một lần.
-- Known pitfalls: gói học kỳ đang Chờ duyệt khóa sửa/nhập lịch nhánh; thêm gói/hồ sơ mới được tạo khi lưu tài liệu của lớp (`ensureRoots`), không tạo khi chỉ đọc.
+- Thông báo (V104, `notifications.link`): `EDU_SUBMITTED`, `EDU_STEP_APPROVED` (người duyệt bước đang chờ), `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED` (GVCN / người gửi kế hoạch năm, tổ), `EDU_DEADLINE_NEAR` (job `remindNearDeadlines` 06:00, một lần mỗi người + đường dẫn). Email (G94-386, V158): mỗi thông báo trên kèm một email riêng cho người nhận qua hàng chờ `notification_email_deliveries` (gửi sau commit, thiết kế `CareNestEmailLayout`, nút "Mở hồ sơ"); phạm vi năm học/nhóm tuổi/lớp truyền qua tham số `scope` của `notifyUsers`. Nhắc gần hạn email chỉ kế hoạch giáo dục chủ đề + kế hoạch giáo dục ngày, một lần.
+- Known pitfalls: kế hoạch giáo dục chủ đề đang Chờ duyệt khóa sửa/nhập lịch nhánh; thêm gói/hồ sơ mới được tạo khi lưu tài liệu của lớp (`ensureRoots`), không tạo khi chỉ đọc.
 
 ## Cách duyệt cố định, phiên bản và khóa theo thời gian (spec 004 — Tiền 11/11/2026, EDU-75/76/77)
 
 - Thành phần cố định: `semester` (`sp_…`) = tên nhánh kỳ + **mọi** `theme`, `week` của chủ đề thuộc kỳ; `dossier` (`ds_…`) = chỉ `day`.
-  `classThemePlans[]`/`weekPlans[]` có `containerKey` = khóa gói học kỳ; `dayPlans[]` = khóa hồ sơ chủ đề. Bỏ `submitMode`.
+  `classThemePlans[]`/`weekPlans[]` có `containerKey` = khóa kế hoạch giáo dục chủ đề; `dayPlans[]` = khóa kế hoạch giáo dục ngày. Bỏ `submitMode`.
 - `GET /class-docs`: `semesterPackages[]` thêm `missing: [{kind: theme|branch|week, themeId, weekStart}]` (rỗng ⇒ đủ gửi),
   `timeLocked`, `canRevise`; `themeDossiers[]` thêm `timeLocked`, `canRevise`; `canExtend` (spec 005) chỉ đúng với HT trên gốc chưa ban hành, không Chờ duyệt, đã `timeLocked`.
 - `POST /class-docs/{kind}/{docKey}/actions`:
@@ -218,7 +226,7 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 - `PUT /class-docs/{kind}/{docKey}`: thành viên của gốc APPROVED chưa `revise` ⇒ 409 `CLASS_DOC_LOCKED` (bỏ tự mở lại khi lưu);
   qua hạn hiệu lực ⇒ 409 7388. Hạn hiệu lực = `max(mốc, extendedTo)`; mốc gói = `semesterN_start`, hồ sơ = ngày bắt đầu chủ đề.
   `day` lưu được khi gói chưa ban hành (Q1), chỉ `submit` hồ sơ bị chặn (7386).
-- Q7: gói học kỳ phiên bản mới ban hành ⇒ so `week` với `print_snapshot` bản trước (spec 005: chỉ các khóa `grid`, `picks`, `unlinked`, `corners`); tuần đổi ⇒ `day` cùng `weekStart` (nếu APPROVED)
+- Q7: kế hoạch giáo dục chủ đề phiên bản mới ban hành ⇒ so `week` với `print_snapshot` bản trước (spec 005: chỉ các khóa `grid`, `picks`, `unlinked`, `corners`); tuần đổi ⇒ `day` cùng `weekStart` (nếu APPROVED)
   và `dossier` chứa nó về DRAFT, sự kiện `week_changed {weeks:[…]}`, thông báo GVCN.
 - Kế hoạch năm/tổ (`EduPlanTimeLock`): mốc = `school_years.start_date`; hạn hiệu lực = `max(start_date, deadline` của sự kiện `unlock` mới nhất).
   Từ hạn: `submit`/`issue` bản chưa từng ban hành, `POST /goals/{id}/versions`, tạo/nhận bản cập nhật tổ (EDU-62/72) ⇒ 409 **7389**
@@ -227,11 +235,11 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 - **Mới** `POST /api/v1/education-plans/goals/{planId}/unlock` body `{note, deadline}` — chỉ Hiệu trưởng; thiếu lý do ⇒ 400
   `RETURN_REASON_REQUIRED`; hạn ≤ hôm nay ⇒ 400 `INVALID_VALUE`; khác HT ⇒ 403; chuỗi đã có bản ban hành ⇒ 400 `INVALID_VALUE` (spec 005). Ghi `edu_plan_events(action='unlock', deadline)` (V105),
   thông báo người soạn `EDU_DEADLINE_EXTENDED`.
-- Web: `/education/theme-plans/:classId?hk=1|2` (gói học kỳ), `/education/day-plans/:classId?week=|theme=` (hồ sơ chủ đề); đường dẫn cũ
+- Web: `/education/theme-plans/:classId?hk=1|2` (kế hoạch giáo dục chủ đề), `/education/day-plans/:classId?week=|theme=` (kế hoạch giáo dục ngày); đường dẫn cũ
   `/education/class/:id`, `/class/:id/semesters/:no`, `/class/:id/weeks/:ws/days` chuyển hướng.
 - Dữ liệu thử tài liệu lớp trên DB dev `carenest_merge` đã xóa 11/11/2026 (Q8, không có migration V106); sao lưu
   `local-backups/carenest_merge_class_docs_20261111.sql`.
-- Known pitfalls: sửa kế hoạch chủ đề/tuần đã ban hành phải `revise` gói học kỳ trước (lưu thẳng ⇒ 409); khóa theo thời gian chặn cả
+- Known pitfalls: sửa kế hoạch chủ đề/tuần đã ban hành phải `revise` kế hoạch giáo dục chủ đề trước (lưu thẳng ⇒ 409); khóa theo thời gian chặn cả
   lưu lẫn gửi, chỉ mở khóa mới làm tiếp; `missing` chỉ tính tuần học (bỏ tuần nghỉ cả tuần, EDU-41).
 
 ## Mẫu chung giáo án ngày, mở hạn chỉ HT (spec 005 — Tiền 11/11/2026)
@@ -243,11 +251,11 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 - Nội dung `day`: `content.days[i] = { date, sections: { hoc|ngoai_troi|goc|chieu: { aims, prep, rows: [{ id, title, teacher, child, note }] } }, review?, pulled?, aiSteps? }`;
   ngày bố cục cũ (`aims`, `prep`, `steps`) Web chuẩn hóa khi mở/lưu. `review` chỉ giao diện (Web API không gửi). Nội dung `week`
   thêm `prep: { teacher, child, parent }`, `corners: [{ id, name, content, aims, prep, steps }]`, `picks['goc.all'][].cornerId`.
-- Gửi hồ sơ chủ đề (FR-007a): mỗi ngày dạy có `sections` (bỏ ngày nghỉ trong `edu_breaks` của kế hoạch), mỗi mục phải có chữ ở
+- Gửi kế hoạch giáo dục ngày (FR-007a): mỗi ngày dạy có `sections` (bỏ ngày nghỉ trong `edu_breaks` của kế hoạch), mỗi mục phải có chữ ở
   `aims`, `prep` hoặc `teacher/child/note` của một dòng (`title` không tính) ⇒ thiếu: 400 **7390** `DAY_PLAN_SECTION_EMPTY`,
   `desc` liệt kê "Thứ n dd/MM: <tên mục>", `data.details = [{ date: 'yyyy-mm-dd', section: 'hoc'|'ngoai_troi'|'goc'|'chieu' }]`.
   Ngày chưa có `sections` (bố cục cũ chưa lưu lại) không bị chặn.
-- FR-017a: phiên bản gói học kỳ ban hành đổi `grid`/`picks`/`unlinked`/`corners` của tuần ⇒ giáo án ngày tuần đó về Nháp; đổi
+- FR-017a: phiên bản kế hoạch giáo dục chủ đề ban hành đổi `grid`/`picks`/`unlinked`/`corners` của tuần ⇒ giáo án ngày tuần đó về Nháp; đổi
   `aims`/`prep` thì giữ.
 - FR-021 (Q-P2): `extend` chỉ Hiệu trưởng (PHT/GV ⇒ 403 `NOT_YOUR_REVIEW_STEP`), chỉ gốc chưa ban hành (`status != APPROVED`,
   không REVIEW, `timeLocked`); gốc APPROVED ⇒ 400 `INVALID_VALUE` "tài liệu đã ban hành không mở khóa". Sự kiện `role` = "Hiệu trưởng".
@@ -272,7 +280,7 @@ EDU-14 (Tiền 13/11/2026) — tạo mới kế hoạch tuần/ngày khi tuần 
 EDU-14/39/59 — CONFIRMED (hiển thị): Bảng Dự kiến chủ đề - chủ đề nhánh hiện tất cả tháng, hàng tháng/cột Tuần 1–5, bỏ lọc tháng. Dùng đủ tuần lịch chủ đề lớn, gộp các tuần liền nhau của cùng mã nhánh (ví dụ Tuần 3 + 4), hiện ngày đầu–cuối và tên nhánh; giữ tuần trống, tách tại tháng mới. Không đổi ngày hoặc quy tắc lưu. Nguồn: Tiền chốt trực tiếp trong phiên 11/11/2026; bản chuẩn mục hai kiểu xem.
 - Thuật ngữ hiển thị (Tiền 11/11/2026): thông báo/ApiCode của kế hoạch giáo dục dùng "kế hoạch giáo dục ngày" thay "giáo án ngày", "kế hoạch tuần" thay "giáo án tuần" (7107, 7113, 7390, thông báo "Cần soạn lại kế hoạch giáo dục ngày"). Mã lỗi đánh giá trẻ (7306–7309) chưa đổi.
 
-## Thẻ hoạt động, kế hoạch tuần theo hồ sơ chủ đề, kiểm đủ MT (spec 006 — Tiền 12/11/2026, EDU-78/79/80)
+## Thẻ hoạt động, kế hoạch tuần theo kế hoạch giáo dục ngày, kiểm đủ MT (spec 006 — Tiền 12/11/2026, EDU-78/79/80)
 
 Không đổi DB, không thêm endpoint; chỉ đổi hình dạng `content` (JSONB) và thêm 2 `ApiCode`.
 
@@ -283,9 +291,9 @@ Không đổi DB, không thêm endpoint; chỉ đổi hình dạng `content` (JS
   `contentRefs` dạng `goalId:i` của MT đã chọn; sai ⇒ 400 `INVALID_VALUE`. MT đã rời chủ đề (vẫn là MT của năm) bị gỡ khỏi thẻ, thẻ giữ.
 - `week.content.picks[cell][]` mới: `{ id, cardId, goalIds[], text, cornerId? }`; bản cũ `{ id, goalId, … }` vẫn đọc được.
   MT của lượt = MT của thẻ (`EduActivityCards.resolveGoals`: thẻ → bản chụp `goalIds` → `goalId`); gõ tay không có MT.
-- `day.content.week` (EDU-79): bản kế hoạch tuần sửa theo hồ sơ chủ đề `{ aims, prep, grid, picks, unlinked, corners, cards, base }`.
-  Lưu `day` nhận khóa `days`, `dayGoals`, `week`; có `week` mới/đổi thì cần gói học kỳ chứa chủ đề đã ban hành (409 7386), khóa
-  theo hồ sơ chủ đề (`CLASS_DOC_LOCKED` / `CLASS_DOC_TIME_LOCKED`); `week.cards` kiểm như thẻ, `origin="dossier"`.
+- `day.content.week` (EDU-79): bản kế hoạch tuần sửa theo kế hoạch giáo dục ngày `{ aims, prep, grid, picks, unlinked, corners, cards, base }`.
+  Lưu `day` nhận khóa `days`, `dayGoals`, `week`; có `week` mới/đổi thì cần kế hoạch giáo dục chủ đề chứa chủ đề đã ban hành (409 7386), khóa
+  theo kế hoạch giáo dục ngày (`CLASS_DOC_LOCKED` / `CLASS_DOC_TIME_LOCKED`); `week.cards` kiểm như thẻ, `origin="dossier"`.
   Response `day` có `effectiveWeek: "semester" | "dossier"`; "dossier" khi giáo án ngày đã ban hành (hoặc mở lại sửa phần tương lai)
   và có `week`. Đánh giá trẻ (`EduLessonQueryServiceImpl`) dùng bản hiệu lực này (FR-029).
 - EDU-80 trong `requireCanSubmit` (sau 7387/7390): gửi `dossier` thiếu MT chủ đề ⇒ 400 **7396** `THEME_GOALS_NOT_COVERED`; gửi
@@ -307,7 +315,7 @@ Tiền điều chỉnh tiếp 17/11/2026 (ảnh tên Kế hoạch năm học khi
 ### Hạn duyệt riêng (EDU-97, Tiền 19/11/2026)
 
 - Nghiệp vụ đích, chưa triển khai: thêm số ngày xử lý Chờ duyệt do Hiệu trưởng cấu hình, độc lập với số ngày gửi lại khi bị trả lại trễ (EDU-94). Chỉ Hiệu trưởng có phân công hiệu lực được vào và thay đổi cấu hình kế hoạch giáo dục, gồm hai giá trị này (EDU-11). Hết hạn, chặn duyệt, ban hành và trả lại ở mọi bước, kể cả Hiệu trưởng.
-- Hiệu trưởng mở lại hạn duyệt trên màn Kế hoạch quá hạn, nhập lý do và hạn mới, lưu lịch sử. Sau khi mở, người duyệt vẫn phải đúng lượt và không được tự duyệt. Chi tiết tại [spec 903](../../../specs/903-approval-deadline-lock/spec.md).
+- Hiệu trưởng mở lại hạn duyệt trên màn Kế hoạch quá hạn, nhập lý do và hạn mới, lưu lịch sử. Sau khi mở, người duyệt vẫn phải đúng lượt và không được tự duyệt. Hiệu trưởng thấy và mở hạn cho mọi hồ sơ đủ điều kiện dù không thuộc chuỗi duyệt. Màn Kế hoạch quá hạn mặc định hiện Tất cả và lọc được theo Quá hạn gửi (EDU-76) hoặc Quá hạn duyệt (EDU-97). Chi tiết tại [spec 903](../../../specs/903-approval-deadline-lock/spec.md).
 
 EDU-98 (Tiền, 20/11/2026): danh mục, cấu hình, khung giáo án và nhóm tuổi nhận diện khi nhập file do BE cung cấp. BE khởi tạo dữ liệu chuẩn còn thiếu khi chạy lần đầu.
 
