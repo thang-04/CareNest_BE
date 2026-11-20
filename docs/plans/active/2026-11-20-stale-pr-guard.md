@@ -116,3 +116,10 @@ Không đổi nghiệp vụ, API, quyền, dữ liệu. Đổi hạ tầng CI (`
 - Kiểm cục bộ (Git Bash, bước shell trích từ YAML đã parse): repo hiện tại ⇒ exit 0 (AC-2); thư mục thử `V154`/`V0154`, `V1_1`/`V1.1`, `V2`/`V2.0` ⇒ báo 3 cặp, exit 1 (AC-1); cây `db/` của commit sự cố `55f8f81c` (run 44574429268) ⇒ báo `V154: V154__school_year_config_per_year.sql V154__supplier_contract_and_food_prices.sql`, exit 1.
 - `ci-result`: thử 4 tổ hợp kết quả (skip ⇒ xanh; failure/cancelled ⇒ đỏ) (AC-4). YAML parse được; chưa có actionlint.
 - Chưa commit. Tiếp: commit + PR ⇒ đo AC-3 trên CI ⇒ merge ⇒ Phase 2.
+
+### 2026-11-20 — Phase 1 merge, Phase 2 áp ruleset (chờ quan sát AC-6)
+- PR #91 merge (`3f89f4b1`). Run PR 44717575106: `plan` + `ci-result` xanh 14s, `api-test`/`api`/`keycloak` skip (AC-3). Matrix bị skip chỉ hiện 1 check tên `api-test` ⇒ xác nhận phải dùng `ci-result`.
+- Run push `dev` 44718886976: `ci-result` xanh (app 15368), `deploy-dev` xanh, test skip (tag có sẵn).
+- User cho làm Phase 2 2026-11-20. Lưu ruleset cũ (scratchpad `protect-dev-before.json`) rồi `PUT rulesets/26676793`: thêm `required_status_checks` `ci-result` (integration 15368), `strict_required_status_checks_policy: true`; rule cũ + bypass giữ nguyên.
+- AC-5: ngay sau khi bật, PR #90 (behind 2) và #84 (behind 34) có `mergeStateStatus=BEHIND` ⇒ phải Update branch.
+- Còn: AC-6 (push `dev` sau merge PR đã cập nhật ⇒ `api-test` skip); xem Update branch có bắt approve lại không.
