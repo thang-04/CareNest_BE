@@ -101,6 +101,8 @@ Tắt gateway khẩn cấp: `.env` `CARENEST_AUTH_ENABLED=false` rồi `up -d --
 
 Test api chạy song song 4 job (`api-test`), mỗi job 2 JVM; artifact `api-verify-reports-<n>` giữ log và thời gian từng class 7 ngày. PR từ nhánh trong repo push image sau khi test xanh ⇒ merge vào `dev` không chạy lại test nếu nội dung không đổi.
 
+**Luật merge PR** (G94-440): mọi PR vào `main`/`dev` đều chạy workflow (PR chỉ sửa tài liệu bỏ test vì tag đã có, xong ~1 phút). Job `ci-result` tổng hợp `plan`, `api-test`, `api`, `keycloak`: job nào `failure`/`cancelled` ⇒ đỏ. Ruleset `protect-dev` bắt `ci-result` xanh và PR phải cập nhật theo `dev` ⇒ `dev` có commit mới thì bấm *Update branch*, chờ CI chạy lại rồi mới merge (2 PR xanh riêng vẫn có thể hỏng khi gộp, vd. 2 migration cùng số V154 ngày 19/11/2026). Job `plan` chặn sớm migration trùng version (`V154`/`V0154`, `V1_1`/`V1.1`) ⇒ đổi số migration của PR sang version lớn nhất + 1. Admin có quyền bypass ruleset; chỉ dùng khi khẩn cấp.
+
 ## Môi trường dev (nhánh `dev`)
 
 Luồng: PR vào `dev` (verify) ⇒ merge ⇒ job `deploy-dev` deploy lên `https://dev.carenest.edu.vn` ⇒ test ⇒ `release/*` ⇒ PR vào `main`. Image push từ `dev` đã verify nên release cùng nội dung vào `main` dùng lại tag, chỉ pull + restart.
