@@ -58,7 +58,7 @@ class HealthGrowthReportIntegrationTest {
     // Hôm nay 2026-10-15 (giờ trường)
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class ClockConfig {

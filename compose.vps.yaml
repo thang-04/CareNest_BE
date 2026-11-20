@@ -5,7 +5,8 @@ name: carenest-be
 
 services:
   postgres:
-    image: postgres:17-alpine
+    # PostgreSQL 17 kèm pgvector (xếp lại món ứng viên theo ngữ nghĩa, bảng dish_embeddings)
+    image: pgvector/pgvector:pg17
     network_mode: host
     restart: unless-stopped
     command: ["postgres", "-c", "listen_addresses=127.0.0.1"]

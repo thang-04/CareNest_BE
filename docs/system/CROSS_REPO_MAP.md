@@ -71,6 +71,7 @@ Lỗi liên quan contract/nghiệp vụ phát hiện ở FE/APP ⇒ ghi ở BE `
 | Endpoint/DTO/error format | `CareNest_FE/docs/integration/BACKEND_INTEGRATION.md`, `CareNest_APP/docs/integration/BACKEND_INTEGRATION.md`, BE `docs/contracts/` |
 | Parent visibility (PAR-*) | `CareNest_APP/docs/features/parent/` |
 | MealCount/menu | `CareNest_APP/docs/features/kitchen/`, `CareNest_FE/docs/architecture/ROUTE_MAP.md` (màn hình BGH) |
+| AI gợi ý thực đơn | FE `AiWeekComposer`, `AiTemplateComposer`, gợi ý thay món trong `WeeklyMenuPage` (đang dùng contract demo `/menu/ai-suggestions`) ⇒ đổi sang `/nutrition/menu-ai-drafts` (contract `specs/014-boarding-menu-ai/contracts/menu-ai-drafts.md`); APP không dùng |
 | Event gửi notification | `CareNest_APP/docs/integration/PUSH_NOTIFICATION.md` |
 | Cổng/domain deploy VPS (`docs/system/DEPLOYMENT.md`) | `CareNest_FE/docs/integration/DEPLOYMENT.md` (bảng cổng), `CareNest_FE/deploy/caddy/carenest-web.caddy` (`/api/*` ⇒ `127.0.0.1:18310`); APP: issuer `https://auth.carenest.edu.vn/realms/carenest`, API `https://thuonghong.carenest.edu.vn/api` |
 

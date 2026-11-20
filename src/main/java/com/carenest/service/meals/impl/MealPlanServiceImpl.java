@@ -13,7 +13,6 @@ import com.carenest.dto.meals.MenuStatisticsResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.CampusResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
-import com.carenest.entity.meals.AgeGroupMealConfig;
 import com.carenest.entity.meals.Dish;
 import com.carenest.entity.meals.DishIngredient;
 import com.carenest.entity.meals.Food;
@@ -23,7 +22,6 @@ import com.carenest.entity.meals.MealPlanDayRevision;
 import com.carenest.entity.meals.MealPlanItem;
 import com.carenest.entity.meals.MealPlanWeek;
 import com.carenest.exception.GlobalException;
-import com.carenest.repository.meals.AgeGroupMealConfigRepository;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.MealCountRepository;
 import com.carenest.repository.meals.MealPlanDayRevisionRepository;
@@ -39,12 +37,8 @@ import com.carenest.service.meals.MealPlanService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DayPlan;
-import com.carenest.service.meals.impl.MealPlanEvaluator.DishInfo;
-import com.carenest.service.meals.impl.MealPlanEvaluator.FoodInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.ItemPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Norm;
-import com.carenest.service.meals.impl.MealPlanEvaluator.Portion;
-import com.carenest.service.meals.impl.MealPlanEvaluator.Range;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.CampusService;
@@ -55,7 +49,6 @@ import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
-import com.carenest.utils.enums.Micronutrient;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
@@ -95,7 +88,6 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     private final MealPlanWeekRepository weekRepository;
     private final DishRepository dishRepository;
-    private final AgeGroupMealConfigRepository configRepository;
     private final MealCountRepository mealCountRepository;
     private final StockLedgerService stockLedgerService;
     private final AgeGroupService ageGroupService;
@@ -104,6 +96,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     private final DryStockOutlook dryStockOutlook;
     private final FoodPriceService foodPriceService;
     private final CampusService campusService;
+    private final MealPlanEvaluationSupport evaluationSupport;
     private final EnrollmentService enrollmentService;
     private final GuardianChildLinkService guardianChildLinkService;
     private final NotificationService notificationService;
@@ -478,17 +471,12 @@ public class MealPlanServiceImpl implements MealPlanService {
                     .map(i -> new ItemPlan(i.session(), info.block(), i.dishId()))
                     .distinct()
                     .toList();
-            Norm norm = configRepository.findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(date).stream()
-                    .filter(c -> c.getAgeGroupId().equals(group.id()))
-                    .findFirst()
-                    .map(MealPlanServiceImpl::toNorm)
-                    .orElse(null);
+            Norm norm = evaluationSupport.normsUntil(date).apply(group.id(), date);
             FoodPriceBook book = priceBook(dishes.values());
             MealPlanResponse.Evaluation evaluation = MealPlanEvaluator.evaluate(
                             List.of(new DayPlan(date, false, items)),
                             List.of(info),
-                            dishes.values().stream()
-                                    .collect(Collectors.toMap(Dish::getId, MealPlanServiceImpl::toDishInfo)),
+                            MealPlanEvaluationSupport.dishInfos(dishes.values()),
                             (ageGroupId, day) -> norm,
                             book::price)
                     .evaluations()
@@ -730,7 +718,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_DATE_INVALID, day.date());
             }
         }
-        Map<MenuBlock, Set<MealSession>> served = servedSessions(ageGroupService.getAgeGroups());
+        Map<MenuBlock, Set<MealSession>> served =
+                MealPlanEvaluationSupport.servedSessions(ageGroupService.getAgeGroups());
         Set<Long> dishIds = request.days().stream()
                 .flatMap(d -> d.items().stream())
                 .map(MealPlanRequest.ItemInput::dishId)
@@ -772,7 +761,7 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     private MealPlanResponse toResponse(CurrentUser currentUser, LocalDate weekStart, MealPlanWeek week) {
         // Lưới chỉ hiện khối có nhóm tuổi được kiểm (có lớp năm học hiện hành), cùng nguồn với bảng kiểm
-        List<AgeGroupInfo> groups = evaluatedGroups(ageGroupService.getAgeGroups());
+        List<AgeGroupInfo> groups = evaluationSupport.evaluatedGroups();
         Map<MenuBlock, Set<MealSession>> served = new EnumMap<>(MenuBlock.class);
         groups.forEach(
                 g -> served.computeIfAbsent(g.block(), b -> new TreeSet<>()).addAll(g.sessions()));
@@ -885,7 +874,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private MealPlanEvaluator.Result evaluate(LocalDate weekStart, MealPlanWeek week) {
-        List<AgeGroupInfo> groups = evaluatedGroups(ageGroupService.getAgeGroups());
+        List<AgeGroupInfo> groups = evaluationSupport.evaluatedGroups();
         Map<Long, Dish> dishes = dishRepository
                 .findByIdIn(week.getDays().stream()
                         .flatMap(d -> d.getItems().stream())
@@ -912,107 +901,13 @@ public class MealPlanServiceImpl implements MealPlanService {
                                             .map(it -> new ItemPlan(it.getSession(), it.getMenuBlock(), it.getDishId()))
                                             .toList()));
         }
-        Map<Long, List<AgeGroupMealConfig>> configs =
-                configRepository
-                        .findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(weekStart.plusDays(SCHOOL_DAYS - 1))
-                        .stream()
-                        .collect(Collectors.groupingBy(AgeGroupMealConfig::getAgeGroupId));
         FoodPriceBook book = priceBook(dishes.values());
         return MealPlanEvaluator.evaluate(
                 days,
                 groups,
-                dishes.values().stream().collect(Collectors.toMap(Dish::getId, MealPlanServiceImpl::toDishInfo)),
-                (ageGroupId, date) -> configs.getOrDefault(ageGroupId, List.of()).stream()
-                        .filter(c -> !c.getEffectiveFrom().isAfter(date))
-                        .findFirst()
-                        .map(MealPlanServiceImpl::toNorm)
-                        .orElse(null),
+                MealPlanEvaluationSupport.dishInfos(dishes.values()),
+                evaluationSupport.normsUntil(weekStart.plusDays(SCHOOL_DAYS - 1)),
                 book::price);
-    }
-
-    /** Nhóm tuổi có lớp trong năm học hiện hành; chưa có lớp nào thì kiểm mọi nhóm tuổi. */
-    private List<AgeGroupInfo> evaluatedGroups(List<AgeGroupDetailResponse> ageGroups) {
-        Set<Long> withClasses = classroomService.findActiveYearClassrooms().stream()
-                .map(ClassroomInfoResponse::ageGroupId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        return ageGroups.stream()
-                .filter(g -> withClasses.isEmpty() || withClasses.contains(g.id()))
-                .filter(g -> g.mealSessions() != null && !g.mealSessions().isEmpty())
-                .map(g -> new AgeGroupInfo(
-                        g.id(), g.name(), MenuBlock.ofAgeGroup(g.ageToMonths()), List.copyOf(g.mealSessions())))
-                .toList();
-    }
-
-    private static Map<MenuBlock, Set<MealSession>> servedSessions(Collection<AgeGroupDetailResponse> ageGroups) {
-        Map<MenuBlock, Set<MealSession>> served = new EnumMap<>(MenuBlock.class);
-        for (MenuBlock block : MenuBlock.values()) {
-            Set<MealSession> sessions = new TreeSet<>();
-            ageGroups.stream()
-                    .filter(g -> MenuBlock.ofAgeGroup(g.ageToMonths()) == block && g.mealSessions() != null)
-                    .forEach(g -> sessions.addAll(g.mealSessions()));
-            if (!sessions.isEmpty()) {
-                served.put(block, sessions);
-            }
-        }
-        return served;
-    }
-
-    private static DishInfo toDishInfo(Dish dish) {
-        Map<Long, List<Portion>> byAgeGroup = new HashMap<>();
-        for (DishIngredient ingredient : dish.getIngredients()) {
-            Food food = ingredient.getFood();
-            FoodInfo info = new FoodInfo(
-                    food.getId(),
-                    food.getKcal(),
-                    food.getProtein(),
-                    food.getLipid(),
-                    food.getGlucid(),
-                    food.getOrigin(),
-                    null,
-                    food.getPurchaseUnitSize(),
-                    food.getWastePct(),
-                    food.getAllergens().stream().map(a -> a.getName()).sorted().toList(),
-                    microOf(food));
-            byAgeGroup
-                    .computeIfAbsent(ingredient.getAgeGroupId(), id -> new ArrayList<>())
-                    .add(new Portion(info, ingredient.getGramsPerChild()));
-        }
-        return new DishInfo(dish.getId(), dish.getName(), dish.getDishType(), byAgeGroup);
-    }
-
-    private static Map<Micronutrient, BigDecimal> microOf(Food food) {
-        Map<Micronutrient, BigDecimal> micro = new EnumMap<>(Micronutrient.class);
-        for (Micronutrient nutrient : Micronutrient.values()) {
-            micro.put(nutrient, MicronutrientValues.of(food, nutrient));
-        }
-        return micro;
-    }
-
-    private static Norm toNorm(AgeGroupMealConfig c) {
-        Map<Micronutrient, Range> micro = new EnumMap<>(Micronutrient.class);
-        for (Micronutrient nutrient : Micronutrient.values()) {
-            micro.put(nutrient, new Range(MicronutrientValues.min(c, nutrient), MicronutrientValues.max(c, nutrient)));
-        }
-        Map<MealSession, Range> sessionKcalPct = new EnumMap<>(MealSession.class);
-        sessionKcalPct.put(MealSession.MORNING, new Range(c.getMorningKcalPctMin(), c.getMorningKcalPctMax()));
-        sessionKcalPct.put(MealSession.LUNCH, new Range(c.getLunchKcalPctMin(), c.getLunchKcalPctMax()));
-        sessionKcalPct.put(MealSession.AFTERNOON, new Range(c.getAfternoonKcalPctMin(), c.getAfternoonKcalPctMax()));
-        return new Norm(
-                c.getMealPrice(),
-                new Range(c.getKcalMin(), c.getKcalMax()),
-                new Range(c.getProteinPctMin(), c.getProteinPctMax()),
-                new Range(c.getLipidPctMin(), c.getLipidPctMax()),
-                new Range(c.getGlucidPctMin(), c.getGlucidPctMax()),
-                new Range(c.getAnimalProteinGMin(), c.getAnimalProteinGMax()),
-                new Range(c.getPlantProteinGMin(), c.getPlantProteinGMax()),
-                new Range(c.getAnimalLipidGMin(), c.getAnimalLipidGMax()),
-                new Range(c.getPlantLipidGMin(), c.getPlantLipidGMax()),
-                new Range(c.getGlucidGMin(), c.getGlucidGMax()),
-                sessionKcalPct,
-                c.getDailyKcalNeed(),
-                micro,
-                c.getServiceFee());
     }
 
     private static String blockLabel(MenuBlock block) {

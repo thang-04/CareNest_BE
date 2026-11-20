@@ -632,6 +632,18 @@ public enum ApiCode {
     SUPPLIER_INACTIVE(6101, HttpStatus.CONFLICT, "Nhà cung cấp đã ngừng hoạt động"),
     SUPPLIER_CONTRACT_RANGE_INVALID(
             6102, HttpStatus.BAD_REQUEST, "Ngày kết thúc hợp đồng không được trước ngày bắt đầu"),
+    // AI-07: nháp gợi ý thực đơn (6111–6114; 6091–6107 của dev dành cho sửa ngoại lệ thực đơn, giá thực phẩm, kiểm
+    // nhận, phí dịch vụ)
+    MENU_AI_DRAFT_NOT_FOUND(6111, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
+    MENU_AI_DRAFT_NOT_PENDING(
+            6112,
+            HttpStatus.CONFLICT,
+            "Gợi ý thực đơn đã dùng, đã bỏ hoặc không có phương án, không thao tác tiếp được"),
+    MENU_AI_DRAFT_STALE(
+            6113,
+            HttpStatus.CONFLICT,
+            "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
+    MENU_AI_DRAFT_KIND_INVALID(6114, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

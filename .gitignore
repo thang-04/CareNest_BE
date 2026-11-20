@@ -26,6 +26,8 @@ Thumbs.db
 # Logs
 *.log
 *.txt
+# Prompt AI có version là code, phải được commit
+!src/main/resources/prompts/**/*.txt
 
 # File test tạm (không push)
 *.tmp

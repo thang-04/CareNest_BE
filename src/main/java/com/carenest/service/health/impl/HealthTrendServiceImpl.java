@@ -11,8 +11,11 @@ import com.carenest.dto.health.PublishedHealthResponse.TrendWarning;
 import com.carenest.entity.health.HealthCheckCampaign;
 import com.carenest.entity.health.HealthInterpretation;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.ai.AiClient;
-import com.carenest.integration.ai.AiException;
+import com.carenest.integration.ai.AiClientException;
+import com.carenest.integration.ai.AiGateway;
+import com.carenest.integration.ai.AiProperties;
+import com.carenest.integration.ai.AiRawResult;
+import com.carenest.integration.ai.AiRequest;
 import com.carenest.repository.health.HealthInterpretationRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
@@ -21,11 +24,14 @@ import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.health.HealthTrendService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.AiErrorReason;
+import com.carenest.utils.enums.AiTask;
 import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.HealthTrendFollowUpType;
 import com.carenest.utils.enums.HealthTrendPeriod;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -48,7 +54,8 @@ public class HealthTrendServiceImpl implements HealthTrendService {
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     // Ngày đo trong câu cảnh báo của HealthGrowth ("lần đo ngày dd/MM/yyyy", "ngày … và dd/MM/yyyy")
     private static final Pattern MEASUREMENT_DATE = Pattern.compile("(?:ngày )?(\\d{2}/\\d{2}/\\d{4})");
-    private static final int MAX_TOKENS = 1200;
+    private static final String PROMPT_VERSION = "health/trend_v1";
+    private static final Duration DEFAULT_DEADLINE = Duration.ofSeconds(20);
     // HLT-21: AI chỉ viết lời theo khuôn JSON; cảnh báo và loại gợi ý do hệ thống quyết định (HLT-02, HLT-04)
     private static final String SYSTEM_PROMPT = String.join(
             "\n",
@@ -80,7 +87,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
     private final HealthCheckRules rules;
     private final HealthInterpretationRepository interpretationRepository;
     private final AccountService accountService;
-    private final AiClient aiClient;
+    private final AiGateway aiGateway;
     private final ObjectMapper objectMapper;
     private final EnrollmentService enrollmentService;
     private final HealthNotifier notifier;
@@ -107,25 +114,27 @@ public class HealthTrendServiceImpl implements HealthTrendService {
             List<TrendWarning> warnings = HealthGrowth.warnings(points);
             Set<HealthTrendFollowUpType> allowed =
                     HealthGrowth.allowedFollowUps(warnings, remeasurePossible(s, published, points.getLast(), childId));
-            if (!aiClient.isEnabled()) {
+            if (!aiGateway.isAvailable(AiTask.HEALTH_TREND)) {
                 throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
             }
-            AiClient.AiResult result;
+            Duration deadline = aiGateway
+                    .taskConfig(AiTask.HEALTH_TREND)
+                    .map(AiProperties.TaskConfig::deadline)
+                    .orElse(DEFAULT_DEADLINE);
+            AiRawResult result;
             try {
-                result = aiClient.complete(new AiClient.AiRequest(
-                        "health-trend",
+                result = aiGateway.complete(new AiRequest(
+                        AiTask.HEALTH_TREND,
+                        PROMPT_VERSION,
                         SYSTEM_PROMPT,
                         userPrompt(child.gender(), period, points, warnings, allowed),
-                        MAX_TOKENS,
-                        true));
-            } catch (AiException ex) {
+                        rules.now().plus(deadline)));
+            } catch (AiClientException ex) {
                 throw GlobalException.withCause(
-                        ex.getReason() == AiException.Reason.TIMEOUT
-                                ? ApiCode.AI_TIMEOUT
-                                : ApiCode.AI_SERVICE_UNAVAILABLE,
+                        ex.getReason() == AiErrorReason.TIMEOUT ? ApiCode.AI_TIMEOUT : ApiCode.AI_SERVICE_UNAVAILABLE,
                         ex);
             }
-            HealthTrendContent content = HealthTrendContentRules.fromAi(result.text(), warnings, allowed)
+            HealthTrendContent content = HealthTrendContentRules.fromAi(result.content(), warnings, allowed)
                     .orElse(null);
             if (content == null) {
                 log.warn("{}|blocked=invalidOutput", logPrefix);

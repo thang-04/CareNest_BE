@@ -65,7 +65,7 @@ class AttendanceIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     /** Đồng hồ đổi được giữa các bước test (trước/sau giờ chốt). */
     static final class MovableClock extends Clock {
