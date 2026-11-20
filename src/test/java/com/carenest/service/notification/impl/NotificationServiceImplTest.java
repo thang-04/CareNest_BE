@@ -26,9 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import java.util.concurrent.atomic.AtomicLong;
 import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -75,7 +75,9 @@ class NotificationServiceImplTest {
                 "Năm học 2026-2027 · Nhóm tuổi 4-5 tuổi");
 
         List<NotificationEmailDelivery> queued = queuedEmails();
-        assertThat(queued).extracting(NotificationEmailDelivery::getNotificationId).containsExactly(101L, 102L);
+        assertThat(queued)
+                .extracting(NotificationEmailDelivery::getNotificationId)
+                .containsExactly(101L, 102L);
         assertThat(queued).allSatisfy(d -> {
             assertThat(d.getState()).isEqualTo(PushState.PENDING);
             assertThat(d.getScope()).isEqualTo("Năm học 2026-2027 · Nhóm tuổi 4-5 tuổi");
@@ -87,7 +89,8 @@ class NotificationServiceImplTest {
         given(notifications.existsByUserIdAndTypeAndLink(5L, NotificationType.EDU_DEADLINE_NEAR, "/x"))
                 .willReturn(true);
 
-        service.notifyUsers(List.of(5L), NotificationType.EDU_DEADLINE_NEAR, "Gần đến hạn: X", "còn 3 ngày", "/x", true);
+        service.notifyUsers(
+                List.of(5L), NotificationType.EDU_DEADLINE_NEAR, "Gần đến hạn: X", "còn 3 ngày", "/x", true);
 
         assertThat(queuedEmails()).isEmpty();
     }

@@ -78,17 +78,18 @@ class EmailOutboxWorkerTest {
     }
 
     private void recipient(long userId, String email, String fullName) {
-        given(deliveries.findRecipient(userId)).willReturn(Optional.of(new NotificationEmailDeliveryRepository.Recipient() {
-            @Override
-            public String getEmail() {
-                return email;
-            }
+        given(deliveries.findRecipient(userId))
+                .willReturn(Optional.of(new NotificationEmailDeliveryRepository.Recipient() {
+                    @Override
+                    public String getEmail() {
+                        return email;
+                    }
 
-            @Override
-            public String getFullName() {
-                return fullName;
-            }
-        }));
+                    @Override
+                    public String getFullName() {
+                        return fullName;
+                    }
+                }));
     }
 
     @Test
@@ -101,8 +102,7 @@ class EmailOutboxWorkerTest {
         ArgumentCaptor<EmailMessage> sent = ArgumentCaptor.forClass(EmailMessage.class);
         verify(gateway).send(sent.capture());
         assertThat(sent.getValue().to()).containsExactly("gv@example.test");
-        assertThat(sent.getValue().subject())
-                .isEqualTo("[CareNest] Bị trả lại: Hồ sơ chủ đề Gia đình · Lớp Mầm 1");
+        assertThat(sent.getValue().subject()).isEqualTo("[CareNest] Bị trả lại: Hồ sơ chủ đề Gia đình · Lớp Mầm 1");
         assertThat(sent.getValue().html())
                 .contains("https://web.carenest.test/education/class/3/themes/7")
                 .contains("Mở hồ sơ")

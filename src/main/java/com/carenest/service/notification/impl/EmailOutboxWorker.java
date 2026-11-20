@@ -79,7 +79,10 @@ public class EmailOutboxWorker {
             try {
                 tx.executeWithoutResult(status -> sendOne(id));
             } catch (RuntimeException ex) {
-                log.warn("[EmailOutboxWorker]|sendDue|deliveryId={}|type={}", id, ex.getClass().getSimpleName());
+                log.warn(
+                        "[EmailOutboxWorker]|sendDue|deliveryId={}|type={}",
+                        id,
+                        ex.getClass().getSimpleName());
             }
         }
     }

@@ -87,32 +87,47 @@ public final class CareNestEmailLayout {
         b.append("<!DOCTYPE html>\n<html lang=\"vi\">\n<head>\n<meta charset=\"UTF-8\">\n")
                 .append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
                 .append("<title>CareNest</title>\n</head>\n")
-                .append("<body style=\"margin:0;padding:0;background-color:").append(PAGE_BG).append(";\">\n")
+                .append("<body style=\"margin:0;padding:0;background-color:")
+                .append(PAGE_BG)
+                .append(";\">\n")
                 .append("<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;\">")
-                .append(escape(preheader)).append("</div>\n")
+                .append(escape(preheader))
+                .append("</div>\n")
                 .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"")
-                .append(" style=\"background-color:").append(PAGE_BG).append(";\">\n<tr>\n")
+                .append(" style=\"background-color:")
+                .append(PAGE_BG)
+                .append(";\">\n<tr>\n")
                 .append("<td align=\"center\" style=\"padding:32px 12px;\">\n")
                 .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"")
                 .append(" style=\"max-width:560px;background-color:#ffffff;border-radius:10px;border-top:4px solid ")
-                .append(ACCENT).append(";\">\n")
+                .append(ACCENT)
+                .append(";\">\n")
                 .append("<tr><td style=\"padding:18px 32px;border-bottom:1px solid #e6eef5;\">\n")
                 .append("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n");
         if (EmailMessage.hasText(logoUrl)) {
-            b.append("<td style=\"padding-right:10px;vertical-align:middle;\"><img src=\"").append(escape(logoUrl))
+            b.append("<td style=\"padding-right:10px;vertical-align:middle;\"><img src=\"")
+                    .append(escape(logoUrl))
                     .append("\" width=\"36\" height=\"36\" alt=\"\" style=\"display:block;border:0;outline:none;")
                     .append("text-decoration:none;\"></td>\n");
         }
-        b.append("<td style=\"vertical-align:middle;font-family:").append(FONT)
-                .append(";font-size:20px;font-weight:bold;color:").append(HEADING).append(";\">CareNest</td>\n")
+        b.append("<td style=\"vertical-align:middle;font-family:")
+                .append(FONT)
+                .append(";font-size:20px;font-weight:bold;color:")
+                .append(HEADING)
+                .append(";\">CareNest</td>\n")
                 .append("</tr></table>\n</td></tr>\n")
-                .append("<tr><td style=\"padding:28px 32px 32px;font-family:").append(FONT)
-                .append(";font-size:15px;line-height:1.6;color:").append(TEXT).append(";\">\n");
+                .append("<tr><td style=\"padding:28px 32px 32px;font-family:")
+                .append(FONT)
+                .append(";font-size:15px;line-height:1.6;color:")
+                .append(TEXT)
+                .append(";\">\n");
         appendBody(b);
         b.append("</td></tr>\n</table>\n")
                 .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"")
                 .append(" style=\"max-width:560px;\">\n<tr><td align=\"center\" style=\"padding:16px 12px;font-family:")
-                .append(FONT).append(";font-size:12px;line-height:1.5;color:#8a99a8;\">").append(escape(FOOTER))
+                .append(FONT)
+                .append(";font-size:12px;line-height:1.5;color:#8a99a8;\">")
+                .append(escape(FOOTER))
                 .append("</td></tr>\n</table>\n</td>\n</tr>\n</table>\n</body>\n</html>\n");
         return b.toString();
     }
@@ -125,15 +140,19 @@ public final class CareNestEmailLayout {
         for (String p : paragraphs) b.append(p).append("\n\n");
         for (String[] f : facts) b.append(f[0]).append(": ").append(f[1]).append('\n');
         if (!facts.isEmpty()) b.append('\n');
-        if (EmailMessage.hasText(actionUrl)) b.append(actionLabel).append(": ").append(actionUrl).append("\n\n");
+        if (EmailMessage.hasText(actionUrl))
+            b.append(actionLabel).append(": ").append(actionUrl).append("\n\n");
         if (EmailMessage.hasText(note)) b.append(note).append("\n\n");
         b.append("--\n").append(FOOTER).append('\n');
         return b.toString();
     }
 
     private void appendBody(StringBuilder b) {
-        b.append("<h1 style=\"margin:0 0 16px;font-size:22px;line-height:1.3;color:").append(HEADING).append(";\">")
-                .append(escape(heading)).append("</h1>\n");
+        b.append("<h1 style=\"margin:0 0 16px;font-size:22px;line-height:1.3;color:")
+                .append(HEADING)
+                .append(";\">")
+                .append(escape(heading))
+                .append("</h1>\n");
         // Như mail Keycloak: lời chào và đoạn đầu chung một <p>, ngắt bằng <br>
         int blocks = Math.max(paragraphs.size(), greetingName != null ? 1 : 0);
         for (int i = 0; i < blocks; i++) {
@@ -148,13 +167,20 @@ public final class CareNestEmailLayout {
         }
         if (!facts.isEmpty()) {
             b.append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"")
-                    .append(" style=\"margin:0 0 20px;\"><tr><td style=\"background-color:").append(BOX_BG)
-                    .append(";border-radius:8px;padding:12px 16px;font-size:14px;color:").append(TEXT).append(";\">\n");
+                    .append(" style=\"margin:0 0 20px;\"><tr><td style=\"background-color:")
+                    .append(BOX_BG)
+                    .append(";border-radius:8px;padding:12px 16px;font-size:14px;color:")
+                    .append(TEXT)
+                    .append(";\">\n");
             for (int i = 0; i < facts.size(); i++) {
                 String[] f = facts.get(i);
                 if (i > 0) b.append("<br>\n");
-                b.append(escape(f[0])).append(": <strong style=\"color:").append(HEADING).append(";\">")
-                        .append(escape(f[1])).append("</strong>");
+                b.append(escape(f[0]))
+                        .append(": <strong style=\"color:")
+                        .append(HEADING)
+                        .append(";\">")
+                        .append(escape(f[1]))
+                        .append("</strong>");
             }
             b.append("\n</td></tr></table>\n");
         }
@@ -162,19 +188,34 @@ public final class CareNestEmailLayout {
             String url = escape(actionUrl);
             b.append("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"")
                     .append(" style=\"margin:0 0 24px;\"><tr><td style=\"border-radius:8px;background-color:")
-                    .append(ACCENT).append(";\">")
-                    .append("<a href=\"").append(url).append("\" target=\"_blank\" style=\"display:inline-block;")
-                    .append("padding:12px 28px;font-family:").append(FONT)
-                    .append(";font-size:15px;font-weight:bold;color:").append(HEADING)
-                    .append(";text-decoration:none;border-radius:8px;\">").append(escape(actionLabel))
+                    .append(ACCENT)
+                    .append(";\">")
+                    .append("<a href=\"")
+                    .append(url)
+                    .append("\" target=\"_blank\" style=\"display:inline-block;")
+                    .append("padding:12px 28px;font-family:")
+                    .append(FONT)
+                    .append(";font-size:15px;font-weight:bold;color:")
+                    .append(HEADING)
+                    .append(";text-decoration:none;border-radius:8px;\">")
+                    .append(escape(actionLabel))
                     .append("</a></td></tr></table>\n")
-                    .append("<p style=\"margin:0 0 12px;font-size:13px;color:").append(MUTED)
+                    .append("<p style=\"margin:0 0 12px;font-size:13px;color:")
+                    .append(MUTED)
                     .append(";\">Nếu nút không hoạt động, sao chép đường dẫn sau vào trình duyệt:<br>")
-                    .append("<a href=\"").append(url).append("\" target=\"_blank\" style=\"color:").append(LINK)
-                    .append(";word-break:break-all;\">").append(url).append("</a></p>\n");
+                    .append("<a href=\"")
+                    .append(url)
+                    .append("\" target=\"_blank\" style=\"color:")
+                    .append(LINK)
+                    .append(";word-break:break-all;\">")
+                    .append(url)
+                    .append("</a></p>\n");
         }
         if (EmailMessage.hasText(note)) {
-            b.append("<p style=\"margin:0;font-size:13px;color:").append(MUTED).append(";\">").append(escape(note))
+            b.append("<p style=\"margin:0;font-size:13px;color:")
+                    .append(MUTED)
+                    .append(";\">")
+                    .append(escape(note))
                     .append("</p>\n");
         }
     }

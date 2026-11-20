@@ -32,7 +32,9 @@ class CareNestEmailLayoutTest {
 
     @Test
     void logoRendersBesideBrandNameLikeKeycloakMail() {
-        String withLogo = CareNestEmailLayout.titled("T").logo("https://web.test/email/logo-mark.png").html();
+        String withLogo = CareNestEmailLayout.titled("T")
+                .logo("https://web.test/email/logo-mark.png")
+                .html();
         String withoutLogo = CareNestEmailLayout.titled("T").html();
 
         assertThat(withLogo).contains("<img src=\"https://web.test/email/logo-mark.png\" width=\"36\" height=\"36\"");
