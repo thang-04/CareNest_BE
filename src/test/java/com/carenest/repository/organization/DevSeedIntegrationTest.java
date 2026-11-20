@@ -55,11 +55,14 @@ class DevSeedIntegrationTest {
             "health_follow_ups",
             "health_follow_up_events",
             "health_follow_up_images",
-            "edu_resource_attachments");
+            "edu_resource_attachments",
+            // Nháp gợi ý thực đơn do người dùng tạo lúc chạy; vector món do embedding API sinh lười (AI tắt ⇒ rỗng)
+            "menu_ai_drafts",
+            "dish_embeddings");
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     JdbcTemplate jdbc;

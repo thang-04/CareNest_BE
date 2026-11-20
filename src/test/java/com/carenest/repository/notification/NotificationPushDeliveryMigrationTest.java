@@ -16,7 +16,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers(disabledWithoutDocker = true)
 class NotificationPushDeliveryMigrationTest {
     @Container
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Test
     void oldTerminalRowsAreNotReplayedAndLedgerConstraintsPreserveHistory() {

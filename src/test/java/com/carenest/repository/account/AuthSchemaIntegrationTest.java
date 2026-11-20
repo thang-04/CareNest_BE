@@ -17,7 +17,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class AuthSchemaIntegrationTest {
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     JdbcTemplate jdbc;

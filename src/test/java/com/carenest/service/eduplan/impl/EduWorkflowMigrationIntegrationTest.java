@@ -16,7 +16,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers(disabledWithoutDocker = true)
 class EduWorkflowMigrationIntegrationTest {
     @Container
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Test
     @DisplayName("EDU-54: expand giữ completed/legacy, seed policy tách biệt và baseline chỉ creator")
