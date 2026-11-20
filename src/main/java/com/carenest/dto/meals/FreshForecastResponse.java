@@ -9,7 +9,8 @@ import java.util.List;
  * Bản dự trù hàng tươi. {@code id}, {@code createdAt}, {@code createdBy} null khi xem trước (chưa lưu). Số lượng theo
  * đơn vị gốc (g/ml), đã tính thải bỏ. {@code canManage}: người xem có {@code STOCK_MANAGE} ở điểm trường.
  * {@code dryLines}: hàng khô cần nhập thêm (NUT-11, P-24 user đổi 08/11/2026) — tính lại mỗi lần xem theo tồn hiện tại,
- * không lưu; kỳ đã qua thì rỗng. {@code dryOrder}: lượng hàng khô đặt cho kỳ (chụp lúc lưu).
+ * không lưu; kỳ đã qua thì rỗng. {@code dryOrder}: lượng hàng khô đặt cho kỳ (chụp lúc lưu). {@code deletable} false khi bản
+ * đã làm căn cứ kiểm nhận (NUT-12) hoặc chưa lưu.
  */
 public record FreshForecastResponse(
         Long id,
@@ -24,7 +25,8 @@ public record FreshForecastResponse(
         List<DryOrderLine> dryOrder,
         Instant createdAt,
         Long createdBy,
-        boolean canManage) {
+        boolean canManage,
+        boolean deletable) {
 
     /** {@code enrolledCount}: số trẻ đang học lúc lập; {@code expectedCount}: số dùng để tính suất. */
     public record FreshForecastCount(Long ageGroupId, String ageGroupName, int enrolledCount, int expectedCount) {}

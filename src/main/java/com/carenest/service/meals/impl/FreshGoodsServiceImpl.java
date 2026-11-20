@@ -38,7 +38,9 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodStorage;
+import com.carenest.utils.enums.FreshCheckLock;
 import com.carenest.utils.enums.FreshCheckSource;
+import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.MenuBlock;
 import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
@@ -83,6 +85,7 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
 
     private final FreshForecastRepository forecastRepository;
     private final FreshCheckRepository checkRepository;
+    private final BoardingWriteGuard writeGuard;
     private final SupplierRepository supplierRepository;
     private final MealPlanWeekRepository weekRepository;
     private final MealCountRepository mealCountRepository;
@@ -130,6 +133,10 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                             .collect(Collectors.toMap(
                                     FreshForecastRepository.FoodCount::getForecastId,
                                     FreshForecastRepository.FoodCount::getFoodCount));
+            Set<Long> inUse = forecasts.isEmpty()
+                    ? Set.of()
+                    : Set.copyOf(checkRepository.findUsedForecastIds(
+                            forecasts.stream().map(FreshForecast::getId).toList()));
             List<FreshForecastSummaryResponse> response = forecasts.stream()
                     .map(f -> new FreshForecastSummaryResponse(
                             f.getId(),
@@ -138,7 +145,8 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                             f.getPeriodTo(),
                             f.getNote(),
                             foodCounts.getOrDefault(f.getId(), 0L).intValue(),
-                            f.getCreatedAt()))
+                            f.getCreatedAt(),
+                            !inUse.contains(f.getId())))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -177,6 +185,10 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         try {
             checkCanManage(currentUser, request.campusId());
             requireCampus(request.campusId());
+            // NUT-12: dự trù chỉ lập cho kỳ từ hôm nay trở đi (xem trước thì không chặn)
+            if (request.periodFrom().isBefore(LocalDate.now(clock))) {
+                throw GlobalException.of(ApiCode.FRESH_FORECAST_PERIOD_PAST);
+            }
             Calculated calculated = calculate(request, currentUser.userId());
             List<FreshForecastResponse.DryLine> dryLines = dryLines(calculated.forecast());
             // NUT-12 (user chốt 19/11/2026): chụp lượng hàng khô đặt; không gửi ⇒ lấy gợi ý phần thiếu tới hết kỳ
@@ -231,7 +243,11 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                     .findById(forecastId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.FRESH_FORECAST_NOT_FOUND));
             checkCanManage(currentUser, forecast.getCampusId());
-            // Lịch sử kiểm nhận giữ nguyên: khóa ngoại forecast_id tự về null
+            // NUT-12: bản đã làm căn cứ kiểm nhận lần 1 thì giữ lại để đối chiếu; khóa để không lọt giữa lúc đang kiểm
+            writeGuard.lock(forecast.getCampusId());
+            if (checkRepository.existsByForecastId(forecastId)) {
+                throw GlobalException.of(ApiCode.FRESH_FORECAST_IN_USE);
+            }
             forecastRepository.delete(forecast);
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -268,7 +284,15 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
             checkCanManage(currentUser, campusId);
             requireCampus(campusId);
             // Ghi cùng (điểm trường, ngày, lần) chạy tuần tự: bấm lưu hai lần không đụng khóa duy nhất
-            checkRepository.lockCampus(campusId);
+            writeGuard.lock(campusId);
+            // NUT-12: chỉ sửa trong ngày nhận hàng và khi M1 tươi chưa ký (INS-03); ký cùng khóa dòng campuses
+            FreshCheckLock lock = lockOf(campusId, date);
+            if (lock == FreshCheckLock.NOT_TODAY) {
+                throw GlobalException.of(ApiCode.FRESH_CHECK_DATE_LOCKED, LocalDate.now(clock));
+            }
+            if (lock == FreshCheckLock.M1_SIGNED) {
+                throw GlobalException.of(ApiCode.FRESH_CHECK_SIGNED);
+            }
             Expected expected =
                     switch (round) {
                         case ROUND_FORECAST -> forecastExpected(campusId, date);
@@ -392,6 +416,15 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         if (!campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, campusId)) {
             throw GlobalException.of(ApiCode.STOCK_ACCESS_DENIED);
         }
+    }
+
+    /** Null ⇒ còn ghi/sửa được. */
+    private FreshCheckLock lockOf(Long campusId, LocalDate date) {
+        BoardingWriteGuard.LockState state = writeGuard.stateOf(campusId, date, InspectionTab.FRESH);
+        if (state == null) {
+            return null;
+        }
+        return state == BoardingWriteGuard.LockState.NOT_TODAY ? FreshCheckLock.NOT_TODAY : FreshCheckLock.M1_SIGNED;
     }
 
     private void requireCampus(Long campusId) {
@@ -564,7 +597,9 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                         .toList(),
                 forecast.getCreatedAt(),
                 forecast.getCreatedBy(),
-                campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, forecast.getCampusId()));
+                campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, forecast.getCampusId()),
+                // Bản xem trước chưa lưu (id null) thì không có gì để xóa
+                forecast.getId() != null && !checkRepository.existsByForecastId(forecast.getId()));
     }
 
     /**
@@ -753,10 +788,13 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                 ? Map.of()
                 : supplierRepository.findAllById(supplierIds).stream()
                         .collect(Collectors.toMap(Supplier::getId, Function.identity()));
+        FreshCheckLock lock = lockOf(campusId, date);
         return new FreshCheckResponse(
                 campusId,
                 date,
                 campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, campusId),
+                lock == null,
+                lock,
                 List.of(
                         toRound(ROUND_FORECAST, forecastRound, saved.get(ROUND_FORECAST), foods, suppliers, defaults),
                         toRound(ROUND_SERVINGS, servingsRound, saved.get(ROUND_SERVINGS), foods, suppliers, defaults)),

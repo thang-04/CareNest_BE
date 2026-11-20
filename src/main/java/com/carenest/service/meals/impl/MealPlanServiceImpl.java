@@ -163,6 +163,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         try {
             checkCanManage(currentUser);
             checkMonday(weekStart);
+            checkWeekNotPast(weekStart);
             MealPlanWeek week = weekRepository
                     .findForUpdateByWeekStart(weekStart)
                     .orElseGet(() -> MealPlanWeek.draft(weekStart, currentUser.userId()));
@@ -188,6 +189,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         try {
             checkCanManage(currentUser);
             checkMonday(weekStart);
+            checkWeekNotPast(weekStart);
             MealPlanWeek week = weekRepository
                     .findForUpdateByWeekStart(weekStart)
                     .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PLAN_NOT_PUBLISHABLE, 1, "tuần chưa lập"));
@@ -429,6 +431,17 @@ public class MealPlanServiceImpl implements MealPlanService {
     private static void checkCanManage(CurrentUser currentUser) {
         if (!currentUser.hasPermission(Permission.MENU_MANAGE)) {
             throw GlobalException.of(ApiCode.FORBIDDEN);
+        }
+    }
+
+    // NUT-08: tuần đã ăn xong (qua thứ Sáu) không lưu hay công bố nữa; sửa ngày đã qua đi đường sửa ngoại lệ
+    private boolean isWeekPast(LocalDate weekStart) {
+        return weekStart.plusDays(SCHOOL_DAYS - 1L).isBefore(LocalDate.now(clock));
+    }
+
+    private void checkWeekNotPast(LocalDate weekStart) {
+        if (isWeekPast(weekStart)) {
+            throw GlobalException.of(ApiCode.MEAL_PLAN_WEEK_PAST, weekStart);
         }
     }
 
@@ -779,6 +792,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .collect(Collectors.toMap(Dish::getId, Function.identity()));
         boolean manage = currentUser.hasPermission(Permission.MENU_MANAGE);
         boolean published = week != null && week.isPublished();
+        boolean weekOpen = !isWeekPast(weekStart);
         List<MealPlanResponse.Day> dayViews = new ArrayList<>();
         for (int i = 0; i < SCHOOL_DAYS; i++) {
             LocalDate date = weekStart.plusDays(i);
@@ -815,8 +829,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 week == null ? NONE : week.getStatus().name(),
                 week == null ? null : week.getPublishedAt(),
                 week == null ? null : week.getPublishedBy(),
-                manage && !published,
-                manage && week != null && !published,
+                manage && !published && weekOpen,
+                manage && week != null && !published && weekOpen,
                 week != null && !published && result.publishable(),
                 blocks,
                 dayViews,
