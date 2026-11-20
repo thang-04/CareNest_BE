@@ -66,6 +66,7 @@ public class NutritionCatalogMapper {
                 config.getAgeGroupId(),
                 config.getEffectiveFrom(),
                 config.getMealPrice(),
+                config.getServiceFee(),
                 config.getKcalMin(),
                 config.getKcalMax(),
                 config.getProteinPctMin(),

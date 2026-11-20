@@ -117,6 +117,35 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     @Test
+    @DisplayName("NUT-19: phí dịch vụ lưu cùng giá suất; để trống thì bằng 0")
+    void storesServiceFeeAndDefaultsToZero() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.existsByAgeGroupId(AGE_GROUP)).willReturn(false);
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        AgeGroupMealConfigResponse withFee = service.createConfig(
+                VICE_PRINCIPAL,
+                feeRequest(TODAY.plusDays(1), null, null, null, null, null, null, new BigDecimal("5000")));
+        AgeGroupMealConfigResponse withoutFee =
+                service.createConfig(VICE_PRINCIPAL, request(TODAY.plusDays(2), null, null));
+
+        assertThat(withFee.serviceFee()).isEqualByComparingTo("5000");
+        assertThat(withoutFee.serviceFee()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("NUT-19: phí dịch vụ lớn hơn giá suất thì từ chối")
+    void rejectsServiceFeeAboveMealPrice() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+
+        assertThatThrownBy(() -> service.createConfig(
+                        VICE_PRINCIPAL,
+                        feeRequest(TODAY.plusDays(1), null, null, null, null, null, null, new BigDecimal("30001"))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.MEAL_SERVICE_FEE_INVALID);
+    }
+
+    @Test
     @DisplayName("NUT-18: chuẩn có min lớn hơn max thì từ chối")
     void rejectsInvertedNormRange() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
@@ -222,10 +251,23 @@ class AgeGroupMealConfigServiceImplTest {
             BigDecimal afternoonPctMin,
             BigDecimal ironMin,
             BigDecimal ironMax) {
+        return feeRequest(from, kcalMin, kcalMax, lunchPctMin, afternoonPctMin, ironMin, ironMax, null);
+    }
+
+    private static AgeGroupMealConfigRequest feeRequest(
+            LocalDate from,
+            BigDecimal kcalMin,
+            BigDecimal kcalMax,
+            BigDecimal lunchPctMin,
+            BigDecimal afternoonPctMin,
+            BigDecimal ironMin,
+            BigDecimal ironMax,
+            BigDecimal serviceFee) {
         return new AgeGroupMealConfigRequest(
                 AGE_GROUP,
                 from,
                 new BigDecimal("30000"),
+                serviceFee,
                 kcalMin,
                 kcalMax,
                 null,
@@ -276,6 +318,7 @@ class AgeGroupMealConfigServiceImplTest {
         config.changeInfo(
                 from,
                 new BigDecimal("30000"),
+                BigDecimal.ZERO,
                 new AgeGroupMealConfig.Norms(
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,

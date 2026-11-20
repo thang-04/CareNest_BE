@@ -528,6 +528,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     supplierCosts,
                     evaluation.cost(),
                     evaluation.mealPrice(),
+                    evaluation.serviceFee(),
+                    evaluation.foodBudget(),
                     evaluation);
             log.info("{}|END", logPrefix);
             return response;
@@ -1009,7 +1011,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 new Range(c.getGlucidGMin(), c.getGlucidGMax()),
                 sessionKcalPct,
                 c.getDailyKcalNeed(),
-                micro);
+                micro,
+                c.getServiceFee());
     }
 
     private static String blockLabel(MenuBlock block) {

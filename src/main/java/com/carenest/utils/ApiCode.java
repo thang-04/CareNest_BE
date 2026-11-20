@@ -533,6 +533,7 @@ public enum ApiCode {
     NUTRITION_NORM_RANGE_INVALID(6023, HttpStatus.BAD_REQUEST, "Chuẩn {0}: giá trị tối thiểu lớn hơn tối đa"),
     MEAL_SESSION_KCAL_PCT_INVALID(
             6049, HttpStatus.BAD_REQUEST, "Tổng tỷ lệ năng lượng tối thiểu của các bữa là {0}%, vượt 100%"),
+    MEAL_SERVICE_FEE_INVALID(6107, HttpStatus.BAD_REQUEST, "Phí dịch vụ không được lớn hơn giá suất"),
     AGE_GROUP_INVALID(6024, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
     SUPPLIER_NOT_FOUND(6025, HttpStatus.NOT_FOUND, "Không tìm thấy nhà cung cấp"),
     FOOD_ORIGIN_REQUIRED(6026, HttpStatus.BAD_REQUEST, "Cần chọn nguồn gốc động vật hoặc thực vật của thực phẩm"),
