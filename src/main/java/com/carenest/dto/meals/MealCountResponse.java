@@ -9,6 +9,7 @@ import java.util.List;
 /**
  * Sổ báo ăn một bữa của một điểm trường. id null + status OPEN = tạm tính trước giờ chốt. Người duyệt thấy số chờ xác
  * nhận lại (needsReconfirmation); bếp chỉ thấy số đã xác nhận. confirmedByRole: HT hay PHT xác nhận.
+ * {@code inspectionSigned}: biên bản M2/M3 của ngày đã ký ⇒ canConfirm, canAdjust luôn false, bấm Sửa lại biên bản để mở.
  */
 public record MealCountResponse(
         Long id,
@@ -27,7 +28,8 @@ public record MealCountResponse(
         Totals totals,
         List<Adjustment> adjustments,
         boolean canConfirm,
-        boolean canAdjust) {
+        boolean canAdjust,
+        boolean inspectionSigned) {
 
     /**
      * confirmedNormal / confirmedSubstitute: số đã chốt trước đó khi sổ đang chờ xác nhận lại (NUT-03, ADR-0005), để

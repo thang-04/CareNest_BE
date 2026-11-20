@@ -47,6 +47,10 @@ public class StockMovement {
     @Column(name = "meal_date")
     private LocalDate mealDate;
 
+    /** Ngày ăn được điều chỉnh khi M1 kho khô của ngày đó đã ký; khi đó {@code mealDate} là ngày thực hiện. */
+    @Column(name = "correction_for")
+    private LocalDate correctionFor;
+
     @Column(name = "receipt_id")
     private Long receiptId;
 
@@ -65,6 +69,7 @@ public class StockMovement {
             StockMovementType type,
             BigDecimal quantity,
             LocalDate mealDate,
+            LocalDate correctionFor,
             Long receiptId,
             String reason,
             Long createdBy) {
@@ -75,6 +80,7 @@ public class StockMovement {
         movement.movementType = type;
         movement.quantity = quantity;
         movement.mealDate = mealDate;
+        movement.correctionFor = correctionFor;
         movement.receiptId = receiptId;
         movement.reason = reason == null ? "" : reason;
         movement.createdBy = createdBy;
