@@ -585,6 +585,8 @@ class EduClassDocServiceIntegrationTest {
                 .allMatch(w -> w.path("status").asString().equals("DRAFT"));
         assertThat(docs.dayPlans()).allMatch(d -> d.path("status").asString().equals("DRAFT"));
         assertThat(docs.dayPlans().getFirst().path("days")).hasSize(5);
+        assertThat(docs.themeDossiers().getFirst().path("returned").asBoolean()).isTrue();
+        assertThat(docs.dayPlans().getFirst().path("returned").asBoolean()).isTrue();
         assertThat(docs.themeDossiers()
                         .getFirst()
                         .path("history")

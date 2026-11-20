@@ -20,7 +20,10 @@ public record EduConfigResponse(
         boolean canConfigure,
         List<Long> yearCreationScopes,
         List<Long> schoolYearCreationScopes,
-        int lateReturnGraceDays) {
+        int lateReturnGraceDays,
+        int lateApprovalGraceDays,
+        boolean canConfigureDeadlines,
+        tools.jackson.databind.JsonNode planDefaults) {
     public EduConfigResponse(
             List<Domain> domains,
             List<SchoolYearResponse> schoolYears,
@@ -43,7 +46,10 @@ public record EduConfigResponse(
                 canConfigure,
                 yearCreationScopes,
                 schoolYearCreationScopes,
-                2);
+                2,
+                2,
+                false,
+                null);
     }
 
     public EduConfigResponse(

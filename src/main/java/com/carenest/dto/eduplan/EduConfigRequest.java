@@ -19,11 +19,12 @@ public record EduConfigRequest(
         @NotNull List<@NotBlank @Size(max = 150) String> extraDomains,
         @NotNull @Valid Signers signers,
         @NotNull @Size(min = 1) List<@Valid WeekRow> weekRows,
-        @Min(0) @Max(30) Integer lateReturnGraceDays) {
+        @Min(0) @Max(30) Integer lateReturnGraceDays,
+        @Min(0) @Max(30) Integer lateApprovalGraceDays) {
 
     public EduConfigRequest(
             Map<String, String> domainLabels, List<String> extraDomains, Signers signers, List<WeekRow> weekRows) {
-        this(domainLabels, extraDomains, signers, weekRows, null);
+        this(domainLabels, extraDomains, signers, weekRows, null, null);
     }
 
     public record Signers(

@@ -84,6 +84,13 @@ class EduConfigServiceIntegrationTest {
     }
 
     @Test
+    void configExposesSeededTemplatesFromDatabase() {
+        var defaults = service.getEduConfig().planDefaults();
+        assertThat(defaults.path("day_template").path("DAY_SECTIONS").size()).isEqualTo(4);
+        assertThat(defaults.path("config_reset").path("weekRows").isArray()).isTrue();
+    }
+
+    @Test
     @DisplayName("EDU-21: cấu hình trả họ tên Hiệu trưởng, Phó HT đang hoạt động để in dưới chỗ ký tay")
     void signerNamesOfActivePrincipalAndVicePrincipals() {
         account("ht-ky", "Hiệu trưởng Ký Thử", "PRINCIPAL", "ACTIVE");
