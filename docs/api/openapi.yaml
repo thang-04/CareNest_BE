@@ -8094,6 +8094,149 @@ paths:
           description: OK
       tags:
       - meal-plan-controller
+  /api/nutrition/menu-ai-drafts:
+    post:
+      operationId: createDraft
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuAiDraftRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
+          description: Created
+      tags:
+      - menu-ai-draft-controller
+  /api/nutrition/menu-ai-drafts/{id}:
+    get:
+      operationId: getDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
+          description: OK
+      tags:
+      - menu-ai-draft-controller
+  /api/nutrition/menu-ai-drafts/{id}/apply:
+    post:
+      operationId: applyDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuAiDraftApplyRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealPlanResponse"
+          description: OK
+      tags:
+      - menu-ai-draft-controller
+  /api/nutrition/menu-ai-drafts/{id}/candidates:
+    get:
+      operationId: getCandidates
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuAiDraftCandidatesResponse"
+          description: OK
+      tags:
+      - menu-ai-draft-controller
+  /api/nutrition/menu-ai-drafts/{id}/dismiss:
+    post:
+      operationId: dismissDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
+          description: OK
+      tags:
+      - menu-ai-draft-controller
+  /api/nutrition/menu-ai-drafts/{id}/evaluate:
+    post:
+      operationId: evaluateDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuAiDraftGridRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuAiDraftEvaluationResponse"
+          description: OK
+      tags:
+      - menu-ai-draft-controller
+  /api/nutrition/menu-ai-drafts/{id}/mark-used:
+    post:
+      operationId: markDailyUsed
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
+          description: OK
+      tags:
+      - menu-ai-draft-controller
   /api/nutrition/menu-statistics:
     post:
       operationId: getMenuStatistics
@@ -10305,6 +10448,9 @@ components:
           type: number
           maximum: 100
           minimum: 0
+        serviceFee:
+          type: number
+          minimum: 0
         vitaminAMax:
           type: number
           maximum: 100000
@@ -10428,6 +10574,8 @@ components:
         proteinPctMax:
           type: number
         proteinPctMin:
+          type: number
+        serviceFee:
           type: number
         vitaminAMax:
           type: number
@@ -11210,6 +11358,21 @@ components:
           type: object
           additionalProperties:
             type: string
+    Breakdown:
+      type: object
+      properties:
+        cost:
+          type: integer
+          format: int32
+        norm:
+          type: integer
+          format: int32
+        variety:
+          type: integer
+          format: int32
+        warnings:
+          type: integer
+          format: int32
     Brief:
       type: object
       properties:
@@ -11474,6 +11637,39 @@ components:
           - TEAM_LEADER
       required:
       - role
+    ChangedCell:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        fromDishId:
+          type: integer
+          format: int64
+        fromDishName:
+          type: string
+        slot:
+          type: string
+        toDishId:
+          type: integer
+          format: int64
+        toDishName:
+          type: string
+    Check:
+      type: object
+      properties:
+        code:
+          type: string
+        detail:
+          type: string
+        label:
+          type: string
+        rules:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
     ChildAddressInput:
       type: object
       properties:
@@ -13334,11 +13530,15 @@ components:
         ageGroupId:
           type: integer
           format: int64
+        foodBudget:
+          type: number
         mealPrice:
           type: number
         name:
           type: string
         revenue:
+          type: number
+        serviceFee:
           type: number
         servings:
           type: integer
@@ -13454,6 +13654,8 @@ components:
         cost:
           type: number
         dryCost:
+          type: number
+        foodBudget:
           type: number
         freshCost:
           type: number
@@ -14397,12 +14599,16 @@ components:
         date:
           type: string
           format: date
+        foodBudget:
+          type: number
         mealPrice:
           type: number
         rows:
           type: array
           items:
             $ref: "#/components/schemas/NormRow"
+        serviceFee:
+          type: number
         sessions:
           type: array
           items:
@@ -18175,6 +18381,211 @@ components:
           $ref: "#/components/schemas/DeclarationAnswerInput"
         tbContact:
           $ref: "#/components/schemas/TbContactInput"
+    MenuAiDraftApplyRequest:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/Day"
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+    MenuAiDraftCandidatesResponse:
+      type: object
+      properties:
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/Slot"
+    MenuAiDraftEvaluationResponse:
+      type: object
+      properties:
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Check"
+        editedCells:
+          type: integer
+          format: int32
+        evaluations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evaluation"
+        feasible:
+          type: boolean
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/Issue"
+        score:
+          $ref: "#/components/schemas/Score"
+    MenuAiDraftGridRequest:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/Day"
+      required:
+      - days
+    MenuAiDraftRequest:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        fromDishId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - MENU_WEEKLY
+          - MENU_DAILY
+          - MENU_DAY_FIX
+        requiredDishIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 20
+          minItems: 0
+        season:
+          type: string
+          maxLength: 50
+          minLength: 0
+        strategy:
+          type: string
+          enum:
+          - FREE
+          - TEMPLATE_ADJUST
+        targetDate:
+          type: string
+          format: date
+        targetSession:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        unavailableFoodIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 50
+          minItems: 0
+        weekStart:
+          type: string
+          format: date
+        wishes:
+          type: string
+          maxLength: 300
+          minLength: 0
+      required:
+      - block
+      - kind
+    MenuAiDraftResponse:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        changedCells:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChangedCell"
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Check"
+        createdAt:
+          type: string
+          format: date-time
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/Day"
+        editedCells:
+          type: integer
+          format: int32
+        fallbackReason:
+          type: string
+          enum:
+          - AI_DISABLED
+          - AI_UNAVAILABLE
+          - AI_TIMEOUT
+          - AI_INVALID
+          - AI_NOT_BETTER
+        feasible:
+          type: boolean
+        fromDishId:
+          type: integer
+          format: int64
+        historyFrom:
+          type: string
+          format: date
+        historyTo:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/Issue"
+        kind:
+          type: string
+          enum:
+          - MENU_WEEKLY
+          - MENU_DAILY
+          - MENU_DAY_FIX
+        model:
+          type: string
+        promptVersion:
+          type: string
+        score:
+          $ref: "#/components/schemas/Score"
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/Slot"
+        source:
+          type: string
+          enum:
+          - AI
+          - RULE_BASED
+        status:
+          type: string
+          enum:
+          - PENDING_REVIEW
+          - APPLIED
+          - DISMISSED
+          - NO_FEASIBLE
+        strategy:
+          type: string
+          enum:
+          - FREE
+          - TEMPLATE_ADJUST
+        targetDate:
+          type: string
+          format: date
+        targetSession:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        weekStart:
+          type: string
+          format: date
     MenuDish:
       type: object
       properties:
@@ -18241,6 +18652,8 @@ components:
           type: number
         evaluation:
           $ref: "#/components/schemas/Evaluation"
+        foodBudget:
+          type: number
         freshCost:
           type: number
         ingredients:
@@ -18248,6 +18661,8 @@ components:
           items:
             $ref: "#/components/schemas/Ingredient"
         mealPrice:
+          type: number
+        serviceFee:
           type: number
         supplierCosts:
           type: array
@@ -22642,6 +23057,45 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonMenuAiDraftCandidatesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MenuAiDraftCandidatesResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonMenuAiDraftEvaluationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MenuAiDraftEvaluationResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonMenuAiDraftResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MenuAiDraftResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMenuStatisticsResponse:
       type: object
       properties:
@@ -24213,6 +24667,17 @@ components:
         semester2Start:
           type: string
           format: date
+    Score:
+      type: object
+      properties:
+        ai:
+          type: integer
+          format: int32
+        baseline:
+          type: integer
+          format: int32
+        breakdown:
+          $ref: "#/components/schemas/Breakdown"
     SemesterAssessmentChild:
       type: object
       properties:
@@ -24554,6 +25019,31 @@ components:
           - HOLIDAYS
         reason:
           type: string
+    Slot:
+      type: object
+      properties:
+        dishTypes:
+          type: array
+          items:
+            type: string
+            enum:
+            - CARB
+            - MAIN
+            - SOUP
+            - VEGETABLE
+            - SNACK
+            - DESSERT
+        index:
+          type: integer
+          format: int32
+        key:
+          type: string
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
     SourceClass:
       type: object
       properties:

@@ -31,10 +31,18 @@ public record DayMarketResponse(
     /**
      * @param servings số suất tính tiền ăn của nhóm trong ngày
      * @param mealPrice tiền ăn một trẻ một ngày đang hiệu lực (NUT-17); null khi nhóm chưa có cấu hình
+     * @param serviceFee phí dịch vụ một trẻ một ngày trong giá suất (NUT-19); null khi chưa có cấu hình
      * @param revenue servings × mealPrice; null khi chưa có mealPrice
+     * @param foodBudget servings × (mealPrice − serviceFee) = ngân sách mua thực phẩm; null khi chưa có mealPrice
      */
     public record DayMarketGroup(
-            Long ageGroupId, String name, int servings, BigDecimal mealPrice, BigDecimal revenue) {}
+            Long ageGroupId,
+            String name,
+            int servings,
+            BigDecimal mealPrice,
+            BigDecimal serviceFee,
+            BigDecimal revenue,
+            BigDecimal foodBudget) {}
 
     /**
      * @param storage FRESH (mua chợ, NUT-10) | DRY (xuất kho khô, NUT-11)
@@ -61,14 +69,16 @@ public record DayMarketResponse(
     public record DayMarketGroupShare(Long ageGroupId, BigDecimal quantity, BigDecimal cost) {}
 
     /**
-     * @param revenue tổng tiền ăn thu của các nhóm đã có giá; null khi chưa nhóm nào có giá
+     * @param revenue tổng tiền ăn của các nhóm đã có giá; null khi chưa nhóm nào có giá
+     * @param foodBudget tổng ngân sách mua thực phẩm (revenue trừ phí dịch vụ, NUT-19)
      * @param freshCost tiền hàng tươi mua chợ
      * @param dryCost tiền hàng khô xuất kho
-     * @param balance revenue − cost; null khi còn nhóm có suất chưa có giá tiền ăn
+     * @param balance foodBudget − cost; null khi còn nhóm có suất chưa có giá tiền ăn
      */
     public record DayMarketTotals(
             int servings,
             BigDecimal revenue,
+            BigDecimal foodBudget,
             BigDecimal cost,
             BigDecimal freshCost,
             BigDecimal dryCost,

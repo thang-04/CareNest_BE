@@ -19,7 +19,8 @@ import com.carenest.dto.health.HealthTrendAnalysisResponse;
 import com.carenest.dto.health.PublishedHealthResponse;
 import com.carenest.entity.health.HealthCheckCampaign;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.ai.AiClient;
+import com.carenest.integration.ai.AiGateway;
+import com.carenest.integration.ai.AiRawResult;
 import com.carenest.repository.health.HealthCheckCampaignRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
@@ -29,6 +30,7 @@ import com.carenest.service.health.HealthCheckService;
 import com.carenest.service.health.HealthMeasurementService;
 import com.carenest.service.health.HealthTrendService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.AiTask;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.DeclarationState;
 import com.carenest.utils.enums.HealthCheckKind;
@@ -72,7 +74,7 @@ class HealthRecordIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -84,7 +86,7 @@ class HealthRecordIntegrationTest {
     }
 
     @MockitoBean
-    private AiClient aiClient;
+    private AiGateway aiGateway;
 
     @Autowired
     private ChildRecordService recordService;
@@ -266,13 +268,18 @@ class HealthRecordIntegrationTest {
     void interpretationVisibleToParentOnlyAfterApproval() {
         measure(round("Cân đo tháng 9 (giả)", "2026-09-10", "2026-09-20"), "2026-09-15", "98.0", "15.0");
         measure(round("Cân đo tháng 11 (giả)", "2026-11-01", "2026-11-20"), "2026-11-09", "99.5", "15.6");
-        given(aiClient.isEnabled()).willReturn(true);
-        given(aiClient.complete(any()))
-                .willReturn(new AiClient.AiResult(
+        given(aiGateway.isAvailable(AiTask.HEALTH_TREND)).willReturn(true);
+        given(aiGateway.complete(any()))
+                .willReturn(new AiRawResult(
                         "{\"overview\": \"Chiều cao, cân nặng tăng đều.\", \"attentionPoints\": [],"
                                 + " \"positives\": [], \"followUps\": [{\"type\": \"RECHECK_NEXT_ROUND\","
                                 + " \"text\": \"Theo dõi ở kỳ cân đo sau.\"}], \"limitations\": null}",
-                        "model-x"));
+                        "groq",
+                        "model-x",
+                        "health/trend_v1",
+                        null,
+                        null,
+                        0L));
 
         HealthTrendAnalysisResponse draft = trendService.analyze(teacher, child, HealthTrendPeriod.ALL);
         entityManager.flush();

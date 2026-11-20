@@ -199,31 +199,40 @@ public class DayMarketServiceImpl implements DayMarketService {
                         FoodStorage.DRY.name().equals(line.storage()))
                 .thenComparing(line -> line.food().name()));
 
-        Map<Long, BigDecimal> prices = mealPrices(date);
+        Map<Long, AgeGroupMealConfig> configs = mealConfigs(date);
         List<DayMarketResponse.DayMarketGroup> groups = new ArrayList<>();
         int totalServings = 0;
         BigDecimal revenue = null;
+        BigDecimal foodBudget = null;
         boolean priceMissing = false;
         for (AgeGroupDetailResponse group : ageGroups) {
             int paid = paidServings(servingsByGroup.get(group.id()));
-            BigDecimal price = prices.get(group.id());
-            BigDecimal groupRevenue = price == null ? null : price.multiply(BigDecimal.valueOf(paid));
-            groups.add(new DayMarketResponse.DayMarketGroup(group.id(), group.name(), paid, price, groupRevenue));
+            AgeGroupMealConfig config = configs.get(group.id());
+            BigDecimal price = config == null ? null : config.getMealPrice();
+            BigDecimal fee = config == null ? null : config.getServiceFee();
+            BigDecimal paidCount = BigDecimal.valueOf(paid);
+            BigDecimal groupRevenue = price == null ? null : price.multiply(paidCount);
+            // NUT-19: ngân sách mua thực phẩm = (giá suất − phí dịch vụ) × số suất
+            BigDecimal groupBudget = price == null ? null : price.subtract(fee).multiply(paidCount);
+            groups.add(new DayMarketResponse.DayMarketGroup(
+                    group.id(), group.name(), paid, price, fee, groupRevenue, groupBudget));
             totalServings += paid;
             if (groupRevenue == null) {
                 priceMissing = true;
             } else {
                 revenue = revenue == null ? groupRevenue : revenue.add(groupRevenue);
+                foodBudget = foodBudget == null ? groupBudget : foodBudget.add(groupBudget);
             }
         }
         BigDecimal totalCost = freshCost.add(dryCost);
         DayMarketResponse.DayMarketTotals totals = new DayMarketResponse.DayMarketTotals(
                 totalServings,
                 revenue,
+                foodBudget,
                 totalCost,
                 freshCost,
                 dryCost,
-                revenue == null || priceMissing ? null : revenue.subtract(totalCost),
+                foodBudget == null || priceMissing ? null : foodBudget.subtract(totalCost),
                 ageGroups.stream()
                         .map(g -> new DayMarketResponse.DayMarketGroupCost(
                                 g.id(), costByGroup.getOrDefault(g.id(), BigDecimal.ZERO)))
@@ -250,7 +259,7 @@ public class DayMarketServiceImpl implements DayMarketService {
                 null,
                 List.of(),
                 List.of(),
-                new DayMarketResponse.DayMarketTotals(0, null, zero, zero, zero, null, List.of()),
+                new DayMarketResponse.DayMarketTotals(0, null, null, zero, zero, zero, null, List.of()),
                 List.of());
     }
 
@@ -273,14 +282,14 @@ public class DayMarketServiceImpl implements DayMarketService {
                 .orElse(0);
     }
 
-    /** NUT-17: tiền ăn một trẻ một ngày theo cấu hình hiệu lực gần nhất tính đến {@code date} của từng nhóm tuổi. */
-    private Map<Long, BigDecimal> mealPrices(LocalDate date) {
-        Map<Long, BigDecimal> prices = new HashMap<>();
+    /** NUT-17: giá suất và phí dịch vụ theo cấu hình hiệu lực gần nhất tính đến {@code date} của từng nhóm tuổi. */
+    private Map<Long, AgeGroupMealConfig> mealConfigs(LocalDate date) {
+        Map<Long, AgeGroupMealConfig> configs = new HashMap<>();
         for (AgeGroupMealConfig config :
                 configRepository.findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(date)) {
-            prices.putIfAbsent(config.getAgeGroupId(), config.getMealPrice());
+            configs.putIfAbsent(config.getAgeGroupId(), config);
         }
-        return prices;
+        return configs;
     }
 
     private static List<DayMarketResponse.DayMarketSessionMenu> menu(

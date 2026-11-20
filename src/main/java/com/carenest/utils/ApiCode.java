@@ -535,6 +535,7 @@ public enum ApiCode {
     NUTRITION_NORM_RANGE_INVALID(6023, HttpStatus.BAD_REQUEST, "Chuẩn {0}: giá trị tối thiểu lớn hơn tối đa"),
     MEAL_SESSION_KCAL_PCT_INVALID(
             6049, HttpStatus.BAD_REQUEST, "Tổng tỷ lệ năng lượng tối thiểu của các bữa là {0}%, vượt 100%"),
+    MEAL_SERVICE_FEE_INVALID(6107, HttpStatus.BAD_REQUEST, "Phí dịch vụ không được lớn hơn giá suất"),
     AGE_GROUP_INVALID(6024, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
     SUPPLIER_NOT_FOUND(6025, HttpStatus.NOT_FOUND, "Không tìm thấy nhà cung cấp"),
     FOOD_ORIGIN_REQUIRED(6026, HttpStatus.BAD_REQUEST, "Cần chọn nguồn gốc động vật hoặc thực vật của thực phẩm"),
@@ -633,6 +634,18 @@ public enum ApiCode {
     SUPPLIER_INACTIVE(6101, HttpStatus.CONFLICT, "Nhà cung cấp đã ngừng hoạt động"),
     SUPPLIER_CONTRACT_RANGE_INVALID(
             6102, HttpStatus.BAD_REQUEST, "Ngày kết thúc hợp đồng không được trước ngày bắt đầu"),
+    // AI-07: nháp gợi ý thực đơn (6111–6114; 6091–6107 của dev dành cho sửa ngoại lệ thực đơn, giá thực phẩm, kiểm
+    // nhận, phí dịch vụ)
+    MENU_AI_DRAFT_NOT_FOUND(6111, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
+    MENU_AI_DRAFT_NOT_PENDING(
+            6112,
+            HttpStatus.CONFLICT,
+            "Gợi ý thực đơn đã dùng, đã bỏ hoặc không có phương án, không thao tác tiếp được"),
+    MENU_AI_DRAFT_STALE(
+            6113,
+            HttpStatus.CONFLICT,
+            "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
+    MENU_AI_DRAFT_KIND_INVALID(6114, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

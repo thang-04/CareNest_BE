@@ -56,7 +56,7 @@ class LeaveRequestIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     static final class MovableClock extends Clock {
         private Instant now = BEFORE_CUTOFF;

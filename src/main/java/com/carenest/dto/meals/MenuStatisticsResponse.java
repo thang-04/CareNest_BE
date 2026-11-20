@@ -35,6 +35,8 @@ public record MenuStatisticsResponse(
         List<SupplierCost> supplierCosts,
         BigDecimal costPerChild,
         BigDecimal mealPrice,
+        BigDecimal serviceFee,
+        BigDecimal foodBudget,
         Evaluation evaluation) {
 
     public record SupplierCost(Long supplierId, String supplierName, ContractStatus contractStatus, BigDecimal cost) {}
