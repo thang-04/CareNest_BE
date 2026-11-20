@@ -470,6 +470,19 @@ Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một 
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `uk_device_tokens_token`, `(user_id)`, V130 `(updated_at)`.
 
+## notification_email_deliveries  (module: notification, scope: USER)
+Mục đích: hàng chờ email của thông báo kế hoạch giáo dục (`EDU_*`); tạo cùng giao dịch với thông báo, `EmailOutboxWorker` gửi sau commit. Migration: V158 (G94-386).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| notification_id | BIGINT FK notifications (cascade) | không | UNIQUE: mỗi thông báo (1 người nhận × 1 sự kiện) tối đa 1 email | EDU-74 |
+| scope | VARCHAR(300) | có | Phạm vi hiện trong email: năm học · nhóm tuổi · lớp | EDU-74 |
+| state | VARCHAR(10) | không | `PENDING` / `SENT` / `FAILED` / `SKIPPED` | — |
+| attempts | INTEGER | không | Số lần gửi đã thử (≥0) | — |
+| next_attempt_at, last_attempt_at, completed_at | TIMESTAMPTZ | có | Hẹn thử lại / lần thử cuối / lúc kết thúc; CHECK: PENDING ⇔ chưa kết thúc | — |
+| last_error_kind | VARCHAR(32) | có | `NO_EMAIL`, `NO_NOTIFICATION`, `SEND_FAILED`, `INVALID_MESSAGE`; không lưu địa chỉ/nội dung | — |
+| created_at | TIMESTAMPTZ | không | | — |
+Index: `uq_notification_email_delivery`, `idx_notification_email_due (next_attempt_at, id) WHERE state = 'PENDING'`.
+
 ## daily_observations  (module: learning-observation, scope: CHILD)
 Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V41__create_daily_observations.sql`. Dữ liệu quan sát — không log.
 | Column | Type | Null | Ý nghĩa | Rule ID |

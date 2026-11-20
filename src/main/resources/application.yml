@@ -228,6 +228,16 @@ carenest:
       starttls: ${CARENEST_EMAIL_SMTP_STARTTLS:true}
       connect-timeout: 5s
       read-timeout: 10s
+    # G94-386: gốc Web dựng nút "Mở hồ sơ" trong email (vd. https://carenest.example.vn); trống ⇒ email không có nút
+    web-base-url: ${CARENEST_WEB_BASE_URL:}
+    outbox:
+      # Worker gửi hàng chờ email sau commit; lỗi gửi thử lại tối đa max-attempts lần, giãn từ retry-delay
+      enabled: ${CARENEST_EMAIL_OUTBOX_ENABLED:true}
+      delay: ${CARENEST_EMAIL_OUTBOX_DELAY:30s}
+      batch-size: 50
+      max-attempts: 5
+      retry-delay: 1m
+      max-retry-delay: 1h
   edu-plan:
     # EDU-10: khóa "Đang sửa" kế hoạch năm tự nhả sau khoảng này kể từ lần lưu cuối
     edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:90s}

@@ -214,6 +214,10 @@ Gọi từ service (gửi đồng bộ; email không phải bước bắt buộc
 emailGateway.send(EmailMessage.html(guardianEmail, "Thông báo từ CareNest", html));
 ```
 
+Thiết kế email đồng bộ: HTML dựng qua `CareNestEmailLayout` (cùng màu, header, nút, footer với `carenest-layout.ftl` của Keycloak; `CareNestEmailLayoutTest` kiểm token chung), không tự viết khung HTML riêng.
+
+Email thông báo kế hoạch giáo dục (G94-386): không gửi đồng bộ — `NotificationService` xếp hàng `notification_email_deliveries` cùng giao dịch, `EmailOutboxWorker` gửi sau commit (cấu hình `carenest.email.outbox.*`). Nút "Mở hồ sơ" = `CARENEST_WEB_BASE_URL` + đường dẫn thông báo. Kiểm tra: `SELECT state, last_error_kind, count(*) FROM notification_email_deliveries GROUP BY 1, 2;` (`SKIPPED/NO_EMAIL` = người nhận chưa có email).
+
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 
 Điều kiện: review bảo mật gateway ADR-0013 xong; backup Postgres theo lịch đã thử khôi phục; người quản lý server đồng ý; SMTP thật. Xoá volume là **mất toàn bộ dữ liệu** của DB `carenest` và `keycloak`:

@@ -1211,7 +1211,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         "Gần đến hạn: " + labelOf(root, cls.get()),
                         body,
                         linkOf(root),
-                        true);
+                        true,
+                        scopeOf(cls.get()));
                 reminded++;
             }
             log.info("{}|reminded={}|END", logPrefix, reminded);
@@ -2885,7 +2886,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             .findFirst()
                             .map(EduClassDocServiceImpl::linkOf)
                             .orElse(null),
-                    false);
+                    false,
+                    scopeOf(cls));
     }
 
     /**
@@ -2930,7 +2932,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     "Đã mở khóa: " + labelOf(root, requireClass(root.getClassroomId())),
                     user.fullName() + " mở khóa tới " + deadline.format(DAY_FORMAT) + ". Lý do: " + note,
                     linkOf(root),
-                    false);
+                    false,
+                    scopeOf(requireClass(root.getClassroomId())));
         return toNode(user, root);
     }
 
@@ -2941,6 +2944,20 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return EduClassDoc.SEMESTER.equals(root.getKind())
                 ? "/education/class/" + root.getClassroomId() + "/semesters/" + root.getSemesterNo()
                 : "/education/class/" + root.getClassroomId() + "/themes/" + root.getThemeId();
+    }
+
+    // Phạm vi hiện trong email thông báo (G94-386)
+    private String scopeOf(ClassroomInfoResponse cls) {
+        return EduYearPlanServiceImpl.emailScope(
+                schoolStructureService
+                        .findSchoolYear(cls.schoolYearId())
+                        .map(com.carenest.dto.organization.SchoolYearResponse::name)
+                        .orElse(null),
+                schoolStructureService
+                        .findAgeGroup(cls.ageGroupId())
+                        .map(com.carenest.dto.organization.AgeGroupResponse::name)
+                        .orElse(null),
+                cls.name());
     }
 
     private String labelOf(EduClassDoc root, ClassroomInfoResponse cls) {
@@ -2992,7 +3009,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     (submit ? "Chờ bạn duyệt: " : "Chuyển bạn duyệt tiếp: ") + what,
                     user.fullName() + (submit ? " gửi duyệt" : " đã duyệt bước trước") + noteText,
                     linkOf(root),
-                    false);
+                    false,
+                    scopeOf(cls));
             return;
         }
         Long homeroom = homeroomOf(cls.id(), today);
@@ -3004,7 +3022,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     "Đã ban hành: " + what,
                     user.fullName() + " đã duyệt ban hành" + noteText,
                     linkOf(root),
-                    false);
+                    false,
+                    scopeOf(cls));
         else if (ACTION_REJECT.equals(action))
             notificationService.notifyUsers(
                     Set.of(homeroom),
@@ -3012,7 +3031,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     "Bị trả lại: " + what,
                     user.fullName() + " trả lại. Lý do: " + note,
                     linkOf(root),
-                    false);
+                    false,
+                    scopeOf(cls));
     }
 
     private ObjectNode readObject(String json) {
