@@ -6,9 +6,11 @@ import com.carenest.dto.notification.NotificationListResponse;
 import com.carenest.dto.notification.NotificationResponse;
 import com.carenest.entity.notification.DeviceToken;
 import com.carenest.entity.notification.Notification;
+import com.carenest.entity.notification.NotificationEmailDelivery;
 import com.carenest.entity.notification.NotificationRule;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.notification.DeviceTokenRepository;
+import com.carenest.repository.notification.NotificationEmailDeliveryRepository;
 import com.carenest.repository.notification.NotificationRepository;
 import com.carenest.repository.notification.NotificationRuleRepository;
 import com.carenest.security.CurrentUser;
@@ -19,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -40,22 +43,44 @@ public class NotificationServiceImpl implements NotificationService {
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 100;
     private static final int TOKEN_MAX = 512;
+    // G94-386: sự kiện kế hoạch giáo dục gửi kèm email (thay quyết định "email hoãn" của EDU-73, EDU-74)
+    private static final Set<NotificationType> EMAIL_TYPES = EnumSet.of(
+            NotificationType.EDU_SUBMITTED,
+            NotificationType.EDU_STEP_APPROVED,
+            NotificationType.EDU_RELEASED,
+            NotificationType.EDU_RETURNED,
+            NotificationType.EDU_DEADLINE_EXTENDED,
+            NotificationType.EDU_DEADLINE_NEAR);
 
     private final NotificationRepository notificationRepository;
     private final DeviceTokenRepository deviceTokenRepository;
     private final NotificationRuleRepository ruleRepository;
+    private final NotificationEmailDeliveryRepository emailDeliveryRepository;
     private final Clock clock;
 
     @Override
     public void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body, Long childId) {
-        save(userIds, type, title, body, childId, null, false);
+        save(userIds, type, title, body, childId, null, false, null);
     }
 
     @Override
     @Transactional
     public void notifyUsers(
             Collection<Long> userIds, NotificationType type, String title, String body, String link, boolean once) {
-        save(userIds, type, title, body, null, link, once);
+        save(userIds, type, title, body, null, link, once, null);
+    }
+
+    @Override
+    @Transactional
+    public void notifyUsers(
+            Collection<Long> userIds,
+            NotificationType type,
+            String title,
+            String body,
+            String link,
+            boolean once,
+            String scope) {
+        save(userIds, type, title, body, null, link, once, scope);
     }
 
     private void save(
@@ -65,7 +90,8 @@ public class NotificationServiceImpl implements NotificationService {
             String body,
             Long childId,
             String link,
-            boolean once) {
+            boolean once,
+            String scope) {
         String logPrefix = LOG_PREFIX + "|notifyUsers|type=" + type + "|users=" + userIds.size();
         log.info("{}|START", logPrefix);
         try {
@@ -78,6 +104,13 @@ public class NotificationServiceImpl implements NotificationService {
                                 && notificationRepository.existsByUserIdAndTypeAndLink(userId, type, link))) continue;
                 created.add(notificationRepository.save(
                         Notification.of(userId, type, truncate(title, 150), truncate(body, 500), childId, now, link)));
+            }
+            // Cùng giao dịch với thông báo: rollback nghiệp vụ ⇒ không có email; worker gửi sau commit
+            if (link != null && EMAIL_TYPES.contains(type)) {
+                String emailScope = truncate(scope, 300);
+                emailDeliveryRepository.saveAll(created.stream()
+                        .map(n -> NotificationEmailDelivery.create(n.getId(), emailScope, now))
+                        .toList());
             }
             log.info("{}|created={}|END", logPrefix, created.size());
         } catch (RuntimeException ex) {
@@ -105,7 +138,8 @@ public class NotificationServiceImpl implements NotificationService {
                 NotificationRuleCatalog.render(body, values),
                 childId,
                 null,
-                false);
+                false,
+                null);
     }
 
     @Override
