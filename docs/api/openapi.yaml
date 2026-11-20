@@ -10274,6 +10274,9 @@ components:
           type: number
           maximum: 100
           minimum: 0
+        serviceFee:
+          type: number
+          minimum: 0
         vitaminAMax:
           type: number
           maximum: 100000
@@ -10397,6 +10400,8 @@ components:
         proteinPctMax:
           type: number
         proteinPctMin:
+          type: number
+        serviceFee:
           type: number
         vitaminAMax:
           type: number
@@ -13299,11 +13304,15 @@ components:
         ageGroupId:
           type: integer
           format: int64
+        foodBudget:
+          type: number
         mealPrice:
           type: number
         name:
           type: string
         revenue:
+          type: number
+        serviceFee:
           type: number
         servings:
           type: integer
@@ -13419,6 +13428,8 @@ components:
         cost:
           type: number
         dryCost:
+          type: number
+        foodBudget:
           type: number
         freshCost:
           type: number
@@ -14321,12 +14332,16 @@ components:
         date:
           type: string
           format: date
+        foodBudget:
+          type: number
         mealPrice:
           type: number
         rows:
           type: array
           items:
             $ref: "#/components/schemas/NormRow"
+        serviceFee:
+          type: number
         sessions:
           type: array
           items:
@@ -18322,6 +18337,8 @@ components:
           type: number
         evaluation:
           $ref: "#/components/schemas/Evaluation"
+        foodBudget:
+          type: number
         freshCost:
           type: number
         ingredients:
@@ -18329,6 +18346,8 @@ components:
           items:
             $ref: "#/components/schemas/Ingredient"
         mealPrice:
+          type: number
+        serviceFee:
           type: number
         supplierCosts:
           type: array

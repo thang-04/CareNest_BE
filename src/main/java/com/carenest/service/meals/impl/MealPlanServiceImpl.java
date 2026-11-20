@@ -516,6 +516,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     supplierCosts,
                     evaluation.cost(),
                     evaluation.mealPrice(),
+                    evaluation.serviceFee(),
+                    evaluation.foodBudget(),
                     evaluation);
             log.info("{}|END", logPrefix);
             return response;

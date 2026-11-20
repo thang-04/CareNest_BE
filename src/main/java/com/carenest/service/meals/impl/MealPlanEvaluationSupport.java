@@ -165,6 +165,7 @@ class MealPlanEvaluationSupport {
                 new Range(c.getGlucidGMin(), c.getGlucidGMax()),
                 sessionKcalPct,
                 c.getDailyKcalNeed(),
-                micro);
+                micro,
+                c.getServiceFee());
     }
 }

@@ -12,7 +12,7 @@ Cách ly AI provider khỏi domain; chọn provider theo loại dữ liệu, gi�
   - `ProviderChainAiGateway`: thử lần lượt provider trong chuỗi của task tới khi có nội dung hoặc hết deadline.
   - `OpenAiCompatibleProvider`: `POST {baseUrl}/chat/completions`, `response_format` JSON, không retry.
   - `AiProperties`, `PromptTemplateLoader` (prompt có version trong `resources/prompts/`), `AiClientException` + `AiErrorReason`.
-  - Port `EmbeddingClient` (`isAvailable()`, `modelName()`, `budget()`, `embed(texts, timeout)`) + `OpenAiCompatibleEmbeddingClient` (`POST {baseUrl}/embeddings`, chia lô, kiểm số chiều, không retry, không log nội dung) + `EmbeddingProperties` (`carenest.embedding.*`). Chỉ nhận văn bản danh mục công khai và câu mong muốn của PHT (AI-04). Vector lưu ở `dish_embeddings` (nutrition, V161).
+  - Port `EmbeddingClient` (`isAvailable()`, `modelName()`, `budget()`, `embed(texts, timeout)`) + `OpenAiCompatibleEmbeddingClient` (`POST {baseUrl}/embeddings`, chia lô, kiểm số chiều, không retry, không log nội dung) + `EmbeddingProperties` (`carenest.embedding.*`). Chỉ nhận văn bản danh mục công khai và câu mong muốn của PHT (AI-04). Vector lưu ở `dish_embeddings` (nutrition, V162).
 
 ## KHÔNG owns
 Nháp nghiệp vụ (lưu ở module domain, vd. `menu_ai_drafts`), guard output theo tác vụ, quyết định duyệt, dữ liệu domain (không query domain).
