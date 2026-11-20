@@ -259,11 +259,15 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("yearStart") LocalDate yearStart,
             @Param("yearEnd") LocalDate yearEnd);
 
-    // Ứng viên PHT: người từng có phân công PHT (vai trò nằm ở Keycloak, chưa có API tài khoản để đọc)
+    // Ứng viên PHT: tài khoản có vai trò PHT (kể cả chưa từng được phân công điểm trường)
+    // cộng người từng có phân công PHT, để vẫn thấy lịch sử khi vai trò tài khoản đã đổi
     @Query(
-            value = "select distinct u.id as userId, u.full_name as fullName, u.email as email, u.status as status"
-                    + " from staff_assignments a join user_accounts u on u.id = a.user_id"
-                    + " where a.staff_role = 'VICE_PRINCIPAL' order by u.full_name, u.id",
+            value = "select u.id as userId, u.full_name as fullName, u.email as email, u.status as status"
+                    + " from user_accounts u"
+                    + " where u.primary_role = 'VICE_PRINCIPAL'"
+                    + " or exists (select 1 from staff_assignments a"
+                    + " where a.user_id = u.id and a.staff_role = 'VICE_PRINCIPAL')"
+                    + " order by u.full_name, u.id",
             nativeQuery = true)
     List<VicePrincipalRow> findVicePrincipalRows();
 
