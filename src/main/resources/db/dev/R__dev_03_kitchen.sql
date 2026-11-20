@@ -534,6 +534,47 @@ WHERE s.sampled_at <= now()
   AND NOT EXISTS (SELECT 1 FROM food_samples f
                   WHERE f.campus_id = s.campus_id AND f.sample_date = s.day AND f.session = s.session);
 
+-- Lịch sử sửa ngoại lệ thực đơn đã công bố (P-39): tuần trước, PHT đổi món mặn bữa trưa mẫu giáo của một ngày vì nhà
+-- cung cấp hết hàng. "Sau" = món đang có của ngày đó; "trước" = cùng ngày với món mặn cũ. Chỉ tạo khi tuần chưa có lần sửa.
+WITH target AS (
+    SELECT w.id AS week_id, i.menu_date, i.dish_id AS new_dish
+    FROM k3_ctx x
+    JOIN meal_plan_weeks w ON w.week_start = x.this_monday - 7 AND w.status = 'PUBLISHED'
+    JOIN meal_plan_items i ON i.week_id = w.id AND i.menu_block = 'KINDERGARTEN' AND i.session = 'LUNCH'
+    JOIN dishes d ON d.id = i.dish_id AND d.dish_type = 'MAIN'
+    WHERE NOT EXISTS (SELECT 1 FROM meal_plan_day_revisions r WHERE r.week_id = w.id)
+    ORDER BY i.menu_date, i.sort_order
+    LIMIT 1),
+old_dish AS (
+    SELECT d.id, d.name
+    FROM dishes d CROSS JOIN target t
+    WHERE d.dish_type = 'MAIN' AND d.status = 'ACTIVE' AND d.id <> t.new_dish
+    ORDER BY d.id
+    LIMIT 1),
+day_items AS (
+    SELECT i.session, i.menu_block, i.dish_id, d.name, i.sort_order,
+           (i.menu_block = 'KINDERGARTEN' AND i.session = 'LUNCH' AND i.dish_id = t.new_dish) AS swapped
+    FROM target t
+    JOIN meal_plan_items i ON i.week_id = t.week_id AND i.menu_date = t.menu_date
+    JOIN dishes d ON d.id = i.dish_id)
+INSERT INTO meal_plan_day_revisions (week_id, menu_date, before_items, after_items, reason, changed_by, changed_at)
+SELECT t.week_id, t.menu_date,
+       (SELECT jsonb_agg(jsonb_build_object('session', di.session, 'block', di.menu_block,
+                                            'dishId', CASE WHEN di.swapped THEN o.id ELSE di.dish_id END,
+                                            'dishName', CASE WHEN di.swapped THEN o.name ELSE di.name END)
+                         ORDER BY di.menu_block, di.session, di.sort_order)
+        FROM day_items di),
+       (SELECT jsonb_agg(jsonb_build_object('session', di.session, 'block', di.menu_block,
+                                            'dishId', di.dish_id, 'dishName', di.name)
+                         ORDER BY di.menu_block, di.session, di.sort_order)
+        FROM day_items di),
+       'Nhà cung cấp báo hết nguyên liệu món mặn, đổi sang món mặn khác cùng nhóm',
+       coalesce(x.pht_main, x.principal_id),
+       ((t.menu_date - 1) + TIME '14:00') AT TIME ZONE 'Asia/Ho_Chi_Minh'
+FROM target t
+CROSS JOIN old_dish o
+CROSS JOIN k3_ctx x;
+
 DROP TABLE k3_sample_state;
 DROP TABLE k3_sample;
 DROP TABLE k3_fresh_check;

@@ -21,6 +21,8 @@ import org.hibernate.annotations.CreationTimestamp;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AttendanceCutoff {
 
+    public static final LocalTime DEFAULT_LATEST_ARRIVAL = LocalTime.of(14, 0);
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -30,6 +32,10 @@ public class AttendanceCutoff {
 
     @Column(name = "cutoff_time", nullable = false)
     private LocalTime cutoffTime;
+
+    /** ATT-13: trẻ nghỉ sáng chưa đến tới giờ này thì tự thành Vắng cả ngày. */
+    @Column(name = "latest_afternoon_arrival", nullable = false)
+    private LocalTime latestAfternoonArrival = DEFAULT_LATEST_ARRIVAL;
 
     @Column(name = "effective_from", nullable = false)
     private LocalDate effectiveFrom;
@@ -53,5 +59,10 @@ public class AttendanceCutoff {
         cutoff.note = note;
         cutoff.createdBy = createdBy;
         return cutoff;
+    }
+
+    public AttendanceCutoff withLatestArrival(LocalTime latestArrival) {
+        this.latestAfternoonArrival = latestArrival == null ? DEFAULT_LATEST_ARRIVAL : latestArrival;
+        return this;
     }
 }

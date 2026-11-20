@@ -32,4 +32,7 @@ public interface ClassroomService {
 
     /** classroomId → số trẻ đang học (enrollment còn hiệu lực) tại ngày; lớp không có trẻ thì không có khóa. */
     Map<Long, Long> countActiveChildren(Collection<Long> classroomIds, LocalDate date);
+
+    /** Như countActiveChildren nhưng chỉ đếm trẻ có báo ăn (CHD-13); dùng cho sĩ số dự trù suất ăn. */
+    Map<Long, Long> countMealRegisteredChildren(Collection<Long> classroomIds, LocalDate date);
 }

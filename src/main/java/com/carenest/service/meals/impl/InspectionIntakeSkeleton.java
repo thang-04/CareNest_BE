@@ -2,6 +2,7 @@ package com.carenest.service.meals.impl;
 
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.FreshCheck;
+import com.carenest.entity.meals.FreshCheckLine;
 import com.carenest.entity.meals.StockLot;
 import com.carenest.entity.meals.StockMovement;
 import com.carenest.entity.meals.Supplier;
@@ -30,7 +31,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Khung dòng M1 (kiểm tra trước chế biến, INS-01): thực phẩm tươi từ kiểm nhận hàng tươi trong ngày (lần 2 nếu đã
- * ghi, không thì lần 1) kèm nhà cung cấp; thực phẩm khô từ các lô đã trừ kho cho bữa ăn của ngày (NUT-11) kèm nhà cung
+ * ghi, không thì lần 1) kèm nhà cung cấp theo từng dòng; thực phẩm khô từ các lô đã trừ kho cho bữa ăn của ngày (NUT-11) kèm nhà cung
  * cấp, ngày nhập, hạn dùng. Khối lượng đổi sang kg / lít như mẫu biểu. Chỉ đọc; ô PHT nhập để trống.
  */
 @Component
@@ -58,10 +59,15 @@ class InspectionIntakeSkeleton {
         }
         Map<Long, Food> foods =
                 foods(check.getLines().stream().map(line -> line.getFoodId()).collect(Collectors.toSet()));
-        Map<String, Object> supplier = supplierCells(
-                check.getSupplierId() == null
-                        ? null
-                        : supplierRepository.findById(check.getSupplierId()).orElse(null));
+        // NUT-12: NCC theo từng dòng; dòng cũ chưa có thì lấy NCC cấp lần kiểm
+        Map<Long, Supplier> suppliers = supplierRepository
+                .findAllById(Stream.concat(
+                                check.getLines().stream().map(FreshCheckLine::getSupplierId),
+                                Stream.of(check.getSupplierId()))
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(Supplier::getId, Function.identity()));
         String receivedAt = check.getCheckedAt().atZone(clock.getZone()).format(HOUR_MINUTE);
         return check.getLines().stream()
                 .filter(line -> foods.containsKey(line.getFoodId()))
@@ -76,7 +82,8 @@ class InspectionIntakeSkeleton {
                     row.put("unit", unitLabel(food.getUnit()));
                     row.put("quantity", displayQuantity(quantity));
                     row.put("receivedAt", receivedAt);
-                    row.putAll(supplier);
+                    Long supplierId = line.getSupplierId() != null ? line.getSupplierId() : check.getSupplierId();
+                    row.putAll(supplierCells(supplierId == null ? null : suppliers.get(supplierId)));
                     return row;
                 })
                 .toList();
@@ -85,7 +92,7 @@ class InspectionIntakeSkeleton {
     List<Map<String, Object>> dry(Long campusId, LocalDate date) {
         // Lượng đã trừ cho bữa ăn của ngày theo từng lô: bút toán âm cộng lại, trả lô (dương) trừ bớt
         Map<Long, BigDecimal> issuedByLot = new LinkedHashMap<>();
-        for (StockMovement movement : movementRepository.findByCampusIdAndMealDate(campusId, date)) {
+        for (StockMovement movement : movementRepository.findByCampusIdAndEffectiveMealDate(campusId, date)) {
             issuedByLot.merge(movement.getLotId(), movement.getQuantity().negate(), BigDecimal::add);
         }
         issuedByLot.values().removeIf(quantity -> quantity.signum() <= 0);

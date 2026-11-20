@@ -11,10 +11,12 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.eduplan.EduPlanCalendarQueryService;
+import com.carenest.service.observation.EvaluationDeadlineService;
 import com.carenest.service.observation.SemesterAssessmentService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
@@ -39,6 +41,8 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private final ObjectMapper mapper;
     private final ThemeEvaluationService themeEvaluationService;
     private final EduPlanCalendarQueryService calendar;
+    private final EvaluationDeadlineService evaluationDeadlineService;
+    private final EvaluationNotifier evaluationNotifier;
 
     @Override
     @Transactional(readOnly = true)
@@ -105,6 +109,8 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         rules.lockClassForUpdate(cls.id());
         var board = build(user, cls.id(), req.semester(), null);
         if (board.status().equals("CONFIRMED")) throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
+        // OBS-06 (Cần chốt 18/11/2026): quá hạn 5 ngày học sau ngày kết thúc học kỳ thì khóa, trừ khi BGH đang mở lại
+        evaluationDeadlineService.checkWritable(cls, EvaluationLockKind.SEMESTER, String.valueOf(req.semester()));
         if (rules.today().isBefore(board.startDate())) throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_STARTED);
         if (confirm && rules.today().isBefore(board.endDate()))
             throw GlobalException.of(ApiCode.SEMESTER_ASSESSMENT_NOT_ENDED);
@@ -124,6 +130,8 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
             entity.confirm(mapper.writeValueAsString(snapshot), user.userId(), rules.now());
         }
         repository.saveAndFlush(entity);
+        // Cần chốt 17/11/2026: xác nhận đánh giá học kỳ ⇒ báo phụ huynh từng trẻ (mẫu "Đánh giá mới của bé")
+        if (confirm) board.rows().forEach(c -> evaluationNotifier.childEvaluationConfirmed(c.childId()));
         return build(user, cls.id(), req.semester(), entity);
     }
 

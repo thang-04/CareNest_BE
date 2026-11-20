@@ -57,10 +57,15 @@ public class RoomController {
     // Để OpenAPI ghi 201 khớp ApiCode.CREATED
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<RoomResponse>> createRoom(
-            @Valid @RequestBody RoomRequest request, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|createRoom|userId=" + currentUser.userId();
+            @Valid @RequestBody RoomRequest request,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|createRoom|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        RoomResponse room = roomService.createRoom(currentUser, request);
+        // Có năm học: phòng chỉ thuộc năm đó (Cần chốt 19/11/2026)
+        RoomResponse room = schoolYearId == null
+                ? roomService.createRoom(currentUser, request)
+                : roomService.createRoom(currentUser, request, schoolYearId);
         log.info("{}|roomId={}|END", logPrefix, room.id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create room success", room);
     }
@@ -68,10 +73,15 @@ public class RoomController {
     @PutMapping("/{roomId}")
     @PreAuthorize("@permissionGuard.has('ROOM_MANAGE')")
     public ResponseEntity<ResponseJson<RoomResponse>> updateRoom(
-            @PathVariable Long roomId, @Valid @RequestBody RoomRequest request, CurrentUser currentUser) {
+            @PathVariable Long roomId,
+            @Valid @RequestBody RoomRequest request,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|updateRoom|userId=" + currentUser.userId() + "|roomId=" + roomId;
         log.info("{}|START", logPrefix);
-        RoomResponse room = roomService.updateRoom(currentUser, roomId, request);
+        RoomResponse room = schoolYearId == null
+                ? roomService.updateRoom(currentUser, roomId, request)
+                : roomService.updateRoom(currentUser, roomId, request, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update room success", room);
     }
@@ -79,20 +89,30 @@ public class RoomController {
     @PatchMapping("/{roomId}/status")
     @PreAuthorize("@permissionGuard.has('ROOM_MANAGE')")
     public ResponseEntity<ResponseJson<RoomResponse>> changeRoomStatus(
-            @PathVariable Long roomId, @Valid @RequestBody RoomStatusRequest request, CurrentUser currentUser) {
+            @PathVariable Long roomId,
+            @Valid @RequestBody RoomStatusRequest request,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|changeRoomStatus|userId=" + currentUser.userId() + "|roomId=" + roomId;
         log.info("{}|START", logPrefix);
-        RoomResponse room = roomService.changeRoomStatus(currentUser, roomId, request.status());
+        RoomResponse room = schoolYearId == null
+                ? roomService.changeRoomStatus(currentUser, roomId, request.status())
+                : roomService.changeRoomStatus(currentUser, roomId, request.status(), schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Change room status success", room);
     }
 
     @DeleteMapping("/{roomId}")
     @PreAuthorize("@permissionGuard.has('ROOM_MANAGE')")
-    public ResponseEntity<ResponseJson<Void>> deleteRoom(@PathVariable Long roomId, CurrentUser currentUser) {
+    public ResponseEntity<ResponseJson<Void>> deleteRoom(
+            @PathVariable Long roomId, @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|deleteRoom|userId=" + currentUser.userId() + "|roomId=" + roomId;
         log.info("{}|START", logPrefix);
-        roomService.deleteRoom(currentUser, roomId);
+        if (schoolYearId == null) {
+            roomService.deleteRoom(currentUser, roomId);
+        } else {
+            roomService.deleteRoom(currentUser, roomId, schoolYearId);
+        }
         log.info("{}|END", logPrefix);
         return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Delete room success");
     }

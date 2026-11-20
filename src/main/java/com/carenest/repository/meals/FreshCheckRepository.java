@@ -2,6 +2,7 @@ package com.carenest.repository.meals;
 
 import com.carenest.entity.meals.FreshCheck;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -17,6 +18,11 @@ public interface FreshCheckRepository extends JpaRepository<FreshCheck, Long> {
 
     @EntityGraph(attributePaths = "lines")
     Optional<FreshCheck> findByCampusIdAndCheckDateAndRound(Long campusId, LocalDate checkDate, short round);
+
+    boolean existsByForecastId(Long forecastId);
+
+    @Query("select distinct c.forecastId from FreshCheck c where c.forecastId in :forecastIds")
+    List<Long> findUsedForecastIds(@Param("forecastIds") Collection<Long> forecastIds);
 
     /**
      * Khóa dòng điểm trường tới hết transaction: ghi kiểm nhận cùng (điểm trường, ngày, lần) chạy tuần tự nên bấm

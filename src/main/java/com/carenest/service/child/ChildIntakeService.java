@@ -46,8 +46,12 @@ public interface ChildIntakeService {
     DuplicateCheckResponse checkDuplicate(
             CurrentUser actor, String fullName, String dateOfBirth, List<String> guardianIdNumbers, Long excludeId);
 
-    /** CHD-10: lớp đang hoạt động của năm học đang hoạt động trong phạm vi, kèm số trẻ đang học. */
-    List<PlacementClassResponse> listPlacementClasses(CurrentUser actor);
+    /** CHD-10: lớp nhận trẻ của năm đang hoạt động hoặc năm sắp tới trong phạm vi. */
+    List<PlacementClassResponse> listPlacementClasses(CurrentUser actor, Long schoolYearId);
+
+    default List<PlacementClassResponse> listPlacementClasses(CurrentUser actor) {
+        return listPlacementClasses(actor, null);
+    }
 
     /** CHD-03: trẻ đã nghỉ về Chờ xếp lớp ở điểm trường cũ, giữ mã, lịch sử, sức khỏe, tài khoản phụ huynh. */
     ChildViewResponse readmit(CurrentUser actor, Long childId, ReadmitChildRequest request);

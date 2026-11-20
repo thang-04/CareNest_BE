@@ -729,3 +729,28 @@ DROP TABLE d3_att;
 DROP TABLE d3_class_day;
 DROP TABLE d3_days;
 DROP TABLE d3_ctx;
+
+-- 9. Yêu cầu sửa khai báo sức khỏe của GV chủ nhiệm (CHD-11): một yêu cầu đã bị HT từ chối, GV thấy lý do ở màn khai
+-- báo. Không seed yêu cầu chờ duyệt: payload chờ duyệt phải là khai báo đầy đủ hợp lệ mới duyệt được.
+INSERT INTO child_profile_change_requests (child_id, kind, payload, status, requested_by, requested_at, decided_by,
+                                           decided_at, decision_note)
+SELECT e.child_id,
+       'HEALTH_DECLARATION',
+       jsonb_build_object('declaration', jsonb_build_object(
+                                  'allergies', jsonb_build_object('state', 'REPORTED', 'items', jsonb_build_array('Tôm')),
+                                  'diet', jsonb_build_object('state', 'NOT_PROVIDED', 'text', ''),
+                                  'otherNotes', jsonb_build_object('state', 'NOT_PROVIDED', 'text', '')),
+                          'reason', 'Phụ huynh báo bé dị ứng tôm'),
+       'REJECTED',
+       sa.user_id,
+       (CURRENT_DATE - 2) + TIME '15:10',
+       (SELECT u.id FROM user_accounts u WHERE u.primary_role = 'PRINCIPAL' ORDER BY u.id LIMIT 1),
+       (CURRENT_DATE - 1) + TIME '08:20',
+       'Chưa có xác nhận của phụ huynh, đề nghị gửi kèm giấy khám dị ứng'
+FROM staff_assignments sa
+JOIN enrollments e ON e.classroom_id = sa.classroom_id AND e.valid_to IS NULL
+WHERE sa.staff_role = 'TEACHER' AND sa.is_homeroom AND sa.valid_to IS NULL
+  AND EXISTS (SELECT 1 FROM user_accounts u WHERE u.primary_role = 'PRINCIPAL')
+  AND NOT EXISTS (SELECT 1 FROM child_profile_change_requests r WHERE r.kind = 'HEALTH_DECLARATION')
+ORDER BY sa.user_id, e.child_id
+LIMIT 1;

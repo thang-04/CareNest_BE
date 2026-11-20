@@ -2,6 +2,7 @@ package com.carenest.service.meals.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.carenest.dto.meals.MealPlanResponse;
 import com.carenest.dto.meals.MealPlanResponse.Evaluation;
 import com.carenest.dto.meals.MealPlanResponse.Issue;
 import com.carenest.dto.meals.MealPlanResponse.NormRow;
@@ -250,6 +251,41 @@ class MealPlanEvaluatorTest {
                         org.assertj.core.groups.Tuple.tuple("WARNING", "DISH_REPEATED"),
                         org.assertj.core.groups.Tuple.tuple("INFO", "ALLERGENS"));
         assertThat(result.publishable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("NUT-19: cảnh báo vượt khi chi phí lớn hơn ngân sách thực phẩm = giá suất − phí dịch vụ")
+    void overBudgetComparesCostWithFoodBudgetAfterServiceFee() {
+        // Chi phí 6000đ/trẻ; giá suất 8000đ: không phí ⇒ trong ngân sách, phí 3000đ ⇒ ngân sách 5000đ, vượt
+        MealPlanEvaluator.Result noFee = MealPlanEvaluator.evaluate(
+                List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> withFee(norm("280", "340", "8000"), "0"));
+        MealPlanEvaluator.Result withFee = MealPlanEvaluator.evaluate(
+                List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> withFee(norm("280", "340", "8000"), "3000"));
+
+        assertThat(noFee.issues()).extracting(Issue::code).doesNotContain("OVER_BUDGET");
+        assertThat(withFee.issues()).extracting(Issue::code).contains("OVER_BUDGET");
+        MealPlanResponse.Evaluation evaluation = withFee.evaluations().getFirst();
+        assertThat(evaluation.mealPrice()).isEqualByComparingTo("8000");
+        assertThat(evaluation.serviceFee()).isEqualByComparingTo("3000");
+        assertThat(evaluation.foodBudget()).isEqualByComparingTo("5000");
+    }
+
+    private static Norm withFee(Norm base, String serviceFee) {
+        return new Norm(
+                base.mealPrice(),
+                base.kcal(),
+                base.proteinPct(),
+                base.lipidPct(),
+                base.glucidPct(),
+                base.animalProteinG(),
+                base.plantProteinG(),
+                base.animalLipidG(),
+                base.plantLipidG(),
+                base.glucidG(),
+                base.sessionKcalPct(),
+                base.dailyKcalNeed(),
+                base.micro(),
+                new BigDecimal(serviceFee));
     }
 
     // Gạo 60 g + thịt 40 g: canxi 18 + 2,8 = 20,8; sắt 0,78 + 0,38 = 1,16; B1 0,06 + 0,36 = 0,42; thịt thiếu photpho

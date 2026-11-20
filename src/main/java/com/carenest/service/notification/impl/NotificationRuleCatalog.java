@@ -61,6 +61,14 @@ final class NotificationRuleCatalog {
                 "Thực đơn tuần mới",
                 "Thực đơn tuần {tuan} đã được công bố. Mở mục Thực đơn để xem.");
         editable(
+                NotificationType.MENU_CHANGED,
+                "NUT-08",
+                "Sửa thực đơn đã công bố",
+                true,
+                List.of("ngay", "lyDo"),
+                "Thực đơn ngày {ngay} thay đổi",
+                "Thực đơn ngày {ngay} đã được điều chỉnh. Lý do: {lyDo}. Mở mục Thực đơn để xem.");
+        editable(
                 NotificationType.HEALTH_RESULT_PUBLISHED,
                 "PAR-03",
                 "Công bố kết quả cân đo, khám sức khỏe",

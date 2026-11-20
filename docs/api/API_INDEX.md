@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 388 endpoint.
+Tổng: 404 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -156,6 +156,8 @@ GET /children/{childId}/photo · src/main/java/com/carenest/controller/child/Chi
 GET /children/{childId}/photo/url · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhotoUrl
 POST /children/{childId}/placement · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
 GET /children/{childId}/profile · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getProfile
+POST /children/{childId}/profile-change-requests · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#submitProfileChange
+GET /children/{childId}/profile-change-requests/latest · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#getLatestProfileChanges
 POST /children/{childId}/readmit · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#readmit
 GET /children/{childId}/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#listForParent
 POST /children/{childId}/withdraw · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
@@ -168,11 +170,16 @@ GET /children/guardian-overview · src/main/java/com/carenest/controller/child/G
 GET /children/parent-accounts · src/main/java/com/carenest/controller/child/ChildController.java#listParentAccounts
 GET /children/parent-accounts/by-citizen-id · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#findParentAccount
 GET /children/placement-classes · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#listPlacementClasses
+GET /children/profile-change-requests · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#listProfileChangeRequests
+GET /children/profile-change-requests/{requestId} · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#getProfileChangeRequest
+POST /children/profile-change-requests/{requestId}/approve · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#approveProfileChange
+POST /children/profile-change-requests/{requestId}/reject · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#rejectProfileChange
 POST /classes · src/main/java/com/carenest/controller/organization/ClassController.java#createClass
 DELETE /classes/{classId} · src/main/java/com/carenest/controller/organization/ClassController.java#deleteClass
 PUT /classes/{classId} · src/main/java/com/carenest/controller/organization/ClassController.java#updateClass
 GET /classes/{classId}/attendance · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClassAttendance
 PUT /classes/{classId}/attendance · src/main/java/com/carenest/controller/attendance/AttendanceController.java#saveClassAttendance
+POST /classes/{classId}/attendance/children/{childId}/arrived · src/main/java/com/carenest/controller/attendance/AttendanceController.java#markArrived
 GET /classes/{classId}/attendance/summary · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClassSummary
 GET /classes/{classId}/children/{childId}/daily-health · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getClassChildHealth
 GET /classes/{classId}/daily-assessment · src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#getDailySheet
@@ -307,10 +314,15 @@ GET /nutrition/foods · src/main/java/com/carenest/controller/meals/NutritionFoo
 POST /nutrition/foods · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#createFood
 GET /nutrition/foods/{foodId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getFood
 PUT /nutrition/foods/{foodId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#updateFood
+GET /nutrition/foods/{foodId}/prices · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getFoodPrices
+POST /nutrition/foods/{foodId}/prices · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#adjustFoodPrice
+DELETE /nutrition/foods/{foodId}/prices/{priceId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#deleteFoodPrice
+PUT /nutrition/foods/{foodId}/prices/{priceId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#updateFoodPrice
 PATCH /nutrition/foods/{foodId}/status · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#changeFoodStatus
 POST /nutrition/foods/import · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#importFoods
 GET /nutrition/fresh-checks · src/main/java/com/carenest/controller/meals/FreshGoodsController.java#getChecks
 PUT /nutrition/fresh-checks · src/main/java/com/carenest/controller/meals/FreshGoodsController.java#recordCheck
+POST /nutrition/fresh-checks/dry-receipts · src/main/java/com/carenest/controller/meals/FreshGoodsController.java#recordDryIntake
 GET /nutrition/fresh-forecasts · src/main/java/com/carenest/controller/meals/FreshGoodsController.java#getForecasts
 POST /nutrition/fresh-forecasts · src/main/java/com/carenest/controller/meals/FreshGoodsController.java#createForecast
 DELETE /nutrition/fresh-forecasts/{forecastId} · src/main/java/com/carenest/controller/meals/FreshGoodsController.java#deleteForecast
@@ -326,7 +338,9 @@ GET /nutrition/meal-photos/{photoId}/url · src/main/java/com/carenest/controlle
 GET /nutrition/meal-plans · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlans
 GET /nutrition/meal-plans/{weekStart} · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlan
 PUT /nutrition/meal-plans/{weekStart} · src/main/java/com/carenest/controller/meals/MealPlanController.java#saveMealPlan
+PUT /nutrition/meal-plans/{weekStart}/days/{date}/amend · src/main/java/com/carenest/controller/meals/MealPlanController.java#amendMealPlanDay
 POST /nutrition/meal-plans/{weekStart}/publish · src/main/java/com/carenest/controller/meals/MealPlanController.java#publishMealPlan
+GET /nutrition/meal-plans/{weekStart}/revisions · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlanRevisions
 POST /nutrition/menu-statistics · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMenuStatistics
 GET /nutrition/menu-templates · src/main/java/com/carenest/controller/meals/MenuTemplateController.java#getTemplates
 POST /nutrition/menu-templates · src/main/java/com/carenest/controller/meals/MenuTemplateController.java#createTemplate
@@ -348,6 +362,8 @@ GET /nutrition/suppliers · src/main/java/com/carenest/controller/meals/Supplier
 POST /nutrition/suppliers · src/main/java/com/carenest/controller/meals/SupplierController.java#createSupplier
 GET /nutrition/suppliers/{supplierId} · src/main/java/com/carenest/controller/meals/SupplierController.java#getSupplier
 PUT /nutrition/suppliers/{supplierId} · src/main/java/com/carenest/controller/meals/SupplierController.java#updateSupplier
+POST /nutrition/suppliers/{supplierId}/apply-contract · src/main/java/com/carenest/controller/meals/SupplierController.java#applyContract
+GET /nutrition/suppliers/{supplierId}/foods · src/main/java/com/carenest/controller/meals/SupplierController.java#getSupplierFoods
 PATCH /nutrition/suppliers/{supplierId}/status · src/main/java/com/carenest/controller/meals/SupplierController.java#changeSupplierStatus
 POST /parent-accounts/{userId}/activation-code · src/main/java/com/carenest/controller/child/GuardianController.java#resendActivationCode
 PATCH /parent-accounts/{userId}/status · src/main/java/com/carenest/controller/child/GuardianController.java#updateParentStatus

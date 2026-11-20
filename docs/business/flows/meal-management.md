@@ -5,8 +5,8 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 ## Thiết lập (NUT-05, NUT-17, NUT-18)
 
 ```text
-[S] PHT phụ trách dinh dưỡng cấu hình theo nhóm tuổi: các bữa/ngày, chuẩn dinh dưỡng,
-    giá suất, ngày hiệu lực                                                           (NUT-17, NUT-19)
+[S] Hiệu trưởng cấu hình theo nhóm tuổi: các bữa/ngày, chuẩn dinh dưỡng, giá suất,
+    ngày hiệu lực; PHT chỉ xem (user chốt 15/11/2026)                                 (NUT-17, NUT-19)
 [S] Danh mục thực phẩm: đơn vị, giá, dinh dưỡng có nguồn, chất dị ứng, Fresh/Stored,
     hệ số thải bỏ; nhập hàng loạt được                                                (NUT-05, NUT-10, NUT-18)
 [S] Thực phẩm có nguồn gốc động vật / thực vật; món, bữa, ngày tính 6 chỉ số
@@ -24,7 +24,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
       ↓
 [S] Kiểm tra xác định từng ngày trong tuần
     cân đối theo nhu cầu của Bộ — chưa đạt ⇒ chặn công bố                             (NUT-08, NUT-18)
-    giá vượt giá suất/ngày ⇒ cảnh báo                                                 (NUT-19)
+    chi phí vượt ngân sách thực phẩm (giá suất − phí dịch vụ) ⇒ cảnh báo              (NUT-19)
     món lặp trong tuần ⇒ cảnh báo                                                     (NUT-20)
     dị ứng                                                                            (NUT-09)
     kho khô không đủ theo sĩ số dự kiến ⇒ cảnh báo, chưa trừ                          (NUT-11, P-38)
@@ -35,7 +35,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 [S] PHT công bố thực đơn CẢ TUẦN, một lần cho cả trường — công bố là duyệt;
     không chờ chốt suất, không công bố theo ngày                                      (NUT-08, chốt 02/11)
       └─ bếp và phụ huynh xem thực đơn tuần đã công bố                                (PAR-01)
-[S] Đã công bố thì không sửa; ngoại lệ bất khả kháng: quyền riêng, lý do, báo bếp + PH (NUT-08, P-39)
+[S] Đã công bố thì không sửa; ngoại lệ bất khả kháng: PHT có MENU_MANAGE sửa cả ngày chưa tới/hôm nay trước giờ chốt, lý do bắt buộc, lưu lịch sử, báo bếp + PH, không cần duyệt (NUT-08, P-39)
 [S] Đến ngày: thực đơn không đổi, chỉ thêm ảnh bữa thực tế                           (NUT-16)
 ```
 

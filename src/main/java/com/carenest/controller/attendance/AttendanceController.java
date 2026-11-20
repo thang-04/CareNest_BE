@@ -87,6 +87,22 @@ public class AttendanceController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save class attendance success", saved);
     }
 
+    /** ATT-13: trẻ nghỉ buổi sáng đã đến lớp buổi chiều. */
+    @PostMapping("/classes/{classId}/attendance/children/{childId}/arrived")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_RECORD')")
+    public ResponseEntity<ResponseJson<SaveAttendanceResponse>> markArrived(
+            @PathVariable Long classId,
+            @PathVariable Long childId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|markArrived|userId=" + currentUser.userId() + "|classId=" + classId
+                + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        SaveAttendanceResponse saved = attendanceService.markArrived(currentUser, classId, childId, date);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Mark arrived success", saved);
+    }
+
     @GetMapping("/classes/{classId}/attendance/summary")
     @PreAuthorize("@permissionGuard.hasAny('ATTENDANCE_VIEW', 'ATTENDANCE_RECORD')")
     public ResponseEntity<ResponseJson<AttendanceSummaryResponse.ClassSummary>> getClassSummary(
@@ -107,13 +123,14 @@ public class AttendanceController {
     public ResponseEntity<ResponseJson<AttendanceSummaryResponse.MultiSummary>> getSummary(
             @RequestParam(required = false) Long campusId,
             @RequestParam(required = false) Long schoolYearId,
+            @RequestParam(required = false) Long ageGroupId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getSummary|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         AttendanceSummaryResponse.MultiSummary summary =
-                attendanceService.getSummary(currentUser, campusId, schoolYearId, from, to);
+                attendanceService.getSummary(currentUser, campusId, schoolYearId, ageGroupId, from, to);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get attendance summary success", summary);
     }

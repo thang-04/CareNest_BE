@@ -24,16 +24,21 @@ public record MealPlanResponse(
         List<Block> blocks,
         List<Day> days,
         List<Evaluation> evaluations,
-        List<Issue> issues) {
+        List<Issue> issues,
+        long revisionCount) {
 
     /** Khối: bữa phục vụ (hợp bữa các nhóm tuổi của khối) và nhóm tuổi thuộc khối. */
     public record Block(MenuBlock block, List<MealSession> sessions, List<Long> ageGroupIds) {}
 
-    public record Day(LocalDate date, boolean off, String note, List<Item> items) {}
+    /** {@code canAmend}: tuần đã công bố và người xem sửa ngoại lệ được ngày này (NUT-08, P-39). */
+    public record Day(LocalDate date, boolean off, String note, List<Item> items, boolean canAmend) {}
 
     public record Item(MealSession session, MenuBlock block, Long dishId, String dishName, DishType dishType) {}
 
-    /** {@code status}: OK, LOW, HIGH, NA (chưa đặt định mức), INCOMPLETE (thiếu số liệu), NO_DISHES. */
+    /**
+     * {@code status}: OK, LOW, HIGH, NA (chưa đặt định mức), INCOMPLETE (thiếu số liệu), NO_DISHES. {@code cost}
+     * đồng/trẻ; {@code foodBudget} = {@code mealPrice} − {@code serviceFee} (NUT-19), null khi chưa có giá suất.
+     */
     public record Evaluation(
             LocalDate date,
             Long ageGroupId,
@@ -43,6 +48,8 @@ public record MealPlanResponse(
             NutritionTotals totals,
             BigDecimal cost,
             BigDecimal mealPrice,
+            BigDecimal serviceFee,
+            BigDecimal foodBudget,
             List<NormRow> rows,
             List<SessionRow> sessions) {}
 

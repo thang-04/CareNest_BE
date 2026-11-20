@@ -11,6 +11,8 @@ import com.carenest.dto.account.GuardianPhoneChangeCreateRequest;
 import com.carenest.dto.account.GuardianPhoneChangeResponse;
 import com.carenest.dto.account.PhoneChangeDecisionRequest;
 import com.carenest.dto.child.ChildAddressInput;
+import com.carenest.dto.child.ChildProfileChangeCreateRequest;
+import com.carenest.dto.child.ChildProfileChangeResponse;
 import com.carenest.dto.child.ChildProfileInput;
 import com.carenest.dto.child.ChildUpdateResponse;
 import com.carenest.dto.child.ChildViewResponse;
@@ -31,6 +33,8 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PhoneChangeStatus;
+import com.carenest.utils.enums.ProfileChangeKind;
+import com.carenest.utils.enums.ProfileChangeStatus;
 import com.carenest.utils.enums.SmsStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -96,6 +100,9 @@ class ChildRecordIntegrationTest {
 
     @Autowired
     private GuardianPhoneChangeService phoneChangeService;
+
+    @Autowired
+    private com.carenest.service.account.ChildProfileChangeRequestService changeRequestService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -374,6 +381,102 @@ class ChildRecordIntegrationTest {
                         sibling))
                 .isEqualTo("Trần Thị Mẹ Mới");
         verify(identityProviderClient).replaceProfile("kc-parent-rc", "Trần Thị Mẹ Mới", null);
+    }
+
+    @Test
+    @DisplayName(
+            "CHD-11 (V153): GV được cấp CHILD_PROFILE_EDIT sửa ⇒ chờ duyệt, hồ sơ chưa đổi, báo HT; HT duyệt ⇒ đổi")
+    void teacherChangeWaitsForPrincipalApproval() {
+        Set<Permission> granted = new java.util.HashSet<>(TestPermissions.defaultsOf(CareNestRole.TEACHER));
+        granted.add(Permission.CHILD_PROFILE_EDIT);
+        CurrentUser grantedTeacher = user(teacher, CareNestRole.TEACHER, granted);
+        assertThatThrownBy(() ->
+                        editService.update(grantedTeacher, childA, edit("Trần Bé An Nhiên", OLD_PHONE, "0902000002")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL));
+
+        ChildProfileChangeResponse submitted = changeRequestService.submit(
+                grantedTeacher,
+                childA,
+                new ChildProfileChangeCreateRequest(
+                        ProfileChangeKind.PROFILE, edit("Trần Bé An Nhiên", OLD_PHONE, "0902000002"), null));
+        entityManager.flush();
+
+        assertThat(submitted.status()).isEqualTo(ProfileChangeStatus.PENDING);
+        assertThat(jdbc.queryForObject("SELECT full_name FROM children WHERE id = ?", String.class, childA))
+                .isEqualTo("Trần Bé An");
+        assertThat(count(
+                        "SELECT count(*) FROM notifications WHERE user_id = ? AND type = 'CHILD_PROFILE_CHANGE_REQUESTED'",
+                        principalId))
+                .isEqualTo(1);
+
+        ChildProfileChangeResponse approved = changeRequestService.approve(principal, submitted.id());
+        entityManager.flush();
+
+        assertThat(approved.status()).isEqualTo(ProfileChangeStatus.APPROVED);
+        assertThat(jdbc.queryForObject("SELECT full_name FROM children WHERE id = ?", String.class, childA))
+                .isEqualTo("Trần Bé An Nhiên");
+        assertThat(count(
+                        "SELECT count(*) FROM notifications WHERE user_id = ? AND type = 'CHILD_PROFILE_CHANGE_DECIDED'",
+                        teacher))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CHD-13: bỏ báo ăn giữ dị ứng đã khai; báo ăn lại ⇒ cờ true, dị ứng như cũ")
+    void unregisterKeepsAllergiesAndReregisterShowsThem() {
+        var none = new com.carenest.dto.child.DeclarationAnswerInput("NONE_REPORTED", null);
+        var history = new com.carenest.dto.child.MedicalHistoryInput(
+                none, none, new com.carenest.dto.child.TbContactInput("NONE_REPORTED", null));
+        var notProvided = new com.carenest.dto.child.DeclarationAnswerInput("NOT_PROVIDED", null);
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(
+                                new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Sữa")),
+                                none,
+                                notProvided,
+                                history),
+                        null));
+
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(
+                                new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Tôm")),
+                                none,
+                                notProvided,
+                                history,
+                                false),
+                        "Ngừng ăn bán trú"));
+        entityManager.flush();
+
+        var kept = recordService.findDeclaration(childA);
+        assertThat(kept.allergies().state()).isEqualTo(com.carenest.utils.enums.DeclarationState.REPORTED);
+        assertThat(kept.allergies().items()).containsExactly("Sữa");
+        assertThat(kept.diet().state()).isEqualTo(com.carenest.utils.enums.DeclarationState.NONE_REPORTED);
+        assertThat(jdbc.queryForObject("SELECT meal_registered FROM children WHERE id = ?", Boolean.class, childA))
+                .isFalse();
+
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(
+                                new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Sữa")),
+                                none,
+                                notProvided,
+                                history,
+                                true),
+                        "Báo ăn lại"));
+        entityManager.flush();
+
+        assertThat(jdbc.queryForObject("SELECT meal_registered FROM children WHERE id = ?", Boolean.class, childA))
+                .isTrue();
+        assertThat(recordService.findDeclaration(childA).allergies().items()).containsExactly("Sữa");
     }
 
     // ---------- dữ liệu ----------

@@ -25,6 +25,7 @@ import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.FoodStorage;
+import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StockMovementType;
 import java.math.BigDecimal;
@@ -66,6 +67,7 @@ public class StockLedgerServiceImpl implements StockLedgerService {
     private final SupplierRepository supplierRepository;
     private final MealDemandCalculator demandCalculator;
     private final CampusAccessPolicy campusAccessPolicy;
+    private final BoardingWriteGuard writeGuard;
     private final StockMapper mapper;
     private final Clock clock;
 
@@ -233,6 +235,9 @@ public class StockLedgerServiceImpl implements StockLedgerService {
                     && !campusAccessPolicy.canEditCampus(currentUser, Permission.MEAL_COUNT_CONFIRM, campusId)) {
                 throw GlobalException.of(ApiCode.STOCK_ACCESS_DENIED);
             }
+            // INS-03: M1 kho khô đã ký thì đồng bộ thủ công bị chặn; việc tự chạy vẫn ghi vào hôm nay (xem posting)
+            writeGuard.lock(campusId);
+            writeGuard.requireUnsigned(campusId, date, ApiCode.STOCK_DAY_INSPECTION_SIGNED, InspectionTab.DRY);
             syncDay(campusId, date);
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -311,6 +316,7 @@ public class StockLedgerServiceImpl implements StockLedgerService {
             StockMovementType type,
             Long receiptId,
             Long userId) {
+        Posting posting = posting(campusId, mealDate);
         List<StockLot> lots = lotRepository.findByCampusIdAndFoodIdOrderByExpiryDateAscIdAsc(campusId, foodId).stream()
                 .filter(lot -> !lot.getExpiryDate().isBefore(mealDate))
                 .toList();
@@ -325,10 +331,25 @@ public class StockLedgerServiceImpl implements StockLedgerService {
                 continue;
             }
             BigDecimal take = balance.min(remaining);
-            movementRepository.save(StockMovement.of(lot, type, take.negate(), mealDate, receiptId, "", userId));
+            movementRepository.save(StockMovement.of(
+                    lot, type, take.negate(), posting.postedOn(), posting.correctionFor(), receiptId, "", userId));
             remaining = remaining.subtract(take);
         }
         return amount.subtract(remaining);
+    }
+
+    /** Ngày ghi bút toán và ngày ăn được điều chỉnh (null khi ghi thẳng vào ngày ăn). */
+    private record Posting(LocalDate postedOn, LocalDate correctionFor) {}
+
+    /**
+     * M1 kho khô của ngày ăn đã ký thì biên bản không đổi: phần trừ/trả thêm (xác nhận lại suất, phiếu nhập bù hàng
+     * thiếu) ghi vào hôm nay kèm correction_for = ngày ăn, sổ kho vẫn đúng. Gọi sau khi đã khóa campuses.
+     */
+    private Posting posting(Long campusId, LocalDate mealDate) {
+        if (writeGuard.signed(campusId, mealDate, InspectionTab.DRY)) {
+            return new Posting(LocalDate.now(clock), mealDate);
+        }
+        return new Posting(mealDate, null);
     }
 
     /** Trả lại {@code amount} vào các lô đã bị trừ cho ngày ăn này, lô trừ gần nhất trước. */
@@ -336,9 +357,10 @@ public class StockLedgerServiceImpl implements StockLedgerService {
         if (amount.signum() <= 0) {
             return;
         }
+        Posting posting = posting(campusId, mealDate);
         Map<Long, BigDecimal> takenByLot = new LinkedHashMap<>();
         movementRepository
-                .findByCampusIdAndMealDateAndFoodIdOrderByIdDesc(campusId, mealDate, foodId)
+                .findByCampusIdAndEffectiveMealDateAndFoodIdOrderByIdDesc(campusId, mealDate, foodId)
                 .forEach(m -> takenByLot.merge(m.getLotId(), m.getQuantity().negate(), BigDecimal::add));
         Map<Long, StockLot> lots = lotRepository.findAllById(takenByLot.keySet()).stream()
                 .collect(Collectors.toMap(StockLot::getId, Function.identity()));
@@ -352,7 +374,14 @@ public class StockLedgerServiceImpl implements StockLedgerService {
             }
             BigDecimal give = entry.getValue().min(remaining);
             movementRepository.save(StockMovement.of(
-                    lots.get(entry.getKey()), StockMovementType.ADJUST, give, mealDate, null, "", null));
+                    lots.get(entry.getKey()),
+                    StockMovementType.ADJUST,
+                    give,
+                    posting.postedOn(),
+                    posting.correctionFor(),
+                    null,
+                    "",
+                    null));
             remaining = remaining.subtract(give);
         }
     }

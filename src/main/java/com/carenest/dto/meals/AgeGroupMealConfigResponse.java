@@ -9,6 +9,7 @@ public record AgeGroupMealConfigResponse(
         Long ageGroupId,
         LocalDate effectiveFrom,
         BigDecimal mealPrice,
+        BigDecimal serviceFee,
         BigDecimal kcalMin,
         BigDecimal kcalMax,
         BigDecimal proteinPctMin,

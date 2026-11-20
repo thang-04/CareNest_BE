@@ -233,9 +233,15 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         checkRange("vitamin PP", request.vitaminPpMin(), request.vitaminPpMax());
         checkRange("vitamin C", request.vitaminCMin(), request.vitaminCMax());
         checkSessionShares(request);
+        BigDecimal serviceFee = request.serviceFee() == null ? BigDecimal.ZERO : request.serviceFee();
+        // NUT-19: phí dịch vụ là một phần giá suất ⇒ ngân sách thực phẩm không âm
+        if (serviceFee.compareTo(request.mealPrice()) > 0) {
+            throw GlobalException.of(ApiCode.MEAL_SERVICE_FEE_INVALID);
+        }
         config.changeInfo(
                 request.effectiveFrom(),
                 request.mealPrice(),
+                serviceFee,
                 new AgeGroupMealConfig.Norms(
                         request.kcalMin(),
                         request.kcalMax(),

@@ -15,6 +15,7 @@ import com.carenest.service.meals.FoodSampleService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.FoodSampleDisposalStatus;
 import com.carenest.utils.enums.FoodSampleStatus;
+import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
 import java.time.Clock;
 import java.time.Instant;
@@ -22,6 +23,7 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +50,7 @@ public class FoodSampleServiceImpl implements FoodSampleService {
     private final FoodSampleRepository sampleRepository;
     private final DishRepository dishRepository;
     private final KitchenAccess kitchenAccess;
+    private final BoardingWriteGuard writeGuard;
     private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
 
@@ -83,7 +86,9 @@ public class FoodSampleServiceImpl implements FoodSampleService {
         try {
             Long campusId = kitchenAccess.resolveWriteCampus(currentUser);
             Instant now = clock.instant();
-            Instant sampledAt = validateRequest(request, now);
+            Instant sampledAt = validateRequest(request, now, now);
+            requireToday(request.date(), sampledAt);
+            requireSampleUnsigned(campusId, request.date());
             FoodSample saved = sampleRepository.save(FoodSample.record(
                     campusId,
                     request.date(),
@@ -113,7 +118,13 @@ public class FoodSampleServiceImpl implements FoodSampleService {
             if (!sample.isEditable()) {
                 throw GlobalException.of(ApiCode.FOOD_SAMPLE_LOCKED);
             }
-            Instant sampledAt = validateRequest(request, clock.instant());
+            // NUT-21: không dời mẫu sang ngày khác; mẫu của ngày đã qua không sửa lùi; thiếu giờ lấy mẫu thì giữ giờ cũ
+            if (!request.date().equals(sample.getSampleDate())) {
+                throw GlobalException.of(ApiCode.FOOD_SAMPLE_DATE_CHANGED);
+            }
+            Instant sampledAt = validateRequest(request, clock.instant(), sample.getSampledAt());
+            requireToday(sample.getSampleDate(), sampledAt);
+            requireSampleUnsigned(sample.getCampusId(), sample.getSampleDate());
             sample.change(
                     request.date(),
                     request.session(),
@@ -141,6 +152,7 @@ public class FoodSampleServiceImpl implements FoodSampleService {
             if (sample.getDisposalStatus() != FoodSampleDisposalStatus.NONE) {
                 throw GlobalException.of(ApiCode.FOOD_SAMPLE_STATE_INVALID);
             }
+            requireSampleUnsigned(sample.getCampusId(), sample.getSampleDate());
             Instant now = clock.instant();
             Instant disposedAt = request == null || request.disposedAt() == null ? now : request.disposedAt();
             if (disposedAt.isAfter(now)) {
@@ -246,9 +258,9 @@ public class FoodSampleServiceImpl implements FoodSampleService {
         return sample;
     }
 
-    /** Kiểm đầu vào ghi/sửa; trả giờ lấy mẫu (bỏ trống ⇒ lúc ghi). */
-    private Instant validateRequest(FoodSampleRequest request, Instant now) {
-        Instant sampledAt = request.sampledAt() == null ? now : request.sampledAt();
+    /** Kiểm đầu vào ghi/sửa; trả giờ lấy mẫu (bỏ trống ⇒ {@code defaultSampledAt}). */
+    private Instant validateRequest(FoodSampleRequest request, Instant now, Instant defaultSampledAt) {
+        Instant sampledAt = request.sampledAt() == null ? defaultSampledAt : request.sampledAt();
         if (sampledAt.isAfter(now)) {
             throw GlobalException.of(ApiCode.INVALID_VALUE, "sampledAt");
         }
@@ -269,6 +281,21 @@ public class FoodSampleServiceImpl implements FoodSampleService {
             }
         }
         return sampledAt;
+    }
+
+    // NUT-21: chỉ ghi lưu mẫu cho hôm nay, giờ lấy mẫu cùng ngày với ngày ghi
+    private void requireToday(LocalDate date, Instant sampledAt) {
+        LocalDate today = LocalDate.now(clock);
+        if (!today.equals(date)
+                || !sampledAt.atZone(clock.getZone()).toLocalDate().equals(date)) {
+            throw GlobalException.of(ApiCode.FOOD_SAMPLE_DATE_NOT_TODAY, today);
+        }
+    }
+
+    // INS-03: khóa điểm trường rồi mới xem M5 đã ký chưa, để không ghi lọt giữa lúc PHT đang ký
+    private void requireSampleUnsigned(Long campusId, LocalDate date) {
+        writeGuard.lock(campusId);
+        writeGuard.requireUnsigned(campusId, date, ApiCode.FOOD_SAMPLE_INSPECTION_SIGNED, InspectionTab.SAMPLE);
     }
 
     private static String noteOf(FoodSampleRequest request) {
@@ -300,12 +327,24 @@ public class FoodSampleServiceImpl implements FoodSampleService {
                 ? Map.of()
                 : dishRepository.findAllById(dishIds).stream()
                         .collect(Collectors.toMap(Dish::getId, Function.identity()));
+        LocalDate today = LocalDate.now(clock);
+        Map<Long, Boolean> signedByCampus = new HashMap<>();
         return samples.stream()
-                .map(sample -> toResponse(currentUser, sample, dishes))
+                .map(sample -> toResponse(
+                        currentUser,
+                        sample,
+                        dishes,
+                        // Chỉ mẫu sửa được của hôm nay mới cần hỏi biên bản M5 (một lần mỗi điểm trường)
+                        sample.isEditable()
+                                && today.equals(sample.getSampleDate())
+                                && !signedByCampus.computeIfAbsent(
+                                        sample.getCampusId(),
+                                        campusId -> writeGuard.signed(campusId, today, InspectionTab.SAMPLE))))
                 .toList();
     }
 
-    private FoodSampleResponse toResponse(CurrentUser currentUser, FoodSample sample, Map<Long, Dish> dishes) {
+    private FoodSampleResponse toResponse(
+            CurrentUser currentUser, FoodSample sample, Map<Long, Dish> dishes, boolean editable) {
         Map<Long, FoodSampleDishDetail> details = sample.getDishDetails().stream()
                 .collect(Collectors.toMap(FoodSampleDishDetail::dishId, Function.identity(), (a, b) -> a));
         List<FoodSampleResponse.SampleDish> sampleDishes = sample.getDishIds().stream()
@@ -341,6 +380,7 @@ public class FoodSampleServiceImpl implements FoodSampleService {
                 sample.getDisposalStatus(),
                 sample.getDisposalApprovedBy(),
                 sample.getDisposalApprovedAt(),
-                campusAccessPolicy.canEditCampus(currentUser, Permission.FOOD_SAFETY_APPROVE, sample.getCampusId()));
+                campusAccessPolicy.canEditCampus(currentUser, Permission.FOOD_SAFETY_APPROVE, sample.getCampusId()),
+                editable);
     }
 }

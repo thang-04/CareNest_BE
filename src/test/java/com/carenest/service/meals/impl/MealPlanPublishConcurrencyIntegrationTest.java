@@ -7,11 +7,14 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.MealPlanService;
+import com.carenest.support.MovableClock;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -25,7 +28,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -42,6 +48,18 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class MealPlanPublishConcurrencyIntegrationTest {
 
     private static final LocalDate MONDAY = LocalDate.of(2026, 11, 9);
+    private static final MovableClock CLOCK = new MovableClock();
+
+    // Tuần đã qua hết không lưu/công bố được: chạy test trong tuần thứ Hai
+    @TestConfiguration
+    static class ClockConfig {
+        @Bean
+        @Primary
+        Clock testClock() {
+            CLOCK.set(MONDAY, LocalTime.of(7, 0));
+            return CLOCK;
+        }
+    }
 
     @Container
     @ServiceConnection
@@ -173,12 +191,17 @@ class MealPlanPublishConcurrencyIntegrationTest {
     }
 
     private long food(String code, String storage, String origin, String kcal, String p, String l, String g) {
-        return insertId(
+        long foodId = insertId(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " kcal, protein, lipid, glucid, nutrient_source, storage, origin) VALUES ('" + code + "', '"
                         + code
                         + "', 'OTHER', 'g', 'kg', 1000, 20000, " + kcal + ", " + p + ", " + l + ", " + g + ", 'TEST', '"
                         + storage + "', '" + origin + "') RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private long dish(String code, String type, long foodId, int grams, long ageGroupId) {
