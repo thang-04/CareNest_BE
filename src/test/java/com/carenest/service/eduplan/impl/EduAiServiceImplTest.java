@@ -115,12 +115,8 @@ class EduAiServiceImplTest {
                 .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
         when(ai.isAvailable(any())).thenReturn(true);
         aiReturns("không phải JSON");
-        assertThatThrownBy(() -> service.ask("t", "p"))
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
+        assertThatThrownBy(() -> service.ask("t", "p")).extracting("apiCode").isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
         when(ai.complete(any())).thenThrow(new AiClientException(AiErrorReason.TIMEOUT, "slow", null));
-        assertThatThrownBy(() -> service.ask("t", "p"))
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.AI_TIMEOUT);
+        assertThatThrownBy(() -> service.ask("t", "p")).extracting("apiCode").isEqualTo(ApiCode.AI_TIMEOUT);
     }
 }
