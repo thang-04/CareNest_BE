@@ -299,6 +299,21 @@ public class EduYearPlanController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Unlock year plan success", plan);
     }
 
+    /** EDU-97: chỉ Hiệu trưởng mở lại lượt REVIEW đã quá hạn. */
+    @PostMapping("/{planId}/review-deadline/reopen")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> reopenReviewDeadline(
+            @PathVariable Long planId,
+            @Valid @RequestBody com.carenest.dto.eduplan.YearPlanReviewDeadlineReopenRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|reopenReviewDeadline|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan =
+                eduYearPlanService.reopenReviewDeadline(currentUser, planId, request.note(), request.deadline());
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reopen review deadline success", plan);
+    }
+
     @PostMapping("/{planId}/versions")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     @ResponseStatus(HttpStatus.CREATED)

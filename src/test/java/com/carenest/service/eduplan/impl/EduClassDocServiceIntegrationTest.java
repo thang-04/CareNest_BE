@@ -585,6 +585,8 @@ class EduClassDocServiceIntegrationTest {
                 .allMatch(w -> w.path("status").asString().equals("DRAFT"));
         assertThat(docs.dayPlans()).allMatch(d -> d.path("status").asString().equals("DRAFT"));
         assertThat(docs.dayPlans().getFirst().path("days")).hasSize(5);
+        assertThat(docs.themeDossiers().getFirst().path("returned").asBoolean()).isTrue();
+        assertThat(docs.dayPlans().getFirst().path("returned").asBoolean()).isTrue();
         assertThat(docs.themeDossiers()
                         .getFirst()
                         .path("history")
@@ -1020,6 +1022,34 @@ class EduClassDocServiceIntegrationTest {
                     assertThat(details.get(0).path("date").asString()).isEqualTo("2026-09-09");
                     assertThat(details.get(0).path("section").asString()).isEqualTo("goc");
                 });
+        saveDays("2026-09-07", days -> {});
+        assertThat(service.actOnClassDoc(teacher, "dossier", ds, submit(), versionOf(ds))
+                        .path("status")
+                        .asString())
+                .isEqualTo("REVIEW");
+    }
+
+    @Test
+    @DisplayName("EDU-95/96: còn phần AI chưa Giữ / Bỏ thì chặn gửi; khung Kiểm tra báo từng tiêu chí đạt / chưa đạt")
+    void dossierChecksListCriteriaAndBlockPendingAi() {
+        approveBranch();
+        saveDays(
+                "2026-09-07",
+                days -> ((ObjectNode) days.get(0)).putArray("aiSteps").add("hoc.0.teacher"));
+        saveDays("2026-09-21", days -> {});
+        String ds = "ds_" + classId + "_" + theme1;
+        tools.jackson.databind.JsonNode checks = service.getClassDocChecks(leader, "dossier", ds);
+        java.util.Map<String, Boolean> ok = new java.util.HashMap<>();
+        checks.path("items")
+                .forEach(i -> ok.put(i.path("key").asString(), i.path("ok").asBoolean()));
+        assertThat(ok)
+                .containsEntry("aiSettled", false)
+                .containsEntry("branchNames", true)
+                .containsEntry("daySections", true)
+                .containsKey("deadline");
+        assertThat(checks.path("passed").asInt()).isEqualTo(checks.path("total").asInt() - 1);
+        assertErrorCode(
+                () -> service.actOnClassDoc(teacher, "dossier", ds, submit(), versionOf(ds)), ApiCode.AI_DRAFT_PENDING);
         saveDays("2026-09-07", days -> {});
         assertThat(service.actOnClassDoc(teacher, "dossier", ds, submit(), versionOf(ds))
                         .path("status")

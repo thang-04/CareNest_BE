@@ -67,7 +67,9 @@ public class SchoolStructureMapper {
                 ageGroup.getCode(),
                 ageGroup.getName(),
                 ageGroup.getShortName(),
-                ageGroup.getSortOrder());
+                ageGroup.getSortOrder(),
+                ageGroup.getAgeFromMonths(),
+                ageGroup.getAgeToMonths());
     }
 
     private static Integer toInteger(Short value) {

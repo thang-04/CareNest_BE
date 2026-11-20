@@ -46,7 +46,9 @@ public interface EduHeaderRepository<T extends EduPlan> extends JpaRepository<T,
     @Query("""
             select p from #{#entityName} p
             where (:schoolYearId is null or p.schoolYearId = :schoolYearId)
-              and (:ageGroupId is null or p.ageGroupId = :ageGroupId)
+              and (:ageGroupId is null or p.ageGroupId in
+                   (select g.id from AgeGroup g, AgeGroup chosen where chosen.id = :ageGroupId
+                    and g.ageFromMonths = chosen.ageFromMonths and g.ageToMonths = chosen.ageToMonths))
               and (p.disabled = false or p.disabled is null)
               and (p.status in :schoolWideStatuses
                    or p.ageGroupId in :fullAgeGroupIds

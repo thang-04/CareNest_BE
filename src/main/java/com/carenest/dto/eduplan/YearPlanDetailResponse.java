@@ -50,7 +50,8 @@ public record YearPlanDetailResponse(
         Long previousSourcePlanId,
         List<ReviewItem> reviewItems,
         List<NewItem> newItems,
-        TimeLock timeLock) {
+        TimeLock timeLock,
+        boolean returned) {
 
     /** Spec 004: hạn = ngày bắt đầu năm học; khóa từ ngày đó tới khi Hiệu trưởng mở khóa. */
     public record TimeLock(
@@ -58,7 +59,25 @@ public record YearPlanDetailResponse(
             java.time.LocalDate extendedTo,
             String deadlineState,
             boolean timeLocked,
-            boolean canUnlock) {}
+            boolean canUnlock,
+            ReviewDeadline reviewDeadline,
+            LocalDate graceTo,
+            Long daysLeft) {
+        public TimeLock(
+                LocalDate deadline, LocalDate extendedTo, String deadlineState,
+                boolean timeLocked, boolean canUnlock, ReviewDeadline reviewDeadline) {
+            this(deadline, extendedTo, deadlineState, timeLocked, canUnlock, reviewDeadline, null, null);
+        }
+    }
+
+    /** EDU-97: khóa xử lý REVIEW, không phải khóa soạn/gửi theo mốc năm học. */
+    public record ReviewDeadline(
+            java.time.LocalDate lockFrom,
+            java.time.LocalDate reopenUntil,
+            boolean locked,
+            boolean isCurrentReviewer,
+            boolean canReopen,
+            String reason) {}
 
     @com.fasterxml.jackson.annotation.JsonProperty
     public com.carenest.utils.enums.EduPlanLevel planType() {
@@ -171,7 +190,8 @@ public record YearPlanDetailResponse(
                 null,
                 List.of(),
                 List.of(),
-                null);
+                null,
+                false);
     }
 
     public YearPlanDetailResponse(

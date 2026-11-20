@@ -19,6 +19,12 @@ public interface EduClassDocService {
 
     com.carenest.entity.eduplan.EduClassDoc requireDayAccess(CurrentUser currentUser, String docKey, boolean write);
 
+    /** EDU-96: tiêu chí gửi duyệt của gói học kỳ / hồ sơ chủ đề (đạt / chưa đạt từng dòng), cho ai xem được tài liệu. */
+    ObjectNode getClassDocChecks(CurrentUser currentUser, String kind, String docKey);
+
+    /** EDU-96: giáo án ngày mà người dùng là người soạn hoặc đang có lượt duyệt hồ sơ chủ đề chứa nó. */
+    com.carenest.entity.eduplan.EduClassDoc requireDayReviewAccess(CurrentUser currentUser, String docKey);
+
     /** Trạng thái hiệu lực của giáo án ngày: Chờ duyệt nếu ngày hoặc hồ sơ chủ đề chứa nó Chờ duyệt; ban hành theo hồ sơ. */
     com.carenest.utils.enums.EduClassDocStatus dayStatus(com.carenest.entity.eduplan.EduClassDoc day);
 

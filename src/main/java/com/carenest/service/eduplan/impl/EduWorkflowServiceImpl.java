@@ -422,6 +422,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             List<EduPlan> pendingYears =
                     yearPlanRepository.findAllByStatusInForUpdateOrderByIdAsc(List.of(EduPlanStatus.REVIEW));
             for (EduPlan plan : pendingYears) {
+                // EDU-97: đổi policy không được tự ban hành một lượt REVIEW đã hết hạn.
+                if (reviewDeadlineLocked(plan, settings, today)) continue;
                 RolePolicy yearPolicy = loadPolicy(plan.workflowKey());
                 Evaluation eval = evaluator.evaluate(
                         yearPolicy,
@@ -515,6 +517,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             var classInfos = batchClassroomInfos(pendingClassDocs);
             var policies = loadAllPolicies();
             for (EduClassDoc doc : pendingClassDocs) {
+                // EDU-97: reconcile chỉ chạy lại sau khi Hiệu trưởng đã mở lại hạn của đúng lượt duyệt.
+                if (reviewDeadlineLocked(doc, settings, today)) continue;
                 RolePolicy currentPolicy = policies.get(EduClassDoc.policyType(doc.getKind()));
                 Set<Long> excludedAuthors = classAuthors.get(doc.getId());
                 ClassroomInfoResponse classroom = classInfos.get(doc.getClassroomId());
@@ -625,6 +629,48 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         event.put("round", round);
         event.put("policyRevision", revision);
         return event;
+    }
+
+    private boolean reviewDeadlineLocked(EduPlan plan, EduSettings settings, LocalDate today) {
+        LocalDate submitted = plan.getSentAt() == null ? null : LocalDate.ofInstant(plan.getSentAt(), clock.getZone());
+        var reopen = eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(plan.getId()).stream()
+                .filter(event -> "REOPEN_REVIEW_DEADLINE".equals(event.getAction()) && event.getDeadline() != null)
+                .reduce((first, second) -> second)
+                .orElse(null);
+        return EduReviewDeadline.of(
+                        submitted,
+                        settings.getLateApprovalGraceDays(),
+                        reopen == null ? null : reopen.getDeadline(),
+                        today)
+                .locked();
+    }
+
+    private boolean reviewDeadlineLocked(EduClassDoc doc, EduSettings settings, LocalDate today) {
+        JsonNode submitted = null;
+        JsonNode reopened = null;
+        for (JsonNode event : (ArrayNode) objectMapper.readTree(doc.getHistory())) {
+            if (event.path("round").asInt(-1) != doc.getReviewRound()) continue;
+            String action = event.path("action").asString("");
+            if ("submit".equals(action)) submitted = event;
+            if ("reopen_review_deadline".equals(action)) reopened = event;
+        }
+        LocalDate submittedOn =
+                submitted == null || submitted.path("at").asString("").isBlank()
+                        ? null
+                        : LocalDate.ofInstant(Instant.parse(submitted.path("at").asString()), clock.getZone());
+        LocalDate submissionCutoff = submitted == null
+                        || submitted.path("submissionCutoff").asString("").isBlank()
+                ? null
+                : LocalDate.parse(submitted.path("submissionCutoff").asString());
+        LocalDate reopenUntil =
+                reopened == null || reopened.path("deadline").asString("").isBlank()
+                        ? null
+                        : LocalDate.parse(reopened.path("deadline").asString());
+        LocalDate base = submissionCutoff == null || (submittedOn != null && submittedOn.isAfter(submissionCutoff))
+                ? submittedOn
+                : submissionCutoff;
+        return EduReviewDeadline.of(base, settings.getLateApprovalGraceDays(), reopenUntil, today)
+                .locked();
     }
 
     private String appendPolicyHistory(EduClassDoc doc, boolean complete, Long actor, long revision, Instant now) {
