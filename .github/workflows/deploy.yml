@@ -28,6 +28,11 @@ on:
       - '!.githooks/**'
       - 'docs/api/openapi.yaml'
   workflow_dispatch:
+    inputs:
+      force_api:
+        description: Chạy lại test + build api dù tag đã có (đo thời gian CI, cập nhật base image)
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,12 +45,13 @@ env:
   DOCKERHUB_USER: thangnd04
   # Repo private duy nhất của tài khoản free: api và Keycloak phân biệt bằng tiền tố tag
   IMAGE: thangnd04/carenest-be
-  # Chỉ main/dev được push image (sau verify) và deploy; PR hoặc chạy tay trên nhánh khác chỉ verify.
-  # Image đẩy từ dev đã verify ⇒ release cùng nội dung vào main dùng lại tag, không verify/build lại
-  IS_DEPLOY_BRANCH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
+  # Push image (sau verify) khi push main/dev hoặc PR từ nhánh trong repo; PR từ fork, chạy tay nhánh khác chỉ verify.
+  # Tag = hash nội dung đã verify ⇒ merge PR vào dev (dev chưa đổi thêm) hoặc release dev vào main dùng lại tag,
+  # không verify/build lại. Chỉ main/dev được deploy
+  PUSH_IMAGE: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev')) }}
 
 jobs:
-  # Tag image = hash nội dung đầu vào. Tag đã có trên Docker Hub ⇒ nội dung đó đã verify + build trên main/dev ⇒ bỏ qua;
+  # Tag image = hash nội dung đầu vào. Tag đã có trên Docker Hub ⇒ nội dung đó đã verify + build (main/dev hoặc PR) ⇒ bỏ qua;
   # tag không đổi ⇒ compose không recreate container (Keycloak không restart khi không đổi)
   plan:
     runs-on: ubuntu-latest
@@ -54,6 +60,8 @@ jobs:
       keycloak_tag: ${{ steps.tags.outputs.keycloak_tag }}
       api_needed: ${{ steps.exists.outputs.api_needed }}
       keycloak_needed: ${{ steps.exists.outputs.keycloak_needed }}
+      # Điều kiện if cấp job không đọc được env ⇒ chuyển PUSH_IMAGE qua output
+      push_image: ${{ env.PUSH_IMAGE }}
     steps:
       - uses: actions/checkout@v4
 
@@ -86,15 +94,27 @@ jobs:
         env:
           API_TAG: ${{ steps.tags.outputs.api_tag }}
           KEYCLOAK_TAG: ${{ steps.tags.outputs.keycloak_tag }}
+          FORCE_API: ${{ inputs.force_api == true }}
         run: |
           needed() { docker manifest inspect "$IMAGE:$1" > /dev/null 2>&1 && echo false || echo true; }
-          echo "api_needed=$(needed "$API_TAG")" | tee -a "$GITHUB_OUTPUT"
+          api_needed=$(needed "$API_TAG")
+          if [ "$FORCE_API" = true ]; then api_needed=true; fi
+          echo "api_needed=$api_needed" | tee -a "$GITHUB_OUTPUT"
           echo "keycloak_needed=$(needed "$KEYCLOAK_TAG")" | tee -a "$GITHUB_OUTPUT"
 
-  api:
+  # Toàn bộ test chia 4 máy chạy song song, mỗi máy 2 JVM; mỗi class test vẫn có Postgres riêng.
+  # Shard nào fail ⇒ job api bị skip ⇒ không push image, không deploy
+  api-test:
     needs: plan
     if: needs.plan.outputs.api_needed == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      SHARDS: 4
+      SHARD: ${{ matrix.shard }}
     steps:
       # Spotless ratchetFrom origin/main (pom.xml) cần ref origin/main; checkout mặc định chỉ lấy 1 commit
       - uses: actions/checkout@v4
@@ -108,20 +128,57 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      # Lọc đúng mẫu tên surefire mặc định ⇒ mỗi class test vào đúng 1 shard. Class cần DB (nặng) và class còn lại
+      # chia vòng tròn riêng để các shard cân nhau. @Nested cần thêm mẫu Tên$* (surefire lọc lớp lồng theo tên)
+      - name: Select test classes for shard
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files 'src/test/java/*.java' | grep -E '/(Test[^/]*|[^/]*Tests?|[^/]*TestCase)\.java$' | sort)
+          heavy=(); light=()
+          for f in "${files[@]}"; do
+            if grep -qE '@SpringBootTest|@Testcontainers' "$f"; then heavy+=("$f"); else light+=("$f"); fi
+          done
+          pick() { local i=0 f; for f in "$@"; do (( i % SHARDS == SHARD - 1 )) && echo "$f"; i=$((i + 1)); done; return 0; }
+          mine=()
+          while IFS= read -r f; do
+            fqn=$(sed -E 's#^src/test/java/##; s#\.java$##; s#/#.#g' <<< "$f")
+            mine+=("$fqn")
+            if grep -q '@Nested' "$f"; then mine+=("$fqn\$*"); fi
+          done < <(pick "${heavy[@]}"; pick "${light[@]}")
+          echo "shard $SHARD/$SHARDS: ${#mine[@]} pattern(s) from ${#files[@]} test files (${#heavy[@]} DB, ${#light[@]} other)"
+          list=$(IFS=,; echo "${mine[*]}")
+          echo "MAVEN_ARGS=-Dtest=$list -Dsurefire.failIfNoSpecifiedTests=false -DforkCount=2 -DreuseForks=true" >> "$GITHUB_ENV"
+
+      # verify.mjs giữ đủ cổng (Spotless, junk, tóm tắt); Maven đọc danh sách test của shard từ MAVEN_ARGS.
       # Testcontainers dùng Docker có sẵn trên runner ubuntu
       - run: node scripts/verify.mjs
       - if: failure()
         run: tail -n 200 target/verify.log
+      # Log Maven chỉ ghi ra file ⇒ giữ log + surefire-reports (thời gian từng class) để soi test chậm/lỗi, cân lại shard
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-verify-reports-${{ matrix.shard }}
+          path: |
+            target/verify.log
+            target/surefire-reports/
+          retention-days: 7
+          if-no-files-found: ignore
 
-      - if: env.IS_DEPLOY_BRANCH == 'true'
-        uses: docker/setup-buildx-action@v3
-      - if: env.IS_DEPLOY_BRANCH == 'true'
-        uses: docker/login-action@v3
+  # Chỉ build/push khi cả 4 shard xanh
+  api:
+    needs: [plan, api-test]
+    if: needs.plan.outputs.api_needed == 'true' && needs.plan.outputs.push_image == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push api image
-        if: env.IS_DEPLOY_BRANCH == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -149,15 +206,15 @@ jobs:
       - run: ./mvnw -B -f docker/keycloak/extensions/carenest-auth/pom.xml verify
       - run: node --test docker/keycloak/auth/*.test.mjs
 
-      - if: env.IS_DEPLOY_BRANCH == 'true'
+      - if: env.PUSH_IMAGE == 'true'
         uses: docker/setup-buildx-action@v3
-      - if: env.IS_DEPLOY_BRANCH == 'true'
+      - if: env.PUSH_IMAGE == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push Keycloak image
-        if: env.IS_DEPLOY_BRANCH == 'true'
+        if: env.PUSH_IMAGE == 'true'
         uses: docker/build-push-action@v6
         with:
           context: docker/keycloak
@@ -170,7 +227,7 @@ jobs:
 
   # Job api/keycloak bị skip (tag đã có) vẫn deploy; job nào fail ⇒ không deploy, VPS giữ bản đang chạy
   deploy:
-    needs: [plan, api, keycloak]
+    needs: [plan, api-test, api, keycloak]
     if: ${{ !failure() && !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     environment: production
@@ -274,7 +331,7 @@ jobs:
   # Môi trường dev (compose.dev.yaml): Keycloak + api riêng, dùng chung Postgres/Mailpit của production.
   # .env dev và DB/role carenest_dev, keycloak_dev tạo tay một lần (docs/system/DEPLOYMENT.md mục Môi trường dev)
   deploy-dev:
-    needs: [plan, api, keycloak]
+    needs: [plan, api-test, api, keycloak]
     if: ${{ !failure() && !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
     environment: dev

@@ -97,7 +97,9 @@ docker compose -f compose.vps.yaml up -d --no-build
 
 Tắt gateway khẩn cấp: `.env` `CARENEST_AUTH_ENABLED=false` rồi `up -d --no-build api`; disable client `carenest-auth-gateway` trong admin console.
 
-Ép build lại một image khi nội dung không đổi (vd. cập nhật base image): xoá tag tương ứng trên Docker Hub rồi Run workflow trên `main`.
+Ép build lại image api khi nội dung không đổi (vd. cập nhật base image): Run workflow trên `main` với `force_api` (chạy lại test + build + push cùng tag). Image Keycloak: xoá tag tương ứng trên Docker Hub rồi Run workflow. Run workflow với `force_api` trên nhánh khác chỉ chạy test (đo thời gian CI), không push.
+
+Test api chạy song song 4 job (`api-test`), mỗi job 2 JVM; artifact `api-verify-reports-<n>` giữ log và thời gian từng class 7 ngày. PR từ nhánh trong repo push image sau khi test xanh ⇒ merge vào `dev` không chạy lại test nếu nội dung không đổi.
 
 ## Môi trường dev (nhánh `dev`)
 
