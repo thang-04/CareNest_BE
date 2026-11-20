@@ -1,5 +1,6 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.meals.MealPhotoResponse;
 import com.carenest.dto.meals.MealPhotoWindowResponse;
@@ -12,6 +13,7 @@ import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.meals.MealPhotoRepository;
 import com.carenest.repository.meals.MealPhotoSettingsRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.meals.MealPhotoService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
@@ -44,6 +46,7 @@ public class MealPhotoServiceImpl implements MealPhotoService {
     private final MealPhotoRepository photoRepository;
     private final FileStorage storageService;
     private final StaffAssignmentService staffAssignmentService;
+    private final AttendanceService attendanceService;
     private final KitchenAccess kitchenAccess;
     private final Clock clock;
 
@@ -103,6 +106,11 @@ public class MealPhotoServiceImpl implements MealPhotoService {
         try {
             Long campusId = kitchenAccess.resolveWriteCampus(currentUser);
             inspect(file);
+            // NUT-16: ngày nghỉ, lễ, cuối tuần không có bữa ăn nên không đăng ảnh
+            DayInfoResponse dayInfo = attendanceService.getActiveYearDayInfo(LocalDate.now(clock));
+            if (dayInfo == null || !dayInfo.schoolDay()) {
+                throw GlobalException.of(ApiCode.MEAL_PHOTO_NOT_SCHOOL_DAY);
+            }
             // NUT-16: chỉ đăng ảnh của hôm nay trong khung giờ HT cấu hình; chưa cấu hình thì chưa đăng được
             MealPhotoWindow window = settings()
                     .window(session)

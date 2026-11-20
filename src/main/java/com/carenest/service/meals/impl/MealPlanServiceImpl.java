@@ -1,8 +1,8 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.GuardianLinkResponse;
-import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.meals.MealPlanAmendRequest;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
@@ -156,6 +156,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         try {
             checkCanManage(currentUser);
             checkMonday(weekStart);
+            checkWeekNotPast(weekStart);
             MealPlanWeek week = weekRepository
                     .findForUpdateByWeekStart(weekStart)
                     .orElseGet(() -> MealPlanWeek.draft(weekStart, currentUser.userId()));
@@ -181,6 +182,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         try {
             checkCanManage(currentUser);
             checkMonday(weekStart);
+            checkWeekNotPast(weekStart);
             MealPlanWeek week = weekRepository
                     .findForUpdateByWeekStart(weekStart)
                     .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PLAN_NOT_PUBLISHABLE, 1, "tuần chưa lập"));
@@ -288,9 +290,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     .findByWeekStart(weekStart)
                     .map(w -> revisionRepository.findByWeekIdOrderByChangedAtDescIdDesc(w.getId()))
                     .orElse(List.of());
-            Map<Long, String> names = accountService.findFullNames(revisions.stream()
-                    .map(MealPlanDayRevision::getChangedBy)
-                    .collect(Collectors.toSet()));
+            Map<Long, String> names = accountService.findFullNames(
+                    revisions.stream().map(MealPlanDayRevision::getChangedBy).collect(Collectors.toSet()));
             List<MealPlanRevisionResponse> response = revisions.stream()
                     .map(r -> new MealPlanRevisionResponse(
                             r.getId(),
@@ -299,7 +300,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                             dayContent(r.getAfterNote(), r.getAfterItems()),
                             r.getReason(),
                             r.getIssues().stream()
-                                    .map(i -> new MealPlanRevisionResponse.RevisionIssue(i.severity(), i.code(), i.message()))
+                                    .map(i -> new MealPlanRevisionResponse.RevisionIssue(
+                                            i.severity(), i.code(), i.message()))
                                     .toList(),
                             r.getChangedBy(),
                             names.get(r.getChangedBy()),
@@ -317,7 +319,8 @@ public class MealPlanServiceImpl implements MealPlanService {
         return new MealPlanRevisionResponse.RevisionDay(
                 note,
                 items.stream()
-                        .map(i -> new MealPlanRevisionResponse.RevisionItem(i.session(), i.block(), i.dishId(), i.dishName()))
+                        .map(i -> new MealPlanRevisionResponse.RevisionItem(
+                                i.session(), i.block(), i.dishId(), i.dishName()))
                         .toList());
     }
 
@@ -348,10 +351,11 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private List<MealPlanDayRevision.Item> revisionItems(List<MealPlanItem> items) {
-        Map<Long, String> names = dishRepository
-                .findAllById(items.stream().map(MealPlanItem::getDishId).collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(Dish::getId, Dish::getName));
+        Map<Long, String> names =
+                dishRepository
+                        .findAllById(items.stream().map(MealPlanItem::getDishId).collect(Collectors.toSet()))
+                        .stream()
+                        .collect(Collectors.toMap(Dish::getId, Dish::getName));
         return items.stream()
                 .map(i -> new MealPlanDayRevision.Item(
                         i.getSession(), i.getMenuBlock(), i.getDishId(), names.get(i.getDishId())))
@@ -420,6 +424,17 @@ public class MealPlanServiceImpl implements MealPlanService {
     private static void checkCanManage(CurrentUser currentUser) {
         if (!currentUser.hasPermission(Permission.MENU_MANAGE)) {
             throw GlobalException.of(ApiCode.FORBIDDEN);
+        }
+    }
+
+    // NUT-08: tuần đã ăn xong (qua thứ Sáu) không lưu hay công bố nữa; sửa ngày đã qua đi đường sửa ngoại lệ
+    private boolean isWeekPast(LocalDate weekStart) {
+        return weekStart.plusDays(SCHOOL_DAYS - 1L).isBefore(LocalDate.now(clock));
+    }
+
+    private void checkWeekNotPast(LocalDate weekStart) {
+        if (isWeekPast(weekStart)) {
+            throw GlobalException.of(ApiCode.MEAL_PLAN_WEEK_PAST, weekStart);
         }
     }
 
@@ -703,6 +718,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .collect(Collectors.toMap(Dish::getId, Function.identity()));
         boolean manage = currentUser.hasPermission(Permission.MENU_MANAGE);
         boolean published = week != null && week.isPublished();
+        boolean weekOpen = !isWeekPast(weekStart);
         List<MealPlanResponse.Day> dayViews = new ArrayList<>();
         for (int i = 0; i < SCHOOL_DAYS; i++) {
             LocalDate date = weekStart.plusDays(i);
@@ -739,8 +755,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 week == null ? NONE : week.getStatus().name(),
                 week == null ? null : week.getPublishedAt(),
                 week == null ? null : week.getPublishedBy(),
-                manage && !published,
-                manage && week != null && !published,
+                manage && !published && weekOpen,
+                manage && week != null && !published && weekOpen,
                 week != null && !published && result.publishable(),
                 blocks,
                 dayViews,

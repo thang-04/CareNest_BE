@@ -85,6 +85,7 @@ public class StockMapper {
                 movement.getMovementType(),
                 movement.getQuantity(),
                 movement.getMealDate(),
+                movement.getCorrectionFor(),
                 movement.getReceiptId(),
                 movement.getReason(),
                 movement.getCreatedBy(),

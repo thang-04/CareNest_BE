@@ -213,9 +213,7 @@ class MealPlanAmendIntegrationTest {
                 ApiCode.MEAL_PLAN_NOT_PUBLISHED);
         mealPlanService.publishMealPlan(principal, MONDAY);
 
-        expectCode(
-                () -> mealPlanService.amendMealPlanDay(vp, MONDAY, WEDNESDAY, lunch("", com)),
-                ApiCode.FORBIDDEN);
+        expectCode(() -> mealPlanService.amendMealPlanDay(vp, MONDAY, WEDNESDAY, lunch("", com)), ApiCode.FORBIDDEN);
         expectCode(
                 () -> mealPlanService.amendMealPlanDay(
                         principal,
@@ -292,7 +290,10 @@ class MealPlanAmendIntegrationTest {
     }
 
     private static MealPlanResponse.Day day(MealPlanResponse plan, LocalDate date) {
-        return plan.days().stream().filter(d -> d.date().equals(date)).findFirst().orElseThrow();
+        return plan.days().stream()
+                .filter(d -> d.date().equals(date))
+                .findFirst()
+                .orElseThrow();
     }
 
     private BigDecimal riceDemand(LocalDate date) {
@@ -372,7 +373,9 @@ class MealPlanAmendIntegrationTest {
         private Instant instant = Instant.now();
 
         void set(LocalDate date, String time) {
-            instant = date.atTime(java.time.LocalTime.parse(time)).atZone(SCHOOL_ZONE).toInstant();
+            instant = date.atTime(java.time.LocalTime.parse(time))
+                    .atZone(SCHOOL_ZONE)
+                    .toInstant();
         }
 
         @Override

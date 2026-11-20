@@ -1,5 +1,6 @@
 package com.carenest.dto.meals;
 
+import com.carenest.utils.enums.FreshCheckLock;
 import com.carenest.utils.enums.FreshCheckResult;
 import com.carenest.utils.enums.FreshCheckSource;
 import java.math.BigDecimal;
@@ -9,9 +10,16 @@ import java.util.List;
 
 /**
  * Kiểm nhận hàng tươi của điểm trường–ngày, luôn đủ hai lần. {@code canManage}: người xem có {@code STOCK_MANAGE} ở
- * điểm trường.
+ * điểm trường. {@code editable} false ⇒ chỉ xem, lý do ở {@code lockReason}: {@code NOT_TODAY} (ngày khác hôm nay)
+ * hoặc {@code M1_SIGNED} (biên bản M1 tươi đã ký, sửa lại biên bản để mở).
  */
-public record FreshCheckResponse(Long campusId, LocalDate date, boolean canManage, List<FreshCheckRound> rounds) {
+public record FreshCheckResponse(
+        Long campusId,
+        LocalDate date,
+        boolean canManage,
+        boolean editable,
+        FreshCheckLock lockReason,
+        List<FreshCheckRound> rounds) {
 
     /**
      * {@code available} false ⇒ chưa ghi được, lý do ở {@code unavailableReason}. Chưa ghi ({@code recorded} false) thì

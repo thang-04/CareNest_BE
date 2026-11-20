@@ -13150,6 +13150,8 @@ components:
         foodCount:
           type: integer
           format: int32
+        m1DrySigned:
+          type: boolean
         openShortfallCount:
           type: integer
           format: int32
@@ -14103,6 +14105,8 @@ components:
         disposedAt:
           type: string
           format: date-time
+        editable:
+          type: boolean
         id:
           type: integer
           format: int64
@@ -14201,6 +14205,13 @@ components:
         date:
           type: string
           format: date
+        editable:
+          type: boolean
+        lockReason:
+          type: string
+          enum:
+          - NOT_TODAY
+          - M1_SIGNED
         rounds:
           type: array
           items:
@@ -14370,6 +14381,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        deletable:
+          type: boolean
         foodCount:
           type: integer
           format: int32
@@ -16890,6 +16903,8 @@ components:
         id:
           type: integer
           format: int64
+        inspectionSigned:
+          type: boolean
         needsReconfirmation:
           type: boolean
         schoolYearId:
@@ -23375,6 +23390,9 @@ components:
         campusId:
           type: integer
           format: int64
+        correctionFor:
+          type: string
+          format: date
         createdAt:
           type: string
           format: date-time

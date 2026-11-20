@@ -85,7 +85,7 @@ class InspectionIntakeSkeleton {
     List<Map<String, Object>> dry(Long campusId, LocalDate date) {
         // Lượng đã trừ cho bữa ăn của ngày theo từng lô: bút toán âm cộng lại, trả lô (dương) trừ bớt
         Map<Long, BigDecimal> issuedByLot = new LinkedHashMap<>();
-        for (StockMovement movement : movementRepository.findByCampusIdAndMealDate(campusId, date)) {
+        for (StockMovement movement : movementRepository.findByCampusIdAndEffectiveMealDate(campusId, date)) {
             issuedByLot.merge(movement.getLotId(), movement.getQuantity().negate(), BigDecimal::add);
         }
         issuedByLot.values().removeIf(quantity -> quantity.signum() <= 0);

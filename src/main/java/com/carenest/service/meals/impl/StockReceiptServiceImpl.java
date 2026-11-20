@@ -158,6 +158,10 @@ public class StockReceiptServiceImpl implements StockReceiptService {
             if (!receipt.isDraft()) {
                 throw GlobalException.of(ApiCode.STOCK_RECEIPT_STATUS_INVALID);
             }
+            // NUT-10: phiếu nháp ngày cũ phải đổi ngày nhập về hôm nay rồi mới xác nhận
+            if (!LocalDate.now(clock).equals(receipt.getReceivedDate())) {
+                throw GlobalException.of(ApiCode.STOCK_RECEIPT_STALE_DRAFT, receipt.getReceivedDate());
+            }
             receipt.confirm(currentUser.userId(), clock.instant());
             // NUT-11: mỗi dòng thành một lô (chính dòng phiếu), bút toán nhập = số lượng của dòng
             for (StockReceiptLine line : receipt.getLines()) {
@@ -211,6 +215,7 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                         StockMovementType.RECEIPT_CANCEL,
                         lot.getQuantity().negate(),
                         null,
+                        null,
                         receipt.getId(),
                         trimmed,
                         currentUser.userId()));
@@ -249,6 +254,11 @@ public class StockReceiptServiceImpl implements StockReceiptService {
     }
 
     private void apply(StockReceipt receipt, StockReceiptRequest request, Long userId) {
+        // NUT-10: ngày nhập là ngày nhận hàng thực tế, không ghi lùi hay ghi trước
+        LocalDate today = LocalDate.now(clock);
+        if (!today.equals(request.receivedDate())) {
+            throw GlobalException.of(ApiCode.STOCK_RECEIPT_DATE_NOT_TODAY, today);
+        }
         if (!supplierRepository.existsById(request.supplierId())) {
             throw GlobalException.of(ApiCode.SUPPLIER_NOT_FOUND);
         }
