@@ -30,6 +30,8 @@ import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.repository.meals.SupplierRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.meals.FreshGoodsService;
 import com.carenest.service.meals.StockReceiptService;
 import com.carenest.service.organization.AgeGroupService;
@@ -91,6 +93,7 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
     private final CampusAccessPolicy campusAccessPolicy;
     private final StockReceiptService stockReceiptService;
     private final StockMapper stockMapper;
+    private final FoodPriceService foodPriceService;
     private final Clock clock;
 
     /** Một ngày của kỳ: {@code day} null khi nghỉ hoặc tuần chưa có thực đơn. */
@@ -278,9 +281,19 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
             }
             validateLines(expected, request.lines());
             Long supplierId = request.supplierId();
-            if (supplierId != null && !supplierRepository.existsById(supplierId)) {
+            Set<Long> chosen = new HashSet<>();
+            request.lines().stream()
+                    .map(FreshCheckRequest.FreshCheckLineInput::supplierId)
+                    .filter(Objects::nonNull)
+                    .forEach(chosen::add);
+            if (supplierId != null) {
+                chosen.add(supplierId);
+            }
+            if (!chosen.isEmpty() && supplierRepository.findAllById(chosen).size() != chosen.size()) {
                 throw GlobalException.of(ApiCode.SUPPLIER_NOT_FOUND);
             }
+            // NUT-12: dòng để trống ⇒ NCC cấp lần kiểm (client cũ) ⇒ NCC của thực phẩm tại ngày kiểm
+            FoodPriceBook book = foodPriceService.book(expected.lines().keySet());
             FreshCheck check = checkRepository
                     .findByCampusIdAndCheckDateAndRound(campusId, date, (short) round)
                     .orElseGet(() -> FreshCheck.empty(campusId, date, round));
@@ -294,6 +307,12 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                     request.lines().stream()
                             .map(line -> FreshCheckLine.of(
                                     line.foodId(),
+                                    line.supplierId() != null
+                                            ? line.supplierId()
+                                            : supplierId != null
+                                                    ? supplierId
+                                                    : book.at(line.foodId(), date)
+                                                            .supplierId(),
                                     expected.lines().get(line.foodId()),
                                     line.receivedQty(),
                                     line.result(),
@@ -485,22 +504,37 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         FreshForecast forecast = calculated.forecast();
         Map<Long, String> ageGroupNames = calculated.ageGroups().stream()
                 .collect(Collectors.toMap(AgeGroupDetailResponse::id, AgeGroupDetailResponse::name));
-        Map<Long, Food> foods = foods(Stream.concat(
-                        forecast.getLines().stream().map(FreshForecastLine::getFoodId),
-                        forecast.getDryOrder().stream().map(FreshForecastDryOrder::foodId))
-                .collect(Collectors.toSet()));
+        Set<Long> foodIds =
+                forecast.getLines().stream().map(FreshForecastLine::getFoodId).collect(Collectors.toSet());
+        Map<Long, Food> foods = foods(
+                Stream.concat(foodIds.stream(), forecast.getDryOrder().stream().map(FreshForecastDryOrder::foodId))
+                        .collect(Collectors.toSet()));
+        // NUT-27: NCC theo ngày thực đơn của từng dòng
+        FoodPriceBook book = foodPriceService.book(foodIds);
         Map<Long, List<FreshForecastResponse.FreshForecastDayQty>> byFood = new LinkedHashMap<>();
         for (FreshForecastLine line : forecast.getLines()) {
             byFood.computeIfAbsent(line.getFoodId(), id -> new ArrayList<>())
-                    .add(new FreshForecastResponse.FreshForecastDayQty(line.getMenuDate(), line.getQuantity()));
+                    .add(new FreshForecastResponse.FreshForecastDayQty(
+                            line.getMenuDate(),
+                            line.getQuantity(),
+                            book.at(line.getFoodId(), line.getMenuDate()).supplierId()));
         }
         List<FreshForecastResponse.FreshForecastLine> lines = byFood.entrySet().stream()
-                .map(entry -> new FreshForecastResponse.FreshForecastLine(
-                        stockMapper.toFoodRef(foods.get(entry.getKey())),
-                        entry.getValue().stream()
-                                .map(FreshForecastResponse.FreshForecastDayQty::quantity)
-                                .reduce(BigDecimal.ZERO, BigDecimal::add),
-                        entry.getValue()))
+                .map(entry -> {
+                    Long supplierId = entry.getValue().stream()
+                            .min(Comparator.comparing(FreshForecastResponse.FreshForecastDayQty::date))
+                            .map(FreshForecastResponse.FreshForecastDayQty::supplierId)
+                            .orElse(null);
+                    FoodPriceBook.SupplierInfo supplier = book.supplier(supplierId);
+                    return new FreshForecastResponse.FreshForecastLine(
+                            stockMapper.toFoodRef(foods.get(entry.getKey())),
+                            entry.getValue().stream()
+                                    .map(FreshForecastResponse.FreshForecastDayQty::quantity)
+                                    .reduce(BigDecimal.ZERO, BigDecimal::add),
+                            entry.getValue(),
+                            supplierId,
+                            supplier == null ? null : supplier.name());
+                })
                 .sorted(Comparator.comparing((FreshForecastResponse.FreshForecastLine line) ->
                         line.food().name()))
                 .toList();
@@ -697,10 +731,24 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         foodIds.addAll(servingsRound.lines().keySet());
         saved.values().forEach(check -> check.getLines().forEach(line -> foodIds.add(line.getFoodId())));
         Map<Long, Food> foods = foods(foodIds);
-        Set<Long> supplierIds = saved.values().stream()
-                .map(FreshCheck::getSupplierId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        FoodPriceBook book = foodPriceService.book(foodIds);
+        Map<Long, Long> defaults = new HashMap<>();
+        foodIds.forEach(id -> {
+            Long supplierId = book.at(id, date).supplierId();
+            if (supplierId != null) {
+                defaults.put(id, supplierId);
+            }
+        });
+        Set<Long> supplierIds = new HashSet<>(defaults.values());
+        saved.values().forEach(check -> {
+            if (check.getSupplierId() != null) {
+                supplierIds.add(check.getSupplierId());
+            }
+            check.getLines().stream()
+                    .map(FreshCheckLine::getSupplierId)
+                    .filter(Objects::nonNull)
+                    .forEach(supplierIds::add);
+        });
         Map<Long, Supplier> suppliers = supplierIds.isEmpty()
                 ? Map.of()
                 : supplierRepository.findAllById(supplierIds).stream()
@@ -710,8 +758,8 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                 date,
                 campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, campusId),
                 List.of(
-                        toRound(ROUND_FORECAST, forecastRound, saved.get(ROUND_FORECAST), foods, suppliers),
-                        toRound(ROUND_SERVINGS, servingsRound, saved.get(ROUND_SERVINGS), foods, suppliers)),
+                        toRound(ROUND_FORECAST, forecastRound, saved.get(ROUND_FORECAST), foods, suppliers, defaults),
+                        toRound(ROUND_SERVINGS, servingsRound, saved.get(ROUND_SERVINGS), foods, suppliers, defaults)),
                 dryIntake(currentUser, campusId, date));
     }
 
@@ -744,11 +792,21 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
     }
 
     private FreshCheckResponse.FreshCheckRound toRound(
-            int round, Expected expected, FreshCheck saved, Map<Long, Food> foods, Map<Long, Supplier> suppliers) {
+            int round,
+            Expected expected,
+            FreshCheck saved,
+            Map<Long, Food> foods,
+            Map<Long, Supplier> suppliers,
+            Map<Long, Long> defaults) {
         List<FreshCheckResponse.FreshCheckLine> lines = saved == null
                 ? expected.lines().entrySet().stream()
                         .map(entry -> new FreshCheckResponse.FreshCheckLine(
-                                stockMapper.toFoodRef(foods.get(entry.getKey())), entry.getValue(), null, null, null))
+                                stockMapper.toFoodRef(foods.get(entry.getKey())),
+                                entry.getValue(),
+                                null,
+                                null,
+                                null,
+                                supplierInfo(supplierOf(defaults.get(entry.getKey()), suppliers))))
                         .toList()
                 : saved.getLines().stream()
                         .map(line -> new FreshCheckResponse.FreshCheckLine(
@@ -756,7 +814,8 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                                 line.getExpectedQty(),
                                 line.getReceivedQty(),
                                 line.getResult(),
-                                line.getNote()))
+                                line.getNote(),
+                                supplierInfo(supplierOf(line.getSupplierId(), suppliers))))
                         .toList();
         return new FreshCheckResponse.FreshCheckRound(
                 round,
@@ -774,6 +833,10 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                         .toList(),
                 supplierInfo(
                         saved == null || saved.getSupplierId() == null ? null : suppliers.get(saved.getSupplierId())));
+    }
+
+    private static Supplier supplierOf(Long supplierId, Map<Long, Supplier> suppliers) {
+        return supplierId == null ? null : suppliers.get(supplierId);
     }
 
     private static FreshCheckResponse.SupplierInfo supplierInfo(Supplier supplier) {

@@ -23,12 +23,12 @@ updated: 2026-11-19
 
 ## Thay đổi BE
 
-- `V154__add_dry_goods_intake.sql`: `fresh_forecasts.dry_order jsonb [{foodId, quantity}]`; `stock_receipts.forecast_id` (FK, `ON DELETE SET NULL`), `from_intake boolean`, `rejected_lines jsonb [{foodId, lotNo, expiryDate, quantity, note}]`.
+- `V156__add_dry_goods_intake.sql`: `fresh_forecasts.dry_order jsonb [{foodId, quantity}]`; `stock_receipts.forecast_id` (FK, `ON DELETE SET NULL`), `from_intake boolean`, `rejected_lines jsonb [{foodId, lotNo, expiryDate, quantity, note}]`.
 - `POST /nutrition/fresh-forecasts/preview`: response thêm `dryOrder[{food, quantity}]` (gợi ý = `dryLines.shortQty > 0`). `POST /nutrition/fresh-forecasts` nhận `dryOrder` (null ⇒ lấy gợi ý; chỉ thực phẩm DRY đang dùng, không trùng, ≥ 0, dòng 0 bỏ).
 - `GET /nutrition/fresh-checks` thêm `dry {forecastId, periodFrom, periodTo, orders[{food, ordered, received}], receipts[StockReceiptResponse]}`.
 - `POST /nutrition/fresh-checks/dry-receipts?campusId&date` `{supplierId, note, lines[{foodId, lotNo, expiryDate, quantity, unitPrice, passed, note}]}` ⇒ trả lại `FreshCheckResponse`.
 - `StockReceiptResponse` thêm `forecastId`, `fromIntake`, `rejectedLines[{food, lotNo, expiryDate, quantity, note}]`.
-- ApiCode mới: 6044 `DRY_INTAKE_NOT_TODAY` (409), 6045 `DRY_INTAKE_NOTE_REQUIRED` (422), 6046 `DRY_ORDER_INVALID` (400).
+- ApiCode mới: 6103 `DRY_INTAKE_NOT_TODAY` (409), 6045 `DRY_INTAKE_NOTE_REQUIRED` (422), 6046 `DRY_ORDER_INVALID` (400).
 
 ## Thay đổi FE
 
@@ -44,5 +44,5 @@ updated: 2026-11-19
 ## Progress log
 
 - 2026-11-19: thiết kế duyệt; nhánh BE fast-forward lên `origin/dev`, FE tạo worktree `CareNest_FE-goods-intake` từ `origin/dev`.
-- 2026-11-19: BE xong (V154, `POST /nutrition/fresh-checks/dry-receipts`, `dryOrder` bản dự trù); `FreshGoodsIntegrationTest` 16/16, `DryStockOutlookIntegrationTest` 6/6, `ArchitectureRulesTest` 14/14, `OpenApiSnapshotTest` 4/4. Suite đầy đủ: `DevSeedIntegrationTest` lỗi sẵn từ dev (`R__dev_seed.sql` còn dùng `guardian_child_links` đã bỏ ở V122), không do thay đổi này.
+- 2026-11-19: BE xong (V156, `POST /nutrition/fresh-checks/dry-receipts`, `dryOrder` bản dự trù); `FreshGoodsIntegrationTest` 16/16, `DryStockOutlookIntegrationTest` 6/6, `ArchitectureRulesTest` 14/14, `OpenApiSnapshotTest` 4/4. Suite đầy đủ: `DevSeedIntegrationTest` lỗi sẵn từ dev (`R__dev_seed.sql` còn dùng `guardian_child_links` đã bỏ ở V122), không do thay đổi này.
 - 2026-11-19: FE xong trên `feature/G94-192-FE-FEAT-27-daily-goods-intake` (worktree `CareNest_FE-goods-intake`): `DryIntakeCard`, bảng hàng khô đặt cho kỳ, phiếu nhập hiện nguồn kiểm nhận và dòng không đạt; snapshot route BE và `BE_API_INDEX`/`FE_API_CALLS` sinh lại từ nhánh BE này; `node scripts/verify.mjs` PASS. Chưa commit.

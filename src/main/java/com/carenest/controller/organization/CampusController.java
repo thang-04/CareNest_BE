@@ -111,10 +111,15 @@ public class CampusController {
     @PatchMapping("/{campusId}/status")
     @PreAuthorize("hasRole('PRINCIPAL')")
     public ResponseEntity<ResponseJson<CampusResponse>> changeCampusStatus(
-            @PathVariable Long campusId, @Valid @RequestBody CampusStatusRequest request, CurrentUser currentUser) {
+            @PathVariable Long campusId,
+            @Valid @RequestBody CampusStatusRequest request,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|changeCampusStatus|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
-        CampusResponse campus = campusService.changeCampusStatus(currentUser, campusId, request.status());
+        CampusResponse campus = schoolYearId == null
+                ? campusService.changeCampusStatus(currentUser, campusId, request.status())
+                : campusService.changeCampusStatus(currentUser, campusId, request.status(), schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Change campus status success", campus);
     }

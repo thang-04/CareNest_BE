@@ -32,9 +32,18 @@ public record FreshForecastResponse(
     /** {@code planStatus} của thực đơn tuần chứa ngày: NONE, DRAFT, PUBLISHED; ngày nghỉ không có lượng. */
     public record FreshForecastDay(LocalDate date, boolean off, String planStatus) {}
 
-    public record FreshForecastLine(StockFoodRef food, BigDecimal totalQty, List<FreshForecastDayQty> byDate) {}
+    /**
+     * {@code supplierId}/{@code supplierName}: NCC của thực phẩm tại ngày đầu có lượng (NUT-27) để nhóm và in theo NCC;
+     * kỳ vắt qua ngày chuyển NCC thì từng ngày có {@code byDate[].supplierId} riêng.
+     */
+    public record FreshForecastLine(
+            StockFoodRef food,
+            BigDecimal totalQty,
+            List<FreshForecastDayQty> byDate,
+            Long supplierId,
+            String supplierName) {}
 
-    public record FreshForecastDayQty(LocalDate date, BigDecimal quantity) {}
+    public record FreshForecastDayQty(LocalDate date, BigDecimal quantity, Long supplierId) {}
 
     /** Lượng hàng khô đặt cho kỳ (NUT-12): xem trước là gợi ý, đã lưu là số chụp dùng để in và kiểm nhận. */
     public record DryOrderLine(StockFoodRef food, BigDecimal quantity) {}

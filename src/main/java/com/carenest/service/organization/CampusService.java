@@ -41,6 +41,9 @@ public interface CampusService {
     /** Ngừng hoạt động / hoạt động lại (Cần chốt 23/10/2026); ngừng thì kết thúc phân công PHT của điểm trường. */
     CampusResponse changeCampusStatus(CurrentUser currentUser, Long campusId, CampusStatus status);
 
+    /** Ngừng / hoạt động lại điểm trường trong năm học đang chọn; năm khác không đổi (Cần chốt 19/11/2026). */
+    CampusResponse changeCampusStatus(CurrentUser currentUser, Long campusId, CampusStatus status, Long schoolYearId);
+
     /** Trạng thái điểm trường cho module khác (tiếp nhận trẻ chỉ vào điểm trường đang hoạt động); không có ⇒ rỗng. */
     Optional<CampusStatus> findCampusStatus(Long campusId);
 }

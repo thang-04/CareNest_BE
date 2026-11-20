@@ -11,6 +11,7 @@ import com.carenest.repository.meals.SupplierRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
+import java.time.Clock;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -19,7 +20,8 @@ import org.junit.jupiter.api.Test;
 class SupplierServiceImplTest {
 
     private final SupplierRepository repository = mock(SupplierRepository.class);
-    private final SupplierServiceImpl service = new SupplierServiceImpl(repository, new NutritionCatalogMapper());
+    private final SupplierServiceImpl service =
+            new SupplierServiceImpl(repository, new NutritionCatalogMapper(), Clock.systemDefaultZone());
 
     @Test
     @DisplayName("NUT-12: CCCD nhà cung cấp chỉ trả cho người có quyền sửa danh mục")

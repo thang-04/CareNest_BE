@@ -1,6 +1,8 @@
 package com.carenest.dto.meals;
 
 import com.carenest.utils.enums.CatalogStatus;
+import com.carenest.utils.enums.ContractStatus;
+import java.time.LocalDate;
 
 /** {@code idCard} chỉ trả cho người có quyền sửa danh mục; người chỉ xem nhận null (dữ liệu cá nhân — NUT-12). */
 public record SupplierResponse(
@@ -10,4 +12,8 @@ public record SupplierResponse(
         String address,
         String idCard,
         String deliveryPerson,
-        CatalogStatus status) {}
+        CatalogStatus status,
+        String contractNo,
+        LocalDate contractStart,
+        LocalDate contractEnd,
+        ContractStatus contractStatus) {}

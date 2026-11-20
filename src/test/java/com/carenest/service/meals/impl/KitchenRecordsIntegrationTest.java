@@ -118,6 +118,7 @@ class KitchenRecordsIntegrationTest {
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        attachCampusesToYear(year);
         classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
                 + ", " + year + ", 'Lớp K', " + ag3 + ") RETURNING id");
         long child = insertId(
@@ -140,6 +141,13 @@ class KitchenRecordsIntegrationTest {
         kitchen = user("kitchen", CareNestRole.KITCHEN_STAFF, campus);
         otherKitchen = user("kitchen-o", CareNestRole.KITCHEN_STAFF, otherCampus);
         InMemoryS3.install(s3);
+    }
+
+    private void attachCampusesToYear(long schoolYearId) {
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                schoolYearId);
     }
 
     @Test
@@ -542,11 +550,16 @@ class KitchenRecordsIntegrationTest {
     }
 
     private long food(String code, String name, String storage, String origin) {
-        return insertId(
+        long foodId = insertId(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('" + code
                         + "', '" + name + "', 'OTHER', 'g', 'kg', 1000, 20000, 100, 5, 1, 10, 'TEST', 0, '" + storage
                         + "', '" + origin + "') RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private long dish(String code, String name, long foodId, int grams) {

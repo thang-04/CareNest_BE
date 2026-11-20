@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 390 endpoint.
+Tổng: 396 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -306,6 +306,10 @@ GET /nutrition/foods · src/main/java/com/carenest/controller/meals/NutritionFoo
 POST /nutrition/foods · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#createFood
 GET /nutrition/foods/{foodId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getFood
 PUT /nutrition/foods/{foodId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#updateFood
+GET /nutrition/foods/{foodId}/prices · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getFoodPrices
+POST /nutrition/foods/{foodId}/prices · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#adjustFoodPrice
+DELETE /nutrition/foods/{foodId}/prices/{priceId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#deleteFoodPrice
+PUT /nutrition/foods/{foodId}/prices/{priceId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#updateFoodPrice
 PATCH /nutrition/foods/{foodId}/status · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#changeFoodStatus
 POST /nutrition/foods/import · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#importFoods
 GET /nutrition/fresh-checks · src/main/java/com/carenest/controller/meals/FreshGoodsController.java#getChecks
@@ -350,6 +354,8 @@ GET /nutrition/suppliers · src/main/java/com/carenest/controller/meals/Supplier
 POST /nutrition/suppliers · src/main/java/com/carenest/controller/meals/SupplierController.java#createSupplier
 GET /nutrition/suppliers/{supplierId} · src/main/java/com/carenest/controller/meals/SupplierController.java#getSupplier
 PUT /nutrition/suppliers/{supplierId} · src/main/java/com/carenest/controller/meals/SupplierController.java#updateSupplier
+POST /nutrition/suppliers/{supplierId}/apply-contract · src/main/java/com/carenest/controller/meals/SupplierController.java#applyContract
+GET /nutrition/suppliers/{supplierId}/foods · src/main/java/com/carenest/controller/meals/SupplierController.java#getSupplierFoods
 PATCH /nutrition/suppliers/{supplierId}/status · src/main/java/com/carenest/controller/meals/SupplierController.java#changeSupplierStatus
 POST /parent-accounts/{userId}/activation-code · src/main/java/com/carenest/controller/child/GuardianController.java#resendActivationCode
 PATCH /parent-accounts/{userId}/status · src/main/java/com/carenest/controller/child/GuardianController.java#updateParentStatus

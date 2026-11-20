@@ -92,6 +92,7 @@ class FreshGoodsIntegrationTest {
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        attachCampusesToYear(year);
         classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
                 + ", " + year + ", 'Lớp F', " + ag3 + ") RETURNING id");
         // Hai trẻ đang học nhóm ag-3 ở điểm trường
@@ -124,6 +125,13 @@ class FreshGoodsIntegrationTest {
                         + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
                 vp.userId(),
                 campus);
+    }
+
+    private void attachCampusesToYear(long schoolYearId) {
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                schoolYearId);
     }
 
     @Test
@@ -323,7 +331,7 @@ class FreshGoodsIntegrationTest {
                 1,
                 check(
                         new FreshCheckRequest.FreshCheckLineInput(
-                                pork, new BigDecimal("118.50"), FreshCheckResult.SHORT, " Thiếu chút "),
+                                pork, new BigDecimal("118.50"), FreshCheckResult.SHORT, " Thiếu chút ", null),
                         line(veg, FreshCheckResult.ENOUGH)));
         assertThat(recorded.rounds().getFirst().recorded()).isTrue();
         assertThat(recorded.rounds().getFirst().checkedBy()).isEqualTo(principal.userId());
@@ -801,7 +809,7 @@ class FreshGoodsIntegrationTest {
     }
 
     private static FreshCheckRequest.FreshCheckLineInput line(long foodId, FreshCheckResult result) {
-        return new FreshCheckRequest.FreshCheckLineInput(foodId, null, result, null);
+        return new FreshCheckRequest.FreshCheckLineInput(foodId, null, result, null, null);
     }
 
     private void setOff(LocalDate date) {
@@ -852,12 +860,17 @@ class FreshGoodsIntegrationTest {
     }
 
     private long food(String code, String name, String storage, String wastePct, String origin) {
-        return insertId(
+        long foodId = insertId(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('" + code
                         + "', '" + name + "', 'OTHER', 'g', 'kg', 1000, 20000, 100, 5, 1, 10, 'TEST', " + wastePct
                         + ", '"
                         + storage + "', '" + origin + "') RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private long dish(String code, String name, long foodId, int grams) {

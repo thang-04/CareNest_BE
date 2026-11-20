@@ -70,10 +70,17 @@ public class AgeGroupController {
     @PutMapping("/{ageGroupId}")
     @PreAuthorize("hasRole('PRINCIPAL')")
     public ResponseEntity<ResponseJson<AgeGroupDetailResponse>> updateAgeGroup(
-            @PathVariable Long ageGroupId, @Valid @RequestBody AgeGroupRequest request, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|updateAgeGroup|userId=" + currentUser.userId() + "|ageGroupId=" + ageGroupId;
+            @PathVariable Long ageGroupId,
+            @Valid @RequestBody AgeGroupRequest request,
+            @RequestParam(required = false) Long schoolYearId,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|updateAgeGroup|userId=" + currentUser.userId() + "|ageGroupId=" + ageGroupId
+                + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        AgeGroupDetailResponse ageGroup = ageGroupService.updateAgeGroup(currentUser, ageGroupId, request);
+        // Có năm học: chỉ đổi thông tin của năm đó (Cần chốt 19/11/2026)
+        AgeGroupDetailResponse ageGroup = schoolYearId == null
+                ? ageGroupService.updateAgeGroup(currentUser, ageGroupId, request)
+                : ageGroupService.updateAgeGroup(currentUser, ageGroupId, request, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update age group success", ageGroup);
     }

@@ -49,9 +49,15 @@ public record FreshCheckResponse(
             List<FreshCheckLine> lines,
             SupplierInfo supplier) {}
 
-    /** Nhà cung cấp của lần giao; không có số CCCD (dữ liệu cá nhân). Null khi chưa ghi hoặc chưa chọn. */
+    /** Nhà cung cấp; không có số CCCD (dữ liệu cá nhân). Cấp lần kiểm chỉ còn cho dữ liệu cũ. */
     public record SupplierInfo(Long id, String name, String phone, String address, String deliveryPerson) {}
 
+    /** {@code supplier}: NCC đã ghi của dòng; chưa ghi thì là NCC của thực phẩm tại ngày kiểm (điền sẵn — NUT-12). */
     public record FreshCheckLine(
-            StockFoodRef food, BigDecimal expectedQty, BigDecimal receivedQty, FreshCheckResult result, String note) {}
+            StockFoodRef food,
+            BigDecimal expectedQty,
+            BigDecimal receivedQty,
+            FreshCheckResult result,
+            String note,
+            SupplierInfo supplier) {}
 }

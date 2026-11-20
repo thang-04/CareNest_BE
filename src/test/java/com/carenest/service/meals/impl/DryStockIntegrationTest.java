@@ -295,13 +295,18 @@ class DryStockIntegrationTest {
     }
 
     private long food(String code, String name, String storage, String wastePct) {
-        return insertId(
+        long foodId = insertId(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('" + code
                         + "', '"
                         + name + "', 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', " + wastePct + ", '"
                         + storage
                         + "', 'PLANT') RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private CurrentUser user(String username, CareNestRole role) {
