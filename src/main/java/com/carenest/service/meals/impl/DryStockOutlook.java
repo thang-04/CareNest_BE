@@ -51,7 +51,19 @@ class DryStockOutlook {
     private final MealDemandCalculator demandCalculator;
     private final Clock clock;
 
-    record Lot(Long foodId, LocalDate expiryDate, BigDecimal balance) {}
+    /** {@code unitPrice}: giá theo đơn vị mua của lô (phiếu nhập); null khi phiếu không ghi giá. */
+    record Lot(Long foodId, LocalDate expiryDate, BigDecimal balance, BigDecimal unitPrice) {
+        Lot(Long foodId, LocalDate expiryDate, BigDecimal balance) {
+            this(foodId, expiryDate, balance, null);
+        }
+    }
+
+    /**
+     * Kết quả lấy lô cho một thực phẩm: {@code lotQty} lượng (g/ml) lấy từ lô có giá, {@code lotValue} = Σ lượng × giá
+     * lô (chưa chia cỡ đơn vị mua), {@code catalogQty} lượng còn tính theo giá danh mục (thiếu kho hoặc lô không ghi
+     * giá), {@code shortQty} lượng thiếu kho.
+     */
+    record LotTake(BigDecimal lotQty, BigDecimal lotValue, BigDecimal catalogQty, BigDecimal shortQty) {}
 
     /**
      * {@code requiredQty}: nhu cầu từ hôm nay tới hết khung; {@code availableQty}: tồn còn dùng được sau khi bù phần thiếu
@@ -161,6 +173,42 @@ class DryStockOutlook {
         return lines;
     }
 
+    /** NUT-27: giá lô hàng khô trong thống kê — FEFO trên tồn hiện tại của điểm trường, mỗi thực phẩm riêng. */
+    Map<Long, LotTake> lotPricing(Long campusId, Map<Long, BigDecimal> needByFood, LocalDate mealDate) {
+        return needByFood.isEmpty() ? Map.of() : priceLots(lots(campusId), needByFood, mealDate);
+    }
+
+    static Map<Long, LotTake> priceLots(List<Lot> lots, Map<Long, BigDecimal> needByFood, LocalDate mealDate) {
+        Map<Long, List<Lot>> byFood =
+                lots.stream().sorted(Comparator.comparing(Lot::expiryDate)).collect(Collectors.groupingBy(Lot::foodId));
+        Map<Long, LotTake> result = new HashMap<>();
+        needByFood.forEach((foodId, need) -> {
+            BigDecimal remaining = need;
+            BigDecimal lotQty = BigDecimal.ZERO;
+            BigDecimal lotValue = BigDecimal.ZERO;
+            BigDecimal unpriced = BigDecimal.ZERO;
+            for (Lot lot : byFood.getOrDefault(foodId, List.of())) {
+                if (remaining.signum() <= 0) {
+                    break;
+                }
+                if (lot.balance().signum() <= 0
+                        || (mealDate != null && lot.expiryDate().isBefore(mealDate))) {
+                    continue;
+                }
+                BigDecimal taken = lot.balance().min(remaining);
+                remaining = remaining.subtract(taken);
+                if (lot.unitPrice() == null) {
+                    unpriced = unpriced.add(taken);
+                } else {
+                    lotQty = lotQty.add(taken);
+                    lotValue = lotValue.add(taken.multiply(lot.unitPrice()));
+                }
+            }
+            result.put(foodId, new LotTake(lotQty, lotValue, remaining.add(unpriced), remaining));
+        });
+        return result;
+    }
+
     /** Lấy tối đa {@code amount} từ các lô theo thứ tự hết hạn trước; {@code mealDate} null ⇒ không lọc hạn dùng. */
     private static BigDecimal take(List<Lot> lots, BigDecimal[] left, BigDecimal amount, LocalDate mealDate) {
         BigDecimal remaining = amount;
@@ -225,7 +273,10 @@ class DryStockOutlook {
                                 StockMovementRepository.LotBalance::getBalance));
         return lots.stream()
                 .map(lot -> new Lot(
-                        lot.getFoodId(), lot.getExpiryDate(), balances.getOrDefault(lot.getId(), BigDecimal.ZERO)))
+                        lot.getFoodId(),
+                        lot.getExpiryDate(),
+                        balances.getOrDefault(lot.getId(), BigDecimal.ZERO),
+                        lot.getUnitPrice()))
                 .toList();
     }
 

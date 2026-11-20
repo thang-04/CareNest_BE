@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -70,7 +71,11 @@ class MenuAiContextLoader {
 
     /** Danh mục món: mọi món (để kiểm lưới đang có) và món dùng được (đang dùng, mọi thực phẩm đang dùng). */
     private record Catalog(
-            Map<Long, Dish> all, List<Dish> usable, Map<Long, DishInfo> allInfos, Map<Long, DishInfo> usableInfos) {}
+            Map<Long, Dish> all,
+            List<Dish> usable,
+            Map<Long, DishInfo> allInfos,
+            Map<Long, DishInfo> usableInfos,
+            BiFunction<Long, LocalDate, BigDecimal> priceOf) {}
 
     /**
      * Ràng buộc của người lập cho gợi ý tuần. {@code strict}: lúc tạo nháp, ràng buộc không áp được ⇒ 400; lúc đọc lại
@@ -124,6 +129,7 @@ class MenuAiContextLoader {
                         templateGrid,
                         MenuAiPromptBuilder.clean(season, MenuAiPromptBuilder.SEASON_MAX),
                         MenuAiPromptBuilder.clean(wishes, MenuAiPromptBuilder.WISHES_MAX))
+                .priced(catalog.priceOf())
                 .constrained(required, constraints.keepTemplate() && !templateGrid.isEmpty());
     }
 
@@ -204,26 +210,27 @@ class MenuAiContextLoader {
         Map<String, Long> templateDay =
                 templateGrid(template, monday, slots, catalog.all()).getOrDefault(weekday, Map.of());
         return new MenuContext(
-                block,
-                List.of(anchor),
-                Set.of(),
-                groups,
-                catalog.usableInfos(),
-                evaluationSupport.normsUntil(anchor),
-                slots,
-                MenuCandidateBuilder.build(
-                        catalog.usableInfos().values(),
+                        block,
+                        List.of(anchor),
+                        Set.of(),
                         groups,
+                        catalog.usableInfos(),
+                        evaluationSupport.normsUntil(anchor),
                         slots,
+                        MenuCandidateBuilder.build(
+                                catalog.usableInfos().values(),
+                                groups,
+                                slots,
+                                recent,
+                                signals,
+                                similarity,
+                                properties.candidateLimit()),
                         recent,
                         signals,
-                        similarity,
-                        properties.candidateLimit()),
-                recent,
-                signals,
-                templateDay.isEmpty() ? Map.of() : Map.of(0, templateDay),
-                MenuAiPromptBuilder.clean(season, MenuAiPromptBuilder.SEASON_MAX),
-                MenuAiPromptBuilder.clean(wishes, MenuAiPromptBuilder.WISHES_MAX));
+                        templateDay.isEmpty() ? Map.of() : Map.of(0, templateDay),
+                        MenuAiPromptBuilder.clean(season, MenuAiPromptBuilder.SEASON_MAX),
+                        MenuAiPromptBuilder.clean(wishes, MenuAiPromptBuilder.WISHES_MAX))
+                .priced(catalog.priceOf());
     }
 
     /**
@@ -300,19 +307,20 @@ class MenuAiContextLoader {
                 .filter(id -> !sessionDishes.contains(id))
                 .toList();
         MenuContext ctx = new MenuContext(
-                block,
-                weekDates(weekStart),
-                offDays(week),
-                groups,
-                catalog.allInfos(),
-                evaluationSupport.normsUntil(weekStart.plusDays(DAYS - 1L)),
-                slots,
-                Map.of(target.key(), candidates),
-                recent,
-                signals,
-                Map.of(),
-                MenuAiPromptBuilder.clean(season, MenuAiPromptBuilder.SEASON_MAX),
-                MenuAiPromptBuilder.clean(wishes, MenuAiPromptBuilder.WISHES_MAX));
+                        block,
+                        weekDates(weekStart),
+                        offDays(week),
+                        groups,
+                        catalog.allInfos(),
+                        evaluationSupport.normsUntil(weekStart.plusDays(DAYS - 1L)),
+                        slots,
+                        Map.of(target.key(), candidates),
+                        recent,
+                        signals,
+                        Map.of(),
+                        MenuAiPromptBuilder.clean(season, MenuAiPromptBuilder.SEASON_MAX),
+                        MenuAiPromptBuilder.clean(wishes, MenuAiPromptBuilder.WISHES_MAX))
+                .priced(catalog.priceOf());
         return new DayFix(ctx, new MenuGrid(cells, Map.of()), date, target);
     }
 
@@ -355,7 +363,8 @@ class MenuAiContextLoader {
                 all,
                 usable,
                 MealPlanEvaluationSupport.dishInfos(all.values()),
-                MealPlanEvaluationSupport.dishInfos(usable));
+                MealPlanEvaluationSupport.dishInfos(usable),
+                evaluationSupport.priceOf(all.values()));
     }
 
     private static void checkNotPublished(MealPlanWeek week) {

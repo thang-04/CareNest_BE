@@ -166,7 +166,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
         String logPrefix = LOG_PREFIX + "|latest|userId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
-            checkCanView(actor, childId);
+            checkCanRead(actor, childId);
             HealthTrendAnalysisResponse response = interpretationRepository
                     .findFirstByChildIdOrderByGeneratedAtDescIdDesc(childId)
                     .map(i -> toResponse(i, stale(i)))
@@ -378,6 +378,13 @@ public class HealthTrendServiceImpl implements HealthTrendService {
 
     private void checkCanView(CurrentUser actor, Long childId) {
         if (!childAccessPolicy.canViewChild(actor, childId)) {
+            throw GlobalException.of(ApiCode.HEALTH_RECORD_ACCESS_DENIED);
+        }
+    }
+
+    // AUTH-20 (2026-11-15): PHT xem sổ sức khỏe cả trường; phân tích/duyệt vẫn theo checkCanView
+    private void checkCanRead(CurrentUser actor, Long childId) {
+        if (!childAccessPolicy.canReadChild(actor, childId)) {
             throw GlobalException.of(ApiCode.HEALTH_RECORD_ACCESS_DENIED);
         }
     }

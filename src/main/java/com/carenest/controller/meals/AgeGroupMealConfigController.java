@@ -59,7 +59,7 @@ public class AgeGroupMealConfigController {
     }
 
     @PostMapping
-    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    @PreAuthorize("@permissionGuard.has('MEAL_CONFIG_MANAGE')")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<AgeGroupMealConfigResponse>> createConfig(
             @Valid @RequestBody AgeGroupMealConfigRequest request, CurrentUser currentUser) {
@@ -71,7 +71,7 @@ public class AgeGroupMealConfigController {
     }
 
     @PostMapping("/batch")
-    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    @PreAuthorize("@permissionGuard.has('MEAL_CONFIG_MANAGE')")
     public ResponseEntity<ResponseJson<List<AgeGroupMealConfigResponse>>> saveConfigs(
             @Valid @RequestBody AgeGroupMealConfigBatchRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveConfigs|userId=" + currentUser.userId();
@@ -82,7 +82,7 @@ public class AgeGroupMealConfigController {
     }
 
     @PutMapping("/{configId}")
-    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    @PreAuthorize("@permissionGuard.has('MEAL_CONFIG_MANAGE')")
     public ResponseEntity<ResponseJson<AgeGroupMealConfigResponse>> updateConfig(
             @PathVariable Long configId,
             @Valid @RequestBody AgeGroupMealConfigRequest request,

@@ -16,6 +16,7 @@ import com.carenest.repository.organization.AgeGroupRepository;
 import com.carenest.repository.organization.AttendanceCutoffRepository;
 import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
+import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolHolidayRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
@@ -71,6 +72,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final SchoolHolidayRepository schoolHolidayRepository;
     private final List<SchoolDayUsageCheck> schoolDayUsageChecks;
     private final CampusRepository campusRepository;
+    private final RoomRepository roomRepository;
     private final NotificationService notificationService;
 
     @Override
@@ -142,19 +144,24 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                     .orElse(null);
             SchoolYear schoolYear =
                     schoolYearRepository.save(SchoolYear.plan(name, request.startDate(), request.endDate(), prepDate));
-            // Cần chốt 22/10/2026: năm mới có danh sách nhóm tuổi riêng, lấy từ năm gần nhất (chưa có thì cả danh mục)
-            if (latest == null
-                    || ageGroupRepository.findYearAgeGroupIds(latest.getId()).isEmpty()) {
+            // Năm đầu tiên lấy danh mục hiện có; các năm sau chép nguyên cấu hình năm gần nhất,
+            // kể cả khi danh sách năm nguồn đang rỗng.
+            if (latest == null) {
                 ageGroupRepository.addAllToYear(schoolYear.getId());
             } else {
                 ageGroupRepository.copyYearAgeGroups(latest.getId(), schoolYear.getId());
             }
-            // Điểm trường của năm mới cũng chép từ năm gần nhất (V151; chưa có thì cả danh mục)
-            if (latest == null
-                    || campusRepository.findYearCampusIds(latest.getId()).isEmpty()) {
+            // Điểm trường của năm mới cũng chép nguyên từ năm gần nhất.
+            if (latest == null) {
                 campusRepository.addAllToYear(schoolYear.getId());
             } else {
                 campusRepository.copyYearCampuses(latest.getId(), schoolYear.getId());
+            }
+            // Phòng / phòng ban của năm mới chép nguyên từ năm gần nhất.
+            if (latest == null) {
+                roomRepository.addAllToYear(schoolYear.getId());
+            } else {
+                roomRepository.copyYearRooms(latest.getId(), schoolYear.getId());
             }
             log.info("{}|schoolYearId={}|END", logPrefix, schoolYear.getId());
             return schoolStructureMapper.toDetailResponse(schoolYear, 0, LocalDate.now(clock));
@@ -351,6 +358,12 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             });
             schoolYear.activate(currentUser.userId(), now);
             schoolYearRepository.flush();
+            // V154: bảng chung nhận nhóm tuổi, điểm trường, phòng của năm mới (module khác đọc bảng chung)
+            ageGroupRepository.applyYearInfo(schoolYear.getId());
+            campusRepository.applyYearInfo(schoolYear.getId());
+            campusRepository.deactivateOutsideYear(schoolYear.getId());
+            roomRepository.applyYearInfo(schoolYear.getId());
+            roomRepository.deactivateOutsideYear(schoolYear.getId());
             notifyActivated(schoolYear, today);
             SchoolYearDetailResponse response = toDetail(schoolYear);
             log.info("{}|END", logPrefix);

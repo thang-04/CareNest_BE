@@ -7,6 +7,8 @@ import com.carenest.entity.meals.Dish;
 import com.carenest.entity.meals.DishIngredient;
 import com.carenest.entity.meals.Food;
 import com.carenest.repository.meals.AgeGroupMealConfigRepository;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DishInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.FoodInfo;
@@ -47,6 +49,7 @@ class MealPlanEvaluationSupport {
     private final AgeGroupService ageGroupService;
     private final ClassroomService classroomService;
     private final AgeGroupMealConfigRepository configRepository;
+    private final FoodPriceService foodPriceService;
 
     /** Nhóm tuổi có lớp trong năm học hiện hành; chưa có lớp nào thì kiểm mọi nhóm tuổi. */
     List<AgeGroupInfo> evaluatedGroups() {
@@ -93,6 +96,18 @@ class MealPlanEvaluationSupport {
         return served;
     }
 
+    /**
+     * Giá đơn vị mua của thực phẩm các món tại ngày thực đơn (NUT-27): cùng sổ giá với kế hoạch tuần nên một lưới luôn ra
+     * cùng tiền ăn ở cả hai nơi. Đọc một lần theo tập thực phẩm của {@code dishes}.
+     */
+    BiFunction<Long, LocalDate, BigDecimal> priceOf(Collection<Dish> dishes) {
+        FoodPriceBook book = foodPriceService.book(dishes.stream()
+                .flatMap(d -> d.getIngredients().stream())
+                .map(i -> i.getFood().getId())
+                .collect(Collectors.toSet()));
+        return book::price;
+    }
+
     static Map<Long, DishInfo> dishInfos(Collection<Dish> dishes) {
         return dishes.stream().collect(Collectors.toMap(Dish::getId, MealPlanEvaluationSupport::toDishInfo));
     }
@@ -108,7 +123,7 @@ class MealPlanEvaluationSupport {
                     food.getLipid(),
                     food.getGlucid(),
                     food.getOrigin(),
-                    food.getUnitPrice(),
+                    null,
                     food.getPurchaseUnitSize(),
                     food.getWastePct(),
                     food.getAllergens().stream().map(a -> a.getName()).sorted().toList(),

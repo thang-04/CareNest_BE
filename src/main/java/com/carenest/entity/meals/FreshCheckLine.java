@@ -35,6 +35,10 @@ public class FreshCheckLine {
     @Column(name = "food_id", nullable = false)
     private Long foodId;
 
+    // NUT-12: NCC theo từng dòng, mặc định NCC của thực phẩm tại ngày kiểm
+    @Column(name = "supplier_id")
+    private Long supplierId;
+
     @Column(name = "expected_qty", nullable = false, precision = 14, scale = 2)
     private BigDecimal expectedQty;
 
@@ -49,9 +53,15 @@ public class FreshCheckLine {
     private String note = "";
 
     public static FreshCheckLine of(
-            Long foodId, BigDecimal expectedQty, BigDecimal receivedQty, FreshCheckResult result, String note) {
+            Long foodId,
+            Long supplierId,
+            BigDecimal expectedQty,
+            BigDecimal receivedQty,
+            FreshCheckResult result,
+            String note) {
         FreshCheckLine line = new FreshCheckLine();
         line.foodId = foodId;
+        line.supplierId = supplierId;
         line.expectedQty = expectedQty;
         line.receivedQty = receivedQty;
         line.result = result;
@@ -60,6 +70,7 @@ public class FreshCheckLine {
     }
 
     void copyFrom(FreshCheckLine incoming) {
+        this.supplierId = incoming.supplierId;
         this.expectedQty = incoming.expectedQty;
         this.receivedQty = incoming.receivedQty;
         this.result = incoming.result;

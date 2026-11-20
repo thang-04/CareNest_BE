@@ -100,6 +100,10 @@ class StockDeductionRecoveryIntegrationTest {
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                year);
         long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
                 + campus + ", " + year + ", 'Lớp F', " + ag3 + ") RETURNING id");
         long child = insertId(
@@ -112,6 +116,10 @@ class StockDeductionRecoveryIntegrationTest {
                 + " unit_price, kcal, protein, lipid, glucid, nutrient_source, storage, origin)"
                 + " VALUES ('GAO-F', 'Gạo', 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', 'DRY', 'PLANT')"
                 + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                rice);
         long dish = insertId("INSERT INTO dishes (code, name, dish_type) VALUES ('COM-F', 'Cơm', 'CARB') RETURNING id");
         jdbc.update(
                 "INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child) VALUES (?, ?, ?, 60)",

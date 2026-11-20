@@ -14,6 +14,8 @@ import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.DishService;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.Allergen;
@@ -23,6 +25,8 @@ import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.Micronutrient;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -51,6 +55,8 @@ public class DishServiceImpl implements DishService {
     private final FoodRepository foodRepository;
     private final AgeGroupService ageGroupService;
     private final NutritionCatalogMapper mapper;
+    private final FoodPriceService foodPriceService;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -267,8 +273,13 @@ public class DishServiceImpl implements DishService {
                 .toList();
         Map<Long, List<DishIngredient>> byAgeGroup = dish.getIngredients().stream()
                 .collect(Collectors.groupingBy(DishIngredient::getAgeGroupId, TreeMap::new, Collectors.toList()));
+        // NUT-27: chi phí món theo giá hôm nay
+        FoodPriceBook book = foodPriceService.book(dish.getIngredients().stream()
+                .map(item -> item.getFood().getId())
+                .collect(Collectors.toSet()));
+        LocalDate today = LocalDate.now(clock);
         List<DishDetailResponse.AgeGroupNutrition> nutrition = byAgeGroup.entrySet().stream()
-                .map(entry -> nutritionOf(entry.getKey(), entry.getValue()))
+                .map(entry -> nutritionOf(entry.getKey(), entry.getValue(), id -> book.price(id, today)))
                 .toList();
         Set<Allergen> allergens = new LinkedHashSet<>();
         dish.getIngredients().forEach(item -> allergens.addAll(item.getFood().getAllergens()));
@@ -290,7 +301,8 @@ public class DishServiceImpl implements DishService {
      * NUT-06, NUT-18: dinh dưỡng một suất = Σ lượng ăn được × giá trị/100 (NUT-26: cả 8 vi chất). Giá một suất tính lượng mua, cộng hệ số thải bỏ
      * (NUT-07): lượng × (1 + thải bỏ%) × giá đơn vị mua / số đơn vị trong một đơn vị mua.
      */
-    private static DishDetailResponse.AgeGroupNutrition nutritionOf(Long ageGroupId, List<DishIngredient> items) {
+    private static DishDetailResponse.AgeGroupNutrition nutritionOf(
+            Long ageGroupId, List<DishIngredient> items, Function<Long, BigDecimal> priceOf) {
         BigDecimal kcal = BigDecimal.ZERO;
         BigDecimal animalProtein = BigDecimal.ZERO;
         BigDecimal plantProtein = BigDecimal.ZERO;
@@ -327,11 +339,13 @@ public class DishServiceImpl implements DishService {
                 plantLipid = plantLipid.add(grams.multiply(food.getLipid()));
             }
             glucid = glucid.add(grams.multiply(food.getGlucid()));
-            BigDecimal purchased =
-                    MealDemandCalculator.purchased(grams, food.getWastePct()).multiply(HUNDRED);
-            cost = cost.add(purchased
-                    .multiply(food.getUnitPrice())
-                    .divide(food.getPurchaseUnitSize(), 10, RoundingMode.HALF_UP));
+            BigDecimal price = priceOf.apply(food.getId());
+            BigDecimal size = food.getPurchaseUnitSize();
+            if (price != null && size != null && size.signum() > 0) {
+                BigDecimal purchased = MealDemandCalculator.purchased(grams, food.getWastePct())
+                        .multiply(HUNDRED);
+                cost = cost.add(purchased.multiply(price).divide(size, 10, RoundingMode.HALF_UP));
+            }
         }
         return new DishDetailResponse.AgeGroupNutrition(
                 ageGroupId,

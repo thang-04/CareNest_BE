@@ -84,7 +84,7 @@ Mọi endpoint cần `MENU_MANAGE` như hiện có. Nháp gốc (`output_json`, 
 
 ### 4.2 `GET /nutrition/menu-ai-drafts/{id}/candidates`
 
-Chỉ `MENU_WEEKLY` đang `PENDING_REVIEW` (khác ⇒ 409 `6096`/`6098` như hiện có). Dựng lại ngữ cảnh tuần bằng `MenuAiContextLoader.weekly` với mùa/mong muốn trong `request_json`.
+Chỉ `MENU_WEEKLY` đang `PENDING_REVIEW` (khác ⇒ 409 `6108`/`6110` như hiện có). Dựng lại ngữ cảnh tuần bằng `MenuAiContextLoader.weekly` với mùa/mong muốn trong `request_json`.
 
 ```json
 { "slots": [ { "key": "LUNCH.2", "session": "LUNCH", "index": 1, "dishTypes": ["MAIN"],
@@ -111,18 +111,18 @@ Response 200:
 
 Chấm bằng đúng đường của engine: `MenuGrid.evaluate` + cảnh báo kho khô + `MenuScore.score` + `MenuCriteriaReport.build`. Dòng tiêu chí `VALUE_GATE` khi `editedCells > 0` ghi "Người duyệt đã sửa N ô so với gợi ý". Không gọi model, không ghi DB, không cần idempotency. Engine thêm một method công khai trong gói (vd. `MenuSuggestionEngine.assess(ctx, grid)`) trả issues/score/checks; `decide`/`chosen` dùng lại method này để không có hai cách chấm.
 
-Nháp không còn `PENDING_REVIEW` ⇒ 409 `6096`.
+Nháp không còn `PENDING_REVIEW` ⇒ 409 `6108`.
 
 ### 4.4 `POST /nutrition/menu-ai-drafts/{id}/apply` — nhận lưới đã sửa
 
 Body tùy chọn, cùng dạng 4.3. Không có body ⇒ hành vi hiện tại (dùng nguyên gợi ý). Có body:
 
-- Kiểm như 4.3 (400 `9001`), rồi kiểm món còn dùng/bữa còn phục vụ như hiện có (409 `6097`).
+- Kiểm như 4.3 (400 `9001`), rồi kiểm món còn dùng/bữa còn phục vụ như hiện có (409 `6109`).
 - Không chặn theo lỗi `BLOCKING`: lưới đã sửa có thể chưa đạt, công bố vẫn bị chặn ở kế hoạch tuần (NUT-09, mã `6039`) — cùng quy tắc với nháp `feasible=false` đã chốt 11/11.
 - Ghi tuần qua `MealPlanService.saveMealPlan` với lưới đã sửa (chỉ khối của nháp, giữ khối khác và ngày nghỉ như `mergedWeek`).
 - Lưu `edited_cells` = số ô khác `output_json`; nháp thành `APPLIED`. Gọi lại khi đã `APPLIED` ⇒ trả tuần hiện tại, không ghi lại (như cũ).
 
-Chỉ áp dụng cho `MENU_WEEKLY`; `MENU_DAY_FIX` gửi body ⇒ 409 `6098` (mã sẵn có cho thao tác sai loại gợi ý).
+Chỉ áp dụng cho `MENU_WEEKLY`; `MENU_DAY_FIX` gửi body ⇒ 409 `6110` (mã sẵn có cho thao tác sai loại gợi ý).
 
 ### 4.5 Schema
 
@@ -148,7 +148,7 @@ Service: thêm `getCandidates(id)`, `evaluateDraft(id, days)`, `applyDraft(id, d
 | `evaluate` lỗi mạng/5xx | Giữ điểm cũ, gắn nhãn "Chưa chấm lại được" + nút "Chấm lại"; khóa "Dùng cho tuần" tới khi chấm lại được |
 | `evaluate` 400 (ô sai) | Hoàn tác bước vừa làm, toast lỗi BE |
 | Nháp hết `PENDING_REVIEW` giữa chừng (409) | Toast lỗi BE, khóa sửa, chỉ còn nút đóng |
-| `apply` 409 `6097` | Hiện danh sách lỗi theo ngày của BE, giữ hộp thoại và bản đang sửa |
+| `apply` 409 `6109` | Hiện danh sách lỗi theo ngày của BE, giữ hộp thoại và bản đang sửa |
 | `NO_FEASIBLE` | Không có bảng, không có cột món; giữ cảnh báo đỏ và danh sách nguyên nhân như hiện tại |
 | AI tắt | Như cũ: phương án theo quy tắc; sửa và chấm lại vẫn chạy (AI-03) |
 

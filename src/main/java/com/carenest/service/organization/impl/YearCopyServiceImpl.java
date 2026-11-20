@@ -4,6 +4,8 @@ import com.carenest.dto.organization.ClassTeachersRequest;
 import com.carenest.dto.organization.CopyClassesRequest;
 import com.carenest.dto.organization.CopyClassesResponse;
 import com.carenest.dto.organization.CutoffRequest;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest;
 import com.carenest.dto.organization.SchoolYearSemesterRequest;
 import com.carenest.dto.organization.TeacherCandidateResponse;
 import com.carenest.dto.organization.TeamLeaderRequest;
@@ -124,6 +126,8 @@ public class YearCopyServiceImpl implements YearCopyService {
                     parts.contains(YearCopyPart.CUTOFF) ? copyCutoff(currentUser, source, target, skipped) : null;
             boolean semesterCopied =
                     parts.contains(YearCopyPart.SEMESTER) && copySemester(currentUser, source, target, skipped);
+            int holidays =
+                    parts.contains(YearCopyPart.HOLIDAYS) ? copyHolidays(currentUser, source, target, skipped) : 0;
             YearCopyResponse response = new YearCopyResponse(
                     copiedClasses,
                     withoutRoom,
@@ -132,6 +136,7 @@ public class YearCopyServiceImpl implements YearCopyService {
                     vicePrincipals,
                     cutoff,
                     semesterCopied,
+                    holidays,
                     skipped);
             log.info(
                     "{}|END|classes={}|teacherClasses={}|teamLeaders={}|skipped={}",
@@ -322,11 +327,57 @@ public class YearCopyServiceImpl implements YearCopyService {
             attendanceCutoffService.saveCutoff(
                     currentUser,
                     target.getId(),
-                    new CutoffRequest(time, from, "Sao chép từ năm học " + source.getName()));
+                    // Cần chốt 19/11/2026: chép cả giờ đến muộn nhất buổi chiều
+                    new CutoffRequest(
+                            time,
+                            from,
+                            "Sao chép từ năm học " + source.getName(),
+                            history.getFirst().getLatestAfternoonArrival()));
             return time;
         } catch (GlobalException ex) {
             skipped.add(new YearCopyResponse.Skipped(YearCopyPart.CUTOFF, source.getName(), ex.getMessage()));
             return null;
+        }
+    }
+
+    /**
+     * Chép ngày nghỉ lễ của năm nguồn (Cần chốt 19/11/2026), dời theo số năm giữa hai năm học; đợt rơi ra ngoài năm mới
+     * thì bỏ và báo lại. Năm đích đã có ngày nghỉ thì giữ nguyên.
+     */
+    private int copyHolidays(
+            CurrentUser currentUser, SchoolYear source, SchoolYear target, List<YearCopyResponse.Skipped> skipped) {
+        if (!schoolYearService.getHolidays(currentUser, target.getId()).isEmpty()) {
+            return 0;
+        }
+        List<SchoolHolidayItem> sourceHolidays = schoolYearService.getHolidays(currentUser, source.getId());
+        if (sourceHolidays.isEmpty()) {
+            skipped.add(new YearCopyResponse.Skipped(
+                    YearCopyPart.HOLIDAYS, source.getName(), "Năm học nguồn chưa có ngày nghỉ"));
+            return 0;
+        }
+        long years = ChronoUnit.YEARS.between(
+                source.getStartDate().withDayOfYear(1), target.getStartDate().withDayOfYear(1));
+        List<SchoolHolidayItem> shifted = new ArrayList<>();
+        for (SchoolHolidayItem h : sourceHolidays) {
+            LocalDate start = h.startDate().plusYears(years);
+            LocalDate end = h.endDate().plusYears(years);
+            if (start.isBefore(target.getStartDate()) || end.isAfter(target.getEndDate())) {
+                skipped.add(new YearCopyResponse.Skipped(
+                        YearCopyPart.HOLIDAYS, h.name(), "Ngày nghỉ nằm ngoài thời gian năm học mới"));
+            } else {
+                shifted.add(new SchoolHolidayItem(start, end, h.name()));
+            }
+        }
+        if (shifted.isEmpty()) {
+            return 0;
+        }
+        try {
+            return schoolYearService
+                    .replaceHolidays(currentUser, target.getId(), new SchoolHolidaysRequest(shifted))
+                    .size();
+        } catch (GlobalException ex) {
+            skipped.add(new YearCopyResponse.Skipped(YearCopyPart.HOLIDAYS, source.getName(), ex.getMessage()));
+            return 0;
         }
     }
 

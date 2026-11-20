@@ -83,10 +83,11 @@ record MenuGrid(Map<LocalDate, Map<String, Long>> cells, Map<LocalDate, String> 
     }
 
     MealPlanEvaluator.Result evaluate(MenuContext ctx) {
-        return MealPlanEvaluator.evaluate(toDayPlans(ctx), ctx.groups(), ctx.dishes(), ctx.normOf());
+        return MealPlanEvaluator.evaluate(toDayPlans(ctx), ctx.groups(), ctx.dishes(), ctx.normOf(), ctx.priceOf());
     }
 
     MealPlanEvaluator.Result evaluateDay(LocalDate date, MenuContext ctx) {
-        return MealPlanEvaluator.evaluate(List.of(dayPlan(date, ctx)), ctx.groups(), ctx.dishes(), ctx.normOf());
+        return MealPlanEvaluator.evaluate(
+                List.of(dayPlan(date, ctx)), ctx.groups(), ctx.dishes(), ctx.normOf(), ctx.priceOf());
     }
 }

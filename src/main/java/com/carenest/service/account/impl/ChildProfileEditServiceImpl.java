@@ -16,6 +16,7 @@ import com.carenest.service.account.ChildProfileEditService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.ChildEditRoles;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import java.util.ArrayList;
@@ -66,6 +67,10 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
         String logPrefix = LOG_PREFIX + "|update|userId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
+            // CHD-11: GV không ghi thẳng, gửi yêu cầu qua ChildProfileChangeRequestService
+            if (ChildEditRoles.teacherOnly(actor)) {
+                throw GlobalException.of(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL);
+            }
             ChildEditDraft draft = childRecordService.prepareEdit(actor, childId, request);
             Map<Long, UserAccount> accounts = userAccountRepository
                     .findAllById(draft.guardians().stream()

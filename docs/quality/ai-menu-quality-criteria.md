@@ -32,7 +32,7 @@ Dữ liệu nạp (PostgreSQL, do trường nhập — AI không tạo, NUT-05)
 
 - **LLM không tính số.** Mọi kcal, % cơ cấu, giá trên màn hình do bước [3] tính bằng công thức; lý do model viết bị xóa chữ số.
 - **Lịch sử thực đơn** lấy bằng truy vấn SQL theo `weekStart` (không phải tìm gần nghĩa), nên "4 tuần trước ăn gì" là chính xác.
-- **Vector DB (pgvector, đã có từ 19/11/2026):** bảng `dish_embeddings` (V155) trong chính PostgreSQL. Văn bản embed của món = tên, loại món, thực phẩm chính, nhãn mùa của bộ mẫu chứa món; embed lười theo lô lúc gợi ý cho món thiếu vector hoặc lệch model/hash, trong ngân sách `carenest.embedding.budget` (8s). Vector chỉ xếp lại thứ tự món ứng viên theo "mong muốn" của PHT (hoặc món cần thay), luôn SAU lọc cứng và sau món vừa dùng/hết kho; không thêm món vào ô. Lịch sử thực đơn không đưa vào vector (SQL theo ngày). Embedding tắt/lỗi/hết giờ ⇒ thứ tự như cũ, nháp vẫn trả.
+- **Vector DB (pgvector, đã có từ 19/11/2026):** bảng `dish_embeddings` (V161) trong chính PostgreSQL. Văn bản embed của món = tên, loại món, thực phẩm chính, nhãn mùa của bộ mẫu chứa món; embed lười theo lô lúc gợi ý cho món thiếu vector hoặc lệch model/hash, trong ngân sách `carenest.embedding.budget` (8s). Vector chỉ xếp lại thứ tự món ứng viên theo "mong muốn" của PHT (hoặc món cần thay), luôn SAU lọc cứng và sau món vừa dùng/hết kho; không thêm món vào ô. Lịch sử thực đơn không đưa vào vector (SQL theo ngày). Embedding tắt/lỗi/hết giờ ⇒ thứ tự như cũ, nháp vẫn trả.
 - **Đây không phải RAG sinh văn bản trên tài liệu:** không cắt chunk, không đưa đoạn tài liệu vào prompt; LLM vẫn chỉ chọn bí danh trong ứng viên đã lọc.
 
 ## 1. Luận điểm chính

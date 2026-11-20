@@ -1,6 +1,7 @@
 package com.carenest.service.meals.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -11,6 +12,8 @@ import com.carenest.entity.meals.Food;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodGroup;
@@ -18,9 +21,15 @@ import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -31,8 +40,20 @@ class DishServiceImplTest {
     private static final long DISH_ID = 9L;
 
     private final DishRepository dishRepository = mock(DishRepository.class);
+    private final FoodPriceService foodPriceService = mock(FoodPriceService.class);
     private final DishServiceImpl service = new DishServiceImpl(
-            dishRepository, mock(FoodRepository.class), mock(AgeGroupService.class), new NutritionCatalogMapper());
+            dishRepository,
+            mock(FoodRepository.class),
+            mock(AgeGroupService.class),
+            new NutritionCatalogMapper(),
+            foodPriceService,
+            Clock.fixed(Instant.parse("2026-11-18T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")));
+
+    @BeforeEach
+    void emptyPriceBook() {
+        given(foodPriceService.book(any()))
+                .willReturn(new FoodPriceBook(Map.of(), Map.of(), LocalDate.of(2026, 11, 18)));
+    }
 
     // Cơm: canxi 30, photpho 104, sắt 1,3, A 0, B1 0,10, B2 0,03, PP 1,6, C 0 /100 g
     private static final Food.Micronutrients RICE = new Food.Micronutrients(

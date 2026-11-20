@@ -726,7 +726,8 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                     plans,
                     groups,
                     MealPlanEvaluationSupport.dishInfos(dishes.values()),
-                    evaluationSupport.normsUntil(draft.getWeekStart().plusDays(DAYS - 1L)));
+                    evaluationSupport.normsUntil(draft.getWeekStart().plusDays(DAYS - 1L)),
+                    evaluationSupport.priceOf(dishes.values()));
             result.issues().stream()
                     .filter(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()))
                     .filter(i -> i.date() == null || checkedDates.contains(i.date()))

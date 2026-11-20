@@ -80,6 +80,10 @@ class CampusServiceIntegrationTest {
                 campusA);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                year);
         long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusA + ", "
                 + year + ", 'Lớp A1') RETURNING id");
         long child = insertId(
@@ -226,10 +230,8 @@ class CampusServiceIntegrationTest {
         long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
         jdbc.update(
-                "INSERT INTO school_year_campus_members (school_year_id, campus_id) SELECT ?, id FROM campuses",
-                active);
-        jdbc.update(
-                "INSERT INTO school_year_campus_members (school_year_id, campus_id) SELECT ?, id FROM campuses",
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
                 planned);
 
         CampusResponse created = service.createCampus(
@@ -263,6 +265,21 @@ class CampusServiceIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+
+        // BUG-43: trẻ đã tiếp nhận cho năm sắp diễn ra ở điểm trường (chưa có lớp) chặn bỏ điểm trường khỏi năm đó
+        long child = insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on)"
+                + " VALUES ('IT-PA1', 'Trẻ Tiếp Nhận', '2023-01-01', 'FEMALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
+        jdbc.update(
+                "INSERT INTO planned_admissions (child_id, school_year_id, campus_id, start_date)"
+                        + " VALUES (?, ?, ?, '2027-09-01')",
+                child,
+                planned,
+                campusB);
+        assertThatThrownBy(() -> service.deleteCampus(principal, campusB, planned))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.CAMPUS_NOT_EMPTY))
+                .hasMessageContaining("1 trẻ đã tiếp nhận (Trẻ Tiếp Nhận)");
+        jdbc.update("DELETE FROM planned_admissions WHERE child_id = ?", child);
 
         // Xóa ở năm đang hoạt động: chỉ bỏ khỏi năm đó, năm sau vẫn còn
         service.deleteCampus(principal, campusB, active);

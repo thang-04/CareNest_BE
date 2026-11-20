@@ -197,6 +197,7 @@ class CurrentUserServiceTest {
                         Permission.ASSESSMENT_UNLOCK,
                         Permission.ASSESSMENT_CLASS_REVIEW,
                         Permission.NUTRITION_MANAGE,
+                        Permission.MEAL_CONFIG_MANAGE,
                         Permission.MENU_MANAGE,
                         Permission.STOCK_MANAGE,
                         Permission.FOOD_SAFETY_APPROVE,

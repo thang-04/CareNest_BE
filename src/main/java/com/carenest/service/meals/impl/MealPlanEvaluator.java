@@ -247,6 +247,19 @@ final class MealPlanEvaluator {
             List<AgeGroupInfo> groups,
             Map<Long, DishInfo> dishes,
             BiFunction<Long, LocalDate, Norm> normOf) {
+        return evaluate(days, groups, dishes, normOf, (foodId, date) -> null);
+    }
+
+    /**
+     * {@code priceOf}: giá đơn vị mua của thực phẩm tại ngày thực đơn (NUT-27); trả null ⇒ dùng
+     * {@link FoodInfo#unitPrice()}.
+     */
+    static Result evaluate(
+            List<DayPlan> days,
+            List<AgeGroupInfo> groups,
+            Map<Long, DishInfo> dishes,
+            BiFunction<Long, LocalDate, Norm> normOf,
+            BiFunction<Long, LocalDate, BigDecimal> priceOf) {
         List<Evaluation> evaluations = new ArrayList<>();
         List<Issue> issues = new ArrayList<>();
         Map<Long, LocalDate> normMissing = new LinkedHashMap<>();
@@ -256,7 +269,8 @@ final class MealPlanEvaluator {
             }
             missingSessions(day, groups, issues);
             for (AgeGroupInfo group : groups) {
-                Evaluation evaluation = evaluateGroup(day, group, dishes, normOf.apply(group.id(), day.date()));
+                Evaluation evaluation =
+                        evaluateGroup(day, group, dishes, normOf.apply(group.id(), day.date()), priceOf);
                 evaluations.add(evaluation);
                 groupIssues(day.date(), group, evaluation, issues, normMissing);
             }
@@ -298,7 +312,12 @@ final class MealPlanEvaluator {
         }));
     }
 
-    private static Evaluation evaluateGroup(DayPlan day, AgeGroupInfo group, Map<Long, DishInfo> dishes, Norm norm) {
+    private static Evaluation evaluateGroup(
+            DayPlan day,
+            AgeGroupInfo group,
+            Map<Long, DishInfo> dishes,
+            Norm norm,
+            BiFunction<Long, LocalDate, BigDecimal> priceOf) {
         List<ItemPlan> items = day.items().stream()
                 .filter(i -> i.block() == group.block() && group.sessions().contains(i.session()))
                 .toList();
@@ -337,7 +356,7 @@ final class MealPlanEvaluator {
                     continue;
                 }
                 sessionAcc.add(dishTotals(portions));
-                cost += dishCost(portions);
+                cost += dishCost(portions, day.date(), priceOf);
             }
             Acc sessionRounded = sessionAcc.rounded();
             day0.add(sessionRounded);
@@ -396,15 +415,17 @@ final class MealPlanEvaluator {
 
     // Giá/trẻ = giá đơn vị mua ÷ cỡ đơn vị mua × lượng mua (gam ÷ (1 − thải bỏ%)), làm tròn đồng theo món (FE
     // dishTotals)
-    private static long dishCost(List<Portion> portions) {
+    private static long dishCost(
+            List<Portion> portions, LocalDate date, BiFunction<Long, LocalDate, BigDecimal> priceOf) {
         BigDecimal cost = BigDecimal.ZERO;
         for (Portion p : portions) {
             FoodInfo f = p.food();
-            if (f.unitPrice() != null
+            BigDecimal dated = priceOf.apply(f.id(), date);
+            BigDecimal price = dated != null ? dated : f.unitPrice();
+            if (price != null
                     && f.purchaseUnitSize() != null
                     && f.purchaseUnitSize().signum() > 0) {
-                cost = cost.add(f.unitPrice()
-                        .multiply(MealDemandCalculator.purchased(p.grams(), f.wastePct()))
+                cost = cost.add(price.multiply(MealDemandCalculator.purchased(p.grams(), f.wastePct()))
                         .divide(f.purchaseUnitSize(), 6, RoundingMode.HALF_UP));
             }
         }

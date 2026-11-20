@@ -488,7 +488,7 @@ class LeaveRequestIntegrationTest {
                                 TODAY,
                                 List.of(new SaveAttendanceRequest.Entry(
                                         child2, AttendanceStatus.EXCUSED, Map.of(MealSession.LUNCH, true))))),
-                ApiCode.MEAL_SESSION_NOT_SERVED);
+                ApiCode.HALF_DAY_LEAVE_MEAL);
         expectError(
                 () -> attendanceService.markArrived(teacherA, classA, child1, TODAY),
                 ApiCode.ATTENDANCE_ARRIVAL_NOT_ALLOWED);
@@ -542,7 +542,16 @@ class LeaveRequestIntegrationTest {
                                 TODAY,
                                 List.of(new SaveAttendanceRequest.Entry(
                                         child1, AttendanceStatus.PRESENT, Map.of(MealSession.AFTERNOON, true))))),
-                ApiCode.MEAL_SESSION_NOT_SERVED);
+                ApiCode.HALF_DAY_LEAVE_MEAL);
+        // Câu báo riêng cho buổi nghỉ (Cần chốt 19/11/2026)
+        assertThatThrownBy(() -> attendanceService.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        new SaveAttendanceRequest(
+                                TODAY,
+                                List.of(new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.PRESENT, Map.of(MealSession.AFTERNOON, true))))))
+                .hasMessage("Trẻ nghỉ buổi chiều, không báo bữa Xế");
         attendanceService.saveClassAttendance(
                 teacherA,
                 classA,

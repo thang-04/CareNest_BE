@@ -4,7 +4,6 @@ import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.YearSetupResponse;
 import com.carenest.entity.organization.Campus;
 import com.carenest.entity.organization.Classroom;
-import com.carenest.entity.organization.Room;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.entity.organization.StaffAssignment;
 import com.carenest.exception.GlobalException;
@@ -23,9 +22,7 @@ import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,7 +61,14 @@ public class YearSetupServiceImpl implements YearSetupService {
                     .orElse(null);
             LocalDate today = schoolConfigAccess.today();
             List<AgeGroupDetailResponse> ageGroups = yearSnapshotReader.yearAgeGroups(year.getId());
-            List<Campus> campuses = campusRepository.findAllByOrderByMainDescCodeAsc();
+            // Điểm trường của năm (V151); migration đã backfill, rỗng nghĩa là năm chưa chọn điểm trường nào
+            Set<Long> yearCampusIds = Set.copyOf(campusRepository.findYearCampusIds(year.getId()));
+            Map<Long, CampusRepository.YearCampusInfo> yearCampusInfo =
+                    campusRepository.findYearCampusInfo(year.getId()).stream()
+                            .collect(Collectors.toMap(CampusRepository.YearCampusInfo::getCampusId, info -> info));
+            List<Campus> campuses = campusRepository.findAllByOrderByMainDescCodeAsc().stream()
+                    .filter(c -> yearCampusIds.contains(c.getId()))
+                    .toList();
             LocalDate leaderFrom = today.isAfter(year.getStartDate()) ? today : year.getStartDate();
             // Năm sắp tới: PHT phụ trách tính tại ngày bắt đầu năm học (phân công cho năm mới bắt đầu từ ngày đó)
             Set<Long> campusesWithVicePrincipal = campusRepository.findActiveCampusStaff(leaderFrom).stream()
@@ -84,11 +88,20 @@ public class YearSetupServiceImpl implements YearSetupService {
                     source == null ? List.of() : setupClasses(source.getId(), today),
                     ageGroups,
                     campuses.stream()
-                            .map(c -> new YearSetupResponse.CampusBrief(c.getId(), c.getShortName()))
+                            .map(c -> {
+                                CampusRepository.YearCampusInfo info = yearCampusInfo.get(c.getId());
+                                String name = info == null || info.getShortName() == null
+                                        ? c.getShortName()
+                                        : info.getShortName();
+                                return new YearSetupResponse.CampusBrief(c.getId(), name);
+                            })
                             .toList(),
                     // Điểm trường đã ngừng hoạt động không cần PHT (ngừng thì đã phải gỡ PHT, CFG-CP-01)
                     campuses.stream()
-                            .filter(Campus::isActive)
+                            .filter(c -> {
+                                CampusRepository.YearCampusInfo info = yearCampusInfo.get(c.getId());
+                                return info != null && "ACTIVE".equals(info.getStatus());
+                            })
                             .map(Campus::getId)
                             .filter(id -> !campusesWithVicePrincipal.contains(id))
                             .toList(),
@@ -109,13 +122,8 @@ public class YearSetupServiceImpl implements YearSetupService {
         if (classes.isEmpty()) {
             return List.of();
         }
-        Map<Long, Room> rooms = roomRepository
-                .findAllById(classes.stream()
-                        .map(Classroom::getRoomId)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(Room::getId, Function.identity()));
+        Map<Long, RoomRepository.YearRoomInfo> rooms = roomRepository.findYearRoomInfo(schoolYearId).stream()
+                .collect(Collectors.toMap(RoomRepository.YearRoomInfo::getRoomId, room -> room));
         Map<Long, List<StaffAssignment>> teachers =
                 staffAssignmentRepository
                         .findCurrentTeachers(
@@ -124,7 +132,7 @@ public class YearSetupServiceImpl implements YearSetupService {
                         .collect(Collectors.groupingBy(StaffAssignment::getClassroomId));
         return classes.stream()
                 .map(c -> {
-                    Room room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
+                    RoomRepository.YearRoomInfo room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
                     List<StaffAssignment> rows = teachers.getOrDefault(c.getId(), List.of());
                     return new YearSetupResponse.SetupClass(
                             c.getId(),

@@ -2,6 +2,7 @@ package com.carenest.service.organization.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
@@ -12,6 +13,8 @@ import static org.mockito.Mockito.verify;
 
 import com.carenest.dto.organization.ClassTeachersRequest;
 import com.carenest.dto.organization.CutoffRequest;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest;
 import com.carenest.dto.organization.SchoolYearSemesterRequest;
 import com.carenest.dto.organization.TeacherCandidateResponse;
 import com.carenest.dto.organization.YearCopyRequest;
@@ -43,6 +46,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -178,7 +182,11 @@ class YearCopyServiceImplTest {
                 .saveCutoff(
                         PRINCIPAL,
                         2L,
-                        new CutoffRequest(LocalTime.of(8, 30), target.getStartDate(), "Sao chép từ năm học 2026-2027"));
+                        new CutoffRequest(
+                                LocalTime.of(8, 30),
+                                target.getStartDate(),
+                                "Sao chép từ năm học 2026-2027",
+                                AttendanceCutoff.DEFAULT_LATEST_ARRIVAL));
         verify(schoolYearService)
                 .updateSemester(
                         PRINCIPAL,
@@ -188,6 +196,34 @@ class YearCopyServiceImplTest {
                                 LocalDate.of(2028, 1, 15),
                                 LocalDate.of(2028, 1, 18),
                                 LocalDate.of(2028, 5, 25)));
+    }
+
+    @Test
+    @DisplayName("Cần chốt 19/11/2026: chép ngày nghỉ lễ dời sang năm mới, đợt rơi ra ngoài năm mới thì bỏ và báo lại")
+    void holidaysMoveToTargetYear() {
+        given(schoolYearService.getHolidays(PRINCIPAL, 2L)).willReturn(List.of());
+        given(schoolYearService.getHolidays(PRINCIPAL, 1L))
+                .willReturn(List.of(
+                        new SchoolHolidayItem(LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 2), "Quốc khánh"),
+                        new SchoolHolidayItem(LocalDate.of(2027, 1, 1), LocalDate.of(2027, 1, 1), "Tết dương lịch")));
+        given(schoolYearService.replaceHolidays(eq(PRINCIPAL), eq(2L), any()))
+                .willAnswer(
+                        inv -> inv.getArgument(2, SchoolHolidaysRequest.class).holidays());
+
+        YearCopyResponse result =
+                service.copyYear(PRINCIPAL, 2L, new YearCopyRequest(1L, Set.of(YearCopyPart.HOLIDAYS)));
+
+        // 02/09/2027 trước ngày bắt đầu năm mới (05/09/2027) nên bỏ; 01/01/2028 giữ
+        assertThat(result.holidays()).isEqualTo(1);
+        verify(schoolYearService)
+                .replaceHolidays(
+                        PRINCIPAL,
+                        2L,
+                        new SchoolHolidaysRequest(List.of(new SchoolHolidayItem(
+                                LocalDate.of(2028, 1, 1), LocalDate.of(2028, 1, 1), "Tết dương lịch"))));
+        assertThat(result.skipped())
+                .extracting(YearCopyResponse.Skipped::part, YearCopyResponse.Skipped::name)
+                .containsExactly(tuple(YearCopyPart.HOLIDAYS, "Quốc khánh"));
     }
 
     @Test

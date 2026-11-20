@@ -90,6 +90,7 @@ class HealthTrendServiceImplTest {
     @BeforeEach
     void setUp() {
         given(policy.canViewChild(TEACHER, CHILD_ID)).willReturn(true);
+        given(policy.canReadChild(TEACHER, CHILD_ID)).willReturn(true);
         given(childService.findChildBriefs(any()))
                 .willReturn(Map.of(
                         CHILD_ID,
@@ -385,6 +386,14 @@ class HealthTrendServiceImplTest {
 
         expectCode(
                 () -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.HEALTH_RECORD_ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("AUTH-20: xem kết quả mới nhất theo phạm vi đọc; ngoài phạm vi đọc ⇒ 403")
+    void latestUsesReadScope() {
+        given(policy.canReadChild(TEACHER, CHILD_ID)).willReturn(false);
+
+        expectCode(() -> service.latest(TEACHER, CHILD_ID), ApiCode.HEALTH_RECORD_ACCESS_DENIED);
     }
 
     @Test

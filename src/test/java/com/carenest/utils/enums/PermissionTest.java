@@ -41,10 +41,13 @@ class PermissionTest {
             assertThat(permission.defaultRoles())
                     .as(permission.name())
                     .containsExactlyInAnyOrder(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL);
-            assertThat(permission.configurableRoles())
-                    .as(permission.name())
-                    .containsExactly(CareNestRole.VICE_PRINCIPAL);
         }
+        assertThat(Permission.CHILD_ENROLL.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
+        assertThat(Permission.CHILD_PLACEMENT.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
+        // AUTH-10 (2026-11-15): HT cấp thêm sửa hồ sơ cho GV được, GV mặc định không có
+        assertThat(Permission.CHILD_PROFILE_EDIT.configurableRoles())
+                .containsExactlyInAnyOrder(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER);
+        assertThat(Permission.CHILD_PROFILE_EDIT.defaultRoles()).doesNotContain(CareNestRole.TEACHER);
     }
 
     @Test
@@ -68,6 +71,7 @@ class PermissionTest {
                         Permission.ASSESSMENT_UNLOCK,
                         Permission.ASSESSMENT_CLASS_REVIEW,
                         Permission.NUTRITION_MANAGE,
+                        Permission.MEAL_CONFIG_MANAGE,
                         Permission.MENU_MANAGE,
                         Permission.STOCK_MANAGE,
                         Permission.FOOD_SAFETY_APPROVE,

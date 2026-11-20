@@ -304,7 +304,10 @@ class HealthCheckIntegrationTest {
                 .containsExactly(saved.id());
         assertThat(record.openCampaign().kind()).isEqualTo(HealthCheckKind.MEASUREMENT);
         assertThat(record.openCampaign().resultStatus()).isEqualTo("RECORDED");
-        expectError(() -> measurements.getHealthRecord(vpB, child1), ApiCode.HEALTH_RECORD_ACCESS_DENIED);
+        // AUTH-20 (user chốt 2026-11-15): PHT điểm trường khác xem được sổ sức khỏe (chỉ đọc)
+        assertThat(measurements.getHealthRecord(vpB, child1).measurements())
+                .extracting(HealthMeasurementResponse::id)
+                .containsExactly(saved.id());
 
         HealthCheckCloseResponse closed = checks.closeHealthCheck(vpA, round.id());
         assertThat(closed.absentCount()).isEqualTo(1);

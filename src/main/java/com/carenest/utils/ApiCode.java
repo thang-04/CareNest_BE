@@ -368,6 +368,13 @@ public enum ApiCode {
     CHILD_ALREADY_LEFT(3011, HttpStatus.CONFLICT, "Trẻ đã nghỉ học. Mở lại hồ sơ trước khi thay đổi."),
     // G94-180/AUTH-21 (2026-11-11): yêu cầu đổi SĐT cho phụ huynh không có trên hồ sơ trẻ này
     CHILD_GUARDIAN_NOT_FOUND(3012, HttpStatus.NOT_FOUND, "Không tìm thấy phụ huynh trên hồ sơ trẻ. Tải lại hồ sơ."),
+    // CHD-11 (2026-11-15): GV sửa hồ sơ, khai báo sức khỏe ⇒ gửi yêu cầu, HT/PHT điểm trường duyệt mới ghi
+    CHILD_PROFILE_CHANGE_NEEDS_APPROVAL(
+            3013, HttpStatus.CONFLICT, "Giáo viên gửi yêu cầu sửa hồ sơ để Hiệu trưởng hoặc Phó hiệu trưởng duyệt"),
+    CHILD_PROFILE_CHANGE_NOT_FOUND(3014, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu sửa hồ sơ trẻ"),
+    CHILD_PROFILE_CHANGE_NOT_PENDING(3015, HttpStatus.CONFLICT, "Yêu cầu sửa hồ sơ trẻ đã được xử lý"),
+    CHILD_PROFILE_CHANGE_DECIDE_DENIED(
+            3016, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt yêu cầu sửa hồ sơ của trẻ này"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
@@ -488,6 +495,7 @@ public enum ApiCode {
     MEAL_COUNT_ALREADY_CONFIRMED(6005, HttpStatus.CONFLICT, "Sổ báo ăn bữa này đã được xác nhận"),
     MEAL_COUNT_UNCHANGED(6006, HttpStatus.BAD_REQUEST, "Số suất chưa thay đổi"),
     MEAL_COUNT_YEAR_READ_ONLY(6007, HttpStatus.CONFLICT, "Năm học không hoạt động, sổ báo ăn chỉ xem"),
+    HALF_DAY_LEAVE_MEAL(6044, HttpStatus.BAD_REQUEST, "Trẻ nghỉ buổi {0}, không báo bữa {1}"),
     MEAL_COUNT_NORMAL_NOT_EDITABLE(
             6008,
             HttpStatus.CONFLICT,
@@ -506,6 +514,8 @@ public enum ApiCode {
             "Số suất vừa thay đổi (giáo viên sửa điểm danh hoặc có điều chỉnh). Tải lại để xem số mới rồi xác nhận"),
     MEAL_SUBSTITUTE_EXCEEDS_EATING(
             6075, HttpStatus.BAD_REQUEST, "Suất thay thế không được nhiều hơn số trẻ ăn bữa đó của lớp"),
+    MEAL_PLAN_WEEK_PAST(6076, HttpStatus.CONFLICT, "Tuần {0} đã qua, không lưu hoặc công bố được thực đơn"),
+    MEAL_PHOTO_NOT_SCHOOL_DAY(6077, HttpStatus.CONFLICT, "Hôm nay không phải ngày học, không đăng ảnh bữa ăn"),
     FOOD_NOT_FOUND(6010, HttpStatus.NOT_FOUND, "Không tìm thấy thực phẩm"),
     FOOD_CODE_DUPLICATED(6011, HttpStatus.CONFLICT, "Mã thực phẩm {0} đã tồn tại"),
     NUTRIENT_SOURCE_REQUIRED(6012, HttpStatus.BAD_REQUEST, "Cần ghi nguồn số liệu dinh dưỡng của thực phẩm"),
@@ -548,6 +558,29 @@ public enum ApiCode {
             "Kỳ dự trù không hợp lệ: ngày bắt đầu không sau ngày kết thúc, tối đa 31 ngày"),
     FRESH_CHECK_NOT_AVAILABLE(6042, HttpStatus.CONFLICT, "Chưa kiểm nhận lần {0} được: {1}"),
     FRESH_CHECK_LINES_MISMATCH(6043, HttpStatus.BAD_REQUEST, "Dòng kiểm nhận không khớp danh sách cần nhận: {0}"),
+    FRESH_CHECK_DATE_LOCKED(6104, HttpStatus.CONFLICT, "Chỉ ghi hoặc sửa kiểm nhận hàng tươi trong ngày {0}"),
+    FRESH_CHECK_SIGNED(6105, HttpStatus.CONFLICT, "Biên bản M1 hàng tươi đã ký, bấm Sửa lại biên bản để sửa kiểm nhận"),
+    MEAL_COUNT_INSPECTION_SIGNED(
+            6106,
+            HttpStatus.CONFLICT,
+            "Biên bản M2/M3 ngày {0} đã ký, bấm Sửa lại biên bản rồi xác nhận hoặc điều chỉnh suất"),
+    FOOD_SAMPLE_INSPECTION_SIGNED(
+            6047,
+            HttpStatus.CONFLICT,
+            "Biên bản M5 lưu mẫu ngày {0} đã ký, bấm Sửa lại biên bản để sửa hoặc ghi hủy mẫu"),
+    STOCK_DAY_INSPECTION_SIGNED(
+            6048, HttpStatus.CONFLICT, "Biên bản M1 kho khô ngày {0} đã ký, bấm Sửa lại biên bản rồi đồng bộ kho"),
+    FRESH_FORECAST_IN_USE(6051, HttpStatus.CONFLICT, "Bản dự trù đã dùng để kiểm nhận hàng tươi, không xóa được"),
+    FRESH_FORECAST_PERIOD_PAST(6052, HttpStatus.BAD_REQUEST, "Kỳ dự trù phải bắt đầu từ hôm nay trở đi"),
+    FOOD_SAMPLE_DATE_NOT_TODAY(
+            6053, HttpStatus.BAD_REQUEST, "Chỉ ghi lưu mẫu cho hôm nay ({0}), giờ lấy mẫu phải trong ngày đó"),
+    FOOD_SAMPLE_DATE_CHANGED(6054, HttpStatus.BAD_REQUEST, "Không đổi được ngày của bản lưu mẫu"),
+    STOCK_RECEIPT_DATE_NOT_TODAY(6055, HttpStatus.BAD_REQUEST, "Ngày nhập kho phải là hôm nay ({0})"),
+    STOCK_RECEIPT_STALE_DRAFT(6056, HttpStatus.CONFLICT, "Phiếu nháp ngày {0}: sửa ngày nhập về hôm nay rồi xác nhận"),
+    DRY_INTAKE_NOT_TODAY(6103, HttpStatus.CONFLICT, "Chỉ ghi kiểm nhận hàng khô trong ngày nhận hàng"),
+    DRY_INTAKE_NOTE_REQUIRED(
+            6045, HttpStatus.UNPROCESSABLE_ENTITY, "Dòng {0} không đạt: ghi biện pháp xử lý (trả lại, tiêu hủy...)"),
+    DRY_ORDER_INVALID(6046, HttpStatus.BAD_REQUEST, "Lượng hàng khô đặt không hợp lệ: {0}"),
     MENU_TEMPLATE_NOT_FOUND(6050, HttpStatus.NOT_FOUND, "Không tìm thấy bộ thực đơn mẫu"),
 
     FOOD_SAMPLE_NOT_FOUND(6060, HttpStatus.NOT_FOUND, "Không tìm thấy bản lưu mẫu"),
@@ -587,17 +620,29 @@ public enum ApiCode {
     MEAL_PLAN_DAY_LOCKED(6092, HttpStatus.CONFLICT, "Ngày {0} đã qua giờ chốt hoặc là ngày nghỉ, không sửa được"),
     MEAL_PLAN_REASON_REQUIRED(6093, HttpStatus.BAD_REQUEST, "Cần nhập lý do sửa thực đơn (10–500 ký tự)"),
     MEAL_PLAN_AMEND_NO_CHANGE(6094, HttpStatus.BAD_REQUEST, "Thực đơn ngày {0} không có thay đổi"),
-    // AI-07: nháp gợi ý thực đơn (6095–6098; 6091–6094 của dev dành cho sửa ngoại lệ thực đơn đã công bố)
-    MENU_AI_DRAFT_NOT_FOUND(6095, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
+    FOOD_PRICE_NOT_FOUND(6095, HttpStatus.NOT_FOUND, "Không tìm thấy mức giá"),
+    FOOD_PRICE_DATE_PAST(
+            6096, HttpStatus.BAD_REQUEST, "Ngày hiệu lực phải từ hôm nay trở đi, giá các ngày đã qua giữ nguyên"),
+    FOOD_PRICE_LOCKED(6097, HttpStatus.CONFLICT, "Mức giá đã có hiệu lực, không sửa hoặc xóa được"),
+    FOOD_PRICE_DATE_DUPLICATED(6098, HttpStatus.CONFLICT, "Thực phẩm {0} đã có mức giá từ ngày {1}"),
+    FOOD_PRICE_REASON_REQUIRED(
+            6099, HttpStatus.BAD_REQUEST, "Ngày hiệu lực nằm trong hạn hợp đồng: cần ghi lý do (số phụ lục)"),
+    FOOD_PRICE_CHANGE_VIA_ADJUST(6100, HttpStatus.BAD_REQUEST, "Giá và nhà cung cấp đổi qua chức năng điều chỉnh giá"),
+    SUPPLIER_INACTIVE(6101, HttpStatus.CONFLICT, "Nhà cung cấp đã ngừng hoạt động"),
+    SUPPLIER_CONTRACT_RANGE_INVALID(
+            6102, HttpStatus.BAD_REQUEST, "Ngày kết thúc hợp đồng không được trước ngày bắt đầu"),
+    // AI-07: nháp gợi ý thực đơn (6107–6110; 6091–6106 của dev dành cho sửa ngoại lệ thực đơn, giá thực phẩm, kiểm
+    // nhận)
+    MENU_AI_DRAFT_NOT_FOUND(6107, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
     MENU_AI_DRAFT_NOT_PENDING(
-            6096,
+            6108,
             HttpStatus.CONFLICT,
             "Gợi ý thực đơn đã dùng, đã bỏ hoặc không có phương án, không thao tác tiếp được"),
     MENU_AI_DRAFT_STALE(
-            6097,
+            6109,
             HttpStatus.CONFLICT,
             "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
-    MENU_AI_DRAFT_KIND_INVALID(6098, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
+    MENU_AI_DRAFT_KIND_INVALID(6110, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
@@ -731,8 +776,7 @@ public enum ApiCode {
     ASSESSMENT_ACTIVITY_NOT_IN_LESSON(
             7308, HttpStatus.BAD_REQUEST, "Hoạt động không có trong giáo án đã duyệt của ngày"),
     ASSESSMENT_GOAL_NOT_IN_ACTIVITY(7309, HttpStatus.BAD_REQUEST, "Mục tiêu không thuộc hoạt động này của giáo án"),
-    ASSESSMENT_GOAL_TWO_RESULTS(
-            7310, HttpStatus.BAD_REQUEST, "Một mục tiêu chỉ chọn một mức Đạt, Cần cố gắng hoặc Chưa đạt"),
+    ASSESSMENT_GOAL_TWO_RESULTS(7310, HttpStatus.BAD_REQUEST, "Một mục tiêu chỉ chọn một mức Đạt hoặc Chưa đạt"),
     ASSESSMENT_DIAGNOSTIC_TERM(
             7311, HttpStatus.BAD_REQUEST, "Không dùng thuật ngữ chẩn đoán (\"{0}\"). Hãy mô tả hành vi quan sát được"),
     ASSESSMENT_NOTHING_TO_SAVE(7312, HttpStatus.BAD_REQUEST, "Chưa có thay đổi nào để lưu"),

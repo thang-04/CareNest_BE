@@ -92,8 +92,8 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
     @Query(
             value =
                     "insert into school_year_campus_members (school_year_id, campus_id, code, name, short_name, address,"
-                            + " phone) select :yearId, c.id, c.code, c.name, c.short_name, c.address, c.phone from campuses c"
-                            + " where c.id = :campusId on conflict do nothing",
+                            + " phone, status) select :yearId, c.id, c.code, c.name, c.short_name, c.address, c.phone,"
+                            + " c.status from campuses c where c.id = :campusId on conflict do nothing",
             nativeQuery = true)
     void addToYear(@Param("yearId") Long yearId, @Param("campusId") Long campusId);
 
@@ -101,8 +101,9 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
     @Query(
             value =
                     "insert into school_year_campus_members (school_year_id, campus_id, code, name, short_name, address,"
-                            + " phone) select :targetYearId, m.campus_id, coalesce(m.code, c.code), coalesce(m.name, c.name),"
-                            + " coalesce(m.short_name, c.short_name), coalesce(m.address, c.address), coalesce(m.phone, c.phone)"
+                            + " phone, status) select :targetYearId, m.campus_id, coalesce(m.code, c.code),"
+                            + " coalesce(m.name, c.name), coalesce(m.short_name, c.short_name),"
+                            + " coalesce(m.address, c.address), coalesce(m.phone, c.phone), coalesce(m.status, c.status)"
                             + " from school_year_campus_members m join campuses c on c.id = m.campus_id"
                             + " where m.school_year_id = :sourceYearId on conflict do nothing",
             nativeQuery = true)
@@ -112,14 +113,14 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
     @Query(
             value =
                     "insert into school_year_campus_members (school_year_id, campus_id, code, name, short_name, address,"
-                            + " phone) select :yearId, c.id, c.code, c.name, c.short_name, c.address, c.phone from campuses c"
-                            + " on conflict do nothing",
+                            + " phone, status) select :yearId, c.id, c.code, c.name, c.short_name, c.address, c.phone,"
+                            + " c.status from campuses c on conflict do nothing",
             nativeQuery = true)
     void addAllToYear(@Param("yearId") Long yearId);
 
-    /** Thông tin điểm trường riêng của năm (V152); cột null = dùng thông tin chung. */
+    /** Thông tin điểm trường riêng của năm (V152, V154 bảo đảm các cột bắt buộc không null). */
     @Query(
-            value = "select campus_id as campusId, code, name, short_name as shortName, address, phone"
+            value = "select campus_id as campusId, code, name, short_name as shortName, address, phone, status"
                     + " from school_year_campus_members where school_year_id = :yearId",
             nativeQuery = true)
     List<YearCampusInfo> findYearCampusInfo(@Param("yearId") Long yearId);
@@ -136,7 +137,47 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
         String getAddress();
 
         String getPhone();
+
+        String getStatus();
     }
+
+    /** Điểm trường có mặt và đang hoạt động trong đúng năm học. */
+    @Query(
+            value = "select count(*) > 0 from school_year_campus_members m"
+                    + " where m.school_year_id = :yearId and m.campus_id = :campusId and m.status = 'ACTIVE'",
+            nativeQuery = true)
+    Boolean isActiveInYear(@Param("yearId") Long yearId, @Param("campusId") Long campusId);
+
+    /** Trạng thái hoạt động / ngừng của điểm trường trong năm (V154). */
+    @Modifying
+    @Query(
+            value = "update school_year_campus_members set status = :status"
+                    + " where school_year_id = :yearId and campus_id = :campusId",
+            nativeQuery = true)
+    int updateYearStatus(
+            @Param("yearId") Long yearId, @Param("campusId") Long campusId, @Param("status") String status);
+
+    /** Kích hoạt năm: bảng chung nhận thông tin, trạng thái điểm trường của năm mới (module khác đọc bảng chung). */
+    @Modifying
+    @Query(
+            value = "update campuses c set code = coalesce(m.code, c.code), name = coalesce(m.name, c.name),"
+                    + " short_name = coalesce(m.short_name, c.short_name), address = coalesce(m.address, c.address),"
+                    + " phone = coalesce(m.phone, c.phone), status = coalesce(m.status, c.status),"
+                    + " deactivated_at = case when coalesce(m.status, c.status) = 'INACTIVE'"
+                    + " then coalesce(c.deactivated_at, now()) else null end, updated_at = now()"
+                    + " from school_year_campus_members m where m.campus_id = c.id and m.school_year_id = :yearId",
+            nativeQuery = true)
+    int applyYearInfo(@Param("yearId") Long yearId);
+
+    @Modifying
+    @Query(
+            value = "update campuses c set status = 'INACTIVE', deactivated_at = coalesce(c.deactivated_at, now()),"
+                    + " updated_at = now() where c.status = 'ACTIVE'"
+                    + " and exists (select 1 from school_year_campus_members where school_year_id = :yearId)"
+                    + " and not exists (select 1 from school_year_campus_members m"
+                    + " where m.campus_id = c.id and m.school_year_id = :yearId)",
+            nativeQuery = true)
+    int deactivateOutsideYear(@Param("yearId") Long yearId);
 
     @Modifying
     @Query(
@@ -154,17 +195,17 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
 
     // Cần chốt 22/10/2026: mã, tên điểm trường không trùng trong cùng năm học (không phân biệt hoa thường)
     @Query(
-            value = "select count(*) > 0 from school_year_campus_members m join campuses c on c.id = m.campus_id"
+            value = "select count(*) > 0 from school_year_campus_members m"
                     + " where m.school_year_id = :yearId and m.campus_id <> :campusId"
-                    + " and lower(coalesce(m.code, c.code)) = lower(:code)",
+                    + " and lower(m.code) = lower(:code)",
             nativeQuery = true)
     boolean existsCodeInYear(
             @Param("yearId") Long yearId, @Param("campusId") Long campusId, @Param("code") String code);
 
     @Query(
-            value = "select count(*) > 0 from school_year_campus_members m join campuses c on c.id = m.campus_id"
+            value = "select count(*) > 0 from school_year_campus_members m"
                     + " where m.school_year_id = :yearId and m.campus_id <> :campusId"
-                    + " and lower(coalesce(m.name, c.name)) = lower(:name)",
+                    + " and lower(m.name) = lower(:name)",
             nativeQuery = true)
     boolean existsNameInYear(
             @Param("yearId") Long yearId, @Param("campusId") Long campusId, @Param("name") String name);
@@ -208,6 +249,42 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
                     + " order by s.staff_role, u.full_name",
             nativeQuery = true)
     List<StaffName> findStaffNamesEver(@Param("campusId") Long campusId);
+
+    /** Trẻ đã tiếp nhận cho năm học ở điểm trường, chưa hủy / chưa kích hoạt (họ tên chỉ để báo lý do chặn). */
+    @Query(
+            value = "select ch.full_name from planned_admissions p join children ch on ch.id = p.child_id"
+                    + " where p.campus_id = :campusId and p.school_year_id = :yearId"
+                    + " and p.status in ('PENDING', 'PLACED') order by ch.full_name",
+            nativeQuery = true)
+    List<String> findYearAdmissionNames(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
+
+    /** Nhân sự phân công ở điểm trường trong khoảng của năm học (theo điểm trường hoặc theo lớp của điểm trường). */
+    @Query(
+            value = "select distinct u.full_name as fullName, s.staff_role as staffRole from staff_assignments s"
+                    + " join user_accounts u on u.id = s.user_id join school_years y on y.id = :yearId"
+                    + " left join classrooms c on c.id = s.classroom_id"
+                    + " where coalesce(s.campus_id, c.campus_id) = :campusId"
+                    + " and (s.school_year_id = :yearId or (s.school_year_id is null"
+                    + " and s.valid_from <= y.end_date and (s.valid_to is null or s.valid_to >= y.start_date)))"
+                    + " order by s.staff_role, u.full_name",
+            nativeQuery = true)
+    List<StaffName> findYearStaffNames(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
+
+    @Query(
+            value = "select count(*) from school_year_room_members"
+                    + " where campus_id = :campusId and school_year_id = :yearId",
+            nativeQuery = true)
+    long countYearRooms(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
+
+    /** Sổ suất ăn và dữ liệu kho bếp của điểm trường trong khoảng của năm học. */
+    @Query(
+            value = "select (select count(*) from meal_counts where campus_id = :campusId and school_year_id = :yearId)"
+                    + " + (select count(*) from stock_movements m join school_years y on y.id = :yearId"
+                    + " where m.campus_id = :campusId and m.meal_date between y.start_date and y.end_date)"
+                    + " + (select count(*) from stock_daily_demands d join school_years y on y.id = :yearId"
+                    + " where d.campus_id = :campusId and d.meal_date between y.start_date and y.end_date)",
+            nativeQuery = true)
+    long countYearKitchenData(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
 
     interface StaffName {
         String getFullName();

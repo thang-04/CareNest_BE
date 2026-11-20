@@ -1,6 +1,7 @@
 package com.carenest.dto.meals;
 
 import com.carenest.dto.meals.MealPlanResponse.Evaluation;
+import com.carenest.utils.enums.ContractStatus;
 import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
@@ -16,7 +17,8 @@ import java.util.List;
  * {@code dishIngredients}: dòng công thức của từng món (theo bữa) cho MỘT trẻ, cùng công thức với {@code ingredients}
  * nhưng không nhân N và không gộp theo thực phẩm; dùng cho màn thực đơn mẫu (không cần ngày/điểm trường).
  * {@code freshCost} / {@code dryCost}: tổng tiền thực phẩm FRESH (cần mua) / DRY (lấy từ kho khô) theo {@code ingredients[].storage}
- * (NUT-10); {@code freshCost + dryCost = totalCost}.
+ * (NUT-10); {@code freshCost + dryCost = totalCost}. {@code supplierCosts}: tổng tiền theo NCC tại ngày thống kê, thứ tự
+ * xuất hiện trong {@code ingredients}; thực phẩm chưa gán NCC gộp một dòng {@code supplierId = null}.
  */
 public record MenuStatisticsResponse(
         Long ageGroupId,
@@ -30,9 +32,12 @@ public record MenuStatisticsResponse(
         BigDecimal totalCost,
         BigDecimal freshCost,
         BigDecimal dryCost,
+        List<SupplierCost> supplierCosts,
         BigDecimal costPerChild,
         BigDecimal mealPrice,
         Evaluation evaluation) {
+
+    public record SupplierCost(Long supplierId, String supplierName, ContractStatus contractStatus, BigDecimal cost) {}
 
     public record Dish(MealSession session, Long dishId, String dishName, DishType dishType) {}
 
@@ -50,6 +55,12 @@ public record MenuStatisticsResponse(
             BigDecimal unitPrice,
             BigDecimal costPerChild) {}
 
+    /**
+     * {@code unitPrice}, NCC và {@code contractStatus} lấy tại ngày thống kê (NUT-27). {@code cost}: tiền ăn theo lượng
+     * mua thực dùng (không theo số đơn vị làm tròn). {@code priceSource}: CATALOG (giá danh mục), LOT (hàng khô theo giá
+     * lô FEFO trên tồn hiện tại), MIXED (một phần lô, phần còn lại giá danh mục). {@code stockShortQty} (g/ml): phần
+     * hàng khô thiếu kho tính theo giá danh mục; null khi không tính theo lô (hàng tươi hoặc chưa chọn điểm trường).
+     */
     public record Ingredient(
             Long foodId,
             String foodName,
@@ -63,5 +74,10 @@ public record MenuStatisticsResponse(
             BigDecimal purchaseQty,
             BigDecimal unitPrice,
             BigDecimal cost,
-            FoodStorage storage) {}
+            FoodStorage storage,
+            Long supplierId,
+            String supplierName,
+            ContractStatus contractStatus,
+            String priceSource,
+            BigDecimal stockShortQty) {}
 }

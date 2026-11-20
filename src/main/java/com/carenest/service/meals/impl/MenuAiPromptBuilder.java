@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -181,8 +182,13 @@ final class MenuAiPromptBuilder {
                 .append(":\n");
         aliases.toDish().entrySet().stream()
                 .sorted(Map.Entry.comparingByValue())
-                .forEach(e -> sb.append(
-                        dishLine(e.getKey(), ctx.dishes().get(e.getValue()), reference.id(), tags(e.getValue(), ctx))));
+                .forEach(e -> sb.append(dishLine(
+                        e.getKey(),
+                        ctx.dishes().get(e.getValue()),
+                        reference.id(),
+                        tags(e.getValue(), ctx),
+                        ctx.priceOf(),
+                        firstDay)));
         sb.append("Ô món mỗi ngày và món được phép:\n");
         for (MenuSlot slot : ctx.slots()) {
             if (ctx.candidatesOf(slot).isEmpty()) {
@@ -214,7 +220,13 @@ final class MenuAiPromptBuilder {
         return sb.toString();
     }
 
-    private static String dishLine(String alias, DishInfo dish, Long groupId, String tags) {
+    private static String dishLine(
+            String alias,
+            DishInfo dish,
+            Long groupId,
+            String tags,
+            BiFunction<Long, LocalDate, BigDecimal> priceOf,
+            LocalDate day) {
         List<Portion> portions = dish.byAgeGroup().getOrDefault(groupId, List.of());
         BigDecimal kcal = BigDecimal.ZERO;
         BigDecimal pA = BigDecimal.ZERO;
@@ -234,11 +246,14 @@ final class MenuAiPromptBuilder {
                 pP = pP.add(p.food().protein().multiply(ratio));
                 lP = lP.add(p.food().lipid().multiply(ratio));
             }
-            if (p.food().unitPrice() != null
+            BigDecimal unitPrice = priceOf.apply(p.food().id(), day);
+            if (unitPrice == null) {
+                unitPrice = p.food().unitPrice();
+            }
+            if (unitPrice != null
                     && p.food().purchaseUnitSize() != null
                     && p.food().purchaseUnitSize().signum() > 0) {
-                cost = cost.add(p.food()
-                        .unitPrice()
+                cost = cost.add(unitPrice
                         .multiply(MealDemandCalculator.purchased(
                                 p.grams(), p.food().wastePct()))
                         .divide(p.food().purchaseUnitSize(), 6, RoundingMode.HALF_UP));

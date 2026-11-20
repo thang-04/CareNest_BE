@@ -4,6 +4,7 @@ import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DishInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Norm;
 import com.carenest.utils.enums.MenuBlock;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
@@ -31,7 +32,44 @@ record MenuContext(
         String season,
         String wishes,
         Set<Long> requiredDishIds,
-        boolean keepTemplate) {
+        boolean keepTemplate,
+        BiFunction<Long, LocalDate, BigDecimal> priceOf) {
+
+    /** Ngữ cảnh có món bắt buộc / giữ mẫu nhưng chưa có sổ giá: giá lấy từ {@code FoodInfo.unitPrice}. */
+    MenuContext(
+            MenuBlock block,
+            List<LocalDate> dates,
+            Set<LocalDate> offDays,
+            List<AgeGroupInfo> groups,
+            Map<Long, DishInfo> dishes,
+            BiFunction<Long, LocalDate, Norm> normOf,
+            List<MenuSlot> slots,
+            Map<String, List<Long>> candidates,
+            Set<Long> recentDishIds,
+            Signals signals,
+            Map<Integer, Map<String, Long>> template,
+            String season,
+            String wishes,
+            Set<Long> requiredDishIds,
+            boolean keepTemplate) {
+        this(
+                block,
+                dates,
+                offDays,
+                groups,
+                dishes,
+                normOf,
+                slots,
+                candidates,
+                recentDishIds,
+                signals,
+                template,
+                season,
+                wishes,
+                requiredDishIds,
+                keepTemplate,
+                null);
+    }
 
     /** Ngữ cảnh không có ràng buộc của người lập: không món bắt buộc, không giữ ô theo mẫu. */
     MenuContext(
@@ -63,10 +101,12 @@ record MenuContext(
                 season,
                 wishes,
                 Set.of(),
-                false);
+                false,
+                null);
     }
 
     MenuContext {
+        priceOf = priceOf == null ? (foodId, date) -> null : priceOf;
         requiredDishIds = Set.copyOf(requiredDishIds);
         dates = List.copyOf(dates);
         offDays = Set.copyOf(offDays);
@@ -114,7 +154,29 @@ record MenuContext(
                 season,
                 wishes,
                 requiredDishIds,
-                keepTemplate);
+                keepTemplate,
+                priceOf);
+    }
+
+    /** Cùng ngữ cảnh nhưng giá thực phẩm lấy từ sổ giá theo ngày (NUT-27), như kế hoạch tuần. */
+    MenuContext priced(BiFunction<Long, LocalDate, BigDecimal> priceOf) {
+        return new MenuContext(
+                block,
+                dates,
+                offDays,
+                groups,
+                dishes,
+                normOf,
+                slots,
+                candidates,
+                recentDishIds,
+                signals,
+                template,
+                season,
+                wishes,
+                requiredDishIds,
+                keepTemplate,
+                priceOf);
     }
 
     /**
@@ -137,7 +199,8 @@ record MenuContext(
                 season,
                 wishes,
                 required,
-                keepTemplate);
+                keepTemplate,
+                priceOf);
     }
 
     /** Món của thực đơn mẫu tại ô {@code slot} của ngày {@code date}; null khi mẫu không có món ở đó. */

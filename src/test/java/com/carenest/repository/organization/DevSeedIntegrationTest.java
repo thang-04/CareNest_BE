@@ -47,6 +47,8 @@ class DevSeedIntegrationTest {
             // Không tạo tệp S3 hoặc lịch sử giao tới thiết bị khi chưa có token thật.
             "announcement_attachments",
             "notification_push_deliveries",
+            // Hàng chờ email: seed có dòng thì worker gửi thư tới địa chỉ giả
+            "notification_email_deliveries",
             "user_signatures",
             "meal_photos",
             "inspection_sheets",
@@ -107,6 +109,7 @@ class DevSeedIntegrationTest {
         assertThat(empty).isEmpty();
         assertThat(count("announcement_attachments")).isZero();
         assertThat(count("notification_push_deliveries")).isZero();
+        assertThat(count("notification_email_deliveries")).isZero();
         assertThat(count("user_accounts")).isGreaterThan(200);
         assertThat(count("children")).isGreaterThan(200);
     }
