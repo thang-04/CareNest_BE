@@ -252,7 +252,7 @@ class DryStockOutlookIntegrationTest {
         StockReceiptRequest request = new StockReceiptRequest(
                 campus,
                 supplier,
-                LocalDate.of(2026, 11, 2),
+                TODAY,
                 "",
                 List.of(new StockReceiptRequest.ReceiptLineInput(
                         rice,

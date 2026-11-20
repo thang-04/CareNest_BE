@@ -19,6 +19,7 @@ import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.FoodSampleService;
 import com.carenest.service.meals.KitchenDayService;
 import com.carenest.service.meals.MealPhotoService;
+import com.carenest.support.MovableClock;
 import com.carenest.support.PostgresTestcontainer;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -27,7 +28,6 @@ import com.carenest.utils.enums.FoodSampleStatus;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.Permission;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -63,12 +63,15 @@ class KitchenRecordsIntegrationTest {
     // 10:30 sáng thứ Hai; đồng hồ cố định để khung giờ ảnh và mốc 24 giờ không phụ thuộc giờ chạy test
     private static final Instant NOW = MONDAY.atTime(10, 30).atZone(ZONE).toInstant();
 
+    private static final MovableClock CLOCK = new MovableClock();
+
+    // Mặc định 10:30 thứ Hai; test hủy mẫu dời sang hôm sau vì lưu mẫu chỉ ghi trong ngày (NUT-21)
     @TestConfiguration
     static class FixedClockConfig {
         @Bean
         @Primary
         Clock kitchenTestClock() {
-            return Clock.fixed(NOW, ZONE);
+            return CLOCK;
         }
     }
 
@@ -108,6 +111,7 @@ class KitchenRecordsIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        CLOCK.set(NOW);
         campus = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-K', 'Cơ sở K', TRUE) RETURNING id");
         otherCampus =
                 insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-O', 'Cơ sở O', FALSE) RETURNING id");
@@ -324,19 +328,22 @@ class KitchenRecordsIntegrationTest {
     @Test
     @DisplayName("NUT-21: hủy mẫu trước 24 giờ ⇒ 409; sau 24 giờ ⇒ RECORDED; PHT có mã duyệt ⇒ APPROVED")
     void disposeAfter24Hours() {
-        FoodSampleResponse fresh =
-                foodSampleService.createSample(kitchen, sampleRequest(NOW.minus(Duration.ofHours(23))));
+        // Lấy mẫu 06:00 và 08:00 thứ Hai; sang 07:00 thứ Ba bản 06:00 đủ 25 giờ, bản 08:00 mới 23 giờ
+        CLOCK.set(MONDAY, LocalTime.of(6, 0));
+        FoodSampleResponse old = foodSampleService.createSample(kitchen, sampleRequest(null));
+        CLOCK.set(MONDAY, LocalTime.of(8, 0));
+        FoodSampleResponse fresh = foodSampleService.createSample(kitchen, sampleRequest(null));
+        Instant tuesday = MONDAY.plusDays(1).atTime(7, 0).atZone(ZONE).toInstant();
+        CLOCK.set(tuesday);
         expectCode(
                 () -> foodSampleService.disposeSample(kitchen, fresh.id(), null),
                 ApiCode.FOOD_SAMPLE_DISPOSAL_TOO_EARLY);
         expectCode(() -> foodSampleService.approveDisposal(principal, fresh.id()), ApiCode.FOOD_SAMPLE_STATE_INVALID);
 
-        FoodSampleResponse old =
-                foodSampleService.createSample(kitchen, sampleRequest(NOW.minus(Duration.ofHours(25))));
         FoodSampleResponse disposed =
                 foodSampleService.disposeSample(kitchen, old.id(), new FoodSampleDisposeRequest(null));
         assertThat(disposed.disposalStatus()).isEqualTo(FoodSampleDisposalStatus.RECORDED);
-        assertThat(disposed.disposedAt()).isEqualTo(NOW);
+        assertThat(disposed.disposedAt()).isEqualTo(tuesday);
         // Đã ghi hủy ⇒ bếp không sửa, không ghi hủy lần hai
         expectCode(
                 () -> foodSampleService.updateSample(kitchen, old.id(), sampleRequest(null)),
@@ -361,9 +368,11 @@ class KitchenRecordsIntegrationTest {
     @Test
     @DisplayName("AUTH-20: PHT không có FOOD_SAFETY_APPROVE (hoặc ngoài điểm trường) không duyệt được; món lạ bị chặn")
     void approvalNeedsPermissionAndValidDishes() {
-        FoodSampleResponse sample =
-                foodSampleService.createSample(kitchen, sampleRequest(NOW.minus(Duration.ofHours(30))));
+        CLOCK.set(MONDAY, LocalTime.of(6, 0));
+        FoodSampleResponse sample = foodSampleService.createSample(kitchen, sampleRequest(null));
+        CLOCK.set(MONDAY.plusDays(1), LocalTime.of(12, 0));
         foodSampleService.disposeSample(kitchen, sample.id(), null);
+        CLOCK.set(NOW);
 
         expectCode(() -> foodSampleService.approveSample(vp, sample.id()), ApiCode.FOOD_SAFETY_ACCESS_DENIED);
         expectCode(() -> foodSampleService.approveDisposal(vp, sample.id()), ApiCode.FOOD_SAFETY_ACCESS_DENIED);
@@ -397,6 +406,78 @@ class KitchenRecordsIntegrationTest {
                         kitchen,
                         new FoodSampleRequest(MONDAY.plusDays(1), MealSession.LUNCH, List.of(com), null, null)),
                 ApiCode.INVALID_DATE_RANGE);
+    }
+
+    @Test
+    @DisplayName("NUT-21: lưu mẫu chỉ ghi/sửa cho hôm nay, giờ lấy mẫu cùng ngày, không dời ngày")
+    void sampleOnlyForToday() {
+        expectCode(
+                () -> foodSampleService.createSample(
+                        kitchen,
+                        new FoodSampleRequest(MONDAY.minusDays(1), MealSession.LUNCH, List.of(com, thit), null, null)),
+                ApiCode.FOOD_SAMPLE_DATE_NOT_TODAY);
+        // Giờ lấy mẫu rơi vào hôm qua dù ngày ghi là hôm nay
+        expectCode(
+                () -> foodSampleService.createSample(
+                        kitchen,
+                        sampleRequest(
+                                MONDAY.minusDays(1).atTime(22, 0).atZone(ZONE).toInstant())),
+                ApiCode.FOOD_SAMPLE_DATE_NOT_TODAY);
+
+        FoodSampleResponse sample = foodSampleService.createSample(kitchen, sampleRequest(null));
+        assertThat(sample.editable()).isTrue();
+        expectCode(
+                () -> foodSampleService.updateSample(
+                        kitchen,
+                        sample.id(),
+                        new FoodSampleRequest(MONDAY.plusDays(1), MealSession.LUNCH, List.of(com), null, null)),
+                ApiCode.FOOD_SAMPLE_DATE_CHANGED);
+
+        // Sang hôm sau: mẫu hôm qua chỉ xem
+        CLOCK.set(MONDAY.plusDays(1), LocalTime.of(9, 0));
+        expectCode(
+                () -> foodSampleService.updateSample(kitchen, sample.id(), sampleRequest(null)),
+                ApiCode.FOOD_SAMPLE_DATE_NOT_TODAY);
+        assertThat(foodSampleService.getSamples(kitchen, null, MONDAY, MONDAY))
+                .singleElement()
+                .satisfies(s -> assertThat(s.editable()).isFalse());
+    }
+
+    @Test
+    @DisplayName("INS-03: M5 đã ký ⇒ không thêm, sửa, ghi hủy mẫu của ngày; Sửa lại biên bản (về nháp) thì ghi được")
+    void signedSampleBookLocksSamples() {
+        CLOCK.set(MONDAY, LocalTime.of(6, 0));
+        FoodSampleResponse sample = foodSampleService.createSample(kitchen, sampleRequest(null));
+        CLOCK.set(NOW);
+        signSheet(MONDAY, "SAMPLE");
+
+        expectCode(
+                () -> foodSampleService.createSample(kitchen, sampleRequest(null)),
+                ApiCode.FOOD_SAMPLE_INSPECTION_SIGNED);
+        expectCode(
+                () -> foodSampleService.updateSample(kitchen, sample.id(), sampleRequest(null)),
+                ApiCode.FOOD_SAMPLE_INSPECTION_SIGNED);
+        assertThat(foodSampleService.getSamples(kitchen, null, MONDAY, MONDAY))
+                .singleElement()
+                .satisfies(s -> assertThat(s.editable()).isFalse());
+        CLOCK.set(MONDAY.plusDays(1), LocalTime.of(7, 0));
+        expectCode(
+                () -> foodSampleService.disposeSample(kitchen, sample.id(), null),
+                ApiCode.FOOD_SAMPLE_INSPECTION_SIGNED);
+
+        unsignSheet(MONDAY, "SAMPLE");
+        assertThat(foodSampleService.disposeSample(kitchen, sample.id(), null).disposalStatus())
+                .isEqualTo(FoodSampleDisposalStatus.RECORDED);
+    }
+
+    @Test
+    @DisplayName("NUT-16: ngày không học (thứ Bảy) ⇒ không đăng ảnh bữa ăn")
+    void photoOnlyOnSchoolDay() {
+        mealPhotoService.updateWindows(principal, windows(MealSession.LUNCH, "10:00", "11:00"));
+        CLOCK.set(MONDAY.plusDays(5), LocalTime.of(10, 30));
+        expectCode(
+                () -> mealPhotoService.uploadPhoto(kitchen, MealSession.LUNCH, jpeg()),
+                ApiCode.MEAL_PHOTO_NOT_SCHOOL_DAY);
     }
 
     @Test
@@ -478,6 +559,27 @@ class KitchenRecordsIntegrationTest {
                                 MealSession.LUNCH, LocalTime.of(10, 0), LocalTime.of(11, 0)));
         assertThat(mealPhotoService.getWindows(kitchen)).hasSize(2);
         assertThat(mealPhotoService.getWindows(vp)).hasSize(2);
+    }
+
+    /** Biên bản đã ký giả (đủ trường chữ ký để entity đọc được). */
+    private void signSheet(LocalDate date, String tab) {
+        jdbc.update(
+                "INSERT INTO inspection_sheets (campus_id, sheet_date, tab, status, signature) VALUES (?, ?, ?, 'SIGNED',"
+                        + " '{\"signedBy\":1,\"signedByName\":\"PHT\",\"signedAt\":\"2026-11-09T03:00:00Z\","
+                        + "\"documentVersion\":1,\"imageKey\":\"sig.png\",\"contentType\":\"image/png\","
+                        + "\"sizeBytes\":10}'::jsonb)",
+                campus,
+                date,
+                tab);
+    }
+
+    private void unsignSheet(LocalDate date, String tab) {
+        jdbc.update(
+                "UPDATE inspection_sheets SET status = 'DRAFT', signature = NULL"
+                        + " WHERE campus_id = ? AND sheet_date = ? AND tab = ?",
+                campus,
+                date,
+                tab);
     }
 
     private FoodSampleRequest sampleRequest(Instant sampledAt) {
