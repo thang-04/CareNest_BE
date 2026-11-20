@@ -58,7 +58,7 @@ class MealCountIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     static final class MovableClock extends Clock {
         private Instant now = BEFORE_CUTOFF;
@@ -603,6 +603,52 @@ class MealCountIntegrationTest {
         assertThat(service.confirm(vpA, counts.getFirst().id(), servings(fresh), substitutes(fresh))
                         .status())
                 .isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName(
+            "INS-03: M2 hoặc M3 của ngày đã ký ⇒ không điều chỉnh, không xác nhận lại suất (6106); Sửa lại biên bản thì được")
+    void signedProcessOrServeSheetLocksServings() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        long lunchId = lunch(service.getMealCounts(vpA, TODAY, null)).id();
+        service.confirm(vpA, lunchId);
+        MealAdjustRequest adjust =
+                new MealAdjustRequest(campusA, TODAY, MealSession.LUNCH, classA, null, 1, "Trẻ dị ứng sữa");
+
+        signSheet("SERVE");
+        assertThat(lunch(service.getMealCounts(vpA, TODAY, null))).satisfies(c -> {
+            assertThat(c.inspectionSigned()).isTrue();
+            assertThat(c.canAdjust()).isFalse();
+            assertThat(c.canConfirm()).isFalse();
+        });
+        expectCode(() -> service.adjust(vpA, adjust), ApiCode.MEAL_COUNT_INSPECTION_SIGNED);
+
+        unsignSheet("SERVE");
+        service.adjust(vpA, adjust); // chờ xác nhận lại
+        signSheet("PROCESS");
+        expectCode(() -> service.confirm(vpA, lunchId), ApiCode.MEAL_COUNT_INSPECTION_SIGNED);
+        unsignSheet("PROCESS");
+        assertThat(service.confirm(vpA, lunchId).status()).isEqualTo("CONFIRMED");
+    }
+
+    private void signSheet(String tab) {
+        jdbc.update(
+                "INSERT INTO inspection_sheets (campus_id, sheet_date, tab, status, signature) VALUES (?, ?, ?, 'SIGNED',"
+                        + " '{\"signedBy\":1,\"signedByName\":\"PHT\",\"signedAt\":\"2026-10-21T03:00:00Z\","
+                        + "\"documentVersion\":1,\"imageKey\":\"sig.png\",\"contentType\":\"image/png\","
+                        + "\"sizeBytes\":10}'::jsonb)",
+                campusA,
+                TODAY,
+                tab);
+    }
+
+    private void unsignSheet(String tab) {
+        jdbc.update(
+                "DELETE FROM inspection_sheets WHERE campus_id = ? AND sheet_date = ? AND tab = ?",
+                campusA,
+                TODAY,
+                tab);
     }
 
     private static int servings(List<MealCountResponse> counts) {

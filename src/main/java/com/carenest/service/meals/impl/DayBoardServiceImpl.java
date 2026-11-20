@@ -16,6 +16,7 @@ import com.carenest.service.meals.FoodSampleService;
 import com.carenest.service.meals.FreshGoodsService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.organization.CampusService;
+import com.carenest.utils.enums.InspectionTab;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -45,6 +46,7 @@ public class DayBoardServiceImpl implements DayBoardService {
     private final CampusService campusService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final DryStockOutlook dryStockOutlook;
+    private final BoardingWriteGuard writeGuard;
     private final Clock clock;
 
     @Override
@@ -164,7 +166,8 @@ public class DayBoardServiceImpl implements DayBoardService {
                 shortfallFoods,
                 openShortfalls,
                 upcoming.size(),
-                upcoming.isEmpty() ? null : upcoming.getFirst().shortFrom());
+                upcoming.isEmpty() ? null : upcoming.getFirst().shortFrom(),
+                writeGuard.signed(campusId, date, InspectionTab.DRY));
     }
 
     private static boolean isDayOff(LocalDate date, Optional<MealPlanWeek> week) {

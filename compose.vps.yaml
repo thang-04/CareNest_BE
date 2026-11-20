@@ -5,7 +5,8 @@ name: carenest-be
 
 services:
   postgres:
-    image: postgres:17-alpine
+    # PostgreSQL 17 kèm pgvector (xếp lại món ứng viên theo ngữ nghĩa, bảng dish_embeddings)
+    image: pgvector/pgvector:pg17
     network_mode: host
     restart: unless-stopped
     command: ["postgres", "-c", "listen_addresses=127.0.0.1"]
@@ -116,6 +117,7 @@ services:
       CARENEST_EMAIL_PROVIDER: ${CARENEST_EMAIL_PROVIDER:-log}
       CARENEST_EMAIL_FROM: ${CARENEST_EMAIL_FROM:-}
       CARENEST_EMAIL_FROM_NAME: ${CARENEST_EMAIL_FROM_NAME:-CareNest}
+      CARENEST_WEB_BASE_URL: ${CARENEST_WEB_BASE_URL:-https://thuonghong.carenest.edu.vn}
       CARENEST_EMAIL_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.resend.com}
       CARENEST_EMAIL_SMTP_PORT: ${CARENEST_EMAIL_SMTP_PORT:-587}
       CARENEST_EMAIL_SMTP_USERNAME: ${CARENEST_EMAIL_SMTP_USERNAME:-resend}

@@ -25,6 +25,8 @@ VPS mất chain iptables của Docker ⇒ không có network bridge (`FE:docs/kn
 
 Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'` chỉ thấy `127.0.0.1`.
 
+**Image Postgres có pgvector (V162, ADR-0024):** `compose.yaml`/`compose.vps.yaml` dùng `pgvector/pgvector:pg17` (nền Debian/glibc) thay `postgres:17-alpine` (musl). Volume đã khởi tạo bằng image alpine mà đổi image thì thứ tự so sánh chuỗi (collation) có thể khác ⇒ index chữ có nguy cơ sai. Trước khi deploy lên VPS có dữ liệu: backup, chạy thử trên bản sao, rồi `REINDEX DATABASE` cho `carenest` (hoặc dump/restore vào volume mới). Chưa kiểm trên VPS thật. Máy dev dùng volume mới thì không bị ảnh hưởng; không đổi image mà vẫn giữ migration V155 thì ứng dụng không khởi động (thiếu extension `vector`).
+
 ## File trong repo
 
 | File | Vai trò |
@@ -97,7 +99,11 @@ docker compose -f compose.vps.yaml up -d --no-build
 
 Tắt gateway khẩn cấp: `.env` `CARENEST_AUTH_ENABLED=false` rồi `up -d --no-build api`; disable client `carenest-auth-gateway` trong admin console.
 
-Ép build lại một image khi nội dung không đổi (vd. cập nhật base image): xoá tag tương ứng trên Docker Hub rồi Run workflow trên `main`.
+Ép build lại image api khi nội dung không đổi (vd. cập nhật base image): Run workflow trên `main` với `force_api` (chạy lại test + build + push cùng tag). Image Keycloak: xoá tag tương ứng trên Docker Hub rồi Run workflow. Run workflow với `force_api` trên nhánh khác chỉ chạy test (đo thời gian CI), không push.
+
+Test api chạy song song 4 job (`api-test`), mỗi job 2 JVM; artifact `api-verify-reports-<n>` giữ log và thời gian từng class 7 ngày. PR từ nhánh trong repo push image sau khi test xanh ⇒ merge vào `dev` không chạy lại test nếu nội dung không đổi.
+
+**Luật merge PR** (G94-440): mọi PR vào `main`/`dev` đều chạy workflow (PR chỉ sửa tài liệu bỏ test vì tag đã có, xong ~1 phút). Job `ci-result` tổng hợp `plan`, `api-test`, `api`, `keycloak`: job nào `failure`/`cancelled` ⇒ đỏ. Ruleset `protect-dev` bắt `ci-result` xanh và PR phải cập nhật theo `dev` ⇒ `dev` có commit mới thì bấm *Update branch*, chờ CI chạy lại rồi mới merge (2 PR xanh riêng vẫn có thể hỏng khi gộp, vd. 2 migration cùng số V154 ngày 19/11/2026). Job `plan` chặn sớm migration trùng version (`V154`/`V0154`, `V1_1`/`V1.1`) ⇒ đổi số migration của PR sang version lớn nhất + 1. Admin có quyền bypass ruleset; chỉ dùng khi khẩn cấp.
 
 ## Môi trường dev (nhánh `dev`)
 
@@ -209,6 +215,10 @@ Gọi từ service (gửi đồng bộ; email không phải bước bắt buộc
 ```java
 emailGateway.send(EmailMessage.html(guardianEmail, "Thông báo từ CareNest", html));
 ```
+
+Thiết kế email đồng bộ: HTML dựng qua `CareNestEmailLayout` (cùng màu, header, nút, footer với `carenest-layout.ftl` của Keycloak; `CareNestEmailLayoutTest` kiểm token chung), không tự viết khung HTML riêng.
+
+Email thông báo kế hoạch giáo dục (G94-386): không gửi đồng bộ — `NotificationService` xếp hàng `notification_email_deliveries` cùng giao dịch, `EmailOutboxWorker` gửi sau commit (cấu hình `carenest.email.outbox.*`). Nút "Mở hồ sơ" = `CARENEST_WEB_BASE_URL` + đường dẫn thông báo. Kiểm tra: `SELECT state, last_error_kind, count(*) FROM notification_email_deliveries GROUP BY 1, 2;` (`SKIPPED/NO_EMAIL` = người nhận chưa có email).
 
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 

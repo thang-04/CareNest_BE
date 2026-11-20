@@ -16,7 +16,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers(disabledWithoutDocker = true)
 class MinistrySourceCorrectionMigrationTest {
     @Container
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     private String schema;
     private JdbcTemplate jdbc;

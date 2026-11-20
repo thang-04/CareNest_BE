@@ -1,5 +1,6 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.meals.DryIntakeRequest;
 import com.carenest.dto.meals.StockReceiptRequest;
 import com.carenest.dto.meals.StockReceiptResponse;
 import com.carenest.entity.meals.Food;
@@ -7,6 +8,7 @@ import com.carenest.entity.meals.StockLot;
 import com.carenest.entity.meals.StockMovement;
 import com.carenest.entity.meals.StockReceipt;
 import com.carenest.entity.meals.StockReceiptLine;
+import com.carenest.entity.meals.StockRejectedLine;
 import com.carenest.entity.meals.Supplier;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.StockMapper;
@@ -28,12 +30,15 @@ import com.carenest.utils.enums.StockReceiptStatus;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -159,15 +164,11 @@ public class StockReceiptServiceImpl implements StockReceiptService {
             if (!receipt.isDraft()) {
                 throw GlobalException.of(ApiCode.STOCK_RECEIPT_STATUS_INVALID);
             }
-            receipt.confirm(currentUser.userId(), clock.instant());
-            // NUT-11: mỗi dòng thành một lô (chính dòng phiếu), bút toán nhập = số lượng của dòng
-            for (StockReceiptLine line : receipt.getLines()) {
-                movementRepository.save(StockMovement.receipt(receipt, line, currentUser.userId()));
+            // NUT-10: phiếu nháp ngày cũ phải đổi ngày nhập về hôm nay rồi mới xác nhận
+            if (!LocalDate.now(clock).equals(receipt.getReceivedDate())) {
+                throw GlobalException.of(ApiCode.STOCK_RECEIPT_STALE_DRAFT, receipt.getReceivedDate());
             }
-            Collection<Long> foodIds =
-                    receipt.getLines().stream().map(StockReceiptLine::getFoodId).collect(Collectors.toSet());
-            stockLedgerService.settleShortfalls(receipt.getCampusId(), foodIds, receipt.getId(), currentUser.userId());
-            receiptRepository.flush();
+            confirmInto(receipt, currentUser.userId());
             StockReceiptResponse response = toResponse(currentUser, receipt);
             log.info("{}|END", logPrefix);
             return response;
@@ -212,6 +213,7 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                         StockMovementType.RECEIPT_CANCEL,
                         lot.getQuantity().negate(),
                         null,
+                        null,
                         receipt.getId(),
                         trimmed,
                         currentUser.userId()));
@@ -225,6 +227,108 @@ public class StockReceiptServiceImpl implements StockReceiptService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public StockReceiptResponse recordIntake(
+            CurrentUser currentUser, Long campusId, LocalDate date, Long forecastId, DryIntakeRequest request) {
+        String logPrefix = LOG_PREFIX + "|recordIntake|userId=" + currentUser.userId() + "|campusId=" + campusId
+                + "|forecastId=" + forecastId;
+        log.info("{}|START", logPrefix);
+        try {
+            checkCanManage(currentUser, campusId);
+            if (!supplierRepository.existsById(request.supplierId())) {
+                throw GlobalException.of(ApiCode.SUPPLIER_NOT_FOUND);
+            }
+            Map<Long, Food> foods = foodRepository
+                    .findAllById(request.lines().stream()
+                            .map(DryIntakeRequest.DryIntakeLineInput::foodId)
+                            .toList())
+                    .stream()
+                    .collect(Collectors.toMap(Food::getId, Function.identity()));
+            List<StockReceiptLine> passed = new ArrayList<>();
+            List<StockRejectedLine> rejected = new ArrayList<>();
+            for (DryIntakeRequest.DryIntakeLineInput input : request.lines()) {
+                Food food = foods.get(input.foodId());
+                StockReceiptLine line = toLine(
+                        new StockReceiptRequest.ReceiptLineInput(
+                                input.foodId(), input.lotNo(), input.expiryDate(), input.quantity(), input.unitPrice()),
+                        food,
+                        date);
+                String note = input.note() == null ? "" : input.note().trim();
+                if (Boolean.TRUE.equals(input.passed())) {
+                    passed.add(line);
+                } else if (note.isEmpty()) {
+                    // INS-02, QĐ 1246: hàng không đạt phải ghi biện pháp xử lý
+                    throw GlobalException.of(ApiCode.DRY_INTAKE_NOTE_REQUIRED, food.getName());
+                } else {
+                    rejected.add(new StockRejectedLine(
+                            line.getFoodId(), line.getLotNo(), line.getExpiryDate(), line.getQuantity(), note));
+                }
+            }
+            lotRepository.lockCampus(campusId);
+            StockReceipt receipt = StockReceipt.intake(campusId, forecastId, rejected, currentUser.userId());
+            String note = request.note() == null ? "" : request.note().trim();
+            receipt.changeDraft(request.supplierId(), date, note, passed, currentUser.userId());
+            receipt = receiptRepository.save(receipt);
+            confirmInto(receipt, currentUser.userId());
+            StockReceiptResponse response = toResponse(currentUser, receipt);
+            log.info("{}|receiptId={}|END", logPrefix, receipt.getId());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<StockReceiptResponse> getIntakeReceipts(CurrentUser currentUser, Long campusId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|getIntakeReceipts|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            campusAccessPolicy.checkCanReadCampus(currentUser, campusId);
+            List<StockReceiptResponse> response = toResponses(
+                    currentUser,
+                    receiptRepository.findByCampusIdAndReceivedDateAndFromIntakeTrueOrderByIdAsc(campusId, date));
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, BigDecimal> receivedByFood(Long forecastId) {
+        String logPrefix = LOG_PREFIX + "|receivedByFood|forecastId=" + forecastId;
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, BigDecimal> received = new HashMap<>();
+            receiptRepository
+                    .sumLinesByForecast(forecastId, StockReceiptStatus.CONFIRMED)
+                    .forEach(row -> received.put(row.getFoodId(), row.getQuantity()));
+            log.info("{}|END", logPrefix);
+            return received;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // NUT-11: mỗi dòng thành một lô (chính dòng phiếu), bút toán nhập = số lượng của dòng; rồi bù phần thiếu (P-38)
+    private void confirmInto(StockReceipt receipt, Long userId) {
+        receipt.confirm(userId, clock.instant());
+        for (StockReceiptLine line : receipt.getLines()) {
+            movementRepository.save(StockMovement.receipt(receipt, line, userId));
+        }
+        Collection<Long> foodIds =
+                receipt.getLines().stream().map(StockReceiptLine::getFoodId).collect(Collectors.toSet());
+        if (!foodIds.isEmpty()) {
+            stockLedgerService.settleShortfalls(receipt.getCampusId(), foodIds, receipt.getId(), userId);
+        }
+        receiptRepository.flush();
     }
 
     private StockReceipt findReceipt(Long receiptId) {
@@ -250,6 +354,11 @@ public class StockReceiptServiceImpl implements StockReceiptService {
     }
 
     private void apply(StockReceipt receipt, StockReceiptRequest request, Long userId) {
+        // NUT-10: ngày nhập là ngày nhận hàng thực tế, không ghi lùi hay ghi trước
+        LocalDate today = LocalDate.now(clock);
+        if (!today.equals(request.receivedDate())) {
+            throw GlobalException.of(ApiCode.STOCK_RECEIPT_DATE_NOT_TODAY, today);
+        }
         if (!supplierRepository.existsById(request.supplierId())) {
             throw GlobalException.of(ApiCode.SUPPLIER_NOT_FOUND);
         }
@@ -292,8 +401,9 @@ public class StockReceiptServiceImpl implements StockReceiptService {
         }
         Map<Long, Food> foods = foodRepository
                 .findAllById(receipts.stream()
-                        .flatMap(r -> r.getLines().stream())
-                        .map(StockReceiptLine::getFoodId)
+                        .flatMap(r -> Stream.concat(
+                                r.getLines().stream().map(StockReceiptLine::getFoodId),
+                                r.getRejectedLines().stream().map(StockRejectedLine::foodId)))
                         .collect(Collectors.toSet()))
                 .stream()
                 .collect(Collectors.toMap(Food::getId, Function.identity()));

@@ -62,7 +62,7 @@ class PickupIntegrationTest {
     // Hôm nay thứ Ba 2026-11-10, 16:00 giờ trường
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
     // Ảnh PNG 1x1 (giả)

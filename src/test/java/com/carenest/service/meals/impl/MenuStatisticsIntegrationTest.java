@@ -37,7 +37,7 @@ class MenuStatisticsIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     private MealPlanService mealPlanService;
@@ -145,6 +145,97 @@ class MenuStatisticsIntegrationTest {
         assertThat(stats.freshCost()).isEqualByComparingTo("640000");
         assertThat(stats.dryCost()).isEqualByComparingTo("96000");
         assertThat(stats.freshCost().add(stats.dryCost())).isEqualByComparingTo(stats.totalCost());
+    }
+
+    @Test
+    @DisplayName("NUT-27: giá và NCC lấy tại ngày thống kê; ngày trước mức mới giữ giá cũ")
+    void priceAndSupplierFollowEffectiveDate() {
+        long supplier = jdbc.queryForObject(
+                "INSERT INTO suppliers (name, phone, contract_no, contract_start, contract_end)"
+                        + " VALUES ('NCC Gạo', '0900000001', 'HĐ-01', '2026-09-01', '2027-08-31') RETURNING id",
+                Long.class);
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, supplier_id, price, effective_from, reason)"
+                        + " SELECT id, ?, 20000, ?, 'Phụ lục 1' FROM foods WHERE code = 'GAO'",
+                supplier,
+                DAY);
+
+        MenuStatisticsResponse before = riceStats(DAY.minusDays(3), null);
+        MenuStatisticsResponse after = riceStats(DAY, null);
+
+        assertThat(before.ingredients()).singleElement().satisfies(rice -> {
+            assertThat(rice.unitPrice()).isEqualByComparingTo("18000");
+            assertThat(rice.cost()).isEqualByComparingTo("96000");
+            assertThat(rice.supplierName()).isNull();
+            assertThat(rice.priceSource()).isEqualTo("CATALOG");
+        });
+        // 5.333,33 g × 20.000 ÷ 1.000
+        assertThat(after.ingredients()).singleElement().satisfies(rice -> {
+            assertThat(rice.unitPrice()).isEqualByComparingTo("20000");
+            assertThat(rice.cost()).isEqualByComparingTo("106667");
+            assertThat(rice.supplierId()).isEqualTo(supplier);
+            assertThat(rice.supplierName()).isEqualTo("NCC Gạo");
+        });
+        assertThat(after.supplierCosts()).singleElement().satisfies(s -> {
+            assertThat(s.supplierName()).isEqualTo("NCC Gạo");
+            assertThat(s.cost()).isEqualByComparingTo("106667");
+        });
+    }
+
+    @Test
+    @DisplayName("NUT-27: hàng khô có điểm trường tính giá lô FEFO, phần thiếu kho theo giá danh mục và gắn cờ")
+    void dryStockUsesLotPriceThenCatalog() {
+        long campus = jdbc.queryForObject(
+                "INSERT INTO campuses (code, name, is_main) VALUES ('CS-L', 'L', TRUE) RETURNING id", Long.class);
+        long supplier = jdbc.queryForObject(
+                "INSERT INTO suppliers (name, phone) VALUES ('NCC kho', '0900000002') RETURNING id", Long.class);
+        long receipt = jdbc.queryForObject(
+                "INSERT INTO stock_receipts (campus_id, supplier_id, received_date, status)"
+                        + " VALUES (?, ?, '2026-11-02', 'CONFIRMED') RETURNING id",
+                Long.class,
+                campus,
+                supplier);
+        long rice = jdbc.queryForObject("SELECT id FROM foods WHERE code = 'GAO'", Long.class);
+        // Lô 3 kg giá 15.000đ/kg; lô hết hạn trước ngày thực đơn không được dùng
+        lot(receipt, campus, rice, "L1", "2027-03-01", "3000", "15000");
+        lot(receipt, campus, rice, "L0", "2026-11-01", "5000", "10000");
+
+        MenuStatisticsResponse stats = riceStats(DAY, campus);
+
+        // 3.000 g × 15.000 + 2.333,33 g × 18.000, chia 1.000
+        assertThat(stats.ingredients()).singleElement().satisfies(item -> {
+            assertThat(item.priceSource()).isEqualTo("MIXED");
+            assertThat(item.stockShortQty()).isEqualByComparingTo("2333.33");
+            assertThat(item.cost()).isEqualByComparingTo("87000");
+        });
+        assertThat(stats.dryCost()).isEqualByComparingTo("87000");
+    }
+
+    private MenuStatisticsResponse riceStats(LocalDate date, Long campusId) {
+        return mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        ag3, date, campusId, 80, List.of(new MenuStatisticsRequest.Item(MealSession.LUNCH, com))));
+    }
+
+    private void lot(long receipt, long campus, long food, String lotNo, String expiry, String grams, String price) {
+        long lot = jdbc.queryForObject(
+                "INSERT INTO stock_receipt_lines (receipt_id, food_id, lot_no, expiry_date, quantity, unit_price)"
+                        + " VALUES (?, ?, ?, ?::date, ?::numeric, ?::numeric) RETURNING id",
+                Long.class,
+                receipt,
+                food,
+                lotNo,
+                expiry,
+                grams,
+                price);
+        jdbc.update(
+                "INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity)"
+                        + " VALUES (?, ?, ?, 'RECEIPT', ?::numeric)",
+                lot,
+                campus,
+                food,
+                grams);
     }
 
     @Test
@@ -270,7 +361,7 @@ class MenuStatisticsIntegrationTest {
             String p,
             String l,
             String g) {
-        return jdbc.queryForObject(
+        long foodId = jdbc.queryForObject(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " waste_pct, kcal, protein, lipid, glucid, nutrient_source, storage, origin)"
                         + " VALUES (?, ?, 'OTHER', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEST', 'DRY', 'PLANT') RETURNING id",
@@ -286,6 +377,11 @@ class MenuStatisticsIntegrationTest {
                 new java.math.BigDecimal(p),
                 new java.math.BigDecimal(l),
                 new java.math.BigDecimal(g));
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private long dish(String code, String name, String type, long foodId, int grams) {

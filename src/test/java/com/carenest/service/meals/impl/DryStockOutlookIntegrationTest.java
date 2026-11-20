@@ -52,7 +52,7 @@ class DryStockOutlookIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -113,6 +113,10 @@ class DryStockOutlookIntegrationTest {
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('GAO',"
                         + " 'Gạo', 'OTHER', 'g', 'kg', 1000, 20000, 100, 5, 1, 10, 'TEST', 20, 'DRY', 'PLANT')"
                         + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                rice);
         long com = insertId("INSERT INTO dishes (code, name, dish_type) VALUES ('COM', 'Cơm', 'MAIN') RETURNING id");
         jdbc.update(
                 "INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child) VALUES (?, ?, ?, 60)",
@@ -252,7 +256,7 @@ class DryStockOutlookIntegrationTest {
         StockReceiptRequest request = new StockReceiptRequest(
                 campus,
                 supplier,
-                LocalDate.of(2026, 11, 2),
+                TODAY,
                 "",
                 List.of(new StockReceiptRequest.ReceiptLineInput(
                         rice,

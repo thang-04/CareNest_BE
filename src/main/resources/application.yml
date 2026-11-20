@@ -196,14 +196,6 @@ carenest:
     actions-email-enabled: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:false}
     connect-timeout: 3s
     read-timeout: 5s
-  ai:
-    # AI-09: Gemini hoặc Groq qua endpoint OpenAI-compatible (Groq: https://api.groq.com/openai/v1).
-    # Không có khóa ⇒ AI tắt, nghiệp vụ vẫn chạy (AI-03); lỗi/timeout ⇒ 503/504
-    base-url: ${CARENEST_AI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
-    api-key: ${CARENEST_AI_API_KEY:}
-    model: ${CARENEST_AI_MODEL:gemini-2.0-flash}
-    connect-timeout: 3s
-    read-timeout: ${CARENEST_AI_READ_TIMEOUT:20s}
   sms:
     # D-2: mặc định cổng giả (không gửi thật); textbee = điện thoại Android gửi bằng SIM, chỉ dùng dev/demo
     provider: ${CARENEST_SMS_PROVIDER:fake}
@@ -228,9 +220,100 @@ carenest:
       starttls: ${CARENEST_EMAIL_SMTP_STARTTLS:true}
       connect-timeout: 5s
       read-timeout: 10s
+    # G94-386: gốc Web dựng nút "Mở hồ sơ" trong email (vd. https://carenest.example.vn); trống ⇒ email không có nút
+    web-base-url: ${CARENEST_WEB_BASE_URL:}
+    outbox:
+      # Worker gửi hàng chờ email sau commit; lỗi gửi thử lại tối đa max-attempts lần, giãn từ retry-delay
+      enabled: ${CARENEST_EMAIL_OUTBOX_ENABLED:true}
+      delay: ${CARENEST_EMAIL_OUTBOX_DELAY:30s}
+      batch-size: 50
+      max-attempts: 5
+      retry-delay: 1m
+      max-retry-delay: 1h
   edu-plan:
     # EDU-10: khóa "Đang sửa" kế hoạch năm tự nhả sau khoảng này kể từ lần lưu cuối
     edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:90s}
+  ai:
+    # Tắt mặc định: nghiệp vụ chạy bằng phương án không AI (AI-03). Provider thiếu base URL/model/key bị bỏ khỏi chuỗi.
+    enabled: ${AI_ENABLED:false}
+    providers:
+      # Gemini free có thể dùng dữ liệu để train ⇒ chỉ cho task PUBLIC_CATALOG (AI-04, ADR-0007)
+      - id: gemini
+        base-url: ${AI_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+        model: ${AI_GEMINI_MODEL:}
+        api-key: ${AI_GEMINI_API_KEY:}
+        may-train-on-data: true
+        connect-timeout: 3s
+        read-timeout: 30s
+        reasoning-effort: ${AI_GEMINI_REASONING_EFFORT:}
+      - id: groq
+        base-url: ${AI_GROQ_BASE_URL:https://api.groq.com/openai/v1}
+        model: ${AI_GROQ_MODEL:}
+        api-key: ${AI_GROQ_API_KEY:}
+        may-train-on-data: false
+        connect-timeout: 3s
+        read-timeout: 30s
+        reasoning-effort: ${AI_GROQ_REASONING_EFFORT:}
+    tasks:
+      MENU_WEEKLY:
+        chain: [gemini, groq]
+        data-class: PUBLIC_CATALOG
+        deadline: ${AI_MENU_WEEKLY_DEADLINE:30s}
+        max-repair-rounds: 2
+      MENU_DAILY:
+        chain: [gemini, groq]
+        data-class: PUBLIC_CATALOG
+        deadline: 20s
+        max-repair-rounds: 2
+      MENU_DAY_FIX:
+        chain: [gemini, groq]
+        data-class: PUBLIC_CATALOG
+        deadline: 15s
+        max-repair-rounds: 1
+      # Số đo của trẻ (đã ẩn danh) là dữ liệu dẫn xuất từ trẻ ⇒ chỉ provider không dùng dữ liệu để train (AI-04)
+      HEALTH_TREND:
+        chain: [groq]
+        data-class: CHILD_DERIVED
+        deadline: 20s
+        max-repair-rounds: 0
+      # Nhận xét tuần gửi phụ huynh: số liệu tuần của trẻ (không họ tên, không mã trẻ) ⇒ dữ liệu dẫn xuất từ trẻ (AI-04)
+      WEEKLY_COMMENT:
+        chain: [groq]
+        data-class: CHILD_DERIVED
+        deadline: 20s
+        max-repair-rounds: 0
+  # Embedding (AI-06): xếp lại món ứng viên theo ngữ nghĩa, chỉ sau lọc cứng. Thiếu base URL/model/key hoặc AI tắt thì
+  # bỏ qua, gợi ý chạy như cũ. Chỉ gửi văn bản danh mục công khai và câu mong muốn của PHT, không dữ liệu trẻ (AI-04)
+  embedding:
+    base-url: ${AI_EMBEDDING_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+    model: ${AI_EMBEDDING_MODEL:}
+    api-key: ${AI_EMBEDDING_API_KEY:}
+    dimensions: ${AI_EMBEDDING_DIMENSIONS:0}
+    connect-timeout: 3s
+    read-timeout: 10s
+    batch-size: 50
+    # Tổng thời gian cho một lần embed lười trong lúc gợi ý (nằm trong deadline gợi ý)
+    budget: ${AI_EMBEDDING_BUDGET:8s}
+  # Gợi ý thực đơn (AI-07): số món ứng viên mỗi ô, trọng số điểm phương án (chỉ chỉnh khi có kết quả eval), khung ô
+  # mặc định của bữa khi khối chưa có thực đơn mẫu đang dùng
+  menu-ai:
+    candidate-limit: 15
+    recent-weeks: 4
+    weights:
+      norm: 45
+      cost: 20
+      variety: 25
+      warnings: 10
+    default-slots:
+      MORNING:
+        - [SNACK, DESSERT]
+      LUNCH:
+        - [CARB]
+        - [MAIN]
+        - [SOUP]
+        - [VEGETABLE]
+      AFTERNOON:
+        - [CARB, SNACK, DESSERT]
 
 management:
   endpoints:

@@ -9,7 +9,8 @@ import java.util.List;
 
 /**
  * Bản lưu mẫu thức ăn (NUT-21). {@code disposableFrom} = lúc lấy mẫu + 24 giờ; {@code canApprove}: người xem duyệt được
- * lưu mẫu, hủy mẫu của điểm trường này (mã FOOD_SAFETY_APPROVE).
+ * lưu mẫu, hủy mẫu của điểm trường này (mã FOOD_SAFETY_APPROVE). {@code editable}: bếp sửa được, tức chưa duyệt hoặc
+ * hủy, là mẫu của hôm nay và biên bản M5 hôm nay chưa ký.
  */
 public record FoodSampleResponse(
         Long id,
@@ -29,7 +30,8 @@ public record FoodSampleResponse(
         FoodSampleDisposalStatus disposalStatus,
         Long disposalApprovedBy,
         Instant disposalApprovedAt,
-        boolean canApprove) {
+        boolean canApprove,
+        boolean editable) {
 
     /** {@code weight}, {@code container}, {@code temperature}: ghi chú Mẫu 5 của món, rỗng khi chưa ghi. */
     public record SampleDish(Long id, String code, String name, String weight, String container, String temperature) {}

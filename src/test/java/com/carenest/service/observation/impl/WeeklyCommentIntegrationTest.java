@@ -19,12 +19,16 @@ import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockResponse;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.ai.AiClient;
-import com.carenest.integration.ai.AiException;
+import com.carenest.integration.ai.AiClientException;
+import com.carenest.integration.ai.AiGateway;
+import com.carenest.integration.ai.AiRawResult;
+import com.carenest.integration.ai.AiRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.observation.WeeklyCommentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.AiErrorReason;
+import com.carenest.utils.enums.AiTask;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.WeeklyCommentSource;
@@ -65,7 +69,7 @@ class WeeklyCommentIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class ClockConfig {
@@ -106,7 +110,7 @@ class WeeklyCommentIntegrationTest {
     private EduLessonQueryService lessonQueryService;
 
     @MockitoBean
-    private AiClient aiClient;
+    private AiGateway aiGateway;
 
     @Autowired
     private WeeklyCommentService service;
@@ -211,19 +215,28 @@ class WeeklyCommentIntegrationTest {
     @Test
     @DisplayName("OBS-29: AI viết nháp khi bật; AI lỗi thì viết theo mẫu câu và báo aiFallback")
     void aiDraftAndFallback() {
-        when(aiClient.isEnabled()).thenReturn(true);
-        when(aiClient.complete(any())).thenReturn(new AiClient.AiResult("Tuần này con đi học vui vẻ.", "test"));
+        when(aiGateway.isAvailable(AiTask.WEEKLY_COMMENT)).thenReturn(true);
+        when(aiGateway.complete(any()))
+                .thenReturn(new AiRawResult(
+                        "Tuần này con đi học vui vẻ.",
+                        "groq",
+                        "test",
+                        "observation/weekly_comment_v1",
+                        null,
+                        null,
+                        0L));
         WeeklyCommentBoardResponse ai =
                 service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, child1, false, true));
         assertThat(ai.aiEnabled()).isTrue();
         assertThat(row(ai, child1).draftSource()).isEqualTo(WeeklyCommentSource.AI);
         assertThat(row(ai, child1).content()).isEqualTo("Tuần này con đi học vui vẻ.");
         // Dữ liệu gửi AI không có họ tên, mã trẻ
-        ArgumentCaptor<AiClient.AiRequest> sent = ArgumentCaptor.forClass(AiClient.AiRequest.class);
-        verify(aiClient).complete(sent.capture());
+        ArgumentCaptor<AiRequest> sent = ArgumentCaptor.forClass(AiRequest.class);
+        verify(aiGateway).complete(sent.capture());
         assertThat(sent.getValue().userPrompt()).contains("Đi học 2/5").doesNotContain("An");
 
-        when(aiClient.complete(any())).thenThrow(new AiException(AiException.Reason.UNAVAILABLE, "down", null));
+        when(aiGateway.complete(any()))
+                .thenThrow(new AiClientException(AiErrorReason.PROVIDER_UNAVAILABLE, "down", null));
         WeeklyCommentBoardResponse fallback =
                 service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, child1, true, true));
         assertThat(fallback.aiFallback()).isTrue();

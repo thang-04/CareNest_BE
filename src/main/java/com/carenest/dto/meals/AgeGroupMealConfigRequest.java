@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Giá suất + chuẩn dinh dưỡng của một nhóm tuổi từ ngày hiệu lực; chuẩn để trống được khi trường chưa chốt. P:L:G là %
+ * Giá suất, phí dịch vụ (để trống = 0, không vượt giá suất — NUT-19) + chuẩn dinh dưỡng của một nhóm tuổi từ ngày hiệu lực; chuẩn để trống được khi trường chưa chốt. P:L:G là %
  * năng lượng, đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), {@code *KcalPct*} là % năng lượng của bữa so {@code dailyKcalNeed} = nhu cầu năng lượng cả ngày, kcal/trẻ (NUT-25).
  * Vi chất (NUT-26) là tổng mỗi trẻ mỗi ngày trên các bữa trường phục vụ; max để trống = chỉ cần đạt mức tối thiểu.
  */
@@ -16,6 +16,7 @@ public record AgeGroupMealConfigRequest(
         @NotNull Long ageGroupId,
         @NotNull LocalDate effectiveFrom,
         @NotNull @DecimalMin("0") BigDecimal mealPrice,
+        @DecimalMin("0") BigDecimal serviceFee,
         @DecimalMin("0") BigDecimal kcalMin,
         @DecimalMin("0") BigDecimal kcalMax,
         @DecimalMin("0") @DecimalMax("100") BigDecimal proteinPctMin,

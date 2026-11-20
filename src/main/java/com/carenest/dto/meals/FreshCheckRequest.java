@@ -11,8 +11,8 @@ import java.util.List;
 
 /**
  * Ghi kiểm nhận hàng tươi một lần: đủ một dòng cho mỗi thực phẩm cần nhận (không thiếu, không lạ). PHT chọn
- * đủ/thiếu/thừa; {@code receivedQty} (đơn vị gốc g/ml) không bắt buộc. {@code supplierId}: nhà cung cấp của lần giao,
- * không bắt buộc (bỏ trống ⇒ bỏ nhà cung cấp đã ghi trước đó).
+ * đủ/thiếu/thừa; {@code receivedQty} (đơn vị gốc g/ml) không bắt buộc. NCC ghi theo dòng (NUT-12): dòng để trống ⇒
+ * {@code supplierId} cấp lần kiểm (client cũ) ⇒ NCC của thực phẩm tại ngày kiểm (NUT-27).
  */
 public record FreshCheckRequest(
         @Size(max = 500) String note, @NotNull @Valid List<FreshCheckLineInput> lines, Long supplierId) {
@@ -24,5 +24,6 @@ public record FreshCheckRequest(
             BigDecimal receivedQty,
 
             @NotNull FreshCheckResult result,
-            @Size(max = 300) String note) {}
+            @Size(max = 300) String note,
+            Long supplierId) {}
 }

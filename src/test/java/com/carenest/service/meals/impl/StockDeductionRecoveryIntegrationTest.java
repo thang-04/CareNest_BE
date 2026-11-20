@@ -61,7 +61,7 @@ class StockDeductionRecoveryIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class ClockConfig {
@@ -116,6 +116,10 @@ class StockDeductionRecoveryIntegrationTest {
                 + " unit_price, kcal, protein, lipid, glucid, nutrient_source, storage, origin)"
                 + " VALUES ('GAO-F', 'Gạo', 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', 'DRY', 'PLANT')"
                 + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                rice);
         long dish = insertId("INSERT INTO dishes (code, name, dish_type) VALUES ('COM-F', 'Cơm', 'CARB') RETURNING id");
         jdbc.update(
                 "INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child) VALUES (?, ?, ?, 60)",

@@ -41,7 +41,7 @@ class VicePrincipalAssignmentIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -109,6 +109,21 @@ class VicePrincipalAssignmentIntegrationTest {
         assertThat(campuses).containsOnlyKeys(vp1, vp2);
         assertThat(campuses.get(vp1)).isEqualTo(campusA);
         assertThat(campuses.get(vp2)).isNull();
+    }
+
+    @Test
+    void vicePrincipalAccountWithoutAnyAssignmentIsListedAndAssignable() {
+        long fresh = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name, primary_role) "
+                + "VALUES ('kc-vp3', 'vp3', 'vp3 IT', 'VICE_PRINCIPAL') RETURNING id");
+
+        Map<Long, Long> before = campusByUser(service.getAssignments(principal, activeYear));
+        assertThat(before).containsKey(fresh);
+        assertThat(before.get(fresh)).isNull();
+        assertThat(before).doesNotContainKey(teacher);
+
+        Map<Long, Long> after =
+                campusByUser(service.assign(principal, activeYear, fresh, new VicePrincipalAssignmentRequest(campusB)));
+        assertThat(after.get(fresh)).isEqualTo(campusB);
     }
 
     @Test

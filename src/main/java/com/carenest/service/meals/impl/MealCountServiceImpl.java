@@ -27,6 +27,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.MealCountStatus;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.NotificationType;
@@ -76,6 +77,7 @@ public class MealCountServiceImpl implements MealCountService {
     private final CampusAccessPolicy campusAccessPolicy;
     private final ApplicationEventPublisher eventPublisher;
     private final NotificationService notificationService;
+    private final BoardingWriteGuard writeGuard;
     private final Clock clock;
 
     /** Phạm vi người xem: HT toàn trường; PHT theo phạm vi HT cấp (AUTH-20 cập nhật 10/11/2026); bếp điểm trường mình. */
@@ -174,18 +176,19 @@ public class MealCountServiceImpl implements MealCountService {
                 Map<Long, String> names = names(shown, history);
                 for (Long campusId : campusIds) {
                     List<ClassMealTally> preview = null;
+                    boolean signed = inspectionSigned(campusId, day);
                     for (MealSession session : year.sessions(campusId)) {
                         MealCount count = stored.get(key(campusId, session));
                         if (count != null) {
                             if (viewer.reviews(campusId) || count.isConfirmed()) {
-                                counts.add(toView(count, viewer, year, classById, names, history));
+                                counts.add(toView(count, viewer, year, classById, names, history, signed));
                             }
                         } else if ((!info.baseLocked() || pastDay) && year.active() && viewer.reviews(campusId)) {
                             // Trước giờ chốt: số tạm tính để PHT theo dõi; ngày đã qua chưa có sổ: chỉ xem, không lưu
                             if (preview == null) {
                                 preview = attendanceService.tallyMeals(day, campusId, year.id());
                             }
-                            counts.add(toPreview(campusId, year.id(), day, session, preview, classById));
+                            counts.add(toPreview(campusId, year.id(), day, session, preview, classById, signed));
                         }
                     }
                 }
@@ -333,6 +336,9 @@ public class MealCountServiceImpl implements MealCountService {
                             .toList();
             // Bữa đã được xác nhận cùng ngày (vd. client gọi lần lượt từng bữa) ⇒ trả trạng thái hiện tại
             if (!pending.isEmpty()) {
+                // INS-03: M2/M3 đã ký thì số suất là số trong biên bản; khóa campuses sau khóa suất (cùng thứ tự mọi
+                // nơi)
+                requireInspectionUnsigned(count.getCampusId(), count.getDate());
                 checkAttendanceComplete(count.getCampusId(), count.getDate(), year);
                 // NUT-03: không xác nhận số người duyệt chưa thấy (GV sửa điểm danh khi đang mở lại, điều chỉnh khác)
                 if (seenServings != null || seenSubstitute != null) {
@@ -387,6 +393,7 @@ public class MealCountServiceImpl implements MealCountService {
             }
             Year year = editableYear(counts.getFirst().getSchoolYearId());
             checkNotPastDay(request.date(), counts.stream().anyMatch(MealCount::hasPending));
+            requireInspectionUnsigned(request.campusId(), request.date());
             // NUT-02: suất thường chỉ đổi qua điểm danh (mở lại — ATT-08); normal null hoặc bằng số hiện tại = giữ
             // nguyên
             if (request.normal() != null
@@ -480,6 +487,16 @@ public class MealCountServiceImpl implements MealCountService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private void requireInspectionUnsigned(Long campusId, LocalDate date) {
+        writeGuard.lock(campusId);
+        writeGuard.requireUnsigned(
+                campusId, date, ApiCode.MEAL_COUNT_INSPECTION_SIGNED, InspectionTab.PROCESS, InspectionTab.SERVE);
+    }
+
+    private boolean inspectionSigned(Long campusId, LocalDate date) {
+        return writeGuard.signed(campusId, date, InspectionTab.PROCESS, InspectionTab.SERVE);
     }
 
     // NUT-02 (D10): chặn xác nhận khi còn lớp có học trong ngày có trẻ đang học chưa được điểm danh
@@ -615,7 +632,14 @@ public class MealCountServiceImpl implements MealCountService {
 
     private MealCountResponse view(MealCount count, Viewer viewer, Year year) {
         Map<Long, List<MealCountHistory>> history = history(List.of(count));
-        return toView(count, viewer, year, year.classById(), names(List.of(count), history), history);
+        return toView(
+                count,
+                viewer,
+                year,
+                year.classById(),
+                names(List.of(count), history),
+                history,
+                inspectionSigned(count.getCampusId(), count.getDate()));
     }
 
     private Map<Long, List<MealCountHistory>> history(List<MealCount> counts) {
@@ -649,7 +673,8 @@ public class MealCountServiceImpl implements MealCountService {
             Year year,
             Map<Long, ClassroomInfoResponse> classById,
             Map<Long, String> names,
-            Map<Long, List<MealCountHistory>> history) {
+            Map<Long, List<MealCountHistory>> history,
+            boolean signed) {
         boolean reviewer = viewer.reviews(count.getCampusId());
         // Đang chờ xác nhận lại: kèm số đã chốt của từng lớp để người duyệt thấy thay đổi
         Map<Long, MealCountLine> confirmed = reviewer && count.hasPending()
@@ -688,11 +713,13 @@ public class MealCountServiceImpl implements MealCountService {
                 lines,
                 totals(lines),
                 reviewer ? adjustments : List.of(),
-                year.active()
+                !signed
+                        && year.active()
                         && viewer.confirms(count.getCampusId())
                         && status == MealCountStatus.PENDING_CONFIRMATION
                         && editableDay(count),
-                year.active() && viewer.adjusts(count.getCampusId()) && editableDay(count));
+                !signed && year.active() && viewer.adjusts(count.getCampusId()) && editableDay(count),
+                signed);
     }
 
     private boolean editableDay(MealCount count) {
@@ -705,7 +732,8 @@ public class MealCountServiceImpl implements MealCountService {
             LocalDate date,
             MealSession session,
             List<ClassMealTally> tallies,
-            Map<Long, ClassroomInfoResponse> classById) {
+            Map<Long, ClassroomInfoResponse> classById,
+            boolean signed) {
         List<Line> lines = tallies.stream()
                 .filter(t -> t.sessions().contains(session))
                 .map(t -> new Line(
@@ -739,7 +767,8 @@ public class MealCountServiceImpl implements MealCountService {
                 totals(lines),
                 List.of(),
                 false,
-                false);
+                false,
+                signed);
     }
 
     private static Line toLine(MealCountLine l, Map<Long, ClassroomInfoResponse> classById, MealCountLine confirmed) {

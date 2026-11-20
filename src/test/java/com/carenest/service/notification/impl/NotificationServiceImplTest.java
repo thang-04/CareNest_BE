@@ -9,8 +9,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.carenest.entity.notification.Notification;
+import com.carenest.entity.notification.NotificationEmailDelivery;
 import com.carenest.entity.notification.NotificationRule;
 import com.carenest.repository.notification.DeviceTokenRepository;
+import com.carenest.repository.notification.NotificationEmailDeliveryRepository;
 import com.carenest.repository.notification.NotificationRepository;
 import com.carenest.repository.notification.NotificationRuleRepository;
 import com.carenest.security.CurrentUser;
@@ -24,9 +26,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /** Thông báo theo quy tắc (PAR-09): loại đã tắt không tạo, câu chữ HT sửa được dùng; mọi dòng mới chờ đẩy. */
 class NotificationServiceImplTest {
@@ -34,15 +38,68 @@ class NotificationServiceImplTest {
 
     private NotificationRepository notifications;
     private NotificationRuleRepository rules;
+    private NotificationEmailDeliveryRepository emails;
     private NotificationServiceImpl service;
 
     @BeforeEach
     void setUp() {
         notifications = mock(NotificationRepository.class);
         rules = mock(NotificationRuleRepository.class);
+        emails = mock(NotificationEmailDeliveryRepository.class);
         service = new NotificationServiceImpl(
-                notifications, mock(DeviceTokenRepository.class), rules, Clock.fixed(NOW, ZoneOffset.UTC));
-        given(notifications.save(any())).willAnswer(inv -> inv.getArgument(0));
+                notifications, mock(DeviceTokenRepository.class), rules, emails, Clock.fixed(NOW, ZoneOffset.UTC));
+        AtomicLong ids = new AtomicLong(100);
+        given(notifications.save(any())).willAnswer(inv -> {
+            Notification n = inv.getArgument(0);
+            ReflectionTestUtils.setField(n, "id", ids.incrementAndGet());
+            return n;
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<NotificationEmailDelivery> queuedEmails() {
+        ArgumentCaptor<Iterable<NotificationEmailDelivery>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(emails).saveAll(captor.capture());
+        return (List<NotificationEmailDelivery>) captor.getValue();
+    }
+
+    @Test
+    void eduEventWithLinkQueuesOneEmailPerRecipient() {
+        service.notifyUsers(
+                List.of(5L, 6L, 5L),
+                NotificationType.EDU_SUBMITTED,
+                "Chờ bạn duyệt: Kế hoạch tổ 4-5 tuổi",
+                "Cô A gửi duyệt",
+                "/education/goals/9",
+                false,
+                "Năm học 2026-2027 · Nhóm tuổi 4-5 tuổi");
+
+        List<NotificationEmailDelivery> queued = queuedEmails();
+        assertThat(queued)
+                .extracting(NotificationEmailDelivery::getNotificationId)
+                .containsExactly(101L, 102L);
+        assertThat(queued).allSatisfy(d -> {
+            assertThat(d.getState()).isEqualTo(PushState.PENDING);
+            assertThat(d.getScope()).isEqualTo("Năm học 2026-2027 · Nhóm tuổi 4-5 tuổi");
+        });
+    }
+
+    @Test
+    void nearDeadlineReminderAlreadySentQueuesNoSecondEmail() {
+        given(notifications.existsByUserIdAndTypeAndLink(5L, NotificationType.EDU_DEADLINE_NEAR, "/x"))
+                .willReturn(true);
+
+        service.notifyUsers(
+                List.of(5L), NotificationType.EDU_DEADLINE_NEAR, "Gần đến hạn: X", "còn 3 ngày", "/x", true);
+
+        assertThat(queuedEmails()).isEmpty();
+    }
+
+    @Test
+    void nonEducationNotificationQueuesNoEmail() {
+        service.notifyUsers(List.of(5L), NotificationType.CHILD_PICKED_UP, "Đã đón", "Bé An", 9L);
+
+        verify(emails, never()).saveAll(any());
     }
 
     private NotificationRule rule(NotificationType type, boolean enabled, String title) {

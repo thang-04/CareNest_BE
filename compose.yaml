@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    # PostgreSQL 17 kèm pgvector (xếp lại món ứng viên theo ngữ nghĩa, bảng dish_embeddings)
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-carenest}
       POSTGRES_USER: ${POSTGRES_USER:-carenest}
@@ -93,10 +94,16 @@ services:
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       # Keycloak đã có SMTP Resend nên bật gửi email đặt mật khẩu
       KEYCLOAK_ACTIONS_EMAIL_ENABLED: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:-true}
-      # Trợ lý AI (AI-09); khóa trống ⇒ AI tắt (AI-03)
-      CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
-      CARENEST_AI_API_KEY: ${CARENEST_AI_API_KEY:-}
-      CARENEST_AI_MODEL: ${CARENEST_AI_MODEL:-gemini-2.0-flash}
+      # AI tắt mặc định; bật bằng .env (ADR-0007)
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_GEMINI_MODEL: ${AI_GEMINI_MODEL:-}
+      AI_GEMINI_API_KEY: ${AI_GEMINI_API_KEY:-}
+      AI_GEMINI_REASONING_EFFORT: ${AI_GEMINI_REASONING_EFFORT:-}
+      AI_GROQ_MODEL: ${AI_GROQ_MODEL:-}
+      AI_GROQ_API_KEY: ${AI_GROQ_API_KEY:-}
+      AI_GROQ_REASONING_EFFORT: ${AI_GROQ_REASONING_EFFORT:-}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-}
+      AI_EMBEDDING_API_KEY: ${AI_EMBEDDING_API_KEY:-}
       # Mặc định cổng SMS giả; textbee cần TEXTBEE_API_KEY (thiếu thì API dừng lúc khởi động)
       CARENEST_SMS_PROVIDER: ${CARENEST_SMS_PROVIDER:-fake}
       TEXTBEE_API_KEY: ${TEXTBEE_API_KEY:-}
@@ -105,6 +112,7 @@ services:
       CARENEST_EMAIL_PROVIDER: ${CARENEST_EMAIL_PROVIDER:-log}
       CARENEST_EMAIL_FROM: ${CARENEST_EMAIL_FROM:-}
       CARENEST_EMAIL_FROM_NAME: ${CARENEST_EMAIL_FROM_NAME:-CareNest}
+      CARENEST_WEB_BASE_URL: ${CARENEST_WEB_BASE_URL:-http://localhost:3000}
       CARENEST_EMAIL_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.resend.com}
       CARENEST_EMAIL_SMTP_PORT: ${CARENEST_EMAIL_SMTP_PORT:-587}
       CARENEST_EMAIL_SMTP_USERNAME: ${CARENEST_EMAIL_SMTP_USERNAME:-resend}

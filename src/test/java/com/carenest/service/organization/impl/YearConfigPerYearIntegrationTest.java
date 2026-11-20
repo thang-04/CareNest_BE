@@ -53,7 +53,7 @@ class YearConfigPerYearIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -250,6 +250,18 @@ class YearConfigPerYearIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.ROOM_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("Năm chưa phòng nào có người phụ trách: phòng không phải phòng học vẫn liệt kê được")
+    void roomsWithoutAnyManagerAreListed() {
+        RoomResponse kitchen = roomService.createRoom(
+                principal, new RoomRequest(campusA, "BEP1", "Bếp", RoomType.KITCHEN, null, null, ""), active);
+
+        assertThat(rooms(active))
+                .filteredOn(r -> r.id().equals(kitchen.id()))
+                .singleElement()
+                .satisfies(r -> assertThat(r.managerName()).isNull());
     }
 
     @Test

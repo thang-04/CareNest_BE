@@ -47,17 +47,22 @@ class DevSeedIntegrationTest {
             // Không tạo tệp S3 hoặc lịch sử giao tới thiết bị khi chưa có token thật.
             "announcement_attachments",
             "notification_push_deliveries",
+            // Hàng chờ email: seed có dòng thì worker gửi thư tới địa chỉ giả
+            "notification_email_deliveries",
             "user_signatures",
             "meal_photos",
             "inspection_sheets",
             "health_follow_ups",
             "health_follow_up_events",
             "health_follow_up_images",
-            "edu_resource_attachments");
+            "edu_resource_attachments",
+            // Nháp gợi ý thực đơn do người dùng tạo lúc chạy; vector món do embedding API sinh lười (AI tắt ⇒ rỗng)
+            "menu_ai_drafts",
+            "dish_embeddings");
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -104,6 +109,7 @@ class DevSeedIntegrationTest {
         assertThat(empty).isEmpty();
         assertThat(count("announcement_attachments")).isZero();
         assertThat(count("notification_push_deliveries")).isZero();
+        assertThat(count("notification_email_deliveries")).isZero();
         assertThat(count("user_accounts")).isGreaterThan(200);
         assertThat(count("children")).isGreaterThan(200);
     }

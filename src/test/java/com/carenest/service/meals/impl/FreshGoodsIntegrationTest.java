@@ -5,23 +5,31 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.carenest.dto.meals.DayBoardResponse;
+import com.carenest.dto.meals.DryIntakeRequest;
 import com.carenest.dto.meals.FreshCheckRequest;
 import com.carenest.dto.meals.FreshCheckResponse;
 import com.carenest.dto.meals.FreshForecastRequest;
 import com.carenest.dto.meals.FreshForecastResponse;
+import com.carenest.dto.meals.StockReceiptResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.FreshGoodsService;
+import com.carenest.service.meals.StockReceiptService;
+import com.carenest.support.MovableClock;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FreshCheckLock;
 import com.carenest.utils.enums.FreshCheckResult;
 import com.carenest.utils.enums.FreshCheckSource;
 import com.carenest.utils.enums.Permission;
+import com.carenest.utils.enums.StockReceiptStatus;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -30,7 +38,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
@@ -47,16 +58,33 @@ class FreshGoodsIntegrationTest {
     private static final LocalDate FRIDAY = MONDAY.plusDays(4);
     private static final LocalDate DRAFT_MONDAY = MONDAY.plusWeeks(1);
     private static final LocalDate NO_MENU_MONDAY = MONDAY.plusWeeks(2);
+    private static final MovableClock CLOCK = new MovableClock();
+
+    /** Kiểm nhận chỉ ghi được trong ngày: test dời "hôm nay" sang ngày đang kiểm. */
+    @TestConfiguration
+    static class ClockConfig {
+        @Bean
+        @Primary
+        Clock freshTestClock() {
+            return CLOCK;
+        }
+    }
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     private FreshGoodsService freshService;
 
     @Autowired
     private DayBoardService dayBoardService;
+
+    @Autowired
+    private StockReceiptService stockReceiptService;
+
+    @Autowired
+    private Clock clock;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -71,11 +99,13 @@ class FreshGoodsIntegrationTest {
     private long classroom;
     private long ag3;
     private long rice;
+    private long oil;
     private long pork;
     private long veg;
 
     @BeforeEach
     void setUp() {
+        today(MONDAY);
         campus = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-F', 'Cơ sở F', TRUE) RETURNING id");
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
@@ -95,6 +125,7 @@ class FreshGoodsIntegrationTest {
         }
         // Gạo kho khô; thịt tươi không thải bỏ; rau tươi thải bỏ 20% ⇒ mua = ăn ÷ 0,8
         rice = food("GAO", "Gạo", "DRY", "20", "PLANT");
+        oil = food("DAU", "Dầu ăn", "DRY", "0", "PLANT");
         pork = food("THIT", "Thịt", "FRESH", "0", "ANIMAL");
         veg = food("RAU", "Rau", "FRESH", "20", "PLANT");
         long com = dish("COM", "Cơm", rice, 60);
@@ -318,7 +349,7 @@ class FreshGoodsIntegrationTest {
                 1,
                 check(
                         new FreshCheckRequest.FreshCheckLineInput(
-                                pork, new BigDecimal("118.50"), FreshCheckResult.SHORT, " Thiếu chút "),
+                                pork, new BigDecimal("118.50"), FreshCheckResult.SHORT, " Thiếu chút ", null),
                         line(veg, FreshCheckResult.ENOUGH)));
         assertThat(recorded.rounds().getFirst().recorded()).isTrue();
         assertThat(recorded.rounds().getFirst().checkedBy()).isEqualTo(principal.userId());
@@ -389,17 +420,19 @@ class FreshGoodsIntegrationTest {
     }
 
     @Test
-    @DisplayName("NUT-12: xóa bản dự trù không xóa lịch sử kiểm; danh sách mới nhất trước kèm số thực phẩm")
-    void deletingForecastKeepsCheckHistory() {
+    @DisplayName(
+            "NUT-12: bản dự trù đã làm căn cứ kiểm nhận không xóa được; bản chưa dùng xóa được; danh sách mới nhất trước")
+    void deletingForecastUsedByChecksIsBlocked() {
         FreshForecastResponse first =
                 freshService.createForecast(principal, request(MONDAY, FRIDAY, List.of(count(5))));
         FreshForecastResponse second =
                 freshService.createForecast(principal, request(MONDAY, MONDAY, List.of(count(3))));
         assertThat(freshService.getForecasts(vp, campus))
-                .extracting(f -> f.id(), f -> f.foodCount())
-                .containsExactly(tuple(second.id(), 2), tuple(first.id(), 2));
+                .extracting(f -> f.id(), f -> f.foodCount(), f -> f.deletable())
+                .containsExactly(tuple(second.id(), 2, true), tuple(first.id(), 2, true));
         assertThat(freshService.getForecast(vp, first.id()).lines()).hasSize(2);
 
+        // Lần 1 so bản mới nhất có kỳ chứa ngày (bản thứ hai) ⇒ bản đó thành căn cứ kiểm nhận, không xóa được
         freshService.recordCheck(
                 principal,
                 campus,
@@ -407,19 +440,33 @@ class FreshGoodsIntegrationTest {
                 1,
                 check(line(pork, FreshCheckResult.ENOUGH), line(veg, FreshCheckResult.ENOUGH)));
         entityManager.flush();
-        freshService.deleteForecast(principal, second.id());
+        expectCode(() -> freshService.deleteForecast(principal, second.id()), ApiCode.FRESH_FORECAST_IN_USE);
+        assertThat(freshService.getForecasts(vp, campus))
+                .extracting(f -> f.id(), f -> f.deletable())
+                .containsExactly(tuple(second.id(), false), tuple(first.id(), true));
+
+        freshService.deleteForecast(principal, first.id());
         entityManager.flush();
         entityManager.clear();
-
         assertThat(jdbc.queryForObject("SELECT forecast_id FROM fresh_checks", Long.class))
-                .isNull();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM fresh_check_lines", Integer.class))
-                .isEqualTo(2);
+                .isEqualTo(second.id());
         assertThat(freshService.getForecasts(vp, campus))
                 .extracting(f -> f.id())
-                .containsExactly(first.id());
-        expectCode(() -> freshService.getForecast(vp, second.id()), ApiCode.FRESH_FORECAST_NOT_FOUND);
-        expectCode(() -> freshService.deleteForecast(principal, second.id()), ApiCode.FRESH_FORECAST_NOT_FOUND);
+                .containsExactly(second.id());
+        expectCode(() -> freshService.deleteForecast(principal, first.id()), ApiCode.FRESH_FORECAST_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("NUT-12: kỳ dự trù bắt đầu trước hôm nay bị chặn; bắt đầu hôm nay được")
+    void forecastCannotStartInPast() {
+        today(MONDAY.plusDays(1));
+        expectCode(
+                () -> freshService.createForecast(principal, request(MONDAY, FRIDAY, List.of(count(5)))),
+                ApiCode.FRESH_FORECAST_PERIOD_PAST);
+        assertThat(freshService
+                        .createForecast(principal, request(MONDAY.plusDays(1), FRIDAY, List.of(count(5))))
+                        .id())
+                .isNotNull();
     }
 
     @Test
@@ -448,9 +495,11 @@ class FreshGoodsIntegrationTest {
                 freshService.getChecks(principal, campus, DRAFT_MONDAY).rounds().get(1);
         assertThat(draftRound.available()).isFalse();
         assertThat(draftRound.unavailableReason()).isEqualTo("Thực đơn tuần chưa công bố");
+        today(DRAFT_MONDAY);
         expectCode(
                 () -> freshService.recordCheck(principal, campus, DRAFT_MONDAY, 2, check()),
                 ApiCode.FRESH_CHECK_NOT_AVAILABLE);
+        today(MONDAY);
 
         // Ngày nghỉ
         setOff(FRIDAY);
@@ -556,6 +605,81 @@ class FreshGoodsIntegrationTest {
     }
 
     @Test
+    @DisplayName("Kiểm nhận chỉ ghi/sửa trong ngày: qua ngày thì khóa, ngày chưa tới thì chặn, vẫn xem được")
+    void checksLockOutsideToday() {
+        freshService.createForecast(principal, request(MONDAY, FRIDAY, List.of(count(5))));
+        FreshCheckRequest enough = check(line(pork, FreshCheckResult.ENOUGH), line(veg, FreshCheckResult.ENOUGH));
+        assertThat(freshService.getChecks(principal, campus, MONDAY).editable()).isTrue();
+        freshService.recordCheck(principal, campus, MONDAY, 1, enough);
+
+        // Ngày chưa tới
+        expectCode(
+                () -> freshService.recordCheck(principal, campus, MONDAY.plusDays(1), 1, enough),
+                ApiCode.FRESH_CHECK_DATE_LOCKED);
+
+        // Sang hôm sau: bản hôm qua chỉ còn xem
+        today(MONDAY.plusDays(1));
+        FreshCheckResponse yesterday = freshService.getChecks(principal, campus, MONDAY);
+        assertThat(yesterday.editable()).isFalse();
+        assertThat(yesterday.lockReason()).isEqualTo(FreshCheckLock.NOT_TODAY);
+        assertThat(yesterday.rounds().getFirst().recorded()).isTrue();
+        expectCode(
+                () -> freshService.recordCheck(
+                        principal,
+                        campus,
+                        MONDAY,
+                        1,
+                        check(line(pork, FreshCheckResult.SHORT), line(veg, FreshCheckResult.ENOUGH))),
+                ApiCode.FRESH_CHECK_DATE_LOCKED);
+        assertThat(freshService
+                        .getChecks(principal, campus, MONDAY)
+                        .rounds()
+                        .getFirst()
+                        .lines())
+                .extracting(FreshCheckResponse.FreshCheckLine::result)
+                .containsOnly(FreshCheckResult.ENOUGH);
+    }
+
+    @Test
+    @DisplayName("Ký M1 tươi khóa kiểm nhận cả hai lần; Sửa lại biên bản (về nháp) thì mở lại")
+    void signedFreshSheetLocksChecks() {
+        freshService.createForecast(principal, request(MONDAY, FRIDAY, List.of(count(5))));
+        FreshCheckRequest enough = check(line(pork, FreshCheckResult.ENOUGH), line(veg, FreshCheckResult.ENOUGH));
+        freshService.recordCheck(principal, campus, MONDAY, 1, enough);
+        jdbc.update(
+                "INSERT INTO inspection_sheets (campus_id, sheet_date, tab, status, signature)"
+                        + " VALUES (?, ?, 'FRESH', 'SIGNED', '{}'::jsonb)",
+                campus,
+                MONDAY);
+        // Biên bản khác (M1 khô) đã ký không ảnh hưởng
+        jdbc.update(
+                "INSERT INTO inspection_sheets (campus_id, sheet_date, tab, status, signature)"
+                        + " VALUES (?, ?, 'DRY', 'SIGNED', '{}'::jsonb)",
+                campus,
+                MONDAY.plusDays(1));
+
+        FreshCheckResponse signed = freshService.getChecks(principal, campus, MONDAY);
+        assertThat(signed.editable()).isFalse();
+        assertThat(signed.lockReason()).isEqualTo(FreshCheckLock.M1_SIGNED);
+        expectCode(() -> freshService.recordCheck(principal, campus, MONDAY, 1, enough), ApiCode.FRESH_CHECK_SIGNED);
+        expectCode(() -> freshService.recordCheck(principal, campus, MONDAY, 2, check()), ApiCode.FRESH_CHECK_SIGNED);
+
+        jdbc.update(
+                "UPDATE inspection_sheets SET status = 'DRAFT', signature = NULL"
+                        + " WHERE campus_id = ? AND sheet_date = ? AND tab = 'FRESH'",
+                campus,
+                MONDAY);
+        assertThat(freshService.getChecks(principal, campus, MONDAY).lockReason())
+                .isNull();
+        freshService.recordCheck(
+                principal,
+                campus,
+                MONDAY,
+                1,
+                check(line(pork, FreshCheckResult.SHORT), line(veg, FreshCheckResult.ENOUGH)));
+    }
+
+    @Test
     @DisplayName("Điểm trường không tồn tại ⇒ 404; lần kiểm ngoài 1|2 bị từ chối")
     void rejectsUnknownCampusAndRound() {
         expectCode(
@@ -606,6 +730,171 @@ class FreshGoodsIntegrationTest {
         assertThat(board(vp, MONDAY).foodSampleStatus()).isEqualTo("NONE");
     }
 
+    @Test
+    @DisplayName("NUT-12: bản dự trù lưu lượng hàng khô đặt PHT sửa; chỉ nhận thực phẩm kho khô, không trùng")
+    void forecastStoresEditedDryOrder() {
+        LocalDate today = LocalDate.now(clock);
+
+        FreshForecastResponse saved = freshService.createForecast(
+                principal, dryOrderRequest(today, dryOrder(rice, "1500"), dryOrder(oil, "0")));
+
+        assertThat(freshService.getForecast(principal, saved.id()).dryOrder())
+                .extracting(line -> line.food().id(), FreshForecastResponse.DryOrderLine::quantity)
+                .containsExactly(tuple(rice, new BigDecimal("1500.00")));
+        expectCode(
+                () -> freshService.createForecast(principal, dryOrderRequest(today, dryOrder(pork, "100"))),
+                ApiCode.STOCK_FOOD_NOT_DRY);
+        expectCode(
+                () -> freshService.createForecast(
+                        principal, dryOrderRequest(today, dryOrder(rice, "100"), dryOrder(rice, "200"))),
+                ApiCode.DRY_ORDER_INVALID);
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-11/NUT-12: đợt hàng khô ⇒ phiếu đã xác nhận từ dòng đạt; đã nhận cộng dồn theo kỳ, hủy phiếu thì giảm")
+    void dryIntakeCreatesConfirmedReceiptAndTracksReceived() {
+        LocalDate today = LocalDate.now(clock);
+        long forecastId = freshService
+                .createForecast(principal, dryOrderRequest(today, dryOrder(rice, "3000")))
+                .id();
+        long supplier = supplier();
+
+        FreshCheckResponse first = freshService.recordDryIntake(
+                principal,
+                campus,
+                today,
+                intake(
+                        supplier,
+                        intakeLine(rice, "L1", "1000", true, null),
+                        intakeLine(oil, "D1", "500", true, null),
+                        intakeLine(rice, "L2", "200", false, " Trả lại NCC ")));
+
+        assertThat(first.dry().forecastId()).isEqualTo(forecastId);
+        assertThat(first.dry().receipts()).singleElement().satisfies(receipt -> {
+            assertThat(receipt.status()).isEqualTo(StockReceiptStatus.CONFIRMED);
+            assertThat(receipt.fromIntake()).isTrue();
+            assertThat(receipt.forecastId()).isEqualTo(forecastId);
+            assertThat(receipt.lines())
+                    .extracting(StockReceiptResponse.ReceiptLine::lotNo)
+                    .containsExactlyInAnyOrder("L1", "D1");
+            assertThat(receipt.rejectedLines()).singleElement().satisfies(rejected -> {
+                assertThat(rejected.food().id()).isEqualTo(rice);
+                assertThat(rejected.note()).isEqualTo("Trả lại NCC");
+            });
+        });
+        assertThat(first.dry().orders())
+                .extracting(o -> o.food().id(), FreshCheckResponse.DryOrderStatus::ordered, o -> o.received())
+                .containsExactlyInAnyOrder(
+                        tuple(rice, new BigDecimal("3000.00"), new BigDecimal("1000.00")),
+                        tuple(oil, null, new BigDecimal("500.00")));
+        assertThat(stockBalance(rice)).isEqualByComparingTo("1000");
+
+        freshService.recordDryIntake(
+                principal, campus, today, intake(supplier, intakeLine(rice, "L3", "2000", true, null)));
+        assertThat(ricePart(freshService.getChecks(principal, campus, today)).received())
+                .isEqualByComparingTo("3000");
+
+        stockReceiptService.cancelReceipt(
+                principal, first.dry().receipts().getFirst().id(), "Ghi nhầm lô");
+        FreshCheckResponse afterCancel = freshService.getChecks(principal, campus, today);
+        assertThat(ricePart(afterCancel).received()).isEqualByComparingTo("2000");
+        assertThat(afterCancel.dry().receipts())
+                .extracting(StockReceiptResponse::status)
+                .containsExactly(StockReceiptStatus.CANCELLED, StockReceiptStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("NUT-11: dòng không đạt phải có biện pháp xử lý, chỉ ghi trong ngày, cần STOCK_MANAGE")
+    void dryIntakeRejectsInvalidRequests() {
+        LocalDate today = LocalDate.now(clock);
+        long supplier = supplier();
+
+        expectCode(
+                () -> freshService.recordDryIntake(
+                        principal, campus, today, intake(supplier, intakeLine(rice, "L1", "100", false, " "))),
+                ApiCode.DRY_INTAKE_NOTE_REQUIRED);
+        expectCode(
+                () -> freshService.recordDryIntake(
+                        principal,
+                        campus,
+                        today.minusDays(1),
+                        intake(supplier, intakeLine(rice, "L1", "100", true, null))),
+                ApiCode.DRY_INTAKE_NOT_TODAY);
+        expectCode(
+                () -> freshService.recordDryIntake(
+                        withPermissions(vp, Set.of()),
+                        campus,
+                        today,
+                        intake(supplier, intakeLine(rice, "L1", "100", true, null))),
+                ApiCode.STOCK_ACCESS_DENIED);
+        expectCode(
+                () -> freshService.recordDryIntake(
+                        principal, campus, today, intake(supplier, intakeLine(pork, "T1", "100", true, null))),
+                ApiCode.STOCK_FOOD_NOT_DRY);
+    }
+
+    @Test
+    @DisplayName("NUT-12: ngày không có bản dự trù vẫn nhận hàng khô, mọi dòng là ngoài đơn")
+    void dryIntakeWithoutForecast() {
+        LocalDate today = LocalDate.now(clock);
+
+        FreshCheckResponse response = freshService.recordDryIntake(
+                principal, campus, today, intake(supplier(), intakeLine(rice, "L1", "100", true, null)));
+
+        assertThat(response.dry().forecastId()).isNull();
+        assertThat(response.dry().orders()).isEmpty();
+        assertThat(response.dry().receipts()).singleElement().satisfies(receipt -> {
+            assertThat(receipt.forecastId()).isNull();
+            assertThat(receipt.lines()).hasSize(1);
+        });
+    }
+
+    private FreshCheckResponse.DryOrderStatus ricePart(FreshCheckResponse response) {
+        return response.dry().orders().stream()
+                .filter(o -> o.food().id().equals(rice))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private BigDecimal stockBalance(long foodId) {
+        return jdbc.queryForObject(
+                "SELECT COALESCE(SUM(m.quantity), 0) FROM stock_movements m JOIN stock_receipt_lines l ON l.id = m.lot_id"
+                        + " JOIN stock_receipts r ON r.id = l.receipt_id WHERE r.campus_id = ? AND l.food_id = ?",
+                BigDecimal.class,
+                campus,
+                foodId);
+    }
+
+    private long supplier() {
+        return insertId("INSERT INTO suppliers (name, phone, address, delivery_person)"
+                + " VALUES ('NCC khô', '0901234567', '12 Lê Lợi', 'Anh Nam') RETURNING id");
+    }
+
+    private FreshForecastRequest dryOrderRequest(LocalDate from, FreshForecastRequest.DryOrderInput... order) {
+        return new FreshForecastRequest(campus, from, from.plusDays(6), "", null, List.of(order));
+    }
+
+    private static FreshForecastRequest.DryOrderInput dryOrder(long foodId, String quantity) {
+        return new FreshForecastRequest.DryOrderInput(foodId, new BigDecimal(quantity));
+    }
+
+    private static DryIntakeRequest intake(long supplierId, DryIntakeRequest.DryIntakeLineInput... lines) {
+        return new DryIntakeRequest(supplierId, "", List.of(lines));
+    }
+
+    private DryIntakeRequest.DryIntakeLineInput intakeLine(
+            long foodId, String lotNo, String quantity, boolean passed, String note) {
+        return new DryIntakeRequest.DryIntakeLineInput(
+                foodId,
+                lotNo,
+                LocalDate.now(clock).plusMonths(6),
+                new BigDecimal(quantity),
+                new BigDecimal("20000"),
+                passed,
+                note);
+    }
+
     private String freshStatus(LocalDate date) {
         return board(principal, date).freshReceiptStatus();
     }
@@ -626,12 +915,17 @@ class FreshGoodsIntegrationTest {
         return new FreshForecastRequest.FreshForecastCountInput(ag3, expected);
     }
 
+    private static void today(LocalDate date) {
+        CLOCK.set(date, LocalTime.of(9, 0));
+    }
+
+    /** Đồng hồ dời được; dùng chung cho cả lớp test nên mỗi test đặt lại ở {@code setUp}. */
     private static FreshCheckRequest check(FreshCheckRequest.FreshCheckLineInput... lines) {
         return new FreshCheckRequest("", List.of(lines), null);
     }
 
     private static FreshCheckRequest.FreshCheckLineInput line(long foodId, FreshCheckResult result) {
-        return new FreshCheckRequest.FreshCheckLineInput(foodId, null, result, null);
+        return new FreshCheckRequest.FreshCheckLineInput(foodId, null, result, null, null);
     }
 
     private void setOff(LocalDate date) {
@@ -682,12 +976,17 @@ class FreshGoodsIntegrationTest {
     }
 
     private long food(String code, String name, String storage, String wastePct, String origin) {
-        return insertId(
+        long foodId = insertId(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('" + code
                         + "', '" + name + "', 'OTHER', 'g', 'kg', 1000, 20000, 100, 5, 1, 10, 'TEST', " + wastePct
                         + ", '"
                         + storage + "', '" + origin + "') RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private long dish(String code, String name, long foodId, int grams) {
