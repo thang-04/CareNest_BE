@@ -28,6 +28,11 @@ on:
       - '!.githooks/**'
       - 'docs/api/openapi.yaml'
   workflow_dispatch:
+    inputs:
+      force_api:
+        description: Chạy lại test + build api dù tag đã có (đo thời gian CI, cập nhật base image)
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -89,9 +94,12 @@ jobs:
         env:
           API_TAG: ${{ steps.tags.outputs.api_tag }}
           KEYCLOAK_TAG: ${{ steps.tags.outputs.keycloak_tag }}
+          FORCE_API: ${{ inputs.force_api == true }}
         run: |
           needed() { docker manifest inspect "$IMAGE:$1" > /dev/null 2>&1 && echo false || echo true; }
-          echo "api_needed=$(needed "$API_TAG")" | tee -a "$GITHUB_OUTPUT"
+          api_needed=$(needed "$API_TAG")
+          if [ "$FORCE_API" = true ]; then api_needed=true; fi
+          echo "api_needed=$api_needed" | tee -a "$GITHUB_OUTPUT"
           echo "keycloak_needed=$(needed "$KEYCLOAK_TAG")" | tee -a "$GITHUB_OUTPUT"
 
   # Toàn bộ test chia 4 máy chạy song song, mỗi máy 2 JVM; mỗi class test vẫn có Postgres riêng.
