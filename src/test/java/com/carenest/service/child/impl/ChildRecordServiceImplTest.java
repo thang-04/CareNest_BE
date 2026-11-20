@@ -98,6 +98,16 @@ class ChildRecordServiceImplTest {
     private final com.carenest.repository.child.ChildPlacementRepository placementRepository =
             mock(com.carenest.repository.child.ChildPlacementRepository.class);
     private final PlacementRules placementRules = mock(PlacementRules.class);
+    private final com.carenest.repository.attendance.AttendanceRecordRepository attendanceRecordRepository =
+            mock(com.carenest.repository.attendance.AttendanceRecordRepository.class);
+    private final com.carenest.repository.attendance.DailyHealthEntryRepository dailyHealthEntryRepository =
+            mock(com.carenest.repository.attendance.DailyHealthEntryRepository.class);
+    private final com.carenest.repository.attendance.PickupRecordRepository pickupRecordRepository =
+            mock(com.carenest.repository.attendance.PickupRecordRepository.class);
+    private final com.carenest.repository.observation.DailyObservationRepository dailyObservationRepository =
+            mock(com.carenest.repository.observation.DailyObservationRepository.class);
+    private final com.carenest.repository.observation.DailyActivityResultRepository dailyActivityResultRepository =
+            mock(com.carenest.repository.observation.DailyActivityResultRepository.class);
     private final ChildRecordServiceImpl service = new ChildRecordServiceImpl(
             childRepository,
             profileRepository,
@@ -120,7 +130,12 @@ class ChildRecordServiceImplTest {
             tbNotifier,
             placementRepository,
             placementRules,
-            org.mockito.Mockito.mock(com.carenest.repository.child.PlannedAdmissionRepository.class));
+            org.mockito.Mockito.mock(com.carenest.repository.child.PlannedAdmissionRepository.class),
+            attendanceRecordRepository,
+            dailyHealthEntryRepository,
+            pickupRecordRepository,
+            dailyObservationRepository,
+            dailyActivityResultRepository);
 
     private Child child;
     private Enrollment enrollment;
@@ -172,6 +187,26 @@ class ChildRecordServiceImplTest {
                         any(),
                         eq(TODAY));
         assertThat(child.getStatus()).isEqualTo(ChildStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("Chuyển lớp trong ngày đã có điểm danh bị chặn để không tách dữ liệu khỏi lớp")
+    void transferIsRejectedAfterDailyDataExists() {
+        ClassroomInfoResponse target = classroom(11L, "Lớp Chồi 2");
+        given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
+        given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(target));
+        given(attendanceRecordRepository.findByChildIdInAndDate(List.of(CHILD_ID), TODAY))
+                .willReturn(List.of(mock(com.carenest.entity.attendance.AttendanceRecord.class)));
+
+        assertThatThrownBy(() -> service.place(
+                        PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, "Đổi lớp")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors()).anySatisfy(error -> {
+                            assertThat(error.field()).isEqualTo("classId");
+                            assertThat(error.message()).contains("ngày học tiếp theo");
+                        }));
+        verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
     }
 
     @Test

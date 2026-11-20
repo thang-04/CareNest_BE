@@ -1603,14 +1603,16 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(underReview.review()).isNotNull();
         assertThat(underReview.review().waitingRole()).isEqualTo("VICE_PRINCIPAL");
 
-        // PRINCIPAL chưa tới lượt: không mở được bản Chờ duyệt (EDU-73(2)(3) ⇒ 7384)
+        // PRINCIPAL ở bước sau của chuỗi: xem được bản Chờ duyệt nhưng chưa tới lượt duyệt (EDU-93)
+        assertThat(service.getYearPlan(principal, draft.id()).permissions().canApprove())
+                .isFalse();
         assertErrorCode(
                 () -> service.issueYearPlan(
                         principal,
                         draft.id(),
                         "HT duyệt sớm",
                         new YearPlanEditRequest(null, underReview.revision(), UUID.randomUUID())),
-                ApiCode.EDU_PLAN_NOT_RELEASED);
+                ApiCode.NOT_YOUR_REVIEW_STEP);
 
         // VICE_PRINCIPAL duyệt bước 1: vẫn giữ REVIEW, chuyển waitingRole sang PRINCIPAL
         YearPlanDetailResponse advanced = service.issueYearPlan(
@@ -1674,6 +1676,15 @@ class EduYearPlanServiceIntegrationTest {
                 new YearPlanEditRequest(null, reviewed.revision(), UUID.randomUUID()));
         assertThat(returned.status()).isEqualTo(EduPlanStatus.DRAFT);
         assertThat(returned.lastReturnNote()).isEqualTo("Cần bổ sung tiêu đề cụ thể");
+        assertThat(returned.returned()).isTrue();
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .filteredOn(plan -> plan.id().equals(draft.id()))
+                .singleElement()
+                .satisfies(plan -> {
+                    assertThat(plan.status()).isEqualTo(EduPlanStatus.DRAFT);
+                    assertThat(plan.returned()).isTrue();
+                });
 
         // Sau khi về DRAFT, tác giả có thể sửa lại
         assertThat(service.getYearPlan(leader3, draft.id()).permissions().canEdit())

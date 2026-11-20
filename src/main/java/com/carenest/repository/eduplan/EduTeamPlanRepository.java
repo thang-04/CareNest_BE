@@ -15,7 +15,9 @@ public interface EduTeamPlanRepository extends EduHeaderRepository<EduTeamPlan> 
     @Query("""
             select p from EduTeamPlan p
             where (:schoolYearId is null or p.schoolYearId = :schoolYearId)
-              and (:ageGroupId is null or p.ageGroupId = :ageGroupId)
+              and (:ageGroupId is null or p.ageGroupId in
+                   (select g.id from AgeGroup g, AgeGroup chosen where chosen.id = :ageGroupId
+                    and g.ageFromMonths = chosen.ageFromMonths and g.ageToMonths = chosen.ageToMonths))
               and (p.disabled = false or p.disabled is null)
               and p.legacyTeamWithoutSource = false
               and (p.status in :schoolWideStatuses

@@ -268,6 +268,7 @@ class ResourceLibraryServiceImplTest {
 
     @Test
     void suggestionsRankSameGoalThenThemeAcrossYears() {
+        when(items.matchingAgeGroupIds(4L)).thenReturn(List.of(4L, 44L));
         EduResourceItem plain = item(1L, 7L);
         EduResourceItem theme = item(2L, 7L);
         EduResourceItem lastYearGoal = item(3L, 7L);
@@ -329,6 +330,7 @@ class ResourceLibraryServiceImplTest {
 
     @Test
     void twoThousandItemsListedUnderOneSecond() {
+        when(items.matchingAgeGroupIds(4L)).thenReturn(List.of(4L));
         List<EduResourceItem> many = new ArrayList<>();
         LongStream.rangeClosed(1, 2000).forEach(id -> {
             EduResourceItem i = EduResourceItem.link(7L, "V" + id, 4L, "https://youtu.be/x", Instant.now());

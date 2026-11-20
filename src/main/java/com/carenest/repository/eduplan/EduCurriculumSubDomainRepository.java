@@ -6,5 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EduCurriculumSubDomainRepository extends JpaRepository<EduCurriculumSubDomain, Long> {
 
-    List<EduCurriculumSubDomain> findAllByAgeGroupIdOrderBySourceIdAscSortOrderAsc(Long ageGroupId);
+    List<EduCurriculumSubDomain> findAllByAgeFromMonthsAndAgeToMonthsOrderBySourceIdAscSortOrderAsc(
+            Short from, Short to);
 }
