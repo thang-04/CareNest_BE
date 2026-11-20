@@ -1463,10 +1463,12 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     .map(r -> r.curriculumId(kind))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
+            var group = ids.isEmpty() ? null : schoolStructureService.findAgeGroup(plan.getAgeGroupId()).orElse(null);
             Map<Long, CurriculumRef> refs = curriculumService.findRefs(kind, ids);
             for (Long id : ids) {
                 CurriculumRef ref = refs.get(id);
-                if (ref == null || !ref.ageGroupId().equals(plan.getAgeGroupId())) {
+                if (ref == null || group == null || !ref.ageFromMonths().equals(group.ageFromMonths())
+                        || !ref.ageToMonths().equals(group.ageToMonths())) {
                     throw GlobalException.of(ApiCode.CURRICULUM_GOAL_INVALID);
                 }
             }
@@ -2036,9 +2038,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private YearPlanDetailResponse.TimeLock timeLockOf(CurrentUser user, EduPlan plan) {
         EduDeadline.Info info = timeLock.info(plan);
         boolean locked = timeLock.locked(plan);
+        EduReviewDeadline.Info review = reviewDeadlineOf(plan);
         return new YearPlanDetailResponse.TimeLock(
                 info.deadline(),
-        EduReviewDeadline.Info review = reviewDeadlineOf(plan);
                 info.extendedTo(),
                 info.state(),
                 locked,

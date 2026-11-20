@@ -3,6 +3,7 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.dto.eduplan.CurriculumContentResponse;
 import com.carenest.dto.eduplan.CurriculumGoalResponse;
 import com.carenest.dto.eduplan.CurriculumRef;
+import com.carenest.dto.organization.AgeGroupResponse;
 import com.carenest.dto.eduplan.CurriculumSourceResponse;
 import com.carenest.entity.eduplan.EduCurriculumExpectedResult;
 import com.carenest.entity.eduplan.EduCurriculumGoal;
@@ -79,9 +80,9 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
         String logPrefix = LOG_PREFIX + "|getGoals|ageGroupId=" + ageGroupId;
         log.info("{}|START", logPrefix);
         try {
-            requireAgeGroup(ageGroupId);
+            var groupRange = requireAgeGroup(ageGroupId);
             List<EduCurriculumGoal> goals =
-                    goalRepository.findAllByAgeGroupIdOrderBySourceIdAscSortOrderAsc(ageGroupId);
+                    goalRepository.findAllByAgeFromMonthsAndAgeToMonthsOrderBySourceIdAscSortOrderAsc(groupRange.ageFromMonths(), groupRange.ageToMonths());
             Map<Long, List<String>> contents = goals.isEmpty()
                     ? Map.of()
                     : goalContentRepository
@@ -92,9 +93,9 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
                                     EduCurriculumGoalContent::getCurriculumGoalId,
                                     Collectors.mapping(EduCurriculumGoalContent::getText, Collectors.toList())));
             Map<Long, String> domainNames = domainNames();
-            Map<Long, EduCurriculumSubDomain> subDomains = subDomains(ageGroupId);
+            Map<Long, EduCurriculumSubDomain> subDomains = subDomains(groupRange);
             Map<Long, EduCurriculumExpectedResult> groups =
-                    expectedResultRepository.findAllByAgeGroupIdOrderBySourceIdAscSortOrderAsc(ageGroupId).stream()
+                    expectedResultRepository.findAllByAgeFromMonthsAndAgeToMonthsOrderBySourceIdAscSortOrderAsc(groupRange.ageFromMonths(), groupRange.ageToMonths()).stream()
                             .collect(Collectors.toMap(EduCurriculumExpectedResult::getId, Function.identity()));
             List<CurriculumGoalResponse> result = goals.stream()
                     .map(g -> {
@@ -132,11 +133,11 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
         String logPrefix = LOG_PREFIX + "|getContents|ageGroupId=" + ageGroupId;
         log.info("{}|START", logPrefix);
         try {
-            requireAgeGroup(ageGroupId);
+            var groupRange = requireAgeGroup(ageGroupId);
             Map<Long, String> domainNames = domainNames();
-            Map<Long, EduCurriculumSubDomain> subDomains = subDomains(ageGroupId);
+            Map<Long, EduCurriculumSubDomain> subDomains = subDomains(groupRange);
             List<CurriculumContentResponse> result =
-                    contentRepository.findAllByAgeGroupIdOrderBySourceIdAscSortOrderAsc(ageGroupId).stream()
+                    contentRepository.findAllByAgeFromMonthsAndAgeToMonthsOrderBySourceIdAscSortOrderAsc(groupRange.ageFromMonths(), groupRange.ageToMonths()).stream()
                             .map(c -> new CurriculumContentResponse(
                                     c.getId(),
                                     c.getSourceId(),
@@ -171,16 +172,16 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
                     : switch (kind) {
                         case SUB ->
                             subDomainRepository.findAllById(ids).stream()
-                                    .map(s -> new CurriculumRef(s.getId(), s.getAgeGroupId(), s.getText(), null))
+                                    .map(s -> new CurriculumRef(s.getId(), s.getAgeFromMonths(), s.getAgeToMonths(), s.getText(), null))
                                     .toList();
                         case GROUP ->
                             expectedResultRepository.findAllById(ids).stream()
-                                    .map(r -> new CurriculumRef(r.getId(), r.getAgeGroupId(), r.getText(), null))
+                                    .map(r -> new CurriculumRef(r.getId(), r.getAgeFromMonths(), r.getAgeToMonths(), r.getText(), null))
                                     .toList();
                         case GOAL ->
                             goalRepository.findAllById(ids).stream()
                                     .map(g -> new CurriculumRef(
-                                            g.getId(), g.getAgeGroupId(), g.getGoalText(), g.getSectionRef()))
+                                            g.getId(), g.getAgeFromMonths(), g.getAgeToMonths(), g.getGoalText(), g.getSectionRef()))
                                     .toList();
                     };
             Map<Long, CurriculumRef> refs =
@@ -193,15 +194,13 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
         }
     }
 
-    private void requireAgeGroup(Long ageGroupId) {
-        if (ageGroupId == null
-                || schoolStructureService.findAgeGroup(ageGroupId).isEmpty()) {
-            throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
-        }
+    private AgeGroupResponse requireAgeGroup(Long id) {
+        if (id == null) throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
+        return schoolStructureService.findAgeGroup(id).orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
     }
 
-    private Map<Long, EduCurriculumSubDomain> subDomains(Long ageGroupId) {
-        return subDomainRepository.findAllByAgeGroupIdOrderBySourceIdAscSortOrderAsc(ageGroupId).stream()
+    private Map<Long, EduCurriculumSubDomain> subDomains(AgeGroupResponse groupRange) {
+        return subDomainRepository.findAllByAgeFromMonthsAndAgeToMonthsOrderBySourceIdAscSortOrderAsc(groupRange.ageFromMonths(), groupRange.ageToMonths()).stream()
                 .collect(Collectors.toMap(EduCurriculumSubDomain::getId, Function.identity()));
     }
 
