@@ -6,5 +6,7 @@ public enum AiTask {
     MENU_DAILY,
     MENU_DAY_FIX,
     HEALTH_TREND,
-    WEEKLY_COMMENT
+    WEEKLY_COMMENT,
+    /** Soạn/duyệt kế hoạch giáo dục (EDU-95/96): nội dung chương trình, chủ đề, hoạt động; không dữ liệu trẻ. */
+    EDU_PLAN
 }
