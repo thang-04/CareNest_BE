@@ -155,7 +155,7 @@ class ClassStructureIntegrationTest {
         AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
                 principal,
                 new AgeGroupRequest(
-                        "Nhà trẻ nhỏ", "NT nhỏ", 12, 24, List.of(MealSession.LUNCH, MealSession.MORNING), 15, ""));
+                        "Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH, MealSession.MORNING), 15, ""));
 
         assertThat(created.code()).startsWith("ag-");
         assertThat(created.mealSessions()).containsExactly(MealSession.MORNING, MealSession.LUNCH);
@@ -165,7 +165,7 @@ class ClassStructureIntegrationTest {
     @DisplayName("Lỗi xóa nhóm tuổi nêu năm học và tổ trưởng đang giữ nhóm (nhóm tuổi dùng chung mọi năm)")
     void deleteAgeGroupNamesYearAndLeader() {
         AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
-                principal, new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 12, 24, List.of(MealSession.LUNCH), 15, ""));
+                principal, new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH), 15, ""));
         long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
                 + "VALUES ('kc-leader', 'leader.it', 'Cô Tổ Trưởng') RETURNING id");
         jdbc.update(
