@@ -110,6 +110,8 @@ Hạn, khóa, mở lại đánh giá cuối chủ đề / học kỳ / cuối n�
 | Điểm danh sau giờ chốt | `ATTENDANCE_LOCKED` (409) | ATT-08 |
 | Sổ báo ăn đã xác nhận | `MEAL_COUNT_ALREADY_CONFIRMED` (409) | NUT-03 |
 | Tiếp nhận: form sai, lớp/điểm trường không nhận được (`classId`, `campusId`) | `INVALID_REQUEST_DATA` (9001) + ô | CHD-02, CHD-10 |
+| Tiếp nhận (form, nhập Excel, tiếp nhận lại): điểm trường không có trong danh sách điểm trường của năm học tiếp nhận (V151) | `CAMPUS_NOT_IN_YEAR` (2125, 400) + ô `campusId` "Điểm trường không có trong năm học đã chọn. Chọn điểm trường khác" | G94-180/CHD-02 (22/11/2026) |
+| Tiếp nhận (form, nhập Excel): trẻ chưa đủ 3 tháng tuổi tại ngày tiếp nhận | `INVALID_REQUEST_DATA` (9001) + ô `dateOfBirth` "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận" | G94-180/CHD-13 (22/11/2026) |
 | Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3008, 409, không có ô) | CHD-04 |
 | CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
 | Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
