@@ -111,3 +111,7 @@ Không còn.
 - Tiếp: user duyệt plan ⇒ `status: approved`, làm Phase 1 sau plan tiếp nhận (cùng nhánh).
 ### 2026-11-22 — duyệt
 - User duyệt plan và yêu cầu làm hết các phase liên tục (không dừng giữa phase). Nhánh tạo trong worktree riêng.
+### 2026-11-22 — Phase 1, 2 done
+- Commit: `7eeab932` (năm của đợt, V169), báo cáo theo nhóm tuổi của năm (commit kế tiếp).
+- Verify: `HealthCheckIntegrationTest` 25/25, `HealthCheckServiceImplTest` 6/6, `HealthExamIntegrationTest` 9/9, `HealthGrowthReportIntegrationTest` 6/6, `HealthGrowthLevelTest` 2/2, `HealthGrowthReportControllerTest` 8/8.
+- Khác plan: migration là V169 (V167, V168 đã có ở nhánh khác); test kích hoạt năm cần `entityManager.clear()` sau khi đổi trạng thái năm bằng SQL.
