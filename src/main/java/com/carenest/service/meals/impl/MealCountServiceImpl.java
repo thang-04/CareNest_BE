@@ -123,7 +123,8 @@ public class MealCountServiceImpl implements MealCountService {
         // CFG-YR-05: kích hoạt sớm (tối đa 7 ngày trước) chưa phải ngày học của năm ⇒ chưa có sổ suất ăn
         boolean started(LocalDate day) {
             LocalDate start = classes.getFirst().yearStart();
-            return start == null || !day.isBefore(start);
+            LocalDate end = classes.getFirst().yearEnd();
+            return (start == null || !day.isBefore(start)) && (end == null || !day.isAfter(end));
         }
 
         Map<Long, ClassroomInfoResponse> classById() {
@@ -147,8 +148,8 @@ public class MealCountServiceImpl implements MealCountService {
         try {
             Viewer viewer = viewer(currentUser);
             LocalDate day = date == null ? LocalDate.now(clock) : date;
-            DayInfoResponse info = attendanceService.getDayInfo(currentUser, day, null);
             Year year = year(schoolYearId);
+            DayInfoResponse info = attendanceService.getYearDayInfo(day, schoolYearId);
             List<MealCountResponse> counts = new ArrayList<>();
             if (year != null && info.schoolDay() && !day.isAfter(info.today()) && year.started(day)) {
                 List<Long> campusIds = year.classes().stream()
@@ -211,10 +212,11 @@ public class MealCountServiceImpl implements MealCountService {
             LocalDate day = date == null ? LocalDate.now(clock) : date;
             // Cùng cách kiểm lớp với màn điểm danh: không xem được lớp ⇒ CLASS_ACCESS_DENIED (403)
             DayInfoResponse info = attendanceService.getDayInfo(currentUser, day, classId);
-            Year year = year(null);
+            ClassroomInfoResponse requestedClass = classroomService.findClassroomInfo(classId).orElse(null);
+            Year year = requestedClass == null ? null : year(requestedClass.schoolYearId());
             ClassroomInfoResponse cls = year == null ? null : year.classById().get(classId);
             List<ClassMealCountResponse.Meal> meals = new ArrayList<>();
-            if (cls != null && info.schoolDay() && !day.isAfter(info.today())) {
+            if (cls != null && year.started(day) && info.schoolDay() && !day.isAfter(info.today())) {
                 Map<MealSession, MealCount> stored = new HashMap<>();
                 mealCountRepository.findByCampusIdInAndDate(List.of(cls.campusId()), day).stream()
                         .filter(c -> c.getSchoolYearId().equals(year.id()))

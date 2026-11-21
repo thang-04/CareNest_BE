@@ -52,6 +52,7 @@ import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ChildEditRoles;
@@ -121,6 +122,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final PickupRecordRepository pickupRecordRepository;
     private final DailyObservationRepository dailyObservationRepository;
     private final DailyActivityResultRepository dailyActivityResultRepository;
+    private final SchoolYearService schoolYearService;
 
     @Override
     @Transactional(readOnly = true)
@@ -347,6 +349,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             Long fromClassroomId = current.map(Enrollment::getClassroomId).orElse(null);
 
             Map<String, String> errors = new LinkedHashMap<>();
+            if (!schoolYearService.isSchoolDay(today)) {
+                errors.put("classId", "Chỉ chuyển lớp vào ngày học. Thực hiện vào ngày học kế tiếp.");
+            }
             Long classId = request == null ? null : request.classId();
             ClassroomInfoResponse target = null;
             if (classId == null) {
@@ -531,8 +536,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             LocalDate leftAt = parseDate(request == null ? null : request.leftAt());
             if (leftAt == null) {
                 errors.put("leftAt", "Chọn ngày nghỉ học");
-            } else if (leftAt.isAfter(today)) {
-                errors.put("leftAt", "Ngày nghỉ học không được ở tương lai");
+            } else if (!leftAt.equals(today)) {
+                errors.put("leftAt", "Ngày nghỉ học phải là ngày thực hiện thao tác");
+            } else if (!schoolYearService.isSchoolDay(leftAt)) {
+                errors.put("leftAt", "Chỉ cho nghỉ học vào ngày học. Thực hiện vào ngày học kế tiếp.");
             } else if (leftAt.isBefore(child.getEnrolledOn())) {
                 errors.put(
                         "leftAt",

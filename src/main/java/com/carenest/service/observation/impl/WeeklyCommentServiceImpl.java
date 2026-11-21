@@ -142,9 +142,12 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             rules.lockClassForUpdate(cls.id());
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<Long> targets = request.childId() == null ? List.copyOf(roster.keySet()) : List.of(request.childId());
+            Set<Long> current = currentChildren(cls);
+            targets = targets.stream().filter(current::contains).toList();
+            if (request.childId() != null) checkCurrentChild(cls, request.childId());
             targets.forEach(id -> checkInClass(roster, id));
             Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
-            Map<Long, WeeklyComment> existing = comments(roster.keySet(), week);
+            Map<Long, WeeklyComment> existing = comments(cls.id(), roster.keySet(), week);
             boolean ai = request.ai() && aiGenerator.isEnabled();
             boolean aiFailed = false;
             for (Long childId : targets) {
@@ -217,6 +220,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             String text = checkContent(request.content(), false);
             rules.lockClassForUpdate(cls.id());
             checkInClass(roster(cls, week), request.childId());
+            checkCurrentChild(cls, request.childId());
             WeeklyComment comment = editableComment(currentUser, cls, request.childId(), week);
             comment.write(text, comment.getDraftSource(), currentUser.userId(), rules.now());
             commentRepository.saveAndFlush(comment);
@@ -242,14 +246,17 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             rules.lockClassForUpdate(cls.id());
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<WeeklyComment> toSend = new ArrayList<>();
+            Set<Long> current = currentChildren(cls);
             if (request.childId() != null) {
                 checkInClass(roster, request.childId());
+                checkCurrentChild(cls, request.childId());
                 WeeklyComment comment = editableComment(currentUser, cls, request.childId(), week);
                 String text = request.content() == null ? comment.getContent() : request.content();
                 comment.write(checkContent(text, true), comment.getDraftSource(), currentUser.userId(), rules.now());
                 toSend.add(comment);
             } else {
-                comments(roster.keySet(), week).values().stream()
+                comments(cls.id(), roster.keySet(), week).values().stream()
+                        .filter(c -> current.contains(c.getChildId()))
                         .filter(c -> !c.isSent() && cls.id().equals(c.getClassroomId()))
                         .filter(c -> !c.getContent().isBlank())
                         .forEach(toSend::add);
@@ -488,7 +495,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         }
         WeekOption range = weekRange(cls, week);
         Map<Long, ClassChildResponse> roster = roster(cls, week);
-        int sent = (int) comments(roster.keySet(), week).values().stream()
+        roster.keySet().retainAll(currentChildren(cls));
+        int sent = (int) comments(cls.id(), roster.keySet(), week).values().stream()
                 .filter(c -> c.isSent() && cls.id().equals(c.getClassroomId()))
                 .count();
         boolean overdue = range.locked() && range.unlockedUntil() == null && sent < roster.size();
@@ -585,11 +593,12 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     // có (nháp hay đã gửi)
     private int createMissingDrafts(ClassroomInfoResponse cls, LocalDate week, Long author) {
         Map<Long, ClassChildResponse> roster = roster(cls, week);
-        if (roster.isEmpty() || comments(roster.keySet(), week).size() == roster.size()) {
+        roster.keySet().retainAll(currentChildren(cls));
+        if (roster.isEmpty() || comments(cls.id(), roster.keySet(), week).size() == roster.size()) {
             return 0;
         }
         rules.lockClassForUpdate(cls.id());
-        Map<Long, WeeklyComment> existing = comments(roster.keySet(), week);
+        Map<Long, WeeklyComment> existing = comments(cls.id(), roster.keySet(), week);
         Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
         int created = 0;
         for (Long childId : roster.keySet()) {
@@ -636,7 +645,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
 
     private WeeklyComment editableComment(CurrentUser user, ClassroomInfoResponse cls, Long childId, LocalDate week) {
         WeeklyComment comment =
-                commentRepository.findByChildIdAndWeekStart(childId, week).orElse(null);
+                commentRepository.findByClassroomIdAndChildIdAndWeekStart(cls.id(), childId, week).orElse(null);
         if (comment == null) {
             return WeeklyComment.create(
                     childId, cls.id(), cls.campusId(), cls.schoolYearId(), week, user.userId(), rules.now());
@@ -704,10 +713,21 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         return roster;
     }
 
-    private Map<Long, WeeklyComment> comments(Set<Long> childIds, LocalDate week) {
+    private Set<Long> currentChildren(ClassroomInfoResponse cls) {
+        return enrollmentService.findChildrenInClassroom(cls.id(), min(rules.today(), cls.yearEnd())).stream()
+                .map(ClassChildResponse::id).collect(Collectors.toSet());
+    }
+
+    private void checkCurrentChild(ClassroomInfoResponse cls, Long childId) {
+        if (!currentChildren(cls).contains(childId)) {
+            throw GlobalException.of(ApiCode.WEEKLY_COMMENT_CHILD_NOT_IN_CLASS);
+        }
+    }
+
+    private Map<Long, WeeklyComment> comments(Long classId, Set<Long> childIds, LocalDate week) {
         return childIds.isEmpty()
                 ? Map.of()
-                : commentRepository.findByChildIdInAndWeekStart(childIds, week).stream()
+                : commentRepository.findByClassroomIdAndChildIdInAndWeekStart(classId, childIds, week).stream()
                         .collect(Collectors.toMap(WeeklyComment::getChildId, Function.identity()));
     }
 
@@ -787,7 +807,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             CurrentUser user, ClassroomInfoResponse cls, LocalDate week, boolean aiFallback) {
         Map<Long, ClassChildResponse> roster = roster(cls, week);
         Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
-        Map<Long, WeeklyComment> comments = comments(roster.keySet(), week);
+        Map<Long, WeeklyComment> comments = comments(cls.id(), roster.keySet(), week);
+        Set<Long> current = currentChildren(cls);
         Set<Long> reopened = comments.isEmpty()
                 ? Set.of()
                 : revisionRepository
@@ -824,7 +845,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                             sent ? senders.get(c.getSentBy()) : null,
                             c == null ? null : c.getUpdatedAt(),
                             c != null && !sent && reopened.contains(c.getId()),
-                            w.data());
+                            w.data(),
+                            !current.contains(child.id()));
                 })
                 .toList();
         List<WeekOption> weeks = weeks(cls);

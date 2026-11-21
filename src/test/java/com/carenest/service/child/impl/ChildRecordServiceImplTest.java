@@ -40,6 +40,7 @@ import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -84,6 +85,7 @@ class ChildRecordServiceImplTest {
     private final GuardianChildLinkService linkService = mock(GuardianChildLinkService.class);
     private final ClassroomService classroomService = mock(ClassroomService.class);
     private final StaffAssignmentService assignmentService = mock(StaffAssignmentService.class);
+    private final SchoolYearService schoolYearService = mock(SchoolYearService.class);
     private final StaffAccessPolicy policy = mock(StaffAccessPolicy.class);
     private final ChildAccessPolicy childAccessPolicy = mock(ChildAccessPolicy.class);
     private final NotificationService notificationService = mock(NotificationService.class);
@@ -135,13 +137,15 @@ class ChildRecordServiceImplTest {
             dailyHealthEntryRepository,
             pickupRecordRepository,
             dailyObservationRepository,
-            dailyActivityResultRepository);
+            dailyActivityResultRepository,
+            schoolYearService);
 
     private Child child;
     private Enrollment enrollment;
 
     @BeforeEach
     void setUp() {
+        given(schoolYearService.isSchoolDay(TODAY)).willReturn(true);
         child = Child.enroll(
                 "HS26001",
                 "Bé An",
@@ -206,6 +210,24 @@ class ChildRecordServiceImplTest {
                         ex -> assertThat(ex.getFieldErrors()).anySatisfy(error -> {
                             assertThat(error.field()).isEqualTo("classId");
                             assertThat(error.message()).contains("ngày học tiếp theo");
+                        }));
+        verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("CHD-03: không chuyển lớp vào ngày nghỉ để enrollment không bắt đầu ngoài ngày học")
+    void transferIsRejectedOnNonSchoolDay() {
+        given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
+        given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(classroom(11L, "Lớp Chồi 2")));
+        given(schoolYearService.isSchoolDay(TODAY)).willReturn(false);
+
+        assertThatThrownBy(() -> service.place(
+                        PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, "Đổi lớp")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors()).anySatisfy(error -> {
+                            assertThat(error.field()).isEqualTo("classId");
+                            assertThat(error.message()).contains("ngày học kế tiếp");
                         }));
         verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
     }
@@ -321,7 +343,7 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: ngày nghỉ ở tương lai, trước ngày tiếp nhận, thiếu lý do ⇒ lỗi theo ô")
+    @DisplayName("G94-180/CHD-03: ngày nghỉ khác ngày thao tác, trước ngày tiếp nhận, thiếu lý do ⇒ lỗi theo ô")
     void withdrawValidatesFields() {
         assertThatThrownBy(() -> service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest("2026-11-11", "")))
                 .isInstanceOfSatisfying(

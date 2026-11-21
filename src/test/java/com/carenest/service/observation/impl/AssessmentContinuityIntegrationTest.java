@@ -178,7 +178,7 @@ class AssessmentContinuityIntegrationTest {
     }
 
     @Test
-    void weeklyEvidenceFollowsChildButSummaryFlagsStayInClassAndTicketIsNotDuplicated() {
+    void weeklyEvidenceFollowsChildAndNewClassSeesItsSourcesWithoutDuplicateTickets() {
         flag(classA, "2026-10-12");
         flag(classA, "2026-10-13");
         flag(classB, "2026-10-15");
@@ -206,6 +206,9 @@ class AssessmentContinuityIntegrationTest {
                 ticketService.getBoard(teacher, classB, type, period).rows().getFirst();
         assertThat(before.presentDays()).isEqualTo(5);
         assertThat(before.flagCount()).isEqualTo(3);
+        assertThat(before.evidence())
+                .extracting(e -> e.classId(), e -> e.flagCount())
+                .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple(classA, 2), org.assertj.core.groups.Tuple.tuple(classB, 1));
         var request =
                 new com.carenest.dto.observation.TicketDtos.IssueTicketsRequest(classB, type, period, List.of(mover));
         ticketService.issue(teacher, request);
@@ -221,11 +224,26 @@ class AssessmentContinuityIntegrationTest {
         assertThat(oldBoard.ticket()).isNotNull();
         assertThat(oldBoard.issuedElsewhere()).isTrue();
         assertThat(oldBoard.eligible()).isFalse();
+        assertThat(oldBoard.evidence()).extracting(e -> e.classId()).containsExactly(classA);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> ticketService.issue(teacher, request))
                 .isInstanceOf(com.carenest.exception.GlobalException.class);
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM behaviour_tickets WHERE child_id = ?", Integer.class, mover))
                 .isEqualTo(1);
+        // Lớp mới xem tổng căn cứ cả tháng; lớp cũ vẫn chỉ là lịch sử của chính lớp cũ.
+        var receivingSummary = ticketService.getSummary(principal, classB, LocalDate.of(2026, 10, 1)).rows().getFirst();
+        assertThat(receivingSummary.flags()).isEqualTo(3);
+        assertThat(receivingSummary.weekly()).isEqualTo(1);
+        assertThat(receivingSummary.child().code())
+                .isEqualTo(jdbc.queryForObject("SELECT code FROM children WHERE id = ?", String.class, mover));
+        assertThat(receivingSummary.evidence())
+                .extracting(e -> e.classId(), e -> e.flagCount())
+                .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple(classA, 2), org.assertj.core.groups.Tuple.tuple(classB, 1));
+        var oldSummary = ticketService.getSummary(principal, classA, LocalDate.of(2026, 10, 1)).rows().getFirst();
+        assertThat(oldSummary.evidence()).extracting(e -> e.classId()).containsExactly(classA);
+        var annualSummary = ticketService.getSummary(principal, classB, null).rows().getFirst();
+        assertThat(annualSummary.weekly()).isEqualTo(1);
+        assertThat(annualSummary.evidence().stream().mapToInt(e -> e.weeklyTickets()).sum()).isEqualTo(1);
     }
 
     private void assign(long userId, long classId) {
