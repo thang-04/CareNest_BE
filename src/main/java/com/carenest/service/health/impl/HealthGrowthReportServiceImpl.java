@@ -31,6 +31,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -139,8 +140,14 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
             entriesByCampus.values().forEach(e -> childIds.addAll(e.keySet()));
             Map<Long, ChildBriefResponse> children =
                     childIds.isEmpty() ? Map.of() : childService.findChildBriefs(childIds);
-            Map<Long, AgeGroupDetailResponse> groups = ageGroupService.getAgeGroups().stream()
-                    .collect(Collectors.toMap(AgeGroupDetailResponse::id, Function.identity()));
+            // HLT-20 (user chốt 2026-11-22): nhóm tuổi theo năm học của lớp (V154); năm chưa có cấu hình riêng ⇒ bảng
+            // chung
+            Map<Long, Map<Long, AgeGroupDetailResponse>> groupsByYear = new HashMap<>();
+            Function<ClassroomInfoResponse, AgeGroupDetailResponse> groups = cls -> cls.ageGroupId() == null
+                    ? null
+                    : groupsByYear
+                            .computeIfAbsent(cls.schoolYearId(), this::ageGroupsOf)
+                            .get(cls.ageGroupId());
 
             List<HealthGrowthReportResponse.HealthGrowthCampus> blocks = new ArrayList<>();
             Tally preschool = new Tally();
@@ -220,7 +227,7 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
             Map<Long, ClassroomInfoResponse> classes,
             Map<Long, List<Entry>> entries,
             Map<Long, ChildBriefResponse> children,
-            Map<Long, AgeGroupDetailResponse> groups) {
+            Function<ClassroomInfoResponse, AgeGroupDetailResponse> groups) {
         Map<Long, Tally> tallies = new LinkedHashMap<>();
         classes.keySet().forEach(id -> tallies.put(id, new Tally()));
         for (Map.Entry<Long, List<Entry>> child : entries.entrySet()) {
@@ -243,7 +250,7 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
         }
         return classes.values().stream()
                 .map(cls -> {
-                    AgeGroupDetailResponse group = cls.ageGroupId() == null ? null : groups.get(cls.ageGroupId());
+                    AgeGroupDetailResponse group = groups.apply(cls);
                     return new Line(cls, group, levelOf(group), tallies.get(cls.id()));
                 })
                 // MG theo nhóm tuổi lớn trước (5 tuổi, 4 tuổi, 3 tuổi), rồi NT, rồi lớp chưa có nhóm tuổi
@@ -260,6 +267,15 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
                 && m.getHeightCm() != null
                 && m.getWeightKg() != null
                 && (!m.isExam() || m.getExamStatus() == HealthExamStatus.CONCLUDED);
+    }
+
+    private Map<Long, AgeGroupDetailResponse> ageGroupsOf(Long schoolYearId) {
+        List<AgeGroupDetailResponse> list =
+                schoolYearId == null ? List.of() : ageGroupService.getYearAgeGroups(schoolYearId);
+        if (list.isEmpty()) {
+            list = ageGroupService.getAgeGroups();
+        }
+        return list.stream().collect(Collectors.toMap(AgeGroupDetailResponse::id, Function.identity()));
     }
 
     static HealthGrowthLevel levelOf(AgeGroupDetailResponse group) {

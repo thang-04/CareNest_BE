@@ -343,6 +343,33 @@ class HealthGrowthReportIntegrationTest {
                 unclassified);
     }
 
+    @Test
+    @DisplayName("HLT-20: báo cáo chia nhà trẻ / mẫu giáo theo nhóm tuổi của năm học của lớp, không theo bảng chung")
+    void reportUsesAgeGroupsOfClassYear() {
+        long year = jdbc.queryForObject("SELECT id FROM school_years WHERE name = '2026-2027'", Long.class);
+        // Năm 2026-2027 có cấu hình riêng (V154): nhóm ag-4 của năm đó là nhà trẻ 24–36 tháng
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name,"
+                        + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
+                        + " SELECT ?, id, CASE WHEN code = 'ag-4' THEN 'Nhóm riêng năm 2026 (giả)' ELSE name END,"
+                        + " short_name, CASE WHEN code = 'ag-4' THEN 24 ELSE age_from_months END,"
+                        + " CASE WHEN code = 'ag-4' THEN 36 ELSE age_to_months END, meal_sessions, max_class_size,"
+                        + " COALESCE(nutrition_note, '') FROM age_groups WHERE code IN ('ag-2', 'ag-4', 'ag-5')",
+                year);
+
+        HealthGrowthCampus a = reports.getGrowthReport(principal, SEPTEMBER, campusA)
+                .campuses()
+                .getFirst();
+
+        assertThat(a.classes())
+                .filteredOn(c -> c.className().equals("4 tuổi A"))
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.level()).isEqualTo(HealthGrowthLevel.NURSERY);
+                    assertThat(c.ageGroupName()).isEqualTo("Nhóm riêng năm 2026 (giả)");
+                });
+    }
+
     private String ageGroupName(String code) {
         return jdbc.queryForObject("SELECT name FROM age_groups WHERE code = ?", String.class, code);
     }
