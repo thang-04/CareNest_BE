@@ -35,6 +35,10 @@ public class HealthCheckCampaign {
     @Column(name = "campus_id", nullable = false)
     private Long campusId;
 
+    // G94-180/HLT-08: năm đang hoạt động lúc tạo (V169); null ⇒ tính theo ngày bắt đầu (HealthCheckRules.yearOf)
+    @Column(name = "school_year_id")
+    private Long schoolYearId;
+
     @Column(nullable = false, length = 150)
     private String name;
 
@@ -72,6 +76,7 @@ public class HealthCheckCampaign {
     private HealthCheckCampaign(
             HealthCheckKind kind,
             Long campusId,
+            Long schoolYearId,
             String name,
             LocalDate startDate,
             LocalDate endDate,
@@ -81,6 +86,7 @@ public class HealthCheckCampaign {
             Instant createdAt) {
         this.kind = kind;
         this.campusId = campusId;
+        this.schoolYearId = schoolYearId;
         this.name = name;
         this.startDate = startDate;
         this.endDate = endDate;

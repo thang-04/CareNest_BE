@@ -90,8 +90,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                     .stream()
                             .filter(c -> campusId == null || c.getCampusId().equals(campusId))
                             .filter(c -> kind == null || c.getKind() == kind)
-                            .filter(c ->
-                                    schoolYearId == null || schoolYearId.equals(rules.schoolYearIdOf(c.getStartDate())))
+                            .filter(c -> schoolYearId == null || schoolYearId.equals(rules.yearOf(c)))
                             .filter(c -> status == null || c.statusOn(rules.today()) == status)
                             .toList();
             List<HealthCheckResponse> result = toViews(currentUser, campaigns).stream()
@@ -120,7 +119,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 throw GlobalException.of(ApiCode.HEALTH_CHECK_ACCESS_DENIED);
             }
             boolean exam = kind == null || kind == HealthCheckKind.EXAM;
-            Long yearId = exam ? rules.schoolYearIdOf(startDate) : null;
+            Long yearId = exam ? newCampaignYear(startDate, excludeId) : null;
             List<HealthScheduleWarningResponse.HealthScheduleWarningItem> warnings = new ArrayList<>();
             for (HealthCheckCampaign other : campaignRepository.findByCampusIdAndCancelledAtIsNull(campusId)) {
                 if (other.getId().equals(excludeId)) {
@@ -132,9 +131,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                     warnings.add(warning(HealthScheduleWarning.TOO_CLOSE, other));
                 }
                 // Đợt khám mặc định 1 lần/năm học, không chặn (M2)
-                if (yearId != null
-                        && other.getKind() == HealthCheckKind.EXAM
-                        && yearId.equals(rules.schoolYearIdOf(other.getStartDate()))) {
+                if (yearId != null && other.getKind() == HealthCheckKind.EXAM && yearId.equals(rules.yearOf(other))) {
                     warnings.add(warning(HealthScheduleWarning.EXAM_IN_SCHOOL_YEAR, other));
                 }
             }
@@ -247,10 +244,13 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);
             }
             checkCreationDates(request);
+            HealthCheckRules.YearWindow year = rules.activeYearWindow();
+            checkWithinYear(year, request.startDate(), request.endDate());
             checkCampusFree(request.campusId(), null);
             HealthCheckCampaign campaign = campaignRepository.save(HealthCheckCampaign.builder()
                     .kind(request.kind() == null ? HealthCheckKind.EXAM : request.kind())
                     .campusId(request.campusId())
+                    .schoolYearId(year != null ? year.yearId() : rules.schoolYearIdOf(request.startDate()))
                     .name(request.name().trim())
                     .startDate(request.startDate())
                     .endDate(request.endDate())
@@ -281,6 +281,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 throw GlobalException.of(ApiCode.HEALTH_CHECK_ENDED);
             }
             checkDates(request);
+            checkWithinYear(rules.windowOf(rules.yearOf(campaign)), request.startDate(), request.endDate());
             Results results = results(List.of(campaign.getId()));
             // Đổi ngày không được để kết quả đã nhập nằm ngoài khoảng mới
             results.measurements().stream()
@@ -424,6 +425,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                         ApiCode.INVALID_REQUEST_DATA,
                         List.of(new FieldErrorResponse("endDate", "Chọn ngày kết thúc mới từ hôm nay")));
             }
+            checkWithinYear(rules.windowOf(rules.yearOf(campaign)), campaign.getStartDate(), endDate);
             campaign.update(
                     campaign.getName(),
                     campaign.getStartDate(),
@@ -710,6 +712,32 @@ public class HealthCheckServiceImpl implements HealthCheckService {
         if (!errors.isEmpty()) {
             throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
         }
+    }
+
+    // G94-180/HLT-08 (user chốt 2026-11-22): ngày của đợt nằm trong năm của đợt; không có năm ⇒ không giới hạn
+    private static void checkWithinYear(HealthCheckRules.YearWindow year, LocalDate startDate, LocalDate endDate) {
+        if (year == null) {
+            return;
+        }
+        List<FieldErrorResponse> errors = new ArrayList<>();
+        if (!year.contains(startDate)) {
+            errors.add(new FieldErrorResponse("startDate", year.message()));
+        }
+        if (!year.contains(endDate)) {
+            errors.add(new FieldErrorResponse("endDate", year.message()));
+        }
+        if (!errors.isEmpty()) {
+            throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
+        }
+    }
+
+    // Năm của đợt đang tạo (năm đang hoạt động) hoặc đang sửa (năm đã lưu), để cảnh báo đợt khám cùng năm
+    private Long newCampaignYear(LocalDate startDate, Long editingId) {
+        if (editingId != null) {
+            return campaignRepository.findById(editingId).map(rules::yearOf).orElse(null);
+        }
+        HealthCheckRules.YearWindow active = rules.activeYearWindow();
+        return active != null ? active.yearId() : rules.schoolYearIdOf(startDate);
     }
 
     // Mỗi điểm trường một đợt/kỳ chưa đóng, tính chung hai loại (M3)

@@ -635,6 +635,116 @@ class HealthCheckIntegrationTest {
                 ApiCode.HEALTH_ROUND_NOT_OPEN);
     }
 
+    // G94-180/HLT-08 (user chốt 2026-11-22, cách B): năm của đợt lưu lúc tạo = năm đang hoạt động
+    private long activeYearId() {
+        return jdbc.queryForObject("SELECT id FROM school_years WHERE status = 'ACTIVE'", Long.class);
+    }
+
+    // Giả kích hoạt năm mới: năm cũ đóng, năm mới (bắt đầu 05/11/2026) hoạt động và có lớp ở điểm trường A
+    private long activateYearStartingNov5() {
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE status = 'ACTIVE'");
+        long next = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2026-11-05', '2027-05-31', 'ACTIVE') RETURNING id");
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusA + ", "
+                + next + ", 'Lớp A năm mới', " + ag3 + ") RETURNING id");
+        // Năm học đã nạp vào persistence context của transaction test trước khi đổi trạng thái bằng SQL
+        entityManager.flush();
+        entityManager.clear();
+        return next;
+    }
+
+    @Test
+    @DisplayName("G94-180/HLT-08: đợt lưu năm đang hoạt động lúc tạo; kích hoạt năm mới vẫn giữ lớp của năm đó")
+    void campaignKeepsItsYearAfterActivation() {
+        long year = activeYearId();
+        HealthCheckResponse round = checks.createHealthCheck(
+                principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"));
+        assertThat(jdbc.queryForObject(
+                        "SELECT school_year_id FROM health_check_campaigns WHERE id = ?", Long.class, round.id()))
+                .isEqualTo(year);
+
+        activateYearStartingNov5();
+
+        assertThat(checks.getHealthCheck(principal, round.id()).classes())
+                .extracting(c -> c.className())
+                .containsExactly("Lớp A");
+    }
+
+    @Test
+    @DisplayName("G94-180/HLT-08: lọc đợt theo năm học dùng năm đã lưu")
+    void listFiltersByStoredYear() {
+        long year = activeYearId();
+        HealthCheckResponse round = checks.createHealthCheck(
+                principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"));
+        long next = activateYearStartingNov5();
+
+        assertThat(checks.listHealthChecks(principal, null, null, null, year))
+                .extracting(HealthCheckResponse::id)
+                .contains(round.id());
+        assertThat(checks.listHealthChecks(principal, null, null, null, next))
+                .extracting(HealthCheckResponse::id)
+                .doesNotContain(round.id());
+    }
+
+    @Test
+    @DisplayName("HLT-08: cảnh báo đã có đợt khám trong năm so theo năm đã lưu của đợt cũ")
+    void examWarningComparesStoredYears() {
+        checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-11-12"));
+        activateYearStartingNov5();
+
+        assertThat(checks.getScheduleWarnings(principal, campusA, HealthCheckKind.EXAM, LocalDate.of(2027, 2, 10), null)
+                        .warnings())
+                .extracting(w -> w.code())
+                .doesNotContain(HealthScheduleWarning.EXAM_IN_SCHOOL_YEAR);
+    }
+
+    @Test
+    @DisplayName("G94-180/HLT-08: tạo đợt có ngày ngoài năm đang hoạt động ⇒ lỗi ô ngày")
+    void createRejectsDatesOutsideActiveYear() {
+        insertId("INSERT INTO school_years (name, start_date, end_date) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31') RETURNING id");
+        expectField(
+                () -> checks.createHealthCheck(
+                        principal, request(HealthCheckKind.MEASUREMENT, campusA, "2027-08-30", "2027-09-02")),
+                "endDate",
+                "Ngày khám phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
+
+        testClock.setInstant(Instant.parse("2026-08-25T02:00:00Z"));
+        expectField(
+                () -> checks.createHealthCheck(
+                        principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-08-26", "2026-09-03")),
+                "startDate",
+                "Ngày khám phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
+    }
+
+    @Test
+    @DisplayName("G94-180/HLT-08: sửa đợt sang ngày ngoài năm đã lưu ⇒ lỗi ô ngày")
+    void updateRejectsDatesOutsideStoredYear() {
+        HealthCheckResponse round = checks.createHealthCheck(
+                principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"));
+        insertId("INSERT INTO school_years (name, start_date, end_date) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31') RETURNING id");
+
+        expectField(
+                () -> checks.updateHealthCheck(
+                        principal,
+                        round.id(),
+                        request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2027-09-05")),
+                "endDate",
+                "Ngày khám phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
+    }
+
+    private static void expectField(ThrowingCallable call, String field, String message) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(GlobalException.class, ex -> {
+            assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+            assertThat(ex.getFieldErrors()).anySatisfy(e -> {
+                assertThat(e.field()).isEqualTo(field);
+                assertThat(e.message()).isEqualTo(message);
+            });
+        });
+    }
+
     // Đợt lịch sử là dữ liệu đã có; API tạo mới chỉ nhận ngày từ hôm nay.
     private HealthCheckResponse historicalCampaign(CurrentUser creator, HealthCheckRequest request) {
         Instant createdAt =

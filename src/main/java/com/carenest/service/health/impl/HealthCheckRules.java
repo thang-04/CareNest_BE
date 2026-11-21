@@ -13,16 +13,19 @@ import com.carenest.security.authorization.ClassroomAccessPolicy;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolStructureService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckResult;
 import com.carenest.utils.enums.HealthCheckStatus;
+import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -51,6 +54,7 @@ class HealthCheckRules {
     private final SchoolStructureService schoolStructureService;
     private final EnrollmentService enrollmentService;
     private final HealthCheckCampaignRepository campaignRepository;
+    private final SchoolYearService schoolYearService;
 
     /** Một trẻ trong danh sách lớp của đợt/kỳ; {@code measurement} null khi chưa có kết quả. */
     record Row(Long childId, Long classId, HealthCheckResult result, HealthMeasurement measurement) {}
@@ -116,9 +120,73 @@ class HealthCheckRules {
                 .orElse(null);
     }
 
-    /** Lớp của điểm trường trong năm học của ngày bắt đầu đợt/kỳ. */
+    /** G94-180/HLT-08 (user chốt 2026-11-22): năm lưu lúc tạo; đợt chưa có (seed, test chèn thẳng) ⇒ theo ngày bắt đầu. */
+    Long yearOf(HealthCheckCampaign campaign) {
+        return campaign.getSchoolYearId() != null
+                ? campaign.getSchoolYearId()
+                : schoolYearIdOf(campaign.getStartDate());
+    }
+
+    /** Khoảng ngày của một năm: từ ngày bắt đầu tới trước ngày bắt đầu năm kế tiếp (until null = chưa có năm sau). */
+    record YearWindow(Long yearId, String name, LocalDate from, LocalDate until) {
+
+        boolean contains(LocalDate date) {
+            return !date.isBefore(from) && (until == null || date.isBefore(until));
+        }
+
+        String message() {
+            return "Ngày khám phải trong năm học " + name + " ("
+                    + (until == null
+                            ? "từ " + DMY.format(from)
+                            : DMY.format(from) + " – " + DMY.format(until.minusDays(1)))
+                    + ")";
+        }
+    }
+
+    private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    /** Năm đang hoạt động; null khi chưa có (đợt mới khi đó thuộc năm của ngày bắt đầu, không giới hạn ngày). */
+    YearWindow activeYearWindow() {
+        List<SchoolYearResponse> years = sortedYears();
+        for (int i = 0; i < years.size(); i++) {
+            boolean active = schoolYearService
+                    .findSchoolYearDetail(years.get(i).id())
+                    .map(d -> d.status() == SchoolYearStatus.ACTIVE)
+                    .orElse(false);
+            if (active) {
+                return windowAt(years, i);
+            }
+        }
+        return null;
+    }
+
+    /** Khoảng ngày của năm đã lưu trên đợt; null khi năm không còn. */
+    YearWindow windowOf(Long yearId) {
+        List<SchoolYearResponse> years = sortedYears();
+        for (int i = 0; i < years.size(); i++) {
+            if (years.get(i).id().equals(yearId)) {
+                return windowAt(years, i);
+            }
+        }
+        return null;
+    }
+
+    private List<SchoolYearResponse> sortedYears() {
+        return schoolStructureService.findSchoolYears().stream()
+                .filter(y -> y.startDate() != null)
+                .sorted(Comparator.comparing(SchoolYearResponse::startDate))
+                .toList();
+    }
+
+    private static YearWindow windowAt(List<SchoolYearResponse> years, int i) {
+        SchoolYearResponse year = years.get(i);
+        LocalDate until = i + 1 < years.size() ? years.get(i + 1).startDate() : null;
+        return new YearWindow(year.id(), year.name(), year.startDate(), until);
+    }
+
+    /** Lớp của điểm trường trong năm học của đợt/kỳ (năm đã lưu, xem {@link #yearOf}). */
     List<ClassroomInfoResponse> classesOf(HealthCheckCampaign campaign) {
-        Long yearId = schoolYearIdOf(campaign.getStartDate());
+        Long yearId = yearOf(campaign);
         if (yearId == null) {
             return List.of();
         }

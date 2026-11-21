@@ -61,7 +61,8 @@ class HealthCheckServiceImplTest {
             mock(ClassroomService.class),
             schoolStructure,
             mock(EnrollmentService.class),
-            campaigns);
+            campaigns,
+            mock(com.carenest.service.organization.SchoolYearService.class));
     private final HealthCheckServiceImpl service = new HealthCheckServiceImpl(
             rules,
             mock(HealthRecords.class),
