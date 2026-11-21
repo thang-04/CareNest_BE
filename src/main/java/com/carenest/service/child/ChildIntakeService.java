@@ -9,6 +9,7 @@ import com.carenest.dto.child.EnrollmentDraft;
 import com.carenest.dto.child.GuardianChildSummary;
 import com.carenest.dto.child.GuardianRecord;
 import com.carenest.dto.child.PlacementClassResponse;
+import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.GuardianRelationship;
@@ -70,6 +71,9 @@ public interface ChildIntakeService {
 
     /** Hồ sơ trẻ kèm phụ huynh, tài khoản, lịch sử; người gọi đã kiểm phạm vi. */
     ChildViewResponse getChildView(Long childId);
+
+    /** CHD-11: đăng ký năm sau còn mở (PENDING/PLACED) của các trẻ; trẻ không có đăng ký không có khóa. */
+    Map<Long, PlannedAdmissionResponse> findOpenPlannedAdmissions(Collection<Long> childIds);
 
     /** Phụ huynh trên mọi hồ sơ trẻ có SĐT hoặc CCCD trong danh sách (kiểm một người một tài khoản, AUTH-18). */
     List<GuardianRecord> findGuardianRecords(Collection<String> phones, Collection<String> citizenIds);

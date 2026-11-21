@@ -11824,6 +11824,8 @@ components:
           type: boolean
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         profile:
           $ref: "#/components/schemas/ChildProfileDetailResponse"
         readmittedAt:
@@ -11997,6 +11999,8 @@ components:
           type: boolean
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         readmittedAt:
           type: string
           format: date
@@ -12331,6 +12335,8 @@ components:
           type: boolean
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         profile:
           $ref: "#/components/schemas/ChildProfileDetailResponse"
         readmittedAt:
@@ -17392,6 +17398,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EnrollChildRequest"
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
     ImportResult:
       type: object
       properties:
@@ -20070,6 +20082,32 @@ components:
         userId:
           type: integer
           format: int64
+    PlannedAdmissionResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - PENDING
+          - PLACED
+          - ACTIVATED
+          - CANCELLED
     PolicyEntry:
       type: object
       properties:
@@ -20490,6 +20528,12 @@ components:
       properties:
         reason:
           type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
     ReceiptLine:
       type: object
       properties:

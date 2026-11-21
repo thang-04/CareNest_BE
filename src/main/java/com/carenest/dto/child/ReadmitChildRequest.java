@@ -1,4 +1,11 @@
 package com.carenest.dto.child;
 
-/** Mở lại hồ sơ trẻ đã nghỉ học (CHD-03): lý do bắt buộc, tối đa 300 ký tự. */
-public record ReadmitChildRequest(String reason) {}
+import java.time.LocalDate;
+
+/** Mở lại hồ sơ; có schoolYearId = mở cho năm sắp diễn ra (CHD-11), startDate trống = ngày bắt đầu năm. */
+public record ReadmitChildRequest(String reason, Long schoolYearId, LocalDate startDate) {
+
+    public ReadmitChildRequest(String reason) {
+        this(reason, null, null);
+    }
+}

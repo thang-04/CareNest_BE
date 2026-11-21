@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildListFilter;
 import com.carenest.dto.child.ChildListItemResponse;
+import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.child.Child;
@@ -26,6 +27,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
+import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -63,6 +65,7 @@ class ChildListServiceImplTest {
     private final GuardianViews guardianViews = mock(GuardianViews.class);
     private final GuardianChildLinkService linkService = mock(GuardianChildLinkService.class);
     private final ClassroomService classroomService = mock(ClassroomService.class);
+    private final ChildIntakeService intakeService = mock(ChildIntakeService.class);
     private final StaffAccessPolicy policy = mock(StaffAccessPolicy.class);
     private final CampusAccessPolicy campusAccessPolicy = mock(CampusAccessPolicy.class);
     private final StaffAssignmentService assignmentService = mock(StaffAssignmentService.class);
@@ -73,6 +76,7 @@ class ChildListServiceImplTest {
             guardianViews,
             linkService,
             classroomService,
+            intakeService,
             policy,
             campusAccessPolicy,
             assignmentService,
@@ -268,6 +272,43 @@ class ChildListServiceImplTest {
             assertThat(item.schoolYearId()).isEqualTo(5L);
             assertThat(item.campusId()).isEqualTo(10L);
         });
+    }
+
+    @Test
+    @DisplayName("CHD-09, CHD-11: dòng danh sách kèm đăng ký năm sau, tải cả trang một lần")
+    void rowsCarryPlannedAdmissionLoadedInOneBatch() {
+        given(childRepository.findListRows(
+                        any(),
+                        any(),
+                        anyCollection(),
+                        anyBoolean(),
+                        anyCollection(),
+                        anyCollection(),
+                        any(),
+                        any(),
+                        any()))
+                .willReturn(List.of(row(102L, null), row(103L, null)));
+        given(childRepository.findAllById(List.of(102L, 103L)))
+                .willReturn(List.of(
+                        child(102L, ChildStatus.PENDING_PLACEMENT, 10L),
+                        child(103L, ChildStatus.PENDING_PLACEMENT, 10L)));
+        PlannedAdmissionResponse admission = new PlannedAdmissionResponse(
+                9L,
+                "2027-2028",
+                10L,
+                31L,
+                "Lớp A năm sau",
+                LocalDate.of(2027, 9, 5),
+                com.carenest.utils.enums.PlannedAdmissionStatus.PLACED);
+        given(intakeService.findOpenPlannedAdmissions(List.of(102L, 103L))).willReturn(Map.of(102L, admission));
+
+        PageResponse<ChildListItemResponse> page =
+                service.searchChildren(VICE, new ChildListFilter(null, null, null, null, null, 0, 20));
+
+        assertThat(page.items())
+                .extracting(ChildListItemResponse::plannedAdmission)
+                .containsExactly(admission, null);
+        verify(intakeService).findOpenPlannedAdmissions(List.of(102L, 103L));
     }
 
     @Test

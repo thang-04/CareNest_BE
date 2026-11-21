@@ -44,6 +44,10 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
                                 AND NOT EXISTS (
                                 SELECT 1 FROM planned_admissions pa
                                 WHERE pa.child_id = c.id AND pa.status IN ('PENDING', 'PLACED')))
+                           OR (c.status = 'PENDING_PLACEMENT' AND EXISTS (
+                                SELECT 1 FROM planned_admissions pa
+                                WHERE pa.child_id = c.id AND pa.school_year_id = CAST(:yearId AS BIGINT)
+                                  AND pa.status IN ('PENDING', 'PLACED')))
                            OR (c.status = 'LEFT' AND (
                                 SELECT y.id FROM school_years y
                                 WHERE y.start_date <= c.left_on

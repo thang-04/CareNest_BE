@@ -162,8 +162,14 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
             Map<String, String> phones = new HashMap<>();
             for (EnrollChildRequest row : request.rows()) {
                 if (row == null) throw invalid("file", "Dòng dữ liệu không hợp lệ");
-                EnrollChildRequest scoped =
-                        new EnrollChildRequest(row.child(), row.declaration(), null, request.campusId());
+                // CHD-11: chuyển năm đích + ngày vào học; năm sau chưa tới ngày chuẩn bị ⇒ 2412 cả lô
+                EnrollChildRequest scoped = new EnrollChildRequest(
+                        row.child(),
+                        row.declaration(),
+                        null,
+                        request.campusId(),
+                        request.schoolYearId(),
+                        request.startDate());
                 EnrollmentDraft draft = childIntakeService.prepareEnrollment(actor, scoped);
                 List<String> errors = new ArrayList<>();
                 batchCheck(scoped, children, ids, phones, errors);

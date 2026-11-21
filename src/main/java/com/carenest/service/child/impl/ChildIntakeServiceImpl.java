@@ -17,6 +17,7 @@ import com.carenest.dto.child.GuardianRecord;
 import com.carenest.dto.child.HealthDeclarationDraft;
 import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.PlacementClassResponse;
+import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
@@ -89,6 +90,7 @@ import tools.jackson.databind.ObjectMapper;
 public class ChildIntakeServiceImpl implements ChildIntakeService {
     private static final String LOG_PREFIX = "[ChildIntakeServiceImpl]";
     private static final DateTimeFormatter YEAR_SUFFIX = DateTimeFormatter.ofPattern("yy");
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     // Không khớp SĐT/CCCD nào (thay danh sách rỗng trong IN)
     private static final Set<String> NO_MATCH = Set.of("-");
 
@@ -185,6 +187,10 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     && requestedYear.status() != SchoolYearStatus.PLANNED) {
                 throw fieldError("schoolYearId", "Năm học đã kết thúc, không thể tiếp nhận trẻ");
             }
+            if (requestedYear != null && requestedYear.status() == SchoolYearStatus.PLANNED) {
+                // CHD-11: lớp tiếp nhận của năm sau chỉ mở từ ngày mở chuẩn bị
+                plannedTarget(schoolYearId, null);
+            }
             List<ClassroomInfoResponse> classes = (schoolYearId == null
                             ? classroomService.findActiveYearClassrooms()
                             : classroomService.findYearClassrooms(schoolYearId))
@@ -246,8 +252,25 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             if (reason.length() > 300) {
                 throw fieldError("reason", "Lý do tối đa 300 ký tự");
             }
+            // Mở lại cho năm sau: kiểm năm/ngày mở chuẩn bị trước khi đổi hồ sơ (CHD-11, 2412)
+            PlannedTarget target =
+                    request.schoolYearId() == null ? null : plannedTarget(request.schoolYearId(), request.startDate());
             child.readmit(campusId, today);
             childRepository.save(child);
+            if (target != null) {
+                // Đăng ký chờ xếp lớp ở điểm trường cũ cho năm sau (CHD-03, CHD-11)
+                // Unique (trẻ, năm): đã có dòng (đã hủy khi nghỉ) thì mở lại thay vì thêm mới
+                PlannedAdmission admission = plannedAdmissionRepository
+                        .findByChildIdAndSchoolYearId(childId, target.year().id())
+                        .orElse(null);
+                if (admission == null) {
+                    admission = PlannedAdmission.create(
+                            childId, target.year().id(), campusId, null, target.startDate(), actor.userId());
+                } else {
+                    admission.reopen(campusId, target.startDate(), actor.userId());
+                }
+                plannedAdmissionRepository.save(admission);
+            }
             childHistoryRepository.save(ChildHistory.record(
                     childId, ChildHistoryAction.READMITTED, actor.userId(), reason, clock.instant()));
             // Feature account mở lại tài khoản phụ huynh hệ thống đã khóa khi trẻ nghỉ (sau commit; CHD-04, V90)
@@ -456,13 +479,55 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     profile,
                     guardiansOf(childId),
                     historyOf(childId),
-                    child.getPhotoKey() == null ? null : "/children/" + childId + "/photo");
+                    child.getPhotoKey() == null ? null : "/children/" + childId + "/photo",
+                    findOpenPlannedAdmissions(List.of(childId)).get(childId));
             log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, PlannedAdmissionResponse> findOpenPlannedAdmissions(Collection<Long> childIds) {
+        if (childIds.isEmpty()) {
+            return Map.of();
+        }
+        // CHD-11: chỉ đăng ký còn mở; một trẻ có tối đa một đăng ký mở
+        List<PlannedAdmission> open = plannedAdmissionRepository.findByChildIdInAndStatusIn(
+                childIds, List.of(PlannedAdmissionStatus.PENDING, PlannedAdmissionStatus.PLACED));
+        Map<Long, String> yearNames = new HashMap<>();
+        Map<Long, String> classNames = new HashMap<>();
+        Map<Long, PlannedAdmissionResponse> result = new HashMap<>();
+        for (PlannedAdmission pa : open) {
+            String yearName = yearNames.computeIfAbsent(
+                    pa.getSchoolYearId(),
+                    id -> schoolYearService
+                            .findSchoolYearDetail(id)
+                            .map(SchoolYearDetailResponse::name)
+                            .orElse(null));
+            String className = pa.getClassroomId() == null
+                    ? null
+                    : classNames.computeIfAbsent(
+                            pa.getClassroomId(),
+                            id -> classroomService
+                                    .findClassroomInfo(id)
+                                    .map(ClassroomInfoResponse::name)
+                                    .orElse(null));
+            result.put(
+                    pa.getChildId(),
+                    new PlannedAdmissionResponse(
+                            pa.getSchoolYearId(),
+                            yearName,
+                            pa.getCampusId(),
+                            pa.getClassroomId(),
+                            className,
+                            pa.getStartDate(),
+                            pa.getStatus()));
+        }
+        return result;
     }
 
     @Override
@@ -574,16 +639,11 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (targetYear != null && targetYear.status() == SchoolYearStatus.CLOSED) {
             throw fieldError("schoolYearId", "Năm học đã kết thúc, không thể tiếp nhận trẻ");
         }
+        LocalDate startDate = today;
         if (planned) {
-            SchoolYearDetailResponse next = schoolYearService.findNextPlannedYear();
-            if (next == null || !next.id().equals(targetYear.id())) {
-                throw fieldError("schoolYearId", "Chỉ được đăng ký cho năm học sắp diễn ra gần nhất");
-            }
-        }
-        LocalDate startDate =
-                planned ? (requestedStartDate == null ? targetYear.startDate() : requestedStartDate) : today;
-        if (planned && (startDate.isBefore(targetYear.startDate()) || startDate.isAfter(targetYear.endDate()))) {
-            throw fieldError("startDate", "Ngày bắt đầu phải nằm trong thời gian năm học đã chọn");
+            PlannedTarget target = plannedTarget(schoolYearId, requestedStartDate);
+            targetYear = target.year();
+            startDate = target.startDate();
         }
         if (classId != null) {
             ClassroomInfoResponse classroom =
@@ -614,6 +674,31 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         }
         EnrollmentDraft pending = draft.withPlacement(null, target);
         return planned ? pending.withAdmission(targetYear.id(), startDate) : pending;
+    }
+
+    /** Năm sắp diễn ra được tiếp nhận (CHD-11) và ngày bắt đầu học của trẻ trong năm đó. */
+    private record PlannedTarget(SchoolYearDetailResponse year, LocalDate startDate) {}
+
+    /**
+     * Năm sắp diễn ra gần nhất, chỉ nhận trẻ từ ngày mở chuẩn bị (CHD-11, CFG-YR-05; trước đó 2412). Ngày bắt đầu học
+     * phải nằm trong năm học, để trống = ngày bắt đầu năm.
+     */
+    private PlannedTarget plannedTarget(Long schoolYearId, LocalDate requestedStartDate) {
+        SchoolYearDetailResponse year = schoolYearService
+                .findSchoolYearDetail(schoolYearId)
+                .orElseThrow(() -> fieldError("schoolYearId", "Năm học không tồn tại"));
+        SchoolYearDetailResponse next = schoolYearService.findNextPlannedYear();
+        if (next == null || !next.id().equals(year.id())) {
+            throw fieldError("schoolYearId", "Chỉ được đăng ký cho năm học sắp diễn ra gần nhất");
+        }
+        if (!year.preparing()) {
+            throw GlobalException.of(ApiCode.PREP_YEAR_NOT_OPEN, year.name(), DISPLAY_DATE.format(year.prepDate()));
+        }
+        LocalDate startDate = requestedStartDate == null ? year.startDate() : requestedStartDate;
+        if (startDate.isBefore(year.startDate()) || startDate.isAfter(year.endDate())) {
+            throw fieldError("startDate", "Ngày bắt đầu phải nằm trong thời gian năm học đã chọn");
+        }
+        return new PlannedTarget(year, startDate);
     }
 
     private String plannedClassProblem(CurrentUser actor, ClassroomInfoResponse classroom, Long schoolYearId) {

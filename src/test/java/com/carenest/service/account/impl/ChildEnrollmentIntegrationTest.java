@@ -142,6 +142,8 @@ class ChildEnrollmentIntegrationTest {
     private long classA;
     private long classB;
     private long plannedClass;
+    private long activeYear;
+    private long plannedYear;
     private long teacher;
     private long existingParent;
     private long legacyParent;
@@ -158,9 +160,9 @@ class ChildEnrollmentIntegrationTest {
         campusClosed = insertId(
                 "INSERT INTO campuses (code, name, status) VALUES ('EN-C', 'Cơ sở C', 'INACTIVE') RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        long activeYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+        activeYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
-        long plannedYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
+        plannedYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
                 + "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id");
         classA = classroom(campusA, activeYear, "Lớp A1", ag3, 2);
         classB = classroom(campusB, activeYear, "Lớp B1", ag3, 25);
@@ -801,6 +803,60 @@ class ChildEnrollmentIntegrationTest {
                 ApiCode.CHILD_NOT_LEFT);
     }
 
+    @Test
+    @DisplayName("CHD-03, CHD-11: mở lại hồ sơ cho năm sau ⇒ Chờ xếp lớp, có đăng ký")
+    void readmitIntoPlannedYear() {
+        long left = child("Trẻ Quay Lại Năm Sau", "2021-02-01", "ACTIVE", null);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01', '2026-10-15')",
+                left,
+                classA);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = '2026-10-16', left_reason = 'Chuyển' WHERE id = ?",
+                left);
+        long plain = child("Trẻ Quay Lại Như Cũ", "2021-02-02", "ACTIVE", null);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01', '2026-10-15')",
+                plain,
+                classA);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = '2026-10-16', left_reason = 'Chuyển' WHERE id = ?",
+                plain);
+        entityManager.clear();
+
+        // Trước ngày mở chuẩn bị ⇒ 2412, hồ sơ giữ nguyên
+        expectCode(
+                () -> intakeService.readmit(
+                        principal,
+                        left,
+                        new ReadmitChildRequest("Gia đình quay lại", plannedYear, LocalDate.of(2027, 9, 5))),
+                ApiCode.PREP_YEAR_NOT_OPEN);
+        assertThat(count("SELECT count(*) FROM children WHERE id = ? AND status = 'LEFT'", left))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM planned_admissions WHERE child_id = ?", left))
+                .isZero();
+
+        openPrep("2026-10-29");
+        entityManager.clear();
+        ChildViewResponse view = intakeService.readmit(
+                principal, left, new ReadmitChildRequest("Gia đình quay lại", plannedYear, LocalDate.of(2027, 9, 5)));
+        assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+        assertThat(view.campusId()).isEqualTo(campusA);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status = 'PENDING'"
+                                + " AND campus_id = ? AND school_year_id = ? AND classroom_id IS NULL"
+                                + " AND start_date = '2027-09-05'",
+                        left,
+                        campusA,
+                        plannedYear))
+                .isEqualTo(1);
+
+        // Không gửi schoolYearId ⇒ như cũ, không có đăng ký
+        intakeService.readmit(principal, plain, new ReadmitChildRequest("Gia đình quay lại"));
+        assertThat(count("SELECT count(*) FROM planned_admissions WHERE child_id = ?", plain))
+                .isZero();
+    }
+
     @Autowired
     private com.carenest.service.child.ChildRecordService recordService;
 
@@ -1144,6 +1200,309 @@ class ChildEnrollmentIntegrationTest {
         entityManager.clear();
         expectCode(() -> selectedAccounts.candidates(vicePrincipal, childId), ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
         expectCode(() -> selectedAccounts.checkParentScope(vicePrincipal, accountId), ApiCode.ACCOUNT_MANAGE_DENIED);
+    }
+
+    @Test
+    @DisplayName("CHD-11: năm sau chưa tới ngày mở chuẩn bị ⇒ 2412 ở tiếp nhận và lớp tiếp nhận")
+    void plannedYearClosedBeforePrepDate() {
+        expectCode(
+                () -> enrollmentService.enroll(
+                        principal,
+                        plannedRequest(
+                                "Trẻ Chưa Mở",
+                                plannedClass,
+                                campusA,
+                                "2027-09-05",
+                                newGuardian("0915000001", "001500000001"))),
+                ApiCode.PREP_YEAR_NOT_OPEN);
+        expectCode(() -> intakeService.listPlacementClasses(principal, plannedYear), ApiCode.PREP_YEAR_NOT_OPEN);
+        assertThat(count("SELECT count(*) FROM planned_admissions")).isZero();
+    }
+
+    @Test
+    @DisplayName("CHD-11: đúng ngày mở chuẩn bị ⇒ tiếp nhận vào năm sau, có đăng ký")
+    void plannedYearOpensOnPrepDate() {
+        openPrep("2026-10-29");
+        ChildEnrollmentResponse response = enrollmentService.enroll(
+                principal,
+                plannedRequest(
+                        "Trẻ Năm Sau Mở",
+                        plannedClass,
+                        campusA,
+                        "2027-09-05",
+                        newGuardian("0915000002", "001500000002")));
+        assertThat(response.child().status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+        assertThat(response.child().classId()).isNull();
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?"
+                                + " AND classroom_id = ? AND start_date = '2027-09-05' AND status = 'PLACED'",
+                        response.child().id(),
+                        plannedYear,
+                        plannedClass))
+                .isEqualTo(1);
+        assertThat(intakeService.listPlacementClasses(principal, plannedYear))
+                .filteredOn(c -> c.id().equals(plannedClass))
+                .singleElement()
+                .satisfies(c -> assertThat(c.enrolledCount()).isEqualTo(1));
+    }
+
+    @Test
+    @DisplayName("CHD-10: gửi schoolYearId năm đang hoạt động ⇒ như cũ, không đăng ký")
+    void activeYearIdKeepsCurrentIntake() {
+        EnrollChildRequest base =
+                request("Trẻ Năm Nay", "2023-08-01", null, null, newGuardian("0915000003", "001500000003"));
+        ChildEnrollmentResponse response = enrollmentService.enroll(
+                principal, new EnrollChildRequest(base.child(), base.declaration(), classA, campusA, activeYear, null));
+        assertThat(response.child().classId()).isEqualTo(classA);
+        assertThat(response.child().status()).isEqualTo(ChildStatus.ACTIVE);
+        assertThat(count("SELECT count(*) FROM planned_admissions")).isZero();
+    }
+
+    @Test
+    @DisplayName("CHD-11, AUTH-20: tiếp nhận năm sau tạo, liên kết tài khoản như tiếp nhận thường")
+    void plannedIntakeHandlesParentAccountsAsUsual() {
+        openPrep("2026-10-29");
+        ChildEnrollmentResponse created = enrollmentService.enroll(
+                principal,
+                plannedRequest("Trẻ Năm Sau Mới", null, campusA, null, newGuardian("0915000004", "001500000004")));
+        assertThat(created.guardianAccounts()).singleElement().satisfies(g -> {
+            assertThat(g.result()).isEqualTo(GuardianAccountResult.CREATED);
+            assertThat(g.smsStatus()).isNotNull();
+        });
+        verify(identityProviderClient).createUser(any());
+
+        ChildEnrollmentResponse linked = enrollmentService.enroll(
+                principal,
+                plannedRequest(
+                        "Trẻ Năm Sau Có Sẵn",
+                        null,
+                        campusA,
+                        null,
+                        new GuardianInput("Lê Thị Có Sẵn", "MOTHER", "0901000001", "001190000001", null)));
+        assertThat(linked.guardianAccounts()).extracting(g -> g.result()).containsExactly(GuardianAccountResult.LINKED);
+    }
+
+    @Test
+    @DisplayName("CHD-11, CHD-03: cho nghỉ học trẻ năm sau ⇒ đăng ký CANCELLED")
+    void withdrawCancelsPlannedAdmission() {
+        openPrep("2026-10-29");
+        long childId = enrollmentService
+                .enroll(
+                        principal,
+                        plannedRequest(
+                                "Trẻ Năm Sau Nghỉ",
+                                plannedClass,
+                                campusA,
+                                "2027-09-05",
+                                newGuardian("0915000005", "001500000005")))
+                .child()
+                .id();
+
+        recordService.withdraw(
+                principal,
+                childId,
+                new com.carenest.dto.child.WithdrawChildRequest("2026-10-29", "Gia đình chuyển nhà"));
+
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status = 'CANCELLED'", childId))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ?"
+                                + " AND status IN ('PENDING', 'PLACED')",
+                        childId))
+                .isZero();
+    }
+
+    private long withdrawnPlannedChild(String name, String phone, String citizenId) {
+        openPrep("2026-10-29");
+        long childId = enrollmentService
+                .enroll(
+                        principal,
+                        plannedRequest(name, plannedClass, campusA, "2027-09-05", newGuardian(phone, citizenId)))
+                .child()
+                .id();
+        recordService.withdraw(
+                principal,
+                childId,
+                new com.carenest.dto.child.WithdrawChildRequest("2026-10-29", "Gia đình chuyển nhà"));
+        entityManager.clear();
+        return childId;
+    }
+
+    @Test
+    @DisplayName("CHD-03, CHD-11: nghỉ rồi mở lại cùng năm sau ⇒ mở lại đăng ký đã hủy, không trùng dòng")
+    void readmitReopensCancelledAdmission() {
+        long childId = withdrawnPlannedChild("Trẻ Đổi Ý", "0915000006", "001500000006");
+
+        ChildViewResponse view = intakeService.readmit(
+                principal, childId, new ReadmitChildRequest("Gia đình đổi ý", plannedYear, LocalDate.of(2027, 9, 10)));
+
+        assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?",
+                        childId,
+                        plannedYear))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?"
+                                + " AND status = 'PENDING' AND classroom_id IS NULL AND start_date = '2027-09-10'",
+                        childId,
+                        plannedYear))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CHD-11: mở lại năm sau không gửi ngày bắt đầu ⇒ lấy ngày bắt đầu năm học")
+    void readmitDefaultsStartDateToYearStart() {
+        long childId = withdrawnPlannedChild("Trẻ Mặc Định Ngày", "0915000007", "001500000007");
+
+        intakeService.readmit(principal, childId, new ReadmitChildRequest("Gia đình đổi ý", plannedYear, null));
+
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?"
+                                + " AND status = 'PENDING' AND start_date = '2027-09-05'",
+                        childId,
+                        plannedYear))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CHD-11: mở lại năm sau với ngày bắt đầu ngoài năm học ⇒ lỗi trường, hồ sơ vẫn đã nghỉ")
+    void readmitRejectsStartDateOutsideYear() {
+        long childId = withdrawnPlannedChild("Trẻ Ngày Sai", "0915000008", "001500000008");
+
+        expectField(
+                () -> intakeService.readmit(
+                        principal,
+                        childId,
+                        new ReadmitChildRequest("Gia đình đổi ý", plannedYear, LocalDate.of(2027, 8, 1))),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Ngày bắt đầu phải nằm trong thời gian năm học đã chọn");
+
+        assertThat(count("SELECT count(*) FROM children WHERE id = ? AND status = 'LEFT'", childId))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status <> 'CANCELLED'",
+                        childId))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("CHD-11: hồ sơ trẻ năm sau có đăng ký; trẻ thường không có")
+    void childViewCarriesPlannedAdmission() {
+        long childId = enrollPlannedAn();
+
+        var admission = intakeService.getChildView(childId).plannedAdmission();
+        assertThat(admission).isNotNull();
+        assertThat(admission.schoolYearName()).isEqualTo("2027-2028");
+        assertThat(admission.status()).isEqualTo(com.carenest.utils.enums.PlannedAdmissionStatus.PLACED);
+        assertThat(intakeService.getChildView(siblingA).plannedAdmission()).isNull();
+    }
+
+    @Test
+    @DisplayName("CHD-09, CHD-11: trẻ năm sau chỉ ở danh sách năm đó, kèm đăng ký")
+    void plannedChildListedUnderPlannedYearOnly() {
+        long childId = enrollPlannedAn();
+
+        var underPlanned = childListService
+                .searchChildren(
+                        principal,
+                        new com.carenest.dto.child.ChildListFilter(plannedYear, null, null, null, null, 0, 100))
+                .items();
+        assertThat(underPlanned)
+                .filteredOn(i -> i.id().equals(childId))
+                .singleElement()
+                .satisfies(i -> {
+                    assertThat(i.plannedAdmission().classId()).isEqualTo(plannedClass);
+                    assertThat(i.plannedAdmission().className()).isEqualTo("Lớp A năm sau");
+                    assertThat(i.plannedAdmission().startDate()).isEqualTo(LocalDate.of(2027, 9, 5));
+                    assertThat(i.plannedAdmission().status())
+                            .isEqualTo(com.carenest.utils.enums.PlannedAdmissionStatus.PLACED);
+                });
+        var underActive = childListService
+                .searchChildren(
+                        principal,
+                        new com.carenest.dto.child.ChildListFilter(activeYear, null, null, null, null, 0, 100))
+                .items();
+        assertThat(underActive).extracting(i -> i.id()).doesNotContain(childId);
+    }
+
+    @Test
+    @DisplayName("CHD-11, AUTH-02: PHT điểm trường B không thấy trẻ năm sau của A")
+    void plannedListFollowsCampusScope() {
+        long childId = enrollPlannedAn();
+
+        var items = childListService
+                .searchChildren(
+                        vicePrincipalOfB,
+                        new com.carenest.dto.child.ChildListFilter(plannedYear, null, null, null, null, 0, 100))
+                .items();
+        assertThat(items).extracting(i -> i.id()).doesNotContain(childId);
+    }
+
+    @Autowired
+    private com.carenest.service.child.ChildEnrollmentImportService importService;
+
+    @Test
+    @DisplayName("CHD-11: nhập Excel vào năm sau ⇒ mỗi trẻ một đăng ký chưa có lớp")
+    void importIntoPlannedYearCreatesPendingAdmissions() {
+        EnrollChildRequest r1 =
+                request("Bé Excel Một", "2023-04-10", null, null, newGuardian("0915000021", "001500000021"));
+        EnrollChildRequest r2 =
+                request("Bé Excel Hai", "2023-05-11", null, null, newGuardian("0915000022", "001500000022"));
+        var body = new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                List.of(r1, r2), campusA, plannedYear, LocalDate.of(2027, 9, 5));
+        long before = count("SELECT count(*) FROM children");
+
+        expectCode(() -> importService.importRows(principal, body), ApiCode.PREP_YEAR_NOT_OPEN);
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
+
+        openPrep("2026-10-29");
+        entityManager.clear(); // năm học đã nạp vào persistence context ở lần gọi 2412 trước
+        var result = importService.importRows(principal, body);
+
+        assertThat(result.created()).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before + 2);
+        for (Long id : result.ids()) {
+            assertThat(count(
+                            "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status = 'PENDING'"
+                                    + " AND campus_id = ? AND classroom_id IS NULL",
+                            id,
+                            campusA))
+                    .isEqualTo(1);
+        }
+    }
+
+    private long enrollPlannedAn() {
+        openPrep("2026-10-29");
+        return enrollmentService
+                .enroll(
+                        principal,
+                        plannedRequest(
+                                "Bé An Năm Sau",
+                                plannedClass,
+                                campusA,
+                                "2027-09-05",
+                                newGuardian("0915000010", "001500000010")))
+                .child()
+                .id();
+    }
+
+    private void openPrep(String date) {
+        jdbc.update("UPDATE school_years SET prep_date = ?::date WHERE id = ?", date, plannedYear);
+    }
+
+    private EnrollChildRequest plannedRequest(
+            String fullName, Long classId, Long campusId, String startDate, GuardianInput... guardians) {
+        EnrollChildRequest base = request(fullName, "2023-04-10", classId, campusId, guardians);
+        return new EnrollChildRequest(
+                base.child(),
+                base.declaration(),
+                classId,
+                campusId,
+                plannedYear,
+                startDate == null ? null : LocalDate.parse(startDate));
     }
 
     private static EnrollChildRequest request(
