@@ -160,6 +160,10 @@ public class StaffAccessPolicy {
             campuses.addAll(
                     staffAssignmentService.findActiveCampusIds(userId, StaffRole.valueOf(role.name()), today()));
         }
+        // AUTH-15: GV thuộc cơ sở công tác kể cả khi chưa có lớp
+        if (role == CareNestRole.TEACHER) {
+            staffAssignmentService.findTeacherWorkCampusId(userId).ifPresent(campuses::add);
+        }
         return campuses;
     }
 

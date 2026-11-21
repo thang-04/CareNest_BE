@@ -6,12 +6,14 @@ import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.entity.organization.StaffAssignment;
+import com.carenest.entity.organization.TeacherWorkCampus;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.StaffAssignmentMapper;
 import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
+import com.carenest.repository.organization.TeacherWorkCampusRepository;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.RequestMemo;
@@ -65,6 +67,7 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     private final CampusRepository campusRepository;
     private final SchoolYearRepository schoolYearRepository;
     private final TeacherClassRules teacherClassRules;
+    private final TeacherWorkCampusRepository teacherWorkCampusRepository;
     private final Clock clock;
 
     @Override
@@ -772,6 +775,94 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     // Hình dạng phạm vi khớp CHECK ck_staff_assignments_scope (V2); campus/lớp phải tồn tại
+    @Override
+    @Transactional
+    public void saveTeacherWorkCampus(Long userId, Long campusId, Long updatedBy) {
+        String logPrefix = LOG_PREFIX + "|saveTeacherWorkCampus|userId=" + userId + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            if (!campusRepository
+                    .findById(campusId)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CAMPUS_NOT_FOUND))
+                    .isActive()) {
+                throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);
+            }
+            teacherWorkCampusRepository
+                    .findById(userId)
+                    .ifPresentOrElse(
+                            current -> current.moveTo(campusId, updatedBy),
+                            () -> teacherWorkCampusRepository.save(TeacherWorkCampus.of(userId, campusId, updatedBy)));
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void clearTeacherWorkCampus(Long userId) {
+        String logPrefix = LOG_PREFIX + "|clearTeacherWorkCampus|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            teacherWorkCampusRepository.findById(userId).ifPresent(teacherWorkCampusRepository::delete);
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Optional<Long> findTeacherWorkCampusId(Long userId) {
+        String logPrefix = LOG_PREFIX + "|findTeacherWorkCampusId|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<Long> campusId =
+                    teacherWorkCampusRepository.findById(userId).map(TeacherWorkCampus::getCampusId);
+            log.info("{}|END", logPrefix);
+            return campusId;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findTeacherIdsByWorkCampus(Collection<Long> campusIds) {
+        String logPrefix = LOG_PREFIX + "|findTeacherIdsByWorkCampus|campuses=" + campusIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> userIds = campusIds.isEmpty()
+                    ? Set.of()
+                    : teacherWorkCampusRepository.findByCampusIdIn(campusIds).stream()
+                            .map(TeacherWorkCampus::getUserId)
+                            .collect(Collectors.toSet());
+            log.info("{}|END", logPrefix);
+            return userIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, Long> findTeacherWorkCampusIds(Collection<Long> userIds) {
+        String logPrefix = LOG_PREFIX + "|findTeacherWorkCampusIds|count=" + userIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> campusIds = userIds.isEmpty()
+                    ? Map.of()
+                    : teacherWorkCampusRepository.findByUserIdIn(userIds).stream()
+                            .collect(Collectors.toMap(TeacherWorkCampus::getUserId, TeacherWorkCampus::getCampusId));
+            log.info("{}|END", logPrefix);
+            return campusIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private Long resolveScope(StaffRole staffRole, Long campusId, Long classroomId) {
         return switch (staffRole) {
             case PRINCIPAL -> {

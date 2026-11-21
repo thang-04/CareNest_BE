@@ -192,6 +192,17 @@ Mục đích: phân công nhân sự — nguồn scope của BGH/GV/bếp (ADR-0
 Ràng buộc: `ck_staff_assignments_scope` (đúng cột scope theo vai trò), `ck_staff_assignments_valid_range`, `ck_staff_assignments_homeroom`. Kết thúc phân công = đặt `valid_to`, không xóa (giữ lịch sử); phân công chưa từng có hiệu lực (bắt đầu từ hôm nay/ngày đầu năm sắp tới) thì xóa. Phân công qua API: từ max(hôm nay, ngày đầu năm học) tới ngày cuối năm học. Phân công GV có `valid_to` trước ngày cuối năm học của lớp = dạy thay (AUTH-24, không tính luật một lớp dạy chính/năm).
 Index: `user_id`, `campus_id`, `classroom_id`, `age_group_id`, `school_year_id`.
 
+## teacher_work_campuses  (module: school-structure, scope: CAMPUS)
+Mục đích: cơ sở công tác của giáo viên, có ngay khi tạo tài khoản, chưa cần lớp (AUTH-15, chốt 21/11/2026). PHT/bếp không có dòng ở đây (cơ sở = điểm trường phân công). Migration: V168 (backfill theo lớp dạy chính gần nhất, không lấy dạy thay; GV chưa từng có lớp để trống).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| user_id | BIGINT PK FK user_accounts | không | Giáo viên | AUTH-15 |
+| campus_id | BIGINT FK campuses | không | Cơ sở công tác; xếp dạy chính lớp ở cơ sở khác ⇒ chuyển theo lớp | AUTH-15 |
+| updated_by | BIGINT FK user_accounts | có | Người đặt/chuyển gần nhất; NULL = backfill | — |
+| updated_at | TIMESTAMPTZ | không | | — |
+Đổi/thu hồi vai trò khỏi GV ⇒ xóa dòng. Danh bạ GV (`GET /teacher-assignments`) lấy điểm trường từ đây, chưa có thì theo lớp gần nhất.
+Index: `campus_id`.
+
 ## age_groups  (module: school-structure, scope: SCHOOL)
 Mục đích: nhóm tuổi (khối) dùng chung toàn trường. Migration: `V10__create_age_groups.sql`, seed 4 nhóm `ag-2`..`ag-5` theo UI.
 | Column | Type | Null | Ý nghĩa | Rule ID |

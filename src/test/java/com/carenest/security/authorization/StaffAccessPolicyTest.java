@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -106,6 +107,16 @@ class StaffAccessPolicyTest {
                 .isFalse();
         assertThat(policy.canManageAccount(PRINCIPAL, 61L, null)).isFalse();
         assertThat(policy.canManageAccount(ADMIN, 61L, null)).isTrue();
+    }
+
+    @Test
+    @DisplayName("AUTH-15: PHT quản lý GV có cơ sở công tác ở campus mình kể cả khi GV chưa có lớp")
+    void vicePrincipalManagesTeacherByWorkCampus() {
+        given(assignments.findTeacherWorkCampusId(42L)).willReturn(Optional.of(CAMPUS_A));
+        given(assignments.findTeacherWorkCampusId(43L)).willReturn(Optional.of(CAMPUS_B));
+
+        assertThat(policy.canManageAccount(VICE, 42L, CareNestRole.TEACHER)).isTrue();
+        assertThat(policy.canManageAccount(VICE, 43L, CareNestRole.TEACHER)).isFalse();
     }
 
     @Test

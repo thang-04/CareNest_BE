@@ -9,12 +9,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.carenest.dto.organization.NewStaffAssignment;
+import com.carenest.entity.organization.Campus;
 import com.carenest.entity.organization.StaffAssignment;
+import com.carenest.entity.organization.TeacherWorkCampus;
 import com.carenest.mapper.organization.StaffAssignmentMapper;
 import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
+import com.carenest.repository.organization.TeacherWorkCampusRepository;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
@@ -31,6 +34,7 @@ class StaffAssignmentServiceImplTest {
     private final StaffAssignmentRepository repository = mock(StaffAssignmentRepository.class);
     private final ClassroomRepository classrooms = mock(ClassroomRepository.class);
     private final CampusRepository campuses = mock(CampusRepository.class);
+    private final TeacherWorkCampusRepository workCampuses = mock(TeacherWorkCampusRepository.class);
     private final StaffAssignmentServiceImpl service = new StaffAssignmentServiceImpl(
             repository,
             new StaffAssignmentMapper(),
@@ -38,6 +42,7 @@ class StaffAssignmentServiceImplTest {
             campuses,
             mock(SchoolYearRepository.class),
             mock(TeacherClassRules.class),
+            workCampuses,
             Clock.fixed(Instant.parse("2026-10-01T03:00:00Z"), ZoneOffset.UTC));
 
     @Test
@@ -118,5 +123,31 @@ class StaffAssignmentServiceImplTest {
         assertThatThrownBy(() -> service.resolveCampusId(role, campusId, classroomId))
                 .extracting("apiCode.httpStatus")
                 .isEqualTo(ApiCode.BAD_REQUEST.getHttpStatus());
+    }
+
+    @Test
+    void teacherWorkCampusMustBeActiveAndMovesWhenPresent() {
+        Campus active = Campus.create("CS1", "Cơ sở 1", "CS1", "Địa chỉ", null);
+        Campus inactive = Campus.create("CS2", "Cơ sở 2", "CS2", "Địa chỉ", null);
+        inactive.deactivate(Instant.parse("2026-09-01T00:00:00Z"));
+        given(campuses.findById(10L)).willReturn(Optional.of(active));
+        given(campuses.findById(11L)).willReturn(Optional.of(inactive));
+
+        assertThatThrownBy(() -> service.saveTeacherWorkCampus(7L, 11L, 1L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CAMPUS_INACTIVE);
+        assertThatThrownBy(() -> service.saveTeacherWorkCampus(7L, 12L, 1L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CAMPUS_NOT_FOUND);
+        verify(workCampuses, never()).save(any());
+
+        service.saveTeacherWorkCampus(7L, 10L, 1L);
+        verify(workCampuses).save(any(TeacherWorkCampus.class));
+
+        TeacherWorkCampus existing = TeacherWorkCampus.of(8L, 20L, 1L);
+        given(workCampuses.findById(8L)).willReturn(Optional.of(existing));
+        service.saveTeacherWorkCampus(8L, 10L, 2L);
+        assertThat(existing.getCampusId()).isEqualTo(10L);
+        assertThat(existing.getUpdatedBy()).isEqualTo(2L);
     }
 }

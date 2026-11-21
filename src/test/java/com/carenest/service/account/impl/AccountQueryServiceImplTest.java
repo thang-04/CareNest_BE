@@ -62,6 +62,8 @@ class AccountQueryServiceImplTest {
         service.searchAccounts(VICE, null, null, null, null, 0, 20);
 
         verify(assignments).findActiveStaffUserIds(Set.of(10L), TODAY);
+        // AUTH-15: GV có cơ sở công tác ở campus mình (chưa có lớp) cũng nằm trong danh sách
+        verify(assignments).findTeacherIdsByWorkCampus(Set.of(10L));
     }
 
     @Test

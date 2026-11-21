@@ -19,6 +19,7 @@ import com.carenest.utils.enums.UserStatus;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,19 +68,16 @@ public class AccountQueryServiceImpl implements AccountQueryService {
             Collection<CareNestRole> roles = null;
             boolean admin = actor.hasRole(CareNestRole.ADMIN);
             if (admin || staffAccessPolicy.managesWholeSchool(actor)) {
-                userIds = campusId == null
-                        ? null
-                        : staffAssignmentService.findActiveStaffUserIds(Set.of(campusId), today);
+                userIds = campusId == null ? null : campusStaffIds(Set.of(campusId), today);
                 // AUTH-17: HT chỉ xem PHT/GV/bếp — đúng các tài khoản HT mở chi tiết được; Admin xem mọi tài khoản
                 roles = admin ? null : SCHOOL_MANAGED_ROLES;
             } else {
-                // AUTH-08: PHT chỉ thấy GV/bếp đang được phân công trong campus mình
+                // AUTH-08: PHT chỉ thấy GV/bếp đang được phân công hoặc có cơ sở công tác (AUTH-15) trong campus mình
                 Set<Long> managed = staffAccessPolicy.managedCampusIds(actor);
                 if (campusId != null && !managed.contains(campusId)) {
                     throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
                 }
-                userIds = staffAssignmentService.findActiveStaffUserIds(
-                        campusId == null ? managed : Set.of(campusId), today);
+                userIds = campusStaffIds(campusId == null ? managed : Set.of(campusId), today);
                 roles = CAMPUS_MANAGED_ROLES;
             }
 
@@ -92,16 +90,17 @@ public class AccountQueryServiceImpl implements AccountQueryService {
             Page<UserAccount> accounts = userAccountRepository.findAll(
                     spec,
                     PageRequest.of(page, size, Sort.by("fullName").ascending().and(Sort.by("id"))));
+            List<Long> pageUserIds =
+                    accounts.getContent().stream().map(UserAccount::getId).toList();
             Map<Long, List<StaffAssignmentSummaryResponse>> assignments =
-                    staffAssignmentService.findActiveAssignmentsByUserIds(
-                            accounts.getContent().stream()
-                                    .map(UserAccount::getId)
-                                    .toList(),
-                            today);
+                    staffAssignmentService.findActiveAssignmentsByUserIds(pageUserIds, today);
+            Map<Long, Long> workCampusIds = staffAssignmentService.findTeacherWorkCampusIds(pageUserIds);
             PageResponse<AccountSummaryResponse> response = PageResponse.from(
                     accounts,
                     account -> accountMapper.toSummaryResponse(
-                            account, assignments.getOrDefault(account.getId(), List.of())));
+                            account,
+                            assignments.getOrDefault(account.getId(), List.of()),
+                            workCampusIds.get(account.getId())));
             log.info("{}|total={}|END", logPrefix, accounts.getTotalElements());
             return response;
         } catch (RuntimeException ex) {
@@ -116,13 +115,22 @@ public class AccountQueryServiceImpl implements AccountQueryService {
         log.info("{}|START", logPrefix);
         try {
             UserAccount account = managedAccountLoader.loadManageable(actor, userId);
-            AccountDetailResponse detail =
-                    accountMapper.toDetailResponse(account, staffAssignmentService.findAssignments(userId));
+            AccountDetailResponse detail = accountMapper.toDetailResponse(
+                    account,
+                    staffAssignmentService.findAssignments(userId),
+                    staffAssignmentService.findTeacherWorkCampusId(userId).orElse(null));
             log.info("{}|END", logPrefix);
             return detail;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // Nhân sự của điểm trường: phân công đang hiệu lực + GV có cơ sở công tác ở đó dù chưa có lớp (AUTH-15)
+    private Set<Long> campusStaffIds(Collection<Long> campusIds, LocalDate today) {
+        Set<Long> userIds = new HashSet<>(staffAssignmentService.findActiveStaffUserIds(campusIds, today));
+        userIds.addAll(staffAssignmentService.findTeacherIdsByWorkCampus(campusIds));
+        return userIds;
     }
 }
