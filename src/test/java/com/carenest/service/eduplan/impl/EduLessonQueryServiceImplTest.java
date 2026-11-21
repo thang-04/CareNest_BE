@@ -57,7 +57,8 @@ class EduLessonQueryServiceImplTest {
 
     @Test
     void lessonNeedsReleasedDayPlanOfTheWeek() {
-        // Spec 003 FR-008: kế hoạch tuần ban hành trong gói học kỳ nhưng giáo án ngày chưa duyệt ⇒ chưa chấm
+        // Spec 003 FR-008: kế hoạch tuần ban hành trong kế hoạch giáo dục chủ đề nhưng giáo án ngày chưa duyệt ⇒ chưa
+        // chấm
         LocalDate monday = LocalDate.of(2026, 11, 9);
         when(config.getEduConfig())
                 .thenReturn(new EduConfigResponse(List.of(), List.of(), List.of(), null, List.of(), null));
@@ -164,7 +165,7 @@ class EduLessonQueryServiceImplTest {
 
     @Test
     void releasedDossierWeekAndMultiGoalCardDriveAssessment() {
-        // FR-026, FR-029: thẻ gắn 2 MT; giáo án ngày đã ban hành có bản tuần theo hồ sơ chủ đề ⇒ dùng bản đó
+        // FR-026, FR-029: thẻ gắn 2 MT; giáo án ngày đã ban hành có bản tuần theo kế hoạch giáo dục ngày ⇒ dùng bản đó
         LocalDate monday = LocalDate.of(2026, 11, 9);
         when(config.getEduConfig())
                 .thenReturn(new EduConfigResponse(

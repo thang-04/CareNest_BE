@@ -282,6 +282,12 @@ carenest:
         data-class: CHILD_DERIVED
         deadline: 20s
         max-repair-rounds: 0
+      # Kế hoạch giáo dục (EDU-95/96): chương trình, chủ đề, nhánh, hoạt động của trường; không gửi dữ liệu trẻ (AI-04)
+      EDU_PLAN:
+        chain: [gemini, groq]
+        data-class: PUBLIC_CATALOG
+        deadline: ${AI_EDU_PLAN_DEADLINE:30s}
+        max-repair-rounds: 0
   # Embedding (AI-06): xếp lại món ứng viên theo ngữ nghĩa, chỉ sau lọc cứng. Thiếu base URL/model/key hoặc AI tắt thì
   # bỏ qua, gợi ý chạy như cũ. Chỉ gửi văn bản danh mục công khai và câu mong muốn của PHT, không dữ liệu trẻ (AI-04)
   embedding:

@@ -16,6 +16,7 @@ import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanStatus;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -60,7 +61,7 @@ class EduConfigServiceIntegrationTest {
     private jakarta.persistence.EntityManager entityManager;
 
     @Autowired
-    private java.time.Clock clock;
+    private Clock clock;
 
     private CurrentUser vicePrincipal;
     private CurrentUser principal;

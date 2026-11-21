@@ -13,7 +13,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** Một lần hồ sơ chủ đề của lớp được ban hành; giữ nội dung + chuỗi ký để xem lại bản cũ (spec 002 FR-018). */
+/** Một lần kế hoạch giáo dục ngày của lớp được ban hành; giữ nội dung + chuỗi ký để xem lại bản cũ (spec 002 FR-018). */
 @Getter
 @Entity
 @Table(name = "edu_class_doc_releases")

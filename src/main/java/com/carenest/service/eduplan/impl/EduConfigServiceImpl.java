@@ -219,7 +219,7 @@ public class EduConfigServiceImpl implements EduConfigService {
                 teamLeaders);
     }
 
-    // EDU-11: kế hoạch năm luôn có Phó HT ký; chủ đề nhánh, hồ sơ chủ đề cần ít nhất một người duyệt
+    // EDU-11: kế hoạch năm luôn có Phó HT ký; chủ đề nhánh, kế hoạch giáo dục ngày cần ít nhất một người duyệt
     private static void requireSigners(EduConfigRequest.Signers signers) {
         for (List<String> chain : List.of(signers.year(), signers.branch(), signers.week())) {
             if (!SIGNER_ROLES.containsAll(chain) || new HashSet<>(chain).size() != chain.size()) {

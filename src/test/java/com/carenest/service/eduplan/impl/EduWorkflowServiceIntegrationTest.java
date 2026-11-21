@@ -674,7 +674,7 @@ class EduWorkflowServiceIntegrationTest {
                 .isEqualTo(ApiCode.CONCURRENT_UPDATE);
     }
 
-    /** Hồ sơ chủ đề đã ban hành: gốc APPROVED + một bản ban hành (spec 003). */
+    /** Kế hoạch giáo dục ngày đã ban hành: gốc APPROVED + một bản ban hành (spec 003). */
     private EduClassDoc publishDossier(Long classId, Long planId, Long themeId, Long approver) {
         String key = "ds_" + classId + "_" + themeId;
         var dossier = classDocRepository
@@ -759,7 +759,7 @@ class EduWorkflowServiceIntegrationTest {
                 theme,
                 LocalDate.of(2026, 9, 7),
                 teacher.userId()));
-        // Spec 003: hồ sơ chủ đề là gốc gửi/duyệt; giáo án ngày tách khỏi giáo án tuần
+        // Spec 003: kế hoạch giáo dục ngày là gốc gửi/duyệt; giáo án ngày tách khỏi giáo án tuần
         classDocRepository.saveAndFlush(EduClassDoc.create(
                 "ds_" + cls + "_" + theme, "dossier", cls, plan.getId(), theme, null, teacher.userId()));
         classDocRepository.saveAndFlush(EduClassDoc.create(

@@ -148,11 +148,12 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         try {
             requirePermission(currentUser, EduPermission.GOALS_VIEW);
             EduPlanAccessPolicy.ViewScope scope = listScope(currentUser, level, schoolYearId);
-            // Spec 005 FR-021a: HT cần thấy bản Nháp quá hạn chưa ban hành để mở hạn ở màn Kế hoạch quá hạn
+            // EDU-76/97: HT cần dữ liệu Nháp quá hạn gửi và Chờ duyệt quá hạn duyệt, kể cả ngoài chuỗi.
             boolean principal = accessPolicy.isPrincipal(currentUser);
             if (principal) {
                 Set<EduPlanStatus> statuses = new HashSet<>(scope.schoolWideStatuses());
                 statuses.add(EduPlanStatus.DRAFT);
+                statuses.add(EduPlanStatus.REVIEW);
                 scope = new EduPlanAccessPolicy.ViewScope(
                         Set.copyOf(statuses),
                         scope.fullAgeGroupIds(),
@@ -173,14 +174,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     pattern,
                     pageable);
             if (principal) {
-                // ponytail: lọc sau truy vấn (tổng số lệch khi có bản Nháp chưa quá hạn); mỗi năm chỉ vài kế hoạch
+                // Lọc các bản Nháp/Chờ duyệt không thuộc quyền xem trước khi dựng dữ liệu.
                 List<EduPlan> visible = page.getContent().stream()
-                        .filter(p -> canView(currentUser, p))
+                        .filter(p -> p.publicStatus() != EduPlanStatus.REVIEW
+                                ? canView(currentUser, p)
+                                : isAuthor(currentUser, p) || hasReviewDeadlineBoardAccess(p))
                         .toList();
-                page = new org.springframework.data.domain.PageImpl<>(
-                        visible,
-                        pageable,
-                        page.getTotalElements() - (page.getContent().size() - visible.size()));
+                page = new org.springframework.data.domain.PageImpl<>(visible, pageable, page.getTotalElements());
             }
             PageResponse<YearPlanSummaryResponse> response =
                     PageResponse.from(page, summaryMapper(currentUser, page.getContent()));
@@ -503,6 +503,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (!timeLock.locked(plan)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở khóa khi đã khóa");
             if (timeLock.released(plan))
                 throw GlobalException.of(ApiCode.INVALID_VALUE, "kế hoạch đã ban hành không mở khóa");
+            if (plan.publicStatus() != EduPlanStatus.DRAFT)
+                throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn gửi cho kế hoạch nháp");
             Instant now = clock.instant();
             EduPlanEvent event = EduPlanEvent.of(
                             plan.getId(),
@@ -1050,9 +1052,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         List<EduPlanBranchTemplate> removed = existing.values().stream()
                 .filter(t -> !kept.contains(t.getId()))
                 .toList();
-        // Kế hoạch tổ chỉ xóa được nhánh do tổ thêm; nhánh kế thừa từ kế hoạch năm chỉ sửa tên/ngày (FR-013)
-        if (plan.getPlanLevel() == EduPlanLevel.TEAM && removed.stream().anyMatch(t -> t.getSourceTemplateId() != null))
-            throw GlobalException.of(ApiCode.INHERITED_CURRICULUM_READ_ONLY);
+        // EDU-100 (0): Tổ trưởng xóa được cả nhánh kế thừa khi soạn kế hoạch tổ; mẫu của kế hoạch năm học không đổi
+        // (EDU-102)
         templateRepository.deleteAllInBatch(removed);
     }
 
@@ -1123,7 +1124,15 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         if (status == EduPlanStatus.APPROVED)
             return listScope(user, plan.getPlanLevel(), plan.getSchoolYearId())
                     .allows(plan.getAgeGroupId(), EduPlanStatus.APPROVED);
-        return status == EduPlanStatus.REVIEW && (isCurrentApprover(user, plan) || isChainReviewer(user, plan));
+        if (status != EduPlanStatus.REVIEW) return false;
+        if (isCurrentApprover(user, plan) || isChainReviewer(user, plan)) return true;
+        return accessPolicy.isPrincipal(user) && hasReviewDeadlineBoardAccess(plan);
+    }
+
+    private boolean hasReviewDeadlineBoardAccess(EduPlan plan) {
+        EduReviewDeadline.Info review = reviewDeadlineOf(plan);
+        return review.reopenUntil() != null
+                || (review.locked() && schoolYearService.isPlanYearWritable(plan.getSchoolYearId()));
     }
 
     // Người phụ trách: đủ điều kiện soạn theo cấu hình (với kế hoạch tổ là Tổ trưởng hiện hành); không xét trạng thái
@@ -2045,18 +2054,20 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         EduDeadline.Info info = timeLock.info(plan);
         boolean locked = timeLock.locked(plan);
         EduReviewDeadline.Info review = reviewDeadlineOf(plan);
+        boolean canManageDeadline =
+                accessPolicy.isPrincipal(user) && schoolYearService.isPlanYearWritable(plan.getSchoolYearId());
         return new YearPlanDetailResponse.TimeLock(
                 info.deadline(),
                 info.extendedTo(),
                 info.state(),
                 locked,
-                locked && accessPolicy.isPrincipal(user) && !timeLock.released(plan),
+                canManageDeadline && plan.publicStatus() == EduPlanStatus.DRAFT && locked && !timeLock.released(plan),
                 new YearPlanDetailResponse.ReviewDeadline(
                         review.lockFrom(),
                         review.reopenUntil(),
                         review.locked(),
                         plan.publicStatus() == EduPlanStatus.REVIEW && isUserWaitingRole(user, plan),
-                        review.locked() && accessPolicy.isPrincipal(user),
+                        canManageDeadline && plan.publicStatus() == EduPlanStatus.REVIEW && review.locked(),
                         reviewReasonOf(plan)),
                 info.graceTo(),
                 info.daysLeft());

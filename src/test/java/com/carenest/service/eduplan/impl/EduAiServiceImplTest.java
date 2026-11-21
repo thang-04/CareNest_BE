@@ -11,12 +11,14 @@ import com.carenest.dto.eduplan.EduAiRequest;
 import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.ai.AiClient;
-import com.carenest.integration.ai.AiException;
+import com.carenest.integration.ai.AiClientException;
+import com.carenest.integration.ai.AiGateway;
+import com.carenest.integration.ai.AiRawResult;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.AiErrorReason;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /** EDU-95/96: server lọc output AI (chỉ MT, loại giờ, tuần, ô có trong yêu cầu); AI tắt/lỗi ⇒ 8001/8002. */
 class EduAiServiceImplTest {
-    private final AiClient ai = mock(AiClient.class);
+    private final AiGateway ai = mock(AiGateway.class);
     private final EduConfigService config = mock(EduConfigService.class);
     private final EduClassDocService docs = mock(EduClassDocService.class);
     private final CurrentUser user = mock(CurrentUser.class);
@@ -33,12 +35,12 @@ class EduAiServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new EduAiServiceImpl(ai, new ObjectMapper(), config, docs);
-        when(ai.isEnabled()).thenReturn(true);
+        when(ai.isAvailable(any())).thenReturn(true);
         when(user.userId()).thenReturn(7L);
     }
 
     private void aiReturns(String json) {
-        when(ai.complete(any())).thenReturn(new AiClient.AiResult(json, "test"));
+        when(ai.complete(any())).thenReturn(new AiRawResult(json, "test", "test", "edu/test", null, null, 0));
     }
 
     @Test
@@ -106,19 +108,15 @@ class EduAiServiceImplTest {
 
     @Test
     void aiOffOrBrokenJsonGivesServiceUnavailable() {
-        when(ai.isEnabled()).thenReturn(false);
-        assertThatThrownBy(() -> service.ask("t", "p", 10))
+        when(ai.isAvailable(any())).thenReturn(false);
+        assertThatThrownBy(() -> service.ask("t", "p"))
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
-        when(ai.isEnabled()).thenReturn(true);
+        when(ai.isAvailable(any())).thenReturn(true);
         aiReturns("không phải JSON");
-        assertThatThrownBy(() -> service.ask("t", "p", 10))
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
-        when(ai.complete(any())).thenThrow(new AiException(AiException.Reason.TIMEOUT, "slow", null));
-        assertThatThrownBy(() -> service.ask("t", "p", 10))
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.AI_TIMEOUT);
+        assertThatThrownBy(() -> service.ask("t", "p")).extracting("apiCode").isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
+        when(ai.complete(any())).thenThrow(new AiClientException(AiErrorReason.TIMEOUT, "slow", null));
+        assertThatThrownBy(() -> service.ask("t", "p")).extracting("apiCode").isEqualTo(ApiCode.AI_TIMEOUT);
     }
 }

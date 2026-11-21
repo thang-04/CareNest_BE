@@ -4,13 +4,19 @@ import com.carenest.dto.eduplan.EduAiRequest;
 import com.carenest.dto.eduplan.EduAiResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.ai.AiClient;
-import com.carenest.integration.ai.AiException;
+import com.carenest.integration.ai.AiClientException;
+import com.carenest.integration.ai.AiGateway;
+import com.carenest.integration.ai.AiProperties;
+import com.carenest.integration.ai.AiRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduAiService;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.AiErrorReason;
+import com.carenest.utils.enums.AiTask;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -28,7 +34,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * EDU-95/96: gọi AI qua {@link AiClient} (JSON), server lọc lại output: chỉ tuần/MT/loại giờ/ô có trong yêu cầu, cắt độ
+ * EDU-95/96: gọi AI qua {@link AiGateway} (tác vụ EDU_PLAN, JSON), server lọc lại output: chỉ tuần/MT/loại giờ/ô có trong yêu cầu, cắt độ
  * dài. Không ghi DB, không giữ giao dịch trong lúc chờ AI.
  */
 @Slf4j
@@ -57,7 +63,7 @@ public class EduAiServiceImpl implements EduAiService {
             "note", "Ghi chú");
     private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("dd/MM");
 
-    private final AiClient aiClient;
+    private final AiGateway aiGateway;
     private final ObjectMapper objectMapper;
     private final EduConfigService eduConfigService;
     private final EduClassDocService classDocService;
@@ -87,7 +93,7 @@ public class EduAiServiceImpl implements EduAiService {
                         .append(String.join("; ", taken))
                         .append('\n');
             p.append("Trả về {\"suggestions\":[{\"weekStart\":\"yyyy-MM-dd\",\"name\":\"...\",\"reason\":\"...\"}]}.");
-            JsonNode out = ask("edu-branch-names", p.toString(), 1500);
+            JsonNode out = ask("edu-branch-names", p.toString());
             Set<String> used = new HashSet<>();
             taken.forEach(n -> used.add(n.trim().toLowerCase(Locale.ROOT)));
             List<EduAiResponse.BranchSuggestion> list = new ArrayList<>();
@@ -118,7 +124,7 @@ public class EduAiServiceImpl implements EduAiService {
                     + (request.themeName() == null ? "" : " của chủ đề \"" + request.themeName() + "\"")
                     + " cho hay, gọn, hợp trẻ mầm non (cách viết thứ " + attempt
                     + ", khác các lần trước). Trả về {\"name\":\"...\"}.";
-            String name = clip(ask("edu-branch-rewrite", p, 200).path("name").asString(""), NAME_MAX);
+            String name = clip(ask("edu-branch-rewrite", p).path("name").asString(""), NAME_MAX);
             if (name.isBlank()) throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
             log.info("{}|END", logPrefix);
             return new EduAiResponse.BranchName(name);
@@ -139,7 +145,7 @@ public class EduAiServiceImpl implements EduAiService {
                             + "Môn: " + nz(request.subject()) + "\nĐề tài: " + join(request.topics())
                             + "\nMục tiêu của giờ: " + join(request.goals())
                             + "\nTrả về {\"a\":{\"teacher\":\"...\",\"child\":\"...\"},\"b\":{...},\"c\":{...}}.";
-            JsonNode out = ask("edu-lesson-steps", p, 2000);
+            JsonNode out = ask("edu-lesson-steps", p);
             log.info("{}|END", logPrefix);
             return new EduAiResponse.LessonSteps(step(out.path("a")), step(out.path("b")), step(out.path("c")));
         } catch (RuntimeException ex) {
@@ -170,7 +176,7 @@ public class EduAiServiceImpl implements EduAiService {
                 p.append('\n');
             }
             p.append("Trả về {\"items\":[{\"goalId\":\"...\",\"slot\":\"...\",\"name\":\"...\"}]}.");
-            JsonNode out = ask("edu-activities", p.toString(), 2500);
+            JsonNode out = ask("edu-activities", p.toString());
             List<EduAiResponse.Activity> list = new ArrayList<>();
             Set<String> done = new HashSet<>();
             // EDU-95: chỉ MT và loại giờ có trong yêu cầu, mỗi MT một gợi ý
@@ -208,7 +214,7 @@ public class EduAiServiceImpl implements EduAiService {
                     .append(c.text())
                     .append('\n'));
             p.append("Trả về {\"changes\":[{\"path\":\"...\",\"after\":\"...\"}]}.");
-            JsonNode out = ask("edu-day-edit", p.toString(), 3500);
+            JsonNode out = ask("edu-day-edit", p.toString());
             List<EduAiResponse.CellChange> changes = new ArrayList<>();
             Set<String> done = new HashSet<>();
             for (JsonNode c : out.path("changes")) {
@@ -249,7 +255,7 @@ public class EduAiServiceImpl implements EduAiService {
                             .append('\n');
             });
             p.append("Trả về {\"summary\":[\"...\"],\"notes\":[{\"path\":\"...\",\"text\":\"...\"}]}.");
-            JsonNode out = ask("edu-day-review", p.toString(), 2500);
+            JsonNode out = ask("edu-day-review", p.toString());
             List<String> summary = new ArrayList<>();
             for (JsonNode s : out.path("summary"))
                 if (summary.size() < 5 && !s.asString("").isBlank()) summary.add(clip(s.asString(""), 500));
@@ -314,16 +320,25 @@ public class EduAiServiceImpl implements EduAiService {
     }
 
     /** Gọi AI chế độ JSON; tắt/lỗi/hết giờ/JSON hỏng ⇒ 8001/8002 (AI-03), dữ liệu của giáo viên giữ nguyên. */
-    JsonNode ask(String task, String userPrompt, int maxTokens) {
-        if (!aiClient.isEnabled()) throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
+    JsonNode ask(String task, String userPrompt) {
+        if (!aiGateway.isAvailable(AiTask.EDU_PLAN)) throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
+        Duration budget = aiGateway
+                .taskConfig(AiTask.EDU_PLAN)
+                .map(AiProperties.TaskConfig::deadline)
+                .orElse(Duration.ofSeconds(30));
         String text;
         try {
-            text = aiClient.complete(new AiClient.AiRequest(task, TEACHER, userPrompt, maxTokens, true))
-                    .text();
-        } catch (AiException ex) {
+            text = aiGateway
+                    .complete(new AiRequest(
+                            AiTask.EDU_PLAN,
+                            "edu/" + task,
+                            TEACHER,
+                            userPrompt,
+                            Instant.now().plus(budget)))
+                    .content();
+        } catch (AiClientException ex) {
             throw GlobalException.withCause(
-                    ex.getReason() == AiException.Reason.TIMEOUT ? ApiCode.AI_TIMEOUT : ApiCode.AI_SERVICE_UNAVAILABLE,
-                    ex);
+                    ex.getReason() == AiErrorReason.TIMEOUT ? ApiCode.AI_TIMEOUT : ApiCode.AI_SERVICE_UNAVAILABLE, ex);
         }
         String json = text == null ? "" : text.trim();
         // Một số model vẫn bọc ```json … ```
