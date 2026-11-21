@@ -20211,6 +20211,9 @@ components:
     ReadmitChildRequest:
       type: object
       properties:
+        campusId:
+          type: integer
+          format: int64
         reason:
           type: string
         schoolYearId:

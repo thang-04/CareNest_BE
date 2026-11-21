@@ -256,6 +256,19 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             // Mở lại cho năm sau: kiểm năm/ngày mở chuẩn bị trước khi đổi hồ sơ (CHD-11, 2412)
             PlannedTarget target =
                     request.schoolYearId() == null ? null : plannedTarget(request.schoolYearId(), request.startDate());
+            // Chọn điểm trường khác điểm trường cũ: kiểm như tiếp nhận (G94-180/CHD-02, user chốt 2026-11-22)
+            Long chosen = request.campusId();
+            if (chosen != null && !chosen.equals(campusId)) {
+                if (campusService.findCampusStatus(chosen).orElse(null) != CampusStatus.ACTIVE) {
+                    throw fieldError("campusId", "Điểm trường không tồn tại hoặc đã ngừng hoạt động");
+                }
+                if (!inScope(actor, chosen)) {
+                    throw fieldError("campusId", "Chỉ tiếp nhận trẻ vào điểm trường bạn được giao");
+                }
+                campusId = chosen;
+            }
+            requireCampusInYear(
+                    actor, campusId, target == null ? null : target.year().id());
             child.readmit(campusId, today);
             childRepository.save(child);
             if (target != null) {

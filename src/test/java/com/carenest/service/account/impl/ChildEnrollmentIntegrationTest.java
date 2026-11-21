@@ -1579,6 +1579,57 @@ class ChildEnrollmentIntegrationTest {
                 CAMPUS_NOT_IN_YEAR);
     }
 
+    @Test
+    @DisplayName(
+            "G94-180/CHD-11: tiếp nhận lại năm sau, điểm trường cũ không có trong năm, không chọn ⇒ 2125, trẻ vẫn nghỉ")
+    void readmitRejectsOldCampusOutsideYear() {
+        long childId = withdrawnPlannedChild("Trẻ Về Lại Cũ", "0915000036", "001500000036");
+        onlyCampusesInYear(plannedYear, campusB);
+
+        expectField(
+                () -> intakeService.readmit(
+                        principal, childId, new ReadmitChildRequest("Gia đình đổi ý", plannedYear, null)),
+                ApiCode.CAMPUS_NOT_IN_YEAR,
+                "campusId",
+                CAMPUS_NOT_IN_YEAR);
+        assertThat(count("SELECT count(*) FROM children WHERE id = ? AND status = 'LEFT'", childId))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-11: tiếp nhận lại chọn điểm trường của năm ⇒ trẻ và đăng ký năm sau ở điểm trường đó")
+    void readmitIntoChosenCampus() {
+        long childId = withdrawnPlannedChild("Trẻ Về Lại Mới", "0915000037", "001500000037");
+        onlyCampusesInYear(plannedYear, campusB);
+
+        ChildViewResponse view = intakeService.readmit(
+                principal, childId, new ReadmitChildRequest("Gia đình đổi ý", plannedYear, null, campusB));
+
+        assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+        assertThat(count("SELECT count(*) FROM children WHERE id = ? AND intake_campus_id = ?", childId, campusB))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?"
+                                + " AND campus_id = ? AND status = 'PENDING'",
+                        childId,
+                        plannedYear,
+                        campusB))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-11: PHT tiếp nhận lại chọn điểm trường ngoài phạm vi ⇒ lỗi ô campusId")
+    void readmitRejectsChosenCampusOutOfScope() {
+        long childId = withdrawnPlannedChild("Trẻ Về Lại Phạm Vi", "0915000038", "001500000038");
+
+        expectField(
+                () -> intakeService.readmit(
+                        vicePrincipal, childId, new ReadmitChildRequest("Gia đình đổi ý", plannedYear, null, campusB)),
+                ApiCode.INVALID_REQUEST_DATA,
+                "campusId",
+                "Chỉ tiếp nhận trẻ vào điểm trường bạn được giao");
+    }
+
     private long enrollPlannedAn() {
         openPrep("2026-10-29");
         return enrollmentService
