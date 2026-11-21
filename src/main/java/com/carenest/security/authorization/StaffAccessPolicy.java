@@ -111,10 +111,14 @@ public class StaffAccessPolicy {
         // Phân quyền động (Cần chốt 10/11/2026): HT cấp STAFF_ASSIGNMENT_MANAGE toàn trường ⇒ PHT phân công GV/bếp mọi
         // cơ sở
         boolean schoolWide = !managed.isEmpty() && actor.hasSchoolWidePermission(Permission.STAFF_ASSIGNMENT_MANAGE);
+        // HT giao việc phân công tại một điểm trường cụ thể ⇒ chỉ điểm trường đó (AUTH-20, chốt 21/11/2026)
+        Long pinnedCampusId = actor.pinnedCampusId(Permission.STAFF_ASSIGNMENT_MANAGE);
+        boolean inScope = campusId != null
+                && (pinnedCampusId != null
+                        ? !managed.isEmpty() && pinnedCampusId.equals(campusId)
+                        : managed.contains(campusId) || schoolWide);
         boolean allowed = (PRINCIPAL_MANAGED.contains(role) && managesWholeSchool(actor))
-                || (VICE_PRINCIPAL_MANAGED.contains(role)
-                        && campusId != null
-                        && (managed.contains(campusId) || schoolWide));
+                || (VICE_PRINCIPAL_MANAGED.contains(role) && inScope);
         if (!allowed) {
             deny("checkCanAssign", actor, ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
         }

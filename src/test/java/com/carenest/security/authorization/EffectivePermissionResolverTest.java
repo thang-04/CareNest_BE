@@ -9,6 +9,7 @@ import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
 import com.carenest.utils.enums.PermissionScope;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -127,6 +128,21 @@ class EffectivePermissionResolverTest {
                         Set.of(CareNestRole.VICE_PRINCIPAL),
                         List.of(UserPermissionOverride.create(
                                 5L, "MEAL_COUNT_CONFIRM", PermissionEffect.GRANT, "điểm trường", 1L))))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: chỉ GRANT phạm vi điểm trường có ID điểm trường của mã sửa theo mảng mới là giao cụ thể")
+    void pinnedCampusOnlyFromCampusGrantWithCampusId() {
+        UserPermissionOverride pinned = UserPermissionOverride.create(
+                5L, "FOOD_SAFETY_APPROVE", PermissionEffect.GRANT, PermissionScope.CAMPUS, 3L, "cơ sở 3", 1L);
+        UserPermissionOverride assigned = UserPermissionOverride.create(
+                5L, "MEAL_COUNT_CONFIRM", PermissionEffect.GRANT, PermissionScope.CAMPUS, "cơ sở phụ trách", 1L);
+
+        assertThat(EffectivePermissionResolver.pinnedCampuses(
+                        Set.of(CareNestRole.VICE_PRINCIPAL), List.of(pinned, assigned)))
+                .containsExactly(Map.entry(Permission.FOOD_SAFETY_APPROVE, 3L));
+        assertThat(EffectivePermissionResolver.pinnedCampuses(Set.of(CareNestRole.TEACHER), List.of(pinned)))
                 .isEmpty();
     }
 

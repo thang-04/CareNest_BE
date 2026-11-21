@@ -2,6 +2,7 @@ package com.carenest.security;
 
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -17,12 +18,27 @@ public record CurrentUser(
         String email,
         Set<CareNestRole> roles,
         Set<Permission> permissions,
-        Set<Permission> schoolWidePermissions) {
+        Set<Permission> schoolWidePermissions,
+        Map<Permission, Long> pinnedCampusIds) {
 
     public CurrentUser {
         roles = Set.copyOf(roles);
         permissions = Set.copyOf(permissions);
         schoolWidePermissions = Set.copyOf(schoolWidePermissions);
+        pinnedCampusIds = Map.copyOf(pinnedCampusIds);
+    }
+
+    /** Không có việc giao tại điểm trường cụ thể: mã sửa theo mảng theo điểm trường phân công hoặc cả trường. */
+    public CurrentUser(
+            Long userId,
+            String keycloakUserId,
+            String username,
+            String fullName,
+            String email,
+            Set<CareNestRole> roles,
+            Set<Permission> permissions,
+            Set<Permission> schoolWidePermissions) {
+        this(userId, keycloakUserId, username, fullName, email, roles, permissions, schoolWidePermissions, Map.of());
     }
 
     /** Quyền không có phạm vi cả trường: mã sửa theo mảng chỉ áp ở điểm trường phân công (AUTH-20). */
@@ -58,5 +74,10 @@ public record CurrentUser(
 
     public boolean hasSchoolWidePermission(Permission permission) {
         return schoolWidePermissions.contains(permission);
+    }
+
+    /** Điểm trường HT giao riêng cho mã sửa theo mảng (AUTH-20); null = theo điểm trường phân công hoặc cả trường. */
+    public Long pinnedCampusId(Permission permission) {
+        return pinnedCampusIds.get(permission);
     }
 }

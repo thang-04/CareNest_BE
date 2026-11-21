@@ -132,6 +132,20 @@ class StaffAccessPolicyTest {
         assertThatCode(() -> policy.checkCanAssign(schoolWide, StaffRole.TEACHER, CAMPUS_B))
                 .doesNotThrowAnyException();
         assertDenied(() -> policy.checkCanAssign(schoolWide, StaffRole.VICE_PRINCIPAL, CAMPUS_B));
+        // AUTH-20 (chốt 21/11/2026): giao việc phân công tại cơ sở B ⇒ chỉ cơ sở B, không còn cơ sở A đang phụ trách
+        CurrentUser pinned = new CurrentUser(
+                3L,
+                "kc-3",
+                "u3",
+                "U",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE),
+                Set.of(),
+                Map.of(Permission.STAFF_ASSIGNMENT_MANAGE, CAMPUS_B));
+        assertThatCode(() -> policy.checkCanAssign(pinned, StaffRole.TEACHER, CAMPUS_B))
+                .doesNotThrowAnyException();
+        assertDenied(() -> policy.checkCanAssign(pinned, StaffRole.TEACHER, CAMPUS_A));
     }
 
     @Test

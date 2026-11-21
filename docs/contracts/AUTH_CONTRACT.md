@@ -80,6 +80,7 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 
 - `assignments`: phân công **đang hiệu lực hôm nay** và khớp role trong token (`staffRole` PRINCIPAL: cả hai id null; VICE_PRINCIPAL/KITCHEN_STAFF: `campusId`; TEACHER: `classroomId`).
 - `childIds`: trẻ liên kết với tài khoản (chỉ khi có role PARENT).
+- `pinnedCampusPermissions`: `{ "<mã>": campusId }` — mã sửa theo mảng HT giao tại một điểm trường cụ thể (AUTH-20); mã có trong đây chỉ sửa ở điểm trường đó, không ở điểm trường phụ trách.
 - `permissions`: quyền hiệu lực (ADR-0017) — dùng ẩn/hiện menu, route; đổi ngay khi Hiệu trưởng sửa ma trận/ngoại lệ (gọi lại `/accounts/me` để cập nhật).
 - `schoolWidePermissions` (thêm 31/10, AUTH-20): mã sửa theo mảng được GRANT phạm vi cả trường (tập con của `permissions`). Mã sửa theo mảng có trong `permissions` mà không có ở đây ⇒ chỉ sửa ở điểm trường đang phân công (`assignments`); xem thì PHT xem mọi điểm trường.
 
@@ -204,8 +205,8 @@ Thu hồi vai trò cũng xóa mọi quyền ngoại lệ của tài khoản (ghi
 | `GET /role-permissions` | — | `[{ role, editable, configurablePermissions[], permissions[] }]` cho 6 role đăng nhập + cột `TEAM_LEADER` (AUTH-23: không phải role đăng nhập, áp cho GV đang có phân công tổ trưởng; chưa có quyền nào cấu hình được) |
 | `GET /role-permissions/{role}` | — | 1 phần tử như trên |
 | `PUT /role-permissions/{role}` | `{ "permissions": ["CHILD_PROFILE_VIEW"], "reason": "..." }` (thay toàn bộ ô đang bật) | như GET |
-| `GET /accounts/{userId}/permission-overrides` | — | `{ userId, roles[], configurablePermissions[], overrides: [{ permission, effect, scope, reason, updatedBy, updatedAt }], effectivePermissions[] }` |
-| `PUT /accounts/{userId}/permission-overrides` | `{ "overrides": [{ "permission": "MEAL_COUNT_CONFIRM", "effect": "GRANT" \| "REVOKE", "scope": "CAMPUS" \| "SCHOOL" }], "reason": "..." }` (thay toàn bộ; quyền bỏ khỏi danh sách = theo ma trận; `scope` tùy chọn, bỏ trống với GRANT = `CAMPUS`) | như GET |
+| `GET /accounts/{userId}/permission-overrides` | — | `{ userId, roles[], configurablePermissions[], overrides: [{ permission, effect, scope, campusId, reason, updatedBy, updatedAt }], effectivePermissions[] }` |
+| `PUT /accounts/{userId}/permission-overrides` | `{ "overrides": [{ "permission": "MEAL_COUNT_CONFIRM", "effect": "GRANT" \| "REVOKE", "scope": "CAMPUS" \| "SCHOOL" }], "reason": "..." }` (thay toàn bộ; quyền bỏ khỏi danh sách = theo ma trận; `scope` tùy chọn, bỏ trống với GRANT = `CAMPUS`; `campusId` tùy chọn, chỉ với GRANT `CAMPUS` của mã `campusScoped`: giao việc tại điểm trường đó thay cho điểm trường PHT phụ trách — AUTH-20, chốt 21/11/2026) | như GET |
 | `GET /permission-change-logs?targetRole=&targetUserId=&page=0&size=20` | — | `PageResponse` của `{ id, batchId, actorUserId, targetRole, targetUserId, permissionCode, beforeState, afterState, beforeScope, afterScope, reason, changedAt }`, mới nhất trước |
 
 - `reason` bắt buộc (≤500 ký tự). `beforeState`/`afterState`: `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ). `beforeScope`/`afterScope`: phạm vi GRANT (null với ma trận/REVOKE/INHERIT); đổi chỉ phạm vi cũng ghi một dòng `GRANT → GRANT`.
@@ -222,6 +223,8 @@ Thu hồi vai trò cũng xóa mọi quyền ngoại lệ của tài khoản (ghi
 | Ngoại lệ cho người có PRINCIPAL/ADMIN hoặc không có role cấu hình (vd. chỉ PARENT) | 403 | `Permissions of this account cannot be overridden` |
 | Ngoại lệ: quyền không áp dụng cho role của người đó / trùng quyền | 400 | `Permission <CODE> cannot be configured for this account` / `Duplicate permission <CODE>` |
 | `scope` đi với REVOKE, hoặc `SCHOOL` cho mã không theo mảng (`campusScoped=false`) | 400 | `errorCode` 9007 `INVALID_VALUE` ("Giá trị scope không hợp lệ") |
+| `campusId` đi với `SCHOOL`/REVOKE hoặc mã không theo mảng | 400 | `errorCode` 1125 `PERMISSION_SCOPE_NOT_ALLOWED` |
+| `campusId` không tồn tại hoặc điểm trường ngừng hoạt động | 400 | `errorCode` 1146 `PERMISSION_CAMPUS_INVALID` |
 | `userId` không tồn tại | 404 | `Account not found` |
 | Keycloak không khả dụng khi đọc role | 503 | `Identity provider is unavailable` |
 | Lọc lịch sử theo cả `targetRole` và `targetUserId` | 400 | `Filter by either targetRole or targetUserId` |
