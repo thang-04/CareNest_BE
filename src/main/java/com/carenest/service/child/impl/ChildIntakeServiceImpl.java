@@ -20,6 +20,7 @@ import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
+import com.carenest.dto.organization.CampusResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.entity.child.Child;
@@ -672,6 +673,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (!wholeSchool && !managed.contains(target)) {
             throw fieldError("campusId", "Chỉ tiếp nhận trẻ vào điểm trường bạn được giao");
         }
+        requireCampusInYear(actor, target, targetYear == null ? null : targetYear.id());
         EnrollmentDraft pending = draft.withPlacement(null, target);
         return planned ? pending.withAdmission(targetYear.id(), startDate) : pending;
     }
@@ -1073,6 +1075,20 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                 p.getPaymentSource(),
                 p.getBloodType(),
                 new ChildAddressResponse(p.getAddressProvince(), p.getAddressWard(), p.getAddressStreet()));
+    }
+
+    /**
+     * G94-180/CHD-02 (user chốt 2026-11-22): điểm trường tiếp nhận phải có trong danh sách điểm trường của năm (V151).
+     * schoolYearId null = năm đang hoạt động. Danh sách rỗng (năm chưa có danh sách riêng) ⇒ không chặn.
+     */
+    private void requireCampusInYear(CurrentUser actor, Long campusId, Long schoolYearId) {
+        List<CampusResponse> inYear = campusService.getCampuses(actor, schoolYearId);
+        if (!inYear.isEmpty() && inYear.stream().noneMatch(c -> campusId.equals(c.id()))) {
+            throw GlobalException.withFieldErrors(
+                    ApiCode.CAMPUS_NOT_IN_YEAR,
+                    List.of(new FieldErrorResponse(
+                            "campusId", "Điểm trường không có trong năm học đã chọn. Chọn điểm trường khác")));
+        }
     }
 
     private static GlobalException fieldError(String field, String message) {

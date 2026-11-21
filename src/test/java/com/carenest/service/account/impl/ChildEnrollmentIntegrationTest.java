@@ -1474,6 +1474,111 @@ class ChildEnrollmentIntegrationTest {
         }
     }
 
+    // G94-180/CHD-02 (user chốt 2026-11-22): điểm trường tiếp nhận phải có trong danh sách điểm trường của năm (V151)
+    private static final String CAMPUS_NOT_IN_YEAR =
+            "Điểm trường không có trong năm học đã chọn. Chọn điểm trường khác";
+
+    private void onlyCampusesInYear(long yearId, long... campusIds) {
+        jdbc.update("DELETE FROM school_year_campus_members WHERE school_year_id = ?", yearId);
+        for (long campusId : campusIds) {
+            jdbc.update(
+                    "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address)"
+                            + " SELECT ?, id, code, name, COALESCE(short_name, ''), COALESCE(address, '')"
+                            + " FROM campuses WHERE id = ?",
+                    yearId,
+                    campusId);
+        }
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-02: tiếp nhận năm sau vào điểm trường không có trong năm ⇒ 2125 ở ô campusId")
+    void plannedIntakeRejectsCampusOutsideYear() {
+        openPrep("2026-10-29");
+        onlyCampusesInYear(plannedYear, campusA);
+        long before = count("SELECT count(*) FROM children");
+
+        expectField(
+                () -> enrollmentService.enroll(
+                        principal,
+                        plannedRequest(
+                                "Trẻ Ngoài Năm", null, campusB, null, newGuardian("0915000031", "001500000031"))),
+                ApiCode.CAMPUS_NOT_IN_YEAR,
+                "campusId",
+                CAMPUS_NOT_IN_YEAR);
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
+        assertThat(count("SELECT count(*) FROM planned_admissions")).isZero();
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-02: nhập Excel vào năm sau ở điểm trường ngoài năm ⇒ cả lô lỗi, không tạo hồ sơ")
+    void importRejectsCampusOutsideYear() {
+        openPrep("2026-10-29");
+        onlyCampusesInYear(plannedYear, campusA);
+        EnrollChildRequest row =
+                request("Bé Excel Ngoài Năm", "2023-04-10", null, null, newGuardian("0915000032", "001500000032"));
+        var body = new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                List.of(row), campusB, plannedYear, LocalDate.of(2027, 9, 5));
+        long before = count("SELECT count(*) FROM children");
+
+        expectField(
+                () -> importService.importRows(principal, body),
+                ApiCode.CAMPUS_NOT_IN_YEAR,
+                "campusId",
+                CAMPUS_NOT_IN_YEAR);
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-02: tiếp nhận năm đang hoạt động vào điểm trường không có trong năm ⇒ 2125")
+    void activeIntakeRejectsCampusOutsideYear() {
+        onlyCampusesInYear(activeYear, campusA);
+
+        expectField(
+                () -> enrollmentService.enroll(
+                        principal,
+                        request(
+                                "Trẻ Năm Nay Ngoài",
+                                "2023-08-01",
+                                null,
+                                campusB,
+                                newGuardian("0915000033", "001500000033"))),
+                ApiCode.CAMPUS_NOT_IN_YEAR,
+                "campusId",
+                CAMPUS_NOT_IN_YEAR);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-02: năm chưa có danh sách điểm trường riêng ⇒ nhận như cũ")
+    void yearWithoutOwnListAcceptsAnyActiveCampus() {
+        jdbc.update("DELETE FROM school_year_campus_members WHERE school_year_id = ?", activeYear);
+
+        ChildEnrollmentResponse response = enrollmentService.enroll(
+                principal,
+                request(
+                        "Trẻ Năm Cũ Danh Sách",
+                        "2023-08-01",
+                        null,
+                        campusB,
+                        newGuardian("0915000034", "001500000034")));
+
+        assertThat(response.child().status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-02: PHT của điểm trường bị bỏ khỏi năm sau ⇒ lỗi 2125 ở ô điểm trường, không 403")
+    void vicePrincipalOfRemovedCampusGetsYearError() {
+        openPrep("2026-10-29");
+        onlyCampusesInYear(plannedYear, campusA);
+
+        expectField(
+                () -> enrollmentService.enroll(
+                        vicePrincipalOfB,
+                        plannedRequest("Trẻ PHT B", null, null, null, newGuardian("0915000035", "001500000035"))),
+                ApiCode.CAMPUS_NOT_IN_YEAR,
+                "campusId",
+                CAMPUS_NOT_IN_YEAR);
+    }
+
     private long enrollPlannedAn() {
         openPrep("2026-10-29");
         return enrollmentService
