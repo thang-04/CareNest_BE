@@ -45,6 +45,7 @@ final class EnrollmentFormValidator {
 
     static final int MAX_GUARDIANS = 3;
     static final LocalDate EARLIEST_BIRTH_DATE = LocalDate.of(2018, 1, 1);
+    static final int MIN_INTAKE_AGE_MONTHS = 3;
     // Sinh trước 37 tuần là sinh non: "Sinh non" phải khớp tuần thai (G94-180/CHD-05, user chốt 2026-11-04)
     private static final int FULL_TERM_WEEKS = 37;
 
@@ -74,6 +75,13 @@ final class EnrollmentFormValidator {
         Map<String, String> errors = new LinkedHashMap<>();
         EnrollmentChildInput child = request == null ? null : request.child();
         ChildInfo info = validateChildInfo(child, today, errors, true);
+        // G94-180/CHD-13 (nghiệp vụ chốt 2026-11-22): chỉ tiếp nhận trẻ đủ 3 tháng tuổi tại ngày tiếp nhận; Sửa hồ sơ
+        // không kiểm
+        if (info.dateOfBirth() != null
+                && !errors.containsKey("dateOfBirth")
+                && info.dateOfBirth().plusMonths(MIN_INTAKE_AGE_MONTHS).isAfter(today)) {
+            errors.put("dateOfBirth", "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận");
+        }
         HealthDeclarationDraft declaration =
                 validateDeclaration(request == null ? null : request.declaration(), info.dateOfBirth(), today, errors);
 

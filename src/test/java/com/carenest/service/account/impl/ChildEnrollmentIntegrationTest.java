@@ -1630,6 +1630,47 @@ class ChildEnrollmentIntegrationTest {
                 "Chỉ tiếp nhận trẻ vào điểm trường bạn được giao");
     }
 
+    @Test
+    @DisplayName(
+            "G94-180/CHD-13: nhập Excel trẻ chưa đủ 3 tháng tuổi tại ngày tiếp nhận ⇒ lỗi ngày sinh, không tạo hồ sơ")
+    void importRejectsChildUnderThreeMonths() {
+        EnrollChildRequest row =
+                request("Bé Excel Sơ Sinh", "2026-07-30", null, null, newGuardian("0915000041", "001500000041"));
+        var body = new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                List.of(row), campusA, null, null);
+        long before = count("SELECT count(*) FROM children");
+
+        expectField(
+                () -> importService.importRows(principal, body),
+                ApiCode.INVALID_REQUEST_DATA,
+                "dateOfBirth",
+                "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận");
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-13: tiếp nhận năm sau vào lớp khác nhóm tuổi của trẻ ⇒ vẫn nhận")
+    void plannedClassOfOtherAgeGroupIsAccepted() {
+        openPrep("2026-10-29");
+        EnrollChildRequest base = request(
+                "Trẻ Khác Nhóm Tuổi", "2025-06-01", plannedClass, campusA, newGuardian("0915000042", "001500000042"));
+        ChildEnrollmentResponse response = enrollmentService.enroll(
+                principal,
+                new EnrollChildRequest(
+                        base.child(),
+                        base.declaration(),
+                        plannedClass,
+                        campusA,
+                        plannedYear,
+                        LocalDate.of(2027, 9, 5)));
+
+        assertThat(count(
+                        "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND classroom_id = ?",
+                        response.child().id(),
+                        plannedClass))
+                .isEqualTo(1);
+    }
+
     private long enrollPlannedAn() {
         openPrep("2026-10-29");
         return enrollmentService

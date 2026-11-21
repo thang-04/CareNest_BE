@@ -239,6 +239,15 @@ class EnrollmentFormValidatorTest {
                 .isNotEqualTo(EnrollmentFormValidator.nameKey("Minh Ánh"));
     }
 
+    @Test
+    @DisplayName("G94-180/CHD-13: tiếp nhận trẻ chưa đủ 3 tháng tuổi ⇒ lỗi ngày sinh; vừa đủ 3 tháng ⇒ nhận")
+    void intakeRequiresThreeMonthsOfAge() {
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-07-30"), okDeclaration()), TODAY)))
+                .containsEntry("dateOfBirth", "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận");
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-07-29"), okDeclaration()), TODAY)))
+                .doesNotContainKey("dateOfBirth");
+    }
+
     private static Map<String, String> errors(EnrollmentFormValidator.Result result) {
         return result.errors().stream()
                 .collect(Collectors.toMap(FieldErrorResponse::field, FieldErrorResponse::message, (a, b) -> a));
