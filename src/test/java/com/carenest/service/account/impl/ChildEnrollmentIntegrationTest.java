@@ -167,6 +167,13 @@ class ChildEnrollmentIntegrationTest {
         classA = classroom(campusA, activeYear, "Lớp A1", ag3, 2);
         classB = classroom(campusB, activeYear, "Lớp B1", ag3, 25);
         plannedClass = classroom(campusA, plannedYear, "Lớp A năm sau", ag3, 25);
+        // Nhóm tuổi của từng năm (V154): xếp lớp kiểm trẻ đúng nhóm tuổi của năm đó (PlacementRules.ageGroupProblem)
+        for (long year : List.of(activeYear, plannedYear)) {
+            jdbc.update(
+                    "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                            + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                    year);
+        }
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principalId);
@@ -867,7 +874,7 @@ class ChildEnrollmentIntegrationTest {
         long childId = enrollmentService
                 .enroll(
                         principal,
-                        request("Trẻ Nghỉ Ngay", "2022-05-06", classA, null, newGuardian("0918888981", "999900000981")))
+                        request("Trẻ Nghỉ Ngay", "2023-05-06", classA, null, newGuardian("0918888981", "999900000981")))
                 .child()
                 .id();
 
@@ -1692,7 +1699,8 @@ class ChildEnrollmentIntegrationTest {
 
     private EnrollChildRequest plannedRequest(
             String fullName, Long classId, Long campusId, String startDate, GuardianInput... guardians) {
-        EnrollChildRequest base = request(fullName, "2023-04-10", classId, campusId, guardians);
+        // 40 tháng tại ngày bắt đầu năm sau (05/09/2027) ⇒ đúng nhóm của plannedClass (ag-3, 36–48 tháng)
+        EnrollChildRequest base = request(fullName, "2024-04-10", classId, campusId, guardians);
         return new EnrollChildRequest(
                 base.child(),
                 base.declaration(),
