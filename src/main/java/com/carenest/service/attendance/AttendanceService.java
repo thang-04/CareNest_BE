@@ -42,6 +42,9 @@ public interface AttendanceService {
     /** Ngày học / giờ chốt của năm đang hoạt động cho tác vụ hệ thống (không có người dùng). */
     DayInfoResponse getActiveYearDayInfo(LocalDate date);
 
+    /** Dùng nội bộ sau khi module gọi kiểm quyền xem sổ suất ăn. */
+    DayInfoResponse getYearDayInfo(LocalDate date, Long schoolYearId);
+
     ClassAttendanceResponse getClassAttendance(CurrentUser currentUser, Long classId, LocalDate date);
 
     SaveAttendanceResponse saveClassAttendance(CurrentUser currentUser, Long classId, SaveAttendanceRequest request);

@@ -252,6 +252,17 @@ class ThemeEvaluationIntegrationTest {
     }
 
     @Test
+    @DisplayName("Trẻ chuyển vào giữa chủ đề: mục tiêu đã dạy trước ngày vào lớp để trống, không tính Chưa đạt")
+    void goalsBeforeChildJoinedClassAreNotApplicable() {
+        jdbc.update("UPDATE enrollments SET valid_from='2026-09-20' WHERE child_id=? AND classroom_id=?", kid2, classA);
+        entityManager.clear();
+
+        assertThat(row(service.get(teacher, classA, 9201L), kid2).cells())
+                .extracting(c -> c.met())
+                .containsExactly(null, false);
+    }
+
+    @Test
     @DisplayName("OBS-27: 1 hoạt động đạt là Đạt; mục tiêu cùng dòng gốc không đếm trùng")
     void anyMetMakesGoalMetAndDeduplicatesGoalLineagePerActivity() {
         // extra-pass (một dòng hai ID cùng dòng gốc) không xoá được k1 (09-08) đạt từ setUp

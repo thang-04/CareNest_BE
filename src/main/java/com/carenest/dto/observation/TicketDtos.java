@@ -18,7 +18,10 @@ public final class TicketDtos {
     /** weekNo: tuần thứ mấy của năm học (chỉ phiếu tuần). */
     public record TicketPeriod(LocalDate start, LocalDate end, Integer weekNo) {}
 
-    public record TicketChild(Long id, String fullName) {}
+    public record TicketChild(Long id, String fullName, String code) {}
+
+    /** Căn cứ phát phiếu của trẻ, tách theo lớp để không mất lịch sử khi chuyển lớp. */
+    public record TicketEvidence(Long classId, String className, int presentDays, int flagCount, int weeklyTickets) {}
 
     public record IssuedTicket(
             Long id,
@@ -41,6 +44,8 @@ public final class TicketDtos {
             boolean eligible,
             IssuedTicket ticket,
             boolean issuedElsewhere,
+            List<TicketEvidence> evidence,
+            boolean historical,
             boolean canIssue) {}
 
     /** periods: các kỳ đã kết thúc, mới nhất trước; period null khi chưa có kỳ nào kết thúc. */
@@ -58,7 +63,8 @@ public final class TicketDtos {
             @NotNull LocalDate periodStart,
             @NotNull @Size(min = 1, max = 100) List<@NotNull Long> childIds) {}
 
-    public record TicketSummaryRow(TicketChild child, int weekly, int monthly, int flags) {}
+    public record TicketSummaryRow(
+            TicketChild child, int weekly, int monthly, int flags, List<TicketEvidence> evidence, boolean historical) {}
 
     public record TicketSummaryTotals(int weekly, int monthly, int children, int total) {}
 

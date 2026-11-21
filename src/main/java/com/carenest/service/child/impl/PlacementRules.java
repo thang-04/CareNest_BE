@@ -8,12 +8,15 @@ import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.notification.NotificationService;
+import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -27,11 +30,13 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 class PlacementRules {
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private final EnrollmentRepository enrollmentRepository;
     private final ChildPlacementRepository placementRepository;
     private final StaffAccessPolicy staffAccessPolicy;
     private final StaffAssignmentService staffAssignmentService;
     private final NotificationService notificationService;
+    private final AgeGroupService ageGroupService;
 
     /**
      * Câu lỗi ô {@code classId} khi lớp không nhận được trẻ, null khi được: lớp đang hoạt động của năm học đang hoạt động
@@ -57,6 +62,30 @@ class PlacementRules {
         return null;
     }
 
+    String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate today, LocalDate dateOfBirth) {
+        String problem = classProblem(actor, classroom, today);
+        return problem == null ? ageGroupProblem(classroom, dateOfBirth) : problem;
+    }
+
+    /** Độ tuổi xếp lớp được tính tại ngày bắt đầu năm học, không đổi theo sinh nhật giữa năm. */
+    String ageGroupProblem(ClassroomInfoResponse classroom, LocalDate dateOfBirth) {
+        if (classroom == null || dateOfBirth == null || classroom.yearStart() == null) {
+            return "Không xác định được nhóm tuổi phù hợp của trẻ";
+        }
+        long ageMonths = ChronoUnit.MONTHS.between(dateOfBirth, classroom.yearStart());
+        var ageGroup = ageGroupService.getYearAgeGroups(classroom.schoolYearId()).stream()
+                .filter(group -> group.id().equals(classroom.ageGroupId()))
+                .findFirst()
+                .orElse(null);
+        if (ageGroup == null || ageGroup.ageFromMonths() == null || ageGroup.ageToMonths() == null) {
+            return "Lớp chưa có cấu hình nhóm tuổi hợp lệ cho năm học";
+        }
+        if (ageMonths < ageGroup.ageFromMonths() || ageMonths >= ageGroup.ageToMonths()) {
+            return "Trẻ " + ageMonths + " tháng tại đầu năm học không thuộc " + ageGroup.name();
+        }
+        return null;
+    }
+
     /** Lớp mới tính từ hôm nay (người xếp ghi ở enrollment). */
     void startEnrollment(Long childId, ClassroomInfoResponse to, Long actorId, LocalDate today) {
         enrollmentRepository.save(Enrollment.start(childId, to.id(), today, actorId));
@@ -76,6 +105,17 @@ class PlacementRules {
             Instant at,
             LocalDate today) {
         placementRepository.save(ChildPlacement.record(childId, fromClassroomId, to.id(), actorId, reason, at));
+        if (fromClassroomId != null) {
+            Set<Long> oldTeacherIds = new HashSet<>(staffAssignmentService
+                    .findCurrentTeacherIds(List.of(fromClassroomId), today)
+                    .getOrDefault(fromClassroomId, List.of()));
+            notificationService.notifyUsers(
+                    oldTeacherIds,
+                    NotificationType.CHILD_PLACED,
+                    "Trẻ chuyển lớp",
+                    childName + " chuyển sang " + to.name() + " từ ngày " + DAY.format(today) + ".",
+                    childId);
+        }
         Set<Long> teacherIds = new HashSet<>(staffAssignmentService
                 .findCurrentTeacherIds(List.of(to.id()), today)
                 .getOrDefault(to.id(), List.of()));
@@ -83,7 +123,9 @@ class PlacementRules {
                 teacherIds,
                 NotificationType.CHILD_PLACED,
                 "Lớp có trẻ mới",
-                childName + " đã được xếp vào " + to.name() + ".",
+                fromClassroomId == null
+                        ? childName + " đã được xếp vào " + to.name() + "."
+                        : childName + " chuyển vào lớp từ ngày " + DAY.format(today) + ".",
                 childId);
     }
 }

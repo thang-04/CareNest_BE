@@ -42,7 +42,8 @@ public final class ThemeEvaluationDtos {
             int met,
             int notMet,
             Integer rate,
-            Boolean passed) {}
+            Boolean passed,
+            Boolean historical) {}
 
     public record ThemeEvaluationResponse(
             Long classId,

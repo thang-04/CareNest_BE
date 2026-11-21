@@ -64,7 +64,7 @@ class EmailOutboxWorkerTest {
         Notification n = Notification.of(
                 userId,
                 NotificationType.EDU_RETURNED,
-                "Bị trả lại: Hồ sơ chủ đề Gia đình · Lớp Mầm 1",
+                "Bị trả lại: Kế hoạch giáo dục ngày Gia đình · Lớp Mầm 1",
                 "Cô B trả lại. Lý do: thiếu tuần 2",
                 null,
                 NOW,
@@ -102,7 +102,8 @@ class EmailOutboxWorkerTest {
         ArgumentCaptor<EmailMessage> sent = ArgumentCaptor.forClass(EmailMessage.class);
         verify(gateway).send(sent.capture());
         assertThat(sent.getValue().to()).containsExactly("gv@example.test");
-        assertThat(sent.getValue().subject()).isEqualTo("[CareNest] Bị trả lại: Hồ sơ chủ đề Gia đình · Lớp Mầm 1");
+        assertThat(sent.getValue().subject())
+                .isEqualTo("[CareNest] Bị trả lại: Kế hoạch giáo dục ngày Gia đình · Lớp Mầm 1");
         assertThat(sent.getValue().html())
                 .contains("https://web.carenest.test/education/class/3/themes/7")
                 .contains("Mở hồ sơ")

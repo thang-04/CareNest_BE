@@ -193,7 +193,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                         .toList();
         var children = to.isBefore(from)
                 ? List.<com.carenest.dto.child.ClassChildResponse>of()
-                : enrollment.findChildrenInClassroomDuring(classId, from, to);
+                // Một trẻ chỉ nằm trên bảng của lớp đang phụ trách tại cuối kỳ/đến hôm nay; dữ liệu lớp cũ vẫn được
+                // childThemeResults tổng hợp theo lịch sử học, tránh xuất hiện đồng thời ở hai lớp sau chuyển lớp.
+                : enrollment.findChildrenInClassroom(classId, to);
         // OBS-25 (Cần chốt 10/11/2026): MT học kỳ lấy từ kết quả cuối các chủ đề đã xong trong kỳ (≥50% chủ đề Đạt)
         Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results = new HashMap<>();
         children.forEach(

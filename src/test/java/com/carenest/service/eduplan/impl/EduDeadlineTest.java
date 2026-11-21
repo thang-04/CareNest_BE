@@ -6,7 +6,7 @@ import com.carenest.dto.organization.SchoolYearDetailResponse;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
-/** Spec 003 — hạn gói học kỳ / hồ sơ chủ đề (data-model "Hạn", quickstart Q1, Q2b; SC-001/002). */
+/** Spec 003 — hạn kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày (data-model "Hạn", quickstart Q1, Q2b; SC-001/002). */
 class EduDeadlineTest {
     private static final LocalDate HAN = LocalDate.of(2026, 11, 16);
 

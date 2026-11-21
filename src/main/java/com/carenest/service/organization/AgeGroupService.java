@@ -10,6 +10,9 @@ public interface AgeGroupService {
 
     List<AgeGroupDetailResponse> getAgeGroups();
 
+    /** Sáu nhóm tuổi chuẩn để HT chọn áp dụng cho năm học sắp diễn ra. */
+    List<AgeGroupDetailResponse> getStandardAgeGroupCatalog();
+
     AgeGroupDetailResponse createAgeGroup(CurrentUser currentUser, AgeGroupRequest request);
 
     AgeGroupDetailResponse updateAgeGroup(CurrentUser currentUser, Long ageGroupId, AgeGroupRequest request);

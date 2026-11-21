@@ -155,7 +155,7 @@ class ClassStructureIntegrationTest {
         AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
                 principal,
                 new AgeGroupRequest(
-                        "Nhà trẻ nhỏ", "NT nhỏ", 12, 24, List.of(MealSession.LUNCH, MealSession.MORNING), 15, ""));
+                        "Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH, MealSession.MORNING), 15, ""));
 
         assertThat(created.code()).startsWith("ag-");
         assertThat(created.mealSessions()).containsExactly(MealSession.MORNING, MealSession.LUNCH);
@@ -165,7 +165,7 @@ class ClassStructureIntegrationTest {
     @DisplayName("Lỗi xóa nhóm tuổi nêu năm học và tổ trưởng đang giữ nhóm (nhóm tuổi dùng chung mọi năm)")
     void deleteAgeGroupNamesYearAndLeader() {
         AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
-                principal, new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 12, 24, List.of(MealSession.LUNCH), 15, ""));
+                principal, new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH), 15, ""));
         long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
                 + "VALUES ('kc-leader', 'leader.it', 'Cô Tổ Trưởng') RETURNING id");
         jdbc.update(
@@ -183,10 +183,16 @@ class ClassStructureIntegrationTest {
     @Test
     @DisplayName("Cần chốt 22/10/2026: nhóm tuổi theo từng năm học, thêm / xóa ở năm nào chỉ năm đó đổi")
     void ageGroupsArePerSchoolYear() {
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
         long nextYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
-        ageGroupService.copyYearAgeGroups(null, year);
         ageGroupService.copyYearAgeGroups(year, nextYear);
+        long ag0 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-0'", Long.class);
+        jdbc.update(
+                "DELETE FROM school_year_age_group_members WHERE school_year_id IN (?, ?) AND age_group_id = ?",
+                year,
+                nextYear,
+                ag0);
         long ag5 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-5'", Long.class);
         long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
                 + "VALUES ('kc-leader5', 'leader5.it', 'Cô Lớp Lớn') RETURNING id");
@@ -200,7 +206,7 @@ class ClassStructureIntegrationTest {
         // Lỗi 2: thêm ở 2027-2028 không hiện ở 2026-2027
         AgeGroupDetailResponse added = ageGroupService.createAgeGroup(
                 principal,
-                new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 12, 24, List.of(MealSession.LUNCH), 15, ""),
+                new AgeGroupRequest("Tên client", "Tên tắt client", 0, 1, List.of(MealSession.LUNCH), 15, "", ag0),
                 nextYear);
         assertThat(ids(ageGroupService.getYearAgeGroups(nextYear))).contains(added.id());
         assertThat(ids(ageGroupService.getYearAgeGroups(year))).doesNotContain(added.id());
@@ -216,12 +222,14 @@ class ClassStructureIntegrationTest {
         // Thêm lại đúng tên nhóm đã có ở năm khác: dùng lại nhóm đó (giữ mã cho kế hoạch, thực đơn)
         String ag5Name = jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, ag5);
         AgeGroupDetailResponse reused = ageGroupService.createAgeGroup(
-                principal, new AgeGroupRequest(ag5Name, "x", 60, 72, List.of(MealSession.LUNCH), 30, ""), nextYear);
+                principal,
+                new AgeGroupRequest(ag5Name, "x", 60, 72, List.of(MealSession.LUNCH), 30, "", ag5),
+                nextYear);
         assertThat(reused.id()).isEqualTo(ag5);
         expectError(
                 () -> ageGroupService.createAgeGroup(
                         principal,
-                        new AgeGroupRequest(ag5Name, "x", 60, 72, List.of(MealSession.LUNCH), 30, ""),
+                        new AgeGroupRequest(ag5Name, "x", 60, 72, List.of(MealSession.LUNCH), 30, "", ag5),
                         nextYear),
                 ApiCode.CONFLICT);
     }

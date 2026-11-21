@@ -274,6 +274,16 @@ public enum ApiCode {
     CLASS_PLACED_AGE_GROUP_LOCKED(2216, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào, không đổi được nhóm tuổi"),
     CLASS_PLACED_CAMPUS_LOCKED(2217, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào, không đổi được điểm trường"),
     CLASS_HAS_PLACED_CHILDREN(2218, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào năm mới, không xóa được"),
+    AGE_GROUP_CREATE_YEAR_NOT_PLANNED(
+            2219, HttpStatus.CONFLICT, "Chỉ thêm nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
+    AGE_GROUP_STANDARD_REQUIRED(2220, HttpStatus.BAD_REQUEST, "Chọn nhóm tuổi chuẩn của Bộ Giáo dục"),
+    AGE_GROUP_STANDARD_INVALID(2221, HttpStatus.BAD_REQUEST, "Nhóm tuổi chuẩn không hợp lệ"),
+    AGE_GROUP_MAX_EXCEEDS_STANDARD(
+            2222, HttpStatus.BAD_REQUEST, "Sĩ số tối đa của {0} không được vượt quá {1} trẻ/lớp"),
+    AGE_GROUP_MEMBERSHIP_YEAR_NOT_PLANNED(
+            2223,
+            HttpStatus.CONFLICT,
+            "Chỉ thêm hoặc bỏ nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
 
     // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
     REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),
@@ -920,6 +930,10 @@ public enum ApiCode {
     EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
     SUBMIT_HOMEROOM_ONLY(7409, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được gửi duyệt"),
     CONFIRM_HOMEROOM_ONLY(7410, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được xác nhận đánh giá"),
+    // EDU-95: còn phần AI gợi ý chưa Giữ / Bỏ thì chưa gửi duyệt
+    AI_DRAFT_PENDING(7411, HttpStatus.CONFLICT, "Còn {0} ngày có phần AI gợi ý chưa Giữ / Bỏ"),
+    // EDU-97: REVIEW quá hạn phải được Hiệu trưởng mở lại trước khi xử lý tiếp.
+    EDU_REVIEW_DEADLINE_PASSED(7412, HttpStatus.CONFLICT, "Đã quá hạn duyệt, cần Hiệu trưởng mở lại hạn"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),

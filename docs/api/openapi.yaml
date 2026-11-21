@@ -420,6 +420,18 @@ paths:
           description: Created
       tags:
       - age-group-controller
+  /api/age-groups/catalog:
+    get:
+      operationId: getStandardAgeGroupCatalog
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAgeGroupDetailResponse"
+          description: OK
+      tags:
+      - age-group-controller
   /api/age-groups/{ageGroupId}:
     delete:
       operationId: deleteAgeGroup
@@ -4325,6 +4337,120 @@ paths:
           description: OK
       tags:
       - daily-health-controller
+  /api/education-plans/ai/activities:
+    post:
+      operationId: suggestActivities
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Activities"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListActivity"
+          description: OK
+      tags:
+      - edu-ai-controller
+  /api/education-plans/ai/branch-names:
+    post:
+      operationId: suggestBranchNames
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchNames"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonBranchNames"
+          description: OK
+      tags:
+      - edu-ai-controller
+  /api/education-plans/ai/branch-names/rewrite:
+    post:
+      operationId: rewriteBranchName
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewriteBranchName"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonBranchName"
+          description: OK
+      tags:
+      - edu-ai-controller
+  /api/education-plans/ai/class-docs/day/{docKey}/edit:
+    post:
+      operationId: editDay
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditDay"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayEdit"
+          description: OK
+      tags:
+      - edu-ai-controller
+  /api/education-plans/ai/class-docs/day/{docKey}/review:
+    post:
+      operationId: reviewDay
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayReview"
+          description: OK
+      tags:
+      - edu-ai-controller
+  /api/education-plans/ai/lesson-steps:
+    post:
+      operationId: suggestLessonSteps
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LessonSteps"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLessonSteps"
+          description: OK
+      tags:
+      - edu-ai-controller
   /api/education-plans/class-docs:
     get:
       operationId: getClassDocs
@@ -4730,6 +4856,26 @@ paths:
             schema:
               $ref: "#/components/schemas/ClassDocActionRequest"
         required: true
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
+  /api/education-plans/class-docs/{kind}/{docKey}/checks:
+    get:
+      operationId: getClassDocChecks
+      parameters:
+      - in: path
+        name: kind
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
       responses:
         "200":
           content: {}
@@ -5249,6 +5395,31 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/RequiredNote"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/review-deadline/reopen:
+    post:
+      operationId: reopenReviewDeadline
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearPlanReviewDeadlineReopenRequest"
         required: true
       responses:
         "200":
@@ -9962,6 +10133,21 @@ components:
           format: int64
         username:
           type: string
+    Activities:
+      type: object
+      properties:
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Goal"
+          maxItems: 60
+          minItems: 1
+        themeName:
+          type: string
+          maxLength: 200
+          minLength: 0
+      required:
+      - goals
     Activity:
       type: object
       properties:
@@ -10502,6 +10688,9 @@ components:
           type: string
           maxLength: 50
           minLength: 0
+        standardAgeGroupId:
+          type: integer
+          format: int64
       required:
       - ageFromMonths
       - ageToMonths
@@ -10512,6 +10701,12 @@ components:
     AgeGroupResponse:
       type: object
       properties:
+        ageFromMonths:
+          type: integer
+          format: int32
+        ageToMonths:
+          type: integer
+          format: int32
         code:
           type: string
         id:
@@ -11127,6 +11322,34 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Warning"
+    BranchName:
+      type: object
+      properties:
+        name:
+          type: string
+    BranchNames:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        taken:
+          type: array
+          items:
+            type: string
+            maxLength: 200
+            minLength: 0
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Theme"
+          maxItems: 40
+          minItems: 1
+      required:
+      - themes
     BranchSchedule:
       type: object
       properties:
@@ -11368,6 +11591,17 @@ components:
           type: boolean
         met:
           type: boolean
+    CellChange:
+      type: object
+      properties:
+        after:
+          type: string
+        before:
+          type: string
+        label:
+          type: string
+        path:
+          type: string
     CellInput:
       type: object
       properties:
@@ -12006,6 +12240,8 @@ components:
           format: date
         fullName:
           type: string
+        historical:
+          type: boolean
         met:
           type: integer
           format: int32
@@ -13239,6 +13475,13 @@ components:
         date:
           type: string
           format: date
+    DayEdit:
+      type: object
+      properties:
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/CellChange"
     DayHealth:
       type: object
       properties:
@@ -13448,6 +13691,17 @@ components:
         servings:
           type: integer
           format: int32
+    DayReview:
+      type: object
+      properties:
+        notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewNote"
+        summary:
+          type: array
+          items:
+            type: string
     DayRow:
       type: object
       properties:
@@ -14063,6 +14317,15 @@ components:
           format: date
         sameCampus:
           type: boolean
+    EditDay:
+      type: object
+      properties:
+        prompt:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - prompt
     EduConfigDomainResponse:
       type: object
       properties:
@@ -14093,6 +14356,16 @@ components:
             type: string
             maxLength: 150
             minLength: 0
+        lateApprovalGraceDays:
+          type: integer
+          format: int32
+          maximum: 30
+          minimum: 0
+        lateReturnGraceDays:
+          type: integer
+          format: int32
+          maximum: 30
+          minimum: 0
         signers:
           $ref: "#/components/schemas/Signers"
         weekRows:
@@ -14115,10 +14388,21 @@ components:
             $ref: "#/components/schemas/AgeGroupResponse"
         canConfigure:
           type: boolean
+        canConfigureDeadlines:
+          type: boolean
         domains:
           type: array
           items:
             $ref: "#/components/schemas/EduConfigDomainResponse"
+        lateApprovalGraceDays:
+          type: integer
+          format: int32
+        lateReturnGraceDays:
+          type: integer
+          format: int32
+        planDefaults:
+          type: object
+          additionalProperties: true
         schoolYearCreationScopes:
           type: array
           items:
@@ -15365,6 +15649,29 @@ components:
         periodTo:
           type: string
           format: date
+    Goal:
+      type: object
+      properties:
+        id:
+          type: string
+          minLength: 1
+        lines:
+          type: array
+          items:
+            type: string
+            maxLength: 1000
+            minLength: 0
+          maxItems: 20
+          minItems: 0
+        "no":
+          type: integer
+          format: int32
+        text:
+          type: string
+          maxLength: 1000
+          minLength: 0
+      required:
+      - id
     GoalColumn:
       type: object
       properties:
@@ -15434,6 +15741,8 @@ components:
         ageFromMonths:
           type: integer
           format: int32
+        ageGroupCode:
+          type: string
         ageToMonths:
           type: integer
           format: int32
@@ -17610,6 +17919,29 @@ components:
         toDate:
           type: string
           format: date
+    LessonSteps:
+      type: object
+      properties:
+        goals:
+          type: array
+          items:
+            type: string
+            maxLength: 500
+            minLength: 0
+          maxItems: 30
+          minItems: 0
+        subject:
+          type: string
+          maxLength: 200
+          minLength: 0
+        topics:
+          type: array
+          items:
+            type: string
+            maxLength: 500
+            minLength: 0
+          maxItems: 10
+          minItems: 0
     Levels:
       type: object
       properties:
@@ -20809,6 +21141,32 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonBranchName:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/BranchName"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonBranchNames:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/BranchNames"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonCampusDetailResponse:
       type: object
       properties:
@@ -21147,6 +21505,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonDayEdit:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayEdit"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonDayInfoResponse:
       type: object
       properties:
@@ -21168,6 +21539,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/DayMarketResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonDayReview:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayReview"
         desc:
           type: string
         errorCode:
@@ -21668,6 +22052,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonLessonSteps:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/LessonSteps"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListAccountPhotoUrlResponse:
       type: object
       properties:
@@ -21693,6 +22090,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ActivationResult"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListActivity:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
         desc:
           type: string
         errorCode:
@@ -23592,6 +24004,23 @@ components:
         errorCode:
           type: integer
           format: int32
+    ReviewDeadline:
+      type: object
+      properties:
+        canReopen:
+          type: boolean
+        isCurrentReviewer:
+          type: boolean
+        lockFrom:
+          type: string
+          format: date
+        locked:
+          type: boolean
+        reason:
+          type: string
+        reopenUntil:
+          type: string
+          format: date
     ReviewItem:
       type: object
       properties:
@@ -23616,6 +24045,15 @@ components:
         sourcePlanId:
           type: integer
           format: int64
+    ReviewNote:
+      type: object
+      properties:
+        label:
+          type: string
+        path:
+          type: string
+        text:
+          type: string
     ReviewResolutionRequest:
       type: object
       properties:
@@ -23833,6 +24271,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RewardItemRequest"
+    RewriteBranchName:
+      type: object
+      properties:
+        attempt:
+          type: integer
+          format: int32
+        classId:
+          type: integer
+          format: int64
+        name:
+          type: string
+          maxLength: 200
+          minLength: 0
+        themeName:
+          type: string
+          maxLength: 200
+          minLength: 0
+      required:
+      - name
     RolePermissionResponse:
       type: object
       properties:
@@ -25309,6 +25766,28 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Leader"
+    Theme:
+      type: object
+      properties:
+        festivals:
+          type: string
+          maxLength: 500
+          minLength: 0
+        id:
+          type: string
+        name:
+          type: string
+          maxLength: 200
+          minLength: 0
+        weeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Week"
+          maxItems: 10
+          minItems: 1
+      required:
+      - name
+      - weeks
     ThemeEvaluationRequest:
       type: object
       properties:
@@ -25479,9 +25958,15 @@ components:
           $ref: "#/components/schemas/TicketChild"
         eligible:
           type: boolean
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketEvidence"
         flagCount:
           type: integer
           format: int32
+        historical:
+          type: boolean
         issuedElsewhere:
           type: boolean
         presentDays:
@@ -25495,6 +25980,8 @@ components:
     TicketChild:
       type: object
       properties:
+        code:
+          type: string
         fullName:
           type: string
         id:
@@ -25508,6 +25995,23 @@ components:
           format: int64
         name:
           type: string
+    TicketEvidence:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        flagCount:
+          type: integer
+          format: int32
+        presentDays:
+          type: integer
+          format: int32
+        weeklyTickets:
+          type: integer
+          format: int32
     TicketOverviewResponse:
       type: object
       properties:
@@ -25624,9 +26128,15 @@ components:
       properties:
         child:
           $ref: "#/components/schemas/TicketChild"
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketEvidence"
         flags:
           type: integer
           format: int32
+        historical:
+          type: boolean
         monthly:
           type: integer
           format: int32
@@ -25653,6 +26163,9 @@ components:
       properties:
         canUnlock:
           type: boolean
+        daysLeft:
+          type: integer
+          format: int64
         deadline:
           type: string
           format: date
@@ -25661,6 +26174,11 @@ components:
         extendedTo:
           type: string
           format: date
+        graceTo:
+          type: string
+          format: date
+        reviewDeadline:
+          $ref: "#/components/schemas/ReviewDeadline"
         timeLocked:
           type: boolean
     Totals:
@@ -25975,6 +26493,17 @@ components:
         row:
           type: integer
           format: int32
+    Week:
+      type: object
+      properties:
+        "no":
+          type: integer
+          format: int32
+        start:
+          type: string
+          minLength: 1
+      required:
+      - start
     WeekData:
       type: object
       properties:
@@ -26121,6 +26650,8 @@ components:
           - MANUAL
         fullName:
           type: string
+        historical:
+          type: boolean
         reopened:
           type: boolean
         sentAt:
@@ -26672,6 +27203,8 @@ components:
           type: array
           items:
             type: string
+        returned:
+          type: boolean
         review:
           $ref: "#/components/schemas/EduReviewStateResponse"
         reviewItems:
@@ -26917,6 +27450,18 @@ components:
           minLength: 0
       required:
       - title
+    YearPlanReviewDeadlineReopenRequest:
+      type: object
+      properties:
+        deadline:
+          type: string
+          format: date
+        note:
+          type: string
+          minLength: 1
+      required:
+      - deadline
+      - note
     YearPlanSummaryResponse:
       type: object
       properties:
@@ -26966,6 +27511,8 @@ components:
           - TEAM
         planTypeLabel:
           type: string
+        returned:
+          type: boolean
         review:
           $ref: "#/components/schemas/EduReviewStateResponse"
         revision:

@@ -95,7 +95,7 @@ public class EduClassDocController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save class document success", saved);
     }
 
-    /** Spec 002 FR-018: xem lại một bản hồ sơ chủ đề đã ban hành trước đây. */
+    /** Spec 002 FR-018: xem lại một bản kế hoạch giáo dục ngày đã ban hành trước đây. */
     @GetMapping("/releases/{releaseId}")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ObjectNode>> getClassDocRelease(
@@ -106,6 +106,19 @@ public class EduClassDocController {
         ObjectNode release = classDocService.getClassDocRelease(currentUser, releaseId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class document release success", release);
+    }
+
+    /** EDU-96: tiêu chí gửi duyệt đạt / chưa đạt của kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày (khung Kiểm tra). */
+    @GetMapping("/{kind}/{docKey}/checks")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<ObjectNode>> getClassDocChecks(
+            @PathVariable String kind, @PathVariable String docKey, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getClassDocChecks|userId=" + currentUser.userId() + "|kind=" + kind
+                + "|docKey=" + docKey;
+        log.info("{}|START", logPrefix);
+        ObjectNode checks = classDocService.getClassDocChecks(currentUser, kind, docKey);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class document checks success", checks);
     }
 
     @PostMapping("/{kind}/{docKey}/actions")

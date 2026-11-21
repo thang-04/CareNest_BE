@@ -2,6 +2,7 @@ package com.carenest.dto.eduplan;
 
 import com.carenest.dto.organization.AgeGroupResponse;
 import com.carenest.dto.organization.SchoolYearResponse;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.Map;
 
@@ -19,7 +20,41 @@ public record EduConfigResponse(
         EduWorkflowPolicyResponse workflow,
         boolean canConfigure,
         List<Long> yearCreationScopes,
-        List<Long> schoolYearCreationScopes) {
+        List<Long> schoolYearCreationScopes,
+        int lateReturnGraceDays,
+        int lateApprovalGraceDays,
+        boolean canConfigureDeadlines,
+
+        @Schema(implementation = Map.class, additionalProperties = Schema.AdditionalPropertiesValue.TRUE)
+        tools.jackson.databind.JsonNode planDefaults) {
+    public EduConfigResponse(
+            List<Domain> domains,
+            List<SchoolYearResponse> schoolYears,
+            List<AgeGroupResponse> ageGroups,
+            Signers signers,
+            List<WeekRow> weekRows,
+            SignerNames signerNames,
+            EduWorkflowPolicyResponse workflow,
+            boolean canConfigure,
+            List<Long> yearCreationScopes,
+            List<Long> schoolYearCreationScopes) {
+        this(
+                domains,
+                schoolYears,
+                ageGroups,
+                signers,
+                weekRows,
+                signerNames,
+                workflow,
+                canConfigure,
+                yearCreationScopes,
+                schoolYearCreationScopes,
+                2,
+                2,
+                false,
+                null);
+    }
+
     public EduConfigResponse(
             List<Domain> domains,
             List<SchoolYearResponse> schoolYears,
@@ -57,7 +92,7 @@ public record EduConfigResponse(
     public record Domain(
             Long id, String name, String displayLabel, String shortLabel, Short sortOrder, boolean standard) {}
 
-    /** Vai trò ký theo thứ tự (TEAM_LEADER, VICE_PRINCIPAL, PRINCIPAL); week = hồ sơ chủ đề. */
+    /** Vai trò ký theo thứ tự (TEAM_LEADER, VICE_PRINCIPAL, PRINCIPAL); week = kế hoạch giáo dục ngày. */
     public record Signers(List<String> year, List<String> branch, List<String> week) {}
 
     /**

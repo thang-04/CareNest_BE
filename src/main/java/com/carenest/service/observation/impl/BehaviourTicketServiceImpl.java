@@ -7,6 +7,7 @@ import com.carenest.dto.observation.TicketDtos.TicketBoardResponse;
 import com.carenest.dto.observation.TicketDtos.TicketBoardRow;
 import com.carenest.dto.observation.TicketDtos.TicketChild;
 import com.carenest.dto.observation.TicketDtos.TicketClassRef;
+import com.carenest.dto.observation.TicketDtos.TicketEvidence;
 import com.carenest.dto.observation.TicketDtos.TicketOverviewResponse;
 import com.carenest.dto.observation.TicketDtos.TicketOverviewRow;
 import com.carenest.dto.observation.TicketDtos.TicketOverviewTotals;
@@ -41,6 +42,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -75,6 +77,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
     private final TicketParentNotifier ticketParentNotifier;
+    private final com.carenest.service.child.ChildService childService;
 
     /** Số ngày có mặt và số cờ (chỉ ngày có mặt) của từng trẻ trong một tuần. */
     private record WeekStats(Map<Long, Integer> present, Map<Long, Integer> flags) {}
@@ -214,21 +217,46 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
             LocalDate to = month != null ? month.with(TemporalAdjusters.lastDayOfMonth()) : cls.yearEnd();
             List<ClassChildResponse> children = rosterDuring(cls.id(), from, to, cls.yearStart(), cls.yearEnd());
             List<Long> ids = children.stream().map(ClassChildResponse::id).toList();
-            List<BehaviourTicket> tickets = ids.isEmpty()
+            Map<Long, String> childCodes = childService.findChildBriefs(ids).values().stream()
+                    .collect(Collectors.toMap(
+                            com.carenest.dto.child.ChildBriefResponse::id,
+                            com.carenest.dto.child.ChildBriefResponse::code));
+            List<BehaviourTicket> allTickets = ids.isEmpty()
                     ? List.of()
                     : ticketRepository
                             .findByChildIdInAndPeriodStartBetween(ids, month != null ? weekMondayFrom(month) : from, to)
                             .stream()
-                            .filter(t -> t.getClassroomId().equals(cls.id()))
                             .filter(t -> month == null || inMonth(t, month))
                             .toList();
+            List<BehaviourTicket> classTickets = allTickets.stream()
+                    .filter(t -> t.getClassroomId().equals(cls.id()))
+                    .toList();
             Map<Long, Integer> flags = flagCounts(cls.id(), ids, from, minDate(to, rules.today()));
+            Set<Long> endMembers =
+                    enrollmentService.findChildrenInClassroom(cls.id(), minDate(to, rules.today())).stream()
+                            .map(ClassChildResponse::id)
+                            .collect(Collectors.toSet());
             List<TicketSummaryRow> rows = children.stream()
-                    .map(c -> new TicketSummaryRow(
-                            new TicketChild(c.id(), c.fullName()),
-                            count(tickets, c.id(), TicketType.WEEKLY),
-                            count(tickets, c.id(), TicketType.MONTHLY),
-                            flags.getOrDefault(c.id(), 0)))
+                    .map(c -> {
+                        boolean historical = !endMembers.contains(c.id());
+                        List<TicketEvidence> evidence = evidenceOf(
+                                c.id(), from, minDate(to, rules.today()), month, historical ? cls.id() : null);
+                        // Trẻ đang ở lớp hiện tại được xem tổng phiếu/cờ đã có trong kỳ,
+                        // kể cả phần đã tích lũy ở lớp cũ. Lớp cũ chỉ xem số liệu lịch sử của mình.
+                        List<BehaviourTicket> ticketScope = historical ? classTickets : allTickets;
+                        int flagScope = historical
+                                ? flags.getOrDefault(c.id(), 0)
+                                : evidence.stream()
+                                        .mapToInt(TicketEvidence::flagCount)
+                                        .sum();
+                        return new TicketSummaryRow(
+                                new TicketChild(c.id(), c.fullName(), childCodes.get(c.id())),
+                                count(ticketScope, c.id(), TicketType.WEEKLY),
+                                count(ticketScope, c.id(), TicketType.MONTHLY),
+                                flagScope,
+                                evidence,
+                                historical);
+                    })
                     .toList();
             TicketSummaryTotals totals = new TicketSummaryTotals(
                     rows.stream().mapToInt(TicketSummaryRow::weekly).sum(),
@@ -444,6 +472,10 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                         .map(ClassChildResponse::id)
                         .collect(Collectors.toSet());
         List<Long> ids = children.stream().map(ClassChildResponse::id).toList();
+        Map<Long, String> childCodes = childService.findChildBriefs(ids).values().stream()
+                .collect(Collectors.toMap(
+                        com.carenest.dto.child.ChildBriefResponse::id,
+                        com.carenest.dto.child.ChildBriefResponse::code));
         if (ids.isEmpty()) {
             return List.of();
         }
@@ -457,13 +489,20 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                     Integer weeklyCount = week == null ? weekly.getOrDefault(c.id(), 0) : null;
                     BehaviourTicket t = issued.get(c.id());
                     return new TicketBoardRow(
-                            new TicketChild(c.id(), c.fullName()),
+                            new TicketChild(c.id(), c.fullName(), childCodes.get(c.id())),
                             present,
                             flags,
                             weeklyCount,
                             t == null && eligible(type, present, flags, weeklyCount),
                             t == null ? null : toIssued(t),
                             t != null && !t.getClassroomId().equals(cls.id()),
+                            evidenceOf(
+                                    c.id(),
+                                    period.start(),
+                                    period.end(),
+                                    type == TicketType.MONTHLY ? period.start() : null,
+                                    endMembers.contains(c.id()) ? null : cls.id()),
+                            !endMembers.contains(c.id()),
                             currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
                                     && rules.canRecordDay(currentUser, cls, period.end())
                                     && endMembers.contains(c.id()));
@@ -505,6 +544,57 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         return end.isBefore(start)
                 ? enrollmentService.findChildrenInClassroom(classId, start)
                 : enrollmentService.findChildrenInClassroomDuring(classId, start, end);
+    }
+
+    /** OBS-10: cờ và phiếu thuộc trẻ, nhưng bảng phải nêu lớp đã ghi nhận khi trẻ chuyển lớp. */
+    private List<TicketEvidence> evidenceOf(
+            Long childId, LocalDate from, LocalDate to, LocalDate month, Long historyClassId) {
+        if (to.isBefore(from)) {
+            return List.of();
+        }
+        Map<Long, Integer> present = new HashMap<>();
+        Map<Long, Integer> flags = new HashMap<>();
+        Map<Long, Integer> weeklyTickets = new HashMap<>();
+        Set<Long> classroomIds = enrollmentService.findChildStays(childId, from, to).stream()
+                .map(EnrollmentService.ChildClassStay::classroomId)
+                .filter(id -> historyClassId == null || historyClassId.equals(id))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (!classroomIds.isEmpty()) {
+            Set<String> presentDays = new HashSet<>();
+            attendanceService.findClassDays(classroomIds, from, to).stream()
+                    .filter(d -> d.childId().equals(childId) && d.status() == AttendanceStatus.PRESENT)
+                    .forEach(d -> {
+                        present.merge(d.classroomId(), 1, Integer::sum);
+                        presentDays.add(d.classroomId() + "|" + d.date());
+                    });
+            observationRepository.findByChildIdInAndDateBetween(List.of(childId), from, to).stream()
+                    .filter(o -> classroomIds.contains(o.getClassroomId())
+                            && Boolean.TRUE.equals(o.getFlag())
+                            && presentDays.contains(o.getClassroomId() + "|" + o.getDate()))
+                    .forEach(o -> flags.merge(o.getClassroomId(), 1, Integer::sum));
+        }
+        LocalDate ticketFrom = month != null ? weekMondayFrom(month) : from;
+        LocalDate ticketTo = month != null ? weekMondayTo(month) : to;
+        ticketRepository.findByChildIdInAndPeriodStartBetween(List.of(childId), ticketFrom, ticketTo).stream()
+                .filter(t -> t.getType() == TicketType.WEEKLY)
+                .filter(t -> month == null || inMonth(t, month))
+                .filter(t -> historyClassId == null || historyClassId.equals(t.getClassroomId()))
+                .forEach(t -> {
+                    classroomIds.add(t.getClassroomId());
+                    weeklyTickets.merge(t.getClassroomId(), 1, Integer::sum);
+                });
+        return classroomIds.stream()
+                .map(classId -> new TicketEvidence(
+                        classId,
+                        classroomService
+                                .findClassroomInfo(classId)
+                                .map(ClassroomInfoResponse::name)
+                                .orElse("Lớp đã lưu"),
+                        present.getOrDefault(classId, 0),
+                        flags.getOrDefault(classId, 0),
+                        weeklyTickets.getOrDefault(classId, 0)))
+                .sorted(Comparator.comparing(TicketEvidence::className))
+                .toList();
     }
 
     // Cờ của các ngày trẻ có mặt trong khoảng

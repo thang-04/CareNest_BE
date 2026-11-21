@@ -163,13 +163,20 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             checkCanPlace(currentUser);
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             Board board = loadBoard(setup);
-            Map<Long, Long> nextGroups = nextAgeGroups(setup.ageGroups());
-            Map<Long, Boolean> completion = graduatingCompletion(setup, board, nextGroups);
+            Map<Long, Boolean> completion = graduatingCompletion(setup, board);
             List<PlacementBoardResponse.SourceClass> classes = setup.sourceClasses().stream()
                     .filter(c -> placesCampus(currentUser, c.campusId()))
                     .map(c -> {
-                        Long next = nextGroups.get(c.ageGroupId());
-                        List<PlacementBoardResponse.ChildPlacement> children = board.childrenOf(c.id()).stream()
+                        List<Child> sourceChildren = board.childrenOf(c.id());
+                        List<Long> targetGroups = sourceChildren.stream()
+                                .map(child -> ageGroupOf(setup, child))
+                                .filter(Objects::nonNull)
+                                .distinct()
+                                .toList();
+                        Long next = targetGroups.size() == 1 ? targetGroups.getFirst() : null;
+                        boolean graduatingClass = !sourceChildren.isEmpty()
+                                && sourceChildren.stream().allMatch(child -> ageMonths(setup, child) >= 72);
+                        List<PlacementBoardResponse.ChildPlacement> children = sourceChildren.stream()
                                 .map(child -> new PlacementBoardResponse.ChildPlacement(
                                         child.getId(),
                                         null,
@@ -186,7 +193,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                                 c.campusId(),
                                 c.ageGroupId(),
                                 next,
-                                next == null && c.ageGroupId() != null,
+                                graduatingClass,
                                 next == null ? null : board.suggestTarget(c.campusId(), next),
                                 children);
                     })
@@ -254,7 +261,6 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             YearSetupResponse setup = checkPlanned(schoolYearId);
             Board board = loadBoard(setup);
             board.purgeStale();
-            Map<Long, Long> nextGroups = nextAgeGroups(setup.ageGroups());
             Map<Long, YearSetupResponse.SetupClass> targets = setup.classes().stream()
                     .collect(Collectors.toMap(YearSetupResponse.SetupClass::id, Function.identity()));
             for (SavePlacementsRequest.Item item : request.items()) {
@@ -269,11 +275,12 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 if (from.ageGroupId() == null && item.action() != PlacementAction.LEAVE) {
                     throw GlobalException.of(ApiCode.CLASS_WITHOUT_AGE_GROUP, from.name());
                 }
-                Long next = nextGroups.get(from.ageGroupId());
-                if (item.action() == PlacementAction.GRADUATE && next != null) {
+                Child child = board.children.get(item.childId());
+                Long targetAgeGroup = child == null ? null : ageGroupOf(setup, child);
+                if (item.action() == PlacementAction.GRADUATE && (child == null || ageMonths(setup, child) < 72)) {
                     throw GlobalException.of(ApiCode.GRADUATION_NOT_ALLOWED);
                 }
-                if (item.action() == PlacementAction.PROMOTE && next == null) {
+                if (item.action() == PlacementAction.PROMOTE && targetAgeGroup == null) {
                     throw GlobalException.of(ApiCode.OLDEST_GROUP_GRADUATE_OR_STAY);
                 }
                 if (item.action().keepsChildInClass()) {
@@ -284,7 +291,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     if (!placesCampus(currentUser, to.campusId())) {
                         throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
                     }
-                    Long wanted = item.action() == PlacementAction.PROMOTE ? next : from.ageGroupId();
+                    Long wanted = item.action() == PlacementAction.PROMOTE ? targetAgeGroup : from.ageGroupId();
                     if (!Objects.equals(to.ageGroupId(), wanted)) {
                         throw GlobalException.of(
                                 ApiCode.PLACEMENT_WRONG_AGE_GROUP, to.name(), actionLabel(item.action()));
@@ -350,13 +357,12 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             YearSetupResponse setup = checkPlanned(schoolYearId);
             Board board = loadBoard(setup);
             board.purgeStale();
-            Map<Long, Long> nextGroups = nextAgeGroups(setup.ageGroups());
             int promoted = 0;
             int graduated = 0;
             int undecided = 0;
             List<AutoPlaceResponse.Unplaced> unplaced = new ArrayList<>();
-            Map<Long, Boolean> completion = graduatingCompletion(setup, board, nextGroups);
-            // Cả lớp lên nhóm tuổi kế tiếp, vào lớp còn nhiều chỗ nhất; nhóm lớn nhất ra trường. Trẻ đã xếp giữ nguyên
+            Map<Long, Boolean> completion = graduatingCompletion(setup, board);
+            // Tính nhóm tuổi từng trẻ tại đầu năm mới; không suy từ thứ tự nhóm đang được trường áp dụng.
             for (YearSetupResponse.SetupClass from : setup.sourceClasses()) {
                 if (!placesCampus(currentUser, from.campusId())
                         || (request.campusId() != null && !request.campusId().equals(from.campusId()))
@@ -364,7 +370,6 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                                 && !request.ageGroupId().equals(from.ageGroupId()))) {
                     continue;
                 }
-                Long next = nextGroups.get(from.ageGroupId());
                 int left = 0;
                 // Lớp cũ chưa gán nhóm tuổi: không biết lên nhóm nào, để Hiệu trưởng xếp tay
                 boolean unknownGroup = from.ageGroupId() == null;
@@ -376,9 +381,10 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                         left++;
                         continue;
                     }
-                    if (next == null) {
+                    Long targetAgeGroup = ageGroupOf(setup, child);
+                    if (targetAgeGroup == null) {
                         // Chỉ trẻ đã hoàn thành chương trình tự ra trường; còn lại Hiệu trưởng chọn ra trường / ở lại
-                        if (Boolean.TRUE.equals(completion.get(child.getId()))) {
+                        if (ageMonths(setup, child) >= 72 && Boolean.TRUE.equals(completion.get(child.getId()))) {
                             board.place(child.getId(), from.id(), PlacementAction.GRADUATE, null, currentUser.userId());
                             graduated++;
                         } else {
@@ -386,7 +392,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                         }
                         continue;
                     }
-                    Long target = board.suggestTarget(from.campusId(), next);
+                    Long target = board.suggestTarget(from.campusId(), targetAgeGroup);
                     if (target == null) {
                         left++;
                         continue;
@@ -774,7 +780,6 @@ public class YearTransitionServiceImpl implements YearTransitionService {
 
     // Lớp năm mới vượt sĩ số tối đa hoặc không còn đúng nhóm tuổi so với bản xếp đã lưu
     private static List<String> placementMisfits(YearSetupResponse setup, Board board) {
-        Map<Long, Long> nextGroups = nextAgeGroups(setup.ageGroups());
         List<String> over = setup.classes().stream()
                 .filter(c -> c.capacity() != null && board.taken(c.id()) > c.capacity())
                 .map(c -> c.name() + " (" + board.taken(c.id()) + "/" + c.capacity() + ")")
@@ -789,8 +794,9 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     if (from == null || to == null) {
                         return true;
                     }
-                    Long wanted = p.getAction() == PlacementAction.PROMOTE
-                            ? nextGroups.get(from.ageGroupId())
+                    Child child = board.children.get(p.getChildId());
+                    Long wanted = p.getAction() == PlacementAction.PROMOTE && child != null
+                            ? ageGroupOf(setup, child)
                             : from.ageGroupId();
                     return !Objects.equals(to.ageGroupId(), wanted);
                 })
@@ -844,15 +850,6 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             case LEAVE -> "Nghỉ học";
             case GRADUATE -> "Ra trường";
         };
-    }
-
-    // Nhóm tuổi kế tiếp theo độ tuổi; nhóm lớn nhất không có nhóm kế tiếp (ra trường)
-    private static Map<Long, Long> nextAgeGroups(List<AgeGroupDetailResponse> ageGroups) {
-        Map<Long, Long> next = new HashMap<>();
-        for (int i = 0; i + 1 < ageGroups.size(); i++) {
-            next.put(ageGroups.get(i).id(), ageGroups.get(i + 1).id());
-        }
-        return next;
     }
 
     private YearSetupResponse checkPlanned(Long schoolYearId) {
@@ -930,13 +927,13 @@ public class YearTransitionServiceImpl implements YearTransitionService {
 
     /** Trạng thái xếp lớp trong một lần xử lý: trẻ của năm nguồn, kết quả đã xếp, chỗ đã dùng ở lớp năm mới. */
     // Kết quả hoàn thành chương trình của trẻ ở lớp nhóm tuổi lớn nhất (năm nguồn), từ đánh giá cuối năm
-    private Map<Long, Boolean> graduatingCompletion(YearSetupResponse setup, Board board, Map<Long, Long> nextGroups) {
+    private Map<Long, Boolean> graduatingCompletion(YearSetupResponse setup, Board board) {
         if (setup.sourceYear() == null || programCompletionLookups.isEmpty()) {
             return Map.of();
         }
         List<Long> childIds = setup.sourceClasses().stream()
-                .filter(c -> c.ageGroupId() != null && nextGroups.get(c.ageGroupId()) == null)
                 .flatMap(c -> board.childrenOf(c.id()).stream())
+                .filter(child -> ageMonths(setup, child) >= 72)
                 .map(Child::getId)
                 .toList();
         return programCompletionLookups
