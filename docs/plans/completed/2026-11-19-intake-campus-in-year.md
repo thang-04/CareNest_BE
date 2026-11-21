@@ -1,6 +1,6 @@
 ---
 title: Tiếp nhận theo năm học — điểm trường của năm, tuổi tối thiểu, xếp lớp trước kích hoạt
-status: approved     # user duyệt 22/11: "duyệt và hoàn thành tất cả các phase"
+status: done         # xong 2026-11-22: Phase 1–3; verify full chỉ lỗi ở test hẹn giờ của dev (MenuAiDraftIntegrationTest, dev sửa ở 29c45ef0), xem Progress log
 owner: Giáp
 jira: G94-180 / BE-FIX-10 (Phase 2: G94-433)
 branch: fix/G94-180-BE-FIX-10-school-year-scope   # tạo từ feature/G94-180-BE-FEAT-43-new-year-intake @3f0f9a25 (PR #84 chưa vào dev)
@@ -12,7 +12,7 @@ updated: 2026-11-22
 ---
 # Tiếp nhận theo năm học — BE
 
-Plan này làm các mục 1, 2, 5 trong bản phân tích 22/11 (code G94-180 lệch mô hình năm học của Cần). Mục 4, 6: `2026-11-22-health-year-scope.md`. Phần Web: `FE:docs/plans/active/2026-11-19-intake-campus-in-year.md`.
+Plan này làm các mục 1, 2, 5 trong bản phân tích 22/11 (code G94-180 lệch mô hình năm học của Cần). Mục 4, 6: `2026-11-22-health-year-scope.md`. Phần Web: `FE:docs/plans/completed/2026-11-19-intake-campus-in-year.md`.
 
 ## Context
 - **Mục 1:** kích hoạt năm bị chặn khi còn trẻ đã tiếp nhận chưa xếp lớp (`YearTransitionServiceImpl.java:723`, Cần chốt 19/11, BUG-43). Câu CHD-11 (`docs/business/BUSINESS_RULES.md:409`) vẫn ghi trẻ chưa có lớp thành "Chờ xếp lớp" khi kích hoạt. Nhánh PENDING ở `YearTransitionServiceImpl.java:502` không còn chạy tới.
@@ -138,4 +138,11 @@ Không còn.
 - Commit: `d9d15d07` (G94-433). Thêm dòng G94-180/CHD-13 vào `BUSINESS_RULES.md` ngay trong commit này.
 - Verify: `ChildEnrollmentControllerTest` 77/77, `ChildEnrollmentIntegrationTest` 50/50, `ChildEnrollmentImportMealColumnTest` 5/5, `EnrollmentFormValidatorTest` 11/11.
 ### 2026-11-22 — Phase 3 tài liệu
-- Commit: tài liệu CHD-02, CHD-11, ERROR_CONTRACT, child.md. Verify đầy đủ chạy chung sau plan sức khỏe (cùng nhánh).
+- Commit: `8ed38549` (tài liệu CHD-02, CHD-11, ERROR_CONTRACT, child.md). Verify đầy đủ chạy chung sau plan sức khỏe (cùng nhánh).
+### 2026-11-22 — Phase 3 verify, đóng plan
+- Verify `.\mvnw.cmd -q clean spotless:check verify` tại `0f78040a` (cùng nhánh với plan sức khỏe): Spotless sạch; 2229 test, 0 failure, 14 error, 2 skip.
+  - 14 error chỉ ở `MenuAiDraftIntegrationTest` (G94-200, nhánh này không sửa file thực đơn): tuần test cố định 16/11/2026 nhưng đồng hồ test chạy theo giờ thật, qua thứ Sáu 20/11 thì `MEAL_PLAN_WEEK_PAST`. Dev đã sửa ở `29c45ef0` (21/11, sau base `3f0f9a25`). Áp tạm `29c45ef0` (không commit): 30/30 pass.
+  - 2 skip là test AI chạy thật (`MenuAiLiveEvalTest`, `DishSimilarityLiveEvalTest`): chỉ chạy khi có biến môi trường `AI_LIVE_EVAL`, `AI_LIVE_EVAL_EMBEDDING`.
+  - `.\mvnw.cmd -q verify -DskipTests` (đóng gói) exit 0.
+- Nhánh không lấy `29c45ef0`: merge dev là có. Chưa push.
+- Plan chuyển sang `docs/plans/completed/`.

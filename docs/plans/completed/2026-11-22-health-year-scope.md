@@ -1,6 +1,6 @@
 ---
 title: Sức khỏe theo năm học — năm của đợt khám lưu lúc tạo, nhóm tuổi báo cáo theo năm
-status: approved     # user duyệt 22/11: "duyệt và hoàn thành tất cả các phase"
+status: done         # xong 2026-11-22: Phase 1–3; verify full chỉ lỗi ở test hẹn giờ của dev (MenuAiDraftIntegrationTest, dev sửa ở 29c45ef0), xem Progress log
 owner: Giáp
 jira: G94-180 / BE-FIX-10
 branch: fix/G94-180-BE-FIX-10-school-year-scope   # cùng nhánh với plan 2026-11-19-intake-campus-in-year
@@ -115,3 +115,11 @@ Không còn.
 - Commit: `7eeab932` (năm của đợt, V169), báo cáo theo nhóm tuổi của năm (commit kế tiếp).
 - Verify: `HealthCheckIntegrationTest` 25/25, `HealthCheckServiceImplTest` 6/6, `HealthExamIntegrationTest` 9/9, `HealthGrowthReportIntegrationTest` 6/6, `HealthGrowthLevelTest` 2/2, `HealthGrowthReportControllerTest` 8/8.
 - Khác plan: migration là V169 (V167, V168 đã có ở nhánh khác); test kích hoạt năm cần `entityManager.clear()` sau khi đổi trạng thái năm bằng SQL.
+### 2026-11-22 — Phase 3 done, đóng plan
+- Commit: `4ca6b15f` (báo cáo theo nhóm tuổi của năm), `0f78040a` (tài liệu HLT-08, HLT-20, health.md).
+- Verify `.\mvnw.cmd -q clean spotless:check verify` tại `0f78040a`: Spotless sạch; 2229 test, 0 failure, 14 error, 2 skip.
+  - 14 error chỉ ở `MenuAiDraftIntegrationTest` (G94-200, nhánh này không sửa file thực đơn): tuần test cố định 16/11/2026 nhưng đồng hồ test chạy theo giờ thật, qua thứ Sáu 20/11 thì `MEAL_PLAN_WEEK_PAST`. Dev đã sửa ở `29c45ef0` (21/11, sau base `3f0f9a25`). Áp tạm `29c45ef0` (không commit): 30/30 pass.
+  - 2 skip là test AI chạy thật (`MenuAiLiveEvalTest`, `DishSimilarityLiveEvalTest`): chỉ chạy khi có biến môi trường `AI_LIVE_EVAL`, `AI_LIVE_EVAL_EMBEDDING`.
+  - `.\mvnw.cmd -q verify -DskipTests` (đóng gói) exit 0.
+- Nhánh không lấy `29c45ef0`: merge dev là có. Chưa push.
+- Plan chuyển sang `docs/plans/completed/`.
