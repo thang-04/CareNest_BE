@@ -49,6 +49,17 @@ public class AgeGroupController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get age groups success", ageGroups);
     }
 
+    @GetMapping("/catalog")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<AgeGroupDetailResponse>>> getStandardAgeGroupCatalog(
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getStandardAgeGroupCatalog|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        List<AgeGroupDetailResponse> ageGroups = ageGroupService.getStandardAgeGroupCatalog();
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get standard age group catalog success", ageGroups);
+    }
+
     @PostMapping
     @PreAuthorize("hasRole('PRINCIPAL')")
     // Để OpenAPI ghi 201 khớp ApiCode.CREATED

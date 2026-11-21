@@ -147,14 +147,24 @@ class YearConfigPerYearIntegrationTest {
                 principal,
                 group,
                 new AgeGroupRequest(
-                        "Mẫu giáo bé mới", "MG bé", 36, 48, List.of(MealSession.LUNCH), 28, "Ghi chú năm sau"),
+                        "Tên gửi từ client bị bỏ qua",
+                        "Tên tắt gửi từ client bị bỏ qua",
+                        0,
+                        1,
+                        List.of(MealSession.LUNCH),
+                        24,
+                        "Ghi chú năm sau"),
                 planned);
 
-        assertThat(updated.maxClassSize()).isEqualTo(28);
+        assertThat(updated.maxClassSize()).isEqualTo(24);
         assertThat(ageGroupService.getYearAgeGroups(planned))
                 .filteredOn(g -> g.id().equals(group))
-                .extracting(AgeGroupDetailResponse::name, AgeGroupDetailResponse::ageToMonths)
-                .containsExactly(org.assertj.core.groups.Tuple.tuple("Mẫu giáo bé mới", 48));
+                .extracting(
+                        AgeGroupDetailResponse::name,
+                        AgeGroupDetailResponse::ageFromMonths,
+                        AgeGroupDetailResponse::ageToMonths,
+                        AgeGroupDetailResponse::maxClassSize)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("Mẫu giáo 3–4 tuổi", 36, 48, 24));
         assertThat(ageGroupService.getYearAgeGroups(active))
                 .filteredOn(g -> g.id().equals(group))
                 .extracting(AgeGroupDetailResponse::name)
@@ -162,10 +172,12 @@ class YearConfigPerYearIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, group))
                 .isEqualTo(before);
 
-        // Kích hoạt năm mới: bảng chung nhận thông tin của năm đó
+        // Kích hoạt năm mới: bảng chung nhận cấu hình vận hành của năm đó, nhưng tên/khoảng tuổi vẫn theo chuẩn Bộ.
         ageGroupRepository.applyYearInfo(planned);
         assertThat(jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, group))
-                .isEqualTo("Mẫu giáo bé mới");
+                .isEqualTo("Mẫu giáo 3–4 tuổi");
+        assertThat(jdbc.queryForObject("SELECT max_class_size FROM age_groups WHERE id = ?", Integer.class, group))
+                .isEqualTo(24);
     }
 
     @Test
@@ -174,15 +186,15 @@ class YearConfigPerYearIntegrationTest {
         ageGroupService.updateAgeGroup(
                 principal,
                 group,
-                new AgeGroupRequest("Mẫu giáo bé", "MG bé", 36, 48, List.of(MealSession.LUNCH), 26, ""),
+                new AgeGroupRequest("Mẫu giáo bé", "MG bé", 36, 48, List.of(MealSession.LUNCH), 24, ""),
                 active);
 
         assertThat(jdbc.queryForObject("SELECT max_class_size FROM age_groups WHERE id = ?", Integer.class, group))
-                .isEqualTo(26);
+                .isEqualTo(24);
         assertThat(ageGroupService.getYearAgeGroups(planned))
                 .filteredOn(g -> g.id().equals(group))
                 .extracting(AgeGroupDetailResponse::maxClassSize)
-                .doesNotContain(26);
+                .doesNotContain(24);
     }
 
     @Test

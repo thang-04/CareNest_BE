@@ -159,6 +159,7 @@ class ChildRecordServiceImplTest {
                 .willReturn(List.of(enrollment));
         given(enrollmentRepository.findOpenByChildId(CHILD_ID, TODAY)).willReturn(List.of(enrollment));
         given(classroomService.findCampusId(CLASS_ID)).willReturn(Optional.of(CAMPUS_ID));
+        given(classroomService.findClassroomInfo(CLASS_ID)).willReturn(Optional.of(classroom(CLASS_ID, "Lớp Chồi 1")));
         given(assignmentService.findCurrentTeacherIds(List.of(CLASS_ID), TODAY))
                 .willReturn(Map.of(CLASS_ID, List.of(7L, 8L)));
     }
@@ -248,7 +249,8 @@ class ChildRecordServiceImplTest {
 
         given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
         given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(classroom(11L, "Lớp Chồi 2")));
-        given(placementRules.classProblem(any(), any(), any())).willReturn("Lớp Chồi 2 đã đủ 25 trẻ. Chọn lớp khác.");
+        given(placementRules.classProblem(any(), any(), any(), any()))
+                .willReturn("Lớp Chồi 2 đã đủ 25 trẻ. Chọn lớp khác.");
         expectFields(new com.carenest.dto.child.PlaceChildRequest(11L, "x".repeat(301)), "classId", "reason");
         verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
     }

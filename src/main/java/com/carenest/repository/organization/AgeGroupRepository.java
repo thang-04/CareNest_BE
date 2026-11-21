@@ -12,6 +12,8 @@ public interface AgeGroupRepository extends JpaRepository<AgeGroup, Long> {
 
     List<AgeGroup> findAllByOrderBySortOrderAsc();
 
+    List<AgeGroup> findAllByStandardGroupTrueOrderBySortOrderAsc();
+
     boolean existsByCode(String code);
 
     Optional<AgeGroup> findFirstByNameIgnoreCase(String name);

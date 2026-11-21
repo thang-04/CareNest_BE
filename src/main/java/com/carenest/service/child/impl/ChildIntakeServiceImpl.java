@@ -590,7 +590,10 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     classroomService.findClassroomInfo(classId).orElse(null);
             String problem = planned
                     ? plannedClassProblem(actor, classroom, targetYear.id())
-                    : placementRules.classProblem(actor, classroom, today);
+                    : placementRules.classProblem(actor, classroom, today, draft.dateOfBirth());
+            if (problem == null && planned) {
+                problem = placementRules.ageGroupProblem(classroom, draft.dateOfBirth());
+            }
             if (problem != null) {
                 throw fieldError("classId", problem);
             }

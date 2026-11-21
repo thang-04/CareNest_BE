@@ -358,7 +358,14 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 errors.put("classId", "Trẻ chưa có khai báo sức khỏe. Khai báo trước khi xếp lớp.");
             } else {
                 target = classroomService.findClassroomInfo(classId).orElse(null);
-                String problem = placementRules.classProblem(actor, target, today);
+                String problem = placementRules.classProblem(actor, target, today, child.getDateOfBirth());
+                if (problem == null && fromClassroomId != null) {
+                    ClassroomInfoResponse source =
+                            classroomService.findClassroomInfo(fromClassroomId).orElse(null);
+                    if (source == null || !Objects.equals(source.ageGroupId(), target.ageGroupId())) {
+                        problem = "Trong cùng năm học, trẻ chỉ được chuyển sang lớp cùng nhóm tuổi";
+                    }
+                }
                 if (problem != null) {
                     errors.put("classId", problem);
                 }

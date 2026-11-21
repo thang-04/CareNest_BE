@@ -420,6 +420,18 @@ paths:
           description: Created
       tags:
       - age-group-controller
+  /api/age-groups/catalog:
+    get:
+      operationId: getStandardAgeGroupCatalog
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAgeGroupDetailResponse"
+          description: OK
+      tags:
+      - age-group-controller
   /api/age-groups/{ageGroupId}:
     delete:
       operationId: deleteAgeGroup
@@ -10676,6 +10688,9 @@ components:
           type: string
           maxLength: 50
           minLength: 0
+        standardAgeGroupId:
+          type: integer
+          format: int64
       required:
       - ageFromMonths
       - ageToMonths

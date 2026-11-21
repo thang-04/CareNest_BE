@@ -276,6 +276,14 @@ public enum ApiCode {
     CLASS_HAS_PLACED_CHILDREN(2218, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào năm mới, không xóa được"),
     AGE_GROUP_CREATE_YEAR_NOT_PLANNED(
             2219, HttpStatus.CONFLICT, "Chỉ thêm nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
+    AGE_GROUP_STANDARD_REQUIRED(2220, HttpStatus.BAD_REQUEST, "Chọn nhóm tuổi chuẩn của Bộ Giáo dục"),
+    AGE_GROUP_STANDARD_INVALID(2221, HttpStatus.BAD_REQUEST, "Nhóm tuổi chuẩn không hợp lệ"),
+    AGE_GROUP_MAX_EXCEEDS_STANDARD(
+            2222, HttpStatus.BAD_REQUEST, "Sĩ số tối đa của {0} không được vượt quá {1} trẻ/lớp"),
+    AGE_GROUP_MEMBERSHIP_YEAR_NOT_PLANNED(
+            2223,
+            HttpStatus.CONFLICT,
+            "Chỉ thêm hoặc bỏ nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
 
     // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
     REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),
