@@ -29,9 +29,6 @@ import com.carenest.entity.child.ChildPlacement;
 import com.carenest.entity.child.ChildProfile;
 import com.carenest.entity.child.Enrollment;
 import com.carenest.exception.GlobalException;
-import com.carenest.repository.attendance.AttendanceRecordRepository;
-import com.carenest.repository.attendance.DailyHealthEntryRepository;
-import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.repository.child.ChildAllergyRepository;
 import com.carenest.repository.child.ChildGuardianRepository;
 import com.carenest.repository.child.ChildHealthDeclarationHistoryRepository;
@@ -41,8 +38,6 @@ import com.carenest.repository.child.ChildPlacementRepository;
 import com.carenest.repository.child.ChildProfileRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.EnrollmentRepository;
-import com.carenest.repository.observation.DailyActivityResultRepository;
-import com.carenest.repository.observation.DailyObservationRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
@@ -117,11 +112,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final ChildPlacementRepository placementRepository;
     private final PlacementRules placementRules;
     private final com.carenest.repository.child.PlannedAdmissionRepository plannedAdmissionRepository;
-    private final AttendanceRecordRepository attendanceRecordRepository;
-    private final DailyHealthEntryRepository dailyHealthEntryRepository;
-    private final PickupRecordRepository pickupRecordRepository;
-    private final DailyObservationRepository dailyObservationRepository;
-    private final DailyActivityResultRepository dailyActivityResultRepository;
+    private final List<com.carenest.service.child.ChildDayUsageCheck> dayUsageChecks;
     private final SchoolYearService schoolYearService;
 
     @Override
@@ -610,22 +601,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     }
 
     private boolean hasDailyOperationalData(Long childId, LocalDate date) {
-        List<Long> childIds = List.of(childId);
-        return !attendanceRecordRepository
-                        .findByChildIdInAndDate(childIds, date)
-                        .isEmpty()
-                || !dailyHealthEntryRepository
-                        .findByChildIdAndDateOrderByRecordedAtDescIdDesc(childId, date)
-                        .isEmpty()
-                || !pickupRecordRepository
-                        .findByChildIdInAndDateOrderByRecordedAtAscIdAsc(childIds, date)
-                        .isEmpty()
-                || !dailyObservationRepository
-                        .findByChildIdInAndDate(childIds, date)
-                        .isEmpty()
-                || !dailyActivityResultRepository
-                        .findByChildIdInAndDate(childIds, date)
-                        .isEmpty();
+        return dayUsageChecks.stream().anyMatch(check -> check.hasData(childId, date));
     }
 
     @Override

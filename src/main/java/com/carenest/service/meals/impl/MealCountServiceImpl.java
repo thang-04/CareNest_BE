@@ -212,7 +212,8 @@ public class MealCountServiceImpl implements MealCountService {
             LocalDate day = date == null ? LocalDate.now(clock) : date;
             // Cùng cách kiểm lớp với màn điểm danh: không xem được lớp ⇒ CLASS_ACCESS_DENIED (403)
             DayInfoResponse info = attendanceService.getDayInfo(currentUser, day, classId);
-            ClassroomInfoResponse requestedClass = classroomService.findClassroomInfo(classId).orElse(null);
+            ClassroomInfoResponse requestedClass =
+                    classroomService.findClassroomInfo(classId).orElse(null);
             Year year = requestedClass == null ? null : year(requestedClass.schoolYearId());
             ClassroomInfoResponse cls = year == null ? null : year.classById().get(classId);
             List<ClassMealCountResponse.Meal> meals = new ArrayList<>();

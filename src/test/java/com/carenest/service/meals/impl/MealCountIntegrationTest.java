@@ -117,20 +117,28 @@ class MealCountIntegrationTest {
     void activeYearAfterItsEndDoesNotCreateMealBooks() {
         clock.now = Instant.parse("2027-06-01T03:00:00Z");
         long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
-        assertThat(service.getMealCounts(principal, LocalDate.of(2027, 6, 1), year).counts()).isEmpty();
+        assertThat(service.getMealCounts(principal, LocalDate.of(2027, 6, 1), year)
+                        .counts())
+                .isEmpty();
         service.aggregateLockedDay();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_counts WHERE date = '2027-06-01'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_counts WHERE date = '2027-06-01'", Integer.class))
+                .isZero();
     }
 
     @Test
     void selectedClosedYearUsesOwnCutoffAndClassMealHistory() {
-        long oldYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
+        long oldYear = insertId(
+                "INSERT INTO school_years (name, start_date, end_date, status) VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
         long group = jdbc.queryForObject("SELECT age_group_id FROM classrooms WHERE id = ?", Long.class, classA);
-        long oldClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusA + ", " + oldYear + ", 'Lớp cũ', " + group + ") RETURNING id");
-        jdbc.update("INSERT INTO attendance_cutoffs (school_year_id, cutoff_time, effective_from) VALUES (?, '07:45', '2025-09-01')", oldYear);
+        long oldClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
+                + campusA + ", " + oldYear + ", 'Lớp cũ', " + group + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO attendance_cutoffs (school_year_id, cutoff_time, effective_from) VALUES (?, '07:45', '2025-09-01')",
+                oldYear);
         var day = LocalDate.of(2026, 5, 20);
         assertThat(service.getMealCounts(principal, day, oldYear).cutoff()).isEqualTo("07:45");
-        assertThat(service.getClassMealCount(principal, oldClass, day).className()).isEqualTo("Lớp cũ");
+        assertThat(service.getClassMealCount(principal, oldClass, day).className())
+                .isEqualTo("Lớp cũ");
     }
 
     @BeforeEach

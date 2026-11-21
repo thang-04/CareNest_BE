@@ -156,7 +156,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|getYearDayInfo|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            var reference = classroomService.findYearClassrooms(schoolYearId).stream().findFirst().orElse(null);
+            var reference = classroomService.findYearClassrooms(schoolYearId).stream()
+                    .findFirst()
+                    .orElse(null);
             var response = rules.dayInfo(date, null, reference);
             log.info("{}|END", logPrefix);
             return response;

@@ -12236,6 +12236,8 @@ components:
           format: date
         fullName:
           type: string
+        historical:
+          type: boolean
         met:
           type: integer
           format: int32
@@ -25909,9 +25911,15 @@ components:
           $ref: "#/components/schemas/TicketChild"
         eligible:
           type: boolean
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketEvidence"
         flagCount:
           type: integer
           format: int32
+        historical:
+          type: boolean
         issuedElsewhere:
           type: boolean
         presentDays:
@@ -25925,6 +25933,8 @@ components:
     TicketChild:
       type: object
       properties:
+        code:
+          type: string
         fullName:
           type: string
         id:
@@ -25938,6 +25948,23 @@ components:
           format: int64
         name:
           type: string
+    TicketEvidence:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        flagCount:
+          type: integer
+          format: int32
+        presentDays:
+          type: integer
+          format: int32
+        weeklyTickets:
+          type: integer
+          format: int32
     TicketOverviewResponse:
       type: object
       properties:
@@ -26054,9 +26081,15 @@ components:
       properties:
         child:
           $ref: "#/components/schemas/TicketChild"
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/TicketEvidence"
         flags:
           type: integer
           format: int32
+        historical:
+          type: boolean
         monthly:
           type: integer
           format: int32
@@ -26570,6 +26603,8 @@ components:
           - MANUAL
         fullName:
           type: string
+        historical:
+          type: boolean
         reopened:
           type: boolean
         sentAt:

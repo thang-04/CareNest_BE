@@ -491,10 +491,14 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             var cls = rules.findClass(saved.getClassroomId());
             LocalDate at = rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today();
             Set<Long> current = enrollmentService.findChildrenInClassroom(cls.id(), at).stream()
-                    .map(ClassChildResponse::id).collect(Collectors.toSet());
+                    .map(ClassChildResponse::id)
+                    .collect(Collectors.toSet());
             // Nhãn hiện tại không thay đổi kết quả/số liệu đã chốt trong snapshot.
-            node.path("rows").forEach(row -> ((tools.jackson.databind.node.ObjectNode) row)
-                    .put("historical", !current.contains(row.path("childId").asLong())));
+            node.path("rows")
+                    .forEach(row -> ((tools.jackson.databind.node.ObjectNode) row)
+                            .put(
+                                    "historical",
+                                    !current.contains(row.path("childId").asLong())));
         }
         return node.has("themeId") ? objectMapper.treeToValue(node, ThemeEvaluationResponse.class) : null;
     }
@@ -752,9 +756,12 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         Map<Long, int[]> perGoal = new HashMap<>();
         int passed = 0;
         int notPassed = 0;
-        Set<Long> currentChildren = enrollmentService.findChildrenInClassroom(
-                        cls.id(), today.isAfter(cls.yearEnd()) ? cls.yearEnd() : today).stream()
-                .map(ClassChildResponse::id).collect(Collectors.toSet());
+        Set<Long> currentChildren =
+                enrollmentService
+                        .findChildrenInClassroom(cls.id(), today.isAfter(cls.yearEnd()) ? cls.yearEnd() : today)
+                        .stream()
+                        .map(ClassChildResponse::id)
+                        .collect(Collectors.toSet());
         for (ClassChildResponse child : matrix.children()) {
             List<Cell> cells = new ArrayList<>();
             int met = 0;

@@ -77,7 +77,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
     private final TicketParentNotifier ticketParentNotifier;
-    private final com.carenest.repository.child.ChildRepository childRepository;
+    private final com.carenest.service.child.ChildService childService;
 
     /** Số ngày có mặt và số cờ (chỉ ngày có mặt) của từng trẻ trong một tuần. */
     private record WeekStats(Map<Long, Integer> present, Map<Long, Integer> flags) {}
@@ -217,8 +217,10 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
             LocalDate to = month != null ? month.with(TemporalAdjusters.lastDayOfMonth()) : cls.yearEnd();
             List<ClassChildResponse> children = rosterDuring(cls.id(), from, to, cls.yearStart(), cls.yearEnd());
             List<Long> ids = children.stream().map(ClassChildResponse::id).toList();
-            Map<Long, String> childCodes = childRepository.findAllById(ids).stream()
-                    .collect(Collectors.toMap(com.carenest.entity.child.Child::getId, com.carenest.entity.child.Child::getCode));
+            Map<Long, String> childCodes = childService.findChildBriefs(ids).values().stream()
+                    .collect(Collectors.toMap(
+                            com.carenest.dto.child.ChildBriefResponse::id,
+                            com.carenest.dto.child.ChildBriefResponse::code));
             List<BehaviourTicket> allTickets = ids.isEmpty()
                     ? List.of()
                     : ticketRepository
@@ -230,23 +232,23 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                     .filter(t -> t.getClassroomId().equals(cls.id()))
                     .toList();
             Map<Long, Integer> flags = flagCounts(cls.id(), ids, from, minDate(to, rules.today()));
-            Set<Long> endMembers = enrollmentService
-                    .findChildrenInClassroom(cls.id(), minDate(to, rules.today()))
-                    .stream()
-                    .map(ClassChildResponse::id)
-                    .collect(Collectors.toSet());
+            Set<Long> endMembers =
+                    enrollmentService.findChildrenInClassroom(cls.id(), minDate(to, rules.today())).stream()
+                            .map(ClassChildResponse::id)
+                            .collect(Collectors.toSet());
             List<TicketSummaryRow> rows = children.stream()
                     .map(c -> {
                         boolean historical = !endMembers.contains(c.id());
-                        List<TicketEvidence> evidence =
-                                evidenceOf(c.id(), from, minDate(to, rules.today()), month,
-                                        historical ? cls.id() : null);
+                        List<TicketEvidence> evidence = evidenceOf(
+                                c.id(), from, minDate(to, rules.today()), month, historical ? cls.id() : null);
                         // Trẻ đang ở lớp hiện tại được xem tổng phiếu/cờ đã có trong kỳ,
                         // kể cả phần đã tích lũy ở lớp cũ. Lớp cũ chỉ xem số liệu lịch sử của mình.
                         List<BehaviourTicket> ticketScope = historical ? classTickets : allTickets;
                         int flagScope = historical
                                 ? flags.getOrDefault(c.id(), 0)
-                                : evidence.stream().mapToInt(TicketEvidence::flagCount).sum();
+                                : evidence.stream()
+                                        .mapToInt(TicketEvidence::flagCount)
+                                        .sum();
                         return new TicketSummaryRow(
                                 new TicketChild(c.id(), c.fullName(), childCodes.get(c.id())),
                                 count(ticketScope, c.id(), TicketType.WEEKLY),
@@ -470,8 +472,10 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                         .map(ClassChildResponse::id)
                         .collect(Collectors.toSet());
         List<Long> ids = children.stream().map(ClassChildResponse::id).toList();
-        Map<Long, String> childCodes = childRepository.findAllById(ids).stream()
-                .collect(Collectors.toMap(com.carenest.entity.child.Child::getId, com.carenest.entity.child.Child::getCode));
+        Map<Long, String> childCodes = childService.findChildBriefs(ids).values().stream()
+                .collect(Collectors.toMap(
+                        com.carenest.dto.child.ChildBriefResponse::id,
+                        com.carenest.dto.child.ChildBriefResponse::code));
         if (ids.isEmpty()) {
             return List.of();
         }
@@ -492,7 +496,10 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             t == null && eligible(type, present, flags, weeklyCount),
                             t == null ? null : toIssued(t),
                             t != null && !t.getClassroomId().equals(cls.id()),
-                            evidenceOf(c.id(), period.start(), period.end(),
+                            evidenceOf(
+                                    c.id(),
+                                    period.start(),
+                                    period.end(),
                                     type == TicketType.MONTHLY ? period.start() : null,
                                     endMembers.contains(c.id()) ? null : cls.id()),
                             !endMembers.contains(c.id()),
@@ -540,7 +547,8 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
     }
 
     /** OBS-10: cờ và phiếu thuộc trẻ, nhưng bảng phải nêu lớp đã ghi nhận khi trẻ chuyển lớp. */
-    private List<TicketEvidence> evidenceOf(Long childId, LocalDate from, LocalDate to, LocalDate month, Long historyClassId) {
+    private List<TicketEvidence> evidenceOf(
+            Long childId, LocalDate from, LocalDate to, LocalDate month, Long historyClassId) {
         if (to.isBefore(from)) {
             return List.of();
         }
@@ -578,7 +586,10 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         return classroomIds.stream()
                 .map(classId -> new TicketEvidence(
                         classId,
-                        classroomService.findClassroomInfo(classId).map(ClassroomInfoResponse::name).orElse("Lớp đã lưu"),
+                        classroomService
+                                .findClassroomInfo(classId)
+                                .map(ClassroomInfoResponse::name)
+                                .orElse("Lớp đã lưu"),
                         present.getOrDefault(classId, 0),
                         flags.getOrDefault(classId, 0),
                         weeklyTickets.getOrDefault(classId, 0)))

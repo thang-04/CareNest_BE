@@ -644,8 +644,9 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     }
 
     private WeeklyComment editableComment(CurrentUser user, ClassroomInfoResponse cls, Long childId, LocalDate week) {
-        WeeklyComment comment =
-                commentRepository.findByClassroomIdAndChildIdAndWeekStart(cls.id(), childId, week).orElse(null);
+        WeeklyComment comment = commentRepository
+                .findByClassroomIdAndChildIdAndWeekStart(cls.id(), childId, week)
+                .orElse(null);
         if (comment == null) {
             return WeeklyComment.create(
                     childId, cls.id(), cls.campusId(), cls.schoolYearId(), week, user.userId(), rules.now());
@@ -715,7 +716,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
 
     private Set<Long> currentChildren(ClassroomInfoResponse cls) {
         return enrollmentService.findChildrenInClassroom(cls.id(), min(rules.today(), cls.yearEnd())).stream()
-                .map(ClassChildResponse::id).collect(Collectors.toSet());
+                .map(ClassChildResponse::id)
+                .collect(Collectors.toSet());
     }
 
     private void checkCurrentChild(ClassroomInfoResponse cls, Long childId) {

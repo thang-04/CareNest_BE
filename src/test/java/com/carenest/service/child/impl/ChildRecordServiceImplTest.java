@@ -133,11 +133,11 @@ class ChildRecordServiceImplTest {
             placementRepository,
             placementRules,
             org.mockito.Mockito.mock(com.carenest.repository.child.PlannedAdmissionRepository.class),
-            attendanceRecordRepository,
-            dailyHealthEntryRepository,
-            pickupRecordRepository,
-            dailyObservationRepository,
-            dailyActivityResultRepository,
+            List.of(
+                    new com.carenest.service.attendance.impl.AttendanceChildDayUsageCheck(
+                            attendanceRecordRepository, dailyHealthEntryRepository, pickupRecordRepository),
+                    new com.carenest.service.observation.impl.AssessmentChildDayUsageCheck(
+                            dailyObservationRepository, dailyActivityResultRepository)),
             schoolYearService);
 
     private Child child;

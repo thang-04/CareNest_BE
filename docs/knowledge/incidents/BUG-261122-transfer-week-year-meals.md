@@ -28,6 +28,21 @@ Status: fixed (2026-11-22)
 ## Attempts
 1. Dùng getDayInfo theo lớp đại diện: test phát hiện tài khoản có quyền sổ ăn nhưng không có quyền lớp bị 403.
 2. Tách getYearDayInfo dùng nội bộ sau kiểm quyền sổ ăn: 21 test sổ ăn đạt.
+3. CI toàn bộ phát hiện child gọi trực tiếp repository attendance/observation và ticket gọi repository child.
+   Tách port ChildDayUsageCheck, các module tự đọc repository của mình; mã trẻ đọc qua ChildService.
+4. CI phát hiện fixture xếp lớp thiếu nhóm tuổi của năm; bổ sung dữ liệu nhóm 4–5 phù hợp trẻ trong test xếp lớp.
+5. FE check-design chặn AgeGroupFormModal: chuyển các ô chỉ đọc sang TextField, không tăng baseline.
+6. Seed nhận xét tuần còn trỏ khóa cũ sau V168; chỉ sửa ON CONFLICT của weekly_comments trong R__dev_05.
+
+## Kiểm chứng CI trong phạm vi (22/11/2026)
+- ArchitectureRulesTest 14/14, ChildRecordServiceImplTest 21/21, AssessmentContinuityIntegrationTest 4/4.
+- ChildPlacementListIntegrationTest 5/5, OpenApiSnapshotTest 4/4 (chạy lại không có cờ update).
+- DevSeedIntegrationTest 5/5; nạp lại repeatable seeds thành công. Spotless check đạt.
+- FE lint, format, check-design, check-api và build đạt; test children 194/194.
+
+## Giới hạn phạm vi CI
+- User chốt chỉ sửa ba phần cấu hình trường, điểm danh/suất ăn, đánh giá trẻ.
+- Không sửa test/seed kế hoạch giáo dục hoặc tài khoản nhân sự của module khác, dù CI còn báo lỗi tương thích nhóm tuổi ở đó.
 
 ## Regression
 - WeeklyCommentIntegrationTest: chuyển lớp giữ nháp cũ, lớp mới lưu riêng; lớp cũ không sửa/gửi; nghỉ hẳn khóa ghi.
