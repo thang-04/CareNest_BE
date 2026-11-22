@@ -18824,6 +18824,11 @@ components:
             - PERMISSION_MANAGE
         photoUploaded:
           type: boolean
+        pinnedCampusPermissions:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
         profileUpdateRequired:
           type: boolean
         roles:
@@ -19222,6 +19227,10 @@ components:
     OverrideItem:
       type: object
       properties:
+        campusId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
         effect:
           type: string
           enum:
@@ -19568,6 +19577,9 @@ components:
         actorUserId:
           type: integer
           format: int64
+        afterCampusId:
+          type: integer
+          format: int64
         afterScope:
           type: string
           enum:
@@ -19584,6 +19596,9 @@ components:
         batchId:
           type: string
           format: uuid
+        beforeCampusId:
+          type: integer
+          format: int64
         beforeScope:
           type: string
           enum:
@@ -19625,6 +19640,9 @@ components:
     PermissionOverrideResponse:
       type: object
       properties:
+        campusId:
+          type: integer
+          format: int64
         effect:
           type: string
           enum:
