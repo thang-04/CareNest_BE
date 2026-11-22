@@ -10346,6 +10346,18 @@ components:
           type: number
           maximum: 9999
           minimum: 0
+        appliedGlucidPct:
+          type: number
+          maximum: 100
+          minimum: 0
+        appliedLipidPct:
+          type: number
+          maximum: 100
+          minimum: 0
+        appliedProteinPct:
+          type: number
+          maximum: 100
+          minimum: 0
         calciumMax:
           type: number
           maximum: 100000
@@ -10519,10 +10531,18 @@ components:
           type: number
         animalProteinGMin:
           type: number
+        appliedGlucidPct:
+          type: number
+        appliedLipidPct:
+          type: number
+        appliedProteinPct:
+          type: number
         calciumMax:
           type: number
         calciumMin:
           type: number
+        conversion:
+          $ref: "#/components/schemas/NutritionConversionResponse"
         dailyKcalNeed:
           type: number
         editable:
@@ -12939,6 +12959,19 @@ components:
           format: int64
         name:
           type: string
+    ConvertedGrams:
+      type: object
+      properties:
+        animalLipidG:
+          type: number
+        animalProteinG:
+          type: number
+        glucidG:
+          type: number
+        plantLipidG:
+          type: number
+        plantProteinG:
+          type: number
     CopyClassesRequest:
       type: object
       properties:
@@ -19133,6 +19166,23 @@ components:
           type: array
           items:
             type: string
+    NutritionConversionResponse:
+      type: object
+      properties:
+        animalLipidShare:
+          type: number
+        animalProteinShare:
+          type: number
+        atKcalMax:
+          $ref: "#/components/schemas/ConvertedGrams"
+        atKcalMin:
+          $ref: "#/components/schemas/ConvertedGrams"
+        glucidKcalPerG:
+          type: number
+        lipidKcalPerG:
+          type: number
+        proteinKcalPerG:
+          type: number
     NutritionTotals:
       type: object
       properties:
