@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -109,6 +110,16 @@ class StaffAccessPolicyTest {
     }
 
     @Test
+    @DisplayName("AUTH-15: PHT quản lý GV có cơ sở công tác ở campus mình kể cả khi GV chưa có lớp")
+    void vicePrincipalManagesTeacherByWorkCampus() {
+        given(assignments.findTeacherWorkCampusId(42L)).willReturn(Optional.of(CAMPUS_A));
+        given(assignments.findTeacherWorkCampusId(43L)).willReturn(Optional.of(CAMPUS_B));
+
+        assertThat(policy.canManageAccount(VICE, 42L, CareNestRole.TEACHER)).isTrue();
+        assertThat(policy.canManageAccount(VICE, 43L, CareNestRole.TEACHER)).isFalse();
+    }
+
+    @Test
     @DisplayName("AUTH-16: PHT phân công GV/bếp trong campus mình; HT phân công toàn trường; không ai phân công HT")
     void assignmentScope() {
         assertThatCode(() -> policy.checkCanAssign(VICE, StaffRole.KITCHEN_STAFF, CAMPUS_A))
@@ -132,6 +143,20 @@ class StaffAccessPolicyTest {
         assertThatCode(() -> policy.checkCanAssign(schoolWide, StaffRole.TEACHER, CAMPUS_B))
                 .doesNotThrowAnyException();
         assertDenied(() -> policy.checkCanAssign(schoolWide, StaffRole.VICE_PRINCIPAL, CAMPUS_B));
+        // AUTH-20 (chốt 21/11/2026): giao việc phân công tại cơ sở B ⇒ chỉ cơ sở B, không còn cơ sở A đang phụ trách
+        CurrentUser pinned = new CurrentUser(
+                3L,
+                "kc-3",
+                "u3",
+                "U",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE),
+                Set.of(),
+                Map.of(Permission.STAFF_ASSIGNMENT_MANAGE, CAMPUS_B));
+        assertThatCode(() -> policy.checkCanAssign(pinned, StaffRole.TEACHER, CAMPUS_B))
+                .doesNotThrowAnyException();
+        assertDenied(() -> policy.checkCanAssign(pinned, StaffRole.TEACHER, CAMPUS_A));
     }
 
     @Test

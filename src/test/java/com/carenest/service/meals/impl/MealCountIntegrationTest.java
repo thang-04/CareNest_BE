@@ -103,6 +103,9 @@ class MealCountIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     private CurrentUser principal;
     private CurrentUser vpA;
     private CurrentUser vpB;
@@ -149,6 +152,7 @@ class MealCountIntegrationTest {
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         jdbc.update(
                 "INSERT INTO attendance_cutoffs (school_year_id, cutoff_time, effective_from) VALUES (?, '08:30', '2026-09-01')",
                 year);
@@ -270,6 +274,10 @@ class MealCountIntegrationTest {
         assertThat(old.id()).isEqualTo(countId);
         assertThat(old.canConfirm()).isFalse();
         assertThat(old.canAdjust()).isFalse();
+        assertThat(service.getClassMealCount(vpA, oldClass, oldDay).meals()).anySatisfy(meal -> {
+            assertThat(meal.session()).isEqualTo(MealSession.LUNCH);
+            assertThat(meal.normal()).isEqualTo(3);
+        });
         assertThat(service.getMealCounts(vpB, oldDay, closed).counts()).isEmpty();
     }
 
@@ -687,6 +695,30 @@ class MealCountIntegrationTest {
 
     private static int substitutes(List<MealCountResponse> counts) {
         return counts.stream().mapToInt(c -> c.totals().substitute()).sum();
+    }
+
+    @Test
+    @DisplayName("ATT/NUT: bữa đã ghi vẫn hiện trước và sau chốt khi bỏ bữa khỏi cấu hình")
+    void recordedMealSurvivesConfigurationChangeBeforeLedgerCreation() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        jdbc.update(
+                "UPDATE school_year_age_group_members SET meal_sessions='AFTERNOON'"
+                        + " WHERE school_year_id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        assertThat(lunch(service.getMealCounts(vpA, TODAY, null)).totals().normal())
+                .isEqualTo(2);
+        assertThat(service.getClassMealCount(teacherA, classA, TODAY).meals()).anySatisfy(m -> {
+            assertThat(m.session()).isEqualTo(MealSession.LUNCH);
+            assertThat(m.normal()).isEqualTo(2);
+        });
+        clock.now = AFTER_CUTOFF;
+        assertThat(lunch(service.getMealCounts(vpA, TODAY, null)).totals().normal())
+                .isEqualTo(2);
+        jdbc.update("UPDATE attendance_records SET meals='' WHERE classroom_id=? AND date=?", classA, TODAY);
+        entityManager.clear();
+        service.markAttendanceChanged(TODAY, campusA, classA);
+        assertThat(lunch(service.getMealCounts(vpA, TODAY, null)).totals().normal())
+                .isZero();
     }
 
     @Test

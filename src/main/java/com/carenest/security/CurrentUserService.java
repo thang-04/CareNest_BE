@@ -92,7 +92,8 @@ public class CurrentUserService {
                 account.getEmail(),
                 roles,
                 EffectivePermissionResolver.resolve(permissionRoles, matrixRows, overrides),
-                EffectivePermissionResolver.schoolWide(permissionRoles, overrides));
+                EffectivePermissionResolver.schoolWide(permissionRoles, overrides),
+                EffectivePermissionResolver.pinnedCampuses(permissionRoles, overrides));
     }
 
     private static Set<CareNestRole> rolesOf(Authentication authentication) {

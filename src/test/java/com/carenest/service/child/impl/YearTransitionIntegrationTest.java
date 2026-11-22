@@ -376,7 +376,7 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
-    @DisplayName("Trẻ mới đăng ký năm sau: đúng nhóm tuổi; còn trẻ chưa xếp lớp thì chặn kích hoạt, xếp xong vào lớp")
+    @DisplayName("Trẻ mới được xếp tay khác nhóm tuổi; chưa xếp thì chặn kích hoạt, xếp xong vào đúng lớp đã chọn")
     void plannedAdmissionsEnterNewYearOnActivation() {
         long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, newClass3);
         long placedChild = newChild("Trẻ mới có lớp", "2024-06-01", campus);
@@ -389,22 +389,6 @@ class YearTransitionIntegrationTest {
                 .extracting(PlacementBoardResponse.NewAdmission::ageGroupId)
                 .containsOnly(group3);
 
-        // Lớp nhỡ (48–60 tháng) sai nhóm tuổi với trẻ 39 tháng lúc khai giảng
-        expectError(
-                () -> service.savePlacements(
-                        principal,
-                        newYear,
-                        new SavePlacementsRequest(
-                                List.of(),
-                                List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass4)))),
-                ApiCode.PLACEMENT_ADMISSION_WRONG_AGE_GROUP);
-        assertThatThrownBy(() -> service.savePlacements(
-                        principal,
-                        newYear,
-                        new SavePlacementsRequest(
-                                List.of(),
-                                List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass4)))))
-                .hasMessageContaining("Trẻ mới có lớp (39 tháng) không thuộc nhóm tuổi của");
         service.savePlacements(
                 principal,
                 newYear,
@@ -412,7 +396,7 @@ class YearTransitionIntegrationTest {
                         List.of(
                                 new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass4),
                                 new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass4)),
-                        List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass3))));
+                        List.of(new SavePlacementsRequest.NewAdmissionItem(placedAdmission, newClass4))));
 
         // Cần chốt 19/11/2026: còn trẻ đã tiếp nhận chưa xếp lớp thì chặn kích hoạt
         assertThatThrownBy(() -> service.activateSchoolYear(principal, newYear, "2027-2028"))
@@ -425,7 +409,7 @@ class YearTransitionIntegrationTest {
 
         LocalDate firstDay = LocalDate.of(2027, 9, 5);
         assertThat(enrollmentService.findActiveClassroomIds(placedChild, firstDay))
-                .containsExactly(newClass3);
+                .containsExactly(newClass4);
         assertThat(enrollmentService.findActiveClassroomIds(waitingChild, firstDay))
                 .isEmpty();
         assertThat(jdbc.queryForList(
@@ -453,14 +437,19 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
-    void wrongAgeGroupIsRejected() {
-        expectError(
-                () -> service.savePlacements(
-                        principal,
-                        newYear,
-                        new SavePlacementsRequest(
-                                List.of(new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass3)))),
-                ApiCode.BAD_REQUEST);
+    void manualPlacementAllowsAnotherAgeGroupAndActivationKeepsTheChoice() {
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(List.of(
+                        new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass3),
+                        new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass4))));
+        assertThat(service.getReadiness(principal, newYear).canActivate()).isTrue();
+        service.activateSchoolYear(principal, newYear, "2027-2028");
+        assertThat(enrollmentService.findActiveClassroomIds(child1, LocalDate.of(2027, 9, 5)))
+                .containsExactly(newClass3);
+        assertThat(enrollmentService.findActiveClassroomIds(child1, LocalDate.of(2027, 9, 4)))
+                .containsExactly(oldClass);
     }
 
     @Test
@@ -473,6 +462,35 @@ class YearTransitionIntegrationTest {
                                 new SavePlacementsRequest.Item(child1, PlacementAction.STAY, newClass3),
                                 new SavePlacementsRequest.Item(child2, PlacementAction.STAY, newClass3)))),
                 ApiCode.CONFLICT);
+    }
+
+    @Test
+    void manualStayMayUseAnotherGroupButCannotUseAClassFromTheOldYear() {
+        expectError(
+                () -> service.savePlacements(
+                        principal,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(new SavePlacementsRequest.Item(child1, PlacementAction.STAY, oldClass)))),
+                ApiCode.TARGET_CLASS_REQUIRED);
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(new SavePlacementsRequest.Item(child1, PlacementAction.STAY, newClass4))));
+        service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null));
+        assertThat(jdbc.queryForObject(
+                        "SELECT to_classroom_id FROM class_placements WHERE school_year_id = ? AND child_id = ?",
+                        Long.class,
+                        newYear,
+                        child1))
+                .isEqualTo(newClass4);
+        assertThat(jdbc.queryForObject(
+                        "SELECT action FROM class_placements WHERE school_year_id = ? AND child_id = ?",
+                        String.class,
+                        newYear,
+                        child1))
+                .isEqualTo("STAY");
     }
 
     @Test

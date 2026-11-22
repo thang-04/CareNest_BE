@@ -78,6 +78,8 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
 
     private record Cell(Boolean met, boolean manual) {}
 
+    record Presentation(String ageGroupName, List<String> teachers, String principal, SheetMeasurement measurement) {}
+
     @Override
     @Transactional(readOnly = true)
     public YearEndSheetResponse get(CurrentUser currentUser, Long evaluationId) {
@@ -181,6 +183,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                         a == null || (c != null && c.manual()) ? null : source(a)));
             }
             evaluation.freezeGoals(objectMapper.writeValueAsString(all));
+            evaluation.freezeSheetPresentation(objectMapper.writeValueAsString(presentation(evaluation, cls)));
             log.info("{}|goals={}|END", logPrefix, all.size());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -299,11 +302,9 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                             a == null ? null : a.met(),
                             goal.source()));
         }
-        LocalDate at = ev.getPeriodEnd().isAfter(rules.today()) ? rules.today() : ev.getPeriodEnd();
-        SheetMeasurement measurement = healthMeasurementService
-                .findLatestMeasurement(ev.getChildId(), at)
-                .map(m -> new SheetMeasurement(m.date(), m.weightKg(), m.heightCm()))
-                .orElse(null);
+        Presentation presentation = ev.isConfirmed() && ev.getSheetPresentation() != null
+                ? objectMapper.readValue(ev.getSheetPresentation(), Presentation.class)
+                : presentation(ev, cls);
         boolean canEdit = !ev.isConfirmed()
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
                 && rules.canRecordPeriod(user, cls)
@@ -312,10 +313,10 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         return new YearEndSheetResponse(
                 ev.getId(),
                 cls.id(),
-                ageGroupName(cls.ageGroupId()),
-                teacherNames(cls, at),
-                principalName(),
-                measurement,
+                presentation.ageGroupName(),
+                presentation.teachers(),
+                presentation.principal(),
+                presentation.measurement(),
                 List.copyOf(domains.values()),
                 met,
                 notMet,
@@ -347,11 +348,20 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         return ids.stream().map(names::get).filter(Objects::nonNull).toList();
     }
 
-    private String ageGroupName(Long ageGroupId) {
-        return ageGroupId == null
+    private Presentation presentation(ChildEvaluation ev, ClassroomInfoResponse cls) {
+        LocalDate at = ev.getPeriodEnd().isAfter(rules.today()) ? rules.today() : ev.getPeriodEnd();
+        SheetMeasurement measurement = healthMeasurementService
+                .findLatestMeasurement(ev.getChildId(), at)
+                .map(m -> new SheetMeasurement(m.date(), m.weightKg(), m.heightCm()))
+                .orElse(null);
+        return new Presentation(ageGroupName(cls), teacherNames(cls, at), principalName(), measurement);
+    }
+
+    private String ageGroupName(ClassroomInfoResponse cls) {
+        return cls.ageGroupId() == null
                 ? null
-                : ageGroupService.getAgeGroups().stream()
-                        .filter(g -> ageGroupId.equals(g.id()))
+                : ageGroupService.getYearAgeGroups(cls.schoolYearId()).stream()
+                        .filter(g -> cls.ageGroupId().equals(g.id()))
                         .map(AgeGroupDetailResponse::name)
                         .findFirst()
                         .orElse(null);

@@ -5,7 +5,10 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
 import java.util.List;
 
-/** Một dòng danh sách tài khoản: role là bản sao role Keycloak (null = chưa rõ), kèm phân công đang hiệu lực. */
+/**
+ * Một dòng danh sách tài khoản: role là bản sao role Keycloak (null = chưa rõ), kèm phân công đang hiệu lực.
+ * workCampusId: cơ sở công tác của GV (AUTH-15), null với vai trò khác hoặc GV cũ chưa chọn.
+ */
 public record AccountSummaryResponse(
         Long userId,
         String username,
@@ -13,4 +16,5 @@ public record AccountSummaryResponse(
         String email,
         CareNestRole role,
         UserStatus status,
-        List<StaffAssignmentSummaryResponse> activeAssignments) {}
+        List<StaffAssignmentSummaryResponse> activeAssignments,
+        Long workCampusId) {}

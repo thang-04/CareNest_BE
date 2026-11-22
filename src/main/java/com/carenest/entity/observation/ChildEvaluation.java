@@ -72,6 +72,9 @@ public class ChildEvaluation {
     @Column(name = "goal_results")
     private String goalResults;
 
+    @Column(name = "sheet_presentation")
+    private String sheetPresentation;
+
     @Column(name = "note_for_child", length = 1000)
     private String noteForChild;
 
@@ -161,6 +164,10 @@ public class ChildEvaluation {
     /** Xác nhận: chốt cả phiếu, lưu ý giữ nguyên. */
     public void freezeGoals(String goalResults) {
         this.goalResults = goalResults;
+    }
+
+    public void freezeSheetPresentation(String json) {
+        this.sheetPresentation = json;
     }
 
     public void edit(String content) {

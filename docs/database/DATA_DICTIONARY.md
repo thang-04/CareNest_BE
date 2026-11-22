@@ -192,6 +192,17 @@ Mục đích: phân công nhân sự — nguồn scope của BGH/GV/bếp (ADR-0
 Ràng buộc: `ck_staff_assignments_scope` (đúng cột scope theo vai trò), `ck_staff_assignments_valid_range`, `ck_staff_assignments_homeroom`. Kết thúc phân công = đặt `valid_to`, không xóa (giữ lịch sử); phân công chưa từng có hiệu lực (bắt đầu từ hôm nay/ngày đầu năm sắp tới) thì xóa. Phân công qua API: từ max(hôm nay, ngày đầu năm học) tới ngày cuối năm học. Phân công GV có `valid_to` trước ngày cuối năm học của lớp = dạy thay (AUTH-24, không tính luật một lớp dạy chính/năm).
 Index: `user_id`, `campus_id`, `classroom_id`, `age_group_id`, `school_year_id`.
 
+## teacher_work_campuses  (module: school-structure, scope: CAMPUS)
+Mục đích: cơ sở công tác của giáo viên, có ngay khi tạo tài khoản, chưa cần lớp (AUTH-15, chốt 21/11/2026). PHT/bếp không có dòng ở đây (cơ sở = điểm trường phân công). Migration: V168 (backfill theo lớp dạy chính gần nhất, không lấy dạy thay; GV chưa từng có lớp để trống).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| user_id | BIGINT PK FK user_accounts | không | Giáo viên | AUTH-15 |
+| campus_id | BIGINT FK campuses | không | Cơ sở công tác; xếp dạy chính lớp ở cơ sở khác ⇒ chuyển theo lớp | AUTH-15 |
+| updated_by | BIGINT FK user_accounts | có | Người đặt/chuyển gần nhất; NULL = backfill | — |
+| updated_at | TIMESTAMPTZ | không | | — |
+Đổi/thu hồi vai trò khỏi GV ⇒ xóa dòng. Danh bạ GV (`GET /teacher-assignments`) lấy điểm trường từ đây, chưa có thì theo lớp gần nhất.
+Index: `campus_id`.
+
 ## age_groups  (module: school-structure, scope: SCHOOL)
 Mục đích: nhóm tuổi (khối) dùng chung toàn trường. Migration: `V10__create_age_groups.sql`, seed 4 nhóm `ag-2`..`ag-5` theo UI.
 | Column | Type | Null | Ý nghĩa | Rule ID |
@@ -986,13 +997,14 @@ Mục đích: một bảng cho cả ma trận quyền theo role do Hiệu trư�
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
 | effect | VARCHAR(10) | có | Chỉ dòng người: `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định); dòng role NULL | AUTH-10, AUTH-13 |
 | scope | VARCHAR(10) | có | Chỉ GRANT (CHECK): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (chỉ mã sửa theo mảng — API kiểm); REVOKE và dòng role NULL (ADR-0023) | AUTH-20 |
+| campus_id | BIGINT | có | FK `campuses`, chỉ GRANT `scope = CAMPUS` (CHECK `ck_permission_grants_campus`): điểm trường HT giao cụ thể, PHT chỉ sửa việc đó ở điểm trường này, kể cả khác điểm trường phụ trách; NULL = điểm trường đang phân công. Migration V167 | AUTH-20 |
 | reason | VARCHAR(500) | có | Lý do; bắt buộc ở dòng người | AUTH-14 |
 | granted_by | BIGINT | có | FK `user_accounts`: người bật ô ma trận (null với dòng seed) / người sửa ngoại lệ gần nhất (bắt buộc, CHECK khác `user_id`) | AUTH-12, AUTH-14 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Index: `uk_permission_grants_role_permission` (role, permission_code) WHERE role IS NOT NULL; `uk_permission_grants_user_permission` (user_id, permission_code) WHERE user_id IS NOT NULL.
 
 ## permission_change_log  (module: identity-access, scope: SYSTEM)
-Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`).
+Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`), V167 (`before_campus_id`, `after_campus_id`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -1002,6 +1014,7 @@ Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm 
 | permission_code | VARCHAR(64) | không | Mã quyền đã đổi | — |
 | before_state, after_state | VARCHAR(10) | không | `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ) | AUTH-14 |
 | before_scope, after_scope | VARCHAR(10) | có | Phạm vi GRANT trước/sau (`CAMPUS`/`SCHOOL`); NULL với ma trận, REVOKE, INHERIT | AUTH-14, AUTH-20 |
+| before_campus_id, after_campus_id | BIGINT | có | Điểm trường giao cụ thể trước/sau (NULL = điểm trường đang phân công); đổi nơi giao cũng ghi một dòng | AUTH-14, AUTH-20 |
 | reason | VARCHAR(500) | không | Lý do bắt buộc | AUTH-14 |
 | changed_at | TIMESTAMPTZ | không | Thời điểm đổi | — |
 Index: `idx_permission_change_log_changed_at`, `idx_permission_change_log_target_role`, `idx_permission_change_log_target_user` (kèm `changed_at DESC`).
@@ -1024,6 +1037,8 @@ Ràng buộc: UNIQUE (classroom_id, theme_id); end_date ≥ start_date.
 V79: child_evaluations thêm phiếu đánh giá sự phát triển cuối năm (OBS-28): `goal_results` TEXT (JSON ô GV sửa tay trước khi xác nhận; cả phiếu khi đã xác nhận: [{g: dòng gốc MT, m: đạt, x: sửa tay}]), `note_for_child`, `note_for_teacher`, `note_for_school`, `note_for_parent` VARCHAR(1000) (lưu ý điều chỉnh kế hoạch năm sau, null = để trống).
 
 V81: child_evaluations thêm `domain_comments` TEXT (JSON {"<domainId>": "nhận xét"}, lĩnh vực chưa gắn mã dùng khóa "0") — nhận xét dưới từng lĩnh vực của phiếu cuối năm (OBS-28).
+
+V169: `child_evaluations.sheet_presentation` TEXT nullable — JSON `{ageGroupName, teachers, principal, measurement}` chốt khi xác nhận phiếu cuối năm (OBS-28). Cân đo gồm ngày, cân nặng và chiều cao tại lúc chốt. Phiếu cũ để null, không tự backfill thông tin người ký/cân đo hiện tại thành lịch sử.
 
 V74: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "Cần cố gắng", OBS-15).
 
