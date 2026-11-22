@@ -167,8 +167,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         String logPrefix = LOG_PREFIX + "|saveDeclaration|userId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
-            // CHD-11: GV không ghi thẳng, gửi yêu cầu qua ChildProfileChangeRequestService
+            // CHD-11: GV không ghi thẳng, gửi yêu cầu qua ChildProfileChangeRequestService (chỉ trẻ trong phạm vi lớp)
             if (ChildEditRoles.teacherOnly(actor)) {
+                childAccessPolicy.checkCanViewChild(actor, childId);
                 throw GlobalException.of(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL);
             }
             LocalDate today = LocalDate.now(clock);

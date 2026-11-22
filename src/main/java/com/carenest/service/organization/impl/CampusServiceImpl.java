@@ -216,8 +216,11 @@ public class CampusServiceImpl implements CampusService {
             if (campusRepository.existsByCodeIgnoreCase(data.code())) {
                 throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
             }
-            if (campusRepository.existsByNameIgnoreCase(data.name())) {
+            if (campusRepository.existsByNameFolded(data.name())) {
                 throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
+            }
+            if (campusRepository.existsByShortNameIgnoreCase(data.shortName())) {
+                throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
             }
             Campus campus = Campus.create(data.code(), data.name(), data.shortName(), data.address(), data.phone());
             // Trường có đúng một điểm trường chính; điểm trường đầu tiên luôn là điểm chính
@@ -263,6 +266,9 @@ public class CampusServiceImpl implements CampusService {
                 if (campusRepository.existsNameInYear(yearId, campusId, data.name())) {
                     throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
                 }
+                if (campusRepository.existsShortNameInYear(yearId, campusId, data.shortName())) {
+                    throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+                }
                 campusRepository.updateYearInfo(
                         yearId, campusId, data.code(), data.name(), data.shortName(), data.address(), data.phone());
             }
@@ -279,8 +285,11 @@ public class CampusServiceImpl implements CampusService {
                 if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
                     throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
                 }
-                if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
+                if (campusRepository.existsByNameFoldedAndIdNot(data.name(), campusId)) {
                     throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
+                }
+                if (campusRepository.existsByShortNameIgnoreCaseAndIdNot(data.shortName(), campusId)) {
+                    throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
                 }
                 campus.changeInfo(data.code(), data.name(), data.shortName(), data.address(), data.phone());
             }

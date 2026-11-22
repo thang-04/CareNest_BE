@@ -155,6 +155,54 @@ class CampusServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "Tên điểm trường: dấu gạch ngang, gạch nối, gạch dài và khoảng trắng quanh dấu gạch tính là trùng (2106)")
+    void campusNameDuplicateIgnoresDashKind() {
+        service.updateCampus(
+                principal,
+                campusB,
+                new CampusRequest("CS-B", "Cơ sở 1 – Trường Mầm non Thượng Hồng", "Cơ sở B", "Địa chỉ B", null, false));
+        for (String name : List.of(
+                "Cơ sở 1 - Trường Mầm non Thượng Hồng",
+                "Cơ sở 1-Trường Mầm non Thượng Hồng",
+                "CƠ SỞ 1 — TRƯỜNG MẦM NON THƯỢNG HỒNG")) {
+            assertThatThrownBy(() -> service.createCampus(
+                            principal, new CampusRequest("CS-C", name, "C", "Địa chỉ C", null, false)))
+                    .isInstanceOf(GlobalException.class)
+                    .extracting(ex -> ((GlobalException) ex).getApiCode())
+                    .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+        }
+        assertThatThrownBy(() -> service.updateCampus(
+                        principal,
+                        campusA,
+                        new CampusRequest(
+                                "CS-A", "Cơ sở 1 - Trường Mầm non Thượng Hồng", "Cơ sở A", "Địa chỉ A", null, true)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+    }
+
+    @Test
+    @DisplayName("Tên ngắn điểm trường không trùng, không phân biệt hoa thường (2126)")
+    void campusShortNameMustBeUnique() {
+        service.updateCampus(
+                principal, campusB, new CampusRequest("CS-B", "Campus B", "Cơ sở 1", "Địa chỉ B", null, false));
+        assertThatThrownBy(() -> service.createCampus(
+                        principal, new CampusRequest("CS-C", "Campus C", "CƠ SỞ 1", "Địa chỉ C", null, false)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+        assertThatThrownBy(() -> service.updateCampus(
+                        principal, campusA, new CampusRequest("CS-A", "Campus A", "cơ sở 1", "Địa chỉ A", null, true)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+        // Giữ nguyên tên ngắn của chính mình khi sửa thông tin khác thì không bị chặn
+        service.updateCampus(
+                principal, campusB, new CampusRequest("CS-B", "Campus B2", "Cơ sở 1", "Địa chỉ B", null, false));
+    }
+
+    @Test
     void switchingMainKeepsOneMainCampus() {
         service.updateCampus(principal, campusB, new CampusRequest("CS-B", "Campus B", "B", "Địa chỉ B", null, true));
 
@@ -265,6 +313,14 @@ class CampusServiceIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.CAMPUS_NAME_EXISTS);
+        assertThatThrownBy(() -> service.updateCampus(
+                        principal,
+                        campusA,
+                        new CampusRequest("CS-A", "Campus A năm sau", "hòa bình", "Địa chỉ A", null, true),
+                        planned))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
 
         // BUG-43: trẻ đã tiếp nhận cho năm sắp diễn ra ở điểm trường (chưa có lớp) chặn bỏ điểm trường khỏi năm đó
         long child = insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on)"

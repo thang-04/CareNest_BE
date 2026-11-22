@@ -239,6 +239,7 @@ public enum ApiCode {
     // Cần chốt 19/11/2026: chỉ xóa điểm trường chưa có dữ liệu, báo rõ còn gì và gợi ý ngừng hoạt động
     CAMPUS_NOT_IN_YEAR(
             2125, HttpStatus.BAD_REQUEST, "Điểm trường không có trong năm học này, thêm điểm trường vào năm trước"),
+    CAMPUS_SHORT_NAME_EXISTS(2126, HttpStatus.CONFLICT, "Tên ngắn điểm trường đã tồn tại"),
     CAMPUS_NOT_EMPTY(
             2124, HttpStatus.CONFLICT, "{0} còn {1}, không xóa được. Nếu không dùng nữa, chọn Ngừng hoạt động"),
     MAIN_CAMPUS_NOT_DEACTIVATABLE(2110, HttpStatus.CONFLICT, "Không ngừng hoạt động được điểm trường chính"),
