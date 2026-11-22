@@ -9996,6 +9996,9 @@ components:
           format: int64
         username:
           type: string
+        workCampusId:
+          type: integer
+          format: int64
     AccountPhotoResponse:
       type: object
       properties:
@@ -10078,6 +10081,9 @@ components:
           format: int64
         username:
           type: string
+        workCampusId:
+          type: integer
+          format: int64
     ActivateSchoolYearRequest:
       type: object
       properties:
@@ -26159,6 +26165,10 @@ components:
           type: string
           maxLength: 150
           minLength: 0
+        workCampusId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
       required:
       - fullName
     UpdateAccountStatusRequest:
