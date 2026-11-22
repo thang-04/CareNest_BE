@@ -63,6 +63,8 @@ public enum ApiCode {
             1020,
             HttpStatus.TOO_MANY_REQUESTS,
             "Tài khoản tạm bị khóa do nhập sai mật khẩu nhiều lần. Vui lòng thử lại sau {0}"),
+    PASSWORD_SAME_AS_USERNAME(
+            1021, HttpStatus.BAD_REQUEST, "Mật khẩu mới không được trùng tên đăng nhập (số điện thoại)"),
 
     // ========== 11xx TÀI KHOẢN & PHÂN QUYỀN ==========
     FORBIDDEN(1101, HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này"),

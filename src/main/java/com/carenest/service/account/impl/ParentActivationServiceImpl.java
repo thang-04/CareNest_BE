@@ -2,6 +2,7 @@ package com.carenest.service.account.impl;
 
 import com.carenest.dto.account.ParentActivationRequest;
 import com.carenest.dto.account.ParentActivationResponse;
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.IdentityProviderClient;
@@ -12,6 +13,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.carenest.utils.enums.UserStatus;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,7 +36,9 @@ public class ParentActivationServiceImpl implements ParentActivationService {
         log.info("{}|START", logPrefix);
         try {
             if (!request.newPassword().equals(request.confirmPassword())) {
-                throw GlobalException.of(ApiCode.MALFORMED_REQUEST);
+                throw GlobalException.withFieldErrors(
+                        ApiCode.INVALID_REQUEST_DATA,
+                        List.of(new FieldErrorResponse("confirmPassword", "Mật khẩu nhập lại không khớp")));
             }
             // ADR-0026: SĐT không có tài khoản, khóa, mã sai/hết hạn/hết lượt ⇒ cùng một lỗi
             UserAccount account = PhoneNumbers.normalize(request.phone())
@@ -44,6 +48,8 @@ public class ParentActivationServiceImpl implements ParentActivationService {
             if (!activationCodes.verify(account.getId(), request.code())) {
                 throw GlobalException.of(ApiCode.OTP_INVALID_OR_EXPIRED);
             }
+            // Kiểm sau khi mã đúng để không dò được SĐT khi chưa có mã
+            PasswordRules.rejectUsername(request.newPassword(), account.getUsername());
             try {
                 identityProviderClient.setPassword(account.getKeycloakUserId(), request.newPassword());
             } catch (IdentityProviderException ex) {

@@ -597,6 +597,17 @@ public class AuthServiceImpl implements AuthService {
             var claim = state.claimPassword(hash, owner, now);
             if (claim.status() != AuthStateStore.Status.CLAIMED) throw notFound();
             try {
+                if (claim.data().userId() != null) {
+                    accounts.findById(claim.data().userId())
+                            .ifPresent(account ->
+                                    PasswordRules.rejectUsername(request.newPassword(), account.getUsername()));
+                }
+            } catch (GlobalException ex) {
+                // Token còn dùng lại được để nhập mật khẩu khác
+                state.finishPassword(hash, owner, clock.instant(), false);
+                throw ex;
+            }
+            try {
                 keycloak.changePassword(
                         claim.data().providerCipher() == null
                                 ? null
@@ -634,6 +645,7 @@ public class AuthServiceImpl implements AuthService {
             ensureEnabled();
             if (current == null || request == null || !request.newPassword().equals(request.confirmPassword()))
                 throw malformed();
+            PasswordRules.rejectUsername(request.newPassword(), current.username());
             AuthGatewayClient.Tokens verified = null;
             try {
                 verified = keycloak.login(current.username(), request.currentPassword());
@@ -682,8 +694,9 @@ public class AuthServiceImpl implements AuthService {
         return jwtDecoder.decode(raw);
     }
 
+    // Mã yêu cầu sai dạng cũng là "không tồn tại" (404), không phải phiên đăng nhập hỏng
     private static String validOpaque(String token) {
-        if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) throw invalidSession();
+        if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) throw notFound();
         return token;
     }
 

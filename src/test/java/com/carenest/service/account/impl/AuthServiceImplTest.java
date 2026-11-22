@@ -341,6 +341,56 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("Mã yêu cầu OTP sai dạng ⇒ 404/1004 ở mọi đường OTP và đặt mật khẩu")
+    void malformedRequestIdIsNotFoundNotInvalidSession() {
+        assertApiCode(() -> service.otpMetadata("khongcoid123"), ApiCode.AUTH_REQUEST_NOT_FOUND);
+        assertApiCode(() -> service.resend("khongcoid123"), ApiCode.AUTH_REQUEST_NOT_FOUND);
+        assertApiCode(
+                () -> service.verifyOtp(new AuthRequests.VerifyOtp("123456"), "khongcoid123"),
+                ApiCode.AUTH_REQUEST_NOT_FOUND);
+        assertApiCode(
+                () -> service.setPassword(new AuthRequests.Reset("short", "New-password-123!", "New-password-123!")),
+                ApiCode.AUTH_REQUEST_NOT_FOUND);
+        verifyNoInteractions(keycloak, state);
+    }
+
+    @Test
+    @DisplayName("Đổi mật khẩu trùng tên đăng nhập (khác hoa thường) ⇒ 1021, không gọi Keycloak")
+    void changePasswordEqualToUsernameIsRejectedBeforeProvider() {
+        assertApiCode(
+                () -> service.changePassword(
+                        current, new AuthRequests.ChangePassword("secret", "Teacher.A", "Teacher.A")),
+                ApiCode.PASSWORD_SAME_AS_USERNAME);
+        verifyNoInteractions(keycloak);
+    }
+
+    @Test
+    @DisplayName("Đặt lại mật khẩu trùng tên đăng nhập ⇒ 1021, trả lại token để nhập mật khẩu khác")
+    void setPasswordEqualToUsernameReleasesTheToken() {
+        String token = crypto.randomToken();
+        String hash = crypto.hash(token);
+        var challenge = new AuthStateStore.PasswordTokenState(
+                hash,
+                91L,
+                "kc-user-1",
+                null,
+                crypto.seal("provider-proof", hash + ":provider"),
+                PasswordTokenPurpose.RESET,
+                clock.instant().plusSeconds(300),
+                clock.instant());
+        given(state.claimPassword(org.mockito.ArgumentMatchers.eq(hash), any(), any()))
+                .willReturn(new AuthStateStore.Claim<>(AuthStateStore.Status.CLAIMED, challenge));
+        given(userAccounts.findById(91L)).willReturn(Optional.of(account));
+        assertApiCode(
+                () -> service.setPassword(new AuthRequests.Reset(token, "TEACHER.A", "TEACHER.A")),
+                ApiCode.PASSWORD_SAME_AS_USERNAME);
+        verify(state)
+                .finishPassword(
+                        org.mockito.ArgumentMatchers.eq(hash), any(), any(), org.mockito.ArgumentMatchers.eq(false));
+        verifyNoInteractions(keycloak);
+    }
+
+    @Test
     void inactiveFirstLoginAccountIsDistinguishedFromUnprovisionedAccount() {
         var proof = mock(AuthGatewayClient.FirstLoginRequired.class);
         when(proof.userId()).thenReturn("kc-user-1");

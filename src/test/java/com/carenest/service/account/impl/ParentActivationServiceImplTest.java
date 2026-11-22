@@ -90,9 +90,40 @@ class ParentActivationServiceImplTest {
         assertThatThrownBy(() -> service.activate(
                         new ParentActivationRequest("0912345678", "123456", "Pass-word-1", "Pass-word-2")))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.MALFORMED_REQUEST);
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                    assertThat(ex.getFieldErrors()).singleElement().satisfies(error -> {
+                        assertThat(error.field()).isEqualTo("confirmPassword");
+                        assertThat(error.message()).isEqualTo("Mật khẩu nhập lại không khớp");
+                    });
+                });
         verifyNoInteractions(codes, identity);
+    }
+
+    @Test
+    @DisplayName("AUTH-18: mật khẩu trùng SĐT ⇒ 1021, mã chưa bị đánh dấu dùng, không gọi Keycloak")
+    void passwordEqualToUsernameRejected() {
+        given(codes.verify(7L, "123456")).willReturn(true);
+
+        assertThatThrownBy(() -> service.activate(
+                        new ParentActivationRequest("0912345678", "123456", "0912345678", "0912345678")))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.PASSWORD_SAME_AS_USERNAME);
+        verifyNoInteractions(identity);
+        verify(codes, never()).markActivated(7L);
+    }
+
+    @Test
+    @DisplayName("AUTH-18: mã sai thì không lộ việc mật khẩu trùng SĐT")
+    void wrongCodeBeatsUsernameCheck() {
+        given(codes.verify(7L, "123456")).willReturn(false);
+
+        assertThatThrownBy(() -> service.activate(
+                        new ParentActivationRequest("0912345678", "123456", "0912345678", "0912345678")))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.OTP_INVALID_OR_EXPIRED);
     }
 
     @Test

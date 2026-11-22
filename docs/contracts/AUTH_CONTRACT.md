@@ -46,7 +46,7 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 
 Mọi response thành công dùng `{code,desc,data}` và `Cache-Control: no-store`. Cookie phiên `CARENEST_SESSION`: HttpOnly, SameSite=Lax, path `{API_PREFIX}/auth`, Secure theo cấu hình; remember bật thì Max-Age tối đa 10 giờ, tắt thì session cookie. Idle 30 phút và trần 10 giờ do Keycloak áp (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`); server chặn thêm absolute 10 giờ từ `loginAt` trong cookie. Refresh trả 503 khi provider tạm lỗi thì cookie được giữ, client thử lại được.
 
-OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; response forgot/metadata/resend có `expiresAt`, `resendAvailableAt` và `expiresInSeconds`, `resendInSeconds` (tính tại server lúc trả) — client đếm ngược theo số giây tương đối, không so `expiresAt` với giờ máy (máy lệch giờ ⇒ báo hết hạn sai); 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
+OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; response forgot/metadata/resend có `expiresAt`, `resendAvailableAt` và `expiresInSeconds`, `resendInSeconds` (tính tại server lúc trả) — client đếm ngược theo số giây tương đối, không so `expiresAt` với giờ máy (máy lệch giờ ⇒ báo hết hạn sai); 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút; `requestId`/token sai dạng (không phải chuỗi 43 ký tự chữ số) trả 404 `AUTH_REQUEST_NOT_FOUND` 1004 cùng với trường hợp không tồn tại — không trả 401, để client nhận "bắt đầu lại" chứ không phải "phiên hỏng". (id đúng dạng nhưng không tồn tại/đã dùng ở verify vẫn 1006, không phân biệt với OTP sai.) Policy mật khẩu do Keycloak quyết định; BE kiểm trước "mật khẩu trùng tên đăng nhập (SĐT)" trả 400 `PASSWORD_SAME_AS_USERNAME` 1021 ở đổi mật khẩu, đặt lại mật khẩu (token còn dùng lại được) và kích hoạt tài khoản phụ huynh (Kiểm sau khi mã đúng); từ chối policy khác giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
 
 Recovery/current-password dùng assertion HMAC hạn 60 giây, nonce một lần, ràng buộc realm/subject/issuer/audience/purpose để đổi lấy capability provider 10 phút. Không có API đổi mật khẩu chỉ bằng userId. Native MFA/required actions không được bỏ qua; gateway hiện chưa có UI nhận TOTP, tài khoản yêu cầu TOTP sẽ bị từ chối.
 
@@ -277,7 +277,8 @@ Chỉ áp dụng khi `CARENEST_SMS_PROVIDER` là nhà cung cấp thật (vd. `te
 | Tình huống | HTTP / `errorCode` |
 | --- | --- |
 | SĐT không có mã chờ, mã sai/hết hạn/hết lượt/đã dùng, tài khoản khóa (một lỗi chung) | 400 / 1006 `OTP_INVALID_OR_EXPIRED` |
-| Hai mật khẩu khác nhau | 400 / 9002 `MALFORMED_REQUEST` |
+| Hai mật khẩu khác nhau | 400 / 9001 `INVALID_REQUEST_DATA` + ô `confirmPassword` ("Mật khẩu nhập lại không khớp") |
+| Mật khẩu trùng tên đăng nhập (SĐT) | 400 / 1021 `PASSWORD_SAME_AS_USERNAME` (mã giữ nguyên, kiểm sau khi mã đúng) |
 | Keycloak từ chối mật khẩu (mã giữ nguyên, không tính lần sai) | 400 / 1009 `PASSWORD_POLICY_VIOLATION` |
 | Gửi lại trong 60 giây | 429 / 1007 `OTP_RESEND_TOO_SOON` |
 | Gửi lại cho tài khoản đã kích hoạt hoặc tạo bằng mật khẩu tạm | 409 / 1144 `ACTIVATION_NOT_PENDING` |
