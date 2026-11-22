@@ -20,7 +20,6 @@ import com.carenest.dto.health.HealthExamForm.HealthExamDevelopment;
 import com.carenest.dto.health.HealthExamForm.HealthExamImmunization;
 import com.carenest.dto.health.HealthExamForm.HealthExamVitals;
 import com.carenest.dto.health.HealthExamReference;
-import com.carenest.dto.health.HealthExamReference.HealthExamHeadReference;
 import com.carenest.dto.health.HealthExamReference.HealthExamRange;
 import com.carenest.dto.health.HealthExamReference.HealthExamTemperatureReference;
 import com.carenest.dto.health.HealthExamReference.HealthExamVitalReference;
@@ -33,6 +32,7 @@ import com.carenest.service.health.impl.HealthExamCatalog.ChoiceItem;
 import com.carenest.service.health.impl.HealthExamCatalog.HistoryItem;
 import com.carenest.service.health.impl.HealthExamCatalog.Option;
 import com.carenest.service.health.impl.HealthExamCatalog.VitalItem;
+import com.carenest.utils.enums.Gender;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -48,8 +48,9 @@ final class HealthExamReview {
 
     static final String VITAL_REFERENCE_LABEL =
             "ngưỡng tham khảo tạm (mạch, nhịp thở theo AHA PALS 2020; nhiệt độ đo ở nách) — chờ bác sĩ xác nhận";
-    // Chuẩn vòng đầu WHO chỉ tới 60 tháng ⇒ trẻ lớn hơn không đo vòng đầu
-    static final int HEAD_MAX_AGE_MONTHS = 60;
+    // Chuẩn vòng đầu WHO chỉ tới 60 tháng ⇒ trẻ lớn hơn không đo vòng đầu; khoảng theo bảng WHO
+    // (WhoHeadCircumferenceForAge)
+    static final int HEAD_MAX_AGE_MONTHS = WhoHeadCircumferenceForAge.MAX_MONTHS;
     private static final int AUTISM_FROM_MONTHS = 16;
     private static final int AUTISM_TO_MONTHS = 30;
 
@@ -63,11 +64,6 @@ final class HealthExamReview {
             new Band(Integer.MAX_VALUE, "trẻ từ 6 tuổi", new HealthExamRange(75, 118), new HealthExamRange(18, 25)));
     private static final HealthExamTemperatureReference TEMPERATURE_REFERENCE =
             new HealthExamTemperatureReference(new BigDecimal("37.5"), new BigDecimal("36"));
-
-    // Khoảng vòng đầu TẠM (chờ bảng WHO): 45,5–51 cm lúc 24 tháng, mỗi tháng +0,06
-    private static final BigDecimal HEAD_LOW_AT_24 = new BigDecimal("45.5");
-    private static final BigDecimal HEAD_HIGH_AT_24 = new BigDecimal("51");
-    private static final BigDecimal HEAD_STEP = new BigDecimal("0.06");
 
     private static final String FEVER = "FEVER";
     private static final String HYPOTHERMIA = "HYPOTHERMIA";
@@ -86,17 +82,14 @@ final class HealthExamReview {
                 - (on.getDayOfMonth() < dateOfBirth.getDayOfMonth() ? 1 : 0);
     }
 
-    static HealthExamReference reference(LocalDate dateOfBirth, LocalDate on) {
+    static HealthExamReference reference(LocalDate dateOfBirth, Gender gender, LocalDate on) {
         int age = ageMonths(dateOfBirth, on);
         Band band = BANDS.stream().filter(b -> age <= b.maxMonths()).findFirst().orElseThrow();
         boolean headApplies = age <= HEAD_MAX_AGE_MONTHS;
-        BigDecimal headShift = HEAD_STEP.multiply(BigDecimal.valueOf(age - 24L));
         return new HealthExamReference(
                 age,
                 new HealthExamVitalReference(band.label(), band.pulse(), band.respiratoryRate(), TEMPERATURE_REFERENCE),
-                headApplies
-                        ? new HealthExamHeadReference(HEAD_LOW_AT_24.add(headShift), HEAD_HIGH_AT_24.add(headShift))
-                        : null,
+                headApplies ? WhoHeadCircumferenceForAge.range(gender, age) : null,
                 headApplies,
                 age >= AUTISM_FROM_MONTHS && age <= AUTISM_TO_MONTHS,
                 VITAL_REFERENCE_LABEL);

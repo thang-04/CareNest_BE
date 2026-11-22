@@ -118,7 +118,7 @@ public class HealthExamServiceImpl implements HealthExamService {
             }
             // Ngày khám hệ thống ghi ở lần lưu đầu, nháp hay kết luận đều giữ (HLT-08, user chốt 2026-11-04)
             LocalDate date = m != null ? m.getDate() : rules.referenceDate(campaign);
-            HealthExamReference reference = HealthExamReview.reference(child.dateOfBirth(), date);
+            HealthExamReference reference = HealthExamReview.reference(child.dateOfBirth(), child.gender(), date);
             HealthConclusionMode mode = conclusionMode(s, m);
             if (request.conclude() && request.conclusionMode() != null && request.conclusionMode() != mode) {
                 throw GlobalException.of(ApiCode.HEALTH_EXAM_MODE_CHANGED);
@@ -243,8 +243,8 @@ public class HealthExamServiceImpl implements HealthExamService {
             HealthMeasurement m = examOf(s, childId, campaignId);
             // Gợi ý theo tuổi tại ngày khám đã ghi; phiếu chưa lưu theo ngày sẽ ghi khi lưu
             LocalDate date = m != null ? m.getDate() : rules.referenceDate(target.campaign());
-            HealthExamReference reference =
-                    HealthExamReview.reference(target.child().dateOfBirth(), date);
+            HealthExamReference reference = HealthExamReview.reference(
+                    target.child().dateOfBirth(), target.child().gender(), date);
             HealthExamForm exam =
                     HealthExamNormalizer.normalize(request.exam(), conclusionMode(s, m), reference, false);
             HealthExamReviewResponse response = new HealthExamReviewResponse(HealthExamReview.points(exam, reference));
@@ -332,7 +332,7 @@ public class HealthExamServiceImpl implements HealthExamService {
                                 .toList()),
                 measurement,
                 draft,
-                HealthExamReview.reference(child.dateOfBirth(), refDate),
+                HealthExamReview.reference(child.dateOfBirth(), child.gender(), refDate),
                 s.previous(childId, m == null ? null : m.getId(), refDate),
                 measurementRepository.findDoctorNames(c.getId()).stream()
                         .filter(n -> n != null && !n.isBlank())
