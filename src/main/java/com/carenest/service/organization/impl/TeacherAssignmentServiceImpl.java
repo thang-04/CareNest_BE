@@ -11,6 +11,7 @@ import com.carenest.dto.organization.TeamLeaderResponse;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.entity.organization.StaffAssignment;
+import com.carenest.entity.organization.TeacherWorkCampus;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
 import com.carenest.repository.organization.AgeGroupRepository;
@@ -18,6 +19,7 @@ import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
+import com.carenest.repository.organization.TeacherWorkCampusRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.notification.NotificationService;
@@ -29,10 +31,12 @@ import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +52,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private static final String LOG_PREFIX = "[TeacherAssignmentServiceImpl]";
 
     private final StaffAssignmentRepository staffAssignmentRepository;
+    private final TeacherWorkCampusRepository teacherWorkCampusRepository;
     private final ClassroomRepository classroomRepository;
     private final SchoolYearRepository schoolYearRepository;
     private final AgeGroupRepository ageGroupRepository;
@@ -187,6 +192,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 }
             }
             staffAssignmentRepository.flush();
+            moveWorkCampus(teacherIds, classroom.getCampusId(), currentUser.userId());
             // OBS-31: báo giáo viên mới được phân công vào lớp
             if (!added.isEmpty()) {
                 notificationService.notifyUsers(
@@ -205,6 +211,20 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    // AUTH-15 (Q1=b, chốt 21/11/2026): dạy chính lớp ở cơ sở khác ⇒ cơ sở công tác chuyển theo lớp (dạy thay không đổi)
+    private void moveWorkCampus(Collection<Long> teacherIds, Long campusId, Long updatedBy) {
+        Map<Long, TeacherWorkCampus> current = teacherWorkCampusRepository.findByUserIdIn(teacherIds).stream()
+                .collect(Collectors.toMap(TeacherWorkCampus::getUserId, Function.identity()));
+        for (Long teacherId : teacherIds) {
+            TeacherWorkCampus workCampus = current.get(teacherId);
+            if (workCampus == null) {
+                teacherWorkCampusRepository.save(TeacherWorkCampus.of(teacherId, campusId, updatedBy));
+            } else if (!campusId.equals(workCampus.getCampusId())) {
+                workCampus.moveTo(campusId, updatedBy);
+            }
         }
     }
 

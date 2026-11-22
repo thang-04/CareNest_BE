@@ -228,12 +228,13 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("yearEnd") LocalDate yearEnd,
             @Param("from") LocalDate from);
 
-    // Phương án C (tạm): ứng viên GV = người từng có phân công GV/tổ trưởng (gồm GV vừa được gỡ, để phân công lại)
-    // và tài khoản GV chưa có phân công (tạo không kèm lớp — AUTH-15); điểm trường = điểm trường lớp của phân công
-    // gần nhất (dòng đầu theo valid_from giảm dần), null nếu chưa dạy lớp nào
+    // Ứng viên GV = người từng có phân công GV/tổ trưởng (gồm GV vừa được gỡ, để phân công lại) và tài khoản GV chưa
+    // có phân công; điểm trường = cơ sở công tác (AUTH-15, chốt 21/11/2026), chưa có thì theo lớp của phân công gần
+    // nhất (dòng đầu theo valid_from giảm dần), null nếu chưa dạy lớp nào
     @Query(
-            value = "select u.id as userId, u.full_name as fullName, c.campus_id as campusId"
+            value = "select u.id as userId, u.full_name as fullName, coalesce(w.campus_id, c.campus_id) as campusId"
                     + " from user_accounts u"
+                    + " left join teacher_work_campuses w on w.user_id = u.id"
                     + " left join staff_assignments a on a.user_id = u.id"
                     + " and a.staff_role in ('TEACHER', 'AGE_GROUP_TEAM_LEADER')"
                     + " left join classrooms c on c.id = a.classroom_id"

@@ -20,5 +20,7 @@ public record PermissionChangeLogResponse(
         PermissionState afterState,
         PermissionScope beforeScope,
         PermissionScope afterScope,
+        Long beforeCampusId,
+        Long afterCampusId,
         String reason,
         Instant changedAt) {}
