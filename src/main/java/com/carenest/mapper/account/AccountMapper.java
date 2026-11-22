@@ -33,7 +33,7 @@ public class AccountMapper {
     }
 
     public AccountSummaryResponse toSummaryResponse(
-            UserAccount account, List<StaffAssignmentSummaryResponse> activeAssignments) {
+            UserAccount account, List<StaffAssignmentSummaryResponse> activeAssignments, Long workCampusId) {
         return new AccountSummaryResponse(
                 account.getId(),
                 account.getUsername(),
@@ -41,10 +41,12 @@ public class AccountMapper {
                 account.getEmail(),
                 account.getPrimaryRole(),
                 account.getStatus(),
-                activeAssignments);
+                activeAssignments,
+                workCampusId);
     }
 
-    public AccountDetailResponse toDetailResponse(UserAccount account, List<StaffAssignmentResponse> assignments) {
+    public AccountDetailResponse toDetailResponse(
+            UserAccount account, List<StaffAssignmentResponse> assignments, Long workCampusId) {
         return new AccountDetailResponse(
                 account.getId(),
                 account.getUsername(),
@@ -52,6 +54,7 @@ public class AccountMapper {
                 account.getEmail(),
                 account.getPrimaryRole(),
                 account.getStatus(),
-                assignments);
+                assignments,
+                workCampusId);
     }
 }

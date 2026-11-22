@@ -120,6 +120,17 @@ WHERE NOT EXISTS (
 );
 `);
 
+  // AUTH-15: cơ sở công tác GV = cơ sở lớp dạy chính gần nhất (như migration V168, seed chạy sau migration)
+  out.push(`INSERT INTO teacher_work_campuses (user_id, campus_id)
+SELECT DISTINCT ON (a.user_id) a.user_id, cl.campus_id
+FROM staff_assignments a
+JOIN classrooms cl ON cl.id = a.classroom_id
+JOIN user_accounts u ON u.id = a.user_id
+WHERE a.staff_role = 'TEACHER' AND NOT a.is_substitute AND u.primary_role = 'TEACHER'
+ORDER BY a.user_id, a.valid_from DESC, a.id DESC
+ON CONFLICT (user_id) DO NOTHING;
+`);
+
   out.push(`INSERT INTO permission_grants (user_id, permission_code, effect, scope, reason, granted_by)
 SELECT u.id, v.permission_code, v.effect, v.scope, v.reason, gb.id
 FROM (VALUES

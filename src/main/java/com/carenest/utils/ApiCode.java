@@ -102,6 +102,15 @@ public enum ApiCode {
             1125,
             HttpStatus.BAD_REQUEST,
             "Việc được giao có nơi áp dụng không phù hợp. Vui lòng tải lại trang rồi giao lại việc"),
+    PERMISSION_CAMPUS_INVALID(
+            1146,
+            HttpStatus.BAD_REQUEST,
+            "Điểm trường được giao không tồn tại hoặc đã ngừng hoạt động. Vui lòng tải lại trang rồi chọn lại"),
+    WORK_CAMPUS_TEACHER_ONLY(1147, HttpStatus.BAD_REQUEST, "Chỉ giáo viên mới chọn cơ sở công tác riêng"),
+    TEACHER_WORK_CAMPUS_HAS_CLASS(
+            1148,
+            HttpStatus.CONFLICT,
+            "Giáo viên đang dạy lớp ở cơ sở khác. Đổi phân công lớp trước rồi mới đổi cơ sở công tác"),
     PHONE_NUMBER_INVALID(
             1124, HttpStatus.BAD_REQUEST, "Số điện thoại di động gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09"),
     NOT_PARENT_ACCOUNT(1126, HttpStatus.BAD_REQUEST, "Tài khoản này không phải tài khoản phụ huynh"),
