@@ -1,5 +1,6 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.config.NutritionConversionProperties;
 import com.carenest.dto.meals.AgeGroupMealConfigRequest;
 import com.carenest.dto.meals.AgeGroupMealConfigResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
@@ -11,6 +12,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.AgeGroupMealConfigService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.NutritionConversion;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -40,6 +42,11 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
     private final AgeGroupService ageGroupService;
     private final NutritionCatalogMapper mapper;
     private final Clock clock;
+    private final NutritionConversionProperties conversionProperties;
+
+    private NutritionConversion conversion() {
+        return new NutritionConversion(conversionProperties);
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -55,7 +62,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                     .findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(at)
                     .forEach(config -> effective.putIfAbsent(config.getAgeGroupId(), config));
             List<AgeGroupMealConfigResponse> response = effective.values().stream()
-                    .map(config -> mapper.toResponse(config, today))
+                    .map(config -> mapper.toResponse(config, today, conversion()))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -74,7 +81,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             LocalDate today = LocalDate.now(clock);
             List<AgeGroupMealConfigResponse> response =
                     configRepository.findByAgeGroupIdOrderByEffectiveFromDesc(ageGroupId).stream()
-                            .map(config -> mapper.toResponse(config, today))
+                            .map(config -> mapper.toResponse(config, today, conversion()))
                             .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -97,7 +104,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             }
             AgeGroupMealConfig config = createNew(currentUser, request, today);
             log.info("{}|configId={}|END", logPrefix, config.getId());
-            return mapper.toResponse(config, today);
+            return mapper.toResponse(config, today, conversion());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -126,7 +133,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             apply(config, request, currentUser.userId());
             configRepository.flush();
             log.info("{}|END", logPrefix);
-            return mapper.toResponse(config, today);
+            return mapper.toResponse(config, today, conversion());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -162,7 +169,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                     apply(existing, request, currentUser.userId());
                     config = existing;
                 }
-                response.add(mapper.toResponse(config, today));
+                response.add(mapper.toResponse(config, today, conversion()));
             }
             configRepository.flush();
             log.info("{}|END", logPrefix);
@@ -238,6 +245,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         if (serviceFee.compareTo(request.mealPrice()) > 0) {
             throw GlobalException.of(ApiCode.MEAL_SERVICE_FEE_INVALID);
         }
+        checkAppliedStructure(request);
         config.changeInfo(
                 request.effectiveFrom(),
                 request.mealPrice(),
@@ -283,7 +291,10 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                         request.vitaminPpMin(),
                         request.vitaminPpMax(),
                         request.vitaminCMin(),
-                        request.vitaminCMax()),
+                        request.vitaminCMax(),
+                        request.appliedProteinPct(),
+                        request.appliedLipidPct(),
+                        request.appliedGlucidPct()),
                 request.normBasis() == null ? "" : request.normBasis().trim(),
                 userId);
     }
@@ -298,6 +309,36 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             throw GlobalException.of(
                     ApiCode.MEAL_SESSION_KCAL_PCT_INVALID,
                     minTotal.stripTrailingZeros().toPlainString());
+        }
+    }
+
+    // NUT-28: cơ cấu áp dụng nhập đủ ba chất, tổng 100%, mỗi chất nằm trong khoảng min–max của chính chất đó (nếu đã đặt)
+    private static void checkAppliedStructure(AgeGroupMealConfigRequest request) {
+        BigDecimal protein = request.appliedProteinPct();
+        BigDecimal lipid = request.appliedLipidPct();
+        BigDecimal glucid = request.appliedGlucidPct();
+        if (protein == null && lipid == null && glucid == null) {
+            return;
+        }
+        if (protein == null || lipid == null || glucid == null) {
+            throw GlobalException.of(ApiCode.APPLIED_STRUCTURE_INVALID, "nhập đủ đạm, béo và bột đường");
+        }
+        BigDecimal total = protein.add(lipid).add(glucid);
+        if (total.compareTo(ONE_HUNDRED) != 0) {
+            throw GlobalException.of(
+                    ApiCode.APPLIED_STRUCTURE_INVALID,
+                    "tổng là " + total.stripTrailingZeros().toPlainString() + "%, cần đúng 100%");
+        }
+        checkWithinRange("đạm", protein, request.proteinPctMin(), request.proteinPctMax());
+        checkWithinRange("béo", lipid, request.lipidPctMin(), request.lipidPctMax());
+        checkWithinRange("bột đường", glucid, request.glucidPctMin(), request.glucidPctMax());
+    }
+
+    private static void checkWithinRange(String label, BigDecimal value, BigDecimal min, BigDecimal max) {
+        if ((min != null && value.compareTo(min) < 0) || (max != null && value.compareTo(max) > 0)) {
+            throw GlobalException.of(
+                    ApiCode.APPLIED_STRUCTURE_INVALID,
+                    label + " " + value.stripTrailingZeros().toPlainString() + "% nằm ngoài khoảng cho phép");
         }
     }
 
