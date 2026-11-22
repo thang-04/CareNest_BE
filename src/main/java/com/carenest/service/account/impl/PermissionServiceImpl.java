@@ -25,7 +25,9 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EffectivePermissionResolver;
 import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.service.account.PermissionService;
+import com.carenest.service.organization.CampusService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
@@ -41,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -75,6 +78,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final PermissionMapper permissionMapper;
     private final TransactionTemplate transactionTemplate;
     private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
+    private final CampusService campusService;
 
     @Override
     @Transactional(readOnly = true)
@@ -346,7 +350,8 @@ public class PermissionServiceImpl implements PermissionService {
     private Map<Permission, Requested> toRequestedOverrides(List<OverrideItem> items, Set<CareNestRole> roles) {
         Map<Permission, Requested> requested = new EnumMap<>(Permission.class);
         for (OverrideItem item : items) {
-            if (requested.put(item.permission(), new Requested(item.effect(), scopeOf(item))) != null) {
+            PermissionScope scope = scopeOf(item);
+            if (requested.put(item.permission(), new Requested(item.effect(), scope, campusOf(item, scope))) != null) {
                 throw GlobalException.of(ApiCode.PERMISSION_DUPLICATED, item.permission());
             }
             if (!EffectivePermissionResolver.isConfigurableForAny(item.permission(), roles)) {
@@ -367,6 +372,21 @@ public class PermissionServiceImpl implements PermissionService {
             throw GlobalException.of(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
         }
         return item.scope();
+    }
+
+    // AUTH-20 (chốt 21/11/2026): GRANT mã sửa theo mảng giao được ở một điểm trường cụ thể, kể cả khác điểm trường PHT
+    // phụ trách; điểm trường phải còn hoạt động
+    private Long campusOf(OverrideItem item, PermissionScope scope) {
+        if (item.campusId() == null) {
+            return null;
+        }
+        if (scope != PermissionScope.CAMPUS || !item.permission().campusScoped()) {
+            throw GlobalException.of(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
+        }
+        if (campusService.findCampusStatus(item.campusId()).orElse(null) != CampusStatus.ACTIVE) {
+            throw GlobalException.of(ApiCode.PERMISSION_CAMPUS_INVALID);
+        }
+        return item.campusId();
     }
 
     private void replaceOverrides(Long actorUserId, Long userId, Map<Permission, Requested> requested, String reason) {
@@ -392,7 +412,9 @@ public class PermissionServiceImpl implements PermissionService {
             Requested wanted = requestedByCode.get(code);
             PermissionEffect after = wanted == null ? null : wanted.effect();
             PermissionScope afterScope = wanted == null ? null : wanted.scope();
-            if (before == after && beforeScope == afterScope) {
+            Long beforeCampusId = existing == null ? null : existing.getCampusId();
+            Long afterCampusId = wanted == null ? null : wanted.campusId();
+            if (before == after && beforeScope == afterScope && Objects.equals(beforeCampusId, afterCampusId)) {
                 continue;
             }
             changes.add(PermissionChangeLog.forUser(
@@ -403,13 +425,15 @@ public class PermissionServiceImpl implements PermissionService {
                             PermissionState.of(before),
                             PermissionState.of(after),
                             reason)
-                    .withScopes(beforeScope, afterScope));
+                    .withScopes(beforeScope, afterScope)
+                    .withCampuses(beforeCampusId, afterCampusId));
             if (after == null) {
                 toDelete.add(existing);
             } else if (existing == null) {
-                toSave.add(UserPermissionOverride.create(userId, code, after, afterScope, reason, actorUserId));
+                toSave.add(UserPermissionOverride.create(
+                        userId, code, after, afterScope, afterCampusId, reason, actorUserId));
             } else {
-                existing.change(after, afterScope, reason, actorUserId);
+                existing.change(after, afterScope, afterCampusId, reason, actorUserId);
                 toSave.add(existing);
             }
         }
@@ -443,8 +467,8 @@ public class PermissionServiceImpl implements PermissionService {
         return permissions.isEmpty() ? EnumSet.noneOf(Permission.class) : EnumSet.copyOf(permissions);
     }
 
-    /** Ngoại lệ được yêu cầu cho một mã: GRANT/REVOKE và phạm vi (chỉ GRANT có). */
-    private record Requested(PermissionEffect effect, PermissionScope scope) {}
+    /** Ngoại lệ được yêu cầu cho một mã: GRANT/REVOKE, phạm vi và điểm trường giao cụ thể (chỉ GRANT có). */
+    private record Requested(PermissionEffect effect, PermissionScope scope, Long campusId) {}
 
     private static PermissionState onOff(boolean on) {
         return on ? PermissionState.ON : PermissionState.OFF;

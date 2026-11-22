@@ -66,7 +66,8 @@ public class AccountServiceImpl implements AccountService {
                     childIds,
                     photoUploaded,
                     // Phụ huynh đăng nhập App lần đầu phải tải ảnh chân dung để GV đối chiếu khi trả trẻ
-                    currentUser.hasRole(CareNestRole.PARENT) && !photoUploaded);
+                    currentUser.hasRole(CareNestRole.PARENT) && !photoUploaded,
+                    currentUser.pinnedCampusIds());
             log.info("{}|END", logPrefix);
             return account;
         } catch (RuntimeException ex) {

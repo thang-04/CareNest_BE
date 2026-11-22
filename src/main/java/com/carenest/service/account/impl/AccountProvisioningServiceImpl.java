@@ -115,6 +115,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             }
             // AUTH-15: xác định phạm vi người được tạo và quyền người tạo trước khi đụng Keycloak
             AssignmentScope scope = toAssignmentScope(request.role(), request.assignment());
+            Long workCampusId = teacherWorkCampusId(request.role(), request.assignment());
             staffAccessPolicy.checkCanCreate(
                     actor, request.role(), resolveCreatorCampusId(request.role(), request.assignment(), scope));
 
@@ -123,7 +124,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                     .orElseThrow(() -> GlobalException.of(ApiCode.PHONE_NUMBER_INVALID));
             Optional<UserAccount> existing = userAccountRepository.findByUsername(username);
             if (existing.isPresent()) {
-                CreateAccountResponse added = addStaffRoleToParent(actor, existing.get(), request, scope);
+                CreateAccountResponse added = addStaffRoleToParent(actor, existing.get(), request, scope, workCampusId);
                 log.info("{}|userId={}|existingAccount=true|END", logPrefix, added.userId());
                 return added;
             }
@@ -151,6 +152,9 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                                 email,
                                 request.fullName().trim(),
                                 request.role()));
+                        if (workCampusId != null) {
+                            staffAssignmentService.saveTeacherWorkCampus(created.getId(), workCampusId, actor.userId());
+                        }
                         StaffAssignmentResponse assignment = scope == null
                                 ? null
                                 : staffAssignmentService.createAssignment(
@@ -238,6 +242,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             }
             accountLifecycle.revokeRealmRole(logPrefix, account, staffRole, () -> {
                 endOpenAssignments(userId, today);
+                staffAssignmentService.clearTeacherWorkCampus(userId);
                 // Ngoại lệ của vai trò cũ không được sống lại khi sau này được gán vai trò nhân sự khác
                 permissionService.clearPermissionOverrides(
                         actor.userId(), userId, "Thu hồi vai trò nhân sự " + staffRole.name());
@@ -277,6 +282,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             }
             // ... và tạo được người có vai trò mới: HT mọi vai trò nhân sự, PHT chỉ GV/bếp trong campus mình
             AssignmentScope scope = toAssignmentScope(newRole, request.assignment());
+            Long workCampusId = teacherWorkCampusId(newRole, request.assignment());
             staffAccessPolicy.checkCanCreate(
                     actor, newRole, resolveCreatorCampusId(newRole, request.assignment(), scope));
 
@@ -286,13 +292,18 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                 permissionService.clearPermissionOverrides(
                         actor.userId(), userId, "Đổi vai trò từ " + oldRole.name() + " sang " + newRole.name());
                 userAccountRepository.updatePrimaryRole(userId, newRole.name());
+                if (workCampusId != null) {
+                    staffAssignmentService.saveTeacherWorkCampus(userId, workCampusId, actor.userId());
+                } else {
+                    staffAssignmentService.clearTeacherWorkCampus(userId);
+                }
                 return scope == null
                         ? null
                         : staffAssignmentService.createAssignment(scope.forUser(userId, actor.userId()));
             });
             account.becomeStaff(newRole);
-            AccountDetailResponse detail =
-                    accountMapper.toDetailResponse(account, staffAssignmentService.findAssignments(userId));
+            AccountDetailResponse detail = accountMapper.toDetailResponse(
+                    account, staffAssignmentService.findAssignments(userId), workCampusId);
             log.info("{}|END", logPrefix);
             return detail;
         } catch (RuntimeException ex) {
@@ -315,6 +326,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             }
             // Email dùng cho quên mật khẩu ⇒ đổi email ngang cấp lại mật khẩu (AUTH-19 với nhân sự kiêm phụ huynh)
             checkCanManageLinkedParent(actor, account);
+            Long workCampusId = resolveProfileWorkCampus(actor, account, request.workCampusId());
             String fullName = request.fullName().trim();
             String email = StringUtils.hasText(request.email())
                     ? request.email().trim().toLowerCase(Locale.ROOT)
@@ -322,6 +334,9 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             accountLifecycle.updateProfile(logPrefix, account, fullName, email, () -> {
                 account.updateProfile(fullName, email);
                 userAccountRepository.saveAndFlush(account);
+                if (workCampusId != null) {
+                    staffAssignmentService.saveTeacherWorkCampus(userId, workCampusId, actor.userId());
+                }
             });
             log.info("{}|END", logPrefix);
             return accountMapper.toAccountResponse(account);
@@ -351,7 +366,11 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
 
     // Phụ huynh được nhận làm nhân sự: một tài khoản, giữ SĐT/mật khẩu; chỉ khi người tạo đã xác nhận đúng người
     private CreateAccountResponse addStaffRoleToParent(
-            CurrentUser actor, UserAccount account, CreateAccountRequest request, AssignmentScope scope) {
+            CurrentUser actor,
+            UserAccount account,
+            CreateAccountRequest request,
+            AssignmentScope scope,
+            Long workCampusId) {
         if (account.getPrimaryRole() != CareNestRole.PARENT) {
             throw GlobalException.of(ApiCode.USERNAME_OR_EMAIL_EXISTS);
         }
@@ -376,6 +395,9 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                             actor.userId(),
                             account.getId(),
                             "Thêm vai trò nhân sự " + request.role().name());
+                    if (workCampusId != null) {
+                        staffAssignmentService.saveTeacherWorkCampus(account.getId(), workCampusId, actor.userId());
+                    }
                     return scope == null
                             ? null
                             : staffAssignmentService.createAssignment(scope.forUser(account.getId(), actor.userId()));
@@ -384,7 +406,49 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         return accountMapper.toCreateAccountResponse(account, request.role(), false, assignment);
     }
 
-    // GV chưa có phân công nên campus gửi kèm chỉ dùng để kiểm PHT tạo trong campus mình (AUTH-15)
+    // AUTH-15 (chốt 21/11/2026): GV bắt buộc có cơ sở công tác ngay khi tạo / đổi sang GV; vai trò khác không có
+    private static Long teacherWorkCampusId(CareNestRole role, StaffAssignmentScopeRequest requested) {
+        if (role != CareNestRole.TEACHER) {
+            return null;
+        }
+        if (requested == null || requested.campusId() == null) {
+            throw GlobalException.withFieldErrors(
+                    ApiCode.INVALID_REQUEST_DATA,
+                    List.of(new FieldErrorResponse("campusId", "Vui lòng chọn cơ sở công tác")));
+        }
+        return requested.campusId();
+    }
+
+    // Sửa hồ sơ GV: đổi cơ sở công tác phải trong phạm vi người sửa; GV cũ chưa có cơ sở thì bắt buộc chọn.
+    // Trả null khi không cần ghi (không phải GV hoặc giữ nguyên)
+    private Long resolveProfileWorkCampus(CurrentUser actor, UserAccount account, Long requested) {
+        if (account.getPrimaryRole() != CareNestRole.TEACHER) {
+            if (requested != null) {
+                throw GlobalException.of(ApiCode.WORK_CAMPUS_TEACHER_ONLY);
+            }
+            return null;
+        }
+        Long current =
+                staffAssignmentService.findTeacherWorkCampusId(account.getId()).orElse(null);
+        if (requested == null && current == null) {
+            throw GlobalException.withFieldErrors(
+                    ApiCode.INVALID_REQUEST_DATA,
+                    List.of(new FieldErrorResponse("workCampusId", "Vui lòng chọn cơ sở công tác")));
+        }
+        if (requested == null || requested.equals(current)) {
+            return null;
+        }
+        staffAccessPolicy.checkCanCreate(actor, CareNestRole.TEACHER, requested);
+        // User chốt 22/11/2026: GV đang dạy lớp ở cơ sở khác thì đổi phân công lớp trước (xếp lớp tự chuyển cơ sở)
+        Set<Long> teachingCampusIds =
+                staffAssignmentService.findActiveCampusIds(account.getId(), StaffRole.TEACHER, LocalDate.now(clock));
+        if (teachingCampusIds.stream().anyMatch(campusId -> !campusId.equals(requested))) {
+            throw GlobalException.of(ApiCode.TEACHER_WORK_CAMPUS_HAS_CLASS);
+        }
+        return requested;
+    }
+
+    // Campus của GV (cơ sở công tác) dùng để kiểm PHT tạo trong campus mình (AUTH-15)
     private Long resolveCreatorCampusId(
             CareNestRole role, StaffAssignmentScopeRequest requested, AssignmentScope scope) {
         if (role == CareNestRole.TEACHER) {
