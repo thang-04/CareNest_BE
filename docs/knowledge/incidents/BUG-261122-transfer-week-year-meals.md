@@ -44,6 +44,12 @@ Status: fixed (2026-11-22)
 - User chốt chỉ sửa ba phần cấu hình trường, điểm danh/suất ăn, đánh giá trẻ.
 - Không sửa test/seed kế hoạch giáo dục hoặc tài khoản nhân sự của module khác, dù CI còn báo lỗi tương thích nhóm tuổi ở đó.
 
+## Ca ra trường theo tuổi
+- CI `YearTransitionIntegrationTest.autoPlaceGraduatesOnlyChildrenWhoCompletedTheProgram` dùng trẻ sinh 2023,
+  nhưng kỳ vọng tốt nghiệp ở năm 2027. `graduatingCompletion` chỉ xét trẻ từ 72 tháng tại năm mới.
+- Sửa riêng DOB của hai trẻ trong ca tốt nghiệp thành 2021; giữ nguyên kiểm tra một trẻ hoàn thành và một trẻ chưa có kết quả.
+- Lượt local 22/11 ban ngày: Docker engine không sẵn sàng, 17/17 test bị skip. Chưa coi là pass; xác minh trên CI sau push.
+
 ## Regression
 - WeeklyCommentIntegrationTest: chuyển lớp giữ nháp cũ, lớp mới lưu riêng; lớp cũ không sửa/gửi; nghỉ hẳn khóa ghi.
 - MealCountIntegrationTest: năm cũ dùng giờ chốt riêng, mở đúng lớp cũ; qua ngày kết thúc không lập sổ.
