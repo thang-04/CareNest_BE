@@ -63,6 +63,10 @@ public class Child {
     @Column(name = "readmitted_on")
     private LocalDate readmittedOn;
 
+    // G94-180/CHD-14: ngày bắt đầu đi học chọn khi tiếp nhận / mở lại hồ sơ; null = hồ sơ cũ
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
     @Column(name = "photo_key", length = 255)
     private String photoKey;
 
@@ -152,6 +156,11 @@ public class Child {
     /** Ghi điểm trường của trẻ khi bỏ lớp duy nhất (nghỉ ngay ngày vào lớp): hồ sơ đã nghỉ vẫn thuộc điểm trường đó. */
     public void keepCampus(Long campusId) {
         this.intakeCampusId = campusId;
+    }
+
+    /** Ngày bắt đầu đi học (G94-180/CHD-14), ghi khi tiếp nhận và khi mở lại hồ sơ. */
+    public void startOn(LocalDate startDate) {
+        this.startDate = startDate;
     }
 
     /** Mở lại hồ sơ trẻ đã nghỉ (CHD-03): về Chờ xếp lớp ở điểm trường cũ, bỏ ngày/lý do nghỉ, giữ mã và dữ liệu. */
