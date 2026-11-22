@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 411 endpoint.
+Tổng: 414 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -196,7 +196,9 @@ POST /education-plans/ai/branch-names · src/main/java/com/carenest/controller/e
 POST /education-plans/ai/branch-names/rewrite · src/main/java/com/carenest/controller/eduplan/EduAiController.java#rewriteBranchName
 POST /education-plans/ai/class-docs/day/{docKey}/edit · src/main/java/com/carenest/controller/eduplan/EduAiController.java#editDay
 POST /education-plans/ai/class-docs/day/{docKey}/review · src/main/java/com/carenest/controller/eduplan/EduAiController.java#reviewDay
+POST /education-plans/ai/feedback · src/main/java/com/carenest/controller/eduplan/EduAiController.java#logFeedback
 POST /education-plans/ai/lesson-steps · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestLessonSteps
+POST /education-plans/ai/team-plans/{planId}/theme-content-map · src/main/java/com/carenest/controller/eduplan/EduAiController.java#matchThemeContents
 GET /education-plans/class-docs · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocs
 PUT /education-plans/class-docs/{kind}/{docKey} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#saveClassDoc
 POST /education-plans/class-docs/{kind}/{docKey}/actions · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#actOnClassDoc
@@ -230,6 +232,7 @@ GET /education-plans/goals/{planId}/changes · src/main/java/com/carenest/contro
 POST /education-plans/goals/{planId}/editing-heartbeat · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#heartbeat
 POST /education-plans/goals/{planId}/finish-editing · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#finishEditing
 POST /education-plans/goals/{planId}/issue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#issueYearPlan
+GET /education-plans/goals/{planId}/previous-year-ticks · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getPreviousYearTicks
 POST /education-plans/goals/{planId}/return · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#returnYearPlan
 POST /education-plans/goals/{planId}/review-deadline/reopen · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#reopenReviewDeadline
 POST /education-plans/goals/{planId}/review/{reviewItemId}/resolve · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#resolveReview

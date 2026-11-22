@@ -107,7 +107,8 @@ services:
       # Trợ lý AI; khóa trống ⇒ AI tắt (AI-03)
       CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       CARENEST_AI_API_KEY: ${CARENEST_AI_API_KEY:-}
-      CARENEST_AI_MODEL: ${CARENEST_AI_MODEL:-gemini-2.0-flash}
+      CARENEST_AI_MODEL: ${CARENEST_AI_MODEL:-gemini-2.5-flash}
+      CARENEST_AI_ENABLED: ${CARENEST_AI_ENABLED:-true}
     volumes:
       - type: bind
         source: ${CARENEST_PUSH_FCM_HOST_DIR:-./deploy}

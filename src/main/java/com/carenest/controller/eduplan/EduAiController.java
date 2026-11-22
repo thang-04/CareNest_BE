@@ -93,4 +93,29 @@ public class EduAiController {
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Review day plan success", result);
     }
+
+    /** EDU-103: quyền thật (tick được ở bản đang soạn của kế hoạch tổ) kiểm ở service. */
+    @PostMapping("/team-plans/{planId}/theme-content-map")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<EduAiResponse.ThemeContentMap>> matchThemeContents(
+            @PathVariable Long planId,
+            @Valid @RequestBody EduAiRequest.ThemeContentMap request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|matchThemeContents|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        EduAiResponse.ThemeContentMap result = eduAiService.matchThemeContents(currentUser, planId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Match theme contents success", result);
+    }
+
+    @PostMapping("/feedback")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<Void>> logFeedback(
+            @Valid @RequestBody EduAiRequest.Feedback request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|logFeedback|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        eduAiService.logFeedback(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Log AI feedback success");
+    }
 }

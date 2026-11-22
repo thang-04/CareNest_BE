@@ -21,4 +21,11 @@ public interface EduAiService {
 
     /** Tóm tắt giáo án ngày cho người duyệt / người soạn: gợi ý, không lưu. */
     EduAiResponse.DayReview reviewDay(CurrentUser currentUser, String docKey);
+
+    /** EDU-103: gợi ý gom nội dung vào chủ đề của kế hoạch tổ (người tick được ở bản đang soạn), không lưu. */
+    EduAiResponse.ThemeContentMap matchThemeContents(
+            CurrentUser currentUser, Long planId, EduAiRequest.ThemeContentMap request);
+
+    /** EDU-103: ghi log số gợi ý / số giữ của một lần Áp dụng; không lưu DB. */
+    void logFeedback(CurrentUser currentUser, EduAiRequest.Feedback request);
 }

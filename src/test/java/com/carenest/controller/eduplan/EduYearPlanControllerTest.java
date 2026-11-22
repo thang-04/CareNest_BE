@@ -58,6 +58,9 @@ class EduYearPlanControllerTest {
     @MockitoBean
     private EduGoalFileService eduGoalFileService;
 
+    @MockitoBean
+    private com.carenest.service.eduplan.EduPreviousYearTickService eduPreviousYearTickService;
+
     @Test
     @DisplayName("EDU-46: gửi file bảng mục tiêu (multipart) trả bản xem trước")
     void goalFilePreviewReturnsPreview() throws Exception {

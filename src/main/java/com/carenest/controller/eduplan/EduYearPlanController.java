@@ -3,6 +3,8 @@ package com.carenest.controller.eduplan;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.GoalFilePreviewResponse;
 import com.carenest.dto.eduplan.PlanActionRequest;
+import com.carenest.dto.eduplan.PreviousYearTicksResponse;
+import com.carenest.service.eduplan.EduPreviousYearTickService;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
@@ -51,6 +53,20 @@ public class EduYearPlanController {
 
     private final EduYearPlanService eduYearPlanService;
     private final EduGoalFileService eduGoalFileService;
+    private final EduPreviousYearTickService eduPreviousYearTickService;
+
+    /** EDU-104: tick kế hoạch tổ đã ban hành năm học liền trước để người soạn kế hoạch tổ lấy lại. */
+    @GetMapping("/{planId}/previous-year-ticks")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<PreviousYearTicksResponse>> getPreviousYearTicks(
+            @PathVariable Long planId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getPreviousYearTicks|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        PreviousYearTicksResponse result = eduPreviousYearTickService.getPreviousYearTicks(currentUser, planId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get previous year ticks success", result);
+    }
 
     /** EDU-46: đọc file bảng mục tiêu (Word/Excel/CSV) thành bản xem trước; không lưu. */
     @PostMapping(value = "/file-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

@@ -146,3 +146,14 @@ EDU-98 (Tiền, 20/11/2026): danh mục, cấu hình, khung giáo án và nhóm 
 EDU-98 (20/11/2026). Bộ lọc nhóm tuổi dùng danh mục age_groups; ở Dự kiến chủ đề – chủ đề nhánh, Kế hoạch giáo dục chủ đề và Kế hoạch giáo dục ngày, ô Nhóm tuổi hiện toàn bộ danh mục. Ô Lớp chỉ hiện các lớp được phép xem và trang báo Không tìm thấy lớp nếu nhóm đang chọn không có lớp phù hợp. Các màn chọn lớp khác chỉ hiện nhóm có lớp được phép xem. Mọi bộ lọc nhóm tuổi trong kế hoạch giáo dục gộp theo cặp tháng bắt đầu và kết thúc, khớp đúng cả hai đầu mút. Ô chọn hiển thị tên ngắn của nhóm tuổi đại diện cho khoảng tháng, dùng tên đầy đủ nếu thiếu tên ngắn. Chương trình Bộ lưu khoảng tháng trên dòng danh mục và truy vấn trực tiếp theo cặp tháng này. Nhóm trường tạo lại có cùng khoảng tháng vẫn dùng được chương trình tương ứng. Bảng edu_plan_defaults lưu config_reset và day_template.
 
 EDU-99 (Tiền, 20/11/2026): thông báo lỗi và kiểm tra dữ liệu dùng đỏ. Hướng dẫn, mục mới và kết quả đã xử lý dùng xanh lá. Lý do trả lại hiện chữ đỏ, không có nền hoặc khung đỏ.
+
+## AI ghép nội dung — EDU-103/104/105/106 (Tiền 22/11/2026)
+
+Thiết kế: `UI-giaoan/docs/superpowers/specs/2026-11-22-edu-ai-content-matching-design.md`. Thứ tự làm: (1) EDU-103, (2) EDU-104, (3) EDU-105, (4) EDU-106.
+
+1. **Kế hoạch tổ — AI gom nội dung vào chủ đề (EDU-103):** Thao tác card nội dung → modal chủ đề + ô yêu cầu → (tự Lưu nếu còn thay đổi, EDU-22) → BE đọc chủ đề/lễ/nhánh/nội dung từ DB, hỏi AI theo lĩnh vực → kiểm id, trùng, căn cứ nguyên văn → màn duyệt gom theo chủ đề → căn cứ → Áp dụng (chỉ thêm tick vào bản đang soạn) → tổ trưởng tick nốt bằng ô tìm + lọc "Chưa thuộc chủ đề nào". Không giới hạn số chủ đề mỗi nội dung.
+2. **Kế hoạch tổ — lấy tick năm trước (EDU-104):** nguồn là kế hoạch tổ APPROVED mới nhất cùng nhóm tuổi năm học liền trước; xác nhận cặp chủ đề (tự đoán theo tên) → nội dung khớp theo chữ → xem trước → Áp dụng (chỉ thêm).
+3. **Ví dụ mẫu (EDU-105):** tick của kế hoạch tổ APPROVED làm ví dụ trong prompt EDU-103, có giới hạn, tắt được bằng cấu hình.
+4. **Kế hoạch năm — nội dung mục C cho mục tiêu (EDU-106):** mục tiêu chưa có nội dung → AI chọn nội dung mục C cùng nhóm tuổi/lĩnh vực → duyệt → Áp dụng chép chữ. Chạy thử trên dữ liệu thật trước khi làm UI.
+
+Đo chất lượng: mỗi lần Áp dụng ghi log số dòng gợi ý/giữ (không lưu DB); tỉ lệ giữ < ~80% ⇒ sửa prompt/ví dụ. AI tắt/lỗi ⇒ báo, soạn tay bình thường (EDU-95).

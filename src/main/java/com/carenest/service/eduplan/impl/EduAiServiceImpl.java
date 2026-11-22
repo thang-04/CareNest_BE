@@ -2,31 +2,40 @@ package com.carenest.service.eduplan.impl;
 
 import com.carenest.dto.eduplan.EduAiRequest;
 import com.carenest.dto.eduplan.EduAiResponse;
+import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.ai.AiClientException;
 import com.carenest.integration.ai.AiGateway;
 import com.carenest.integration.ai.AiProperties;
+import com.carenest.integration.ai.AiRawResult;
 import com.carenest.integration.ai.AiRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduAiService;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
+import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AiErrorReason;
 import com.carenest.utils.enums.AiTask;
+import com.carenest.utils.enums.EduPlanLevel;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,7 +44,7 @@ import tools.jackson.databind.ObjectMapper;
 
 /**
  * EDU-95/96: gọi AI qua {@link AiGateway} (tác vụ EDU_PLAN, JSON), server lọc lại output: chỉ tuần/MT/loại giờ/ô có trong yêu cầu, cắt độ
- * dài. Không ghi DB, không giữ giao dịch trong lúc chờ AI.
+ * dài. EDU-103 dùng tác vụ EDU_MATCH. Không ghi DB, không giữ giao dịch trong lúc chờ AI.
  */
 @Slf4j
 @Service
@@ -62,11 +71,30 @@ public class EduAiServiceImpl implements EduAiService {
             "child", "Hoạt động của trẻ",
             "note", "Ghi chú");
     private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("dd/MM");
+    private static final int REQUEST_MAX = 500;
+    private static final int FROM_MAX = 120;
+    // EDU-103: luật gán theo thiết kế đã chạy thử (gán nhầm tệ hơn bỏ sót; lễ hội phải đúng tên)
+    private static final String MATCHER =
+            "Bạn là chuyên gia chương trình giáo dục mầm non Việt Nam, giúp tổ trưởng chuyên môn gán NỘI DUNG giáo dục"
+                    + " vào CHỦ ĐỀ.\nQuy tắc:\n"
+                    + "- Chỉ gán khi CHẮC CHẮN nội dung liên quan rõ ràng tới chủ đề. Không chắc thì bỏ qua (tổ trưởng sẽ"
+                    + " tự tick). Gán nhầm tệ hơn bỏ sót.\n"
+                    + "- Nội dung kỹ năng chung (động tác thể dục, vận động cơ bản, tạo hình, hát, đếm số thuần túy) chỉ"
+                    + " gán khi yêu cầu (request) của chủ đề nhắc trực tiếp tới hoạt động đó.\n"
+                    + "- Ưu tiên yêu cầu tổ trưởng gõ (request). Chủ đề không có request thì dựa vào tên chủ đề, lễ hội"
+                    + " (festivals) và tên nhánh (branches).\n"
+                    + "- Lễ hội: chỉ gán khi nội dung nhắc ĐÚNG TÊN dịp lễ có trong festivals của chủ đề đó.\n"
+                    + "- Một nội dung có thể vào nhiều chủ đề nếu đều chắc chắn.\n"
+                    + "- Mỗi lần gán phải ghi \"from\": cụm từ NGUYÊN VĂN trong request của chủ đề đó làm căn cứ; nếu căn"
+                    + " cứ là tên chủ đề, tên nhánh hoặc lễ hội thì ghi đúng tên đó.\n"
+                    + "- Chỉ dùng contentId và themeId có trong dữ liệu.\n"
+                    + "Trả về JSON đúng dạng: {\"matches\":[{\"contentId\":<số>,\"themeId\":<số>,\"from\":\"<cụm từ>\"}]}";
 
     private final AiGateway aiGateway;
     private final ObjectMapper objectMapper;
     private final EduConfigService eduConfigService;
     private final EduClassDocService classDocService;
+    private final EduYearPlanService yearPlanService;
 
     @Override
     public EduAiResponse.BranchNames suggestBranchNames(CurrentUser currentUser, EduAiRequest.BranchNames request) {
@@ -275,6 +303,169 @@ public class EduAiServiceImpl implements EduAiService {
         }
     }
 
+    @Override
+    public EduAiResponse.ThemeContentMap matchThemeContents(
+            CurrentUser currentUser, Long planId, EduAiRequest.ThemeContentMap request) {
+        String logPrefix = LOG_PREFIX + "|matchThemeContents|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        try {
+            // getYearPlan kiểm quyền xem; canAssignContents = người soạn hiện hành, bản DRAFT, năm học còn ghi (EDU-95)
+            YearPlanDetailResponse plan = yearPlanService.getYearPlan(currentUser, planId);
+            if (plan.planLevel() != EduPlanLevel.TEAM || !plan.canAssignContents())
+                throw GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
+            if (!aiGateway.isAvailable(AiTask.EDU_MATCH)) throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
+            long started = System.nanoTime();
+            Map<Long, String> asked = new HashMap<>();
+            if (request != null && request.themes() != null)
+                request.themes().forEach(t -> asked.put(t.themeId(), clip(t.request(), REQUEST_MAX)));
+            Map<Long, List<String>> branches = new HashMap<>();
+            for (YearPlanDetailResponse.BranchTemplate b : nullSafe(plan.branchTemplates()))
+                if (b.name() != null && !b.name().isBlank())
+                    branches.computeIfAbsent(b.themeId(), k -> new ArrayList<>())
+                            .add(b.name().trim());
+            List<Map<String, Object>> themes = new ArrayList<>();
+            Map<Long, String> grounds = new HashMap<>();
+            for (YearPlanDetailResponse.Theme t : nullSafe(plan.themes())) {
+                String req = asked.getOrDefault(t.id(), "");
+                List<String> names = branches.getOrDefault(t.id(), List.of());
+                Map<String, Object> theme = new LinkedHashMap<>();
+                theme.put("themeId", t.id());
+                theme.put("name", nz(t.name()));
+                theme.put("festivals", nz(t.festivals()));
+                theme.put("branches", names);
+                theme.put("request", req);
+                themes.add(theme);
+                // Căn cứ from chỉ hợp lệ trong chữ của chính chủ đề đó (FR1.5)
+                grounds.put(
+                        t.id(),
+                        String.join("\n", req, nz(t.name()), nz(t.festivals()), String.join("\n", names))
+                                .toLowerCase(Locale.ROOT));
+            }
+            List<DomainAsk> domains = new ArrayList<>();
+            for (YearPlanDetailResponse.Domain d : nullSafe(plan.domains())) {
+                List<Map<String, Object>> contents = new ArrayList<>();
+                Set<Long> ids = new HashSet<>();
+                for (YearPlanDetailResponse.Row r : nullSafe(d.rows()))
+                    for (YearPlanDetailResponse.Content c : nullSafe(r.contents())) {
+                        // EDU-50: nội dung trống không tick được
+                        if (c.id() == null || c.text() == null || c.text().isBlank()) continue;
+                        Map<String, Object> content = new LinkedHashMap<>();
+                        content.put("contentId", c.id());
+                        content.put("goal", r.goalNo() == null ? nz(r.text()) : "MT " + r.goalNo());
+                        content.put("text", c.text().trim());
+                        contents.add(content);
+                        ids.add(c.id());
+                    }
+                if (contents.isEmpty()) continue;
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("themes", themes);
+                body.put("domain", nz(d.name()));
+                body.put("contents", contents);
+                domains.add(new DomainAsk(d.domainId(), nz(d.name()), ids, objectMapper.writeValueAsString(body)));
+            }
+            Instant until = deadline(AiTask.EDU_MATCH);
+            List<Future<AiRawResult>> calls = new ArrayList<>();
+            List<EduAiResponse.ThemeContentMatch> matches = new ArrayList<>();
+            List<EduAiResponse.FailedDomain> failed = new ArrayList<>();
+            RuntimeException firstError = null;
+            int raw = 0;
+            long tokensIn = 0;
+            long tokensOut = 0;
+            // Mỗi lĩnh vực một lần gọi, song song: tổng chờ ≈ lần chậm nhất (NFR1); lĩnh vực lỗi không làm hỏng cả lần
+            try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
+                for (DomainAsk d : domains)
+                    calls.add(pool.submit(
+                            () -> complete(AiTask.EDU_MATCH, MATCHER, "theme-content-map", d.prompt(), until)));
+                Set<String> seen = new HashSet<>();
+                for (int i = 0; i < domains.size(); i++) {
+                    DomainAsk d = domains.get(i);
+                    try {
+                        AiRawResult result = calls.get(i).get();
+                        tokensIn += result.inputTokens() == null ? 0 : result.inputTokens();
+                        tokensOut += result.outputTokens() == null ? 0 : result.outputTokens();
+                        JsonNode out = parseJson(result.content()).path("matches");
+                        raw += out.size();
+                        matches.addAll(keepGrounded(out, d.contentIds(), grounds, seen));
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        throw GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, ex);
+                    } catch (ExecutionException | RuntimeException ex) {
+                        Throwable cause = ex instanceof ExecutionException ? ex.getCause() : ex;
+                        if (firstError == null)
+                            firstError = cause instanceof RuntimeException rt
+                                    ? rt
+                                    : GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, cause);
+                        failed.add(new EduAiResponse.FailedDomain(d.domainId(), d.name()));
+                    }
+                }
+            }
+            // Mọi lĩnh vực đều lỗi ⇒ báo như các nút AI khác (8001/8002)
+            if (!domains.isEmpty() && failed.size() == domains.size()) throw firstError;
+            log.info(
+                    "{}|END|domains={}|failed={}|raw={}|kept={}|tokensIn={}|tokensOut={}|ms={}",
+                    logPrefix,
+                    domains.size(),
+                    failed.stream().map(f -> String.valueOf(f.domainId())).toList(),
+                    raw,
+                    matches.size(),
+                    tokensIn,
+                    tokensOut,
+                    (System.nanoTime() - started) / 1_000_000);
+            return new EduAiResponse.ThemeContentMap(matches, failed);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void logFeedback(CurrentUser currentUser, EduAiRequest.Feedback request) {
+        String logPrefix = LOG_PREFIX + "|logFeedback|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            // NFR4: chỉ số đếm để theo dõi tỉ lệ giữ (ngưỡng ~80%), không lưu, không dữ liệu trẻ
+            log.info(
+                    "{}|END|kind={}|suggested={}|kept={}|failedDomains={}|waitMs={}",
+                    logPrefix,
+                    request.kind(),
+                    request.suggested(),
+                    request.kept(),
+                    request.failedDomains(),
+                    request.waitMs());
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private record DomainAsk(Long domainId, String name, Set<Long> contentIds, String prompt) {}
+
+    /**
+     * Chống bịa (FR1.5): contentId thuộc lĩnh vực đang hỏi, themeId thuộc kế hoạch, không trùng cặp, from có nguyên văn
+     * trong chữ của chính chủ đề đó.
+     */
+    static List<EduAiResponse.ThemeContentMatch> keepGrounded(
+            JsonNode out, Set<Long> contentIds, Map<Long, String> grounds, Set<String> seen) {
+        List<EduAiResponse.ThemeContentMatch> kept = new ArrayList<>();
+        for (JsonNode m : out) {
+            long contentId = m.path("contentId").asLong(-1L);
+            long themeId = m.path("themeId").asLong(-1L);
+            String from = m.path("from").asString("").trim();
+            String ground = grounds.get(themeId);
+            if (!contentIds.contains(contentId)
+                    || ground == null
+                    || from.isEmpty()
+                    || !ground.contains(from.toLowerCase(Locale.ROOT))
+                    || !seen.add(themeId + ":" + contentId)) continue;
+            kept.add(new EduAiResponse.ThemeContentMatch(themeId, contentId, clip(from, FROM_MAX)));
+        }
+        return kept;
+    }
+
+    private static <T> List<T> nullSafe(List<T> list) {
+        return list == null ? List.of() : list;
+    }
+
     private record Cell(String label, String text) {}
 
     /** Ô chữ của giáo án ngày theo đường dẫn: mục đích, chuẩn bị, từng dòng tiến hành của 4 mục mỗi ngày. */
@@ -322,24 +513,28 @@ public class EduAiServiceImpl implements EduAiService {
     /** Gọi AI chế độ JSON; tắt/lỗi/hết giờ/JSON hỏng ⇒ 8001/8002 (AI-03), dữ liệu của giáo viên giữ nguyên. */
     JsonNode ask(String task, String userPrompt) {
         if (!aiGateway.isAvailable(AiTask.EDU_PLAN)) throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
+        return parseJson(complete(AiTask.EDU_PLAN, TEACHER, task, userPrompt, deadline(AiTask.EDU_PLAN))
+                .content());
+    }
+
+    private Instant deadline(AiTask task) {
         Duration budget = aiGateway
-                .taskConfig(AiTask.EDU_PLAN)
+                .taskConfig(task)
                 .map(AiProperties.TaskConfig::deadline)
                 .orElse(Duration.ofSeconds(30));
-        String text;
+        return Instant.now().plus(budget);
+    }
+
+    private AiRawResult complete(AiTask aiTask, String system, String task, String userPrompt, Instant deadline) {
         try {
-            text = aiGateway
-                    .complete(new AiRequest(
-                            AiTask.EDU_PLAN,
-                            "edu/" + task,
-                            TEACHER,
-                            userPrompt,
-                            Instant.now().plus(budget)))
-                    .content();
+            return aiGateway.complete(new AiRequest(aiTask, "edu/" + task, system, userPrompt, deadline));
         } catch (AiClientException ex) {
             throw GlobalException.withCause(
                     ex.getReason() == AiErrorReason.TIMEOUT ? ApiCode.AI_TIMEOUT : ApiCode.AI_SERVICE_UNAVAILABLE, ex);
         }
+    }
+
+    private JsonNode parseJson(String text) {
         String json = text == null ? "" : text.trim();
         // Một số model vẫn bọc ```json … ```
         if (json.startsWith("```"))
