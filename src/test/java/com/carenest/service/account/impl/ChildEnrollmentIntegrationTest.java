@@ -107,6 +107,8 @@ class ChildEnrollmentIntegrationTest {
     }
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 29);
+    private static final String SCHOOL_DAY_REQUIRED =
+            "Ngày bắt đầu đi học phải là ngày học (thứ 2 tới thứ 6, không trùng ngày nghỉ của trường)";
 
     @MockitoBean
     private IdentityProviderClient identityProviderClient;
@@ -129,6 +131,9 @@ class ChildEnrollmentIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private com.carenest.repository.child.EnrollmentRepository enrollmentRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -163,7 +168,7 @@ class ChildEnrollmentIntegrationTest {
         activeYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         plannedYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
-                + "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id");
+                + "VALUES ('2027-2028', '2027-09-06', '2028-05-31') RETURNING id");
         classA = classroom(campusA, activeYear, "Lớp A1", ag3, 2);
         classB = classroom(campusB, activeYear, "Lớp B1", ag3, 25);
         plannedClass = classroom(campusA, plannedYear, "Lớp A năm sau", ag3, 25);
@@ -332,7 +337,9 @@ class ChildEnrollmentIntegrationTest {
                 base.child(),
                 new HealthDeclarationInput(d.allergies(), d.diet(), d.otherNotes(), d.medicalHistory(), false),
                 null,
-                campusA);
+                campusA,
+                null,
+                TODAY);
 
         ChildEnrollmentResponse response = enrollmentService.enroll(principal, noMeal);
         entityManager.flush();
@@ -424,7 +431,9 @@ class ChildEnrollmentIntegrationTest {
                                 declaration.medicalHistory().family(),
                                 new TbContactInput("REPORTED", "2026-10-20"))),
                 null,
-                campusA);
+                campusA,
+                null,
+                TODAY);
 
         enrollmentService.enroll(principal, withTbContact);
         entityManager.flush();
@@ -781,16 +790,16 @@ class ChildEnrollmentIntegrationTest {
         String code = jdbc.queryForObject("SELECT code FROM children WHERE id = ?", String.class, left);
 
         expectCode(
-                () -> intakeService.readmit(vicePrincipalOfB, left, new ReadmitChildRequest("Quay lại")),
+                () -> intakeService.readmit(vicePrincipalOfB, left, new ReadmitChildRequest("Quay lại", null, TODAY)),
                 ApiCode.CHILD_ACCESS_DENIED);
         expectField(
-                () -> intakeService.readmit(principal, left, new ReadmitChildRequest("  ")),
+                () -> intakeService.readmit(principal, left, new ReadmitChildRequest("  ", null, TODAY)),
                 ApiCode.INVALID_REQUEST_DATA,
                 "reason",
                 "Nhập lý do tiếp nhận lại");
 
         ChildViewResponse view =
-                intakeService.readmit(vicePrincipal, left, new ReadmitChildRequest("Gia đình chuyển về"));
+                intakeService.readmit(vicePrincipal, left, new ReadmitChildRequest("Gia đình chuyển về", null, TODAY));
         assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
         assertThat(view.code()).isEqualTo(code);
         assertThat(view.campusId()).isEqualTo(campusA);
@@ -806,7 +815,7 @@ class ChildEnrollmentIntegrationTest {
                 .containsExactly(new com.carenest.service.child.ChildIntakeService.ChildReadmittedEvent(left));
 
         expectCode(
-                () -> intakeService.readmit(principal, left, new ReadmitChildRequest("Lần nữa")),
+                () -> intakeService.readmit(principal, left, new ReadmitChildRequest("Lần nữa", null, TODAY)),
                 ApiCode.CHILD_NOT_LEFT);
     }
 
@@ -836,7 +845,7 @@ class ChildEnrollmentIntegrationTest {
                 () -> intakeService.readmit(
                         principal,
                         left,
-                        new ReadmitChildRequest("Gia đình quay lại", plannedYear, LocalDate.of(2027, 9, 5))),
+                        new ReadmitChildRequest("Gia đình quay lại", plannedYear, LocalDate.of(2027, 9, 6))),
                 ApiCode.PREP_YEAR_NOT_OPEN);
         assertThat(count("SELECT count(*) FROM children WHERE id = ? AND status = 'LEFT'", left))
                 .isEqualTo(1);
@@ -846,20 +855,20 @@ class ChildEnrollmentIntegrationTest {
         openPrep("2026-10-29");
         entityManager.clear();
         ChildViewResponse view = intakeService.readmit(
-                principal, left, new ReadmitChildRequest("Gia đình quay lại", plannedYear, LocalDate.of(2027, 9, 5)));
+                principal, left, new ReadmitChildRequest("Gia đình quay lại", plannedYear, LocalDate.of(2027, 9, 6)));
         assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
         assertThat(view.campusId()).isEqualTo(campusA);
         assertThat(count(
                         "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND status = 'PENDING'"
                                 + " AND campus_id = ? AND school_year_id = ? AND classroom_id IS NULL"
-                                + " AND start_date = '2027-09-05'",
+                                + " AND start_date = '2027-09-06'",
                         left,
                         campusA,
                         plannedYear))
                 .isEqualTo(1);
 
         // Không gửi schoolYearId ⇒ như cũ, không có đăng ký
-        intakeService.readmit(principal, plain, new ReadmitChildRequest("Gia đình quay lại"));
+        intakeService.readmit(principal, plain, new ReadmitChildRequest("Gia đình quay lại", null, TODAY));
         assertThat(count("SELECT count(*) FROM planned_admissions WHERE child_id = ?", plain))
                 .isZero();
     }
@@ -888,8 +897,8 @@ class ChildEnrollmentIntegrationTest {
         assertThat(left.campusId()).isEqualTo(campusA);
         entityManager.clear();
 
-        ChildViewResponse view =
-                intakeService.readmit(vicePrincipal, childId, new ReadmitChildRequest("Gia đình quay lại"));
+        ChildViewResponse view = intakeService.readmit(
+                vicePrincipal, childId, new ReadmitChildRequest("Gia đình quay lại", null, TODAY));
         assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
         assertThat(view.campusId()).isEqualTo(campusA);
     }
@@ -939,7 +948,9 @@ class ChildEnrollmentIntegrationTest {
                         base.child().profile()),
                 base.declaration(),
                 null,
-                campusA);
+                campusA,
+                null,
+                TODAY);
         var saved = enrollmentService.enroll(principal, chosen);
         assertThat(saved.child().guardians()).hasSize(2);
         assertThat(saved.child().guardians())
@@ -971,7 +982,7 @@ class ChildEnrollmentIntegrationTest {
         Long childId = imports.importRows(
                         vicePrincipal,
                         new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
-                                List.of(row), campusA))
+                                List.of(row), campusA, null, TODAY))
                 .ids()
                 .getFirst();
         entityManager.flush();
@@ -1003,7 +1014,7 @@ class ChildEnrollmentIntegrationTest {
         Long childId = imports.importRows(
                         principal,
                         new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
-                                List.of(row), campusB))
+                                List.of(row), campusB, null, TODAY))
                 .ids()
                 .getFirst();
         expectCode(() -> selectedAccounts.candidates(vicePrincipal, childId), ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
@@ -1039,7 +1050,7 @@ class ChildEnrollmentIntegrationTest {
         var result = imports.importRows(
                 principal,
                 new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
-                        List.of(first, other), campusA));
+                        List.of(first, other), campusA, null, TODAY));
         assertThat(result.created()).isEqualTo(2);
         var one = request("Trẻ Trùng Gia Đình", "2023-02-03", null, campusA, newGuardian("0918888921", "999900000921"));
         var two = request(
@@ -1054,7 +1065,7 @@ class ChildEnrollmentIntegrationTest {
                 () -> imports.importRows(
                         principal,
                         new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
-                                List.of(one, two), campusA)),
+                                List.of(one, two), campusA, null, TODAY)),
                 ApiCode.INVALID_REQUEST_DATA);
         assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
     }
@@ -1219,7 +1230,7 @@ class ChildEnrollmentIntegrationTest {
                                 "Trẻ Chưa Mở",
                                 plannedClass,
                                 campusA,
-                                "2027-09-05",
+                                "2027-09-06",
                                 newGuardian("0915000001", "001500000001"))),
                 ApiCode.PREP_YEAR_NOT_OPEN);
         expectCode(() -> intakeService.listPlacementClasses(principal, plannedYear), ApiCode.PREP_YEAR_NOT_OPEN);
@@ -1236,13 +1247,13 @@ class ChildEnrollmentIntegrationTest {
                         "Trẻ Năm Sau Mở",
                         plannedClass,
                         campusA,
-                        "2027-09-05",
+                        "2027-09-06",
                         newGuardian("0915000002", "001500000002")));
         assertThat(response.child().status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
         assertThat(response.child().classId()).isNull();
         assertThat(count(
                         "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?"
-                                + " AND classroom_id = ? AND start_date = '2027-09-05' AND status = 'PLACED'",
+                                + " AND classroom_id = ? AND start_date = '2027-09-06' AND status = 'PLACED'",
                         response.child().id(),
                         plannedYear,
                         plannedClass))
@@ -1259,7 +1270,8 @@ class ChildEnrollmentIntegrationTest {
         EnrollChildRequest base =
                 request("Trẻ Năm Nay", "2023-08-01", null, null, newGuardian("0915000003", "001500000003"));
         ChildEnrollmentResponse response = enrollmentService.enroll(
-                principal, new EnrollChildRequest(base.child(), base.declaration(), classA, campusA, activeYear, null));
+                principal,
+                new EnrollChildRequest(base.child(), base.declaration(), classA, campusA, activeYear, TODAY));
         assertThat(response.child().classId()).isEqualTo(classA);
         assertThat(response.child().status()).isEqualTo(ChildStatus.ACTIVE);
         assertThat(count("SELECT count(*) FROM planned_admissions")).isZero();
@@ -1300,7 +1312,7 @@ class ChildEnrollmentIntegrationTest {
                                 "Trẻ Năm Sau Nghỉ",
                                 plannedClass,
                                 campusA,
-                                "2027-09-05",
+                                "2027-09-06",
                                 newGuardian("0915000005", "001500000005")))
                 .child()
                 .id();
@@ -1325,7 +1337,7 @@ class ChildEnrollmentIntegrationTest {
         long childId = enrollmentService
                 .enroll(
                         principal,
-                        plannedRequest(name, plannedClass, campusA, "2027-09-05", newGuardian(phone, citizenId)))
+                        plannedRequest(name, plannedClass, campusA, "2027-09-06", newGuardian(phone, citizenId)))
                 .child()
                 .id();
         recordService.withdraw(
@@ -1367,7 +1379,7 @@ class ChildEnrollmentIntegrationTest {
 
         assertThat(count(
                         "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND school_year_id = ?"
-                                + " AND status = 'PENDING' AND start_date = '2027-09-05'",
+                                + " AND status = 'PENDING' AND start_date = '2027-09-06'",
                         childId,
                         plannedYear))
                 .isEqualTo(1);
@@ -1423,7 +1435,7 @@ class ChildEnrollmentIntegrationTest {
                 .satisfies(i -> {
                     assertThat(i.plannedAdmission().classId()).isEqualTo(plannedClass);
                     assertThat(i.plannedAdmission().className()).isEqualTo("Lớp A năm sau");
-                    assertThat(i.plannedAdmission().startDate()).isEqualTo(LocalDate.of(2027, 9, 5));
+                    assertThat(i.plannedAdmission().startDate()).isEqualTo(LocalDate.of(2027, 9, 6));
                     assertThat(i.plannedAdmission().status())
                             .isEqualTo(com.carenest.utils.enums.PlannedAdmissionStatus.PLACED);
                 });
@@ -1459,7 +1471,7 @@ class ChildEnrollmentIntegrationTest {
         EnrollChildRequest r2 =
                 request("Bé Excel Hai", "2023-05-11", null, null, newGuardian("0915000022", "001500000022"));
         var body = new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
-                List.of(r1, r2), campusA, plannedYear, LocalDate.of(2027, 9, 5));
+                List.of(r1, r2), campusA, plannedYear, LocalDate.of(2027, 9, 6));
         long before = count("SELECT count(*) FROM children");
 
         expectCode(() -> importService.importRows(principal, body), ApiCode.PREP_YEAR_NOT_OPEN);
@@ -1524,7 +1536,7 @@ class ChildEnrollmentIntegrationTest {
         EnrollChildRequest row =
                 request("Bé Excel Ngoài Năm", "2023-04-10", null, null, newGuardian("0915000032", "001500000032"));
         var body = new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
-                List.of(row), campusB, plannedYear, LocalDate.of(2027, 9, 5));
+                List.of(row), campusB, plannedYear, LocalDate.of(2027, 9, 6));
         long before = count("SELECT count(*) FROM children");
 
         expectField(
@@ -1644,7 +1656,7 @@ class ChildEnrollmentIntegrationTest {
         EnrollChildRequest row =
                 request("Bé Excel Sơ Sinh", "2026-07-30", null, null, newGuardian("0915000041", "001500000041"));
         var body = new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
-                List.of(row), campusA, null, null);
+                List.of(row), campusA, null, TODAY);
         long before = count("SELECT count(*) FROM children");
 
         expectField(
@@ -1669,7 +1681,7 @@ class ChildEnrollmentIntegrationTest {
                         plannedClass,
                         campusA,
                         plannedYear,
-                        LocalDate.of(2027, 9, 5)));
+                        LocalDate.of(2027, 9, 6)));
 
         assertThat(count(
                         "SELECT count(*) FROM planned_admissions WHERE child_id = ? AND classroom_id = ?",
@@ -1687,10 +1699,149 @@ class ChildEnrollmentIntegrationTest {
                                 "Bé An Năm Sau",
                                 plannedClass,
                                 campusA,
-                                "2027-09-05",
+                                "2027-09-06",
                                 newGuardian("0915000010", "001500000010")))
                 .child()
                 .id();
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/CHD-14: tiếp nhận năm đang học phải chọn ngày bắt đầu đi học, từ hôm nay tới cuối năm, là ngày học")
+    void currentYearIntakeRequiresSchoolDayStartDate() {
+        jdbc.update(
+                "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) "
+                        + "VALUES (?, '2026-11-20', '2026-11-20', 'Nghỉ lễ')",
+                activeYear);
+        EnrollChildRequest base =
+                request("Bé Chọn Ngày", "2023-05-10", null, campusA, newGuardian("0915000061", "001500000061"));
+
+        expectField(
+                () -> intakeService.prepareEnrollment(principal, withStartDate(base, null)),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Chọn ngày bắt đầu đi học");
+        expectField(
+                () -> intakeService.prepareEnrollment(principal, withStartDate(base, TODAY.minusDays(1))),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Ngày bắt đầu đi học không được trước hôm nay");
+        expectField(
+                () -> intakeService.prepareEnrollment(principal, withStartDate(base, LocalDate.of(2027, 6, 1))),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Ngày bắt đầu đi học không được sau ngày kết thúc năm học (31/05/2027)");
+        // Thứ 7 và ngày nghỉ của trường
+        for (LocalDate offDay : List.of(LocalDate.of(2026, 10, 31), LocalDate.of(2026, 11, 20))) {
+            expectField(
+                    () -> intakeService.prepareEnrollment(principal, withStartDate(base, offDay)),
+                    ApiCode.INVALID_REQUEST_DATA,
+                    "startDate",
+                    SCHOOL_DAY_REQUIRED);
+        }
+        assertThat(intakeService
+                        .prepareEnrollment(principal, withStartDate(base, LocalDate.of(2026, 11, 2)))
+                        .startDate())
+                .isEqualTo(LocalDate.of(2026, 11, 2));
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/CHD-14: tiếp nhận có lớp, ngày bắt đầu tương lai ⇒ lớp tính từ ngày đó, trước ngày đó lớp chưa có trẻ")
+    void intakeWithFutureStartDateJoinsClassOnThatDay() {
+        LocalDate monday = LocalDate.of(2026, 11, 2);
+        long childId = enrollmentService
+                .enroll(
+                        principal,
+                        withStartDate(
+                                request(
+                                        "Bé Vào Lớp Sau",
+                                        "2023-05-10",
+                                        classA,
+                                        campusA,
+                                        newGuardian("0915000062", "001500000062")),
+                                monday))
+                .child()
+                .id();
+
+        assertThat(jdbc.queryForObject("SELECT start_date FROM children WHERE id = ?", LocalDate.class, childId))
+                .isEqualTo(monday);
+        assertThat(jdbc.queryForObject(
+                        "SELECT valid_from FROM enrollments WHERE child_id = ?", LocalDate.class, childId))
+                .isEqualTo(monday);
+        assertThat(enrollmentRepository.findActiveByClassroomIds(List.of(classA), LocalDate.of(2026, 10, 30)))
+                .extracting(com.carenest.entity.child.Enrollment::getChildId)
+                .doesNotContain(childId);
+        assertThat(enrollmentRepository.findActiveByClassroomIds(List.of(classA), monday))
+                .extracting(com.carenest.entity.child.Enrollment::getChildId)
+                .contains(childId);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-14: mở lại hồ sơ, nhập Excel vào năm đang học phải chọn ngày bắt đầu đi học")
+    void readmitAndImportIntoCurrentYearRequireStartDate() {
+        LocalDate monday = LocalDate.of(2026, 11, 2);
+        long left = child("Trẻ Mở Lại Có Ngày", "2023-05-10", "ACTIVE", null);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01', '2026-10-15')",
+                left,
+                classA);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = '2026-10-16', left_reason = 'Chuyển trường' WHERE id = ?",
+                left);
+        expectField(
+                () -> intakeService.readmit(principal, left, new ReadmitChildRequest("Quay lại", null, null)),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Chọn ngày bắt đầu đi học");
+
+        intakeService.readmit(principal, left, new ReadmitChildRequest("Quay lại", activeYear, monday));
+        assertThat(jdbc.queryForObject("SELECT start_date FROM children WHERE id = ?", LocalDate.class, left))
+                .isEqualTo(monday);
+        assertThat(jdbc.queryForObject("SELECT status FROM children WHERE id = ?", String.class, left))
+                .isEqualTo("PENDING_PLACEMENT");
+
+        EnrollChildRequest row =
+                request("Bé Excel Có Ngày", "2023-05-10", null, null, newGuardian("0915000063", "001500000063"));
+        expectField(
+                () -> importService.importRows(
+                        principal,
+                        new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                                List.of(row), campusA, null, null)),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Chọn ngày bắt đầu đi học");
+        importService.importRows(
+                principal,
+                new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                        List.of(row), campusA, activeYear, monday));
+        assertThat(count(
+                        "SELECT count(*) FROM children WHERE full_name = 'Bé Excel Có Ngày' AND start_date = ?::date",
+                        monday.toString()))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-14: tiếp nhận năm sau với ngày bắt đầu rơi vào chủ nhật ⇒ lỗi ô startDate")
+    void plannedIntakeRejectsNonSchoolStartDate() {
+        openPrep("2026-10-29");
+        expectField(
+                () -> intakeService.prepareEnrollment(
+                        principal,
+                        plannedRequest(
+                                "Trẻ Năm Sau Chủ Nhật",
+                                null,
+                                campusA,
+                                "2027-09-12",
+                                newGuardian("0915000064", "001500000064"))),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                SCHOOL_DAY_REQUIRED);
+    }
+
+    private static EnrollChildRequest withStartDate(EnrollChildRequest base, LocalDate startDate) {
+        return new EnrollChildRequest(
+                base.child(), base.declaration(), base.classId(), base.campusId(), null, startDate);
     }
 
     private void openPrep(String date) {
@@ -1699,7 +1850,7 @@ class ChildEnrollmentIntegrationTest {
 
     private EnrollChildRequest plannedRequest(
             String fullName, Long classId, Long campusId, String startDate, GuardianInput... guardians) {
-        // 40 tháng tại ngày bắt đầu năm sau (05/09/2027) ⇒ đúng nhóm của plannedClass (ag-3, 36–48 tháng)
+        // 40 tháng tại ngày bắt đầu năm sau (06/09/2027) ⇒ đúng nhóm của plannedClass (ag-3, 36–48 tháng)
         EnrollChildRequest base = request(fullName, "2024-04-10", classId, campusId, guardians);
         return new EnrollChildRequest(
                 base.child(),
@@ -1741,7 +1892,9 @@ class ChildEnrollmentIntegrationTest {
                                 new DeclarationAnswerInput("NONE_REPORTED", null),
                                 new TbContactInput("NONE_REPORTED", null))),
                 classId,
-                campusId);
+                campusId,
+                null,
+                TODAY);
     }
 
     private static GuardianInput newGuardian(String phone, String citizenId) {
