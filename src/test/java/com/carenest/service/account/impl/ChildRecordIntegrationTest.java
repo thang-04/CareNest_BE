@@ -479,6 +479,60 @@ class ChildRecordIntegrationTest {
         assertThat(recordService.findDeclaration(childA).allergies().items()).containsExactly("Sữa");
     }
 
+    @Test
+    @DisplayName(
+            "CHD-13: đổi Báo ăn ⇒ lịch sử hồ sơ có dòng sửa \"Báo ăn: Có → Không\"; lưu lại không đổi cờ ⇒ không thêm")
+    void mealRegistrationChangeIsRecordedInChildHistory() {
+        var none = new com.carenest.dto.child.DeclarationAnswerInput("NONE_REPORTED", null);
+        var history = new com.carenest.dto.child.MedicalHistoryInput(
+                none, none, new com.carenest.dto.child.TbContactInput("NONE_REPORTED", null));
+        var notProvided = new com.carenest.dto.child.DeclarationAnswerInput("NOT_PROVIDED", null);
+        var allergies = new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Sữa"));
+        String updated = "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'UPDATED'";
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(allergies, none, notProvided, history, true),
+                        null));
+        entityManager.flush();
+        assertThat(count(updated, childA)).isZero();
+
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(allergies, none, notProvided, history, false),
+                        "Ngừng ăn bán trú"));
+        entityManager.flush();
+
+        assertThat(count(updated, childA)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT note FROM child_history WHERE child_id = ? AND action = 'UPDATED'",
+                        String.class,
+                        childA))
+                .isEqualTo("Ngừng ăn bán trú");
+        String changes = jdbc.queryForObject(
+                "SELECT changes::text FROM child_history WHERE child_id = ? AND action = 'UPDATED'",
+                String.class,
+                childA);
+        assertThat(changes)
+                .contains(
+                        "\"field\": \"mealRegistered\"",
+                        "\"label\": \"Báo ăn\"",
+                        "\"from\": \"Có\"",
+                        "\"to\": \"Không\"");
+
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(allergies, none, notProvided, history, false),
+                        "Sửa dị ứng"));
+        entityManager.flush();
+        assertThat(count(updated, childA)).isEqualTo(1);
+    }
+
     // ---------- dữ liệu ----------
 
     private static UpdateChildRequest edit(String childName, String motherPhone, String fatherPhone) {

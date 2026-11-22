@@ -236,7 +236,19 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                         .map(name -> ChildAllergy.of(childId, name))
                         .toList());
             }
+            // CHD-13: đổi "Báo ăn" ghi vào lịch sử hồ sơ (lịch sử khai báo chỉ có dị ứng, tiền sử)
+            List<ChildFieldChange> mealChange = new ArrayList<>();
+            change(mealChange, "mealRegistered", "Báo ăn", yesNo(child.isMealRegistered()), yesNo(d.mealRegistered()));
             child.changeMealRegistration(d.mealRegistered());
+            if (!mealChange.isEmpty()) {
+                childHistoryRepository.save(ChildHistory.record(
+                        childId,
+                        ChildHistoryAction.UPDATED,
+                        actor.userId(),
+                        reason.isEmpty() ? null : reason,
+                        objectMapper.writeValueAsString(mealChange),
+                        now));
+            }
 
             HealthDeclarationResponse.DeclarationAllergies afterAllergies =
                     new HealthDeclarationResponse.DeclarationAllergies(allergiesState, allergyItems);
@@ -1030,6 +1042,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
 
     private static String text(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    private static String yesNo(boolean value) {
+        return value ? "Có" : "Không";
     }
 
     private static String day(LocalDate date) {
