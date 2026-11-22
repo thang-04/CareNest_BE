@@ -3,12 +3,16 @@ package com.carenest.repository.eduplan;
 import com.carenest.entity.eduplan.EduTeamPlan;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.util.Collection;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface EduTeamPlanRepository extends EduHeaderRepository<EduTeamPlan> {
+
+    @Query("select p from EduTeamPlan p where p.status = com.carenest.utils.enums.EduPlanStatus.APPROVED and p.disabled = false order by p.schoolYearId desc, p.versionNo desc, p.id desc")
+    List<EduTeamPlan> findApprovedForExamples();
 
     // EDU-91: kế hoạch tổ không có kế hoạch năm học nguồn (dữ liệu cũ trước khi tách 2 cấp) không hiện trên web
     @Override

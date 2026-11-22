@@ -28,4 +28,6 @@ public interface EduAiService {
 
     /** EDU-103: ghi log số gợi ý / số giữ của một lần Áp dụng; không lưu DB. */
     void logFeedback(CurrentUser currentUser, EduAiRequest.Feedback request);
+
+    EduAiResponse.GoalContentMap matchGoalContents(CurrentUser currentUser, Long planId);
 }

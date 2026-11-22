@@ -4482,6 +4482,25 @@ paths:
           description: OK
       tags:
       - edu-ai-controller
+  /api/education-plans/ai/year-plans/{planId}/goal-content-map:
+    post:
+      operationId: matchGoalContents
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduAiGoalContentMapResponse"
+          description: OK
+      tags:
+      - edu-ai-controller
   /api/education-plans/class-docs:
     get:
       operationId: getClassDocs
@@ -14400,6 +14419,30 @@ components:
       - kept
       - kind
       - suggested
+    EduAiGoalContentMapResponse:
+      type: object
+      properties:
+        failedDomains:
+          type: array
+          items:
+            $ref: "#/components/schemas/EduAiFailedDomainResponse"
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/EduAiGoalContentMatchResponse"
+    EduAiGoalContentMatchResponse:
+      type: object
+      properties:
+        curriculumContentId:
+          type: integer
+          format: int64
+        from:
+          type: string
+        goalId:
+          type: integer
+          format: int64
+        text:
+          type: string
     EduAiThemeContentMapRequest:
       type: object
       properties:
@@ -21730,6 +21773,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/DuplicateCheckResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonEduAiGoalContentMapResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/EduAiGoalContentMapResponse"
         desc:
           type: string
         errorCode:

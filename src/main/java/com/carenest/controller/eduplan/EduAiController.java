@@ -108,6 +108,17 @@ public class EduAiController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Match theme contents success", result);
     }
 
+    @PostMapping("/year-plans/{planId}/goal-content-map")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<EduAiResponse.GoalContentMap>> matchGoalContents(
+            @PathVariable Long planId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|matchGoalContents|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        EduAiResponse.GoalContentMap result = eduAiService.matchGoalContents(currentUser, planId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Match goal contents success", result);
+    }
+
     @PostMapping("/feedback")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<Void>> logFeedback(

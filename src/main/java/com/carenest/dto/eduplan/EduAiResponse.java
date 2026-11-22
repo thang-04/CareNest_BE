@@ -39,4 +39,10 @@ public final class EduAiResponse {
 
     @Schema(name = "EduAiFailedDomainResponse")
     public record FailedDomain(Long domainId, String name) {}
+
+    @Schema(name = "EduAiGoalContentMapResponse")
+    public record GoalContentMap(List<GoalContentMatch> matches, List<FailedDomain> failedDomains) {}
+
+    @Schema(name = "EduAiGoalContentMatchResponse")
+    public record GoalContentMatch(Long goalId, Long curriculumContentId, String text, String from) {}
 }
