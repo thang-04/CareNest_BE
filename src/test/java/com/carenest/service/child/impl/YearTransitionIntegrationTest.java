@@ -495,6 +495,7 @@ class YearTransitionIntegrationTest {
     @Test
     void autoPlaceGraduatesOnlyChildrenWhoCompletedTheProgram() {
         // Lớp cũ thuộc nhóm tuổi lớn nhất: trẻ 1 hoàn thành chương trình, trẻ 2 chưa có đánh giá cuối năm
+        jdbc.update("UPDATE children SET date_of_birth = '2021-01-01' WHERE id IN (?, ?)", child1, child2);
         long ag5 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-5'", Long.class);
         jdbc.update("UPDATE classrooms SET age_group_id = ? WHERE id = ?", ag5, oldClass);
         long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass);
