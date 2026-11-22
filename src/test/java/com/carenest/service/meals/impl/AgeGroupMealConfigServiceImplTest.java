@@ -331,12 +331,16 @@ class AgeGroupMealConfigServiceImplTest {
     // Khoảng đạm 13–20, béo 25–35, bột đường 55–65 (chứa mẫu nghiệm thu 14–26–60 và 15–25–60)
     private static AgeGroupMealConfigRequest structureRequest(BigDecimal p, BigDecimal l, BigDecimal g) {
         AgeGroupMealConfigRequest base = request(TODAY.plusDays(1), new BigDecimal("615"), new BigDecimal("726"));
+        // 33 trường ở giữa (phạm vi gam ĐV/TV, % bữa, kcal/ngày, vi chất) để trống
         return new AgeGroupMealConfigRequest(
-                base.ageGroupId(), base.effectiveFrom(), base.mealPrice(), base.kcalMin(), base.kcalMax(),
+                base.ageGroupId(), base.effectiveFrom(), base.mealPrice(), base.serviceFee(), base.kcalMin(), base.kcalMax(),
                 new BigDecimal("13"), new BigDecimal("20"), new BigDecimal("25"), new BigDecimal("35"),
                 new BigDecimal("55"), new BigDecimal("65"),
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, p, l, g,
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null,
+                p, l, g,
                 null);
     }
 
