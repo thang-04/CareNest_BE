@@ -122,6 +122,7 @@ class LeaveRequestIntegrationTest {
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         jdbc.update(
                 "INSERT INTO attendance_cutoffs (school_year_id, cutoff_time, effective_from) VALUES (?, '08:30', '2026-09-01')",
                 year);
@@ -578,6 +579,8 @@ class LeaveRequestIntegrationTest {
     void afternoonLeaveAllowedForGroupWithoutAfternoonMeal() {
         // Cần chốt 18/11/2026: nhóm không có Xế vẫn xin nghỉ chiều (đón sớm), suất ăn không đổi, chuyên cần 0,5
         jdbc.update("UPDATE age_groups SET meal_sessions = 'LUNCH' WHERE code = 'ag-3'");
+        jdbc.update(
+                "UPDATE school_year_age_group_members SET meal_sessions='LUNCH' WHERE age_group_id=(SELECT id FROM age_groups WHERE code='ag-3')");
         LeaveRequestResponse leave = service.createLeaveRequest(
                 parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đón sớm", LeavePart.AFTERNOON, true));
         assertThat(leave.part()).isEqualTo(LeavePart.AFTERNOON);

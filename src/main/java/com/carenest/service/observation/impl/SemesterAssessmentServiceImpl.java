@@ -138,7 +138,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private static boolean incomplete(Response b) {
         return b.rows().isEmpty()
                 || b.domains().isEmpty()
-                || b.rows().stream().anyMatch(c -> c.domains().stream().anyMatch(d -> d.met() == null));
+                || b.rows().stream()
+                        .anyMatch(c ->
+                                c.domains().isEmpty() || c.domains().stream().anyMatch(d -> d.met() == null));
     }
 
     private Response build(CurrentUser user, Long classId, int semester, SemesterAssessment given) {
@@ -186,11 +188,6 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                         && !t.endDate().isAfter(end))
                     themes.findThemeGoals(t.themeId()).forEach(g -> selected.add(g.getLineage()));
             }
-        var goals = cls.ageGroupId() == null
-                ? List.<ThemeEvaluationRepository.YearGoalRow>of()
-                : themes.findYearGoals(cls.schoolYearId(), cls.ageGroupId()).stream()
-                        .filter(g -> selected.contains(g.getLineage()))
-                        .toList();
         var children = to.isBefore(from)
                 ? List.<com.carenest.dto.child.ClassChildResponse>of()
                 // Một trẻ chỉ nằm trên bảng của lớp đang phụ trách tại cuối kỳ/đến hôm nay; dữ liệu lớp cũ vẫn được
@@ -200,6 +197,20 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results = new HashMap<>();
         children.forEach(
                 c -> results.put(c.id(), themeEvaluationService.childThemeResults(classId, c.id(), from, end)));
+        Set<Long> classroomGoals = Set.copyOf(selected);
+        // Giữ mục tiêu đã học ở lớp cũ, kể cả lịch chủ đề lớp mới không gắn mục tiêu đó.
+        results.values().forEach(r -> selected.addAll(r.keySet()));
+        List<ThemeEvaluationRepository.YearGoalRow> goals = new ArrayList<>(
+                cls.ageGroupId() == null
+                        ? List.<ThemeEvaluationRepository.YearGoalRow>of()
+                        : themes.findYearGoals(cls.schoolYearId(), cls.ageGroupId()).stream()
+                                .filter(g -> selected.contains(g.getLineage()))
+                                .toList());
+        Set<Long> historicalOnly = new HashSet<>(selected);
+        goals.forEach(g -> historicalOnly.remove(g.getLineage()));
+        if (cls.ageGroupId() != null && !historicalOnly.isEmpty()) {
+            goals.addAll(themes.findHistoricalYearGoals(cls.schoolYearId(), cls.ageGroupId(), historicalOnly));
+        }
         Map<Long, String> names = new LinkedHashMap<>();
         goals.forEach(g -> names.put(g.getDomainId(), g.getDomainName() == null ? "Mục tiêu khác" : g.getDomainName()));
         List<Domain> columns = names.entrySet().stream()
@@ -211,7 +222,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
             for (var domain : columns) {
                 List<Goal> cells = new ArrayList<>();
                 for (var g : goals)
-                    if (Objects.equals(g.getDomainId(), domain.domainId())) {
+                    if (Objects.equals(g.getDomainId(), domain.domainId())
+                            && (classroomGoals.contains(g.getLineage())
+                                    || results.get(child.id()).containsKey(g.getLineage()))) {
                         var r = results.get(child.id()).get(g.getLineage());
                         cells.add(new Goal(
                                 g.getLineage(),
@@ -221,7 +234,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                                 r == null ? 0 : r.metThemes(),
                                 r == null ? 0 : r.totalThemes()));
                     }
-                domains.add(summarize(domain.domainId(), domain.name(), cells));
+                if (!cells.isEmpty()) domains.add(summarize(domain.domainId(), domain.name(), cells));
             }
             rows.add(new Child(child.id(), child.fullName(), domains));
         }

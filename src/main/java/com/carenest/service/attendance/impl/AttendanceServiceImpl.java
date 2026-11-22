@@ -613,6 +613,12 @@ public class AttendanceServiceImpl implements AttendanceService {
             meals.put(s, 0);
             substitutes.put(s, 0);
         });
+        // Bữa đã ghi là lịch sử thực tế, không loại khi cấu hình nhóm tuổi thay đổi.
+        records.values()
+                .forEach(r -> r.getMeals().forEach(s -> {
+                    meals.putIfAbsent(s, 0);
+                    substitutes.putIfAbsent(s, 0);
+                }));
         // Trẻ có dị ứng trong hồ sơ ăn suất thay thế (Cần chốt 04/11/2026: map theo hồ sơ, cô chỉ điểm danh)
         Set<Long> allergic = childService.findChildIdsWithAllergies(records.keySet());
         for (AttendanceRecord r : records.values()) {
@@ -634,7 +640,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 cls.id(),
                 cls.name(),
                 cls.campusId(),
-                cls.mealSessions(),
+                List.copyOf(meals.keySet()),
                 present,
                 absent,
                 childIds.size() - present - absent,
@@ -779,11 +785,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         Map<LocalDate, Integer> bookSubstitutes = new HashMap<>();
         mealSubstituteLookups.forEach(l -> bookSubstitutes.putAll(l.substitutes(cls.campusId(), cls.id(), from, to)));
         List<DayRow> days = new ArrayList<>();
+        Set<MealSession> summarySessions = new java.util.TreeSet<>(cls.mealSessions());
+        records.values().forEach(r -> summarySessions.addAll(r.getMeals()));
         for (LocalDate date : schoolDays(from, to)) {
             // present, excused, unexcused, missing, mealTotal, substitute, morningOff, afternoonOff
             int[] counts = new int[8];
             Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
-            cls.mealSessions().forEach(s -> meals.put(s, 0));
+            summarySessions.forEach(s -> meals.put(s, 0));
             for (ClassChildResponse ch : children) {
                 AttendanceRecord r = records.get(ch.id() + ":" + date);
                 int[] child = perChild.get(ch.id());
@@ -804,9 +812,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     counts[off]++;
                     child[off - 2]++;
                 }
-                List<MealSession> eaten = r.getMeals().stream()
-                        .filter(cls.mealSessions()::contains)
-                        .toList();
+                List<MealSession> eaten = r.getMeals();
                 if (!eaten.isEmpty()) {
                     counts[4]++;
                     if (allergic.contains(ch.id())) {
@@ -848,7 +854,15 @@ public class AttendanceServiceImpl implements AttendanceService {
                 })
                 .toList();
         return new ClassSummary(
-                cls.id(), cls.name(), cls.campusId(), cls.mealSessions(), from, to, children.size(), days, childTotals);
+                cls.id(),
+                cls.name(),
+                cls.campusId(),
+                List.copyOf(summarySessions),
+                from,
+                to,
+                children.size(),
+                days,
+                childTotals);
     }
 
     private static boolean inClass(List<EnrollmentService.ClassStay> stays, Long childId, LocalDate date) {
