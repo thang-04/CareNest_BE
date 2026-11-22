@@ -38,6 +38,21 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     @Query("select e from Enrollment e where e.childId = :childId and (e.validTo is null or e.validTo >= :date)")
     List<Enrollment> findOpenByChildId(@Param("childId") Long childId, @Param("date") LocalDate date);
 
+    /** Lớp chưa bắt đầu (ngày bắt đầu đi học hoặc lịch chuyển lớp sau :date) của các trẻ (G94-180/CHD-14). */
+    @Query("select e from Enrollment e where e.childId in :childIds and e.validFrom > :date order by e.validFrom, e.id")
+    List<Enrollment> findStartingAfter(@Param("childIds") Collection<Long> childIds, @Param("date") LocalDate date);
+
+    /**
+     * Số trẻ còn ở lớp từ ngày :date trở đi (đang học tới ngày đó hoặc sẽ vào sau), trừ trẻ đang xếp: sĩ số khi xếp /
+     * chuyển lớp từ một ngày (G94-180/CHD-14).
+     */
+    @Query("select count(e) from Enrollment e where e.classroomId = :classroomId"
+            + " and (e.validTo is null or e.validTo >= :date) and e.childId <> :excludeChildId")
+    long countOccupyingFrom(
+            @Param("classroomId") Long classroomId,
+            @Param("date") LocalDate date,
+            @Param("excludeChildId") Long excludeChildId);
+
     /** Enrollment gần nhất của trẻ (kể cả đã đóng): điểm trường của trẻ đã nghỉ học là điểm trường lớp cuối. */
     Optional<Enrollment> findFirstByChildIdOrderByValidFromDescIdDesc(Long childId);
 

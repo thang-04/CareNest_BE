@@ -40,9 +40,14 @@ class PlacementRules {
 
     /**
      * Câu lỗi ô {@code classId} khi lớp không nhận được trẻ, null khi được: lớp đang hoạt động của năm học đang hoạt động
-     * (CHD-10), thuộc điểm trường người làm được giao (AUTH-02), chưa đủ sĩ số tính tới hôm nay.
+     * (CHD-10), thuộc điểm trường người làm được giao (AUTH-02), chưa đủ sĩ số từ ngày vào lớp trở đi (G94-180/CHD-14:
+     * gồm trẻ đã hẹn vào lớp sau ngày đó).
      */
-    String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate today) {
+    String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from) {
+        return classProblem(actor, classroom, from, (Long) null);
+    }
+
+    String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from, Long childId) {
         if (classroom == null || classroom.status() != ClassroomStatus.ACTIVE) {
             return "Lớp không tồn tại hoặc đã ngừng hoạt động";
         }
@@ -53,17 +58,21 @@ class PlacementRules {
                 && !staffAccessPolicy.managedCampusIds(actor).contains(classroom.campusId())) {
             return "Chỉ xếp được vào lớp thuộc điểm trường bạn được giao";
         }
-        long enrolled = enrollmentRepository
-                .findActiveByClassroomIds(List.of(classroom.id()), today)
-                .size();
+        // Trẻ đang xếp không tính (đổi ngày / lớp của lịch cũ); -1 = không trừ ai
+        long enrolled = enrollmentRepository.countOccupyingFrom(classroom.id(), from, childId == null ? -1L : childId);
         if (classroom.capacity() != null && enrolled >= classroom.capacity()) {
             return classroom.name() + " đã đủ " + classroom.capacity() + " trẻ. Chọn lớp khác.";
         }
         return null;
     }
 
-    String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate today, LocalDate dateOfBirth) {
-        String problem = classProblem(actor, classroom, today);
+    String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from, LocalDate dateOfBirth) {
+        return classProblem(actor, classroom, from, dateOfBirth, null);
+    }
+
+    String classProblem(
+            CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from, LocalDate dateOfBirth, Long childId) {
+        String problem = classProblem(actor, classroom, from, childId);
         return problem == null ? ageGroupProblem(classroom, dateOfBirth) : problem;
     }
 
@@ -86,14 +95,15 @@ class PlacementRules {
         return null;
     }
 
-    /** Lớp mới tính từ hôm nay (người xếp ghi ở enrollment). */
-    void startEnrollment(Long childId, ClassroomInfoResponse to, Long actorId, LocalDate today) {
-        enrollmentRepository.save(Enrollment.start(childId, to.id(), today, actorId));
+    /** Lớp mới tính từ ngày {@code from} (G94-180/CHD-14: có thể ở tương lai; người xếp ghi ở enrollment). */
+    void startEnrollment(Long childId, ClassroomInfoResponse to, Long actorId, LocalDate from) {
+        enrollmentRepository.save(Enrollment.start(childId, to.id(), from, actorId));
     }
 
     /**
-     * Ghi lịch sử xếp lớp ({@code fromClassroomId} null = tiếp nhận / xếp lần đầu) và báo GV lớp mới {@code CHILD_PLACED}:
-     * "Lớp có trẻ mới" — "{tên trẻ} đã được xếp vào {lớp}." (câu như BE giả của FE).
+     * Ghi lịch sử xếp lớp ({@code fromClassroomId} null = tiếp nhận / xếp lần đầu) kèm ngày vào lớp mới và báo GV lớp mới
+     * {@code CHILD_PLACED}: "Lớp có trẻ mới" — "{tên trẻ} đã được xếp vào {lớp}." (câu như BE giả của FE); vào lớp ở
+     * tương lai thì thêm "từ ngày" (G94-180/CHD-14). GV nhận là GV đang phân công hôm nay.
      */
     void recordPlacement(
             Long childId,
@@ -103,29 +113,78 @@ class PlacementRules {
             Long actorId,
             String reason,
             Instant at,
+            LocalDate date) {
+        // Kích hoạt năm học (bảng xếp lớp năm mới): lớp tính từ đúng ngày đó, GV nhận theo ngày đó như trước
+        recordPlacement(childId, childName, fromClassroomId, to, actorId, reason, at, date, date);
+    }
+
+    void recordPlacement(
+            Long childId,
+            String childName,
+            Long fromClassroomId,
+            ClassroomInfoResponse to,
+            Long actorId,
+            String reason,
+            Instant at,
+            LocalDate effectiveDate,
             LocalDate today) {
-        placementRepository.save(ChildPlacement.record(childId, fromClassroomId, to.id(), actorId, reason, at));
+        placementRepository.save(
+                ChildPlacement.record(childId, fromClassroomId, to.id(), actorId, reason, at, effectiveDate));
+        String from = DAY.format(effectiveDate);
         if (fromClassroomId != null) {
-            Set<Long> oldTeacherIds = new HashSet<>(staffAssignmentService
-                    .findCurrentTeacherIds(List.of(fromClassroomId), today)
-                    .getOrDefault(fromClassroomId, List.of()));
-            notificationService.notifyUsers(
-                    oldTeacherIds,
-                    NotificationType.CHILD_PLACED,
+            notifyTeachers(
+                    fromClassroomId,
+                    today,
                     "Trẻ chuyển lớp",
-                    childName + " chuyển sang " + to.name() + " từ ngày " + DAY.format(today) + ".",
+                    childName + " chuyển sang " + to.name() + " từ ngày " + from + ".",
                     childId);
         }
-        Set<Long> teacherIds = new HashSet<>(staffAssignmentService
-                .findCurrentTeacherIds(List.of(to.id()), today)
-                .getOrDefault(to.id(), List.of()));
-        notificationService.notifyUsers(
-                teacherIds,
-                NotificationType.CHILD_PLACED,
+        notifyTeachers(
+                to.id(),
+                today,
                 "Lớp có trẻ mới",
                 fromClassroomId == null
-                        ? childName + " đã được xếp vào " + to.name() + "."
-                        : childName + " chuyển vào lớp từ ngày " + DAY.format(today) + ".",
+                        ? childName + " đã được xếp vào " + to.name()
+                                + (effectiveDate.isAfter(today) ? " từ ngày " + from : "") + "."
+                        : childName + " chuyển vào lớp từ ngày " + from + ".",
                 childId);
+    }
+
+    /**
+     * Bỏ lớp chưa bắt đầu của trẻ (G94-180/CHD-14: lịch chuyển bị thay / bị hủy, cho nghỉ học trước ngày vào lớp): xóa
+     * enrollment, đánh dấu dòng lịch sử đã hủy; {@code className} khác null thì báo GV lớp đó.
+     */
+    void cancelUpcoming(
+            Long childId,
+            String childName,
+            Enrollment upcoming,
+            String className,
+            Long actorId,
+            Instant at,
+            LocalDate today) {
+        placementRepository
+                .findFirstByChildIdAndToClassroomIdAndEffectiveFromAndCancelledAtIsNullOrderByIdDesc(
+                        childId, upcoming.getClassroomId(), upcoming.getValidFrom())
+                .ifPresent(placement -> {
+                    placement.cancel(actorId, at);
+                    placementRepository.save(placement);
+                });
+        enrollmentRepository.delete(upcoming);
+        enrollmentRepository.flush();
+        if (className != null) {
+            notifyTeachers(
+                    upcoming.getClassroomId(),
+                    today,
+                    "Hủy lịch vào lớp",
+                    childName + " không vào " + className + " từ ngày " + DAY.format(upcoming.getValidFrom()) + " nữa.",
+                    childId);
+        }
+    }
+
+    void notifyTeachers(Long classroomId, LocalDate today, String title, String body, Long childId) {
+        Set<Long> teacherIds = new HashSet<>(staffAssignmentService
+                .findCurrentTeacherIds(List.of(classroomId), today)
+                .getOrDefault(classroomId, List.of()));
+        notificationService.notifyUsers(teacherIds, NotificationType.CHILD_PLACED, title, body, childId);
     }
 }

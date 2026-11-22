@@ -84,6 +84,12 @@ public interface ChildRecordService {
      */
     ChildViewResponse place(CurrentUser actor, Long childId, PlaceChildRequest request);
 
+    /**
+     * Hủy lớp chưa bắt đầu của trẻ ({@code DELETE /children/{id}/placement/scheduled}, G94-180/CHD-14): lịch chuyển ⇒ trẻ
+     * ở lại lớp hiện tại; trẻ chưa học lớp nào ⇒ về Chờ xếp lớp. Không có lịch ⇒ 400 ô {@code classId}; trẻ đã nghỉ 409.
+     */
+    ChildViewResponse cancelScheduledPlacement(CurrentUser actor, Long childId);
+
     /** Lớp ở hồ sơ trẻ: đang học, trẻ đã nghỉ là lớp cuối; chờ xếp lớp ⇒ null. Người gọi đã kiểm phạm vi. */
     ChildClassResponse findClass(Long childId);
 

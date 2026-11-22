@@ -158,6 +158,12 @@ public class Child {
         this.intakeCampusId = campusId;
     }
 
+    /** Hủy lớp chưa bắt đầu khi trẻ chưa học lớp nào (G94-180/CHD-14): về Chờ xếp lớp ở điểm trường của lớp đó. */
+    public void awaitPlacement(Long campusId) {
+        this.status = ChildStatus.PENDING_PLACEMENT;
+        this.intakeCampusId = campusId;
+    }
+
     /** Ngày bắt đầu đi học (G94-180/CHD-14), ghi khi tiếp nhận và khi mở lại hồ sơ. */
     public void startOn(LocalDate startDate) {
         this.startDate = startDate;

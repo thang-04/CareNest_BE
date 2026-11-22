@@ -331,6 +331,8 @@ Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-1
 | placed_by | BIGINT FK user_accounts | không | Người xếp | — |
 | reason | VARCHAR(300) | có | Lý do (bắt buộc khi chuyển lớp — kiểm ở service; NULL khi xếp lần đầu không ghi) | — |
 | placed_at | TIMESTAMPTZ | không | Lúc xếp | — |
+| effective_from | DATE | có | Ngày vào lớp mới, có thể sau hôm nay (lịch chuyển / lớp chưa bắt đầu). V174; dòng cũ điền ngày của `placed_at`; NULL (seed chèn sau V174) đọc như ngày của `placed_at` | G94-180/CHD-14 |
+| cancelled_at, cancelled_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lịch chưa tới ngày bị hủy (`DELETE /children/{id}/placement/scheduled`), bị thay bằng lịch khác hoặc trẻ nghỉ học trước ngày đó; dòng vẫn giữ | G94-180/CHD-14 |
 Index: `idx_child_placements_child` (`child_id`, `placed_at DESC`).
 
 ## attendance_records  (module: attendance, scope: CLASS)

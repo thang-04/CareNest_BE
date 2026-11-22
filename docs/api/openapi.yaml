@@ -3778,6 +3778,25 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/{childId}/placement/scheduled:
+    delete:
+      operationId: cancelScheduledPlacement
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/profile:
     get:
       operationId: getProfile
@@ -12072,6 +12091,12 @@ components:
         at:
           type: string
           format: date-time
+        cancelledAt:
+          type: string
+          format: date-time
+        effectiveFrom:
+          type: string
+          format: date
         fromClassId:
           type: integer
           format: int64
@@ -20025,6 +20050,9 @@ components:
         classId:
           type: integer
           format: int64
+        effectiveDate:
+          type: string
+          format: date
         reason:
           type: string
     Placement:

@@ -190,6 +190,7 @@ class ChildRecordServiceImplTest {
                         eq(PRINCIPAL.userId()),
                         eq("Đổi theo độ tuổi"),
                         any(),
+                        eq(TODAY),
                         eq(TODAY));
         assertThat(child.getStatus()).isEqualTo(ChildStatus.ACTIVE);
     }
@@ -208,7 +209,7 @@ class ChildRecordServiceImplTest {
                 .isInstanceOfSatisfying(
                         GlobalException.class,
                         ex -> assertThat(ex.getFieldErrors()).anySatisfy(error -> {
-                            assertThat(error.field()).isEqualTo("classId");
+                            assertThat(error.field()).isEqualTo("effectiveDate");
                             assertThat(error.message()).contains("ngày học tiếp theo");
                         }));
         verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
@@ -226,8 +227,8 @@ class ChildRecordServiceImplTest {
                 .isInstanceOfSatisfying(
                         GlobalException.class,
                         ex -> assertThat(ex.getFieldErrors()).anySatisfy(error -> {
-                            assertThat(error.field()).isEqualTo("classId");
-                            assertThat(error.message()).contains("ngày học kế tiếp");
+                            assertThat(error.field()).isEqualTo("effectiveDate");
+                            assertThat(error.message()).contains("phải là ngày học");
                         }));
         verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
     }
@@ -250,7 +251,8 @@ class ChildRecordServiceImplTest {
         assertThat(pending.getIntakeCampusId()).isNull();
         verify(enrollmentRepository, never()).saveAndFlush(any());
         verify(placementRules)
-                .recordPlacement(eq(2L), eq("Bé Bình"), eq(null), eq(target), eq(9L), eq(null), any(), eq(TODAY));
+                .recordPlacement(
+                        eq(2L), eq("Bé Bình"), eq(null), eq(target), eq(9L), eq(null), any(), eq(TODAY), eq(TODAY));
     }
 
     @Test
@@ -272,7 +274,7 @@ class ChildRecordServiceImplTest {
 
         given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
         given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(classroom(11L, "Lớp Chồi 2")));
-        given(placementRules.classProblem(any(), any(), any(), any()))
+        given(placementRules.classProblem(any(), any(), any(), any(), any()))
                 .willReturn("Lớp Chồi 2 đã đủ 25 trẻ. Chọn lớp khác.");
         expectFields(new com.carenest.dto.child.PlaceChildRequest(11L, "x".repeat(301)), "classId", "reason");
         verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
@@ -287,7 +289,7 @@ class ChildRecordServiceImplTest {
                         service.place(PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, "x")))
                 .isInstanceOfSatisfying(
                         GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
-        verify(placementRules, never()).recordPlacement(any(), any(), any(), any(), any(), any(), any(), any());
+        verify(placementRules, never()).recordPlacement(any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     private void expectFields(com.carenest.dto.child.PlaceChildRequest request, String... fields) {

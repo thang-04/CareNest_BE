@@ -434,7 +434,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                         .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
                 placementRules.startEnrollment(childId, classroom, actor.userId(), startDate);
                 placementRules.recordPlacement(
-                        childId, draft.fullName(), null, classroom, actor.userId(), null, now, startDate);
+                        childId, draft.fullName(), null, classroom, actor.userId(), null, now, startDate, today);
             } else if (planned) {
                 plannedAdmissionRepository.save(PlannedAdmission.create(
                         childId,

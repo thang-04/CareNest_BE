@@ -32,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -205,6 +206,18 @@ public class ChildEnrollmentController {
         ChildViewResponse child = childRecordService.place(currentUser, childId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Place child success", child);
+    }
+
+    @DeleteMapping("/{childId}/placement/scheduled")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<ChildViewResponse>> cancelScheduledPlacement(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|cancelScheduledPlacement|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse child = childRecordService.cancelScheduledPlacement(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Cancel scheduled placement success", child);
     }
 
     @PutMapping("/{childId}/health-declaration")

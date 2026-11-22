@@ -17,6 +17,9 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
      * chờ xếp lớp và năm đang hoạt động, hoặc đã nghỉ và ngày nghỉ thuộc năm đó (năm gần nhất đã bắt đầu tính tới ngày
      * nghỉ). Điểm trường hiển thị = điểm trường của lớp, không có lớp ⇒ điểm trường tiếp nhận (CMR-04).
      *
+     * <p>G94-180/CHD-14: lớp hiển thị ưu tiên lớp đã bắt đầu tới :today (lịch chuyển chưa tới ngày không đổi lớp
+     * hiển thị); trẻ chưa có lớp nào bắt đầu thì là lớp sắp vào.
+     *
      * <p>Phạm vi: {@code wholeSchool}, hoặc điểm trường hiển thị thuộc {@code campusIds}, hoặc lớp hiển thị thuộc
      * {@code classIds}. Tập rỗng truyền {@code [-1]} (IN () không hợp lệ).
      */
@@ -29,9 +32,9 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
                         JOIN classrooms k ON k.id = e.classroom_id
                         WHERE e.child_id = c.id
                           AND CASE WHEN CAST(:yearId AS BIGINT) IS NULL
-                                   THEN c.status <> 'PENDING_PLACEMENT' AND e.valid_from <= :today
+                                   THEN c.status <> 'PENDING_PLACEMENT'
                                    ELSE k.school_year_id = CAST(:yearId AS BIGINT) END
-                        ORDER BY e.valid_from DESC, e.id DESC
+                        ORDER BY CASE WHEN e.valid_from <= :today THEN 0 ELSE 1 END, e.valid_from DESC, e.id DESC
                         LIMIT 1
                     ) yc ON TRUE
                     LEFT JOIN classrooms cl ON cl.id = yc.classroom_id

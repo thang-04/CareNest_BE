@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 412 endpoint.
+Tổng: 413 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -156,6 +156,7 @@ POST /children/{childId}/health/trend-analysis/{interpretationId}/approve · src
 GET /children/{childId}/photo · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhoto
 GET /children/{childId}/photo/url · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhotoUrl
 POST /children/{childId}/placement · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
+DELETE /children/{childId}/placement/scheduled · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#cancelScheduledPlacement
 GET /children/{childId}/profile · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getProfile
 POST /children/{childId}/profile-change-requests · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#submitProfileChange
 GET /children/{childId}/profile-change-requests/latest · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#getLatestProfileChanges
