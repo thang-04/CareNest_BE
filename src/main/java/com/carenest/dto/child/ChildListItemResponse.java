@@ -9,7 +9,8 @@ import java.util.List;
  * Một trẻ ở danh sách trẻ ({@code GET /children}, D-4, G94-180/CHD-09): như ChildView không có hành chính, lịch sử.
  * Lớp, điểm trường, nhóm tuổi, năm học theo lớp hiển thị (lớp cuối trong năm học đang lọc; không lọc năm ⇒ lớp đang học
  * hoặc lớp cuối của trẻ đã nghỉ). {@code guardians} bỏ CCCD, email (AUTH-03: màn danh sách không cần).
- * {@code canManage}: người xem quản lý được tài khoản phụ huynh của trẻ (AUTH-19).
+ * {@code canManage}: người xem quản lý được tài khoản phụ huynh của trẻ (AUTH-19). G94-180/CHD-14: {@code startDate},
+ * {@code startDue}, {@code nextClass} như ChildView (lớp hiển thị ưu tiên lớp đã bắt đầu).
  *
  * <p>{@code classroomId} (= {@code classId}) và {@code guardianCount} (số tài khoản phụ huynh đã liên kết) giữ cho màn
  * Tài khoản phụ huynh của Web đang đọc.
@@ -37,4 +38,7 @@ public record ChildListItemResponse(
         String photoUrl,
         Long classroomId,
         long guardianCount,
-        PlannedAdmissionResponse plannedAdmission) {}
+        PlannedAdmissionResponse plannedAdmission,
+        LocalDate startDate,
+        boolean startDue,
+        ChildNextClassResponse nextClass) {}

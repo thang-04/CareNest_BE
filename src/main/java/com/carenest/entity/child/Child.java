@@ -164,6 +164,11 @@ public class Child {
         this.intakeCampusId = campusId;
     }
 
+    /** G94-180/CHD-14: chờ xếp lớp mà đã tới ngày bắt đầu đi học (Web gắn nhãn, đưa lên đầu, nhắc HT / PHT). */
+    public boolean isStartDue(LocalDate today) {
+        return status == ChildStatus.PENDING_PLACEMENT && startDate != null && !startDate.isAfter(today);
+    }
+
     /** Ngày bắt đầu đi học (G94-180/CHD-14), ghi khi tiếp nhận và khi mở lại hồ sơ. */
     public void startOn(LocalDate startDate) {
         this.startDate = startDate;

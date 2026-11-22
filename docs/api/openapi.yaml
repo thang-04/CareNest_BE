@@ -11862,6 +11862,8 @@ components:
           type: string
         mealRegistered:
           type: boolean
+        nextClass:
+          $ref: "#/components/schemas/ChildNextClassResponse"
         photoUrl:
           type: string
         plannedAdmission:
@@ -11874,6 +11876,11 @@ components:
         schoolYearId:
           type: integer
           format: int64
+        startDate:
+          type: string
+          format: date
+        startDue:
+          type: boolean
         status:
           type: string
           enum:
@@ -12037,6 +12044,8 @@ components:
           format: date
         mealRegistered:
           type: boolean
+        nextClass:
+          $ref: "#/components/schemas/ChildNextClassResponse"
         photoUrl:
           type: string
         plannedAdmission:
@@ -12047,12 +12056,28 @@ components:
         schoolYearId:
           type: integer
           format: int64
+        startDate:
+          type: string
+          format: date
+        startDue:
+          type: boolean
         status:
           type: string
           enum:
           - ACTIVE
           - PENDING_PLACEMENT
           - LEFT
+    ChildNextClassResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        from:
+          type: string
+          format: date
     ChildPhotoProfileResponse:
       type: object
       properties:
@@ -12381,6 +12406,8 @@ components:
           type: string
         mealRegistered:
           type: boolean
+        nextClass:
+          $ref: "#/components/schemas/ChildNextClassResponse"
         photoUrl:
           type: string
         plannedAdmission:
@@ -12393,6 +12420,11 @@ components:
         schoolYearId:
           type: integer
           format: int64
+        startDate:
+          type: string
+          format: date
+        startDue:
+          type: boolean
         status:
           type: string
           enum:

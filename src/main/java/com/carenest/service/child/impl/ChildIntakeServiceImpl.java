@@ -5,6 +5,7 @@ import com.carenest.dto.child.ChildGuardianContact;
 import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildHistoryResponse;
 import com.carenest.dto.child.ChildMedicalHistory;
+import com.carenest.dto.child.ChildNextClassResponse;
 import com.carenest.dto.child.ChildProfileDetailResponse;
 import com.carenest.dto.child.ChildProfileDraft;
 import com.carenest.dto.child.ChildViewResponse;
@@ -480,9 +481,25 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             Child child =
                     childRepository.findById(childId).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
             LocalDate today = LocalDate.now(clock);
+            // G94-180/CHD-14: lớp bắt đầu sau hôm nay; chưa có lớp nào bắt đầu thì lớp hiển thị là lớp sắp vào
+            Enrollment upcoming = enrollmentRepository.findStartingAfter(List.of(childId), today).stream()
+                    .findFirst()
+                    .orElse(null);
             ClassroomInfoResponse classroom = activeClassroomId(childId, today)
+                    .or(() -> Optional.ofNullable(upcoming).map(Enrollment::getClassroomId))
                     .flatMap(classroomService::findClassroomInfo)
                     .orElse(null);
+            ChildNextClassResponse nextClass = upcoming == null
+                    ? null
+                    : new ChildNextClassResponse(
+                            upcoming.getClassroomId(),
+                            classroom != null && classroom.id().equals(upcoming.getClassroomId())
+                                    ? classroom.name()
+                                    : classroomService
+                                            .findClassroomInfo(upcoming.getClassroomId())
+                                            .map(ClassroomInfoResponse::name)
+                                            .orElse(null),
+                            upcoming.getValidFrom());
             Long campusId = classroom != null ? classroom.campusId() : campusWithoutClass(child);
 
             ChildProfileDetailResponse profile = childProfileRepository
@@ -515,13 +532,38 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     guardiansOf(childId),
                     historyOf(childId),
                     child.getPhotoKey() == null ? null : "/children/" + childId + "/photo",
-                    findOpenPlannedAdmissions(List.of(childId)).get(childId));
+                    findOpenPlannedAdmissions(List.of(childId)).get(childId),
+                    child.getStartDate(),
+                    child.isStartDue(today),
+                    nextClass);
             log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, ChildNextClassResponse> findNextClasses(Collection<Long> childIds) {
+        if (childIds.isEmpty()) {
+            return Map.of();
+        }
+        LocalDate today = LocalDate.now(clock);
+        Map<Long, String> classNames = new HashMap<>();
+        Map<Long, ChildNextClassResponse> result = new HashMap<>();
+        for (Enrollment e : enrollmentRepository.findStartingAfter(childIds, today)) {
+            String className = classNames.computeIfAbsent(
+                    e.getClassroomId(),
+                    id -> classroomService
+                            .findClassroomInfo(id)
+                            .map(ClassroomInfoResponse::name)
+                            .orElse(null));
+            result.putIfAbsent(
+                    e.getChildId(), new ChildNextClassResponse(e.getClassroomId(), className, e.getValidFrom()));
+        }
+        return result;
     }
 
     @Override

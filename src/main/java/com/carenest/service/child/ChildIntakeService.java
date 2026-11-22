@@ -2,6 +2,7 @@ package com.carenest.service.child;
 
 import com.carenest.dto.child.ChildGuardianContact;
 import com.carenest.dto.child.ChildMedicalHistory;
+import com.carenest.dto.child.ChildNextClassResponse;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.DuplicateCheckResponse;
 import com.carenest.dto.child.EnrollChildRequest;
@@ -74,6 +75,9 @@ public interface ChildIntakeService {
 
     /** CHD-11: đăng ký năm sau còn mở (PENDING/PLACED) của các trẻ; trẻ không có đăng ký không có khóa. */
     Map<Long, PlannedAdmissionResponse> findOpenPlannedAdmissions(Collection<Long> childIds);
+
+    /** G94-180/CHD-14: lớp bắt đầu sau hôm nay (lịch chuyển, lớp chưa bắt đầu) của các trẻ; trẻ không có thì không có khóa. */
+    Map<Long, ChildNextClassResponse> findNextClasses(Collection<Long> childIds);
 
     /** Phụ huynh trên mọi hồ sơ trẻ có SĐT hoặc CCCD trong danh sách (kiểm một người một tài khoản, AUTH-18). */
     List<GuardianRecord> findGuardianRecords(Collection<String> phones, Collection<String> citizenIds);
