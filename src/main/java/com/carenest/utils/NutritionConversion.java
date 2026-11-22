@@ -42,11 +42,7 @@ public class NutritionConversion {
 
     /** Hệ số đã dùng và hai mốc kcal của trường; null khi chưa chọn cơ cấu áp dụng. */
     public NutritionConversionResponse toResponse(
-            BigDecimal kcalMin,
-            BigDecimal kcalMax,
-            BigDecimal proteinPct,
-            BigDecimal lipidPct,
-            BigDecimal glucidPct) {
+            BigDecimal kcalMin, BigDecimal kcalMax, BigDecimal proteinPct, BigDecimal lipidPct, BigDecimal glucidPct) {
         if (proteinPct == null || lipidPct == null || glucidPct == null) {
             return null;
         }

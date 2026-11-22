@@ -45,18 +45,17 @@ class AgeGroupMealConfigServiceImplTest {
 
     private final AgeGroupMealConfigRepository repository = mock(AgeGroupMealConfigRepository.class);
     private final AgeGroupService ageGroupService = mock(AgeGroupService.class);
-    private final AgeGroupMealConfigServiceImpl service =
-            new AgeGroupMealConfigServiceImpl(
-                    repository,
-                    ageGroupService,
-                    new NutritionCatalogMapper(),
-                    FIXED_CLOCK,
-                    new NutritionConversionProperties(
-                            new BigDecimal("4.1"),
-                            new BigDecimal("9.3"),
-                            new BigDecimal("4.1"),
-                            new BigDecimal("0.60"),
-                            new BigDecimal("0.60")));
+    private final AgeGroupMealConfigServiceImpl service = new AgeGroupMealConfigServiceImpl(
+            repository,
+            ageGroupService,
+            new NutritionCatalogMapper(),
+            FIXED_CLOCK,
+            new NutritionConversionProperties(
+                    new BigDecimal("4.1"),
+                    new BigDecimal("9.3"),
+                    new BigDecimal("4.1"),
+                    new BigDecimal("0.60"),
+                    new BigDecimal("0.60")));
 
     @Test
     @DisplayName("NUT-17: lưu cả lô — dòng sau gặp bản đã hiệu lực thì báo lỗi, cả lô không lưu")
@@ -333,14 +332,54 @@ class AgeGroupMealConfigServiceImplTest {
         AgeGroupMealConfigRequest base = request(TODAY.plusDays(1), new BigDecimal("615"), new BigDecimal("726"));
         // 33 trường ở giữa (phạm vi gam ĐV/TV, % bữa, kcal/ngày, vi chất) để trống
         return new AgeGroupMealConfigRequest(
-                base.ageGroupId(), base.effectiveFrom(), base.mealPrice(), base.serviceFee(), base.kcalMin(), base.kcalMax(),
-                new BigDecimal("13"), new BigDecimal("20"), new BigDecimal("25"), new BigDecimal("35"),
-                new BigDecimal("55"), new BigDecimal("65"),
-                null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null,
-                null, null, null,
-                p, l, g,
+                base.ageGroupId(),
+                base.effectiveFrom(),
+                base.mealPrice(),
+                base.serviceFee(),
+                base.kcalMin(),
+                base.kcalMax(),
+                new BigDecimal("13"),
+                new BigDecimal("20"),
+                new BigDecimal("25"),
+                new BigDecimal("35"),
+                new BigDecimal("55"),
+                new BigDecimal("65"),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                p,
+                l,
+                g,
                 null);
     }
 

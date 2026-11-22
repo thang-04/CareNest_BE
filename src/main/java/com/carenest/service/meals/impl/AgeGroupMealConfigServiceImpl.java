@@ -312,7 +312,8 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         }
     }
 
-    // NUT-28: cơ cấu áp dụng nhập đủ ba chất, tổng 100%, mỗi chất nằm trong khoảng min–max của chính chất đó (nếu đã đặt)
+    // NUT-28: cơ cấu áp dụng nhập đủ ba chất, tổng 100%, mỗi chất nằm trong khoảng min–max của chính chất đó (nếu đã
+    // đặt)
     private static void checkAppliedStructure(AgeGroupMealConfigRequest request) {
         BigDecimal protein = request.appliedProteinPct();
         BigDecimal lipid = request.appliedLipidPct();
