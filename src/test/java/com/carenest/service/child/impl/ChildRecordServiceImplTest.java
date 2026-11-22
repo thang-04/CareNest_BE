@@ -267,7 +267,8 @@ class ChildRecordServiceImplTest {
                         ex -> assertThat(ex.getFieldErrors())
                                 .singleElement()
                                 .satisfies(e -> assertThat(e.message())
-                                        .isEqualTo("Trẻ chưa có khai báo sức khỏe. Khai báo trước khi xếp lớp.")));
+                                        .isEqualTo(
+                                                "Trẻ chưa có khai báo ăn và sức khỏe. Khai báo trước khi xếp lớp.")));
 
         given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
         given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(classroom(11L, "Lớp Chồi 2")));
@@ -562,7 +563,7 @@ class ChildRecordServiceImplTest {
                         CAMPUS_ID,
                         LocalDate.of(2026, 10, 1),
                         LocalDate.of(2026, 11, 1),
-                        "sửa khai báo sức khỏe",
+                        "sửa khai báo ăn và sức khỏe",
                         PRINCIPAL.userId());
         verify(tbNotifier, never()).contactReported(any(), any(), any(), any(), any());
     }

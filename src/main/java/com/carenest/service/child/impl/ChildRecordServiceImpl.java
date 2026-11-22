@@ -284,7 +284,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                         campusId,
                         beforeTbDate,
                         d.tbContactDate(),
-                        "sửa khai báo sức khỏe",
+                        "sửa khai báo ăn và sức khỏe",
                         actor.userId());
             }
             HealthDeclarationResponse response = findDeclaration(childId);
@@ -363,7 +363,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 errors.put("classId", "Trẻ đang học lớp này. Chọn lớp khác.");
             } else if (!declarationRepository.existsById(childId)) {
                 // CHD-06: trẻ có khai báo sức khỏe trước khi vào lớp (bếp, điểm danh dùng dị ứng)
-                errors.put("classId", "Trẻ chưa có khai báo sức khỏe. Khai báo trước khi xếp lớp.");
+                errors.put("classId", "Trẻ chưa có khai báo ăn và sức khỏe. Khai báo trước khi xếp lớp.");
             } else {
                 target = classroomService.findClassroomInfo(classId).orElse(null);
                 String problem = placementRules.classProblem(actor, target, today, child.getDateOfBirth());

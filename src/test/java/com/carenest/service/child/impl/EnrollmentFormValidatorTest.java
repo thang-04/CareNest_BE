@@ -59,6 +59,20 @@ class EnrollmentFormValidatorTest {
     }
 
     @Test
+    @DisplayName("CHD-06: thiếu cả phần khai báo ⇒ \"Khai báo ăn và sức khỏe còn thiếu\" ở ô dị ứng")
+    void missingDeclarationUsesMealAndHealthName() {
+        EnrollChildRequest noDeclaration = new EnrollChildRequest(
+                new EnrollmentChildInput(
+                        null, null, null, List.of(new GuardianInput(null, null, null, null, null)), null),
+                null,
+                null,
+                null);
+
+        assertThat(errors(EnrollmentFormValidator.validate(noDeclaration, TODAY)))
+                .containsEntry("declaration.allergies", "Khai báo ăn và sức khỏe còn thiếu");
+    }
+
+    @Test
     @DisplayName("C-5: thiếu thông tin ⇒ lỗi theo đường dẫn ô của FE (không tiền tố child.)")
     void missingFieldsUseFrontendPaths() {
         EnrollChildRequest empty = new EnrollChildRequest(

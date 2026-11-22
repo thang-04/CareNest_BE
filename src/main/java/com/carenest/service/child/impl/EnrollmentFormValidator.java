@@ -287,7 +287,7 @@ final class EnrollmentFormValidator {
     private static HealthDeclarationDraft validateDeclaration(
             HealthDeclarationInput input, LocalDate dateOfBirth, LocalDate today, Map<String, String> errors) {
         if (input == null) {
-            errors.put("declaration.allergies", "Khai báo sức khỏe còn thiếu");
+            errors.put("declaration.allergies", "Khai báo ăn và sức khỏe còn thiếu");
             return null;
         }
         // CHD-13: thiếu cờ = có báo ăn; không báo ăn thì bỏ qua dị ứng, chế độ ăn (lưu Chưa cung cấp)
