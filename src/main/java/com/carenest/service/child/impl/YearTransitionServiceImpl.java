@@ -276,11 +276,10 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     throw GlobalException.of(ApiCode.CLASS_WITHOUT_AGE_GROUP, from.name());
                 }
                 Child child = board.children.get(item.childId());
-                Long targetAgeGroup = child == null ? null : ageGroupOf(setup, child);
                 if (item.action() == PlacementAction.GRADUATE && (child == null || ageMonths(setup, child) < 72)) {
                     throw GlobalException.of(ApiCode.GRADUATION_NOT_ALLOWED);
                 }
-                if (item.action() == PlacementAction.PROMOTE && targetAgeGroup == null) {
+                if (item.action() == PlacementAction.PROMOTE && (child == null || ageMonths(setup, child) >= 72)) {
                     throw GlobalException.of(ApiCode.OLDEST_GROUP_GRADUATE_OR_STAY);
                 }
                 if (item.action().keepsChildInClass()) {
@@ -291,10 +290,9 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     if (!placesCampus(currentUser, to.campusId())) {
                         throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
                     }
-                    Long wanted = item.action() == PlacementAction.PROMOTE ? targetAgeGroup : from.ageGroupId();
-                    if (!Objects.equals(to.ageGroupId(), wanted)) {
-                        throw GlobalException.of(
-                                ApiCode.PLACEMENT_WRONG_AGE_GROUP, to.name(), actionLabel(item.action()));
+                    // Xếp tay năm mới được chọn khác nhóm tuổi; lớp vẫn phải có nhóm tuổi đã cấu hình.
+                    if (to.ageGroupId() == null) {
+                        throw GlobalException.of(ApiCode.CLASS_WITHOUT_AGE_GROUP, to.name());
                     }
                 }
                 board.place(item.childId(), from.id(), item.action(), item.toClassId(), currentUser.userId());
@@ -317,13 +315,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     if (!Objects.equals(to.campusId(), admission.getCampusId())) {
                         throw GlobalException.of(ApiCode.PLACEMENT_ADMISSION_WRONG_CAMPUS, to.name(), childName);
                     }
-                    // Như trẻ chuyển năm: lớp phải đúng nhóm tuổi của trẻ (tính tại ngày bắt đầu năm học)
-                    if (child != null && !fitsAgeGroup(setup, to.ageGroupId(), child)) {
-                        throw GlobalException.of(
-                                ApiCode.PLACEMENT_ADMISSION_WRONG_AGE_GROUP,
-                                childName,
-                                ageMonths(setup, child),
-                                to.name());
+                    if (to.ageGroupId() == null) {
+                        throw GlobalException.of(ApiCode.CLASS_WITHOUT_AGE_GROUP, to.name());
                     }
                 }
                 admission.assignClass(item.toClassId());
@@ -601,7 +594,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         });
     }
 
-    // Nhóm tuổi của trẻ tại ngày bắt đầu năm học mới (cùng cách kiểm như fitsAgeGroup); không khớp nhóm nào ⇒ null
+    // Nhóm tuổi theo đầu năm mới dùng cho gợi ý/tự xếp; không ràng buộc lựa chọn xếp tay.
     private static Long ageGroupOf(YearSetupResponse setup, Child child) {
         return setup.ageGroups().stream()
                 .filter(g -> g.ageFromMonths() != null && g.ageToMonths() != null)
@@ -721,7 +714,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         long placed = board.childClass.keySet().stream()
                 .filter(board.placements::containsKey)
                 .count();
-        // Kiểm lại lúc kích hoạt: lớp có thể đã bị hạ sĩ số / đổi nhóm tuổi sau khi xếp
+        // Kiểm lại lớp đích và sĩ số lúc kích hoạt; xếp tay khác nhóm tuổi vẫn hợp lệ.
         List<String> misfits = placementMisfits(setup, board);
         String placementDetail = setup.sourceYear() == null
                 ? "Không có năm học đang hoạt động cần chuyển trẻ"
@@ -778,7 +771,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 setup.year().status() == SchoolYearStatus.PLANNED && blockers.isEmpty());
     }
 
-    // Lớp năm mới vượt sĩ số tối đa hoặc không còn đúng nhóm tuổi so với bản xếp đã lưu
+    // Xếp khác nhóm tuổi được phép, nhưng lớp đích phải còn hợp lệ và không vượt sĩ số.
     private static List<String> placementMisfits(YearSetupResponse setup, Board board) {
         List<String> over = setup.classes().stream()
                 .filter(c -> c.capacity() != null && board.taken(c.id()) > c.capacity())
@@ -786,27 +779,20 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 .toList();
         Map<Long, YearSetupResponse.SetupClass> targets = setup.classes().stream()
                 .collect(Collectors.toMap(YearSetupResponse.SetupClass::id, Function.identity()));
-        long wrongGroup = board.placements.values().stream()
+        long invalidTargets = board.placements.values().stream()
                 .filter(p -> p.getAction().keepsChildInClass())
                 .filter(p -> {
                     YearSetupResponse.SetupClass from = board.sourceClassOf(p.getChildId());
                     YearSetupResponse.SetupClass to = targets.get(p.getToClassroomId());
-                    if (from == null || to == null) {
-                        return true;
-                    }
-                    Child child = board.children.get(p.getChildId());
-                    Long wanted = p.getAction() == PlacementAction.PROMOTE && child != null
-                            ? ageGroupOf(setup, child)
-                            : from.ageGroupId();
-                    return !Objects.equals(to.ageGroupId(), wanted);
+                    return from == null || to == null || to.ageGroupId() == null;
                 })
                 .count();
         List<String> misfits = new ArrayList<>();
         if (!over.isEmpty()) {
             misfits.add("Vượt sĩ số: " + String.join(", ", over));
         }
-        if (wrongGroup > 0) {
-            misfits.add(wrongGroup + " trẻ xếp vào lớp không đúng nhóm tuổi");
+        if (invalidTargets > 0) {
+            misfits.add(invalidTargets + " trẻ có lớp xếp năm mới không còn hợp lệ");
         }
         return misfits;
     }
@@ -841,15 +827,6 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                         .toList())
                 .forEach(c -> board.children.put(c.getId(), c));
         return board;
-    }
-
-    private static String actionLabel(PlacementAction action) {
-        return switch (action) {
-            case PROMOTE -> "Lên lớp";
-            case STAY -> "Ở lại";
-            case LEAVE -> "Nghỉ học";
-            case GRADUATE -> "Ra trường";
-        };
     }
 
     private YearSetupResponse checkPlanned(Long schoolYearId) {
