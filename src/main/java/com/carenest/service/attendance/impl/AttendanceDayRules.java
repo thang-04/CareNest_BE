@@ -6,6 +6,7 @@ import com.carenest.dto.attendance.DayUnlockResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceDayUnlock;
 import com.carenest.entity.organization.AttendanceCutoff;
+import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceDayUnlockRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
@@ -15,6 +16,7 @@ import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.service.organization.TeacherReadAccessService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -62,6 +64,22 @@ class AttendanceDayRules {
     // Thứ 2–6 trừ ngày nghỉ của năm học (SCH-05)
     boolean isSchoolDay(LocalDate date) {
         return schoolYearService.isSchoolDay(date);
+    }
+
+    /** Ngày bắt đầu / kết thúc học kỳ (1 | 2) của năm học; chưa cấu hình hoặc số học kỳ sai thì báo chọn học kỳ. */
+    LocalDate[] semesterRange(Long schoolYearId, Integer semester) {
+        var year = schoolYearService.findSchoolYearDetail(schoolYearId).orElse(null);
+        LocalDate start = year == null || semester == null
+                ? null
+                : semester == 1 ? year.semester1Start() : semester == 2 ? year.semester2Start() : null;
+        LocalDate end = year == null || semester == null
+                ? null
+                : semester == 1 ? year.semester1End() : semester == 2 ? year.semester2End() : null;
+        if (start == null || end == null) {
+            throw GlobalException.of(
+                    ApiCode.SEMESTER_DATE_REQUIRED, "học kỳ I hoặc học kỳ II đã có ngày bắt đầu, kết thúc");
+        }
+        return new LocalDate[] {start, end};
     }
 
     LocalTime cutoff(Long schoolYearId, LocalDate date) {

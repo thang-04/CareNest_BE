@@ -6,6 +6,7 @@ import com.carenest.dto.attendance.AttendanceSummaryResponse.ClassSummary;
 import com.carenest.dto.attendance.AttendanceSummaryResponse.ClassTotal;
 import com.carenest.dto.attendance.AttendanceSummaryResponse.DayRow;
 import com.carenest.dto.attendance.AttendanceSummaryResponse.MultiSummary;
+import com.carenest.dto.attendance.AttendanceSummaryResponse.PreviousClassTotal;
 import com.carenest.dto.attendance.ClassAttendanceResponse;
 import com.carenest.dto.attendance.ClassAttendanceResponse.ChildBrief;
 import com.carenest.dto.attendance.ClassAttendanceResponse.ChildRow;
@@ -496,17 +497,19 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     @Transactional(readOnly = true)
-    public ClassSummary getClassSummary(CurrentUser currentUser, Long classId, LocalDate from, LocalDate to) {
+    public ClassSummary getClassSummary(
+            CurrentUser currentUser, Long classId, LocalDate from, LocalDate to, Integer semester) {
         String logPrefix = LOG_PREFIX + "|getClassSummary|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = findClass(classId);
+            LocalDate[] range = summaryRange(cls.schoolYearId(), from, to, semester);
             // Tổ trưởng chuyên môn xem tổng hợp (không xem phiếu điểm danh/sức khỏe từng ngày) các lớp nhóm tuổi mình
-            if (!rules.canViewRange(currentUser, cls, from, to) && !rules.leadsClass(currentUser, cls)) {
+            if (!rules.canViewRange(currentUser, cls, range[0], range[1]) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
-            checkRange(from, to);
-            ClassSummary summary = summarize(cls, from, to);
+            checkRange(range[0], range[1]);
+            ClassSummary summary = summarize(cls, range[0], range[1]);
             log.info("{}|END", logPrefix);
             return summary;
         } catch (RuntimeException ex) {
@@ -518,7 +521,13 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     @Transactional(readOnly = true)
     public MultiSummary getSummary(
-            CurrentUser currentUser, Long campusId, Long schoolYearId, Long ageGroupId, LocalDate from, LocalDate to) {
+            CurrentUser currentUser,
+            Long campusId,
+            Long schoolYearId,
+            Long ageGroupId,
+            LocalDate from,
+            LocalDate to,
+            Integer semester) {
         String logPrefix = LOG_PREFIX + "|getSummary|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
@@ -529,12 +538,22 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_SUMMARY_ACCESS_DENIED);
             }
-            checkRange(from, to);
-            List<ClassSummary> parts = classroomService.findYearClassrooms(schoolYearId).stream()
+            List<ClassroomInfoResponse> yearClasses = classroomService.findYearClassrooms(schoolYearId);
+            ClassroomInfoResponse yearRef = yearClasses.isEmpty() ? null : yearClasses.getFirst();
+            Long yearId = yearRef != null ? yearRef.schoolYearId() : schoolYearId;
+            if (semester != null && yearId == null) {
+                throw GlobalException.of(ApiCode.SEMESTER_DATE_REQUIRED, "năm học có học kỳ");
+            }
+            LocalDate[] range = summaryRange(yearId, from, to, semester);
+            checkRange(range[0], range[1]);
+            // CFG-YR-01: chỉ tính ngày trong năm học, khoảng chọn vượt năm thì cắt về ngày bắt đầu / kết thúc năm
+            LocalDate start = yearRef == null ? range[0] : clampStart(range[0], yearRef);
+            LocalDate end = yearRef == null ? range[1] : clampEnd(range[1], yearRef);
+            List<ClassSummary> parts = yearClasses.stream()
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
                     .filter(c -> ageGroupId == null || ageGroupId.equals(c.ageGroupId()))
                     .filter(c -> leader ? rules.canView(currentUser, c) : ledGroups.contains(c.ageGroupId()))
-                    .map(c -> summarize(c, from, to))
+                    .map(c -> summarize(c, start, end))
                     .toList();
             // Cột bữa của tổng hợp nhiều lớp = các bữa có ở ít nhất một lớp
             List<MealSession> sessions = parts.stream()
@@ -545,7 +564,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (campusId != null && parts.isEmpty() && !rules.canReadCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
-            List<DayRow> days = schoolDays(from, to).stream()
+            List<DayRow> days = schoolDays(start, end).stream()
                     .map(date -> {
                         List<DayRow> rows = parts.stream()
                                 .flatMap(p -> p.days().stream())
@@ -577,8 +596,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .toList();
             MultiSummary summary = new MultiSummary(
                     campusId,
-                    from,
-                    to,
+                    start,
+                    end,
                     // OBS-23 (Z1): trẻ chuyển lớp trong khoảng chỉ đếm một lần ở sĩ số chung
                     (int) parts.stream()
                             .flatMap(p -> p.children().stream())
@@ -773,6 +792,24 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
+    // Chọn học kỳ ⇒ ngày học kỳ của năm học, chưa hết học kỳ thì tới hôm nay; không chọn ⇒ from..to người dùng gửi
+    private LocalDate[] summaryRange(Long schoolYearId, LocalDate from, LocalDate to, Integer semester) {
+        if (semester == null) {
+            return new LocalDate[] {from, to};
+        }
+        LocalDate[] dates = rules.semesterRange(schoolYearId, semester);
+        LocalDate today = rules.today();
+        return new LocalDate[] {dates[0], dates[1].isAfter(today) ? today : dates[1]};
+    }
+
+    private static LocalDate clampStart(LocalDate from, ClassroomInfoResponse cls) {
+        return cls.yearStart() != null && from.isBefore(cls.yearStart()) ? cls.yearStart() : from;
+    }
+
+    private static LocalDate clampEnd(LocalDate to, ClassroomInfoResponse cls) {
+        return cls.yearEnd() != null && to.isAfter(cls.yearEnd()) ? cls.yearEnd() : to;
+    }
+
     private List<LocalDate> schoolDays(LocalDate from, LocalDate to) {
         return Stream.iterate(from, d -> !d.isAfter(to), d -> d.plusDays(1))
                 .filter(rules::isSchoolDay)
@@ -780,15 +817,20 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // Mọi trẻ từng học lớp trong khoảng; mỗi ngày chỉ tính trẻ thuộc lớp ngày đó (OBS-23)
-    private ClassSummary summarize(ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+    private ClassSummary summarize(ClassroomInfoResponse cls, LocalDate requestedFrom, LocalDate requestedTo) {
+        // CFG-YR-01: chỉ ngày học trong năm học của lớp
+        LocalDate from = clampStart(requestedFrom, cls);
+        LocalDate to = clampEnd(requestedTo, cls);
         List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroomDuring(cls.id(), from, to);
         List<Long> childIds = children.stream().map(ClassChildResponse::id).toList();
         Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(childIds);
-        Map<String, AttendanceRecord> records =
-                recordRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
-                        .filter(r -> r.getClassroomId().equals(cls.id()))
-                        .collect(Collectors.toMap(r -> r.getChildId() + ":" + r.getDate(), Function.identity()));
+        List<AttendanceRecord> childRecords = recordRepository.findByChildIdInAndDateBetween(childIds, from, to);
+        // OBS-23 (Cần chốt 24/11/2026): bản ghi thuộc lớp theo thời gian trẻ ở lớp, không theo lớp lưu trên bản ghi —
+        // bỏ bản ghi sót sau khi trẻ nghỉ / chuyển đi; đơn nghỉ gửi trước khi chuyển lớp tính cho lớp mới
+        Map<String, AttendanceRecord> records = childRecords.stream()
+                .filter(r -> inClass(stays, r.getChildId(), r.getDate()))
+                .collect(Collectors.toMap(r -> r.getChildId() + ":" + r.getDate(), Function.identity()));
         // present, excused, unexcused, meals, morningOff, afternoonOff, nửa ngày có mặt (đơn vị 0,5)
         Map<Long, int[]> perChild = new LinkedHashMap<>();
         Map<Long, Map<MealSession, Integer>> childMeals = new HashMap<>();
@@ -857,9 +899,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
         var history = childClassHistoryService.statuses(
                 cls.id(), childIds, rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());
+        Map<Long, ClassroomInfoResponse> classCache = new HashMap<>();
         List<ChildTotal> childTotals = children.stream()
                 .map(ch -> {
                     int[] c = perChild.get(ch.id());
+                    LocalDate movedIn = transferredInOn(cls, ch.id(), stays, from, classCache);
                     return new ChildTotal(
                             toBrief(ch, withoutMeals, allergic),
                             c[0],
@@ -870,7 +914,11 @@ public class AttendanceServiceImpl implements AttendanceService {
                             childMeals.get(ch.id()),
                             c[4],
                             c[5],
-                            history.get(ch.id()));
+                            history.get(ch.id()),
+                            movedIn,
+                            movedIn == null
+                                    ? List.of()
+                                    : previousClasses(cls, ch.id(), movedIn, from, childRecords, classCache));
                 })
                 .toList();
         return new ClassSummary(
@@ -883,6 +931,67 @@ public class AttendanceServiceImpl implements AttendanceService {
                 children.size(),
                 days,
                 childTotals);
+    }
+
+    /** Ngày trẻ chuyển đến lớp trong khoảng: đoạn ở lớp bắt đầu sau from và trước đó trẻ học lớp khác cùng năm. */
+    private LocalDate transferredInOn(
+            ClassroomInfoResponse cls,
+            Long childId,
+            List<EnrollmentService.ClassStay> stays,
+            LocalDate from,
+            Map<Long, ClassroomInfoResponse> classCache) {
+        LocalDate first = stays.stream()
+                .filter(s -> s.childId().equals(childId))
+                .map(EnrollmentService.ClassStay::from)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+        if (first == null || !first.isAfter(from) || cls.yearStart() == null || !first.isAfter(cls.yearStart())) {
+            return null;
+        }
+        boolean fromOtherClass = enrollmentService.findChildStays(childId, cls.yearStart(), first.minusDays(1)).stream()
+                .anyMatch(s -> !s.classroomId().equals(cls.id()) && sameYear(s.classroomId(), cls, classCache));
+        return fromOtherClass ? first : null;
+    }
+
+    // Cần chốt 24/11/2026: số liệu ở lớp cũ chỉ để xem, đếm trong phần khoảng tổng hợp trẻ còn ở lớp cũ
+    private List<PreviousClassTotal> previousClasses(
+            ClassroomInfoResponse cls,
+            Long childId,
+            LocalDate movedIn,
+            LocalDate from,
+            List<AttendanceRecord> childRecords,
+            Map<Long, ClassroomInfoResponse> classCache) {
+        List<PreviousClassTotal> result = new ArrayList<>();
+        for (EnrollmentService.ChildClassStay stay :
+                enrollmentService.findChildStays(childId, from, movedIn.minusDays(1))) {
+            if (stay.classroomId().equals(cls.id()) || !sameYear(stay.classroomId(), cls, classCache)) {
+                continue;
+            }
+            int[] counts = new int[3];
+            childRecords.stream()
+                    .filter(r -> r.getChildId().equals(childId)
+                            && !r.getDate().isBefore(stay.from())
+                            && !r.getDate().isAfter(stay.to()))
+                    .forEach(r -> counts[
+                            r.getStatus() == AttendanceStatus.PRESENT
+                                    ? 0
+                                    : r.getStatus() == AttendanceStatus.EXCUSED ? 1 : 2]++);
+            result.add(new PreviousClassTotal(
+                    stay.classroomId(),
+                    classCache.get(stay.classroomId()).name(),
+                    stay.from(),
+                    stay.to(),
+                    counts[0],
+                    counts[1],
+                    counts[2]));
+        }
+        return result;
+    }
+
+    private boolean sameYear(Long classroomId, ClassroomInfoResponse cls, Map<Long, ClassroomInfoResponse> cache) {
+        ClassroomInfoResponse other = cache.computeIfAbsent(
+                classroomId, id -> classroomService.findClassroomInfo(id).orElse(null));
+        return other != null && cls.schoolYearId().equals(other.schoolYearId());
     }
 
     private static boolean inClass(List<EnrollmentService.ClassStay> stays, Long childId, LocalDate date) {

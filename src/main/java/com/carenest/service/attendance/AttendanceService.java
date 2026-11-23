@@ -55,8 +55,17 @@ public interface AttendanceService {
     /** ATT-13: qua giờ đến muộn nhất mà trẻ nghỉ sáng chưa đến ⇒ Vắng cả ngày, báo GV và phụ huynh; trả số trẻ. */
     int closeMorningLeaves();
 
+    default AttendanceSummaryResponse.ClassSummary getClassSummary(
+            CurrentUser currentUser, Long classId, LocalDate from, LocalDate to) {
+        return getClassSummary(currentUser, classId, from, to, null);
+    }
+
+    /**
+     * semester: 1 / 2 ⇒ khoảng ngày theo học kỳ của năm học lớp (bỏ qua from/to), cắt ở hôm nay; null ⇒ from..to. Khoảng
+     * luôn cắt trong năm học của lớp.
+     */
     AttendanceSummaryResponse.ClassSummary getClassSummary(
-            CurrentUser currentUser, Long classId, LocalDate from, LocalDate to);
+            CurrentUser currentUser, Long classId, LocalDate from, LocalDate to, Integer semester);
 
     default AttendanceSummaryResponse.MultiSummary getSummary(
             CurrentUser currentUser, Long campusId, Long schoolYearId, LocalDate from, LocalDate to) {
@@ -64,8 +73,20 @@ public interface AttendanceService {
     }
 
     /** ageGroupId: chỉ các lớp của nhóm tuổi (ATT-14, lọc nhóm tuổi); null = mọi nhóm. */
+    default AttendanceSummaryResponse.MultiSummary getSummary(
+            CurrentUser currentUser, Long campusId, Long schoolYearId, Long ageGroupId, LocalDate from, LocalDate to) {
+        return getSummary(currentUser, campusId, schoolYearId, ageGroupId, from, to, null);
+    }
+
+    /** semester: như getClassSummary, theo năm học schoolYearId (null = năm đang hoạt động). */
     AttendanceSummaryResponse.MultiSummary getSummary(
-            CurrentUser currentUser, Long campusId, Long schoolYearId, Long ageGroupId, LocalDate from, LocalDate to);
+            CurrentUser currentUser,
+            Long campusId,
+            Long schoolYearId,
+            Long ageGroupId,
+            LocalDate from,
+            LocalDate to,
+            Integer semester);
 
     /** Lớp của năm học tại một điểm trường (chỉ dùng nội bộ: module suất ăn tự kiểm quyền). */
     List<ClassMealTally> tallyMeals(LocalDate date, Long campusId, Long schoolYearId);
