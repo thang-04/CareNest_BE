@@ -93,3 +93,6 @@ Chưa có. Rủi ro dự kiến: CMR-01, CMR-02.
 
 ## Đọc thêm khi
 Đụng AI menu ⇒ card ai-assistance + ADR-0007/0008 (phạm vi AI chờ khảo sát). Đụng kho/NCC ⇒ ADR-0009 (ACCEPTED, cập nhật 01/11).
+
+
+ON/OFF nhóm tuổi khi soạn thực đơn (user chốt 23/11/2026): Hiệu trưởng cập nhật `enabled` độc lập với ngày hiệu lực của định mức. `nutrition_group_settings` (V170) lưu theo `age_group_id`, thiếu bản ghi = bật. `GET /nutrition/age-group-configs/statuses` trả mọi nhóm; `POST /nutrition/age-group-configs/batch` nhận `statuses[{ageGroupId,enabled}]` cùng `items` trong một transaction; cho phép `items: []` khi chỉ đổi trạng thái. Quyền ghi `MEAL_CONFIG_MANAGE`. OFF loại nhóm khỏi soạn thực đơn/AI mới, không đổi danh mục trường, lớp, điểm danh hoặc lịch sử thực đơn. FE dùng chung trạng thái trong Nhóm độ tuổi, chi tiết Định mức dinh dưỡng và thao tác Tổng quan; chỉ có hiệu lực sau Lưu thành công.

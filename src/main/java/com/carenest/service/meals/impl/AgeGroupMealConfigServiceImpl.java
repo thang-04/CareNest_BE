@@ -35,6 +35,37 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService {
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.carenest.dto.meals.NutritionGroupStatus> getGroupStatuses() {
+        Set<Long> disabled = configRepository.findDisabledNutritionGroupIds();
+        return ageGroupService.getAgeGroups().stream()
+                .map(g -> new com.carenest.dto.meals.NutritionGroupStatus(g.id(), !disabled.contains(g.id())))
+                .toList();
+    }
+
+    @Override
+    public List<AgeGroupMealConfigResponse> saveConfigs(
+            CurrentUser user,
+            List<AgeGroupMealConfigRequest> requests,
+            List<com.carenest.dto.meals.NutritionGroupStatus> statuses) {
+        if (!user.hasPermission(com.carenest.utils.enums.Permission.MEAL_CONFIG_MANAGE)) {
+            throw GlobalException.of(ApiCode.FORBIDDEN);
+        }
+        Set<Long> known = ageGroupIds();
+        Set<Long> seen = new HashSet<>();
+        for (var status : statuses) {
+            if (!known.contains(status.ageGroupId()) || !seen.add(status.ageGroupId())) {
+                throw GlobalException.of(ApiCode.AGE_GROUP_INVALID);
+            }
+        }
+        var result = saveConfigs(user, requests);
+        for (var status : statuses) {
+            configRepository.setNutritionGroupEnabled(status.ageGroupId(), status.enabled(), user.userId());
+        }
+        return result;
+    }
+
     private static final String LOG_PREFIX = "[AgeGroupMealConfigServiceImpl]";
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
 

@@ -58,6 +58,33 @@ class AgeGroupMealConfigServiceImplTest {
                     new BigDecimal("0.60")));
 
     @Test
+    void nutritionStatusDefaultsOnAndCanBeDisabledWithoutNewVersion() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.findDisabledNutritionGroupIds()).willReturn(Set.of());
+        assertThat(service.getGroupStatuses().getFirst().enabled()).isTrue();
+        var principal = new CurrentUser(
+                7L,
+                "kc-7",
+                "demo",
+                "Demo",
+                null,
+                Set.of(CareNestRole.PRINCIPAL),
+                com.carenest.utils.enums.Permission.fixedPermissionsOf(CareNestRole.PRINCIPAL));
+        service.saveConfigs(
+                principal, List.of(), List.of(new com.carenest.dto.meals.NutritionGroupStatus(AGE_GROUP, false)));
+        verify(repository).setNutritionGroupEnabled(AGE_GROUP, false, 7L);
+        verify(repository, never()).save(any());
+        given(repository.findDisabledNutritionGroupIds()).willReturn(Set.of(AGE_GROUP));
+        assertThat(service.getGroupStatuses().getFirst().enabled()).isFalse();
+        assertThatThrownBy(() -> service.saveConfigs(
+                        VICE_PRINCIPAL,
+                        List.of(),
+                        List.of(new com.carenest.dto.meals.NutritionGroupStatus(AGE_GROUP, false))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.FORBIDDEN);
+    }
+
+    @Test
     @DisplayName("NUT-17: lưu cả lô — dòng sau gặp bản đã hiệu lực thì báo lỗi, cả lô không lưu")
     void batchStopsOnLockedVersion() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
