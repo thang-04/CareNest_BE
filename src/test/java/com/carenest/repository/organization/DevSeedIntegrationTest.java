@@ -54,6 +54,8 @@ class DevSeedIntegrationTest {
             "user_signatures",
             "meal_photos",
             "inspection_sheets",
+            // INS-05: yêu cầu mở ghi ngày cũ phát sinh lúc chạy, gắn với biên bản kiểm thực (không seed)
+            "inspection_day_grants",
             "health_follow_ups",
             "health_follow_up_events",
             "health_follow_up_images",

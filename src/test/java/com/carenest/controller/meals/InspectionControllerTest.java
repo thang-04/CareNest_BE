@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
 import com.carenest.dto.common.ImageContent;
+import com.carenest.dto.meals.InspectionApprovalResponse;
 import com.carenest.dto.meals.InspectionDayResponse;
 import com.carenest.dto.meals.InspectionSheetResponse;
 import com.carenest.exception.GlobalException;
@@ -25,9 +26,11 @@ import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.security.TestPermissions;
+import com.carenest.service.meals.InspectionGrantService;
 import com.carenest.service.meals.InspectionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.InspectionGrantStatus;
 import com.carenest.utils.enums.InspectionStatus;
 import com.carenest.utils.enums.InspectionTab;
 import java.time.LocalDate;
@@ -55,6 +58,9 @@ class InspectionControllerTest {
     private InspectionService inspections;
 
     @MockitoBean
+    private InspectionGrantService grants;
+
+    @MockitoBean
     private CurrentUserService users;
 
     private CurrentUser asVicePrincipal() {
@@ -72,7 +78,8 @@ class InspectionControllerTest {
     void readsDay() throws Exception {
         CurrentUser pht = asVicePrincipal();
         given(inspections.getDay(pht, 1L, DAY))
-                .willReturn(new InspectionDayResponse(1L, DAY, true, List.of(sheet(InspectionTab.PROCESS, null))));
+                .willReturn(new InspectionDayResponse(
+                        1L, DAY, true, List.of(sheet(InspectionTab.PROCESS, null)), List.of()));
 
         mvc.perform(get("/api/inspections/day")
                         .param("campusId", "1")
@@ -147,6 +154,83 @@ class InspectionControllerTest {
                 .andExpect(content().contentType("image/png"))
                 .andExpect(header().string("Cache-Control", "no-store, private"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+    }
+
+    private static InspectionApprovalResponse approval(InspectionGrantStatus status) {
+        return new InspectionApprovalResponse(
+                5L, 1L, DAY, InspectionTab.SAMPLE, status, false, "Quên ghi mẫu", "Demo", null, null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("INS-05: PHT gửi yêu cầu mở mẫu ngày cũ ⇒ 201 và dữ liệu yêu cầu")
+    void requestsApproval() throws Exception {
+        CurrentUser pht = asVicePrincipal();
+        given(grants.request(eq(pht), eq(1L), eq(DAY), eq(InspectionTab.SAMPLE), any()))
+                .willReturn(approval(InspectionGrantStatus.PENDING));
+
+        mvc.perform(post("/api/inspections/day/SAMPLE/approvals")
+                        .param("campusId", "1")
+                        .param("date", "2026-11-09")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Quên ghi mẫu\"}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.status").value("PENDING"))
+                .andExpect(jsonPath("$.data.tab").value("SAMPLE"));
+    }
+
+    @Test
+    @DisplayName("INS-05: chỉ HT xem hàng chờ, duyệt, từ chối, thu hồi; PHT bị 403 và không chạm service")
+    void onlyPrincipalDecidesApprovals() throws Exception {
+        CurrentUser ht = TestPermissions.userWithDefaults(1L, CareNestRole.PRINCIPAL);
+        given(users.getCurrentUser()).willReturn(ht);
+        given(grants.queue(eq(ht), any(), any())).willReturn(List.of(approval(InspectionGrantStatus.PENDING)));
+        given(grants.approve(eq(ht), eq(5L), any())).willReturn(approval(InspectionGrantStatus.APPROVED));
+        given(grants.reject(eq(ht), eq(5L), any())).willReturn(approval(InspectionGrantStatus.REJECTED));
+        given(grants.revoke(eq(ht), eq(5L), any())).willReturn(approval(InspectionGrantStatus.REVOKED));
+        var principal = jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"));
+
+        mvc.perform(get("/api/inspections/approvals").with(principal))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(5));
+        mvc.perform(post("/api/inspections/approvals/5/approve").with(principal))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+        mvc.perform(post("/api/inspections/approvals/5/reject")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":\"Không đủ lý do\"}")
+                        .with(principal))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+        mvc.perform(post("/api/inspections/approvals/5/revoke")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":\"Mở nhầm\"}")
+                        .with(principal))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REVOKED"));
+
+        var vice = jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"));
+        mvc.perform(get("/api/inspections/approvals").with(vice)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/inspections/approvals/5/approve").with(vice)).andExpect(status().isForbidden());
+        verify(grants).queue(eq(ht), any(), any());
+    }
+
+    @Test
+    @DisplayName("INS-05: ngày cũ chưa duyệt ⇒ mã lỗi riêng 409, thông điệp tiếng Việt")
+    void approvalRequiredMapsTo409() throws Exception {
+        asVicePrincipal();
+        given(inspections.save(any(), any(), any(), any(), any()))
+                .willThrow(GlobalException.of(ApiCode.INSPECTION_APPROVAL_REQUIRED));
+
+        mvc.perform(put("/api/inspections/day/SAMPLE")
+                        .param("campusId", "1")
+                        .param("date", "2026-11-09")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":0,\"header\":{},\"rows\":[{\"key\":\"a\"}]}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(409))
+                .andExpect(jsonPath("$.errorCode").value(6116));
     }
 
     @Test

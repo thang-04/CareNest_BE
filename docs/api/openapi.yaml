@@ -6151,6 +6151,111 @@ paths:
           description: OK
       tags:
       - health-check-controller
+  /api/inspections/approvals:
+    get:
+      operationId: getApprovals
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/approve:
+    post:
+      operationId: approveApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/reject:
+    post:
+      operationId: rejectApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/revoke:
+    post:
+      operationId: revokeApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
   /api/inspections/day:
     get:
       operationId: getDay
@@ -6216,6 +6321,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
           description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}/approvals:
+    post:
+      operationId: requestApproval
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: Created
       tags:
       - inspection-controller
   /api/inspections/day/{tab}/reopen:
@@ -17490,9 +17637,85 @@ components:
       - ageGroupId
       - foodId
       - gramsPerChild
+    InspectionApprovalDecisionRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        validHours:
+          type: integer
+          format: int32
+          maximum: 168
+          minimum: 1
+    InspectionApprovalRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        validHours:
+          type: integer
+          format: int32
+          maximum: 168
+          minimum: 1
+    InspectionApprovalResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        decidedAt:
+          type: string
+          format: date-time
+        decidedByName:
+          type: string
+        decisionNote:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        requestedByName:
+          type: string
+        selfOpened:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
     InspectionDayResponse:
       type: object
       properties:
+        approvals:
+          type: array
+          items:
+            $ref: "#/components/schemas/TabApproval"
         campusId:
           type: integer
           format: int64
@@ -22032,6 +22255,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonInspectionApprovalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/InspectionApprovalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonInspectionDayResponse:
       type: object
       properties:
@@ -22614,6 +22850,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/HealthCheckResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListInspectionApprovalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InspectionApprovalResponse"
         desc:
           type: string
         errorCode:
@@ -25708,6 +25959,44 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    TabApproval:
+      type: object
+      properties:
+        approvalId:
+          type: integer
+          format: int64
+        canRequest:
+          type: boolean
+        decisionNote:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        locked:
+          type: boolean
+        reason:
+          type: string
+        requestedByName:
+          type: string
+        selfOpen:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
     Takeover:
       type: object
       properties:
