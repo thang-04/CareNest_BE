@@ -325,7 +325,7 @@ class MenuAiContextLoader {
     }
 
     List<AgeGroupInfo> blockGroups(MenuBlock block) {
-        return evaluationSupport.evaluatedGroups().stream()
+        return evaluationSupport.planningGroups().stream()
                 .filter(g -> g.block() == block)
                 .sorted(Comparator.comparing(AgeGroupInfo::id))
                 .toList();

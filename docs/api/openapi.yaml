@@ -7009,6 +7009,18 @@ paths:
           description: OK
       tags:
       - age-group-meal-config-controller
+  /api/nutrition/age-group-configs/statuses:
+    get:
+      operationId: getGroupStatuses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListNutritionGroupStatus"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
   /api/nutrition/age-group-configs/{ageGroupId}/versions:
     get:
       operationId: getConfigVersions
@@ -10376,6 +10388,14 @@ components:
             $ref: "#/components/schemas/AgeGroupMealConfigRequest"
           maxItems: 20
           minItems: 0
+        nonEmpty:
+          type: boolean
+        statuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionGroupStatus"
+          maxItems: 20
+          minItems: 0
       required:
       - items
     AgeGroupMealConfigRequest:
@@ -10407,6 +10427,18 @@ components:
         animalProteinGMin:
           type: number
           maximum: 9999
+          minimum: 0
+        appliedGlucidPct:
+          type: number
+          maximum: 100
+          minimum: 0
+        appliedLipidPct:
+          type: number
+          maximum: 100
+          minimum: 0
+        appliedProteinPct:
+          type: number
+          maximum: 100
           minimum: 0
         calciumMax:
           type: number
@@ -10581,10 +10613,18 @@ components:
           type: number
         animalProteinGMin:
           type: number
+        appliedGlucidPct:
+          type: number
+        appliedLipidPct:
+          type: number
+        appliedProteinPct:
+          type: number
         calciumMax:
           type: number
         calciumMin:
           type: number
+        conversion:
+          $ref: "#/components/schemas/NutritionConversionResponse"
         dailyKcalNeed:
           type: number
         editable:
@@ -13025,6 +13065,19 @@ components:
           format: int64
         name:
           type: string
+    ConvertedGrams:
+      type: object
+      properties:
+        animalLipidG:
+          type: number
+        animalProteinG:
+          type: number
+        glucidG:
+          type: number
+        plantLipidG:
+          type: number
+        plantProteinG:
+          type: number
     CopyClassesRequest:
       type: object
       properties:
@@ -19333,6 +19386,35 @@ components:
           type: array
           items:
             type: string
+    NutritionConversionResponse:
+      type: object
+      properties:
+        animalLipidShare:
+          type: number
+        animalProteinShare:
+          type: number
+        atKcalMax:
+          $ref: "#/components/schemas/ConvertedGrams"
+        atKcalMin:
+          $ref: "#/components/schemas/ConvertedGrams"
+        glucidKcalPerG:
+          type: number
+        lipidKcalPerG:
+          type: number
+        proteinKcalPerG:
+          type: number
+    NutritionGroupStatus:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
+        enabled:
+          type: boolean
+      required:
+      - ageGroupId
+      - enabled
     NutritionTotals:
       type: object
       properties:
@@ -22865,6 +22947,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NotificationRuleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListNutritionGroupStatus:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionGroupStatus"
         desc:
           type: string
         errorCode:

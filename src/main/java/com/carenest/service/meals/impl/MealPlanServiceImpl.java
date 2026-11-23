@@ -239,7 +239,8 @@ public class MealPlanServiceImpl implements MealPlanService {
             MealPlanDay wanted = toDays(
                             weekStart,
                             new MealPlanRequest(List.of(
-                                    new MealPlanRequest.DayInput(date, false, request.note(), request.items()))))
+                                    new MealPlanRequest.DayInput(date, false, request.note(), request.items()))),
+                            false)
                     .stream()
                     .filter(d -> d.getMenuDate().equals(date))
                     .findFirst()
@@ -711,6 +712,10 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private List<MealPlanDay> toDays(LocalDate weekStart, MealPlanRequest request) {
+        return toDays(weekStart, request, true);
+    }
+
+    private List<MealPlanDay> toDays(LocalDate weekStart, MealPlanRequest request, boolean planning) {
         Map<LocalDate, MealPlanRequest.DayInput> byDate = new LinkedHashMap<>();
         for (MealPlanRequest.DayInput day : request.days()) {
             long offset = day.date().toEpochDay() - weekStart.toEpochDay();
@@ -718,8 +723,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_DATE_INVALID, day.date());
             }
         }
-        Map<MenuBlock, Set<MealSession>> served =
-                MealPlanEvaluationSupport.servedSessions(ageGroupService.getAgeGroups());
+        Map<MenuBlock, Set<MealSession>> served = MealPlanEvaluationSupport.servedSessions(
+                planning ? evaluationSupport.planningAgeGroups() : ageGroupService.getAgeGroups());
         Set<Long> dishIds = request.days().stream()
                 .flatMap(d -> d.items().stream())
                 .map(MealPlanRequest.ItemInput::dishId)
@@ -761,7 +766,9 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     private MealPlanResponse toResponse(CurrentUser currentUser, LocalDate weekStart, MealPlanWeek week) {
         // Lưới chỉ hiện khối có nhóm tuổi được kiểm (có lớp năm học hiện hành), cùng nguồn với bảng kiểm
-        List<AgeGroupInfo> groups = evaluationSupport.evaluatedGroups();
+        List<AgeGroupInfo> groups = (week == null || (!week.isPublished() && !isWeekPast(weekStart)))
+                ? evaluationSupport.planningGroups()
+                : evaluationSupport.evaluatedGroups();
         Map<MenuBlock, Set<MealSession>> served = new EnumMap<>(MenuBlock.class);
         groups.forEach(
                 g -> served.computeIfAbsent(g.block(), b -> new TreeSet<>()).addAll(g.sessions()));
@@ -874,7 +881,9 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private MealPlanEvaluator.Result evaluate(LocalDate weekStart, MealPlanWeek week) {
-        List<AgeGroupInfo> groups = evaluationSupport.evaluatedGroups();
+        List<AgeGroupInfo> groups = (week == null || (!week.isPublished() && !isWeekPast(weekStart)))
+                ? evaluationSupport.planningGroups()
+                : evaluationSupport.evaluatedGroups();
         Map<Long, Dish> dishes = dishRepository
                 .findByIdIn(week.getDays().stream()
                         .flatMap(d -> d.getItems().stream())

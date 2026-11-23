@@ -24,7 +24,7 @@ AI-01..10, HLT-04, NUT-05. Provider: Gemini API, Groq (AI-09, ADR-0007).
 Plan `docs/plans/completed/2026-11-10-health-record-complete.md`. Phần dưới chỉ mô tả bản cũ; cấu hình hiện hành ở mục "Cấu hình".
 - `AiClient.complete(AiRequest(task, systemPrompt, userPrompt, maxTokens))` ⇒ `AiResult(text, model)`; `isEnabled()`. Lỗi: `AiException` lý do `UNAVAILABLE` (tắt, lỗi gọi, phản hồi rỗng) / `TIMEOUT` — domain đổi thành 8001 / 8002.
 - `OpenAiCompatibleAiClient`: một adapter `POST {base-url}/chat/completions` (Bearer key, temperature 0.2) dùng cho Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`, mặc định) và Groq (`https://api.groq.com/openai/v1`) — AI-09, không thêm SDK. Log chỉ task, model, độ trễ, kết quả (AI-05).
-- Cấu hình `carenest.ai.*` (`AiProperties`): env `CARENEST_AI_BASE_URL`, `CARENEST_AI_API_KEY`, `CARENEST_AI_MODEL` (mặc định `gemini-2.0-flash`), `CARENEST_AI_READ_TIMEOUT` (20s); connect 3s. Không có khóa ⇒ AI tắt, không gọi mạng; nghiệp vụ không AI vẫn chạy (AI-03). Khóa chỉ ở env/secret, không commit; `toString()` che khóa.
+- Cấu hình `carenest.ai.*` (`AiProperties`): env `AI_ENABLED` (mặc định `false`), mỗi provider `AI_GEMINI_*` / `AI_GROQ_*` (`MODEL`, `API_KEY`, `REASONING_EFFORT`, `BASE_URL`), embedding `AI_EMBEDDING_*`; chuỗi provider và hạn chờ theo task ở `carenest.ai.tasks` (`AI_MENU_WEEKLY_DEADLINE`, mặc định 30s). Tắt hoặc thiếu model/key ⇒ không gọi mạng; nghiệp vụ không AI vẫn chạy (AI-03). Khóa chỉ ở env/secret, không commit; `toString()` che khóa. Mọi `compose*.yaml` phải truyền đúng các tên này vào container.
 - Prompt nằm ở domain gọi (vd. `HealthTrendServiceImpl`): domain tự tối giản dữ liệu (AI-04), kiểm output (HLT-04) và lưu nháp `source=AI`, model (AI-01, AI-02).
 
 ## Phụ thuộc
