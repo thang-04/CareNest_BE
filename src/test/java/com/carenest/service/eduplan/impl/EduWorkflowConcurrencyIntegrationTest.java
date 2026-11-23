@@ -277,7 +277,14 @@ class EduWorkflowConcurrencyIntegrationTest {
                 username,
                 username,
                 "Synthetic");
-        return new CurrentUser(id, username, username, "Synthetic", null, Set.of(role));
+        return new CurrentUser(
+                id,
+                username,
+                username,
+                "Synthetic",
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long id(String sql, Object... values) {

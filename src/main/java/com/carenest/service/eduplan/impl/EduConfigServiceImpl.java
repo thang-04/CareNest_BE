@@ -95,7 +95,8 @@ public class EduConfigServiceImpl implements EduConfigService {
         log.info("{}|START", logPrefix);
         try {
             // EDU-11/94/97: cấu hình kế hoạch giáo dục chỉ Hiệu trưởng có phân công hiệu lực được thay đổi.
-            if (!accessPolicy.isPrincipal(currentUser)) {
+            // EDU-108: HT cố định; PHT khi được bật EDU_PLAN_CONFIG
+            if (!accessPolicy.canEditConfig(currentUser)) {
                 throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
             }
 
@@ -149,7 +150,7 @@ public class EduConfigServiceImpl implements EduConfigService {
 
         if (currentUser != null) {
             workflow = workflowService.getPolicy(currentUser);
-            canConfigure = accessPolicy.isPrincipal(currentUser);
+            canConfigure = accessPolicy.canEditConfig(currentUser);
             EduWorkflowPolicy.RolePolicy yearPolicy = workflowService.loadPolicy("year");
             yearCreationScopes = schoolStructureService.findAgeGroups().stream()
                     .filter(ag -> accessPolicy.canAuthorYearPlan(currentUser, yearPolicy, ag.id()))

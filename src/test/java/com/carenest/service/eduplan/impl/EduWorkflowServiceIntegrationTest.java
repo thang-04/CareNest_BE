@@ -775,7 +775,8 @@ class EduWorkflowServiceIntegrationTest {
 
     private com.carenest.security.CurrentUser workflowUser(String name, com.carenest.utils.enums.CareNestRole role) {
         long id = createAccount(name);
-        return new com.carenest.security.CurrentUser(id, name, name, name, "", Set.of(role));
+        return new com.carenest.security.CurrentUser(
+                id, name, name, name, "", Set.of(role), com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long createAccount(String username) {

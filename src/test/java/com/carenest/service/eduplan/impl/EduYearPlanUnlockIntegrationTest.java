@@ -192,7 +192,14 @@ class EduYearPlanUnlockIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(userId, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+        return new CurrentUser(
+                userId,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long id(String sql, Object... args) {

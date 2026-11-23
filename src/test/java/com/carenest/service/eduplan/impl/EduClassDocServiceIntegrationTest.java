@@ -767,7 +767,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    void vicePrincipalCannotApproveClassAtAnotherCampus() {
+    @DisplayName("EDU-108 FR4.1: PHT có mã duyệt duyệt lớp ở điểm trường khác; PHT bị tắt mã thì không")
+    void vicePrincipalApprovesClassAtAnotherCampusOnlyWithApproveCode() {
         long otherCampus = insertId("INSERT INTO campuses(code,name) VALUES ('CS-B','Campus B') RETURNING id");
         long targetClass = insertId(
                 "INSERT INTO classrooms(campus_id,school_year_id,name,age_group_id) VALUES (?,?,'B1',?) RETURNING id",
@@ -782,12 +783,23 @@ class EduClassDocServiceIntegrationTest {
         service.saveClassDoc(targetTeacher, "branch", key, content, -1L, null);
         act(targetTeacher, "branch", key, submit());
         act(leader, "branch", key, approve());
-        assertErrorCode(() -> act(vicePrincipal, "branch", key, approve()), ApiCode.NOT_YOUR_REVIEW_STEP);
-        assertThat(jdbc.queryForObject(
-                        "SELECT status FROM edu_class_docs WHERE doc_key=?",
-                        String.class,
-                        "sp_" + key.substring(3) + "_1"))
+        var codes = new java.util.HashSet<>(vicePrincipal.permissions());
+        codes.remove(com.carenest.utils.enums.Permission.EDU_SEMESTER_PACKAGE_APPROVE);
+        CurrentUser nutritionVp = new CurrentUser(
+                vicePrincipal.userId(),
+                vicePrincipal.keycloakUserId(),
+                vicePrincipal.username(),
+                vicePrincipal.fullName(),
+                null,
+                vicePrincipal.roles(),
+                codes);
+        assertErrorCode(() -> act(nutritionVp, "branch", key, approve()), ApiCode.NOT_YOUR_REVIEW_STEP);
+        String packageKey = "sp_" + key.substring(3) + "_1";
+        assertThat(jdbc.queryForObject("SELECT status FROM edu_class_docs WHERE doc_key=?", String.class, packageKey))
                 .isEqualTo("REVIEW");
+        act(vicePrincipal, "branch", key, approve());
+        assertThat(jdbc.queryForObject("SELECT status FROM edu_class_docs WHERE doc_key=?", String.class, packageKey))
+                .isNotEqualTo("REVIEW");
     }
 
     @Autowired
@@ -1367,7 +1379,14 @@ class EduClassDocServiceIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long insertId(String sql, Object... args) {

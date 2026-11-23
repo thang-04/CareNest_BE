@@ -837,14 +837,14 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
     private RolePolicy parsePolicyNode(JsonNode root, String docType) {
         if ("schoolYear".equals(docType) && root != null && !root.has(docType))
-            return new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL));
+            return new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL), docType);
         if (root == null || !root.has(docType)) {
             throw new IllegalStateException("Missing document workflow policy");
         }
         JsonNode typeNode = root.get(docType);
         List<Role> creators = parseRoles(typeNode.get("creators"));
         List<Role> reviewers = parseRoles(typeNode.get("reviewers"));
-        return new RolePolicy(creators, reviewers);
+        return new RolePolicy(creators, reviewers, docType);
     }
 
     private List<Role> parseRoles(JsonNode arrayNode) {
@@ -1322,7 +1322,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             EduWorkflowPolicyRequest.PolicyEntry entry = request.policies().get(type);
             List<Role> creators = entry.creators().stream().map(Role::valueOf).toList();
             List<Role> reviewers = entry.reviewers().stream().map(Role::valueOf).toList();
-            result.put(type, new RolePolicy(creators, reviewers));
+            result.put(type, new RolePolicy(creators, reviewers, type));
         }
         result.putIfAbsent("schoolYear", loadPolicy("schoolYear"));
         return result;

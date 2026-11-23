@@ -1817,7 +1817,35 @@ class EduYearPlanServiceIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
+    }
+
+    @Test
+    @DisplayName("EDU-108 NFR1: HT tắt EDU_SCHOOL_YEAR_PLAN_EDIT của PHT ⇒ tạo kế hoạch năm học bị 403")
+    void vicePrincipalWithoutSchoolYearEditCodeIsForbidden() {
+        var perms = com.carenest.security.TestPermissions.eduDefaultsOf(CareNestRole.VICE_PRINCIPAL);
+        perms.remove(com.carenest.utils.enums.Permission.EDU_SCHOOL_YEAR_PLAN_EDIT);
+        CurrentUser nutritionVp = new CurrentUser(
+                vicePrincipal.userId(),
+                vicePrincipal.keycloakUserId(),
+                vicePrincipal.username(),
+                vicePrincipal.fullName(),
+                null,
+                vicePrincipal.roles(),
+                perms);
+        assertApiError(
+                () -> service.createYearPlan(
+                        nutritionVp,
+                        sampleSchoolYearRequest(ageGroup3),
+                        new YearPlanEditRequest(session(nutritionVp), 0L, UUID.randomUUID())),
+                ApiCode.FORBIDDEN);
     }
 
     @Test

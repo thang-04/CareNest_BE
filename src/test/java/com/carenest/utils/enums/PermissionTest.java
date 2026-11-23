@@ -75,6 +75,15 @@ class PermissionTest {
                         Permission.MENU_MANAGE,
                         Permission.STOCK_MANAGE,
                         Permission.FOOD_SAFETY_APPROVE,
+                        Permission.EDU_SCHOOL_YEAR_PLAN_EDIT,
+                        Permission.EDU_SCHOOL_YEAR_PLAN_APPROVE,
+                        Permission.EDU_TEAM_PLAN_EDIT,
+                        Permission.EDU_TEAM_PLAN_APPROVE,
+                        Permission.EDU_SEMESTER_PACKAGE_EDIT,
+                        Permission.EDU_SEMESTER_PACKAGE_APPROVE,
+                        Permission.EDU_THEME_PLAN_EDIT,
+                        Permission.EDU_THEME_PLAN_APPROVE,
+                        Permission.EDU_PLAN_CONFIG,
                         Permission.PERMISSION_MANAGE);
         assertThat(Permission.fixedPermissionsOf(CareNestRole.ADMIN))
                 .containsExactlyInAnyOrder(Permission.ACCOUNT_MANAGE, Permission.ACCOUNT_STATUS_MANAGE);
@@ -121,6 +130,32 @@ class PermissionTest {
                         Permission.ASSESSMENT_RECORD,
                         Permission.ASSESSMENT_CONFIRM))
                 .noneMatch(Permission::campusScoped);
+    }
+
+    @Test
+    @DisplayName("EDU-108 FR1: 9 mã kế hoạch giáo dục, mặc định giữ hành vi, không theo điểm trường")
+    void educationPlanPermissions() {
+        var vp = CareNestRole.VICE_PRINCIPAL;
+        var gv = CareNestRole.TEACHER;
+        var tt = CareNestRole.TEAM_LEADER;
+        var ht = CareNestRole.PRINCIPAL;
+        assertThat(Arrays.stream(Permission.values()).filter(p -> p.module().equals("education-plan")))
+                .hasSize(9)
+                .noneMatch(Permission::campusScoped)
+                .allMatch(p -> p.defaultRoles().contains(ht));
+        assertThat(Permission.EDU_SCHOOL_YEAR_PLAN_EDIT.defaultRoles()).containsExactlyInAnyOrder(ht, vp);
+        assertThat(Permission.EDU_SCHOOL_YEAR_PLAN_EDIT.configurableRoles()).containsExactlyInAnyOrder(vp, gv, tt);
+        assertThat(Permission.EDU_SCHOOL_YEAR_PLAN_APPROVE.configurableRoles()).containsExactlyInAnyOrder(vp, tt);
+        assertThat(Permission.EDU_TEAM_PLAN_EDIT.defaultRoles()).containsExactlyInAnyOrder(ht, vp, tt);
+        assertThat(Permission.EDU_TEAM_PLAN_APPROVE.defaultRoles()).containsExactlyInAnyOrder(ht, vp);
+        assertThat(Permission.EDU_SEMESTER_PACKAGE_EDIT.defaultRoles()).containsExactlyInAnyOrder(ht, vp, gv, tt);
+        assertThat(Permission.EDU_SEMESTER_PACKAGE_APPROVE.defaultRoles()).containsExactlyInAnyOrder(ht, vp, tt);
+        assertThat(Permission.EDU_THEME_PLAN_EDIT.defaultRoles()).containsExactlyInAnyOrder(ht, vp, gv, tt);
+        assertThat(Permission.EDU_THEME_PLAN_APPROVE.defaultRoles()).containsExactlyInAnyOrder(ht, vp, tt);
+        assertThat(Permission.EDU_THEME_PLAN_APPROVE.configurableRoles()).doesNotContain(gv);
+        // Quyết định 11/11: cấu hình chỉ HT, PHT mặc định tắt
+        assertThat(Permission.EDU_PLAN_CONFIG.defaultRoles()).containsExactly(ht);
+        assertThat(Permission.EDU_PLAN_CONFIG.configurableRoles()).containsExactly(vp);
     }
 
     @Test

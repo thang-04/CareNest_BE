@@ -3,16 +3,18 @@ package com.carenest.security.authorization;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.impl.EduWorkflowPolicy;
 import com.carenest.service.organization.StaffAssignmentService;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanStatus;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -25,16 +27,42 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class EduPlanAccessPolicy {
 
-    // EDU-08: gán tạm tại một chỗ; khi BE có phân quyền động thì thay map này bằng dữ liệu cấu hình
-    private static final Map<CareNestRole, Set<String>> ROLE_PERMISSIONS = Map.of(
-            CareNestRole.PRINCIPAL, Set.of(EduPermission.GOALS_VIEW, EduPermission.PLAN_CONFIG),
-            CareNestRole.VICE_PRINCIPAL,
-                    Set.of(
-                            EduPermission.GOALS_VIEW,
-                            EduPermission.GOALS_EDIT,
-                            // Tiền 11/11/2026: cấu hình kế hoạch chỉ Hiệu trưởng (thay "HT/PHT" của EDU-11)
-                            EduPermission.GOALS_APPROVE),
-            CareNestRole.TEACHER, Set.of(EduPermission.GOALS_VIEW, EduPermission.GOALS_EDIT));
+    /** EDU-108: loại hồ sơ (khóa workflow_policy) và mã soạn/duyệt tương ứng. */
+    public enum DocType {
+        SCHOOL_YEAR("schoolYear", Permission.EDU_SCHOOL_YEAR_PLAN_EDIT, Permission.EDU_SCHOOL_YEAR_PLAN_APPROVE),
+        TEAM("year", Permission.EDU_TEAM_PLAN_EDIT, Permission.EDU_TEAM_PLAN_APPROVE),
+        SEMESTER_PACKAGE("branch", Permission.EDU_SEMESTER_PACKAGE_EDIT, Permission.EDU_SEMESTER_PACKAGE_APPROVE),
+        THEME_PLAN("theme", Permission.EDU_THEME_PLAN_EDIT, Permission.EDU_THEME_PLAN_APPROVE);
+
+        private final String key;
+        private final Permission edit;
+        private final Permission approve;
+
+        DocType(String key, Permission edit, Permission approve) {
+            this.key = key;
+            this.edit = edit;
+            this.approve = approve;
+        }
+
+        public String key() {
+            return key;
+        }
+
+        public Permission edit() {
+            return edit;
+        }
+
+        public Permission approve() {
+            return approve;
+        }
+
+        public static Optional<DocType> fromKey(String key) {
+            return Arrays.stream(values()).filter(t -> t.key.equals(key)).findFirst();
+        }
+    }
+
+    private static final Set<CareNestRole> EDU_ROLES =
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER);
 
     private final StaffAssignmentService staffAssignmentService;
     private final Clock clock;
@@ -61,10 +89,48 @@ public class EduPlanAccessPolicy {
         }
     }
 
-    public boolean hasPermission(CurrentUser user, String permission) {
-        return user.roles().stream()
-                .filter(role -> ROLE_PERMISSIONS.getOrDefault(role, Set.of()).contains(permission))
-                .anyMatch(role -> roleInEffect(user, role));
+    /** Xem module: HT/PHT còn phân công hoặc GV (EDU-06). */
+    public boolean canView(CurrentUser user) {
+        return user.roles().stream().filter(EDU_ROLES::contains).anyMatch(role -> roleInEffect(user, role));
+    }
+
+    /** EDU-108: mã trong tập quyền hiệu lực (ma trận + ngoại lệ) và role mang mã đó còn phân công (AUTH-20). */
+    public boolean hasPermission(CurrentUser user, Permission permission) {
+        return user.hasPermission(permission)
+                && user.roles().stream()
+                        .filter(role -> carries(role, permission))
+                        .anyMatch(role -> roleInEffect(user, role));
+    }
+
+    private static boolean carries(CareNestRole role, Permission permission) {
+        if (permission.defaultRoles().contains(role) || permission.isConfigurableFor(role)) return true;
+        // Cột Tổ trưởng tính theo GV đang là tổ trưởng (AUTH-23)
+        return role == CareNestRole.TEACHER
+                && (permission.defaultRoles().contains(CareNestRole.TEAM_LEADER)
+                        || permission.isConfigurableFor(CareNestRole.TEAM_LEADER));
+    }
+
+    /** Khóa loại hồ sơ không thuộc EDU-108 (null, dữ liệu cũ) ⇒ chỉ xét vai trò như trước. */
+    public boolean canAuthorDoc(CurrentUser user, String docKey) {
+        return DocType.fromKey(docKey).map(t -> hasPermission(user, t.edit())).orElse(true);
+    }
+
+    public boolean canReviewDoc(CurrentUser user, String docKey) {
+        return DocType.fromKey(docKey)
+                .map(t -> hasPermission(user, t.approve()))
+                .orElse(true);
+    }
+
+    /** PHT chỉ xem: không có mã soạn/duyệt nào (FR5.1). */
+    public boolean isEduVicePrincipal(CurrentUser user) {
+        return isVicePrincipal(user)
+                && Arrays.stream(DocType.values())
+                        .anyMatch(t -> hasPermission(user, t.edit()) || hasPermission(user, t.approve()));
+    }
+
+    /** Cấu hình lĩnh vực / dòng hoạt động: HT cố định, PHT khi được bật EDU_PLAN_CONFIG. */
+    public boolean canEditConfig(CurrentUser user) {
+        return hasPermission(user, Permission.EDU_PLAN_CONFIG);
     }
 
     /** HT có phân công toàn trường còn hiệu lực. */
@@ -92,13 +158,16 @@ public class EduPlanAccessPolicy {
     }
 
     public ViewScope viewScope(CurrentUser user) {
-        if (!hasPermission(user, EduPermission.GOALS_VIEW)) {
+        if (!canView(user)) {
             return new ViewScope(Set.of(), Set.of(), Set.of());
         }
         // EDU-06: PHT toàn trường mọi trạng thái; HT toàn trường trừ nháp và đang sửa (EDU-10)
         Set<EduPlanStatus> schoolWide = EnumSet.noneOf(EduPlanStatus.class);
-        if (isVicePrincipal(user)) {
+        if (isEduVicePrincipal(user)) {
             schoolWide.addAll(EnumSet.allOf(EduPlanStatus.class));
+        } else if (isVicePrincipal(user)) {
+            // FR5.1: PHT không có mã soạn/duyệt chỉ xem bản đã ban hành
+            schoolWide.add(EduPlanStatus.APPROVED);
         } else if (isPrincipal(user)) {
             schoolWide.addAll(EnumSet.complementOf(EnumSet.of(EduPlanStatus.DRAFT)));
         }
@@ -118,13 +187,15 @@ public class EduPlanAccessPolicy {
             EduWorkflowPolicy.RolePolicy annualPolicy,
             EduWorkflowPolicy.RolePolicy teamPolicy,
             Set<Long> ageGroupIds) {
-        if (!hasPermission(user, EduPermission.GOALS_VIEW)) return new ViewScope(Set.of(), Set.of(), Set.of());
+        if (!canView(user)) return new ViewScope(Set.of(), Set.of(), Set.of());
+        boolean approver = canReviewDoc(user, annualPolicy.docType());
         Set<Long> full = new java.util.HashSet<>();
         Set<Long> review = new java.util.HashSet<>();
         Set<Long> approved = new java.util.HashSet<>();
         for (Long age : ageGroupIds) {
             if (canAuthorYearPlan(user, annualPolicy, age)) full.add(age);
-            boolean reviewer = annualPolicy.reviewers().stream().anyMatch(role -> canReviewYearPlan(user, role, age));
+            boolean reviewer =
+                    approver && annualPolicy.reviewers().stream().anyMatch(role -> canReviewYearPlan(user, role, age));
             if (reviewer) {
                 review.add(age);
                 approved.add(age);
@@ -139,7 +210,7 @@ public class EduPlanAccessPolicy {
 
     /** Phó HT còn phân công có quyền duyệt; không giới hạn campus vì kế hoạch năm áp dụng toàn trường. */
     public boolean isVicePrincipal(CurrentUser user) {
-        return hasPermission(user, EduPermission.GOALS_APPROVE);
+        return user.hasRole(CareNestRole.VICE_PRINCIPAL) && roleInEffect(user, CareNestRole.VICE_PRINCIPAL);
     }
 
     public boolean isTeamLeaderOf(CurrentUser user, Long ageGroupId) {
@@ -149,7 +220,6 @@ public class EduPlanAccessPolicy {
     /** Tổ trưởng nhóm tuổi trong đúng năm học; schoolYearId null ⇒ năm đang hoạt động. */
     public boolean isTeamLeaderOf(CurrentUser user, Long schoolYearId, Long ageGroupId) {
         return user.hasRole(CareNestRole.TEACHER)
-                && hasPermission(user, EduPermission.GOALS_EDIT)
                 && ledAgeGroups(user, schoolYearId, LocalDate.now(clock)).contains(ageGroupId);
     }
 
@@ -169,8 +239,8 @@ public class EduPlanAccessPolicy {
 
     /** EDU-02: Phó HT lập và cùng soạn cho mọi nhóm tuổi; Tổ trưởng chỉ nhóm tuổi mình. */
     public boolean canCreate(CurrentUser user, Long ageGroupId) {
-        return (hasPermission(user, EduPermission.GOALS_EDIT) && isVicePrincipal(user))
-                || isTeamLeaderOf(user, ageGroupId);
+        return (isVicePrincipal(user) && hasPermission(user, Permission.EDU_TEAM_PLAN_EDIT))
+                || (isTeamLeaderOf(user, ageGroupId) && hasPermission(user, Permission.EDU_TEAM_PLAN_EDIT));
     }
 
     /** EDU-54: Tập vai trò nghiệp vụ thực tế có hiệu lực theo phân công tại ngày hiện tại. */
@@ -215,11 +285,23 @@ public class EduPlanAccessPolicy {
             Set<EduWorkflowPolicy.Role> roles,
             Set<Long> viceCampuses,
             Set<Long> leaderAges,
-            Set<Long> homeroomClasses) {
-        public boolean canReview(EduWorkflowPolicy.Role role, Long ageGroupId, Long campusId) {
+            Set<Long> homeroomClasses,
+            Set<String> approveKeys) {
+        public ClassScopeSnapshot(
+                Set<EduWorkflowPolicy.Role> roles,
+                Set<Long> viceCampuses,
+                Set<Long> leaderAges,
+                Set<Long> homeroomClasses) {
+            this(roles, viceCampuses, leaderAges, homeroomClasses, Set.of("branch", "theme"));
+        }
+
+        /** docKey: branch/theme; người không có mã duyệt EDU-108 của loại đó không duyệt. */
+        public boolean canReview(String docKey, EduWorkflowPolicy.Role role, Long ageGroupId, Long campusId) {
+            if (!approveKeys.contains(docKey)) return false;
             return switch (role) {
                 case PRINCIPAL -> roles.contains(role);
-                case VICE_PRINCIPAL -> roles.contains(role) && campusId != null && viceCampuses.contains(campusId);
+                // FR4.1: không giới hạn điểm trường phân công
+                case VICE_PRINCIPAL -> roles.contains(role);
                 case TEAM_LEADER -> roles.contains(role) && ageGroupId != null && leaderAges.contains(ageGroupId);
                 case TEACHER -> false;
             };
@@ -266,8 +348,13 @@ public class EduPlanAccessPolicy {
                         .filter(entry -> Objects.equals(entry.getValue(), user.userId()))
                         .map(Map.Entry::getKey)
                         .collect(java.util.stream.Collectors.toSet());
+        Set<String> approveKeys = java.util.stream.Stream.of(DocType.SEMESTER_PACKAGE, DocType.THEME_PLAN)
+                // Vai trò trong snapshot đã xét phân công hiệu lực; chỉ cần mã trong tập quyền
+                .filter(t -> user.hasPermission(t.approve()))
+                .map(DocType::key)
+                .collect(java.util.stream.Collectors.toSet());
         return new ClassScopeSnapshot(
-                Set.copyOf(roles), Set.copyOf(campuses), Set.copyOf(ages), Set.copyOf(homeroomClasses));
+                Set.copyOf(roles), Set.copyOf(campuses), Set.copyOf(ages), Set.copyOf(homeroomClasses), approveKeys);
     }
 
     /**
@@ -321,7 +408,7 @@ public class EduPlanAccessPolicy {
     /** schoolYearId: năm học của kế hoạch (null ⇒ Tổ trưởng của mọi năm, dùng khi chưa gắn năm cụ thể). */
     public boolean canAuthorYearPlan(
             CurrentUser user, EduWorkflowPolicy.RolePolicy policy, Long schoolYearId, Long ageGroupId) {
-        if (hasReviewerPrecedence(user, policy, schoolYearId)) {
+        if (!canAuthorDoc(user, policy.docType()) || hasReviewerPrecedence(user, policy, schoolYearId)) {
             return false;
         }
         Set<EduWorkflowPolicy.Role> active = effectiveRoles(user, schoolYearId);
@@ -360,7 +447,7 @@ public class EduPlanAccessPolicy {
             Long schoolYearId,
             Long ageGroupId,
             Long classroomId) {
-        if (hasReviewerPrecedence(user, policy, schoolYearId)) {
+        if (!canAuthorDoc(user, policy.docType()) || hasReviewerPrecedence(user, policy, schoolYearId)) {
             return false;
         }
         Set<EduWorkflowPolicy.Role> active = effectiveRoles(user, schoolYearId);
@@ -372,8 +459,7 @@ public class EduPlanAccessPolicy {
             boolean inScope =
                     switch (creatorRole) {
                         case PRINCIPAL -> true;
-                        case VICE_PRINCIPAL ->
-                            canReviewClassDoc(user, EduWorkflowPolicy.Role.VICE_PRINCIPAL, ageGroupId, classroomId);
+                        case VICE_PRINCIPAL -> isVicePrincipal(user) && inViceCampus(user, classroomId, today);
                         case TEAM_LEADER ->
                             ageGroupId != null
                                     && ledAgeGroups(user, schoolYearId, today).contains(ageGroupId);
@@ -407,25 +493,35 @@ public class EduPlanAccessPolicy {
         };
     }
 
-    public boolean canReviewClassDoc(
-            CurrentUser user, EduWorkflowPolicy.Role roleKey, Long ageGroupId, Long classroomId) {
-        return canReviewClassDoc(user, roleKey, null, ageGroupId, classroomId);
+    private boolean inViceCampus(CurrentUser user, Long classroomId, LocalDate today) {
+        return classroomId != null
+                && classroomService
+                        .findCampusId(classroomId)
+                        .map(campusId -> staffAssignmentService
+                                .findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, today)
+                                .contains(campusId))
+                        .orElse(false);
     }
 
     public boolean canReviewClassDoc(
-            CurrentUser user, EduWorkflowPolicy.Role roleKey, Long schoolYearId, Long ageGroupId, Long classroomId) {
+            CurrentUser user, String docKey, EduWorkflowPolicy.Role roleKey, Long ageGroupId, Long classroomId) {
+        return canReviewClassDoc(user, docKey, roleKey, null, ageGroupId, classroomId);
+    }
+
+    /** docKey: branch/theme; thiếu mã duyệt EDU-108 ⇒ không duyệt. */
+    public boolean canReviewClassDoc(
+            CurrentUser user,
+            String docKey,
+            EduWorkflowPolicy.Role roleKey,
+            Long schoolYearId,
+            Long ageGroupId,
+            Long classroomId) {
+        if (!canReviewDoc(user, docKey)) return false;
         LocalDate today = LocalDate.now(clock);
         return switch (roleKey) {
             case PRINCIPAL -> isPrincipal(user);
-            case VICE_PRINCIPAL ->
-                isVicePrincipal(user)
-                        && classroomId != null
-                        && classroomService
-                                .findCampusId(classroomId)
-                                .map(campusId -> staffAssignmentService
-                                        .findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, today)
-                                        .contains(campusId))
-                                .orElse(false);
+            // FR4.1: PHT có mã duyệt hồ sơ lớp duyệt ở mọi điểm trường
+            case VICE_PRINCIPAL -> isVicePrincipal(user) && classroomId != null;
             case TEAM_LEADER ->
                 ageGroupId != null
                         && user.hasRole(CareNestRole.TEACHER)

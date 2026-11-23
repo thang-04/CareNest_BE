@@ -249,7 +249,6 @@ PATCH /education-plans/resources/{id} · src/main/java/com/carenest/controller/e
 GET /education-plans/resources/{id}/url · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#contentUrl
 GET /education-plans/resources/{id}/usages · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#usages
 GET /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#getWorkflowPolicy
-PUT /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#updateWorkflowPolicy
 GET /health-checks · src/main/java/com/carenest/controller/health/HealthCheckController.java#listHealthChecks
 POST /health-checks · src/main/java/com/carenest/controller/health/HealthCheckController.java#createHealthCheck
 GET /health-checks/{campaignId} · src/main/java/com/carenest/controller/health/HealthCheckController.java#getHealthCheck
@@ -385,6 +384,8 @@ POST /parent-accounts/phone-change-requests/{requestId}/reject · src/main/java/
 POST /parent-activation · src/main/java/com/carenest/controller/account/ParentActivationController.java#activateParentAccount
 GET /permission-change-logs · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionChangeLogs
 GET /permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
+GET /permissions/edu-workflow · src/main/java/com/carenest/controller/eduplan/EduWorkflowPermissionController.java#getWorkflowPermissions
+PUT /permissions/edu-workflow · src/main/java/com/carenest/controller/eduplan/EduWorkflowPermissionController.java#saveWorkflowPermissions
 GET /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
 POST /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#recordResult
 GET /pickups/children/{childId} · src/main/java/com/carenest/controller/attendance/PickupController.java#getChild

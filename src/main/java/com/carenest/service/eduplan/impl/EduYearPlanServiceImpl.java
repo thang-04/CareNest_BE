@@ -45,10 +45,10 @@ import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.EduGoalRowKind;
 import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
+import com.carenest.utils.enums.Permission;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -146,7 +146,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|getYearPlans|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
-            requirePermission(currentUser, EduPermission.GOALS_VIEW);
+            requireView(currentUser);
             EduPlanAccessPolicy.ViewScope scope = listScope(currentUser, level, schoolYearId);
             Page<EduPlan> page = yearPlanRepository.search(
                     level,
@@ -246,7 +246,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            requirePermission(currentUser, EduPermission.GOALS_VIEW);
+            requireView(currentUser);
             List<EduPlan> plans = Stream.of(EduPlanLevel.SCHOOL_YEAR, EduPlanLevel.TEAM)
                     .flatMap(level -> yearPlanRepository
                             .search(
@@ -616,7 +616,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId()).contains(currentUser.userId())) {
                 throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, "duyệt");
             }
-            if (!isRoleMatch(currentUser, eval.waitingRole(), plan.getSchoolYearId(), plan.getAgeGroupId())) {
+            if (!isReviewerMatch(currentUser, plan, eval.waitingRole())) {
                 if (eduWorkflowService.hasReviewerPrecedence(
                         currentUser, plan.workflowKey(), plan.getAgeGroupId(), null)) {
                     throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, "duyệt");
@@ -1133,15 +1133,15 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
     }
 
-    private void requirePermission(CurrentUser user, String permission) {
-        if (!accessPolicy.hasPermission(user, permission)) {
+    private void requireView(CurrentUser user) {
+        if (!accessPolicy.canView(user)) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_ACCESS_DENIED);
         }
     }
 
     // EDU-06: không tồn tại ⇒ 404; ngoài phạm vi xem ⇒ 403
     private EduPlan loadViewablePlan(CurrentUser user, Long planId) {
-        requirePermission(user, EduPermission.GOALS_VIEW);
+        requireView(user);
         EduPlan plan =
                 yearPlanRepository.findById(planId).orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
         requireViewable(user, plan);
@@ -1198,13 +1198,12 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private boolean isChainReviewer(CurrentUser user, EduPlan plan) {
         return plan.publicStatus() == EduPlanStatus.REVIEW
                 && eduWorkflowService.loadPolicy(plan.workflowKey()).reviewers().stream()
-                        .anyMatch(role -> isRoleMatch(user, role, plan.getSchoolYearId(), plan.getAgeGroupId()));
+                        .anyMatch(role -> isReviewerMatch(user, plan, role));
     }
 
     /** Danh sách: người phụ trách thấy mọi trạng thái nhóm tuổi mình; người khác chỉ bản đã ban hành. */
     private EduPlanAccessPolicy.ViewScope listScope(CurrentUser user, EduPlanLevel level, Long schoolYearId) {
-        if (!accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW))
-            return new EduPlanAccessPolicy.ViewScope(Set.of(), Set.of(), Set.of());
+        if (!accessPolicy.canView(user)) return new EduPlanAccessPolicy.ViewScope(Set.of(), Set.of(), Set.of());
         var policy = eduWorkflowService.loadPolicy(level.workflowKey());
         Set<EduPlanStatus> schoolWide = accessPolicy.isVicePrincipal(user) || accessPolicy.isPrincipal(user)
                 ? Set.of(EduPlanStatus.APPROVED)
@@ -1226,7 +1225,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     private EduPlan loadPlanForUpdate(CurrentUser user, Long planId, boolean checkViewable) {
         settingsRepository.findForUpdate().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
-        requirePermission(user, EduPermission.GOALS_VIEW);
+        requireView(user);
         EduPlan plan = yearPlanRepository
                 .findForUpdateById(planId)
                 .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
@@ -1250,7 +1249,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     private boolean canDeleteAsVicePrincipal(CurrentUser user) {
-        return accessPolicy.isVicePrincipal(user) && accessPolicy.hasPermission(user, EduPermission.GOALS_EDIT);
+        return accessPolicy.isVicePrincipal(user)
+                && accessPolicy.hasPermission(user, Permission.EDU_SCHOOL_YEAR_PLAN_EDIT);
     }
 
     private boolean isOwner(CurrentUser user, EduPlan plan) {
@@ -2197,7 +2197,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 yearOpen
                         && isDraft
                         && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
-                        && accessPolicy.isVicePrincipal(user),
+                        && canDeleteAsVicePrincipal(user),
                 yearOpen
                         && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                         && plan.getId().equals(currentId)
@@ -2212,6 +2212,12 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     private final EduWorkflowPolicy evaluator = new EduWorkflowPolicy();
+
+    // EDU-108: duyệt cần đúng vai trò theo policy và mã duyệt của loại kế hoạch
+    private boolean isReviewerMatch(CurrentUser user, EduPlan plan, EduWorkflowPolicy.Role role) {
+        return accessPolicy.canReviewDoc(user, plan.workflowKey())
+                && isRoleMatch(user, role, plan.getSchoolYearId(), plan.getAgeGroupId());
+    }
 
     private boolean isRoleMatch(CurrentUser user, EduWorkflowPolicy.Role role, Long schoolYearId, Long ageGroupId) {
         if (role == EduWorkflowPolicy.Role.PRINCIPAL) {
@@ -2318,8 +2324,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private boolean isUserWaitingRole(CurrentUser user, EduPlan plan) {
         LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
         EduWorkflowPolicy.Evaluation eval = eduWorkflowService.evaluateYearPlan(plan, today);
-        return eval.waitingRole() != null
-                && isRoleMatch(user, eval.waitingRole(), plan.getSchoolYearId(), plan.getAgeGroupId());
+        return eval.waitingRole() != null && isReviewerMatch(user, plan, eval.waitingRole());
     }
 
     private boolean isUserReviewer(CurrentUser user, EduPlan plan) {

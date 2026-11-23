@@ -35,7 +35,6 @@ import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduClassDocStatus;
 import com.carenest.utils.enums.EduPlanLevel;
@@ -584,7 +583,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return root.getStatus() == EduClassDocStatus.REVIEW
                 && eduWorkflowService.loadPolicy(EduClassDoc.policyType(root.getKind())).reviewers().stream()
                         .anyMatch(role -> accessPolicy.canReviewClassDoc(
-                                user, role, cls.schoolYearId(), cls.ageGroupId(), cls.id()));
+                                user,
+                                EduClassDoc.policyType(root.getKind()),
+                                role,
+                                cls.schoolYearId(),
+                                cls.ageGroupId(),
+                                cls.id()));
     }
 
     @Override
@@ -1173,7 +1177,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                                 .getUnionAuthorUserIdsForDossier(doc)
                                 .contains(currentUser.userId())
                         || !accessPolicy.canReviewClassDoc(
-                                currentUser, actingRole, cls.schoolYearId(), cls.ageGroupId(), cls.id())) {
+                                currentUser,
+                                policy.docType(),
+                                actingRole,
+                                cls.schoolYearId(),
+                                cls.ageGroupId(),
+                                cls.id())) {
                     throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, request.action());
                 }
                 if (ACTION_APPROVE.equals(request.action())) {
@@ -1534,7 +1543,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     private void requireView(CurrentUser user) {
-        if (!accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW)) {
+        if (!accessPolicy.canView(user)) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_ACCESS_DENIED);
         }
     }
@@ -2179,7 +2188,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return cls != null
                 && policy != null
                 && policy.reviewers().stream()
-                        .anyMatch(role -> context.scope().canReview(role, cls.ageGroupId(), cls.campusId()));
+                        .anyMatch(role -> context.scope().canReview(type, role, cls.ageGroupId(), cls.campusId()));
     }
 
     /** Dạng tài liệu của Web: nội dung soạn + id, lớp, kế hoạch năm, chủ đề, tuần, trạng thái, người duyệt, lịch sử. */
@@ -2338,8 +2347,13 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         .contains(currentUser.userId())
                 && (context == null
                         ? accessPolicy.canReviewClassDoc(
-                                currentUser, evaluation.waitingRole(), cls.schoolYearId(), cls.ageGroupId(), cls.id())
-                        : context.scope().canReview(evaluation.waitingRole(), cls.ageGroupId(), cls.campusId()));
+                                currentUser,
+                                type,
+                                evaluation.waitingRole(),
+                                cls.schoolYearId(),
+                                cls.ageGroupId(),
+                                cls.id())
+                        : context.scope().canReview(type, evaluation.waitingRole(), cls.ageGroupId(), cls.campusId()));
         // Lịch sử duyệt (ghi chú gửi, lý do trả lại) chỉ cho người soạn và người duyệt (FR-019)
         boolean seesHistory = author
                 || reviewable

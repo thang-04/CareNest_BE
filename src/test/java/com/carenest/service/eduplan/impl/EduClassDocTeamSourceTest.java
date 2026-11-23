@@ -20,7 +20,6 @@ import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
@@ -95,7 +94,7 @@ class EduClassDocTeamSourceTest {
     void calendarPreviewRejectsApprovedAnnualAsClassSource() {
         var user = new CurrentUser(10L, "sample", "sample", "Ví dụ", "", Set.of(CareNestRole.TEACHER));
         EduPlan annual = plan(EduPlanLevel.SCHOOL_YEAR);
-        when(accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW)).thenReturn(true);
+        when(accessPolicy.canView(user)).thenReturn(true);
         when(classroomService.findClassroomInfo(1L)).thenReturn(Optional.of(classroom));
         // Quyền ghi hồ sơ lớp hiện chỉ theo GV chủ nhiệm đang hiệu lực
         when(clock.getZone()).thenReturn(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
