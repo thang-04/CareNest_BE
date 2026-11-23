@@ -12,6 +12,8 @@ import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
+import com.carenest.repository.meals.MealPlanWeekRepository;
+import com.carenest.repository.meals.MenuTemplateSetRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.DishService;
 import com.carenest.service.meals.FoodPriceService;
@@ -26,7 +28,9 @@ import com.carenest.utils.enums.Micronutrient;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -34,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
@@ -52,6 +57,8 @@ public class DishServiceImpl implements DishService {
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
     private final DishRepository dishRepository;
+    private final MenuTemplateSetRepository menuTemplateSetRepository;
+    private final MealPlanWeekRepository mealPlanWeekRepository;
     private final FoodRepository foodRepository;
     private final AgeGroupService ageGroupService;
     private final NutritionCatalogMapper mapper;
@@ -89,7 +96,8 @@ public class DishServiceImpl implements DishService {
         String logPrefix = LOG_PREFIX + "|getDish|dishId=" + dishId;
         log.info("{}|START", logPrefix);
         try {
-            DishDetailResponse response = toDetail(findDish(dishId));
+            Dish dish = findDish(dishId);
+            DishDetailResponse response = toDetail(dish, usageOf(dish));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -103,6 +111,7 @@ public class DishServiceImpl implements DishService {
         String logPrefix = LOG_PREFIX + "|createDish|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
+            requireUniqueName(request.name(), null);
             String code = codeOrNext(request.code());
             Dish dish = Dish.create(currentUser.userId());
             dish.changeInfo(
@@ -130,6 +139,7 @@ public class DishServiceImpl implements DishService {
             // Mã để trống khi sửa ⇒ giữ mã cũ
             String code =
                     isBlank(request.code()) ? dish.getCode() : request.code().trim();
+            requireUniqueName(request.name(), dishId);
             if (dishRepository.existsByCodeAndIdNot(code, dishId)) {
                 throw GlobalException.of(ApiCode.DISH_CODE_DUPLICATED, code);
             }
@@ -176,6 +186,7 @@ public class DishServiceImpl implements DishService {
         log.info("{}|START", logPrefix);
         try {
             Dish source = findDish(dishId);
+            requireUniqueName(request.name(), null);
             String code = codeOrNext(request.code());
             // Bản sao luôn là món của trường (sửa được), giữ nguyên định lượng của món gốc
             Dish copy = Dish.create(currentUser.userId());
@@ -209,6 +220,16 @@ public class DishServiceImpl implements DishService {
             code = String.format("MA%03d", number);
         }
         return code;
+    }
+
+    // NUT-18: tên món duy nhất trong danh mục, so cả món đã ngừng; selfId = món đang sửa
+    private void requireUniqueName(String name, Long selfId) {
+        String key = CatalogNames.key(name);
+        boolean taken = dishRepository.findAllByOrderByNameAsc().stream()
+                .anyMatch(dish -> !Objects.equals(dish.getId(), selfId) && CatalogNames.key(dish.getName()).equals(key));
+        if (taken) {
+            throw GlobalException.of(ApiCode.DISH_NAME_DUPLICATED, name.trim());
+        }
     }
 
     private static boolean isBlank(String value) {
@@ -262,6 +283,26 @@ public class DishServiceImpl implements DishService {
     }
 
     private DishDetailResponse toDetail(Dish dish) {
+        return toDetail(dish, new Usage(List.of(), List.of()));
+    }
+
+    // Nơi món đang dùng: chỉ tính ở chi tiết một món (danh sách không cần, tránh truy vấn theo từng món)
+    private Usage usageOf(Dish dish) {
+        List<DishDetailResponse.TemplateUsage> templates =
+                menuTemplateSetRepository.findUsingDish(dish.getId(), CatalogStatus.ACTIVE).stream()
+                        .map(set -> new DishDetailResponse.TemplateUsage(set.getId(), set.getName()))
+                        .toList();
+        LocalDate thisMonday = LocalDate.now(clock).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        List<DishDetailResponse.WeekUsage> weeks =
+                mealPlanWeekRepository.findFromWeekUsingDish(dish.getId(), thisMonday).stream()
+                        .map(week -> new DishDetailResponse.WeekUsage(week.getWeekStart(), week.getStatus()))
+                        .toList();
+        return new Usage(templates, weeks);
+    }
+
+    private record Usage(List<DishDetailResponse.TemplateUsage> templates, List<DishDetailResponse.WeekUsage> weeks) {}
+
+    private DishDetailResponse toDetail(Dish dish, Usage usage) {
         List<DishDetailResponse.Ingredient> ingredients = dish.getIngredients().stream()
                 .map(item -> new DishDetailResponse.Ingredient(
                         item.getFood().getId(),
@@ -294,7 +335,9 @@ public class DishServiceImpl implements DishService {
                 dish.getStatus(),
                 ingredients,
                 nutrition,
-                allergenResponses);
+                allergenResponses,
+                usage.templates(),
+                usage.weeks());
     }
 
     /**
