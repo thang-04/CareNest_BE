@@ -136,12 +136,16 @@ class AttendanceDayRules {
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
         // GV có quyền ghi điểm danh / sức khỏe luôn xem được lớp đang dạy, kể cả khi HT thu hồi quyền Xem (chỉ bớt xem
         // tổng hợp), để quyền ghi không bị mất theo
+        // Người dạy thay chỉ xem đúng ngày mình dạy thay (canViewDay / canViewRange), không xem cả lớp (Cần chốt
+        // 24/11/2026)
+        boolean substituteOnly = substituteOnly(user, cls);
         if ((user.hasPermission(Permission.ATTENDANCE_RECORD) || user.hasPermission(Permission.DAILY_HEALTH_RECORD))
                 && !yearEnded(cls)
+                && !substituteOnly
                 && canRecord(user, cls)) {
             return true;
         }
-        if (!user.hasPermission(Permission.ATTENDANCE_VIEW)) {
+        if (!user.hasPermission(Permission.ATTENDANCE_VIEW) || substituteOnly) {
             return false;
         }
         if (user.hasRole(CareNestRole.PRINCIPAL) || user.hasRole(CareNestRole.VICE_PRINCIPAL)) {
@@ -150,6 +154,16 @@ class AttendanceDayRules {
         }
         return (!yearEnded(cls) && classroomAccessPolicy.canReadClassroom(user, cls.id()))
                 || canReadHistoryRange(user, cls, cls.yearStart(), cls.yearEnd());
+    }
+
+    // GV chỉ có đợt dạy thay đang hiệu lực ở lớp, không dạy chính (BGH xem theo điểm trường như thường)
+    private boolean substituteOnly(CurrentUser user, ClassroomInfoResponse cls) {
+        return user.hasRole(CareNestRole.TEACHER)
+                && !user.hasRole(CareNestRole.PRINCIPAL)
+                && !user.hasRole(CareNestRole.VICE_PRINCIPAL)
+                && !yearEnded(cls)
+                && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), today())
+                && !staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), today());
     }
 
     /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */

@@ -268,6 +268,30 @@ class AttendanceRegressionIntegrationTest {
                 .isEqualTo(classB);
     }
 
+    @Test
+    @DisplayName("Dạy thay đang trong đợt chỉ xem đúng các ngày dạy thay, GV dạy chính xem cả lớp")
+    void activeSubstituteReadsOnlyOwnDates() {
+        CurrentUser sub = user("subnow", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_substitute) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-10-15', '2026-10-25', TRUE)",
+                sub.userId(),
+                classA);
+
+        assertThat(service.getClassAttendance(sub, classA, LocalDate.of(2026, 10, 19)))
+                .isNotNull();
+        assertThat(service.getClassAttendance(sub, classA, TODAY).canRecord()).isTrue();
+        expectCode(
+                () -> service.getClassAttendance(sub, classA, LocalDate.of(2026, 10, 14)), ApiCode.CLASS_ACCESS_DENIED);
+        expectCode(
+                () -> service.getClassSummary(sub, classA, LocalDate.of(2026, 10, 1), TODAY),
+                ApiCode.CLASS_ACCESS_DENIED);
+        assertThat(service.getClassSummary(sub, classA, LocalDate.of(2026, 10, 15), TODAY))
+                .isNotNull();
+        assertThat(service.getClassAttendance(teacherA, classA, LocalDate.of(2026, 10, 14)))
+                .isNotNull();
+    }
+
     private AttendanceService.ClassMealTally tallyOf(LocalDate date, long classId) {
         return service.tallyMeals(date, classCampus(classId), null).stream()
                 .filter(t -> t.classroomId().equals(classId))
