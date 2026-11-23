@@ -221,6 +221,14 @@ class MealPlanAmendIntegrationTest {
                         WEDNESDAY,
                         new MealPlanAmendRequest("", List.of(item(MealSession.LUNCH, com)), " hết hàng ")),
                 ApiCode.MEAL_PLAN_REASON_REQUIRED);
+        // Lý do quá 500 ký tự cũng trả 6093 (không phải lỗi chung 9001)
+        expectCode(
+                () -> mealPlanService.amendMealPlanDay(
+                        principal,
+                        MONDAY,
+                        WEDNESDAY,
+                        new MealPlanAmendRequest("", List.of(item(MealSession.LUNCH, com)), "x".repeat(501))),
+                ApiCode.MEAL_PLAN_REASON_REQUIRED);
         expectCode(
                 () -> mealPlanService.amendMealPlanDay(
                         principal,

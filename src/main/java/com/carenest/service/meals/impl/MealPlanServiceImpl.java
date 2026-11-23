@@ -85,6 +85,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     private static final String NONE = "NONE";
     private static final int SCHOOL_DAYS = 5;
     private static final int MIN_REASON_LENGTH = 10;
+    private static final int MAX_REASON_LENGTH = 500;
 
     private final MealPlanWeekRepository weekRepository;
     private final DishRepository dishRepository;
@@ -224,7 +225,7 @@ public class MealPlanServiceImpl implements MealPlanService {
             checkMonday(weekStart);
             checkInWeek(weekStart, date);
             String reason = request.reason() == null ? "" : request.reason().trim();
-            if (reason.length() < MIN_REASON_LENGTH) {
+            if (reason.length() < MIN_REASON_LENGTH || reason.length() > MAX_REASON_LENGTH) {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_REASON_REQUIRED);
             }
             MealPlanWeek week = weekRepository
