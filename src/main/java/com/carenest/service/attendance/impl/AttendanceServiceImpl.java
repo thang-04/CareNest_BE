@@ -437,6 +437,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                     record,
                     AttendanceRecordHistory.UPDATED,
                     info.unlock() == null ? null : info.unlock().id()));
+            // ATT-07: như lưu điểm danh, sổ báo ăn nghe để xét lại số (sổ không đổi nếu bữa không đổi)
+            eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(day, cls.campusId(), cls.id()));
             log.info("{}|END", logPrefix);
             return new SaveAttendanceResponse(at, 1, 1);
         } catch (RuntimeException ex) {
@@ -452,30 +454,36 @@ public class AttendanceServiceImpl implements AttendanceService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = rules.today();
-            List<AttendanceRecord> pending = rules.isSchoolDay(today)
-                    ? recordRepository.findByDateAndAbsentPartAndStatus(
-                            today, DayPart.MORNING, AttendanceStatus.EXCUSED)
-                    : List.of();
+            List<Long> classIds =
+                    rules.isSchoolDay(today) ? recordRepository.findClassroomIdsWithOpenMorningLeave(today) : List.of();
             Instant at = rules.now();
             int closed = 0;
-            for (Map.Entry<Long, List<AttendanceRecord>> group : pending.stream()
-                    .collect(Collectors.groupingBy(AttendanceRecord::getClassroomId))
-                    .entrySet()) {
-                ClassroomInfoResponse cls = findClass(group.getKey());
+            for (Long classId : classIds) {
+                ClassroomInfoResponse cls = findClass(classId);
                 LocalTime latest = rules.latestArrival(cls.schoolYearId(), today);
                 if (!rules.isLockedAt(today, latest, at)) {
                     continue;
                 }
+                // Khóa lớp như "Đã đến" rồi mới đọc lại: trẻ vừa được bấm đến không bị ghi vắng cả ngày
+                classroomService.lockForUpdate(classId);
+                List<AttendanceRecord> pending =
+                        recordRepository.findByClassroomIdInAndDate(List.of(classId), today).stream()
+                                .filter(r -> r.getAbsentPart() == DayPart.MORNING
+                                        && r.getStatus() == AttendanceStatus.EXCUSED)
+                                .toList();
+                if (pending.isEmpty()) {
+                    continue;
+                }
                 List<Long> teachers = rules.dayTeacherIds(cls, today);
                 Map<Long, String> names = childService
-                        .findChildBriefs(group.getValue().stream()
+                        .findChildBriefs(pending.stream()
                                 .map(AttendanceRecord::getChildId)
                                 .toList())
                         .entrySet()
                         .stream()
                         .collect(Collectors.toMap(
                                 Map.Entry::getKey, e -> e.getValue().fullName()));
-                for (AttendanceRecord r : group.getValue()) {
+                for (AttendanceRecord r : pending) {
                     // Sổ báo ăn giữ nguyên (bữa xế đã tính theo công tắc ăn); sai lệch thì BGH mở lại để sửa
                     r.update(AttendanceStatus.UNEXCUSED, r.getMeals(), r.getRecordedBy(), at);
                     historyRepository.save(AttendanceRecordHistory.of(r, AttendanceRecordHistory.UPDATED, null));
