@@ -1,5 +1,6 @@
 package com.carenest.service.observation.impl;
 
+import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.observation.EvaluationDeadlineDtos.EvaluationPeriod;
 import com.carenest.dto.observation.EvaluationDeadlineDtos.EvaluationUnlockRequest;
 import com.carenest.dto.observation.EvaluationDeadlineDtos.EvaluationUnlockResponse;
@@ -39,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -93,6 +95,11 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
     @Override
     @Transactional(readOnly = true)
     public List<EvaluationPeriod> periodsOf(ClassroomInfoResponse cls) {
+        return periodsOf(cls, unlockRepository.findAllByOrderByUnlockedAtDescIdDesc());
+    }
+
+    // allUnlocks: đọc một lần cho nhiều lớp (danh sách quá hạn), không đọc lại bảng mở khóa theo từng lớp
+    private List<EvaluationPeriod> periodsOf(ClassroomInfoResponse cls, List<EvaluationUnlock> allUnlocks) {
         SchoolYearDetailResponse year =
                 schoolYearService.findSchoolYearDetail(cls.schoolYearId()).orElse(null);
         if (year == null) {
@@ -100,7 +107,7 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
         }
         Map<String, Instant> unlocked = new HashMap<>();
         Instant now = rules.now();
-        unlockRepository.findAllByOrderByUnlockedAtDescIdDesc().stream()
+        allUnlocks.stream()
                 .filter(u -> cls.id().equals(u.getClassroomId()) && u.isActiveAt(now))
                 .forEach(u -> unlocked.merge(
                         u.getKind() + ":" + u.getPeriodKey(), u.getValidUntil(), (a, b) -> a.isAfter(b) ? a : b));
@@ -212,7 +219,7 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
                 .findSchoolYearDetail(cls.schoolYearId())
                 .map(SchoolYearDetailResponse::semester1End)
                 .orElse(null);
-        return s1End != null && periodEnd != null && !periodEnd.isAfter(s1End) ? SEMESTER_1 : SEMESTER_2;
+        return semesterKeyOf(s1End, periodEnd);
     }
 
     @Override
@@ -455,8 +462,10 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
     @Transactional(readOnly = true)
     public List<OverdueClassItem> overdueOf(List<ClassroomInfoResponse> classes) {
         List<OverdueClassItem> result = new ArrayList<>();
+        List<EvaluationUnlock> unlocks =
+                classes.isEmpty() ? List.of() : unlockRepository.findAllByOrderByUnlockedAtDescIdDesc();
         for (ClassroomInfoResponse cls : classes) {
-            for (EvaluationPeriod p : periodsOf(cls)) {
+            for (EvaluationPeriod p : periodsOf(cls, unlocks)) {
                 if (!p.locked() || p.unlockedUntil() != null) {
                     continue;
                 }
@@ -490,18 +499,47 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
         }
         EvaluationPeriodType type =
                 p.kind() == EvaluationLockKind.YEAR ? EvaluationPeriodType.YEAR : EvaluationPeriodType.SEMESTER;
-        LocalDate from = cls.yearStart();
-        int total = enrollmentService
-                .findChildrenInClassroomDuring(cls.id(), from, p.openFrom())
-                .size();
+        LocalDate today = rules.today();
+        LocalDate at = today.isAfter(cls.yearEnd()) ? cls.yearEnd() : today;
+        SchoolYearDetailResponse year =
+                schoolYearService.findSchoolYearDetail(cls.schoolYearId()).orElse(null);
+        // Cùng danh sách trẻ như khi tạo nháp: học kỳ = trẻ học lớp trong kỳ, cuối năm = trẻ đang học lớp
+        List<ClassChildResponse> roster;
+        if (type == EvaluationPeriodType.YEAR) {
+            roster = enrollmentService.findChildrenInClassroom(cls.id(), at);
+        } else {
+            LocalDate start = semesterStart(cls, year, p.periodKey());
+            LocalDate end = p.openFrom().isAfter(today) ? today : p.openFrom();
+            roster = end.isBefore(start)
+                    ? List.of()
+                    : enrollmentService.findChildrenInClassroomDuring(cls.id(), start, end);
+        }
+        Set<Long> childIds =
+                roster.stream().map(ClassChildResponse::id).collect(Collectors.toCollection(java.util.HashSet::new));
+        // Trẻ đã chuyển lớp / nghỉ học không còn ai xác nhận ở lớp này: không tính, để kỳ có thể hoàn tất
+        Map<Long, Long> active =
+                childIds.isEmpty() ? Map.of() : enrollmentService.findActiveClassroomIdByChildIds(childIds, at);
+        childIds.removeIf(id -> !cls.id().equals(active.get(id)));
+        int total = childIds.size();
+        LocalDate s1End = year == null ? null : year.semester1End();
         Map<Long, Boolean> confirmedByChild =
                 childEvaluationRepository.findByClassroomIdInAndPeriodType(List.of(cls.id()), type).stream()
+                        .filter(e -> childIds.contains(e.getChildId()))
                         .filter(e -> type == EvaluationPeriodType.YEAR
-                                || p.periodKey().equals(semesterKey(cls, e.getPeriodEnd())))
+                                || p.periodKey().equals(semesterKeyOf(s1End, e.getPeriodEnd())))
                         .collect(Collectors.toMap(
                                 ChildEvaluation::getChildId, ChildEvaluation::isConfirmed, (a, b) -> a || b));
         int done = (int)
                 confirmedByChild.values().stream().filter(Boolean::booleanValue).count();
         return new int[] {done, total};
+    }
+
+    private static LocalDate semesterStart(ClassroomInfoResponse cls, SchoolYearDetailResponse year, String key) {
+        LocalDate start = year == null ? null : SEMESTER_1.equals(key) ? year.semester1Start() : year.semester2Start();
+        return start == null || start.isBefore(cls.yearStart()) ? cls.yearStart() : start;
+    }
+
+    private static String semesterKeyOf(LocalDate s1End, LocalDate periodEnd) {
+        return s1End != null && periodEnd != null && !periodEnd.isAfter(s1End) ? SEMESTER_1 : SEMESTER_2;
     }
 }

@@ -45,6 +45,7 @@ import com.carenest.utils.enums.EvaluationDraftSource;
 import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.EvaluationStatus;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.text.Collator;
 import java.time.DayOfWeek;
@@ -140,7 +141,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 // Chỉ GV đang dạy lớp mở danh sách mới tạo bản nháp kỳ đã kết thúc; BGH, tổ trưởng chỉ xem bản đã xác
                 // nhận
                 // nên lượt xem của họ không ghi DB, không khóa lớp
+                // Chỉ quyền ghi mới tạo nháp: người chỉ có ASSESSMENT_VIEW mở danh sách không ghi DB
                 if (cls.yearStatus() == SchoolYearStatus.ACTIVE
+                        && currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
                         && (rules.canRecordPeriod(currentUser, cls)
                                 || (type == EvaluationPeriodType.YEAR && rules.finishesYearEnd(currentUser, cls)))) {
                     ensureDrafts(currentUser, cls, type);

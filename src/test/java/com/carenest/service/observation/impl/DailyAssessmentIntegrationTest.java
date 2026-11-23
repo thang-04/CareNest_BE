@@ -1401,6 +1401,27 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("GV chỉ có quyền xem mở danh sách đánh giá tháng không tạo bản nháp (không ghi DB)")
+    void viewOnlyTeacherListingMonthEvaluationsCreatesNoDrafts() {
+        attendance(child1, classA, LocalDate.of(2026, 9, 15));
+        var viewOnly = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of(Permission.ASSESSMENT_VIEW));
+        var month = com.carenest.utils.enums.EvaluationPeriodType.MONTH;
+        assertThat(evaluations.list(viewOnly, month, null, classA, LocalDate.of(2026, 9, 1)))
+                .isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM child_evaluations", Integer.class))
+                .isZero();
+        assertThat(evaluations.list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1)))
+                .isNotEmpty();
+    }
+
+    @Test
     void semesterDraftsFollowSemesterDatesOfSchoolYear() {
         var semester = com.carenest.utils.enums.EvaluationPeriodType.SEMESTER;
         // Chưa đặt ngày học kỳ ở Cấu hình thời gian ⇒ chưa có đánh giá học kỳ
