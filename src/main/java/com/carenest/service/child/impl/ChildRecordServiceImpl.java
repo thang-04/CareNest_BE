@@ -374,16 +374,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 errors.put("classId", "Trẻ chưa có khai báo ăn và sức khỏe. Khai báo trước khi xếp lớp.");
             } else {
                 target = classroomService.findClassroomInfo(classId).orElse(null);
-                // Sĩ số tính từ ngày vào lớp trở đi, không tính lịch cũ của chính trẻ (G94-180/CHD-14)
-                String problem =
-                        placementRules.classProblem(actor, target, effectiveDate, child.getDateOfBirth(), childId);
-                if (problem == null && fromClassroomId != null) {
-                    ClassroomInfoResponse source =
-                            classroomService.findClassroomInfo(fromClassroomId).orElse(null);
-                    if (source == null || !Objects.equals(source.ageGroupId(), target.ageGroupId())) {
-                        problem = "Trong cùng năm học, trẻ chỉ được chuyển sang lớp cùng nhóm tuổi";
-                    }
-                }
+                // Sĩ số tính từ ngày vào lớp trở đi, không tính lịch cũ của chính trẻ (G94-180/CHD-14). Nhóm tuổi chỉ
+                // gợi ý: xếp, chuyển lớp trong năm được sang lớp nhóm khác (G94-180/CHD-13, user chốt 2026-11-22,
+                // 23/11)
+                String problem = placementRules.classProblem(actor, target, effectiveDate, childId);
                 if (problem != null) {
                     errors.put("classId", problem);
                 }

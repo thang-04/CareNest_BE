@@ -8,7 +8,6 @@ import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.notification.NotificationService;
-import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.NotificationType;
@@ -16,7 +15,6 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,15 +34,15 @@ class PlacementRules {
     private final StaffAccessPolicy staffAccessPolicy;
     private final StaffAssignmentService staffAssignmentService;
     private final NotificationService notificationService;
-    private final AgeGroupService ageGroupService;
 
     /**
      * Câu lỗi ô {@code classId} khi lớp không nhận được trẻ, null khi được: lớp đang hoạt động của năm học đang hoạt động
      * (CHD-10), thuộc điểm trường người làm được giao (AUTH-02), chưa đủ sĩ số từ ngày vào lớp trở đi (G94-180/CHD-14:
-     * gồm trẻ đã hẹn vào lớp sau ngày đó).
+     * gồm trẻ đã hẹn vào lớp sau ngày đó). Không xét nhóm tuổi: nhóm tuổi chỉ gợi ý, lớp khác nhóm tuổi của trẻ vẫn nhận
+     * (G94-180/CHD-13).
      */
     String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from) {
-        return classProblem(actor, classroom, from, (Long) null);
+        return classProblem(actor, classroom, from, null);
     }
 
     String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from, Long childId) {
@@ -62,35 +60,6 @@ class PlacementRules {
         long enrolled = enrollmentRepository.countOccupyingFrom(classroom.id(), from, childId == null ? -1L : childId);
         if (classroom.capacity() != null && enrolled >= classroom.capacity()) {
             return classroom.name() + " đã đủ " + classroom.capacity() + " trẻ. Chọn lớp khác.";
-        }
-        return null;
-    }
-
-    String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from, LocalDate dateOfBirth) {
-        return classProblem(actor, classroom, from, dateOfBirth, null);
-    }
-
-    String classProblem(
-            CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from, LocalDate dateOfBirth, Long childId) {
-        String problem = classProblem(actor, classroom, from, childId);
-        return problem == null ? ageGroupProblem(classroom, dateOfBirth) : problem;
-    }
-
-    /** Độ tuổi xếp lớp được tính tại ngày bắt đầu năm học, không đổi theo sinh nhật giữa năm. */
-    String ageGroupProblem(ClassroomInfoResponse classroom, LocalDate dateOfBirth) {
-        if (classroom == null || dateOfBirth == null || classroom.yearStart() == null) {
-            return "Không xác định được nhóm tuổi phù hợp của trẻ";
-        }
-        long ageMonths = ChronoUnit.MONTHS.between(dateOfBirth, classroom.yearStart());
-        var ageGroup = ageGroupService.getYearAgeGroups(classroom.schoolYearId()).stream()
-                .filter(group -> group.id().equals(classroom.ageGroupId()))
-                .findFirst()
-                .orElse(null);
-        if (ageGroup == null || ageGroup.ageFromMonths() == null || ageGroup.ageToMonths() == null) {
-            return "Lớp chưa có cấu hình nhóm tuổi hợp lệ cho năm học";
-        }
-        if (ageMonths < ageGroup.ageFromMonths() || ageMonths >= ageGroup.ageToMonths()) {
-            return "Trẻ " + ageMonths + " tháng tại đầu năm học không thuộc " + ageGroup.name();
         }
         return null;
     }

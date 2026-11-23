@@ -274,7 +274,7 @@ class ChildRecordServiceImplTest {
 
         given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
         given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(classroom(11L, "Lớp Chồi 2")));
-        given(placementRules.classProblem(any(), any(), any(), any(), any()))
+        given(placementRules.classProblem(any(), any(), any(), any()))
                 .willReturn("Lớp Chồi 2 đã đủ 25 trẻ. Chọn lớp khác.");
         expectFields(new com.carenest.dto.child.PlaceChildRequest(11L, "x".repeat(301)), "classId", "reason");
         verify(placementRules, never()).startEnrollment(any(), any(), any(), any());

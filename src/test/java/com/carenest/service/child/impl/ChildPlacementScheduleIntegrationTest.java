@@ -374,6 +374,30 @@ class ChildPlacementScheduleIntegrationTest {
         assertThat(item(an).startDue()).isFalse();
     }
 
+    @Test
+    @DisplayName("G94-180/CHD-13: chuyển lớp trong năm sang lớp nhóm tuổi khác ⇒ vẫn nhận (nhóm tuổi chỉ gợi ý)")
+    void transferToClassOfOtherAgeGroupIsAccepted() {
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups WHERE id = ? ON CONFLICT DO NOTHING",
+                yearActive,
+                ag3);
+        long younger = jdbc.queryForObject(
+                "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (?, ?, 'Mầm A', ?) RETURNING id",
+                Long.class,
+                campusA,
+                yearActive,
+                ag3);
+
+        // An sinh 01/03/2022 (MG 4–5) chuyển sang lớp MG 3–4
+        recordService.place(principal, an, new PlaceChildRequest(younger, "Theo nguyện vọng gia đình", TODAY));
+        entityManager.flush();
+
+        assertThat(validFrom(an, younger)).isEqualTo(TODAY);
+        assertThat(validTo(an, classA1)).isEqualTo(TODAY.minusDays(1));
+    }
+
     private ChildListItemResponse item(long childId) {
         return listService
                 .searchChildren(principal, new ChildListFilter(yearActive, null, null, ALL, null, 0, 100))

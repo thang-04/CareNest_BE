@@ -1834,6 +1834,45 @@ class ChildEnrollmentIntegrationTest {
                 SCHOOL_DAY_REQUIRED);
     }
 
+    @Test
+    @DisplayName(
+            "G94-180/CHD-13: tiếp nhận năm đang học vào lớp khác nhóm tuổi, kể cả trẻ không thuộc nhóm nào ⇒ vẫn nhận")
+    void currentYearIntakeAcceptsClassOfOtherAgeGroup() {
+        // 64 tháng tại 01/09/2026 (MG 5–6); Lớp A1 là MG 3–4
+        long older = enrollmentService
+                .enroll(
+                        principal,
+                        withStartDate(
+                                request(
+                                        "Bé Lớp Khác Nhóm",
+                                        "2021-05-01",
+                                        classA,
+                                        campusA,
+                                        newGuardian("0915000065", "001500000065")),
+                                TODAY))
+                .child()
+                .id();
+        // 74 tháng tại 01/09/2026: không thuộc nhóm nào của năm
+        long noGroup = enrollmentService
+                .enroll(
+                        principal,
+                        withStartDate(
+                                request(
+                                        "Bé Ngoài Nhóm Tuổi",
+                                        "2020-06-20",
+                                        classB,
+                                        campusB,
+                                        newGuardian("0915000066", "001500000066")),
+                                TODAY))
+                .child()
+                .id();
+
+        assertThat(jdbc.queryForObject("SELECT classroom_id FROM enrollments WHERE child_id = ?", Long.class, older))
+                .isEqualTo(classA);
+        assertThat(jdbc.queryForObject("SELECT classroom_id FROM enrollments WHERE child_id = ?", Long.class, noGroup))
+                .isEqualTo(classB);
+    }
+
     private static EnrollChildRequest withStartDate(EnrollChildRequest base, LocalDate startDate) {
         return new EnrollChildRequest(
                 base.child(), base.declaration(), base.classId(), base.campusId(), null, startDate);

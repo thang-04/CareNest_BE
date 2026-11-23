@@ -728,13 +728,11 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (classId != null) {
             ClassroomInfoResponse classroom =
                     classroomService.findClassroomInfo(classId).orElse(null);
-            // Sĩ số tính tại ngày trẻ vào lớp (G94-180/CHD-14)
+            // Sĩ số tính tại ngày trẻ vào lớp (G94-180/CHD-14). Nhóm tuổi chỉ gợi ý: lớp khác nhóm tuổi của trẻ vẫn
+            // nhận, cả năm sau (G94-180/CHD-13, user chốt 2026-11-22)
             String problem = planned
                     ? plannedClassProblem(actor, classroom, targetYear.id())
-                    : placementRules.classProblem(actor, classroom, startDate, draft.dateOfBirth());
-            if (problem == null && planned) {
-                problem = placementRules.ageGroupProblem(classroom, draft.dateOfBirth());
-            }
+                    : placementRules.classProblem(actor, classroom, startDate);
             if (problem != null) {
                 throw fieldError("classId", problem);
             }
