@@ -211,6 +211,69 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("ATT-02a: đánh giá ngày giữ Không ăn theo điểm danh, kể cả request từ tab cũ")
+    void dailyMealsFollowAttendanceParticipation() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(new SaveAttendanceRequest.Entry(
+                                child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, false)))));
+        DailySheetResponse.Row initial =
+                service.getDailySheet(teacherA, classA, TODAY).rows().getFirst();
+        assertThat(initial.skippedMeals()).containsExactly(MealSession.LUNCH, MealSession.AFTERNOON);
+        assertThat(initial.generalRecorded()).isFalse();
+        SaveDailyGeneralRequest request = new SaveDailyGeneralRequest(
+                TODAY,
+                List.of(new SaveDailyGeneralRequest.Entry(
+                        child1,
+                        false,
+                        null,
+                        null,
+                        Map.of(MealSession.LUNCH, EatingLevel.AN_HET),
+                        NapLevel.NGU_TOT,
+                        Emotion.HAPPY,
+                        Participation.BINH_THUONG,
+                        null,
+                        null,
+                        false,
+                        "")));
+        service.saveGeneral(teacherA, classA, request);
+        assertThat(service.getDailySheet(teacherA, classA, TODAY)
+                        .rows()
+                        .getFirst()
+                        .meals())
+                .containsEntry(MealSession.LUNCH, EatingLevel.KHONG_AN);
+        assertThat(jdbc.queryForObject(
+                        "SELECT meals ->> 'LUNCH' FROM daily_observations WHERE child_id = ? AND date = ?",
+                        String.class,
+                        child1,
+                        TODAY))
+                .isEqualTo("KHONG_AN");
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(new SaveAttendanceRequest.Entry(
+                                child1,
+                                AttendanceStatus.PRESENT,
+                                Map.of(MealSession.LUNCH, true, MealSession.AFTERNOON, true)))));
+        assertThat(service.getDailySheet(teacherA, classA, TODAY)
+                        .rows()
+                        .getFirst()
+                        .skippedMeals())
+                .isEmpty();
+        service.saveGeneral(teacherA, classA, request);
+        assertThat(service.getDailySheet(teacherA, classA, TODAY)
+                        .rows()
+                        .getFirst()
+                        .meals())
+                .containsEntry(MealSession.LUNCH, EatingLevel.AN_HET);
+    }
+
+    @Test
     @DisplayName("OBS-01: trẻ vắng thì mục tiêu của giáo án ngày đó tính Chưa đạt ở tổng quan lớp")
     void absentChildCountsDayGoalsAsNotMetInClassDetail() {
         attendanceService.saveClassAttendance(
@@ -351,7 +414,10 @@ class DailyAssessmentIntegrationTest {
         assertThat(row.flag()).isTrue();
         // Tham gia cả ngày lưu ở bản ghi ngày, không tạo kết quả theo hoạt động
         assertThat(row.participation()).isEqualTo(Participation.TICH_CUC);
-        assertThat(row.meals()).containsOnlyKeys(MealSession.LUNCH);
+        assertThat(row.meals())
+                .containsEntry(MealSession.LUNCH, EatingLevel.AN_HET)
+                .containsEntry(MealSession.AFTERNOON, EatingLevel.KHONG_AN)
+                .doesNotContainKey(MealSession.MORNING);
         assertThat(row.activities()).singleElement().satisfies(a -> {
             assertThat(a.goalsMet()).containsExactly(goal1);
             // MT2 chưa chấm thì không tự ghi Đạt
@@ -529,6 +595,43 @@ class DailyAssessmentIntegrationTest {
                 () -> unlockService.unlockDay(
                         principal, new AssessmentDayUnlockRequest(oldClass, oldDay, NOW.plusSeconds(3600), "Bổ sung")),
                 ApiCode.ASSESSMENT_UNLOCK_YEAR_NOT_ACTIVE);
+    }
+
+    @Test
+    void closedYearHistoricalReadCannotBypassTheGrantedCampus() {
+        CurrentUser oldVp = user("vp.historical", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2025-09-01', '2026-05-31')",
+                oldVp.userId(),
+                campusA);
+        LocalDate oldDay = LocalDate.of(2026, 5, 20);
+        Long otherCampus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
+        CurrentUser pinnedHistoric = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ASSESSMENT_VIEW, campusA));
+        CurrentUser pinnedOther = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ASSESSMENT_VIEW, otherCampus));
+        assertThat(service.getDailySheet(oldVp, oldClass, oldDay).yearReadOnly())
+                .isTrue();
+        assertThat(service.getDailySheet(pinnedHistoric, oldClass, oldDay).yearReadOnly())
+                .isTrue();
+        expectCode(() -> service.getDailySheet(pinnedOther, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
     }
 
     @Test

@@ -179,6 +179,31 @@ class AttendanceIntegrationTest {
                 jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass));
         LocalDate oldDay = LocalDate.of(2026, 3, 4);
         assertThat(service.getClassAttendance(oldVp, oldClass, oldDay)).isNotNull();
+        Long historicCampus =
+                jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass);
+        Long otherCampus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
+        CurrentUser pinnedHistoric = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ATTENDANCE_VIEW, historicCampus));
+        CurrentUser pinnedOther = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ATTENDANCE_VIEW, otherCampus));
+        assertThat(service.getClassAttendance(pinnedHistoric, oldClass, oldDay)).isNotNull();
+        expectCode(() -> service.getClassAttendance(pinnedOther, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
         expectCode(() -> service.getClassAttendance(oldVp, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
         // PHT điểm trường B năm nay không có phân công năm 2025-2026 ⇒ không xem lớp năm đó
         expectCode(() -> service.getClassAttendance(vpB, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);

@@ -10183,6 +10183,35 @@ components:
           - CHUA_TICH_CUC
       required:
       - key
+    ActivityResult:
+      type: object
+      properties:
+        goalsEffort:
+          type: array
+          items:
+            type: integer
+            format: int64
+        goalsMet:
+          type: array
+          items:
+            type: integer
+            format: int64
+        goalsNotMet:
+          type: array
+          items:
+            type: integer
+            format: int64
+        key:
+          type: string
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
+        updatedAt:
+          type: string
+          format: date-time
     AddGuardianRequest:
       type: object
       properties:
@@ -13255,6 +13284,85 @@ components:
           format: time-local
         year:
           $ref: "#/components/schemas/Year"
+    DailyAssessmentRow:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityResult"
+        attendanceStatus:
+          type: string
+          enum:
+          - PRESENT
+          - EXCUSED
+          - UNEXCUSED
+        behaviorNote:
+          type: string
+        behaviors:
+          type: array
+          items:
+            type: string
+            enum:
+            - HOP_TAC_TOT
+            - GIUP_DO_BAN
+            - CHUA_HOP_TAC
+            - TRANH_GIANH
+            - KHONG_TAP_TRUNG
+            - RUT_RE
+            - KHAC
+        childId:
+          type: integer
+          format: int64
+        comment:
+          type: string
+        emotion:
+          type: string
+          enum:
+          - HAPPY
+          - CALM
+          - SAD
+          - UPSET
+        flag:
+          type: boolean
+        fullName:
+          type: string
+        generalRecorded:
+          type: boolean
+        health:
+          $ref: "#/components/schemas/Health"
+        meals:
+          type: object
+          additionalProperties:
+            type: string
+            enum:
+            - AN_HET
+            - AN_IT
+            - KHONG_AN
+        nap:
+          type: string
+          enum:
+          - NGU_TOT
+          - NGU_IT
+          - KHONG_NGU
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
+        recorded:
+          type: boolean
+        skillsRecorded:
+          type: boolean
+        skippedMeals:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
     DailyHealthContact:
       type: object
       properties:
@@ -13429,7 +13537,7 @@ components:
         rows:
           type: array
           items:
-            $ref: "#/components/schemas/Row"
+            $ref: "#/components/schemas/DailyAssessmentRow"
         today:
           type: string
           format: date
@@ -16047,6 +16155,35 @@ components:
           format: int64
         username:
           type: string
+    Health:
+      type: object
+      properties:
+        note:
+          type: string
+        overridden:
+          type: boolean
+        prefillSigns:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        signs:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
     HealthBmiProgress:
       type: object
       properties:

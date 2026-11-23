@@ -94,6 +94,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             checkDate(cls, date);
             List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, date);
             Map<Long, AttendanceStatus> statuses = statusesOf(children, date);
+            Map<Long, List<MealSession>> mealChoices = mealChoices(classId, date);
             List<ClassChildResponse> present = children.stream()
                     .filter(c -> statuses.get(c.id()) == AttendanceStatus.PRESENT)
                     .toList();
@@ -122,7 +123,8 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                             observations.get(c.id()),
                             results.getOrDefault(c.id(), List.of()),
                             health.get(c.id()),
-                            projected))
+                            projected,
+                            skippedMeals(cls.mealSessions(), mealChoices.get(c.id()))))
                     .toList();
             boolean yearReadOnly = cls.yearStatus() != SchoolYearStatus.ACTIVE;
             boolean baseLocked = rules.isBaseLocked(date);
@@ -197,6 +199,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             }
             Map<Long, ClassChildResponse> present = presentChildren(classId, date);
             Map<Long, DailyObservation> existing = observationsOf(present.keySet(), date);
+            Map<Long, List<MealSession>> mealChoices = mealChoices(classId, date);
             Instant at = rules.now();
             for (SaveDailyGeneralRequest.Entry e : request.entries()) {
                 ClassChildResponse child = requirePresent(present, e.childId());
@@ -208,7 +211,10 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                         e.healthOverridden(),
                         orEmpty(e.healthSigns()),
                         trim(e.healthNote()),
-                        mealsJson(cls.mealSessions(), e.meals()),
+                        mealsJson(
+                                cls.mealSessions(),
+                                e.meals(),
+                                skippedMeals(cls.mealSessions(), mealChoices.get(e.childId()))),
                         e.nap(),
                         e.emotion(),
                         e.participation(),
@@ -434,7 +440,20 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         }
     }
 
-    private String mealsJson(List<MealSession> sessions, Map<MealSession, EatingLevel> meals) {
+    private Map<Long, List<MealSession>> mealChoices(Long classId, LocalDate date) {
+        return attendanceService.findClassDays(List.of(classId), date, date).stream()
+                .collect(Collectors.toMap(
+                        AttendanceService.ClassChildDay::childId, AttendanceService.ClassChildDay::meals));
+    }
+
+    private List<MealSession> skippedMeals(List<MealSession> sessions, List<MealSession> participating) {
+        return sessions.stream()
+                .filter(s -> participating == null || !participating.contains(s))
+                .toList();
+    }
+
+    private String mealsJson(
+            List<MealSession> sessions, Map<MealSession, EatingLevel> meals, List<MealSession> skipped) {
         Map<MealSession, EatingLevel> kept = new EnumMap<>(MealSession.class);
         if (meals != null) {
             meals.forEach((session, level) -> {
@@ -443,6 +462,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                 }
             });
         }
+        skipped.forEach(session -> kept.put(session, EatingLevel.KHONG_AN));
         return objectMapper.writeValueAsString(kept);
     }
 
@@ -457,7 +477,8 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             DailyObservation o,
             List<DailyActivityResult> results,
             DailyHealthService.ChildDaySigns health,
-            Map<DailyActivityResult, ActivityResult> projected) {
+            Map<DailyActivityResult, ActivityResult> projected,
+            List<MealSession> skipped) {
         List<HealthSymptom> prefill = health == null ? List.of() : health.signs();
         boolean overridden = o != null && o.isHealthOverridden();
         Health h = new Health(
@@ -466,12 +487,17 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                 overridden,
                 prefill);
         List<ActivityResult> activities = results.stream().map(projected::get).toList();
+        Map<MealSession, EatingLevel> meals = new EnumMap<>(MealSession.class);
+        if (o != null) {
+            meals.putAll(mealsOf(o.getMeals()));
+            skipped.forEach(session -> meals.put(session, EatingLevel.KHONG_AN));
+        }
         return new Row(
                 child.id(),
                 child.fullName(),
                 AttendanceStatus.PRESENT,
                 h,
-                o == null ? Map.of() : mealsOf(o.getMeals()),
+                meals,
                 o == null ? null : o.getNap(),
                 o == null ? null : o.getEmotion(),
                 o == null ? null : o.getParticipation(),
@@ -486,7 +512,8 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                                 || o.getEmotion() != null
                                 || !mealsOf(o.getMeals()).isEmpty()),
                 !results.isEmpty(),
-                activities);
+                activities,
+                skipped);
     }
 
     private static <T> List<T> orEmpty(List<T> list) {

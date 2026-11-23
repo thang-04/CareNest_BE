@@ -159,6 +159,10 @@ class AttendanceDayRules {
                 && staffAssignmentService.hadRoleInYear(user.userId(), StaffRole.PRINCIPAL, null, cls.schoolYearId())) {
             return true;
         }
+        Long pinnedCampus = user.pinnedCampusId(permission);
+        if (pinnedCampus != null && !pinnedCampus.equals(cls.campusId())) {
+            return false;
+        }
         return user.hasRole(CareNestRole.VICE_PRINCIPAL)
                 && staffAssignmentService.hadRoleInYear(
                         user.userId(),

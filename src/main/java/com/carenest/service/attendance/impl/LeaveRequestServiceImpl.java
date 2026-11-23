@@ -113,12 +113,6 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 throw GlobalException.of(ApiCode.LEAVE_TOO_LONG, attendanceProperties.leaveMaxDays());
             }
             lockClasses(request.childId(), from, to);
-            for (LeaveRequest other : leaveRequestRepository.findOverlapping(List.of(request.childId()), from, to)) {
-                if (!other.effectiveTo().isBefore(from) && !other.effectiveTo().isBefore(other.getFromDate())) {
-                    LocalDate clash = other.getFromDate().isAfter(from) ? other.getFromDate() : from;
-                    throw GlobalException.of(ApiCode.LEAVE_OVERLAP, clash.format(DD_MM_YYYY));
-                }
-            }
             List<LocalDate> applied = new ArrayList<>();
             List<LocalDate> skipped = new ArrayList<>();
             Map<LocalDate, ClassroomInfoResponse> classOf = new HashMap<>();
@@ -137,6 +131,13 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             }
             if (applied.isEmpty()) {
                 throw GlobalException.of(ApiCode.LEAVE_NO_SCHOOL_DAY);
+            }
+            for (LeaveRequest other : leaveRequestRepository.findOverlapping(List.of(request.childId()), from, to)) {
+                for (LocalDate day : applied) {
+                    if (!day.isBefore(other.getFromDate()) && !day.isAfter(other.effectiveTo())) {
+                        throw GlobalException.of(ApiCode.LEAVE_OVERLAP, day.format(DD_MM_YYYY));
+                    }
+                }
             }
             Instant at = rules.now();
             LeaveRequest saved = leaveRequestRepository.save(LeaveRequest.create(

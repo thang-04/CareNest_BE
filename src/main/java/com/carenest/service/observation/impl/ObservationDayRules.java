@@ -118,6 +118,10 @@ class ObservationDayRules {
                 && staffAssignmentService.hadRoleInYear(user.userId(), StaffRole.PRINCIPAL, null, cls.schoolYearId())) {
             return true;
         }
+        Long pinnedCampus = user.pinnedCampusId(Permission.ASSESSMENT_VIEW);
+        if (pinnedCampus != null && !pinnedCampus.equals(cls.campusId())) {
+            return false;
+        }
         return user.hasRole(CareNestRole.VICE_PRINCIPAL)
                 && staffAssignmentService.hadRoleInYear(
                         user.userId(),
