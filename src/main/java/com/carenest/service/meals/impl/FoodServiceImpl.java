@@ -360,10 +360,7 @@ public class FoodServiceImpl implements FoodService {
                         request.protein(),
                         request.lipid(),
                         request.glucid(),
-                        request.nutrientSource().trim(),
-                        isBlank(request.nutrientSourceVersion())
-                                ? null
-                                : request.nutrientSourceVersion().trim()),
+                        request.nutrientSource().trim()),
                 new Food.Micronutrients(
                         request.calcium(),
                         request.phosphorus(),
@@ -372,7 +369,8 @@ public class FoodServiceImpl implements FoodService {
                         request.vitaminB1(),
                         request.vitaminB2(),
                         request.vitaminPp(),
-                        request.vitaminC()),
+                        request.vitaminC(),
+                        request.zinc()),
                 allergens,
                 userId);
     }
