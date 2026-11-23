@@ -28,21 +28,19 @@ final class EduDeadline {
     /**
      * @param approved trạng thái hiện tại là Đã ban hành
      * @param firstRelease ngày ban hành lần đầu (null nếu chưa từng)
-     * @param classOpened ngày mở lớp: hạn trước ngày này không tính quá hạn (lớp mở giữa năm)
+     * EDU-109 (9): quá hạn = hôm nay >= hạn hiệu lực và chưa ban hành; không còn ngoại lệ ngày mở lớp.
      */
     static Info of(
             LocalDate deadline,
             LocalDate extendedTo,
             LocalDate today,
             boolean approved,
-            LocalDate firstRelease,
-            LocalDate classOpened) {
+            LocalDate firstRelease) {
         if (deadline == null) return new Info(null, null, null, NORMAL);
         LocalDate effective = extendedTo != null ? extendedTo : deadline;
         long daysLeft = ChronoUnit.DAYS.between(today, effective);
         String state;
         if (approved) state = firstRelease == null || firstRelease.isBefore(effective) ? ON_TIME : ISSUED;
-        else if (classOpened != null && effective.isBefore(classOpened)) state = NORMAL;
         else if (daysLeft <= 0) state = OVERDUE;
         else if (daysLeft <= NEAR_DAYS) state = NEAR;
         else state = NORMAL;

@@ -272,6 +272,14 @@ class EduYearPlanServiceIntegrationTest {
         return context;
     }
 
+    @Autowired
+    private EduPlanTimeLock timeLock;
+
+    @org.junit.jupiter.api.AfterEach
+    void disableTimeLock() {
+        org.springframework.test.util.ReflectionTestUtils.setField(timeLock, "enabled", false);
+    }
+
     @BeforeEach
     void setUp() {
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
@@ -1732,11 +1740,8 @@ class EduYearPlanServiceIntegrationTest {
                 .noneMatch(plan -> plan.id().equals(draft.id()));
 
         entityManager.flush();
-        int changed = jdbc.update(
-                "UPDATE edu_plan_events SET occurred_at='2026-10-01T03:00:00Z', deadline='2026-10-01' "
-                        + "WHERE team_plan_id=? AND action='SUBMIT'",
-                draft.id());
-        assertThat(changed).isEqualTo(1);
+        // EDU-109 (9): khóa duyệt theo hạn hiệu lực chung (bật khóa thời gian cho riêng test này)
+        org.springframework.test.util.ReflectionTestUtils.setField(timeLock, "enabled", true);
         entityManager.clear();
         assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
                         .items())
@@ -1754,7 +1759,7 @@ class EduYearPlanServiceIntegrationTest {
                 .singleElement()
                 .satisfies(plan -> {
                     assertThat(plan.timeLock().reviewDeadline().canReopen()).isTrue();
-                    assertThat(plan.timeLock().canUnlock()).isFalse();
+                    assertThat(plan.timeLock().canUnlock()).isTrue();
                     assertThat(plan.permissions().canApprove()).isFalse();
                 });
         var reopened = service.reopenReviewDeadline(

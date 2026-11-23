@@ -101,6 +101,18 @@ class EduClassDocServiceIntegrationTest {
     private long goal1;
     private java.util.function.Predicate<String> pickGoal = ws -> true;
 
+    /** EDU-109 (9): bộ test tắt hạn (lớp tạo sau hạn); test về hạn bật lại. */
+    private void enableDeadlines() {
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                (Object) org.springframework.test.util.AopTestUtils.getTargetObject(service), "deadlineEnabled", true);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void disableDeadlines() {
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                (Object) org.springframework.test.util.AopTestUtils.getTargetObject(service), "deadlineEnabled", false);
+    }
+
     @BeforeEach
     void setUp() {
         com.carenest.integration.storage.InMemoryS3.install(s3);
@@ -1085,7 +1097,7 @@ class EduClassDocServiceIntegrationTest {
         update = planRepository.saveAndFlush(update);
         workflow.recordAuthor(update.getId(), null, leader.userId(), "CREATOR", now);
         org.springframework.test.util.ReflectionTestUtils.invokeMethod(
-                (Object) org.springframework.test.util.AopTestUtils.getTargetObject(yearPlanService),
+                org.springframework.test.util.AopTestUtils.getTargetObject(yearPlanService),
                 "copyContent",
                 source.getId(),
                 update.getId());
@@ -1497,7 +1509,7 @@ class EduClassDocServiceIntegrationTest {
     @DisplayName(
             "Spec 005 FR-021: quá hạn khóa gửi kế hoạch giáo dục chủ đề; chỉ HT mở hạn (lý do + hạn mới) rồi gửi được, có thông báo")
     void overdueSemesterPackageNeedsExtension() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String key = "bp_" + classId + "_" + plan.id();
         service.saveClassDoc(
                 teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
@@ -1571,7 +1583,37 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("EDU-109 (9): gửi cũ thiếu submissionCutoff, lớp mở sau hạn vẫn quá hạn và khóa duyệt")
+    void legacySubmitWithoutCutoffStillLocksReviewAfterDeadline() {
+        enableDeadlines();
+        String branchKey = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(
+                teacher,
+                "branch",
+                branchKey,
+                branch(names("2026-09-07", "2026-09-21", "2026-09-28")),
+                versionOf(branchKey),
+                null);
+        String semester = "sp_" + classId + "_" + plan.id() + "_1";
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE edu_class_docs SET status='REVIEW', review_round=1, "
+                        + "history='[{\"action\":\"submit\",\"round\":1,\"at\":\"2026-08-01T03:00:00Z\"}]'::jsonb"
+                        + " WHERE doc_key=?",
+                semester);
+        entityManager.clear();
+        assertThat(service.getOverdueClassDocs(principal, schoolYear).semesterPackages())
+                .filteredOn(doc -> doc.path("id").asString().equals(semester))
+                .singleElement()
+                .satisfies(doc -> {
+                    assertThat(doc.path("reviewDeadline").path("locked").asBoolean()).isTrue();
+                    assertThat(doc.path("permissions").path("canApprove").asBoolean()).isFalse();
+                });
+    }
+
+    @Test
     void principalCanListAndReopenExpiredSemesterReviewOutsideApprovalChain() {
+        enableDeadlines();
         String branchKey = "bp_" + classId + "_" + plan.id();
         service.saveClassDoc(
                 teacher,
@@ -1599,7 +1641,7 @@ class EduClassDocServiceIntegrationTest {
                 .satisfies(doc -> {
                     assertThat(doc.path("reviewDeadline").path("canReopen").asBoolean())
                             .isTrue();
-                    assertThat(doc.path("canExtend").asBoolean()).isFalse();
+                    assertThat(doc.path("canExtend").asBoolean()).isTrue();
                     assertThat(doc.path("permissions").path("canApprove").asBoolean())
                             .isFalse();
                 });
@@ -1722,7 +1764,7 @@ class EduClassDocServiceIntegrationTest {
     @DisplayName(
             "Spec 004 Q2, Q5 + spec 005 FR-021: gói đã ban hành qua hạn thì khóa tạo phiên bản/sửa, không mở khóa nữa")
     void releasedPackageLocksAfterSemesterStartUntilUnlocked() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String key = "bp_" + classId + "_" + plan.id();
         service.saveClassDoc(
                 teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
@@ -1763,7 +1805,7 @@ class EduClassDocServiceIntegrationTest {
     @Test
     @DisplayName("Spec 005 khóa cứng: bản đã từng ban hành đang điều chỉnh qua hạn thì Hiệu trưởng không mở hạn")
     void revisedReleasedPackageCannotBeExtendedAfterStart() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String key = "bp_" + classId + "_" + plan.id();
         service.saveClassDoc(
                 teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
@@ -1907,7 +1949,7 @@ class EduClassDocServiceIntegrationTest {
     @Test
     @DisplayName("EDU-109 FR6: có hồ sơ quá hạn ⇒ Hiệu trưởng nhận đúng một báo tổng hợp trong ngày")
     void overdueDigestIsSentOnceToActivePrincipal() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String theme = String.valueOf(jdbc.queryForObject(
                 "SELECT id FROM edu_themes WHERE team_plan_id=? AND start_date='2026-10-26'", Long.class, plan.id()));
         String themeKey = "tp_" + classId + "_" + theme;
@@ -1936,7 +1978,7 @@ class EduClassDocServiceIntegrationTest {
     @Test
     @DisplayName("Spec 003 FR-013: kế hoạch giáo dục ngày vào 'Gần đến hạn' thì nhắc GVCN đúng một lần")
     void nearDeadlineReminderIsSentOnce() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String near = String.valueOf(jdbc.queryForObject(
                 "SELECT id FROM edu_themes WHERE team_plan_id=? AND start_date='2026-10-26'", Long.class, plan.id()));
         String themeKey = "tp_" + classId + "_" + near;

@@ -78,6 +78,14 @@ import tools.jackson.databind.node.ObjectNode;
 public class EduClassDocServiceImpl implements EduClassDocService {
     private static final String LOG_PREFIX = "[EduClassDocServiceImpl]";
 
+    // ponytail: như EduPlanTimeLock — cờ chỉ để bộ test cũ (lớp tạo sau hạn, đồng hồ cố định) tắt hạn; ứng dụng luôn bật
+    private boolean deadlineEnabled = true;
+
+    @org.springframework.beans.factory.annotation.Value("${carenest.eduplan.plan-time-lock-enabled:true}")
+    void setDeadlineEnabled(boolean deadlineEnabled) {
+        this.deadlineEnabled = deadlineEnabled;
+    }
+
     private record ClassListContext(
             Map<Long, ClassroomInfoResponse> classes,
             Map<String, EduWorkflowPolicy.RolePolicy> policies,
@@ -1138,7 +1146,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 return response;
             }
             if (ACTION_REOPEN_REVIEW_DEADLINE.equals(request.action())) {
-                ObjectNode response = reopenReviewDeadline(currentUser, doc, all, note, request.deadline(), today, at);
+                ObjectNode response =
+                        reopenReviewDeadline(currentUser, doc, info, all, note, request.deadline(), today, at);
                 log.info("{}|END", logPrefix);
                 return response;
             }
@@ -1170,7 +1179,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 approvals.clear();
                 actingRole = null;
             } else {
-                if (reviewDeadlineOf(doc, today).locked()) throw GlobalException.of(ApiCode.EDU_REVIEW_DEADLINE_PASSED);
+                if (reviewDeadlineOf(info).locked()) throw GlobalException.of(ApiCode.EDU_REVIEW_DEADLINE_PASSED);
                 if (doc.getStatus() != EduClassDocStatus.REVIEW
                         || actingRole == null
                         || eduWorkflowService
@@ -1224,9 +1233,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 event.put("policyRevision", revision);
                 event.put("at", at.toString());
                 event.put("note", note);
-                // EDU-97: mốc hạn của đúng lượt gửi; ân hạn gửi lại EDU-94 không bị trộn với hạn duyệt.
-                if (ACTION_SUBMIT.equals(request.action()) && info.deadline().effective() != null)
-                    event.put("submissionCutoff", info.deadline().effective().toString());
                 event.put("roleKey", actingRole == null ? "" : actingRole.name());
                 event.put("role", actingRole == null ? "Người soạn" : SIGN_ROLE_LABELS.get(actingRole.name()));
                 event.put(
@@ -2387,6 +2393,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (!seesHistory) node.set("history", objectMapper.createArrayNode());
         node.set("releases", releasesOf(doc));
         String blocked = null;
+        boolean reviewDeadlineLocked = false;
         if (EduClassDoc.isRoot(doc.getKind())) {
             RootInfo info = rootInfo(
                     doc,
@@ -2432,7 +2439,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             node.put("blockedReason", blocked);
             boolean locked = timeLocked(doc, info, LocalDate.now(clock));
             node.put("timeLocked", locked);
-            EduReviewDeadline.Info reviewDeadline = reviewDeadlineOf(doc, LocalDate.now(clock));
+            EduReviewDeadline.Info reviewDeadline = reviewDeadlineOf(info);
+            reviewDeadlineLocked = reviewDeadline.locked();
             ObjectNode reviewDeadlineNode = node.putObject("reviewDeadline");
             reviewDeadlineNode.put(
                     "lockFrom",
@@ -2448,19 +2456,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             reviewDeadlineNode.put("isCurrentReviewer", reviewable);
             reviewDeadlineNode.put(
                     "canReopen",
-                    yearOpen
-                            && doc.getStatus() == EduClassDocStatus.REVIEW
-                            && reviewDeadline.locked()
-                            && accessPolicy.isPrincipal(currentUser));
+                    yearOpen && accessPolicy.isPrincipal(currentUser) && reopenable(doc, info));
             reviewDeadlineNode.put("reason", reviewDeadlineReasonOf(doc));
             node.put(
                     "canExtend",
-                    yearOpen
-                            && accessPolicy.isPrincipal(currentUser)
-                            && doc.getStatus() != EduClassDocStatus.REVIEW
-                            && doc.getStatus() != EduClassDocStatus.APPROVED
-                            && !info.everReleased()
-                            && locked);
+                    yearOpen && accessPolicy.isPrincipal(currentUser) && reopenable(doc, info));
             node.put(
                     "canRevise",
                     yearOpen && author && activeVersion && doc.getStatus() == EduClassDocStatus.APPROVED && !locked);
@@ -2482,8 +2482,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         permissions.put(
                 "canSubmit",
                 yearOpen && author && activeVersion && doc.getStatus().editable() && rootKind && blocked == null);
-        boolean reviewDeadlineLocked =
-                rootKind && reviewDeadlineOf(root, LocalDate.now(clock)).locked();
         permissions.put("canApprove", yearOpen && reviewable && rootKind && !reviewDeadlineLocked);
         permissions.put("canReturn", yearOpen && reviewable && rootKind && !reviewDeadlineLocked);
         permissions.put("canReject", yearOpen && reviewable && rootKind && !reviewDeadlineLocked);
@@ -2718,37 +2716,34 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .orElse(false);
     }
 
-    private EduReviewDeadline.Info reviewDeadlineOf(EduClassDoc root, LocalDate today) {
-        JsonNode submitted = null;
-        JsonNode reopened = null;
-        for (JsonNode event : readArray(root.getHistory())) {
-            int round = event.path("round").asInt(-1);
-            if (round != root.getReviewRound()) continue;
-            String action = event.path("action").asString("");
-            if (ACTION_SUBMIT.equals(action)) submitted = event;
-            if (ACTION_REOPEN_REVIEW_DEADLINE.equals(action)) reopened = event;
-        }
-        LocalDate submittedOn =
-                submitted == null || submitted.path("at").asString("").isBlank()
-                        ? null
-                        : LocalDate.ofInstant(Instant.parse(submitted.path("at").asString()), SCHOOL_ZONE);
-        LocalDate submissionCutoff = submitted == null
-                        || submitted.path("submissionCutoff").asString("").isBlank()
-                ? null
-                : LocalDate.parse(submitted.path("submissionCutoff").asString());
-        LocalDate reopenUntil =
-                reopened == null || reopened.path("deadline").asString("").isBlank()
-                        ? null
-                        : LocalDate.parse(reopened.path("deadline").asString());
-        LocalDate base = EduReviewDeadline.baseOf(submittedOn, submissionCutoff);
-        return EduReviewDeadline.of(base, reopenUntil, today);
+    private static EduReviewDeadline.Info reviewDeadlineOf(RootInfo info) {
+        return EduReviewDeadline.of(info.deadline());
+    }
+
+    /** EDU-109 (9): dùng cho reconcile (EduWorkflowServiceImpl) — cùng phép tính Quá hạn với màn hình. */
+    boolean reviewDeadlineLocked(EduClassDoc root) {
+        var cls = classroomService.findClassroomInfo(root.getClassroomId());
+        if (cls.isEmpty()) return false;
+        RootInfo info = rootInfo(
+                root,
+                classDocRepository.findAllByClassroomIdAndYearPlanId(root.getClassroomId(), root.getYearPlanId()),
+                yearOf(cls.get()),
+                null,
+                LocalDate.now(clock));
+        return reviewDeadlineOf(info).locked();
+    }
+
+    /** EDU-109 (9): HT mở hạn khi quá hạn: Chờ duyệt, hoặc Nháp/Trả lại chưa từng ban hành (spec 005 khóa cứng). */
+    private static boolean reopenable(EduClassDoc root, RootInfo info) {
+        return EduDeadline.OVERDUE.equals(info.deadline().state())
+                && (root.getStatus() == EduClassDocStatus.REVIEW || !info.everReleased());
     }
 
     private String reviewDeadlineReasonOf(EduClassDoc root) {
         JsonNode latest = null;
         for (JsonNode event : readArray(root.getHistory())) {
-            if (event.path("round").asInt(-1) == root.getReviewRound()
-                    && ACTION_REOPEN_REVIEW_DEADLINE.equals(event.path("action").asString(""))) latest = event;
+            String action = event.path("action").asString("");
+            if (ACTION_EXTEND.equals(action) || ACTION_REOPEN_REVIEW_DEADLINE.equals(action)) latest = event;
         }
         return latest == null ? null : latest.path("note").asText(null);
     }
@@ -2756,6 +2751,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private ObjectNode reopenReviewDeadline(
             CurrentUser user,
             EduClassDoc root,
+            RootInfo info,
             List<EduClassDoc> members,
             String note,
             LocalDate deadline,
@@ -2764,9 +2760,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (!accessPolicy.isPrincipal(user)) throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
         if (note.isBlank() || deadline == null || !deadline.isAfter(today))
             throw GlobalException.of(ApiCode.INVALID_VALUE, "lý do hoặc hạn mở lại");
-        if (root.getStatus() != EduClassDocStatus.REVIEW
-                || !reviewDeadlineOf(root, today).locked())
-            throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở lại hạn duyệt đã khóa");
+        // EDU-109 (9): giữ action cũ cho tương thích; cùng điều kiện và cùng tác dụng (lùi hạn chung) với extend
+        if (!reopenable(root, info)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
         for (EduClassDoc member : members) {
             ArrayNode history = readArray(member.getHistory());
             ObjectNode event = history.addObject();
@@ -2803,12 +2798,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         boolean semester = EduClassDoc.SEMESTER.equals(root.getKind());
         LocalDate deadline =
                 semester ? EduSemesters.start(year, root.getSemesterNo()) : themeStart(root.getThemeId(), docs);
+        if (!deadlineEnabled) deadline = null;
         List<Long> themeIds = semester
                 ? semesterThemes(root.getYearPlanId(), root.getSemesterNo(), docs, year)
                 : List.of(root.getThemeId());
         LocalDate extended = null;
         for (JsonNode e : readArray(root.getHistory())) {
-            if (ACTION_EXTEND.equals(e.path("action").asString("")))
+            // EDU-109 (9): một hạn hiệu lực = lần HT mở gần nhất, mở hạn gửi (extend) hay mở hạn duyệt
+            String action = e.path("action").asString("");
+            if ((ACTION_EXTEND.equals(action) || ACTION_REOPEN_REVIEW_DEADLINE.equals(action))
+                    && !e.path("deadline").asString("").isBlank())
                 extended = LocalDate.parse(e.path("deadline").asString(""));
         }
         LocalDate firstRelease = releases.isEmpty()
@@ -2820,8 +2819,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         extended,
                         today,
                         root.getStatus() == EduClassDocStatus.APPROVED,
-                        firstRelease,
-                        opened),
+                        firstRelease),
                 themeIds,
                 !releases.isEmpty(),
                 opened);
@@ -2954,8 +2952,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private static boolean timeLocked(EduClassDoc root, RootInfo info, LocalDate today) {
         if (EduDeadline.OVERDUE.equals(info.deadline().state())) return true;
         LocalDate effective = info.deadline().effective();
-        // Hạn trước ngày mở lớp (lớp mở giữa năm) không khóa — như spec 003
-        if (effective == null || info.opened() != null && effective.isBefore(info.opened())) return false;
+        if (effective == null) return false;
         return root.getStatus() == EduClassDocStatus.APPROVED && !today.isBefore(effective);
     }
 
@@ -3194,10 +3191,10 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (note.isBlank()) throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "lý do mở hạn");
         if (deadline == null || !deadline.isAfter(today)) throw GlobalException.of(ApiCode.INVALID_VALUE, "hạn mới");
         // Spec 005 khóa cứng: đã từng ban hành (kể cả đang Nháp điều chỉnh) thì không mở hạn
-        if (root.getStatus() == EduClassDocStatus.APPROVED || info.everReleased())
+        if (root.getStatus() == EduClassDocStatus.APPROVED
+                || (info.everReleased() && root.getStatus() != EduClassDocStatus.REVIEW))
             throw GlobalException.of(ApiCode.INVALID_VALUE, "tài liệu đã ban hành không mở khóa");
-        if (root.getStatus() == EduClassDocStatus.REVIEW || !timeLocked(root, info, today))
-            throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
+        if (!reopenable(root, info)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
         ArrayNode history = readArray(root.getHistory());
         ObjectNode event = history.addObject();
         event.put("action", ACTION_EXTEND);

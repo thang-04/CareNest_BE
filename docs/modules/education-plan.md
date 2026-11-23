@@ -319,7 +319,7 @@ Tiền điều chỉnh tiếp 17/11/2026 (ảnh tên Kế hoạch năm học khi
 
 ### Hạn duyệt riêng (EDU-97, Tiền 19/11/2026)
 
-- **EDU-109 (Tiền 23/11/2026) thay phần trên:** bỏ ngày duyệt thêm và N ngày gửi lại; tới hạn khóa ngay (gửi và duyệt); nhãn chung **Quá hạn** thay nhãn trạng thái; Hiệu trưởng mở hạn nhiều lần; nhắc 7 ngày + hằng ngày (web + email) cho người soạn hoặc người duyệt đúng lượt; quá hạn báo Hiệu trưởng hằng ngày; bỏ nhãn Ban hành trễ (chỉ Đã ban hành).
+- **EDU-109 (Tiền 23/11/2026) thay phần trên:** bỏ ngày duyệt thêm và N ngày gửi lại; tới hạn khóa ngay (gửi và duyệt); nhãn chung **Quá hạn** thay nhãn trạng thái; Hiệu trưởng mở hạn nhiều lần; nhắc 7 ngày + hằng ngày (web + email) cho người soạn hoặc người duyệt đúng lượt; quá hạn báo Hiệu trưởng hằng ngày; bỏ nhãn Ban hành trễ (chỉ Đã ban hành). (9) 24/11: một hạn hiệu lực chung cho gửi và duyệt (gia hạn gần nhất ?? hạn gốc), quá hạn = hôm nay ≥ hạn đó; bỏ submissionCutoff; gộp mở hạn; bỏ ngoại lệ lớp mở giữa năm.
 - Nghiệp vụ đích, chưa triển khai: thêm số ngày xử lý Chờ duyệt do Hiệu trưởng cấu hình, độc lập với số ngày gửi lại khi bị trả lại trễ (EDU-94). Chỉ Hiệu trưởng có phân công hiệu lực được vào và thay đổi cấu hình kế hoạch giáo dục, gồm hai giá trị này (EDU-11). Hết hạn, chặn duyệt, ban hành và trả lại ở mọi bước, kể cả Hiệu trưởng.
 - Hiệu trưởng mở lại hạn duyệt trên màn Kế hoạch quá hạn, nhập lý do và hạn mới, lưu lịch sử. Sau khi mở, người duyệt vẫn phải đúng lượt và không được tự duyệt. Hiệu trưởng thấy và mở hạn cho mọi hồ sơ đủ điều kiện dù không thuộc chuỗi duyệt. Màn Kế hoạch quá hạn mặc định hiện Tất cả và lọc được theo Quá hạn gửi (EDU-76) hoặc Quá hạn duyệt (EDU-97). Chi tiết tại [spec 903](../../../specs/903-approval-deadline-lock/spec.md).
 

@@ -74,6 +74,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     private final com.carenest.repository.eduplan.EduPlanEventRepository eventRepository;
     private final com.carenest.service.organization.ClassroomService classroomService;
     private final EduPlanTimeLock timeLock;
+    // ponytail: provider phá vòng phụ thuộc (EduClassDocServiceImpl dùng EduWorkflowService)
+    private final org.springframework.beans.factory.ObjectProvider<EduClassDocServiceImpl> classDocService;
 
     private final EduWorkflowPolicy evaluator = new EduWorkflowPolicy();
 
@@ -632,48 +634,13 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         return event;
     }
 
+    // EDU-109 (9): khóa duyệt = đúng phép tính Quá hạn (hạn hiệu lực chung), không mốc chụp lúc gửi
     private boolean reviewDeadlineLocked(EduPlan plan, EduSettings settings, LocalDate today) {
-        LocalDate submitted = plan.getSentAt() == null ? null : LocalDate.ofInstant(plan.getSentAt(), clock.getZone());
-        var events = eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(plan.getId());
-        var reopen = events.stream()
-                .filter(event -> "REOPEN_REVIEW_DEADLINE".equals(event.getAction()) && event.getDeadline() != null)
-                .reduce((first, second) -> second)
-                .orElse(null);
-        // EDU-109: khóa duyệt từ hạn gửi ghi trên lần gửi (submissionCutoff), không ngày thêm
-        LocalDate cutoff = events.stream()
-                .filter(event -> "SUBMIT".equals(event.getAction()))
-                .reduce((first, second) -> second)
-                .map(com.carenest.entity.eduplan.EduPlanEvent::getDeadline)
-                .orElseGet(() -> timeLock.info(plan).effective());
-        LocalDate base = EduReviewDeadline.baseOf(submitted, cutoff);
-        return EduReviewDeadline.of(base, reopen == null ? null : reopen.getDeadline(), today)
-                .locked();
+        return timeLock.locked(plan);
     }
 
     private boolean reviewDeadlineLocked(EduClassDoc doc, EduSettings settings, LocalDate today) {
-        JsonNode submitted = null;
-        JsonNode reopened = null;
-        for (JsonNode event : (ArrayNode) objectMapper.readTree(doc.getHistory())) {
-            if (event.path("round").asInt(-1) != doc.getReviewRound()) continue;
-            String action = event.path("action").asString("");
-            if ("submit".equals(action)) submitted = event;
-            if ("reopen_review_deadline".equals(action)) reopened = event;
-        }
-        LocalDate submittedOn =
-                submitted == null || submitted.path("at").asString("").isBlank()
-                        ? null
-                        : LocalDate.ofInstant(Instant.parse(submitted.path("at").asString()), clock.getZone());
-        LocalDate submissionCutoff = submitted == null
-                        || submitted.path("submissionCutoff").asString("").isBlank()
-                ? null
-                : LocalDate.parse(submitted.path("submissionCutoff").asString());
-        LocalDate reopenUntil =
-                reopened == null || reopened.path("deadline").asString("").isBlank()
-                        ? null
-                        : LocalDate.parse(reopened.path("deadline").asString());
-        LocalDate base = EduReviewDeadline.baseOf(submittedOn, submissionCutoff);
-        return EduReviewDeadline.of(base, reopenUntil, today)
-                .locked();
+        return classDocService.getObject().reviewDeadlineLocked(doc);
     }
 
     private String appendPolicyHistory(EduClassDoc doc, boolean complete, Long actor, long revision, Instant now) {

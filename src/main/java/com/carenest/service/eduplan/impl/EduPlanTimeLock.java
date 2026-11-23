@@ -28,6 +28,7 @@ import org.springframework.stereotype.Component;
 class EduPlanTimeLock {
     static final String ACTION_UNLOCK = "unlock";
     static final String ACTION_RETURN = "RETURN";
+    static final String ACTION_REOPEN_REVIEW = "REOPEN_REVIEW_DEADLINE";
 
     private final SchoolStructureService schoolStructureService;
     private final EduPlanEventRepository eventRepository;
@@ -74,12 +75,14 @@ class EduPlanTimeLock {
                 .sorted(Comparator.comparing(EduPlanEvent::getOccurredAt))
                 .toList();
         LocalDate unlockedTo = events.stream()
-                .filter(e -> ACTION_UNLOCK.equals(e.getAction()) && e.getDeadline() != null)
+                // EDU-109 (9): một hạn hiệu lực = lần HT mở gần nhất, mở khóa gửi hay mở hạn duyệt
+                .filter(e -> (ACTION_UNLOCK.equals(e.getAction()) || ACTION_REOPEN_REVIEW.equals(e.getAction()))
+                        && e.getDeadline() != null)
                 .reduce((a, b) -> b)
                 .map(EduPlanEvent::getDeadline)
                 .orElse(null);
         LocalDate issued = plan.getIssuedAt() == null ? null : LocalDate.ofInstant(plan.getIssuedAt(), clock.getZone());
-        return EduDeadline.of(start, unlockedTo, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued, null);
+        return EduDeadline.of(start, unlockedTo, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued);
     }
 
     /** Spec 005 FR-021: chuỗi phiên bản đã có bản ban hành ⇒ không mở khóa nữa. */

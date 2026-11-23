@@ -11,7 +11,7 @@ class EduDeadlineTest {
     private static final LocalDate HAN = LocalDate.of(2026, 11, 16);
 
     private static String state(LocalDate today, boolean approved, LocalDate firstRelease, LocalDate extended) {
-        return EduDeadline.of(HAN, extended, today, approved, firstRelease, null)
+        return EduDeadline.of(HAN, extended, today, approved, firstRelease)
                 .state();
     }
 
@@ -19,7 +19,7 @@ class EduDeadlineTest {
     void nearWindowIsSevenDays() {
         assertThat(state(HAN.minusDays(8), false, null, null)).isEqualTo(EduDeadline.NORMAL);
         assertThat(state(HAN.minusDays(7), false, null, null)).isEqualTo(EduDeadline.NEAR);
-        assertThat(EduDeadline.of(HAN, null, HAN.minusDays(7), false, null, null)
+        assertThat(EduDeadline.of(HAN, null, HAN.minusDays(7), false, null)
                         .daysLeft())
                 .isEqualTo(7);
         assertThat(state(HAN.minusDays(1), false, null, null)).isEqualTo(EduDeadline.NEAR);
@@ -44,11 +44,11 @@ class EduDeadlineTest {
     }
 
     @Test
-    void classOpenedAfterDeadlineIsNotOverdue() {
-        assertThat(EduDeadline.of(HAN, null, HAN.plusDays(10), false, null, HAN.plusDays(3))
-                        .state())
-                .isEqualTo(EduDeadline.NORMAL);
-        assertThat(EduDeadline.of(null, null, HAN, false, null, null).state()).isEqualTo(EduDeadline.NORMAL);
+    void classOpenedAfterDeadlineIsStillOverdue() {
+        // EDU-109 (9): bỏ ngoại lệ lớp mở sau hạn
+        assertThat(EduDeadline.of(HAN, null, HAN.plusDays(10), false, null).state())
+                .isEqualTo(EduDeadline.OVERDUE);
+        assertThat(EduDeadline.of(null, null, HAN, false, null).state()).isEqualTo(EduDeadline.NORMAL);
     }
 
     @Test
@@ -64,7 +64,7 @@ class EduDeadlineTest {
         assertThat(EduSemesters.of(year, e1.plusDays(3))).contains(2); // bắt đầu trong kỳ nghỉ ⇒ kỳ sau
         assertThat(EduSemesters.of(year, s2.plusWeeks(16))).contains(2);
         assertThat(EduSemesters.start(year, 2)).isEqualTo(s2);
-        assertThat(EduDeadline.of(EduSemesters.start(year, 2), null, s2.minusDays(7), false, null, null)
+        assertThat(EduDeadline.of(EduSemesters.start(year, 2), null, s2.minusDays(7), false, null)
                         .state())
                 .isEqualTo(EduDeadline.NEAR);
         var unconfigured = new SchoolYearDetailResponse(

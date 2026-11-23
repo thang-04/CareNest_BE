@@ -521,7 +521,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     TONE_NONE,
                     note,
                     now);
-            submitEvent.withDeadline(timeLock.info(plan).effective());
             notifyReviewers(plan, currentUser, com.carenest.utils.enums.NotificationType.EDU_SUBMITTED, note);
 
             YearPlanDetailResponse response = toDetail(currentUser, plan);
@@ -548,10 +547,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (deadline == null || !deadline.isAfter(today))
                 throw GlobalException.of(ApiCode.INVALID_VALUE, "hạn mới");
             if (!timeLock.locked(plan)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở khóa khi đã khóa");
-            if (timeLock.released(plan))
-                throw GlobalException.of(ApiCode.INVALID_VALUE, "kế hoạch đã ban hành không mở khóa");
-            if (plan.publicStatus() != EduPlanStatus.DRAFT)
-                throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn gửi cho kế hoạch nháp");
+            // EDU-109 (9): mở hạn gửi/duyệt gộp một — lùi hạn hiệu lực chung, Nháp/Trả lại/Chờ duyệt đều được
+            if (!reopenable(plan)) throw GlobalException.of(ApiCode.INVALID_VALUE, "kế hoạch đã ban hành không mở khóa");
             Instant now = clock.instant();
             EduPlanEvent event = EduPlanEvent.of(
                             plan.getId(),
@@ -783,9 +780,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             LocalDate today = LocalDate.now(clock);
             if (reason.isEmpty() || deadline == null || !deadline.isAfter(today))
                 throw GlobalException.of(ApiCode.INVALID_VALUE, "lý do hoặc hạn mở lại");
-            if (plan.publicStatus() != EduPlanStatus.REVIEW
-                    || !reviewDeadlineOf(plan).locked())
-                throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở lại hạn duyệt đã khóa");
+            // EDU-109 (9): giữ action cũ cho tương thích, cùng điều kiện với mở khóa (unlock)
+            if (!reopenable(plan))
+                throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
             Instant now = clock.instant();
             EduPlanEvent event = EduPlanEvent.of(
                             plan.getId(),
@@ -1224,13 +1221,15 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     private boolean hasDeadlineBoardAccess(EduPlan plan) {
         boolean writableYear = schoolYearService.isPlanYearWritable(plan.getSchoolYearId());
-        if (plan.publicStatus() == EduPlanStatus.REVIEW) {
-            EduReviewDeadline.Info review = reviewDeadlineOf(plan);
-            return review.reopenUntil() != null || (review.locked() && writableYear);
-        }
-        return plan.publicStatus() == EduPlanStatus.DRAFT
-                && !timeLock.released(plan)
-                && (timeLock.info(plan).extendedTo() != null || (timeLock.locked(plan) && writableYear));
+        boolean open = plan.publicStatus() == EduPlanStatus.REVIEW
+                || (plan.publicStatus() == EduPlanStatus.DRAFT && !timeLock.released(plan));
+        return open && (timeLock.info(plan).extendedTo() != null || (timeLock.locked(plan) && writableYear));
+    }
+
+    /** EDU-109 (9): HT mở hạn khi quá hạn: Chờ duyệt, hoặc Nháp/Trả lại của chuỗi chưa từng ban hành (spec 005). */
+    private boolean reopenable(EduPlan plan) {
+        return reviewDeadlineOf(plan).locked()
+                && (plan.publicStatus() == EduPlanStatus.REVIEW || !timeLock.released(plan));
     }
 
     // Người phụ trách: đủ điều kiện soạn theo cấu hình (với kế hoạch tổ là Tổ trưởng hiện hành); không xét trạng thái
@@ -2172,53 +2171,33 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 info.extendedTo(),
                 info.state(),
                 locked,
-                canManageDeadline && plan.publicStatus() == EduPlanStatus.DRAFT && locked && !timeLock.released(plan),
+                canManageDeadline && reopenable(plan),
                 new YearPlanDetailResponse.ReviewDeadline(
                         review.lockFrom(),
                         review.reopenUntil(),
                         review.locked(),
                         plan.publicStatus() == EduPlanStatus.REVIEW && isUserWaitingRole(user, plan),
-                        canManageDeadline && plan.publicStatus() == EduPlanStatus.REVIEW && review.locked(),
+                        canManageDeadline && reopenable(plan),
                         reviewReasonOf(plan)),
                 info.daysLeft());
     }
 
+    /** EDU-109 (9): khóa duyệt = đúng phép tính Quá hạn (hạn hiệu lực chung), không mốc chụp lúc gửi. */
     private EduReviewDeadline.Info reviewDeadlineOf(EduPlan plan) {
-        List<EduPlanEvent> events = eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(plan.getId());
-        EduPlanEvent submitted = events.stream()
-                .filter(e -> ACTION_SUBMIT.equals(e.getAction()))
-                .reduce((first, second) -> second)
-                .orElse(null);
-        LocalDate submittedOn = submitted == null
-                ? (plan.getSentAt() == null ? null : LocalDate.ofInstant(plan.getSentAt(), clock.getZone()))
-                : LocalDate.ofInstant(submitted.getOccurredAt(), clock.getZone());
-        // Fallback cho dữ liệu cũ chưa có submissionCutoff trên event.
-        LocalDate cutoff = submitted == null ? timeLock.info(plan).effective() : submitted.getDeadline();
-        LocalDate base = EduReviewDeadline.baseOf(submittedOn, cutoff);
-        EduPlanEvent reopen = events.stream()
-                .filter(e -> ACTION_REOPEN_REVIEW_DEADLINE.equals(e.getAction())
-                        && e.getDeadline() != null
-                        && (submitted == null || !e.getOccurredAt().isBefore(submitted.getOccurredAt())))
-                .reduce((first, second) -> second)
-                .orElse(null);
-        return EduReviewDeadline.of(base, reopen == null ? null : reopen.getDeadline(), LocalDate.now(clock));
+        EduDeadline.Info info = timeLock.info(plan);
+        return new EduReviewDeadline.Info(
+                info.effective(),
+                info.extendedTo(),
+                plan.publicStatus() != EduPlanStatus.APPROVED && timeLock.locked(plan));
     }
 
     private String reviewReasonOf(EduPlan plan) {
-        List<EduPlanEvent> events = eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(plan.getId());
-        Instant submittedAt = events.stream()
-                .filter(e -> ACTION_SUBMIT.equals(e.getAction()))
-                .reduce((first, second) -> second)
-                .map(EduPlanEvent::getOccurredAt)
-                .orElse(plan.getSentAt());
-        return events.stream()
-                .filter(e -> ACTION_REOPEN_REVIEW_DEADLINE.equals(e.getAction())
-                        && (submittedAt == null || !e.getOccurredAt().isBefore(submittedAt)))
+        return eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(plan.getId()).stream()
+                .filter(EduYearPlanServiceImpl::isDeadlineEvent)
                 .reduce((first, second) -> second)
                 .map(EduPlanEvent::getNote)
                 .orElse(null);
     }
-
     private YearPlanDetailResponse.Permissions permissionsOf(
             CurrentUser user, EduPlan plan, List<EduPlan> chain, Long currentId) {
         Instant now = clock.instant();
