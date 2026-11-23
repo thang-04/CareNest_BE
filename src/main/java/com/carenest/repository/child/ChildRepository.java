@@ -18,7 +18,8 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
      * nghỉ). Điểm trường hiển thị = điểm trường của lớp, không có lớp ⇒ điểm trường tiếp nhận (CMR-04).
      *
      * <p>G94-180/CHD-14: lớp hiển thị ưu tiên lớp đã bắt đầu tới :today (lịch chuyển chưa tới ngày không đổi lớp
-     * hiển thị); trẻ chưa có lớp nào bắt đầu thì là lớp sắp vào.
+     * hiển thị); trẻ chưa có lớp nào bắt đầu thì là lớp sắp vào. Trẻ chờ xếp lớp (mới tiếp nhận hoặc mở lại hồ sơ) không
+     * mang lớp đã đóng trước :today (kể cả khi có {@code yearId}); chỉ giữ lớp chưa đóng hoặc lớp dự kiến sắp vào.
      *
      * <p>Phạm vi: {@code wholeSchool}, hoặc điểm trường hiển thị thuộc {@code campusIds}, hoặc lớp hiển thị thuộc
      * {@code classIds}. Tập rỗng truyền {@code [-1]} (IN () không hợp lệ).
@@ -34,6 +35,7 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
                           AND CASE WHEN CAST(:yearId AS BIGINT) IS NULL
                                    THEN c.status <> 'PENDING_PLACEMENT'
                                    ELSE k.school_year_id = CAST(:yearId AS BIGINT) END
+                          AND (c.status <> 'PENDING_PLACEMENT' OR e.valid_to IS NULL OR e.valid_to >= :today)
                         ORDER BY CASE WHEN e.valid_from <= :today THEN 0 ELSE 1 END, e.valid_from DESC, e.id DESC
                         LIMIT 1
                     ) yc ON TRUE
