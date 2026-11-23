@@ -18667,6 +18667,26 @@ components:
           format: int64
         name:
           type: string
+    MenuStatisticsItem:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        dishId:
+          type: integer
+          format: int64
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+      required:
+      - dishId
+      - session
     MenuStatisticsRequest:
       type: object
       properties:
@@ -18687,11 +18707,10 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/Item"
+            $ref: "#/components/schemas/MenuStatisticsItem"
           maxItems: 60
           minItems: 0
       required:
-      - ageGroupId
       - items
     MenuStatisticsResponse:
       type: object
@@ -18727,6 +18746,10 @@ components:
           type: number
         freshCost:
           type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/MenuStatisticsResponse"
         ingredients:
           type: array
           items:
