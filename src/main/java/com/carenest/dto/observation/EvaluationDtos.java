@@ -46,9 +46,14 @@ public final class EvaluationDtos {
             String confirmedByName,
             Instant confirmedAt,
             Integer flagCount,
-            List<EventRow> history) {}
+            List<EventRow> history,
+            String historyStatus) {}
 
-    public record ChildRef(Long id, String fullName, LocalDate dateOfBirth) {}
+    public record ChildRef(Long id, String fullName, LocalDate dateOfBirth, String historyStatus) {
+        public ChildRef(Long id, String fullName, LocalDate dateOfBirth) {
+            this(id, fullName, dateOfBirth, null);
+        }
+    }
 
     /**
      * teaches: người xem là GV lớp (thấy bản nháp); canEdit: GV đang phụ trách lớp của năm đang hoạt động; canConfirm:
@@ -143,7 +148,8 @@ public final class EvaluationDtos {
             String className,
             Long campusId,
             boolean current,
-            boolean teaches) {}
+            boolean teaches,
+            String historyStatus) {}
 
     public record DateRange(LocalDate start, LocalDate end) {}
 

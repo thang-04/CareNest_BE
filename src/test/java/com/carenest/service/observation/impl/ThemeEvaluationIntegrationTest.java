@@ -468,13 +468,7 @@ class ThemeEvaluationIntegrationTest {
             assertThat(g.goalId()).isEqualTo(goal2);
             assertThat(g.met()).isTrue();
         });
-        service.confirm(
-                otherTeacher,
-                new ThemeEvaluationRequest(
-                        classB,
-                        9201L,
-                        null,
-                        List.of(new CellInput(kid, oldGoal1, false), new CellInput(kid, goal2, true))));
+        service.confirm(otherTeacher, new ThemeEvaluationRequest(classB, 9201L, null, List.of()));
         // Bản kế hoạch mới bỏ MT2: kết quả đã chốt ở lớp cũ vẫn phải hiện trên học kỳ.
         jdbc.update("INSERT INTO edu_team_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
                 + " version_no, source_plan_id, legacy_team_without_source) OVERRIDING SYSTEM VALUE"
@@ -1002,6 +996,66 @@ class ThemeEvaluationIntegrationTest {
                 classA);
         assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
                 .isEqualTo("vp-t");
+    }
+
+    @Test
+    void transferredChildCanFinishOldGoalsButCannotAddUnlearnedGoals() {
+        jdbc.update("UPDATE enrollments SET valid_to='2026-10-15' WHERE child_id=?", kid1);
+        jdbc.update(
+                "INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,'2026-10-16')", kid1, classB);
+        var before = service.get(teacher, classA, 9201L);
+        assertThat(row(before, kid1).historyStatus()).isEqualTo("TRANSFERRED");
+        assertThat(row(before, kid1).historical()).isTrue();
+        assertThat(row(before, kid1).cells().getFirst().canEdit()).isTrue();
+        service.save(
+                teacher, new ThemeEvaluationRequest(classA, 9201L, "", List.of(new CellInput(kid1, oldGoal1, false))));
+        assertThat(row(service.get(teacher, classA, 9201L), kid1)
+                        .cells()
+                        .getFirst()
+                        .met())
+                .isFalse();
+        long unlearned = jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE text='MT chủ đề sau'", Long.class);
+        tick(9304, unlearned, 9201);
+        var unlearnedCell = row(service.get(teacher, classA, 9201L), kid1).cells().stream()
+                .filter(c -> c.goalId().equals(unlearned))
+                .findFirst()
+                .orElseThrow();
+        assertThat(unlearnedCell.canEdit()).isFalse();
+        expectCode(
+                () -> service.save(
+                        teacher,
+                        new ThemeEvaluationRequest(classA, 9201L, "", List.of(new CellInput(kid1, unlearned, true)))),
+                ApiCode.THEME_EVALUATION_CELL_INVALID);
+        service.save(
+                teacher,
+                new ThemeEvaluationRequest(
+                        classA, 9201L, "Ghi chú lớp", List.of(new CellInput(kid2, oldGoal1, false))));
+        jdbc.update("UPDATE enrollments SET valid_to='2026-10-15' WHERE child_id=?", kid2);
+        jdbc.update(
+                "UPDATE children SET status='LEFT',left_reason='Kiểm thử nghỉ học',left_on='2026-10-16' WHERE id=?",
+                kid2);
+        assertThat(row(service.get(teacher, classA, 9201L), kid2).historyStatus())
+                .isEqualTo("LEFT_SCHOOL");
+        assertThat(row(service.get(teacher, classA, 9201L), kid2).cells())
+                .allMatch(c -> !Boolean.TRUE.equals(c.canEdit()));
+        expectCode(
+                () -> service.save(
+                        teacher,
+                        new ThemeEvaluationRequest(classA, 9201L, "", List.of(new CellInput(kid2, oldGoal1, true)))),
+                ApiCode.THEME_EVALUATION_CELL_INVALID);
+    }
+
+    @Test
+    void confirmedThemeRefreshesOnlyDepartureLabels() {
+        service.confirm(teacher, new ThemeEvaluationRequest(classA, 9201L, "", List.of()));
+        var before = row(service.get(teacher, classA, 9201L), kid1);
+        jdbc.update("UPDATE enrollments SET valid_to='2026-10-15' WHERE child_id=?", kid1);
+        jdbc.update(
+                "INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,'2026-10-16')", kid1, classB);
+        var after = row(service.get(teacher, classA, 9201L), kid1);
+        assertThat(after.historyStatus()).isEqualTo("TRANSFERRED");
+        assertThat(after.cells()).isEqualTo(before.cells());
+        assertThat(after.rate()).isEqualTo(before.rate());
     }
 
     private static ChildRow row(ThemeEvaluationResponse view, long childId) {

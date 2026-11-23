@@ -40,7 +40,8 @@ public final class AttendanceSummaryResponse {
             double attendedDays,
             Map<MealSession, Integer> mealCounts,
             int morningOff,
-            int afternoonOff) {}
+            int afternoonOff,
+            String historyStatus) {}
 
     public record ClassTotal(
             Long classId,

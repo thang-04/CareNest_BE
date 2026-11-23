@@ -72,6 +72,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
 
     private final ObservationDayRules rules;
     private final ClassroomService classroomService;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final EnrollmentService enrollmentService;
     private final AttendanceService attendanceService;
     private final DailyObservationRepository observationRepository;
@@ -92,9 +93,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
             TicketType t = type == null ? TicketType.WEEKLY : type;
             List<TicketPeriod> periods = endedPeriods(cls, t);
             // Người dạy thay đã hết đợt: chỉ các kỳ có ngày cuối nằm trong đợt dạy thay (như khi phát phiếu)
-            if (!views) {
+            if (!views || cls.yearStatus() != SchoolYearStatus.ACTIVE && currentUser.hasRole(CareNestRole.TEACHER)) {
                 periods = periods.stream()
-                        .filter(p -> rules.canViewDay(currentUser, cls, p.end()))
+                        .filter(p -> rules.canViewRange(currentUser, cls, p.start(), p.end()))
                         .toList();
                 if (periods.isEmpty()) {
                     throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
@@ -150,6 +151,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
             if (!byId.keySet().containsAll(childIds)) {
                 throw GlobalException.of(ApiCode.TICKET_CHILD_NOT_IN_CLASS);
             }
+            if (!childClassHistoryService
+                    .statuses(cls.id(), childIds, minDate(rules.today(), cls.yearEnd()))
+                    .isEmpty()) throw GlobalException.of(ApiCode.TICKET_CHILD_NOT_IN_CLASS);
             Map<Long, BehaviourTicket> existing = ticketsOf(childIds, request.type(), period.start());
             WeekStats week = request.type() == TicketType.WEEKLY ? weekStats(childIds, period) : null;
             Map<Long, Integer> weekly =
@@ -208,13 +212,15 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            // Tổ trưởng chuyên môn xem tổng hợp phiếu các lớp nhóm tuổi mình (AUTH-23)
-            if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
-                throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
-            }
             checkMonth(month, cls.yearStart(), cls.yearEnd());
             LocalDate from = month != null ? month : cls.yearStart();
             LocalDate to = month != null ? month.with(TemporalAdjusters.lastDayOfMonth()) : cls.yearEnd();
+            if (!rules.canViewRange(
+                            currentUser,
+                            cls,
+                            (from.isBefore(cls.yearStart()) ? cls.yearStart() : from),
+                            minDate(to, cls.yearEnd()))
+                    && !rules.leadsClass(currentUser, cls)) throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             List<ClassChildResponse> children = rosterDuring(cls.id(), from, to, cls.yearStart(), cls.yearEnd());
             List<Long> ids = children.stream().map(ClassChildResponse::id).toList();
             Map<Long, String> childCodes = childService.findChildBriefs(ids).values().stream()
@@ -236,6 +242,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                     enrollmentService.findChildrenInClassroom(cls.id(), minDate(to, rules.today())).stream()
                             .map(ClassChildResponse::id)
                             .collect(Collectors.toSet());
+            var history = childClassHistoryService.statuses(cls.id(), ids, minDate(rules.today(), cls.yearEnd()));
             List<TicketSummaryRow> rows = children.stream()
                     .map(c -> {
                         boolean historical = !endMembers.contains(c.id());
@@ -255,7 +262,8 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                                 count(ticketScope, c.id(), TicketType.MONTHLY),
                                 flagScope,
                                 evidence,
-                                historical);
+                                historical,
+                                history.get(c.id()));
                     })
                     .toList();
             TicketSummaryTotals totals = new TicketSummaryTotals(
@@ -479,6 +487,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         if (ids.isEmpty()) {
             return List.of();
         }
+        var history = childClassHistoryService.statuses(cls.id(), ids, minDate(rules.today(), cls.yearEnd()));
         Map<Long, BehaviourTicket> issued = ticketsOf(ids, type, period.start());
         WeekStats week = type == TicketType.WEEKLY ? weekStats(ids, period) : null;
         Map<Long, Integer> weekly = type == TicketType.MONTHLY ? weeklyTicketCounts(ids, period.start()) : Map.of();
@@ -505,7 +514,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             !endMembers.contains(c.id()),
                             currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
                                     && rules.canRecordDay(currentUser, cls, period.end())
-                                    && endMembers.contains(c.id()));
+                                    && endMembers.contains(c.id())
+                                    && !history.containsKey(c.id()),
+                            history.get(c.id()));
                 })
                 .toList();
     }

@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 412 endpoint.
+Tổng: 413 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -63,6 +63,7 @@ GET /assessment/children · src/main/java/com/carenest/controller/observation/Ch
 GET /assessment/children/{childId}/development · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#development
 GET /assessment/class-ratings · src/main/java/com/carenest/controller/observation/ClassRatingController.java#listRatings
 PUT /assessment/class-ratings · src/main/java/com/carenest/controller/observation/ClassRatingController.java#saveRatings
+GET /assessment/daily/classes · src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#listClasses
 GET /assessment/day-unlocks · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#getUnlocks
 POST /assessment/day-unlocks · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#unlockDay
 POST /assessment/day-unlocks/{unlockId}/revoke · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#revokeUnlock

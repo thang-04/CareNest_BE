@@ -87,7 +87,7 @@ public class QualityReportServiceImpl implements QualityReportService {
                     .filter(c -> leader
                             ? rules.readsCampus(currentUser, c.campusId())
                             : rules.canRecord(currentUser, c)
-                                    || rules.taughtClosedYear(currentUser, c)
+                                    || rules.canView(currentUser, c)
                                     || ledGroups.contains(c.ageGroupId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))

@@ -84,6 +84,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final DailyHealthEntryRepository healthEntryRepository;
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final EnrollmentService enrollmentService;
     private final ChildService childService;
     private final AccountService accountService;
@@ -101,16 +102,23 @@ public class AttendanceServiceImpl implements AttendanceService {
         try {
             List<AttendanceClassResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
                     // Người dạy thay đã hết đợt vẫn thấy lớp để mở ngày được mở lại trong đợt (xem / ghi xét theo ngày)
-                    .filter(c -> rules.canView(currentUser, c) || rules.substitutedInYear(currentUser, c))
-                    .map(c -> new AttendanceClassResponse(
-                            c.id(),
-                            c.name(),
-                            c.campusId(),
-                            c.ageGroupId(),
-                            c.mealSessions(),
-                            rules.canRecordAttendance(currentUser, c) || rules.taughtClosedYear(currentUser, c),
-                            c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendance(currentUser, c),
-                            c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canUnlock(currentUser, c.campusId())))
+                    .filter(c -> rules.canView(currentUser, c) || rules.lastReadableDay(currentUser, c) != null)
+                    .map(c -> {
+                        boolean teaches = c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, c);
+                        boolean records = teaches && rules.canRecordAttendance(currentUser, c);
+                        LocalDate last = rules.lastReadableDay(currentUser, c);
+                        return new AttendanceClassResponse(
+                                c.id(),
+                                c.name(),
+                                c.campusId(),
+                                c.ageGroupId(),
+                                c.mealSessions(),
+                                teaches,
+                                records,
+                                c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canUnlock(currentUser, c.campusId()),
+                                !teaches && last != null,
+                                last);
+                    })
                     .toList();
             log.info("{}|END", logPrefix);
             return classes;
@@ -223,9 +231,17 @@ public class AttendanceServiceImpl implements AttendanceService {
             Set<Long> childIds = children.stream().map(ClassChildResponse::id).collect(Collectors.toSet());
             Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(childIds);
             Set<Long> allergic = childService.findChildIdsWithAllergies(childIds);
+            var history = childClassHistoryService.statuses(
+                    cls.id(), childIds, rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());
             List<ChildRow> rows = children.stream()
                     .map(ch -> new ChildRow(
-                            toBrief(ch, withoutMeals, allergic),
+                            new ChildBrief(
+                                    ch.id(),
+                                    ch.fullName(),
+                                    ch.dateOfBirth(),
+                                    !withoutMeals.contains(ch.id()),
+                                    allergic.contains(ch.id()),
+                                    history.get(ch.id())),
                             toView(records.get(ch.id()), cls.mealSessions(), names),
                             toHealth(health.getOrDefault(ch.id(), List.of())),
                             leaves.get(ch.id())))
@@ -485,7 +501,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         try {
             ClassroomInfoResponse cls = findClass(classId);
             // Tổ trưởng chuyên môn xem tổng hợp (không xem phiếu điểm danh/sức khỏe từng ngày) các lớp nhóm tuổi mình
-            if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
+            if (!rules.canViewRange(currentUser, cls, from, to) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             checkRange(from, to);
@@ -838,6 +854,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                     counts[6],
                     counts[7]));
         }
+        var history = childClassHistoryService.statuses(
+                cls.id(), childIds, rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());
         List<ChildTotal> childTotals = children.stream()
                 .map(ch -> {
                     int[] c = perChild.get(ch.id());
@@ -850,7 +868,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                             c[6] / 2.0,
                             childMeals.get(ch.id()),
                             c[4],
-                            c[5]);
+                            c[5],
+                            history.get(ch.id()));
                 })
                 .toList();
         return new ClassSummary(

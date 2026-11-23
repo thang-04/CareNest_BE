@@ -46,7 +46,8 @@ public final class TicketDtos {
             boolean issuedElsewhere,
             List<TicketEvidence> evidence,
             boolean historical,
-            boolean canIssue) {}
+            boolean canIssue,
+            String historyStatus) {}
 
     /** periods: các kỳ đã kết thúc, mới nhất trước; period null khi chưa có kỳ nào kết thúc. */
     public record TicketBoardResponse(
@@ -64,7 +65,13 @@ public final class TicketDtos {
             @NotNull @Size(min = 1, max = 100) List<@NotNull Long> childIds) {}
 
     public record TicketSummaryRow(
-            TicketChild child, int weekly, int monthly, int flags, List<TicketEvidence> evidence, boolean historical) {}
+            TicketChild child,
+            int weekly,
+            int monthly,
+            int flags,
+            List<TicketEvidence> evidence,
+            boolean historical,
+            String historyStatus) {}
 
     public record TicketSummaryTotals(int weekly, int monthly, int children, int total) {}
 

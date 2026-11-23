@@ -38,7 +38,7 @@ public record DailySheetResponse(
         List<AbsentChild> absentChildren,
         ClassCommentResponse classComment) {
 
-    public record AbsentChild(Long childId, String fullName, AttendanceStatus attendanceStatus) {}
+    public record AbsentChild(Long childId, String fullName, AttendanceStatus attendanceStatus, String historyStatus) {}
 
     @Schema(name = "DailyAssessmentRow")
     public record Row(
@@ -59,7 +59,8 @@ public record DailySheetResponse(
             boolean generalRecorded,
             boolean skillsRecorded,
             List<ActivityResult> activities,
-            List<MealSession> skippedMeals) {}
+            List<MealSession> skippedMeals,
+            String historyStatus) {}
 
     /** signs đang hiện; prefillSigns theo sức khỏe trong ngày (không gồm thân nhiệt); overridden = cô đã chỉnh. */
     public record Health(

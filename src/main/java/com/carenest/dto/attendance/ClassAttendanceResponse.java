@@ -46,7 +46,16 @@ public record ClassAttendanceResponse(
 
     /** hasAllergy: hồ sơ trẻ có khai báo dị ứng (GV biết trẻ cần suất thay thế). */
     public record ChildBrief(
-            Long id, String fullName, LocalDate dateOfBirth, boolean mealRegistered, boolean hasAllergy) {}
+            Long id,
+            String fullName,
+            LocalDate dateOfBirth,
+            boolean mealRegistered,
+            boolean hasAllergy,
+            String historyStatus) {
+        public ChildBrief(Long id, String fullName, LocalDate dateOfBirth, boolean mealRegistered, boolean hasAllergy) {
+            this(id, fullName, dateOfBirth, mealRegistered, hasAllergy, null);
+        }
+    }
 
     /**
      * meals: mỗi bữa của lớp ⇒ trẻ có ăn không. absentPart: buổi nghỉ có phép theo đơn nửa buổi, status là của buổi còn

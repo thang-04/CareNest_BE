@@ -86,6 +86,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     private final ObservationDayRules rules;
     private final EvaluationSources sources;
     private final EduLessonQueryService lessonQueryService;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final EnrollmentService enrollmentService;
     private final GuardianChildLinkService guardianChildLinkService;
     private final NotificationService notificationService;
@@ -108,10 +109,12 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
+            LocalDate week = weekOf(cls, weekStart);
+            WeekOption readRange = weekRange(cls, week);
+            if (!rules.canViewRange(currentUser, cls, readRange.from(), readRange.to())
+                    && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
-            LocalDate week = weekOf(cls, weekStart);
             // GV mở tuần đã tới ngày học cuối: tạo nháp còn thiếu (như việc chạy sáng hôm đó)
             int created = 0;
             if (cls.yearStatus() == SchoolYearStatus.ACTIVE
@@ -830,6 +833,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList());
+        var history = childClassHistoryService.statuses(
+                cls.id(), roster.keySet(), rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());
         List<WeeklyCommentChildRow> rows = roster.values().stream()
                 .map(child -> {
                     WeeklyComment c = comments.get(child.id());
@@ -848,7 +853,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                             c == null ? null : c.getUpdatedAt(),
                             c != null && !sent && reopened.contains(c.getId()),
                             w.data(),
-                            !current.contains(child.id()));
+                            !current.contains(child.id()),
+                            history.get(child.id()));
                 })
                 .toList();
         List<WeekOption> weeks = weeks(cls);

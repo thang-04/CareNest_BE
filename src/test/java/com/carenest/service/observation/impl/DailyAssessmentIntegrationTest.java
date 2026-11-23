@@ -182,6 +182,10 @@ class DailyAssessmentIntegrationTest {
         teacherB = user("teacherb", CareNestRole.TEACHER);
         teach(teacherA, classA);
         teach(teacherA, oldClass);
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_from='2025-09-01',valid_to='2026-05-31' WHERE user_id=? AND classroom_id=?",
+                teacherA.userId(),
+                oldClass);
         teach(teacherB, classB);
 
         // Giáo án tuần 26–30/10 của lớp A đã duyệt: Hoạt động học thứ 3 có MT1, thứ 4 có MT1 + MT2
@@ -208,6 +212,42 @@ class DailyAssessmentIntegrationTest {
                 "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
                         + "created_by, updated_by) SELECT 'd-a', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "
                         + "created_by, updated_by FROM edu_class_docs WHERE id = " + weekDoc);
+    }
+
+    @Test
+    void historicalDailyRowsDistinguishTransferAndLeavingSchool() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(
+                                new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, Map.of()),
+                                new SaveAttendanceRequest.Entry(child2, AttendanceStatus.PRESENT, Map.of()))));
+        jdbc.update("UPDATE enrollments SET valid_to='2026-10-27' WHERE child_id IN (?,?)", child1, child2);
+        jdbc.update(
+                "INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,'2026-10-28')", child1, classB);
+        jdbc.update(
+                "UPDATE children SET status='LEFT',left_reason='Kiểm thử nghỉ học',left_on='2026-10-28' WHERE id=?",
+                child2);
+        jdbc.update("UPDATE attendance_records SET date='2026-10-27' WHERE child_id IN (?,?)", child1, child2);
+        var sheet = service.getDailySheet(teacherA, classA, YESTERDAY);
+        assertThat(sheet.rows())
+                .extracting(DailySheetResponse.Row::historyStatus)
+                .containsExactlyInAnyOrder("TRANSFERRED", "LEFT_SCHOOL");
+        assertThat(attendanceService
+                        .getClassAttendance(teacherA, classA, YESTERDAY)
+                        .children())
+                .extracting(r -> r.child().historyStatus())
+                .containsExactlyInAnyOrder("TRANSFERRED", "LEFT_SCHOOL");
+        assertThat(healthService
+                        .getClassChildHealth(teacherA, classA, child1, YESTERDAY)
+                        .historyStatus())
+                .isEqualTo("TRANSFERRED");
+        assertThat(healthService
+                        .getClassChildHealth(teacherA, classA, child2, YESTERDAY)
+                        .historyStatus())
+                .isEqualTo("LEFT_SCHOOL");
     }
 
     @Test
@@ -583,6 +623,113 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    void receivingTeacherCanReadPreviousMonthHistoryWhileOldTeacherCannotReadNewClassDays() {
+        attendance(child1, classA, TODAY);
+        service.saveGeneral(teacherA, classA, general(TODAY, child1, "Bé vui vẻ tại lớp cũ"));
+        jdbc.update("UPDATE daily_observations SET date=? WHERE child_id=?", YESTERDAY, child1);
+        jdbc.update("UPDATE attendance_records SET date=? WHERE child_id=?", YESTERDAY, child1);
+        jdbc.update("UPDATE enrollments SET valid_to=? WHERE child_id=? AND classroom_id=?", YESTERDAY, child1, classA);
+        jdbc.update("INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,?)", child1, classB, TODAY);
+        entityManager.clear();
+        attendance(child1, classB, TODAY);
+        service.saveGeneral(teacherB, classB, general(TODAY, child1, "Bé vui vẻ tại lớp mới"));
+        var receiving = evaluations.development(teacherB, child1, YESTERDAY, TODAY);
+        assertThat(receiving.days()).extracting(d -> d.classId()).containsExactlyInAnyOrder(classA, classB);
+        var withoutView = new CurrentUser(
+                teacherB.userId(),
+                teacherB.keycloakUserId(),
+                teacherB.username(),
+                teacherB.fullName(),
+                null,
+                teacherB.roles(),
+                Set.of(Permission.ATTENDANCE_VIEW));
+        expectCode(() -> evaluations.development(withoutView, child1, YESTERDAY, TODAY), ApiCode.CHILD_ACCESS_DENIED);
+        var pastOnly = evaluations.development(teacherB, child1, YESTERDAY, YESTERDAY);
+        assertThat(pastOnly.days()).extracting(d -> d.classId()).containsExactly(classA);
+        var old = evaluations.development(teacherA, child1, YESTERDAY, TODAY);
+        assertThat(old.days()).extracting(d -> d.classId()).containsExactly(classA);
+        assertThat(old.child().historyStatus()).isEqualTo("TRANSFERRED");
+        expectCode(() -> evaluations.development(teacherA, child1, TODAY, TODAY), ApiCode.CHILD_ACCESS_DENIED);
+    }
+
+    @Test
+    void assessmentClassListDoesNotRequireAttendancePermissions() {
+        var user = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD));
+        var cls = service.listClasses(user, null).stream()
+                .filter(c -> c.id().equals(classA))
+                .findFirst()
+                .orElseThrow();
+        assertThat(cls.teaches()).isTrue();
+        assertThat(cls.canRecord()).isTrue();
+        assertThat(cls.historicalReadOnly()).isFalse();
+        assertThat(service.listClasses(user, null)).extracting(c -> c.id()).doesNotContain(classB);
+        assertThat(service.getDailySheet(user, classA, TODAY).canRecord()).isTrue();
+    }
+
+    @Test
+    void assessmentOnlyTeacherIsNotMislabeledAsHistoricalAttendanceClass() {
+        var user = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of(Permission.ATTENDANCE_VIEW, Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD));
+        var cls = attendanceService.getClasses(user, null).stream()
+                .filter(c -> c.id().equals(classA))
+                .findFirst()
+                .orElseThrow();
+        assertThat(cls.teaches()).isTrue();
+        assertThat(cls.canRecord()).isFalse();
+        assertThat(cls.historicalReadOnly()).isFalse();
+        assertThat(service.getDailySheet(user, classA, TODAY).canRecord()).isTrue();
+    }
+
+    @Test
+    void formerTeacherReadsOnlyAssignedDaysInActiveAndClosedYears() {
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_to='2026-10-27' WHERE user_id=? AND classroom_id=?",
+                teacherA.userId(),
+                classA);
+        assertThat(service.getDailySheet(teacherA, classA, YESTERDAY).canRecord())
+                .isFalse();
+        expectCode(() -> service.getDailySheet(teacherA, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
+        var historyClass = attendanceService.getClasses(teacherA, null).stream()
+                .filter(c -> c.id().equals(classA))
+                .findFirst()
+                .orElseThrow();
+        assertThat(historyClass.historicalReadOnly()).isTrue();
+        assertThat(historyClass.lastReadableDate()).isEqualTo(YESTERDAY);
+        assertThat(evaluations.developmentChildren(teacherA, null, classA))
+                .extracting(c -> c.id())
+                .contains(child1);
+        assertThat(evaluations
+                        .development(teacherA, child1, YESTERDAY, YESTERDAY)
+                        .child()
+                        .id())
+                .isEqualTo(child1);
+        expectCode(() -> evaluations.development(teacherA, child1, TODAY, TODAY), ApiCode.CHILD_ACCESS_DENIED);
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_from='2026-05-01',valid_to='2026-05-31' WHERE user_id=? AND classroom_id=?",
+                teacherA.userId(),
+                oldClass);
+        entityManager.clear();
+        assertThat(service.getDailySheet(teacherA, oldClass, LocalDate.of(2026, 5, 20))
+                        .yearReadOnly())
+                .isTrue();
+        expectCode(
+                () -> service.getDailySheet(teacherA, oldClass, LocalDate.of(2025, 9, 2)), ApiCode.CLASS_ACCESS_DENIED);
+    }
+
+    @Test
     void closedYearIsReadOnly() {
         LocalDate oldDay = LocalDate.of(2026, 5, 20);
         DailySheetResponse sheet = service.getDailySheet(teacherA, oldClass, oldDay);
@@ -590,7 +737,7 @@ class DailyAssessmentIntegrationTest {
         assertThat(sheet.canRecord()).isFalse();
         expectCode(
                 () -> service.saveGeneral(teacherA, oldClass, general(oldDay, child1, "x")),
-                ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+                ApiCode.CLASS_ACCESS_DENIED);
         expectCode(
                 () -> unlockService.unlockDay(
                         principal, new AssessmentDayUnlockRequest(oldClass, oldDay, NOW.plusSeconds(3600), "Bổ sung")),

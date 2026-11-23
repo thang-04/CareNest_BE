@@ -1203,6 +1203,25 @@ paths:
           description: OK
       tags:
       - class-rating-controller
+  /api/assessment/daily/classes:
+    get:
+      operationId: listClasses_1
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAttendanceClassResponse"
+          description: OK
+      tags:
+      - daily-assessment-controller
   /api/assessment/day-unlocks:
     get:
       operationId: getUnlocks_3
@@ -9944,6 +9963,8 @@ components:
           format: int64
         fullName:
           type: string
+        historyStatus:
+          type: string
     AccessToken:
       type: object
       properties:
@@ -11248,9 +11269,14 @@ components:
           type: boolean
         canUnlock:
           type: boolean
+        historicalReadOnly:
+          type: boolean
         id:
           type: integer
           format: int64
+        lastReadableDate:
+          type: string
+          format: date
         mealSessions:
           type: array
           items:
@@ -11278,6 +11304,8 @@ components:
           type: integer
           format: int64
         className:
+          type: string
+        historyStatus:
           type: string
         latest:
           $ref: "#/components/schemas/DailyHealthEntryResponse"
@@ -11619,6 +11647,8 @@ components:
       properties:
         auto:
           type: boolean
+        canEdit:
+          type: boolean
         goalId:
           type: integer
           format: int64
@@ -11748,6 +11778,8 @@ components:
           type: string
         hasAllergy:
           type: boolean
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
@@ -11815,6 +11847,8 @@ components:
         handedOverAt:
           type: string
           format: date-time
+        historyStatus:
+          type: string
     ChildEnrollmentResponse:
       type: object
       properties:
@@ -12253,6 +12287,8 @@ components:
           format: date
         fullName:
           type: string
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
@@ -12273,6 +12309,8 @@ components:
           type: string
         historical:
           type: boolean
+        historyStatus:
+          type: string
         met:
           type: integer
           format: int32
@@ -12298,6 +12336,8 @@ components:
         excused:
           type: integer
           format: int32
+        historyStatus:
+          type: string
         mealCounts:
           type: object
           additionalProperties:
@@ -13331,6 +13371,8 @@ components:
           type: boolean
         health:
           $ref: "#/components/schemas/Health"
+        historyStatus:
+          type: string
         meals:
           type: object
           additionalProperties:
@@ -14011,6 +14053,8 @@ components:
           type: string
           format: date
         fullName:
+          type: string
+        historyStatus:
           type: string
         id:
           type: integer
@@ -14906,6 +14950,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EventRow"
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
@@ -24885,6 +24931,8 @@ components:
             $ref: "#/components/schemas/SemesterAssessmentDomain"
         fullName:
           type: string
+        historyStatus:
+          type: string
     SemesterAssessmentDomain:
       type: object
       properties:
@@ -26081,6 +26129,8 @@ components:
           format: int32
         historical:
           type: boolean
+        historyStatus:
+          type: string
         issuedElsewhere:
           type: boolean
         presentDays:
@@ -26251,6 +26301,8 @@ components:
           format: int32
         historical:
           type: boolean
+        historyStatus:
+          type: string
         monthly:
           type: integer
           format: int32
@@ -26770,6 +26822,8 @@ components:
           type: string
         historical:
           type: boolean
+        historyStatus:
+          type: string
         reopened:
           type: boolean
         sentAt:

@@ -91,6 +91,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final SchoolYearService schoolYearService;
     private final AgeGroupService ageGroupService;
     private final EnrollmentService enrollmentService;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final AccountService accountService;
     private final EvaluationSources sources;
     private final ChildEvaluationRepository evaluationRepository;
@@ -207,7 +208,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                     new ChildRef(
                             ev.getChildId(),
                             child == null ? null : child.fullName(),
-                            child == null ? null : child.dateOfBirth()),
+                            child == null ? null : child.dateOfBirth(),
+                            row.historyStatus()),
                     new ClassRef(
                             cls.id(),
                             cls.name(),
@@ -215,6 +217,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             teacher,
                             cls.yearStatus() == SchoolYearStatus.ACTIVE
                                     && rules.canRecordPeriod(currentUser, cls)
+                                    && row.historyStatus() == null
                                     && (!year || yearEndOpen(currentUser, cls)),
                             rules.isHomeroom(currentUser, cls)),
                     data == null ? List.of() : data.days(),
@@ -425,6 +428,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> teaches(currentUser, c)
+                            || rules.hasReadableHistory(currentUser, c)
                             || rules.readsCampus(currentUser, c.campusId())
                             || ledGroups.contains(c.ageGroupId()))
                     .filter(c -> classId == null || classId.equals(c.id()))
@@ -441,7 +445,25 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                         Set<Long> current = enrollmentService.findChildrenInClassroom(c.id(), anchor).stream()
                                 .map(ClassChildResponse::id)
                                 .collect(Collectors.toSet());
-                        return enrollmentService.findChildrenInClassroomDuring(c.id(), c.yearStart(), anchor).stream()
+                        var children = enrollmentService.findChildrenInClassroomDuring(c.id(), c.yearStart(), anchor);
+                        if (!teaching
+                                && !rules.readsCampus(currentUser, c.campusId())
+                                && !rules.leadsClass(currentUser, c)) {
+                            Set<Long> allowed =
+                                    enrollmentService.findStaysInClassroom(c.id(), c.yearStart(), anchor).stream()
+                                            .filter(stay ->
+                                                    rules.hasReadableHistory(currentUser, c, stay.from(), stay.to()))
+                                            .map(EnrollmentService.ClassStay::childId)
+                                            .collect(Collectors.toSet());
+                            children = children.stream()
+                                    .filter(ch -> allowed.contains(ch.id()))
+                                    .toList();
+                        }
+                        var history = childClassHistoryService.statuses(
+                                c.id(),
+                                children.stream().map(ClassChildResponse::id).toList(),
+                                anchor);
+                        return children.stream()
                                 .map(ch -> new DevelopmentChildRow(
                                         ch.id(),
                                         ch.fullName(),
@@ -450,7 +472,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                                         c.name(),
                                         c.campusId(),
                                         current.contains(ch.id()),
-                                        teaching));
+                                        teaching,
+                                        history.get(ch.id())));
                     })
                     .sorted(Comparator.comparing(DevelopmentChildRow::className, vi)
                             .thenComparing(DevelopmentChildRow::fullName, vi))
@@ -485,9 +508,30 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             EnrollmentService.ChildClassStay chosen = null;
             ClassroomInfoResponse cls = null;
             boolean teacher = false;
+            boolean currentChildAccess = false;
+            // Quyền theo trẻ đang phụ trách không mất khi cô lọc khoảng trước ngày trẻ chuyển đến.
+            for (Long currentId : enrollmentService.findActiveClassroomIds(childId, today)) {
+                var currentClass = rules.findClass(currentId);
+                boolean t = teaches(currentUser, currentClass);
+                if (currentClass.yearStatus() == SchoolYearStatus.ACTIVE
+                        && (t
+                                || rules.readsCampus(currentUser, currentClass.campusId())
+                                || rules.leadsClass(currentUser, currentClass))) {
+                    cls = currentClass;
+                    chosen = new EnrollmentService.ChildClassStay(currentId, today, today);
+                    teacher = t;
+                    currentChildAccess = true;
+                    break;
+                }
+            }
             for (int i = stays.size() - 1; i >= 0 && chosen == null; i--) {
                 ClassroomInfoResponse c = rules.findClass(stays.get(i).classroomId());
-                boolean t = teaches(currentUser, c);
+                boolean t = currentUser.hasRole(CareNestRole.TEACHER)
+                        && rules.canViewRange(
+                                currentUser,
+                                c,
+                                stays.get(i).from(),
+                                stays.get(i).to());
                 if (t || rules.readsCampus(currentUser, c.campusId()) || rules.leadsClass(currentUser, c)) {
                     chosen = stays.get(i);
                     cls = c;
@@ -498,7 +542,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
             }
             // Xem lại lớp cũ: chỉ khoảng trẻ ở lớp đó và chỉ nhận xét, phiếu của lớp đó
-            boolean history = chosen != stays.getLast();
+            boolean history = !currentChildAccess;
             LocalDate from = history ? chosen.from() : start;
             LocalDate to = history ? chosen.to() : rangeEnd;
             Long historyClassId = history ? cls.id() : null;
@@ -541,7 +585,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                     new ChildRef(
                             childId,
                             child == null ? null : child.fullName(),
-                            child == null ? null : child.dateOfBirth()),
+                            child == null ? null : child.dateOfBirth(),
+                            childClassHistoryService
+                                    .statuses(cls.id(), List.of(childId), minDate(today, cls.yearEnd()))
+                                    .get(childId)),
                     new ClassRef(
                             cls.id(),
                             cls.name(),
@@ -810,9 +857,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
 
     // GV xem bản nháp: đang dạy lớp hoặc từng dạy lớp của năm đã kết thúc
     private boolean teaches(CurrentUser user, ClassroomInfoResponse cls) {
-        return cls != null
-                && user.hasRole(CareNestRole.TEACHER)
-                && (rules.canRecord(user, cls) || rules.taughtClosedYear(user, cls));
+        return cls != null && user.hasRole(CareNestRole.TEACHER) && rules.canView(user, cls);
     }
 
     // OBS-28 (Cần chốt 04/11/2026): tổ trưởng xem đánh giá cuối năm đã xác nhận của các lớp nhóm tuổi mình, không sửa
@@ -833,6 +878,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
             throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         }
+        if (!childClassHistoryService
+                .statuses(
+                        cls.id(),
+                        List.of(ev.getChildId()),
+                        rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today())
+                .isEmpty()) throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         if (ev.isConfirmed()) {
             throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
         }
@@ -909,6 +960,21 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         Map<Long, Integer> ageFrom = evaluations.stream().anyMatch(e -> e.getPeriodType() == EvaluationPeriodType.YEAR)
                 ? ageFromMonths()
                 : Map.of();
+        Map<Long, Map<Long, String>> historyByClass = new HashMap<>();
+        evaluations.stream()
+                .collect(Collectors.groupingBy(ChildEvaluation::getClassroomId))
+                .forEach((id, items) -> {
+                    var cls = classes.get(id);
+                    var at = rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today();
+                    historyByClass.put(
+                            id,
+                            childClassHistoryService.statuses(
+                                    id,
+                                    items.stream()
+                                            .map(ChildEvaluation::getChildId)
+                                            .toList(),
+                                    at));
+                });
         return evaluations.stream()
                 .map(e -> {
                     ClassroomInfoResponse cls = classes.get(e.getClassroomId());
@@ -946,7 +1012,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                                             ev.getUserId(),
                                             ev.getUserId() == null ? null : userNames.get(ev.getUserId()),
                                             ev.getAt()))
-                                    .toList());
+                                    .toList(),
+                            historyByClass
+                                    .getOrDefault(e.getClassroomId(), Map.of())
+                                    .get(e.getChildId()));
                 })
                 .sorted(Comparator.comparing(EvaluationRow::periodStart)
                         .reversed()

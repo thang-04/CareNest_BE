@@ -13,6 +13,9 @@ import java.time.LocalDate;
  */
 public interface DailyAssessmentService {
 
+    java.util.List<com.carenest.dto.attendance.AttendanceClassResponse> listClasses(
+            CurrentUser currentUser, Long schoolYearId);
+
     DailySheetResponse getDailySheet(CurrentUser currentUser, Long classId, LocalDate date);
 
     SaveDailyResponse saveGeneral(CurrentUser currentUser, Long classId, SaveDailyGeneralRequest request);
