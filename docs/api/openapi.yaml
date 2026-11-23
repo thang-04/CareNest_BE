@@ -10596,6 +10596,14 @@ components:
           type: number
           maximum: 100000
           minimum: 0
+        zincMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        zincMin:
+          type: number
+          maximum: 100000
+          minimum: 0
       required:
       - ageGroupId
       - effectiveFrom
@@ -10710,6 +10718,10 @@ components:
           type: number
         vitaminPpMin:
           type: number
+        zincMax:
+          type: number
+        zincMin:
+          type: number
     AgeGroupNutrition:
       type: object
       properties:
@@ -10749,6 +10761,8 @@ components:
         vitaminC:
           type: number
         vitaminPp:
+          type: number
+        zinc:
           type: number
     AgeGroupRequest:
       type: object
@@ -15295,10 +15309,6 @@ components:
           type: string
           maxLength: 200
           minLength: 0
-        nutrientSourceVersion:
-          type: string
-          maxLength: 50
-          minLength: 0
         origin:
           type: string
           enum:
@@ -15357,6 +15367,10 @@ components:
         wastePct:
           type: number
           exclusiveMaximum: 100
+          minimum: 0
+        zinc:
+          type: number
+          maximum: 1000000
           minimum: 0
       required:
       - foodGroup
@@ -15419,8 +15433,6 @@ components:
           type: string
         nutrientSource:
           type: string
-        nutrientSourceVersion:
-          type: string
         origin:
           type: string
           enum:
@@ -15467,6 +15479,8 @@ components:
         vitaminPp:
           type: number
         wastePct:
+          type: number
+        zinc:
           type: number
     FoodSampleDisposeRequest:
       type: object
@@ -18867,6 +18881,26 @@ components:
           format: int64
         name:
           type: string
+    MenuStatisticsItem:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        dishId:
+          type: integer
+          format: int64
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+      required:
+      - dishId
+      - session
     MenuStatisticsRequest:
       type: object
       properties:
@@ -18887,11 +18921,10 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/Item"
+            $ref: "#/components/schemas/MenuStatisticsItem"
           maxItems: 60
           minItems: 0
       required:
-      - ageGroupId
       - items
     MenuStatisticsResponse:
       type: object
@@ -18927,6 +18960,10 @@ components:
           type: number
         freshCost:
           type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/MenuStatisticsResponse"
         ingredients:
           type: array
           items:
@@ -19461,6 +19498,8 @@ components:
         vitaminC:
           type: number
         vitaminPp:
+          type: number
+        zinc:
           type: number
     Option:
       type: object

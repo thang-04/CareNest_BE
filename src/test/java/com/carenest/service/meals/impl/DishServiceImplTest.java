@@ -57,13 +57,13 @@ class DishServiceImplTest {
 
     // Cơm: canxi 30, photpho 104, sắt 1,3, A 0, B1 0,10, B2 0,03, PP 1,6, C 0 /100 g
     private static final Food.Micronutrients RICE = new Food.Micronutrients(
-            bd("30"), bd("104"), bd("1.3"), bd("0"), bd("0.10"), bd("0.03"), bd("1.6"), bd("0"));
+            bd("30"), bd("104"), bd("1.3"), bd("0"), bd("0.10"), bd("0.03"), bd("1.6"), bd("0"), bd("2"));
     // Cà rốt: canxi 43, photpho 39, sắt 0,8, A 840, B1 0,06, B2 0,02, PP 0,4, C 8 /100 g
     private static final Food.Micronutrients CARROT = new Food.Micronutrients(
-            bd("43"), bd("39"), bd("0.8"), bd("840"), bd("0.06"), bd("0.02"), bd("0.4"), bd("8"));
+            bd("43"), bd("39"), bd("0.8"), bd("840"), bd("0.06"), bd("0.02"), bd("0.4"), bd("8"), bd("0"));
 
     @Test
-    @DisplayName("NUT-26: 8 vi chất một suất = Σ lượng ăn được × giá trị/100, tính riêng từng nhóm tuổi")
+    @DisplayName("NUT-26: 9 vi chất một suất = Σ lượng ăn được × giá trị/100, tính riêng từng nhóm tuổi")
     void micronutrientsAreSummedPerAgeGroup() {
         Food rice = food("Gạo tẻ", RICE);
         Food carrot = food("Cà rốt", CARROT);
@@ -84,6 +84,7 @@ class DishServiceImplTest {
         assertThat(small.vitaminB2()).isEqualByComparingTo("0.02");
         assertThat(small.vitaminPp()).isEqualByComparingTo("0.92");
         assertThat(small.vitaminC()).isEqualByComparingTo("2.40");
+        assertThat(small.zinc()).isEqualByComparingTo("1.00");
         assertThat(nutritionOf(dish, KINDERGARTEN).calcium()).isEqualByComparingTo("24.00");
     }
 
@@ -93,7 +94,7 @@ class DishServiceImplTest {
         Food rice = food("Gạo tẻ", RICE);
         Food mushroom = food(
                 "Nấm hương khô",
-                new Food.Micronutrients(bd("10"), null, bd("1"), bd("0"), bd("0.1"), bd("0.1"), bd("1"), null));
+                new Food.Micronutrients(bd("10"), null, bd("1"), bd("0"), bd("0.1"), bd("0.1"), bd("1"), null, null));
         stubDish(
                 DishIngredient.create(rice, NURSERY, bd("50")),
                 DishIngredient.create(mushroom, NURSERY, bd("10")),
@@ -111,10 +112,10 @@ class DishServiceImplTest {
     }
 
     @Test
-    @DisplayName("NUT-26: thực phẩm chưa có số liệu nào ⇒ cả 8 vi chất null, kcal/đạm/béo/bột đường vẫn tính")
+    @DisplayName("NUT-26: thực phẩm chưa có số liệu nào ⇒ cả 9 vi chất null, kcal/đạm/béo/bột đường vẫn tính")
     void foodWithoutAnyMicronutrientDoesNotBlockMacros() {
         stubDish(DishIngredient.create(
-                food("Dầu ăn", new Food.Micronutrients(null, null, null, null, null, null, null, null)),
+                food("Dầu ăn", new Food.Micronutrients(null, null, null, null, null, null, null, null, null)),
                 NURSERY,
                 bd("5")));
 
@@ -129,6 +130,7 @@ class DishServiceImplTest {
         assertThat(nutrition.vitaminB2()).isNull();
         assertThat(nutrition.vitaminPp()).isNull();
         assertThat(nutrition.vitaminC()).isNull();
+        assertThat(nutrition.zinc()).isNull();
     }
 
     private void stubDish(DishIngredient... ingredients) {
@@ -153,7 +155,7 @@ class DishServiceImplTest {
                         FoodStorage.DRY,
                         FoodOrigin.PLANT,
                         ""),
-                new Food.Nutrients(bd("3.44"), bd("7.9"), bd("1"), bd("76.2"), "Viện Dinh dưỡng 2017", null),
+                new Food.Nutrients(bd("3.44"), bd("7.9"), bd("1"), bd("76.2"), "Viện Dinh dưỡng 2017"),
                 micro,
                 Set.of(),
                 1L);

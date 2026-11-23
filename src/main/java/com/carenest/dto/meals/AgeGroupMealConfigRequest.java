@@ -61,6 +61,8 @@ public record AgeGroupMealConfigRequest(
         @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminPpMax,
         @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminCMin,
         @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminCMax,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal zincMin,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal zincMax,
 
         // NUT-28: cơ cấu áp dụng P:L:G (% năng lượng); cả ba để trống = chưa chọn, đã chọn thì tổng 100
         @DecimalMin("0") @DecimalMax("100") BigDecimal appliedProteinPct,

@@ -94,11 +94,10 @@ public class Food {
     @Column(name = "vitamin_c")
     private BigDecimal vitaminC;
 
+    private BigDecimal zinc;
+
     @Column(name = "nutrient_source", nullable = false, length = 200)
     private String nutrientSource;
-
-    @Column(name = "nutrient_source_version", length = 50)
-    private String nutrientSourceVersion;
 
     @Column(name = "waste_pct", nullable = false)
     private BigDecimal wastePct;
@@ -162,7 +161,6 @@ public class Food {
         this.lipid = nutrients.lipid();
         this.glucid = nutrients.glucid();
         this.nutrientSource = nutrients.source();
-        this.nutrientSourceVersion = nutrients.sourceVersion();
         this.calcium = micro.calcium();
         this.phosphorus = micro.phosphorus();
         this.iron = micro.iron();
@@ -171,6 +169,7 @@ public class Food {
         this.vitaminB2 = micro.vitaminB2();
         this.vitaminPp = micro.vitaminPp();
         this.vitaminC = micro.vitaminC();
+        this.zinc = micro.zinc();
         this.allergens = allergens.stream().distinct().sorted().toList();
         this.updatedBy = updatedBy;
     }
@@ -194,13 +193,7 @@ public class Food {
             String note) {}
 
     /** Giá trị dinh dưỡng trên 100 đơn vị kèm nguồn (NUT-05). */
-    public record Nutrients(
-            BigDecimal kcal,
-            BigDecimal protein,
-            BigDecimal lipid,
-            BigDecimal glucid,
-            String source,
-            String sourceVersion) {}
+    public record Nutrients(BigDecimal kcal, BigDecimal protein, BigDecimal lipid, BigDecimal glucid, String source) {}
 
     /** Vi chất trên 100 đơn vị ăn được (NUT-26): mg, riêng vitamin A là µg; null = chưa có số liệu. */
     public record Micronutrients(
@@ -211,5 +204,6 @@ public class Food {
             BigDecimal vitaminB1,
             BigDecimal vitaminB2,
             BigDecimal vitaminPp,
-            BigDecimal vitaminC) {}
+            BigDecimal vitaminC,
+            BigDecimal zinc) {}
 }

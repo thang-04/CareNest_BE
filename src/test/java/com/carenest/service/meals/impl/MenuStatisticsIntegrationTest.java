@@ -12,6 +12,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.MenuBlock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -347,6 +348,91 @@ class MenuStatisticsIntegrationTest {
         assertThat(stats.childrenSource()).isEqualTo("CONFIRMED");
         assertThat(stats.children()).isZero();
         assertThat(stats.totalCost()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("Tất cả nhóm tuổi chỉ lấy món đúng khối, cộng suất và chi phí từng nhóm")
+    void allAgeGroupsPreserveBlocksAndAggregate() {
+        long ag2 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-2'", Long.class);
+        long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child)"
+                        + " SELECT ?, id, ?, 100 FROM foods WHERE code = 'GAO'",
+                com,
+                ag4);
+        jdbc.update(
+                "INSERT INTO age_group_meal_configs (age_group_id, effective_from, meal_price)"
+                        + " VALUES (?, '2026-09-01', 35000)",
+                ag4);
+        long campus = jdbc.queryForObject(
+                "INSERT INTO campuses (code, name, is_main) VALUES ('CS-ALL', 'All', TRUE) RETURNING id", Long.class);
+        long year = jdbc.queryForObject(
+                "INSERT INTO school_years (name, start_date, end_date, status)"
+                        + " VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id",
+                Long.class);
+        long class3 = jdbc.queryForObject(
+                "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id)"
+                        + " VALUES (?, ?, 'Lớp 3', ?) RETURNING id",
+                Long.class,
+                campus,
+                year,
+                ag3);
+        long class4 = jdbc.queryForObject(
+                "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id)"
+                        + " VALUES (?, ?, 'Lớp 4', ?) RETURNING id",
+                Long.class,
+                campus,
+                year,
+                ag4);
+        long count = jdbc.queryForObject(
+                "INSERT INTO meal_counts (campus_id, school_year_id, date, session, status, aggregated_at,"
+                        + " confirmed_at) VALUES (?, ?, ?, 'LUNCH', 'CONFIRMED', now(), now()) RETURNING id",
+                Long.class,
+                campus,
+                year,
+                DAY);
+        jdbc.update(
+                "INSERT INTO meal_count_lines (meal_count_id, classroom_id, pending, present, absent, missing,"
+                        + " normal, substitute) VALUES (?, ?, FALSE, ?, 0, 0, ?, 0)",
+                count,
+                class3,
+                2,
+                2);
+        jdbc.update(
+                "INSERT INTO meal_count_lines (meal_count_id, classroom_id, pending, present, absent, missing,"
+                        + " normal, substitute) VALUES (?, ?, FALSE, ?, 0, 0, ?, 0)",
+                count,
+                class4,
+                3,
+                3);
+
+        MenuStatisticsResponse stats = mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        null,
+                        DAY,
+                        campus,
+                        null,
+                        List.of(new MenuStatisticsRequest.Item(MealSession.LUNCH, MenuBlock.KINDERGARTEN, com))));
+
+        assertThat(stats.groups())
+                .extracting(MenuStatisticsResponse::ageGroupId)
+                .contains(ag3, ag4)
+                .doesNotContain(ag2);
+        assertThat(stats.groups()).extracting(MenuStatisticsResponse::children).contains(2, 3);
+        assertThat(stats.groups()).allSatisfy(group -> {
+            assertThat(group.childrenSource()).isEqualTo("CONFIRMED");
+            assertThat(group.dishes())
+                    .extracting(MenuStatisticsResponse.Dish::dishName)
+                    .containsExactly("Cơm");
+        });
+        assertThat(stats.children()).isEqualTo(5);
+        assertThat(stats.totalCost())
+                .isEqualByComparingTo(stats.groups().stream()
+                        .map(MenuStatisticsResponse::totalCost)
+                        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
+        assertThat(stats.mealPrice()).isEqualByComparingTo("35000");
+        assertThat(stats.costPerChild()).isEqualByComparingTo(stats.totalCost().divide(new java.math.BigDecimal(5)));
     }
 
     private long food(
