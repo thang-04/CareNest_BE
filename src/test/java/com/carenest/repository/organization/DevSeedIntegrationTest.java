@@ -237,6 +237,14 @@ class DevSeedIntegrationTest {
                 .isZero();
     }
 
+    @Test
+    @DisplayName("CHD-08: mọi hồ sơ trẻ trong dữ liệu dev đều có tuần thai khi sinh")
+    void everyProfileHasGestationWeeks() {
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + SCHEMA + ".child_profiles where gestation_weeks is null", Long.class))
+                .isZero();
+    }
+
     private Map<String, Long> rowCounts() {
         Map<String, Long> counts = new LinkedHashMap<>();
         tables().forEach(t -> counts.put(t, count(t)));
