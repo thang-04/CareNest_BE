@@ -36,7 +36,9 @@ FROM (VALUES
     ('ag-4', 'Mẫu giáo 4–5 tuổi',     'Mẫu giáo 4–5',     5::smallint, 48::smallint, 60::smallint, 30::smallint),
     ('ag-5', 'Mẫu giáo 5–6 tuổi',     'Mẫu giáo 5–6',     6::smallint, 60::smallint, 72::smallint, 35::smallint)
 ) AS v(code, name, short_name, sort_order, age_from, age_to, max_size)
-WHERE age_groups.code = v.code;
+WHERE age_groups.code = v.code
+  -- ag-0/ag-1 chỉ là dòng chuẩn vừa thêm; nhóm tự tạo trùng mã thì giữ nguyên
+  AND (v.code NOT IN ('ag-0', 'ag-1') OR age_groups.standard_group);
 
 -- Chỉ chuẩn hóa năm đang chuẩn bị. Không thay cấu trúc giữa năm đang học và không sửa lịch sử năm cũ.
 UPDATE school_year_age_group_members m

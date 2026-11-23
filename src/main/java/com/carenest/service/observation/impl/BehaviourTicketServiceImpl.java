@@ -243,11 +243,12 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             .map(ClassChildResponse::id)
                             .collect(Collectors.toSet());
             var history = childClassHistoryService.statuses(cls.id(), ids, minDate(rules.today(), cls.yearEnd()));
+            EvidenceLookup lookup = new EvidenceLookup();
             List<TicketSummaryRow> rows = children.stream()
                     .map(c -> {
                         boolean historical = !endMembers.contains(c.id());
                         List<TicketEvidence> evidence = evidenceOf(
-                                c.id(), from, minDate(to, rules.today()), month, historical ? cls.id() : null);
+                                lookup, c.id(), from, minDate(to, rules.today()), month, historical ? cls.id() : null);
                         // Trẻ đang ở lớp hiện tại được xem tổng phiếu/cờ đã có trong kỳ,
                         // kể cả phần đã tích lũy ở lớp cũ. Lớp cũ chỉ xem số liệu lịch sử của mình.
                         List<BehaviourTicket> ticketScope = historical ? classTickets : allTickets;
@@ -491,6 +492,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         Map<Long, BehaviourTicket> issued = ticketsOf(ids, type, period.start());
         WeekStats week = type == TicketType.WEEKLY ? weekStats(ids, period) : null;
         Map<Long, Integer> weekly = type == TicketType.MONTHLY ? weeklyTicketCounts(ids, period.start()) : Map.of();
+        EvidenceLookup lookup = new EvidenceLookup();
         return children.stream()
                 .map(c -> {
                     Integer present = week == null ? null : week.present().getOrDefault(c.id(), 0);
@@ -506,6 +508,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             t == null ? null : toIssued(t),
                             t != null && !t.getClassroomId().equals(cls.id()),
                             evidenceOf(
+                                    lookup,
                                     c.id(),
                                     period.start(),
                                     period.end(),
@@ -558,8 +561,14 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
     }
 
     /** OBS-10: cờ và phiếu thuộc trẻ, nhưng bảng phải nêu lớp đã ghi nhận khi trẻ chuyển lớp. */
+    // Dùng lại ngày học và tên lớp giữa các trẻ của cùng bảng (đa số trẻ chỉ ở một lớp)
+    private static final class EvidenceLookup {
+        private final Map<Set<Long>, List<AttendanceService.ClassChildDay>> days = new HashMap<>();
+        private final Map<Long, String> classNames = new HashMap<>();
+    }
+
     private List<TicketEvidence> evidenceOf(
-            Long childId, LocalDate from, LocalDate to, LocalDate month, Long historyClassId) {
+            EvidenceLookup lookup, Long childId, LocalDate from, LocalDate to, LocalDate month, Long historyClassId) {
         if (to.isBefore(from)) {
             return List.of();
         }
@@ -572,7 +581,10 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         if (!classroomIds.isEmpty()) {
             Set<String> presentDays = new HashSet<>();
-            attendanceService.findClassDays(classroomIds, from, to).stream()
+            lookup
+                    .days
+                    .computeIfAbsent(Set.copyOf(classroomIds), ids -> attendanceService.findClassDays(ids, from, to))
+                    .stream()
                     .filter(d -> d.childId().equals(childId) && d.status() == AttendanceStatus.PRESENT)
                     .forEach(d -> {
                         present.merge(d.classroomId(), 1, Integer::sum);
@@ -597,10 +609,12 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         return classroomIds.stream()
                 .map(classId -> new TicketEvidence(
                         classId,
-                        classroomService
-                                .findClassroomInfo(classId)
-                                .map(ClassroomInfoResponse::name)
-                                .orElse("Lớp đã lưu"),
+                        lookup.classNames.computeIfAbsent(
+                                classId,
+                                id -> classroomService
+                                        .findClassroomInfo(id)
+                                        .map(ClassroomInfoResponse::name)
+                                        .orElse("Lớp đã lưu")),
                         present.getOrDefault(classId, 0),
                         flags.getOrDefault(classId, 0),
                         weeklyTickets.getOrDefault(classId, 0)))

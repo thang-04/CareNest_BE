@@ -709,10 +709,11 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         WeekOption range = weekRange(cls, week);
         LocalDate from = range.from();
         LocalDate to = min(range.to(), rules.today());
-        if (to.isBefore(from)) {
-            return Map.of();
-        }
+        // Map mutable: nơi gọi lọc tiếp bằng keySet().retainAll
         Map<Long, ClassChildResponse> roster = new java.util.LinkedHashMap<>();
+        if (to.isBefore(from)) {
+            return roster;
+        }
         enrollmentService.findChildrenInClassroomDuring(cls.id(), from, to).forEach(c -> roster.putIfAbsent(c.id(), c));
         return roster;
     }
