@@ -1,8 +1,8 @@
 package com.carenest.utils.enums;
 
 /**
- * 8 vi chất theo bảng Viện Dinh dưỡng (NUT-26). {@code key} trùng tên trường JSON và khóa dòng định mức; đơn vị mg,
- * riêng vitamin A là µg retinol equivalent.
+ * 9 vi chất theo bảng Viện Dinh dưỡng (NUT-26). {@code key} trùng tên trường JSON và khóa dòng định mức; đơn vị mg,
+ * riêng vitamin A là µg.
  */
 public enum Micronutrient {
     CALCIUM("calcium", "Canxi", "mg"),
@@ -12,7 +12,8 @@ public enum Micronutrient {
     VITAMIN_B1("vitaminB1", "Vitamin B1", "mg"),
     VITAMIN_B2("vitaminB2", "Vitamin B2", "mg"),
     VITAMIN_PP("vitaminPp", "Vitamin PP", "mg"),
-    VITAMIN_C("vitaminC", "Vitamin C", "mg");
+    VITAMIN_C("vitaminC", "Vitamin C", "mg"),
+    ZINC("zinc", "Kẽm", "mg");
 
     private final String key;
     private final String label;

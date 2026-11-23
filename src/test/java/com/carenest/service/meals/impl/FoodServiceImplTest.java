@@ -92,8 +92,8 @@ class FoodServiceImplTest {
                 valid.vitaminB2(),
                 valid.vitaminPp(),
                 valid.vitaminC(),
+                valid.zinc(),
                 valid.nutrientSource(),
-                null,
                 valid.wastePct(),
                 valid.storage(),
                 null,
@@ -154,7 +154,7 @@ class FoodServiceImplTest {
     }
 
     @Test
-    @DisplayName("NUT-26: tạo thực phẩm lưu đủ 8 vi chất; vi chất để trống lưu null, không chặn")
+    @DisplayName("NUT-26: tạo thực phẩm lưu đủ 9 vi chất; vi chất để trống lưu null, không chặn")
     void createPersistsMicronutrients() {
         given(foodRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
         FoodRequest request = new FoodRequest(
@@ -177,8 +177,8 @@ class FoodServiceImplTest {
                 new BigDecimal("0.02"),
                 new BigDecimal("0.4"),
                 null,
+                new BigDecimal("1.5"),
                 "Viện Dinh dưỡng 2017",
-                null,
                 BigDecimal.ZERO,
                 FoodStorage.FRESH,
                 FoodOrigin.PLANT,
@@ -196,6 +196,7 @@ class FoodServiceImplTest {
         assertThat(created.vitaminB2()).isEqualByComparingTo("0.02");
         assertThat(created.vitaminPp()).isEqualByComparingTo("0.4");
         assertThat(created.vitaminC()).isNull();
+        assertThat(created.zinc()).isEqualByComparingTo("1.5");
     }
 
     @Test
@@ -220,10 +221,17 @@ class FoodServiceImplTest {
                         BigDecimal.valueOf(7.9),
                         BigDecimal.ONE,
                         BigDecimal.valueOf(76.2),
-                        "Viện Dinh dưỡng 2017",
-                        null),
+                        "Viện Dinh dưỡng 2017"),
                 new Food.Micronutrients(
-                        new BigDecimal("30"), null, new BigDecimal("1.3"), null, null, null, null, new BigDecimal("5")),
+                        new BigDecimal("30"),
+                        null,
+                        new BigDecimal("1.3"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        new BigDecimal("5"),
+                        null),
                 Set.of(),
                 3L);
         given(foodRepository.findById(7L)).willReturn(Optional.of(existing));
@@ -234,6 +242,7 @@ class FoodServiceImplTest {
         assertThat(updated.calcium()).isEqualByComparingTo("32");
         assertThat(updated.iron()).isNull();
         assertThat(updated.vitaminC()).isNull();
+        assertThat(updated.zinc()).isNull();
     }
 
     @Test
@@ -254,7 +263,7 @@ class FoodServiceImplTest {
         assertThat(saved.getValue()).extracting(Food::getVitaminC).containsExactly(new BigDecimal("2"), null);
     }
 
-    // Chỉ canxi và vitamin C có số liệu, 6 vi chất còn lại để trống
+    // Chỉ canxi và vitamin C có số liệu, 7 vi chất còn lại để trống
     private static FoodRequest food(String code, String nutrientSource, BigDecimal calcium, BigDecimal vitaminC) {
         return new FoodRequest(
                 code,
@@ -276,8 +285,8 @@ class FoodServiceImplTest {
                 null,
                 null,
                 vitaminC,
-                nutrientSource,
                 null,
+                nutrientSource,
                 BigDecimal.ZERO,
                 FoodStorage.DRY,
                 FoodOrigin.PLANT,
