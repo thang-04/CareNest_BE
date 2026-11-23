@@ -150,7 +150,7 @@ updated: 2026-11-23
 ### 2026-11-23 — cập nhật theo yêu cầu của Cần
 - Cần nhờ user làm ngày bắt đầu đi học và ngày chuyển lớp, nên bỏ điều kiện "chờ Cần".
 - User chốt quyết định 7, 8; đổi quyết định 3 (chặn ngày nghỉ) và 4 (có ô ngày); nhắc lại mặc định năm sau.
-- Thêm phase 3; migration dự kiến V173, V174 (V169–V172 đã dùng sau lần merge 39929938).
+- Thêm phase 3; migration dự kiến V173, V174 (V169–V172 đã dùng sau lần merge 39929938). Ngày 23/11 (tối) đổi thành V176, V177 vì nhánh G94-236 của Cần chiếm V172–V174 (đợt khám theo năm thành V175).
 - Tiếp: user trả lời câu hỏi mở và duyệt plan. Commit: chưa commit.
 
 ### 2026-11-23 — approved, phase 1 xong

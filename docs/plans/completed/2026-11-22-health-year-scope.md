@@ -114,7 +114,7 @@ Không còn.
 ### 2026-11-22 — Phase 1, 2 done
 - Commit: `7eeab932` (năm của đợt, lúc đó là V169, nay V172), báo cáo theo nhóm tuổi của năm (commit kế tiếp).
 - Verify: `HealthCheckIntegrationTest` 25/25, `HealthCheckServiceImplTest` 6/6, `HealthExamIntegrationTest` 9/9, `HealthGrowthReportIntegrationTest` 6/6, `HealthGrowthLevelTest` 2/2, `HealthGrowthReportControllerTest` 8/8.
-- Khác plan: migration là V172. Lúc đầu là V169 vì V167, V168 đã có ở nhánh khác; ngày 23/11 nhánh G94-236 của Cần dùng V169–V171 nên đổi thành V172; test kích hoạt năm cần `entityManager.clear()` sau khi đổi trạng thái năm bằng SQL.
+- Khác plan: migration là V172. Lúc đầu là V169 vì V167, V168 đã có ở nhánh khác; ngày 23/11 nhánh G94-236 của Cần dùng V169–V171 nên đổi thành V172; test kích hoạt năm cần `entityManager.clear()` sau khi đổi trạng thái năm bằng SQL. Ngày 23/11 (tối) Cần đổi số lần nữa (V172–V174 của nhánh G94-236) nên đổi tiếp thành V175.
 ### 2026-11-22 — Phase 3 done, đóng plan
 - Commit: `4ca6b15f` (báo cáo theo nhóm tuổi của năm), `0f78040a` (tài liệu HLT-08, HLT-20, health.md).
 - Verify `.\mvnw.cmd -q clean spotless:check verify` tại `0f78040a`: Spotless sạch; 2229 test, 0 failure, 14 error, 2 skip.

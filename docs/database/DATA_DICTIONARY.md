@@ -263,7 +263,7 @@ Mục đích: danh sách nhóm tuổi riêng của từng năm học (Cần ch�
 | age_from_months, age_to_months, max_class_size | như `age_groups` | có | Giữ cùng CHECK khoảng tuổi và sĩ số dương như bảng `age_groups` | — |
 
 ## children  (module: child, scope: CHILD)
-Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`, `V146__child_meal_registered.sql`, `V173__child_start_date.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
+Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`, `V146__child_meal_registered.sql`, `V176__child_start_date.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -331,7 +331,7 @@ Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-1
 | placed_by | BIGINT FK user_accounts | không | Người xếp | — |
 | reason | VARCHAR(300) | có | Lý do (bắt buộc khi chuyển lớp — kiểm ở service; NULL khi xếp lần đầu không ghi) | — |
 | placed_at | TIMESTAMPTZ | không | Lúc xếp | — |
-| effective_from | DATE | có | Ngày vào lớp mới, có thể sau hôm nay (lịch chuyển / lớp chưa bắt đầu). V174; dòng cũ điền ngày của `placed_at`; NULL (seed chèn sau V174) đọc như ngày của `placed_at` | G94-180/CHD-14 |
+| effective_from | DATE | có | Ngày vào lớp mới, có thể sau hôm nay (lịch chuyển / lớp chưa bắt đầu). V177; dòng cũ điền ngày của `placed_at`; NULL (seed chèn sau V174) đọc như ngày của `placed_at` | G94-180/CHD-14 |
 | cancelled_at, cancelled_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lịch chưa tới ngày bị hủy (`DELETE /children/{id}/placement/scheduled`), bị thay bằng lịch khác hoặc trẻ nghỉ học trước ngày đó; dòng vẫn giữ | G94-180/CHD-14 |
 Index: `idx_child_placements_child` (`child_id`, `placed_at DESC`).
 
