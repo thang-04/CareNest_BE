@@ -1286,6 +1286,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Map<String, List<EduClassDoc>> planDocs = new HashMap<>();
             Map<Long, Optional<ClassroomInfoResponse>> classes = new HashMap<>();
             int reminded = 0;
+            List<String> overdue = new ArrayList<>();
             for (EduClassDoc root : classDocRepository.findAllByKindInAndStatusIn(
                     List.of(EduClassDoc.SEMESTER, EduClassDoc.DOSSIER),
                     List.of(EduClassDocStatus.DRAFT, EduClassDocStatus.REVIEW))) {
@@ -1297,6 +1298,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         k -> classDocRepository.findAllByClassroomIdAndYearPlanId(
                                 root.getClassroomId(), root.getYearPlanId()));
                 RootInfo info = rootInfo(root, docs, yearOf(cls.get()), openedOn(root.getClassroomId()), today);
+                if (EduDeadline.OVERDUE.equals(info.deadline().state()) && !info.everReleased()) {
+                    overdue.add(labelOf(root, cls.get()));
+                    continue;
+                }
+                // EDU-109: còn 1–7 ngày ⇒ nhắc mỗi ngày một lần (mốc 7 ngày là lần đầu)
                 if (!EduDeadline.NEAR.equals(info.deadline().state())) continue;
                 boolean waiting = root.getStatus() == EduClassDocStatus.REVIEW;
                 Set<Long> to = waiting ? waitingReviewers(root, cls.get(), today) : Set.of();
@@ -1314,17 +1320,36 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         com.carenest.utils.enums.NotificationType.EDU_DEADLINE_NEAR,
                         "Gần đến hạn: " + labelOf(root, cls.get()),
                         body,
-                        linkOf(root),
+                        dailyLink(linkOf(root), today),
                         true,
                         scopeOf(cls.get()));
                 reminded++;
             }
-            log.info("{}|reminded={}|END", logPrefix, reminded);
+            overdue.addAll(yearPlanService.remindPlanDeadlines(today));
+            if (!overdue.isEmpty()) {
+                // EDU-109: báo Hiệu trưởng danh sách quá hạn mỗi ngày
+                notificationService.notifyUsers(
+                        staffAssignmentService.findPrincipalIds(today),
+                        com.carenest.utils.enums.NotificationType.EDU_OVERDUE_DIGEST,
+                        "Kế hoạch quá hạn: " + overdue.size() + " hồ sơ",
+                        String.join("; ", overdue),
+                        dailyLink(OVERDUE_LINK, today),
+                        true,
+                        null);
+            }
+            log.info("{}|reminded={}|overdue={}|END", logPrefix, reminded, overdue.size());
             return reminded;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    static final String OVERDUE_LINK = "/education/overdue";
+
+    /** Thêm ngày vào đường dẫn: notifyUsers(once) chặn trùng theo người + loại + đường dẫn ⇒ mỗi ngày một lần (NFR2). */
+    static String dailyLink(String link, LocalDate day) {
+        return link + (link.contains("?") ? "&" : "?") + "d=" + day;
     }
 
     // Khóa Web: giáo án tuần phiên bản ≥2 thêm id kế hoạch để không trùng tuần của phiên bản cũ (spec 004 A4)
@@ -2115,7 +2140,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 "blockedReason",
                 "deadlineState",
                 "extendedTo",
-                "graceTo",
                 "daysLeft",
                 "timeLocked"));
         return node;
@@ -2382,12 +2406,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     info.deadline().extendedTo() == null
                             ? null
                             : info.deadline().extendedTo().toString());
-            // Hạn gửi lại sau lần trả lại trễ đầu tiên (Tiền 18/11/2026)
-            node.put(
-                    "graceTo",
-                    info.deadline().graceTo() == null
-                            ? null
-                            : info.deadline().graceTo().toString());
             if (info.deadline().daysLeft() != null)
                 node.put("daysLeft", info.deadline().daysLeft());
             node.put("deadlineState", info.deadline().state());
@@ -2700,23 +2718,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .orElse(false);
     }
 
-    /** Số ngày gửi lại sau lần trả lại trễ đầu tiên (HT cấu hình); cache cấp 1 của Hibernate giữ trong giao dịch. */
-    private int graceDays() {
-        return settingsRepository
-                .findById(EduSettings.SINGLETON_ID)
-                .map(EduSettings::getLateReturnGraceDays)
-                .map(Short::intValue)
-                .orElse(2);
-    }
-
-    private int approvalGraceDays() {
-        return settingsRepository
-                .findById(EduSettings.SINGLETON_ID)
-                .map(EduSettings::getLateApprovalGraceDays)
-                .map(Short::intValue)
-                .orElse(2);
-    }
-
     private EduReviewDeadline.Info reviewDeadlineOf(EduClassDoc root, LocalDate today) {
         JsonNode submitted = null;
         JsonNode reopened = null;
@@ -2739,10 +2740,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 reopened == null || reopened.path("deadline").asString("").isBlank()
                         ? null
                         : LocalDate.parse(reopened.path("deadline").asString());
-        LocalDate base = submissionCutoff == null || (submittedOn != null && submittedOn.isAfter(submissionCutoff))
-                ? submittedOn
-                : submissionCutoff;
-        return EduReviewDeadline.of(base, approvalGraceDays(), reopenUntil, today);
+        LocalDate base = EduReviewDeadline.baseOf(submittedOn, submissionCutoff);
+        return EduReviewDeadline.of(base, reopenUntil, today);
     }
 
     private String reviewDeadlineReasonOf(EduClassDoc root) {
@@ -2808,18 +2807,10 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 ? semesterThemes(root.getYearPlanId(), root.getSemesterNo(), docs, year)
                 : List.of(root.getThemeId());
         LocalDate extended = null;
-        List<EduDeadline.Event> events = new ArrayList<>();
         for (JsonNode e : readArray(root.getHistory())) {
-            String action = e.path("action").asString("");
-            if (ACTION_EXTEND.equals(action)) {
+            if (ACTION_EXTEND.equals(e.path("action").asString("")))
                 extended = LocalDate.parse(e.path("deadline").asString(""));
-                events.add(new EduDeadline.Event(null, false, extended));
-            } else if (ACTION_REJECT.equals(action)
-                    && !e.path("at").asString("").isBlank())
-                events.add(new EduDeadline.Event(
-                        LocalDate.ofInstant(Instant.parse(e.path("at").asString()), SCHOOL_ZONE), true, null));
         }
-        LocalDate grace = EduDeadline.graceTo(deadline, events, graceDays());
         LocalDate firstRelease = releases.isEmpty()
                 ? null
                 : LocalDate.ofInstant(releases.getFirst().getReleasedAt(), SCHOOL_ZONE);
@@ -2827,7 +2818,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 EduDeadline.of(
                         deadline,
                         extended,
-                        grace,
                         today,
                         root.getStatus() == EduClassDocStatus.APPROVED,
                         firstRelease,

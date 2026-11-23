@@ -78,30 +78,8 @@ class EduPlanTimeLock {
                 .reduce((a, b) -> b)
                 .map(EduPlanEvent::getDeadline)
                 .orElse(null);
-        // Trả lại sau hạn: người soạn được gửi lại thêm N ngày, một lần cho cả chuỗi phiên bản (Tiền 18/11/2026)
-        LocalDate grace = EduDeadline.graceTo(
-                start,
-                events.stream()
-                        .filter(e -> ACTION_RETURN.equals(e.getAction())
-                                || ACTION_UNLOCK.equals(e.getAction()) && e.getDeadline() != null)
-                        .map(e -> new EduDeadline.Event(
-                                LocalDate.ofInstant(e.getOccurredAt(), clock.getZone()),
-                                ACTION_RETURN.equals(e.getAction()),
-                                e.getDeadline()))
-                        .toList(),
-                graceDays());
         LocalDate issued = plan.getIssuedAt() == null ? null : LocalDate.ofInstant(plan.getIssuedAt(), clock.getZone());
-        return EduDeadline.of(
-                start, unlockedTo, grace, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued, null);
-    }
-
-    private int graceDays() {
-        if (settingsRepository == null) return 2;
-        return settingsRepository
-                .findById(EduSettings.SINGLETON_ID)
-                .map(EduSettings::getLateReturnGraceDays)
-                .map(Short::intValue)
-                .orElse(2);
+        return EduDeadline.of(start, unlockedTo, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued, null);
     }
 
     /** Spec 005 FR-021: chuỗi phiên bản đã có bản ban hành ⇒ không mở khóa nữa. */

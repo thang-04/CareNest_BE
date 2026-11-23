@@ -877,6 +877,57 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
+    public List<String> remindPlanDeadlines(LocalDate today) {
+        String logPrefix = LOG_PREFIX + "|remindPlanDeadlines";
+        log.info("{}|START", logPrefix);
+        try {
+            List<String> overdue = new ArrayList<>();
+            for (EduPlan plan : yearPlanRepository.findAll()) {
+                EduPlanStatus status = plan.publicStatus();
+                if (plan.isDisabled()
+                        || (status != EduPlanStatus.DRAFT && status != EduPlanStatus.REVIEW)
+                        || timeLock.released(plan)) continue;
+                EduDeadline.Info info = timeLock.info(plan);
+                if (EduDeadline.OVERDUE.equals(info.state())) {
+                    overdue.add(planLabel(plan));
+                    continue;
+                }
+                if (!EduDeadline.NEAR.equals(info.state())) continue;
+                boolean waiting = status == EduPlanStatus.REVIEW;
+                Set<Long> to = new java.util.HashSet<>();
+                if (waiting) {
+                    EduWorkflowPolicy.Evaluation eval = eduWorkflowService.evaluateYearPlan(plan, today);
+                    if (eval.waitingRole() != null)
+                        to.addAll(eduWorkflowService
+                                .resolveActiveCandidates(
+                                        eduWorkflowService.loadPolicy(plan.workflowKey()),
+                                        plan.getAgeGroupId(),
+                                        plan.getSchoolYearId(),
+                                        null,
+                                        today)
+                                .getOrDefault(eval.waitingRole(), Set.of()));
+                    to.removeAll(eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId()));
+                } else if (plan.getOwnerId() != null) to.add(plan.getOwnerId());
+                notificationService.notifyUsers(
+                        to,
+                        com.carenest.utils.enums.NotificationType.EDU_DEADLINE_NEAR,
+                        "Gần đến hạn: " + planLabel(plan),
+                        (waiting ? "Đang chờ duyệt" : "Chưa gửi duyệt") + ", còn " + info.daysLeft() + " ngày tới hạn "
+                                + info.effective().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                        EduClassDocServiceImpl.dailyLink(planLink(plan), today),
+                        true,
+                        planScope(plan));
+            }
+            log.info("{}|overdue={}|END", logPrefix, overdue.size());
+            return overdue;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
     public int releaseExpiredEditLocks() {
         String logPrefix = LOG_PREFIX + "|releaseExpiredEditLocks";
         log.info("{}|START", logPrefix);
@@ -2129,7 +2180,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         plan.publicStatus() == EduPlanStatus.REVIEW && isUserWaitingRole(user, plan),
                         canManageDeadline && plan.publicStatus() == EduPlanStatus.REVIEW && review.locked(),
                         reviewReasonOf(plan)),
-                info.graceTo(),
                 info.daysLeft());
     }
 
@@ -2144,20 +2194,14 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 : LocalDate.ofInstant(submitted.getOccurredAt(), clock.getZone());
         // Fallback cho dữ liệu cũ chưa có submissionCutoff trên event.
         LocalDate cutoff = submitted == null ? timeLock.info(plan).effective() : submitted.getDeadline();
-        LocalDate base = cutoff == null || (submittedOn != null && submittedOn.isAfter(cutoff)) ? submittedOn : cutoff;
+        LocalDate base = EduReviewDeadline.baseOf(submittedOn, cutoff);
         EduPlanEvent reopen = events.stream()
                 .filter(e -> ACTION_REOPEN_REVIEW_DEADLINE.equals(e.getAction())
                         && e.getDeadline() != null
                         && (submitted == null || !e.getOccurredAt().isBefore(submitted.getOccurredAt())))
                 .reduce((first, second) -> second)
                 .orElse(null);
-        int graceDays = settingsRepository
-                .findById(EduSettings.SINGLETON_ID)
-                .map(EduSettings::getLateApprovalGraceDays)
-                .map(Short::intValue)
-                .orElse(2);
-        return EduReviewDeadline.of(
-                base, graceDays, reopen == null ? null : reopen.getDeadline(), LocalDate.now(clock));
+        return EduReviewDeadline.of(base, reopen == null ? null : reopen.getDeadline(), LocalDate.now(clock));
     }
 
     private String reviewReasonOf(EduPlan plan) {

@@ -1905,6 +1905,35 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("EDU-109 FR6: có hồ sơ quá hạn ⇒ Hiệu trưởng nhận đúng một báo tổng hợp trong ngày")
+    void overdueDigestIsSentOnceToActivePrincipal() {
+        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        String theme = String.valueOf(jdbc.queryForObject(
+                "SELECT id FROM edu_themes WHERE team_plan_id=? AND start_date='2026-10-26'", Long.class, plan.id()));
+        String themeKey = "tp_" + classId + "_" + theme;
+        service.saveClassDoc(teacher, "theme", themeKey, theme(theme), versionOf(themeKey), null);
+        // Dời ngày bắt đầu chủ đề về trước hôm nay (22/10) ⇒ kế hoạch giáo dục ngày quá hạn
+        jdbc.update("UPDATE edu_themes SET start_date='2026-10-20' WHERE id=?", Long.valueOf(theme));
+        entityManager.clear();
+        String dossierKey = "ds_" + classId + "_" + theme;
+        assertThat(service.getClassDocs(teacher, schoolYear).themeDossiers().stream()
+                        .filter(d -> d.path("id").asString().equals(dossierKey))
+                        .findFirst()
+                        .orElseThrow()
+                        .path("deadlineState")
+                        .asString())
+                .isEqualTo("OVERDUE");
+
+        service.remindNearDeadlines();
+        service.remindNearDeadlines();
+
+        String link = EduClassDocServiceImpl.dailyLink(
+                EduClassDocServiceImpl.OVERDUE_LINK, java.time.LocalDate.of(2026, 10, 22));
+        assertThat(notificationsOf(principal, "EDU_OVERDUE_DIGEST", link)).isEqualTo(1);
+        assertThat(notificationsOf(teacher, "EDU_OVERDUE_DIGEST", link)).isZero();
+    }
+
+    @Test
     @DisplayName("Spec 003 FR-013: kế hoạch giáo dục ngày vào 'Gần đến hạn' thì nhắc GVCN đúng một lần")
     void nearDeadlineReminderIsSentOnce() {
         jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
@@ -1920,7 +1949,9 @@ class EduClassDocServiceIntegrationTest {
         assertThat(dossier.path("deadlineState").asString()).isEqualTo("NEAR");
         assertThat(dossier.path("daysLeft").asInt()).isEqualTo(4);
 
-        String link = "/education/class/" + classId + "/themes/" + near;
+        // EDU-109: mỗi ngày một lần ⇒ đường dẫn mang ngày nhắc
+        String link = EduClassDocServiceImpl.dailyLink(
+                "/education/class/" + classId + "/themes/" + near, java.time.LocalDate.of(2026, 10, 22));
         assertThat(service.remindNearDeadlines()).isPositive();
         service.remindNearDeadlines();
         assertThat(notificationsOf(teacher, "EDU_DEADLINE_NEAR", link)).isEqualTo(1);
@@ -1937,6 +1968,9 @@ class EduClassDocServiceIntegrationTest {
         service.remindNearDeadlines();
         assertThat(notificationsOf(otherTeacher, "EDU_DEADLINE_NEAR", link)).isEqualTo(1);
         assertThat(notificationsOf(teacher, "EDU_DEADLINE_NEAR", link)).isEqualTo(1);
+        // Ngày hôm sau nhắc tiếp (đường dẫn ngày mới chưa có thông báo)
+        assertThat(EduClassDocServiceImpl.dailyLink("/x", java.time.LocalDate.of(2026, 10, 23)))
+                .isNotEqualTo(EduClassDocServiceImpl.dailyLink("/x", java.time.LocalDate.of(2026, 10, 22)));
     }
 
     // ===== Spec 006: thẻ hoạt động (EDU-78), kế hoạch tuần theo kế hoạch giáo dục ngày (EDU-79), kiểm đủ MT (EDU-80)

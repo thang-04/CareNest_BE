@@ -73,6 +73,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     private final Clock clock;
     private final com.carenest.repository.eduplan.EduPlanEventRepository eventRepository;
     private final com.carenest.service.organization.ClassroomService classroomService;
+    private final EduPlanTimeLock timeLock;
 
     private final EduWorkflowPolicy evaluator = new EduWorkflowPolicy();
 
@@ -633,15 +634,19 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
     private boolean reviewDeadlineLocked(EduPlan plan, EduSettings settings, LocalDate today) {
         LocalDate submitted = plan.getSentAt() == null ? null : LocalDate.ofInstant(plan.getSentAt(), clock.getZone());
-        var reopen = eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(plan.getId()).stream()
+        var events = eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(plan.getId());
+        var reopen = events.stream()
                 .filter(event -> "REOPEN_REVIEW_DEADLINE".equals(event.getAction()) && event.getDeadline() != null)
                 .reduce((first, second) -> second)
                 .orElse(null);
-        return EduReviewDeadline.of(
-                        submitted,
-                        settings.getLateApprovalGraceDays(),
-                        reopen == null ? null : reopen.getDeadline(),
-                        today)
+        // EDU-109: khóa duyệt từ hạn gửi ghi trên lần gửi (submissionCutoff), không ngày thêm
+        LocalDate cutoff = events.stream()
+                .filter(event -> "SUBMIT".equals(event.getAction()))
+                .reduce((first, second) -> second)
+                .map(com.carenest.entity.eduplan.EduPlanEvent::getDeadline)
+                .orElseGet(() -> timeLock.info(plan).effective());
+        LocalDate base = EduReviewDeadline.baseOf(submitted, cutoff);
+        return EduReviewDeadline.of(base, reopen == null ? null : reopen.getDeadline(), today)
                 .locked();
     }
 
@@ -666,10 +671,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                 reopened == null || reopened.path("deadline").asString("").isBlank()
                         ? null
                         : LocalDate.parse(reopened.path("deadline").asString());
-        LocalDate base = submissionCutoff == null || (submittedOn != null && submittedOn.isAfter(submissionCutoff))
-                ? submittedOn
-                : submissionCutoff;
-        return EduReviewDeadline.of(base, settings.getLateApprovalGraceDays(), reopenUntil, today)
+        LocalDate base = EduReviewDeadline.baseOf(submittedOn, submissionCutoff);
+        return EduReviewDeadline.of(base, reopenUntil, today)
                 .locked();
     }
 

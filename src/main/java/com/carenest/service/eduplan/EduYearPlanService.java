@@ -82,4 +82,10 @@ public interface EduYearPlanService {
 
     /** EDU-10: nhả các khóa quá hạn (job định kỳ); trả số kế hoạch đã nhả. */
     int releaseExpiredEditLocks();
+
+    /**
+     * EDU-109: nhắc hạn kế hoạch năm học / tổ chưa ban hành (còn 1–7 ngày, mỗi ngày một lần) cho người soạn hoặc người
+     * duyệt đúng lượt; trả tên các kế hoạch đã quá hạn để gộp vào báo Hiệu trưởng.
+     */
+    java.util.List<String> remindPlanDeadlines(java.time.LocalDate today);
 }

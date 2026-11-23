@@ -124,11 +124,6 @@ public class EduConfigServiceImpl implements EduConfigService {
                     objectMapper.writeValueAsString(weekRows),
                     currentUser.userId(),
                     clock.instant());
-            if (request.lateReturnGraceDays() != null)
-                settings.updateLateReturnGraceDays(request.lateReturnGraceDays().shortValue());
-            if (request.lateApprovalGraceDays() != null)
-                settings.updateLateApprovalGraceDays(
-                        request.lateApprovalGraceDays().shortValue());
 
             EduConfigResponse config = toConfig(currentUser);
             log.info("{}|END", logPrefix);
@@ -178,8 +173,6 @@ public class EduConfigServiceImpl implements EduConfigService {
                                         currentUser, workflowService.loadPolicy("schoolYear"), age.id()))
                                 .map(AgeGroupResponse::id)
                                 .toList(),
-                settings.getLateReturnGraceDays(),
-                settings.getLateApprovalGraceDays(),
                 canConfigure,
                 objectMapper.readTree(defaults == null ? "{}" : defaults));
     }

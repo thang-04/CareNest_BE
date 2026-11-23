@@ -81,6 +81,7 @@ Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chư
 ```
 
 - Nghiệp vụ đích (EDU-97, Tiền 19/11/2026): bản Chờ duyệt được xử lý thêm số ngày do Hiệu trưởng cấu hình. Hết hạn, chặn duyệt, ban hành và trả lại kể cả với Hiệu trưởng. Hiệu trưởng mở lại hạn duyệt tại Kế hoạch quá hạn, ghi lý do, hạn mới và lịch sử. Ban hành sau hạn vẫn hiện "Ban hành trễ". Số ngày để người soạn gửi lại sau khi bị trả lại trễ được cấu hình riêng theo EDU-94. Chỉ Hiệu trưởng được thay đổi cả hai giá trị. Hiệu trưởng thấy và mở hạn cho mọi hồ sơ đủ điều kiện dù không thuộc chuỗi duyệt. Màn Kế hoạch quá hạn mặc định hiện Tất cả và lọc được theo Quá hạn gửi (EDU-76) hoặc Quá hạn duyệt (EDU-97).
+- **EDU-109 (Tiền 23/11/2026) thay phần trên:** bỏ ngày duyệt thêm và N ngày gửi lại; tới hạn khóa ngay (gửi và duyệt); nhãn chung **Quá hạn** thay nhãn trạng thái; Hiệu trưởng mở hạn nhiều lần; nhắc 7 ngày + hằng ngày (web + email) cho người soạn hoặc người duyệt đúng lượt; quá hạn báo Hiệu trưởng hằng ngày; bỏ nhãn Ban hành trễ (chỉ Đã ban hành).
 - Trạng thái duyệt (Nháp/Chờ duyệt/Bị trả lại/Đã ban hành) và trạng thái hạn (Gần đến hạn/Quá hạn/Đúng hạn/Ban hành trễ)
   hiện tách rõ; mở hạn/mở khóa chỉ Hiệu trưởng (Tiền 11/11/2026, spec 005).
 - **EDU-73 (Tiền 23/11/2026):** ở các trang chính, mọi vai trò khi chỉ có quyền xem chỉ thấy bản đã ban hành trong phạm vi mình được xem. Trang Dự kiến chủ đề - chủ đề nhánh trả lịch đã ban hành theo học kỳ cho người chỉ xem. Người được phân công soạn xem được lịch dự kiến và các trạng thái khác trong phạm vi soạn.

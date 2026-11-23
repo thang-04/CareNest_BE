@@ -50,7 +50,8 @@ public class NotificationServiceImpl implements NotificationService {
             NotificationType.EDU_RELEASED,
             NotificationType.EDU_RETURNED,
             NotificationType.EDU_DEADLINE_EXTENDED,
-            NotificationType.EDU_DEADLINE_NEAR);
+            NotificationType.EDU_DEADLINE_NEAR,
+            NotificationType.EDU_OVERDUE_DIGEST);
 
     private final NotificationRepository notificationRepository;
     private final DeviceTokenRepository deviceTokenRepository;

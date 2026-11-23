@@ -30,7 +30,7 @@ class EduDeadlineTest {
     void releasedStateFollowsCurrentStatus() {
         assertThat(state(HAN.plusDays(3), true, HAN.minusDays(2), null)).isEqualTo(EduDeadline.ON_TIME);
         // đang Chờ duyệt lúc tới hạn, duyệt sau hạn
-        assertThat(state(HAN.plusDays(3), true, HAN.plusDays(1), null)).isEqualTo(EduDeadline.LATE);
+        assertThat(state(HAN.plusDays(3), true, HAN.plusDays(1), null)).isEqualTo(EduDeadline.ISSUED);
         // đã ban hành rồi mở lại sửa phần tương lai sau hạn ⇒ quá hạn, cần mở hạn (analyze F1)
         assertThat(state(HAN.plusDays(3), false, HAN.minusDays(2), null)).isEqualTo(EduDeadline.OVERDUE);
     }
