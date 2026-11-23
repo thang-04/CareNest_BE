@@ -44,6 +44,15 @@ class PeriodCommentGuardTest {
     }
 
     @Test
+    @DisplayName("OBS-34: mã mục tiêu và từ ngữ nội bộ không đi vào lời phụ huynh")
+    void rejectsInternalCurriculumLabels() {
+        assertThatThrownBy(() -> PeriodCommentGuard.check(GOOD + " Con đã hoàn thành MT3.", PROMPT, "Khôi"))
+                .hasMessageContaining("internal-label");
+        assertThatThrownBy(() -> PeriodCommentGuard.check(GOOD + " Trong chủ đề này con rất ngoan.", PROMPT, "Khôi"))
+                .hasMessageContaining("internal-label");
+    }
+
+    @Test
     @DisplayName("OBS-34: quá ngắn, quá dài, rỗng bị chặn")
     void rejectsLengthViolations() {
         assertThatThrownBy(() -> PeriodCommentGuard.check("  ", PROMPT, "Khôi")).hasMessageContaining("too-short");

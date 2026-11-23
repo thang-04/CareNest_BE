@@ -48,7 +48,7 @@ class AiPeriodCommentDraftGeneratorTest {
     }
 
     private static AiRawResult raw(String content) {
-        return new AiRawResult(content, "groq", "openai/gpt-oss-120b", "observation/period_comment_v1", 900, 200, 1200);
+        return new AiRawResult(content, "groq", "openai/gpt-oss-120b", "observation/period_comment_v2", 900, 200, 1200);
     }
 
     @Test
@@ -60,7 +60,7 @@ class AiPeriodCommentDraftGeneratorTest {
 
         assertThat(result.content()).startsWith("Minh Khôi đi học đều 18 ngày");
         assertThat(result.model()).isEqualTo("openai/gpt-oss-120b");
-        assertThat(result.promptVersion()).isEqualTo("observation/period_comment_v1");
+        assertThat(result.promptVersion()).isEqualTo("observation/period_comment_v2");
     }
 
     @Test
@@ -80,7 +80,7 @@ class AiPeriodCommentDraftGeneratorTest {
         verify(gateway).complete(captor.capture());
         AiRequest request = captor.getValue();
         assertThat(request.task()).isEqualTo(AiTask.PERIOD_COMMENT);
-        assertThat(request.promptVersion()).isEqualTo("observation/period_comment_v1");
+        assertThat(request.promptVersion()).isEqualTo("observation/period_comment_v2");
         assertThat(request.deadline()).isEqualTo(NOW.plusSeconds(7));
         assertThat(request.userPrompt() + request.systemPrompt())
                 .doesNotContainIgnoringCase("khôi")

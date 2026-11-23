@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class AiPeriodCommentDraftGenerator {
 
-    static final String PROMPT_VERSION = "observation/period_comment_v1";
+    static final String PROMPT_VERSION = "observation/period_comment_v2";
     private static final Duration DEFAULT_DEADLINE = Duration.ofSeconds(20);
     private static final int MODEL_MAX = 100;
 

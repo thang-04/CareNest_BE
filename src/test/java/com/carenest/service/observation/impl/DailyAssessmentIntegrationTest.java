@@ -797,7 +797,7 @@ class DailyAssessmentIntegrationTest {
     }
 
     private static AiRawResult aiResult(String content) {
-        return new AiRawResult(content, "groq", "fake-model", "observation/period_comment_v1", 100, 50, 10);
+        return new AiRawResult(content, "groq", "fake-model", "observation/period_comment_v2", 100, 50, 10);
     }
 
     @Test
@@ -819,7 +819,7 @@ class DailyAssessmentIntegrationTest {
                         id))
                 .containsEntry("draft_source", "AI")
                 .containsEntry("draft_model", "fake-model")
-                .containsEntry("draft_prompt_version", "observation/period_comment_v1");
+                .containsEntry("draft_prompt_version", "observation/period_comment_v2");
         ArgumentCaptor<AiRequest> request = ArgumentCaptor.forClass(AiRequest.class);
         verify(aiGateway).complete(request.capture());
         assertThat(request.getValue().task()).isEqualTo(AiTask.PERIOD_COMMENT);
@@ -837,7 +837,7 @@ class DailyAssessmentIntegrationTest {
 
         assertThat(row.aiEnabled()).isFalse();
         assertThat(row.aiDraft().source()).isEqualTo(EvaluationDraftSource.TEMPLATE);
-        assertThat(row.aiDraft().content()).contains("tháng 09/2026");
+        assertThat(row.aiDraft().content()).contains("tháng 9/2026").doesNotContain("MT");
         verify(aiGateway, never()).complete(any());
     }
 
@@ -1046,7 +1046,7 @@ class DailyAssessmentIntegrationTest {
         assertThat(detail.monthlyEvaluations())
                 .singleElement()
                 .satisfies(m -> assertThat(m.id()).isEqualTo(september.id()));
-        assertThat(detail.evaluation().aiDraft().content()).contains("1 đánh giá tháng");
+        assertThat(detail.evaluation().aiDraft().content()).doesNotContain("đánh giá tháng", "MT");
         evaluations.confirm(teacherA, rows.getFirst().id(), "Nhận xét học kỳ I đã được giáo viên kiểm tra đầy đủ.");
         assertThat(evaluations.list(teacherA, semester, null, classA, null)).hasSize(1);
         assertThat(jdbc.queryForObject(

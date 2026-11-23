@@ -377,7 +377,7 @@ Loại theo Report 1 v2 (17/10) và khảo sát team 27/10 (FAC-01, FAC-02), use
 | AI-07 | Tính năng AI trong Capstone, đều là nháp có người duyệt (AI-01, AI-02): (1) nháp nhận xét định kỳ tháng/học kỳ/cuối năm (OBS-05, OBS-06); (2) gợi ý nội dung hoạt động từ mục tiêu khi soạn kế hoạch, GV sửa (EDU); (3) giải thích ngắn xu hướng sức khỏe cho GV (HLT-04, HLT-05); (4) gợi ý thực đơn tuần đơn giản từ danh mục món, kiểm bằng quy tắc, có bật/tắt (NUT-08, NUT-09); gợi ý thực đơn mẫu và gợi ý điều chỉnh thực đơn dự kiến ngày là tùy chọn, làm nếu kịp; (5) nháp báo cáo tổng kết năm — phụ thuộc P-34 | CONFIRMED | Khảo sát team 27/10 (AI-01, AI-05, AI-06, AI-07); GVHD 22/10; user chốt 2026-11-01 (sơ đồ BP bán trú 2.2, 2.6, 2.8) |
 | AI-08 | Input AI: dữ liệu có cấu trúc, tài liệu tiêu chí của trường, nhận xét tự do của GV; dùng bí danh, chỉ gửi số liệu cần thiết; nhận xét tự do cũng theo AI-04 (không tên, ngày sinh, ảnh trẻ) | CONFIRMED | Khảo sát team 27/10 (AI-02, AI-03) |
 | AI-09 | Nhà cung cấp: Gemini API và Groq, gọi qua `AiClient` (AI-06) | CONFIRMED (đóng P-02) | Khảo sát team 27/10 (AI-04) |
-| AI-10 | Giọng văn nháp: ngắn gọn, khách quan, hướng tới BGH | CONFIRMED | Khảo sát team 27/10 (AI-09) |
+| AI-10 | Nháp nhận xét định kỳ (OBS-34) viết ngắn gọn, tự nhiên để phụ huynh đọc sau khi GV sửa và xác nhận; không đưa mã MT, tên chủ đề hoặc dãy số liệu nội bộ vào lời nhận xét. Các nháp AI khác dùng giọng văn phù hợp người đọc của nghiệp vụ đó | CONFIRMED (nhận xét định kỳ thay hướng BGH cũ) | User chốt 23/11/2026; khảo sát team 27/10 (AI-09) |
 
 ## G94-180 — Tiếp nhận trẻ, tài khoản phụ huynh: chờ đánh lại mã
 

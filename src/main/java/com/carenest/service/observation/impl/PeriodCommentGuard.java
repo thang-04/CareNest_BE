@@ -13,9 +13,10 @@ import java.util.regex.Pattern;
 final class PeriodCommentGuard {
 
     static final int MIN_CHARS = 60;
-    static final int MAX_CHARS = 1800;
+    static final int MAX_CHARS = 700;
 
     private static final Pattern DIGITS = Pattern.compile("\\d+");
+    private static final Pattern INTERNAL_CODE = Pattern.compile("(?i)\\bMT\\s*\\d+\\b");
 
     private PeriodCommentGuard() {}
 
@@ -31,6 +32,9 @@ final class PeriodCommentGuard {
         String lower = text.toLowerCase(Locale.ROOT);
         if (DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream().anyMatch(lower::contains)) {
             throw unusable("diagnostic-term");
+        }
+        if (INTERNAL_CODE.matcher(text).find() || lower.contains("chủ đề") || lower.contains("mục tiêu")) {
+            throw unusable("internal-label");
         }
         if (text.contains("```") || text.contains("**") || text.lines().anyMatch(PeriodCommentGuard::isMarkup)) {
             throw unusable("markup");
