@@ -438,7 +438,7 @@ export function renderCatalog(rows, { check = true } = {}) {
   w();
 
   w('-- Trạng thái tham gia soạn thực đơn của nhóm tuổi; chỉ thêm khi chưa có để giữ lựa chọn đã lưu');
-  w('INSERT INTO age_group_meal_statuses (age_group_id, enabled)');
+  w('INSERT INTO nutrition_group_settings (age_group_id, enabled)');
   w('SELECT ag.id, TRUE FROM age_groups ag');
   w(`WHERE ag.code IN (${AGE_GROUPS.map(q).join(', ')})`);
   w('ON CONFLICT (age_group_id) DO NOTHING;');

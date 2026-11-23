@@ -755,7 +755,7 @@ LEFT JOIN LATERAL (SELECT a.user_id FROM staff_assignments a JOIN campuses c ON 
 ON CONFLICT (age_group_id, effective_from) DO NOTHING;
 
 -- Trạng thái tham gia soạn thực đơn của nhóm tuổi; chỉ thêm khi chưa có để giữ lựa chọn đã lưu
-INSERT INTO age_group_meal_statuses (age_group_id, enabled)
+INSERT INTO nutrition_group_settings (age_group_id, enabled)
 SELECT ag.id, TRUE FROM age_groups ag
 WHERE ag.code IN ('ag-2', 'ag-3', 'ag-4', 'ag-5')
 ON CONFLICT (age_group_id) DO NOTHING;
