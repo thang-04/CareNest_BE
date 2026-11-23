@@ -25,8 +25,10 @@ UI thực qua Vite5173, BE8080, Keycloak8180, PostgreSQL bản sao carenest_ui_2
 - Node toàn bộ tests:1602 pass,0 fail/skip; logs/ui-followup-full-node.log. ESLint bốn file sửa đạt; Vite build API đạt.
 - Maven lượt liên quan đầu: schema7, tiếp nhận27, attendance19, year plan38 đạt. Curriculum fixture có code quá20 ký tự và hai assertion Daily chưa tính bữa chiều không tham gia thất bại; đã sửa đúng fixture/expectation, không bỏ assertion.
 - Maven lượt sau `-Dtest=DailyAssessmentIntegrationTest,LeaveRequestIntegrationTest,EduCurriculumServiceIntegrationTest,OpenApiSnapshotTest,ArchitectureRulesTest test`:61/61 pass,0fail/error/skip. logs/ui-followup-final-regression.log.
-- Sau metadata schema DailyAssessmentRow: OpenApiSnapshotTest4/4 pass với chế độ sinh snapshot; Spotless check đạt. Snapshot+hai fixture kho đang kiểm lại bằng chế độ so sánh thường.
+- Sau metadata schema DailyAssessmentRow: OpenApiSnapshotTest4/4 pass với chế độ sinh và so sánh thường; Spotless check đạt. Hai fixture kho bổ sung nhóm tuổi theo năm chạy3/3 đạt ở logs/ui-followup-ci-fixtures-fresh.log.
 - Full Maven all-tests từ đêm22/11 không hoàn tất sau khi các tiến trình/môi trường dừng; không tính thành full pass. Không chạy harness/verify wrapper theo chỉ đạo repo07/11.
+
+Lưu ý môi trường Maven: hai lượt fixture kho đầu vẫn chạy bytecode cũ dù source đã thêm YearAgeGroupFixture. Kiểm javap xác nhận thiếu lời gọi; bỏ đúng hai file .class trong target/test-classes (không xóa source/data), Maven biên dịch lại, javap có lời gọi và3/3 test đạt. Không đổi source nghiệp vụ kho hoặc giảm assertion.
 
 ## Đối chiếu ảnh bug mới (chỉ phần của user)
 
@@ -38,7 +40,7 @@ UI thực qua Vite5173, BE8080, Keycloak8180, PostgreSQL bản sao carenest_ui_2
 
 ## Giới hạn
 
-Chưa kết luận full UI tất cả vai trò, mọi scope CRUD hoặc toàn bộ thông báo/chuyển lớp/nhập học đạt. Không triển khai tối ưu DB, không làm lớp ghép, không sửa production/DB local gốc.
+Chưa kết luận full UI tất cả vai trò, mọi scope CRUD hoặc toàn bộ thông báo/chuyển lớp/nhập học đạt. Không triển khai tối ưu DB, không làm lớp ghép, không sửa production. DB local gốc chỉ xử lý lịch sử migration sau yêu cầu riêng và backup như mục bổ sung bên dưới.
 
 ## Bổ sung sửa khởi động local theo yêu cầu mới của user
 

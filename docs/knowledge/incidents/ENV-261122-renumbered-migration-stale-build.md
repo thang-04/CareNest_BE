@@ -31,7 +31,7 @@ Source chỉ còn V167 permission, V168 work campus; catalog và nhận xét tu�
 
 ## Regression test
 
-Full Maven clean test và khởi động launcher UI từ build sạch đang chạy. Kết quả cuối ghi trong báo cáo kiểm chứng.
+Launcher UI khởi động được từ build sạch; full Maven đêm22/11 bị dừng trước kết quả cuối nên không tính pass. Các lượt regression23/11 và snapshot API đã đạt, ghi trong báo cáo kiểm chứng.
 
 ## Bổ sung local gốc — 23/11
 
