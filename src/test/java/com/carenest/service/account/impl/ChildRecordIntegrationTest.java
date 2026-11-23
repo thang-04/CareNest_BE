@@ -16,6 +16,7 @@ import com.carenest.dto.child.ChildProfileChangeResponse;
 import com.carenest.dto.child.ChildProfileInput;
 import com.carenest.dto.child.ChildUpdateResponse;
 import com.carenest.dto.child.ChildViewResponse;
+import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.EnrollmentChildInput;
 import com.carenest.dto.child.GuardianInput;
 import com.carenest.dto.child.UpdateChildRequest;
@@ -28,6 +29,9 @@ import com.carenest.security.TestPermissions;
 import com.carenest.service.account.ChildProfileEditService;
 import com.carenest.service.account.GuardianPhoneChangeService;
 import com.carenest.service.child.ChildRecordService;
+import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.child.YearTransitionService;
+import com.carenest.support.MovableClock;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
@@ -36,10 +40,8 @@ import com.carenest.utils.enums.PhoneChangeStatus;
 import com.carenest.utils.enums.ProfileChangeKind;
 import com.carenest.utils.enums.ProfileChangeStatus;
 import com.carenest.utils.enums.SmsStatus;
-import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,6 +56,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -61,10 +65,12 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Cho nghỉ học, Sửa hồ sơ, duyệt đổi SĐT phụ huynh trên PostgreSQL thật (V87 + ràng buộc V63): trạng thái, lớp, lịch sử
- * JSONB, thông báo, yêu cầu đổi SĐT, tên đăng nhập. Keycloak, SMS giả lập. Hôm nay = 10/11/2026.
+ * JSONB, thông báo, yêu cầu đổi SĐT, tên đăng nhập. Keycloak, SMS giả lập. Hôm nay = thứ 3 10/11/2026 (test dời ngày
+ * bằng {@link MovableClock}).
  */
 @SpringBootTest
 @Transactional
+@RecordApplicationEvents
 @Testcontainers(disabledWithoutDocker = true)
 class ChildRecordIntegrationTest {
     private static final AtomicInteger ROOM_SEQ = new AtomicInteger();
@@ -78,11 +84,11 @@ class ChildRecordIntegrationTest {
     static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
-    static class FixedClockConfig {
+    static class ClockConfig {
         @Bean
         @Primary
-        Clock fixedClock() {
-            return Clock.fixed(Instant.parse("2026-11-10T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh"));
+        MovableClock movableClock() {
+            return new MovableClock();
         }
     }
 
@@ -91,6 +97,15 @@ class ChildRecordIntegrationTest {
 
     @MockitoBean
     private SmsGateway smsGateway;
+
+    @Autowired
+    private MovableClock clock;
+
+    @Autowired
+    private ApplicationEvents events;
+
+    @Autowired
+    private EnrollmentService enrollmentService;
 
     @Autowired
     private ChildRecordService recordService;
@@ -116,6 +131,8 @@ class ChildRecordIntegrationTest {
     private long teacher;
     private long vicePrincipalId;
     private long principalId;
+    private long campusA;
+    private long year;
     private long classA;
     private long parent;
     private long childA;
@@ -123,13 +140,13 @@ class ChildRecordIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        clock.set(TODAY, LocalTime.of(10, 0));
         principalId = staff("ht.record", "PRINCIPAL");
         vicePrincipalId = staff("pht.record", "VICE_PRINCIPAL");
         teacher = staff("gv.record", "TEACHER");
-        long campusA =
-                insertId("INSERT INTO campuses (code, name, is_main) VALUES ('RC-A', 'Cơ sở A', TRUE) RETURNING id");
+        campusA = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('RC-A', 'Cơ sở A', TRUE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+        year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         classA = classroom(campusA, year, "Lớp RC1", ag3);
         jdbc.update(
@@ -188,6 +205,94 @@ class ChildRecordIntegrationTest {
                         recordService.withdraw(principal, childA, new WithdrawChildRequest(TODAY.toString(), "x")))
                 .isInstanceOfSatisfying(
                         GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-24): ngày nghỉ học trước hôm nay ⇒ lỗi ô leftAt")
+    void withdrawRejectsPastDate() {
+        expectFieldMessage(
+                () -> recordService.withdraw(
+                        vicePrincipal,
+                        childA,
+                        new WithdrawChildRequest(TODAY.minusDays(1).toString(), "Chuyển nhà")),
+                "leftAt",
+                "Ngày nghỉ học không được trước hôm nay");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: thứ 2 chọn thứ 4 ⇒ chỉ được hôm nay hoặc ngày học kế tiếp (thứ 3)")
+    void withdrawRejectsBeyondNextSchoolDay() {
+        clock.set(LocalDate.of(2026, 11, 9), LocalTime.of(10, 0));
+
+        expectFieldMessage(
+                () -> recordService.withdraw(
+                        vicePrincipal, childA, new WithdrawChildRequest("2026-11-11", "Chuyển nhà")),
+                "leftAt",
+                "Chỉ chọn hôm nay hoặc ngày học kế tiếp (10/11/2026)");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: đã điểm danh hôm nay, nghỉ từ ngày học kế tiếp ⇒ lưu; lớp học tới hết hôm nay, trẻ"
+            + " còn trong lớp hôm nay, chưa phát sự kiện khóa tài khoản phụ huynh")
+    void withdrawFromNextSchoolDayKeepsTodayRoster() {
+        long onlyChild = child("Lê Bé Một");
+        enroll(onlyChild);
+        long soleParent = parentAccount("kc-parent-only", "0903000001", "001190000201");
+        guardian(onlyChild, 0, "Lê Thị Mẹ", "MOTHER", "0903000001", "001190000201", soleParent, true);
+        attendance(onlyChild, TODAY);
+        LocalDate next = TODAY.plusDays(1);
+
+        ChildViewResponse view = recordService.withdraw(
+                vicePrincipal, onlyChild, new WithdrawChildRequest(next.toString(), "Chuyển trường"));
+        entityManager.flush();
+
+        assertThat(view.status()).isEqualTo(ChildStatus.LEFT);
+        assertThat(view.leftAt()).isEqualTo(next);
+        assertThat(validTo(onlyChild)).isEqualTo(TODAY);
+        assertThat(enrollmentService.findChildrenInClassroom(classA, TODAY))
+                .extracting(ClassChildResponse::id)
+                .contains(onlyChild);
+        assertThat(enrollmentService.findChildrenInClassroom(classA, next))
+                .extracting(ClassChildResponse::id)
+                .doesNotContain(onlyChild);
+        assertThat(jdbc.queryForObject(
+                        "SELECT body FROM notifications WHERE user_id = ? AND type = 'CHILD_WITHDRAWN' AND child_id = ?",
+                        String.class,
+                        teacher,
+                        onlyChild))
+                .isEqualTo("Lê Bé Một nghỉ học từ ngày 11/11/2026.");
+        // Khóa phụ huynh để job 00:05 ngày nghỉ (ScheduledLeaveJob); hôm nay không phát sự kiện
+        assertThat(events.stream(YearTransitionService.ChildrenLeftSchoolEvent.class))
+                .isEmpty();
+        assertThat(enrollmentService.findChildIdsLeftSchool(List.of(onlyChild), TODAY))
+                .isEmpty();
+        assertThat(jdbc.queryForObject("SELECT status FROM user_accounts WHERE id = ?", String.class, soleParent))
+                .isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: thứ 6 ⇒ ngày học kế tiếp qua cuối tuần (thứ 2); thứ 2 trùng ngày nghỉ của trường ⇒"
+            + " thứ 3")
+    void withdrawOnFridayAllowsNextSchoolDayAcrossWeekendAndHoliday() {
+        jdbc.update(
+                "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) "
+                        + "VALUES (?, '2026-11-23', '2026-11-23', 'Nghỉ thử')",
+                year);
+
+        clock.set(LocalDate.of(2026, 11, 13), LocalTime.of(10, 0));
+        recordService.withdraw(vicePrincipal, childA, new WithdrawChildRequest("2026-11-16", "Chuyển nhà"));
+        entityManager.flush();
+        assertThat(validTo(childA)).isEqualTo(LocalDate.of(2026, 11, 15));
+
+        clock.set(LocalDate.of(2026, 11, 20), LocalTime.of(10, 0));
+        expectFieldMessage(
+                () -> recordService.withdraw(
+                        vicePrincipal, sibling, new WithdrawChildRequest("2026-11-23", "Chuyển nhà")),
+                "leftAt",
+                "Ngày nghỉ học 23/11/2026 trùng ngày nghỉ của trường: Nghỉ thử (23/11/2026). Chọn ngày học khác.");
+        recordService.withdraw(vicePrincipal, sibling, new WithdrawChildRequest("2026-11-24", "Chuyển nhà"));
+        entityManager.flush();
+        assertThat(validTo(sibling)).isEqualTo(LocalDate.of(2026, 11, 23));
     }
 
     @Test
@@ -575,6 +680,41 @@ class ChildRecordIntegrationTest {
             assertThat(ex.getApiCode()).isEqualTo(code);
             assertThat(ex.getFieldErrors()).extracting(e -> e.field()).contains(field);
         });
+    }
+
+    private static void expectFieldMessage(Runnable call, String field, String message) {
+        assertThatThrownBy(call::run).isInstanceOfSatisfying(GlobalException.class, ex -> {
+            assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+            assertThat(ex.getFieldErrors())
+                    .filteredOn(e -> e.field().equals(field))
+                    .extracting(e -> e.message())
+                    .containsExactly(message);
+        });
+    }
+
+    private LocalDate validTo(long childId) {
+        return jdbc.queryForObject("SELECT valid_to FROM enrollments WHERE child_id = ?", LocalDate.class, childId);
+    }
+
+    private void attendance(long childId, LocalDate date) {
+        jdbc.update(
+                "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, meals, recorded_by,"
+                        + " recorded_at) VALUES (?, ?, ?, ?, 'PRESENT', 'LUNCH', ?, now())",
+                childId,
+                classA,
+                campusA,
+                date,
+                teacher);
+    }
+
+    private long parentAccount(String keycloakId, String phone, String citizenId) {
+        return jdbc.queryForObject(
+                "INSERT INTO user_accounts (keycloak_user_id, username, full_name, primary_role, citizen_id) "
+                        + "VALUES (?, ?, 'Phụ huynh giả', 'PARENT', ?) RETURNING id",
+                Long.class,
+                keycloakId,
+                phone,
+                citizenId);
     }
 
     private static ChildProfileInput profile() {

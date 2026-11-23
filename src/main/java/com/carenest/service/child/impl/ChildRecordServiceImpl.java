@@ -76,6 +76,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -90,6 +91,7 @@ import tools.jackson.databind.ObjectMapper;
 public class ChildRecordServiceImpl implements ChildRecordService {
     private static final String LOG_PREFIX = "[ChildRecordServiceImpl]";
     private static final int MAX_REASON = 300;
+    private static final int SCHOOL_DAY_SEARCH_DAYS = 400;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final ChildRepository childRepository;
@@ -622,21 +624,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
 
             Map<String, String> errors = new LinkedHashMap<>();
             LocalDate leftAt = parseDate(request == null ? null : request.leftAt());
-            if (leftAt == null) {
-                errors.put("leftAt", "Chọn ngày nghỉ học");
-            } else if (!leftAt.equals(today)) {
-                errors.put("leftAt", "Ngày nghỉ học phải là ngày thực hiện thao tác");
-            } else if (!schoolYearService.isSchoolDay(leftAt)) {
-                errors.put("leftAt", SchoolDayMessages.explain("Ngày nghỉ học", leftAt, activeYearHolidays(actor)));
-            } else if (leftAt.isBefore(child.getEnrolledOn())) {
-                errors.put(
-                        "leftAt",
-                        "Ngày nghỉ học không được trước ngày tiếp nhận (" + DAY.format(child.getEnrolledOn()) + ")");
-            } else if (child.getReadmittedOn() != null && leftAt.isBefore(child.getReadmittedOn())) {
-                errors.put(
-                        "leftAt",
-                        "Ngày nghỉ học không được trước ngày mở lại hồ sơ (" + DAY.format(child.getReadmittedOn())
-                                + ")");
+            String leftAtProblem =
+                    leftAt == null ? "Chọn ngày nghỉ học" : leaveDateProblem(actor, child, leftAt, today);
+            if (leftAtProblem != null) {
+                errors.put("leftAt", leftAtProblem);
             }
             String reason = request == null || request.reason() == null
                     ? ""
@@ -676,8 +667,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                     classroomService.findCampusId(enrollment.getClassroomId()).ifPresent(child::keepCampus);
                     campusKept = true;
                 }
-                if (enrollment.getValidFrom().isAfter(leftAt)) {
-                    // Lịch chuyển / lớp chưa bắt đầu: xóa và đánh dấu dòng lịch sử đã hủy (G94-180/CHD-14)
+                if (enrollment.getValidFrom().isAfter(today)) {
+                    // Lịch chuyển / lớp chưa bắt đầu (kể cả lớp bắt đầu đúng ngày nghỉ học kế tiếp): xóa và đánh dấu
+                    // dòng lịch sử đã hủy (G94-180/CHD-14)
                     placementRules.cancelUpcoming(
                             childId, child.getFullName(), enrollment, null, actor.userId(), now, today);
                 } else {
@@ -710,8 +702,12 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                         child.getFullName() + " nghỉ học từ ngày " + DAY.format(leftAt) + ".",
                         childId);
             }
-            // CHD-04: tài khoản chỉ là phụ huynh không còn con đang học ⇒ khóa sau commit (listener feature account)
-            eventPublisher.publishEvent(new YearTransitionService.ChildrenLeftSchoolEvent(List.of(childId), leftAt));
+            // CHD-04: tài khoản chỉ là phụ huynh không còn con đang học ⇒ khóa sau commit (listener feature account).
+            // Nghỉ từ ngày học kế tiếp: hôm nay trẻ còn học, ScheduledLeaveJob khóa lúc 00:05 ngày nghỉ
+            if (leftAt.equals(today)) {
+                eventPublisher.publishEvent(
+                        new YearTransitionService.ChildrenLeftSchoolEvent(List.of(childId), leftAt));
+            }
             ChildViewResponse view = childIntakeService.getChildView(childId);
             log.info("{}|classroomId={}|END", logPrefix, classroomId);
             return view;
@@ -719,6 +715,41 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /**
+     * G94-180/CHD-03 (user chốt 2026-11-24): ngày nghỉ học không trước hôm nay, là ngày học, là hôm nay hoặc ngày học kế
+     * tiếp, không trước ngày tiếp nhận / mở lại hồ sơ. Null khi hợp lệ.
+     */
+    private String leaveDateProblem(CurrentUser actor, Child child, LocalDate leftAt, LocalDate today) {
+        if (leftAt.isBefore(today)) {
+            return "Ngày nghỉ học không được trước hôm nay";
+        }
+        if (!schoolYearService.isSchoolDay(leftAt)) {
+            return SchoolDayMessages.explain("Ngày nghỉ học", leftAt, activeYearHolidays(actor));
+        }
+        if (!leftAt.equals(today)) {
+            LocalDate next = nextSchoolDay(today);
+            if (!leftAt.equals(next)) {
+                return "Chỉ chọn hôm nay hoặc ngày học kế tiếp" + (next == null ? "" : " (" + DAY.format(next) + ")");
+            }
+        }
+        if (leftAt.isBefore(child.getEnrolledOn())) {
+            return "Ngày nghỉ học không được trước ngày tiếp nhận (" + DAY.format(child.getEnrolledOn()) + ")";
+        }
+        if (child.getReadmittedOn() != null && leftAt.isBefore(child.getReadmittedOn())) {
+            return "Ngày nghỉ học không được trước ngày mở lại hồ sơ (" + DAY.format(child.getReadmittedOn()) + ")";
+        }
+        return null;
+    }
+
+    // G94-180/CHD-03: ngày học đầu tiên sau hôm nay, tìm tối đa 400 ngày như FE firstSchoolDay; không có ⇒ null
+    private LocalDate nextSchoolDay(LocalDate today) {
+        return Stream.iterate(today.plusDays(1), day -> day.plusDays(1))
+                .limit(SCHOOL_DAY_SEARCH_DAYS)
+                .filter(schoolYearService::isSchoolDay)
+                .findFirst()
+                .orElse(null);
     }
 
     /**

@@ -23,8 +23,10 @@ import java.util.Optional;
 public interface ChildRecordService {
 
     /**
-     * CHD-03: trẻ Đã nghỉ từ {@code leftAt}, đóng lớp đang học, lịch sử WITHDRAWN, báo giáo viên lớp; không xóa dữ liệu.
-     * Phụ huynh mất quyền xem trẻ ngay; tài khoản chỉ là phụ huynh không còn con đang học bị khóa (CHD-04).
+     * CHD-03: trẻ Đã nghỉ từ {@code leftAt} (hôm nay hoặc ngày học kế tiếp, user chốt 2026-11-24), lớp đang học kết thúc
+     * ngày trước đó, lịch sử WITHDRAWN, báo giáo viên lớp; không xóa dữ liệu. Từ ngày nghỉ phụ huynh mất quyền xem trẻ;
+     * tài khoản chỉ là phụ huynh không còn con đang học bị khóa (CHD-04): nghỉ hôm nay ⇒ ngay, ngày học kế tiếp ⇒ job
+     * 00:05 ngày đó.
      */
     ChildViewResponse withdraw(CurrentUser actor, Long childId, WithdrawChildRequest request);
 

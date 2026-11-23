@@ -336,6 +336,47 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-24): nghỉ từ ngày học kế tiếp ⇒ lớp tới hết hôm nay, báo GV ngày"
+            + " nghỉ, không phát sự kiện khóa tài khoản (job ngày nghỉ khóa)")
+    void withdrawFromNextSchoolDayLeavesParentLockToJob() {
+        LocalDate next = TODAY.plusDays(1);
+        given(schoolYearService.isSchoolDay(next)).willReturn(true);
+
+        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(next.toString(), "Chuyển nhà"));
+
+        assertThat(child.getStatus()).isEqualTo(ChildStatus.LEFT);
+        assertThat(child.getLeftOn()).isEqualTo(next);
+        assertThat(enrollment.getValidTo()).isEqualTo(TODAY);
+        verify(notificationService)
+                .notifyUsers(
+                        eq(Set.of(7L, 8L)),
+                        eq(NotificationType.CHILD_WITHDRAWN),
+                        any(),
+                        eq("Bé An nghỉ học từ ngày 11/11/2026."),
+                        eq(CHILD_ID));
+        verify(events, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03, CHD-14: lớp chưa bắt đầu từ đúng ngày nghỉ (ngày học kế tiếp) ⇒ hủy lịch như lớp sau"
+            + " ngày nghỉ, lớp đang học tới hết hôm nay")
+    void withdrawFromNextSchoolDayCancelsClassStartingThatDay() {
+        LocalDate next = TODAY.plusDays(1);
+        given(schoolYearService.isSchoolDay(next)).willReturn(true);
+        enrollment.endOn(TODAY);
+        Enrollment upcoming = Enrollment.start(CHILD_ID, 11L, next);
+        given(enrollmentRepository.findOpenByChildId(CHILD_ID, TODAY)).willReturn(List.of(enrollment, upcoming));
+
+        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(next.toString(), "Chuyển nhà"));
+
+        verify(placementRules)
+                .cancelUpcoming(
+                        eq(CHILD_ID), eq("Bé An"), eq(upcoming), eq(null), eq(PRINCIPAL.userId()), any(), eq(TODAY));
+        verify(enrollmentRepository, never()).delete(upcoming);
+        assertThat(enrollment.getValidTo()).isEqualTo(TODAY);
+    }
+
+    @Test
     @DisplayName("G94-180/CHD-03: nghỉ ngay ngày vào lớp ⇒ bỏ lớp đó (không có ngày học nào)")
     void withdrawOnFirstClassDayDropsEnrollment() {
         Enrollment today = Enrollment.start(CHILD_ID, CLASS_ID, TODAY);

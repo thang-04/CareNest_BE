@@ -95,6 +95,11 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
     @Query("select c.id from Child c where c.id in :childIds and c.mealRegistered = false")
     List<Long> findIdsWithoutMeals(@Param("childIds") Collection<Long> childIds);
 
+    // G94-180/CHD-03: trẻ đã cho nghỉ, nghỉ từ đúng ngày :date (cho nghỉ từ ngày học kế tiếp) ⇒ khóa phụ huynh ngày đó
+    @Query("select c.id from Child c where c.status = com.carenest.utils.enums.ChildStatus.LEFT and c.leftOn = :date"
+            + " order by c.id")
+    List<Long> findIdsLeavingOn(@Param("date") LocalDate date);
+
     /** Một dòng danh sách trẻ: trẻ và lớp hiển thị (null khi không có lớp). */
     interface ChildListRow {
         Long getChildId();
