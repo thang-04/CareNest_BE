@@ -166,6 +166,12 @@ public class AgeGroupMealConfig {
     @Column(name = "vitamin_c_max")
     private BigDecimal vitaminCMax;
 
+    @Column(name = "zinc_min")
+    private BigDecimal zincMin;
+
+    @Column(name = "zinc_max")
+    private BigDecimal zincMax;
+
     // NUT-28: cơ cấu áp dụng P:L:G (% năng lượng); null = chưa chọn
     @Column(name = "applied_protein_pct")
     private BigDecimal appliedProteinPct;
@@ -252,6 +258,8 @@ public class AgeGroupMealConfig {
         this.vitaminPpMax = norms.vitaminPpMax();
         this.vitaminCMin = norms.vitaminCMin();
         this.vitaminCMax = norms.vitaminCMax();
+        this.zincMin = norms.zincMin();
+        this.zincMax = norms.zincMax();
         this.appliedProteinPct = norms.appliedProteinPct();
         this.appliedLipidPct = norms.appliedLipidPct();
         this.appliedGlucidPct = norms.appliedGlucidPct();
@@ -306,6 +314,8 @@ public class AgeGroupMealConfig {
             BigDecimal vitaminPpMax,
             BigDecimal vitaminCMin,
             BigDecimal vitaminCMax,
+            BigDecimal zincMin,
+            BigDecimal zincMax,
             BigDecimal appliedProteinPct,
             BigDecimal appliedLipidPct,
             BigDecimal appliedGlucidPct) {}

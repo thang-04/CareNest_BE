@@ -351,6 +351,8 @@ class AgeGroupMealConfigServiceImplTest {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null);
     }
 
@@ -371,6 +373,8 @@ class AgeGroupMealConfigServiceImplTest {
                 new BigDecimal("35"),
                 new BigDecimal("55"),
                 new BigDecimal("65"),
+                null,
+                null,
                 null,
                 null,
                 null,
@@ -476,7 +480,7 @@ class AgeGroupMealConfigServiceImplTest {
                 new AgeGroupMealConfig.Norms(
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
-                        null, null, null, null, null, null, null, null, null, null, null, null),
+                        null, null, null, null, null, null, null, null, null, null, null, null, null, null),
                 "",
                 3L);
         ReflectionTestUtils.setField(config, "id", id);

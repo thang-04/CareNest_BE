@@ -21,6 +21,7 @@ final class MicronutrientValues {
             case VITAMIN_B2 -> food.getVitaminB2();
             case VITAMIN_PP -> food.getVitaminPp();
             case VITAMIN_C -> food.getVitaminC();
+            case ZINC -> food.getZinc();
         };
     }
 
@@ -34,6 +35,7 @@ final class MicronutrientValues {
             case VITAMIN_B2 -> config.getVitaminB2Min();
             case VITAMIN_PP -> config.getVitaminPpMin();
             case VITAMIN_C -> config.getVitaminCMin();
+            case ZINC -> config.getZincMin();
         };
     }
 
@@ -47,6 +49,7 @@ final class MicronutrientValues {
             case VITAMIN_B2 -> config.getVitaminB2Max();
             case VITAMIN_PP -> config.getVitaminPpMax();
             case VITAMIN_C -> config.getVitaminCMax();
+            case ZINC -> config.getZincMax();
         };
     }
 }
