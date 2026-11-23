@@ -153,7 +153,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             DuplicateChildKind kind = active.isPresent() ? DuplicateChildKind.ACTIVE : DuplicateChildKind.LEFT;
             Child child = match.get();
             LocalDate today = LocalDate.now(clock);
-            DuplicateCheckResponse response = inScope(actor, currentCampusOf(child, today))
+            Long childCampusId = currentCampusOf(child, today);
+            DuplicateCheckResponse response = inScope(actor, childCampusId)
                     // Mở lại hồ sơ cần quyền tiếp nhận ở điểm trường của trẻ = đúng phạm vi vừa kiểm
                     ? new DuplicateCheckResponse(
                             kind,
@@ -162,7 +163,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                             child.getCode(),
                             child.getFullName(),
                             child.getLeftOn(),
-                            kind == DuplicateChildKind.LEFT)
+                            kind == DuplicateChildKind.LEFT,
+                            childCampusId)
                     : DuplicateCheckResponse.otherCampus(kind);
             log.info("{}|duplicate={}|sameCampus={}|END", logPrefix, kind, response.sameCampus());
             return response;

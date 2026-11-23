@@ -14576,6 +14576,9 @@ components:
     DuplicateCheckResponse:
       type: object
       properties:
+        campusId:
+          type: integer
+          format: int64
         canReadmit:
           type: boolean
         code:

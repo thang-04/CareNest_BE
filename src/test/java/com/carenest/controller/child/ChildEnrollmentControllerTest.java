@@ -504,7 +504,8 @@ class ChildEnrollmentControllerTest {
                         "HS25001",
                         "Nguyễn Minh An",
                         LocalDate.of(2026, 5, 1),
-                        true));
+                        true,
+                        2L));
 
         mockMvc.perform(get("/api/children/duplicate-check")
                         .with(token(CareNestRole.PRINCIPAL))

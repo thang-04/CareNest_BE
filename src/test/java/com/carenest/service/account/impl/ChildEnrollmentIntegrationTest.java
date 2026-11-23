@@ -688,6 +688,32 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("CHD-04: trẻ đã nghỉ ở lớp Cơ sở B ⇒ duplicate-check trả campusId của trẻ; ngoài phạm vi thì null")
+    void duplicateOfLeftChildReturnsCampus() {
+        Long childId = enrollmentService
+                .enroll(
+                        principal,
+                        request("Phạm Gia Bảo", "2023-06-01", classB, null, newGuardian("0916000002", "001700000002")))
+                .child()
+                .id();
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = ?, left_reason = 'Chuyển nhà' WHERE id = ?",
+                TODAY,
+                childId);
+        entityManager.clear();
+
+        DuplicateCheckResponse left =
+                intakeService.checkDuplicate(principal, "Phạm Gia Bảo", "2023-06-01", List.of("001700000002"), null);
+        assertThat(left.kind()).isEqualTo(DuplicateChildKind.LEFT);
+        assertThat(left.campusId()).isEqualTo(campusB);
+        assertThat(intakeService
+                        .checkDuplicate(vicePrincipal, "Phạm Gia Bảo", "2023-06-01", List.of("001700000002"), null)
+                        .campusId())
+                .isNull();
+    }
+
+    @Test
     @DisplayName(
             "CHD-10: lớp tiếp nhận = lớp đang hoạt động của năm đang hoạt động trong phạm vi, kèm sĩ số, chủ nhiệm")
     void placementClassesFollowActiveYearAndScope() {
