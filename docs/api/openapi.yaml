@@ -1538,6 +1538,11 @@ paths:
         schema:
           type: integer
           format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedraftRequest"
       responses:
         "200":
           content:
@@ -14366,6 +14371,11 @@ components:
         generatedAt:
           type: string
           format: date-time
+        source:
+          type: string
+          enum:
+          - TEMPLATE
+          - AI
     DryIntake:
       type: object
       properties:
@@ -14973,6 +14983,8 @@ components:
       properties:
         aiDraft:
           $ref: "#/components/schemas/Draft"
+        aiEnabled:
+          type: boolean
         campusId:
           type: integer
           format: int64
@@ -20888,6 +20900,11 @@ components:
           - CAMPUS
           - AGE_GROUP
           - CLASSROOM
+    RedraftRequest:
+      type: object
+      properties:
+        ai:
+          type: boolean
     Referral:
       type: object
       properties:

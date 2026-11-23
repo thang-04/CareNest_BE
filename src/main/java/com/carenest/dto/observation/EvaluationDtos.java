@@ -3,6 +3,7 @@ package com.carenest.dto.observation;
 import com.carenest.utils.enums.EatingLevel;
 import com.carenest.utils.enums.Emotion;
 import com.carenest.utils.enums.EvaluationAction;
+import com.carenest.utils.enums.EvaluationDraftSource;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.EvaluationStatus;
 import com.carenest.utils.enums.HealthSymptom;
@@ -21,8 +22,11 @@ public final class EvaluationDtos {
 
     private EvaluationDtos() {}
 
-    /** Bản nháp hệ thống tạo; chỉ GV lớp nhận được (PHT / HT nhận null). */
-    public record Draft(String content, Instant generatedAt) {}
+    /**
+     * Bản nháp hệ thống tạo; chỉ GV lớp nhận được (PHT / HT nhận null). source: mẫu câu hay AI viết (OBS-34); GV xin AI
+     * mà nhận source = TEMPLATE nghĩa là AI không dùng được và hệ thống đã viết theo mẫu câu.
+     */
+    public record Draft(String content, Instant generatedAt, EvaluationDraftSource source) {}
 
     public record EventRow(Long id, EvaluationAction action, Long userId, String userName, Instant at) {}
 
@@ -47,7 +51,8 @@ public final class EvaluationDtos {
             Instant confirmedAt,
             Integer flagCount,
             List<EventRow> history,
-            String historyStatus) {}
+            String historyStatus,
+            boolean aiEnabled) {}
 
     public record ChildRef(Long id, String fullName, LocalDate dateOfBirth, String historyStatus) {
         public ChildRef(Long id, String fullName, LocalDate dateOfBirth) {
@@ -134,6 +139,9 @@ public final class EvaluationDtos {
 
     /** content null / rỗng trả mã lỗi riêng (7340) nên không dùng @NotBlank. */
     public record EvaluationContentRequest(String content) {}
+
+    /** Tạo lại bản nháp: ai = true thì xin AI viết (OBS-34), thiếu body hoặc false thì viết theo mẫu câu như trước. */
+    public record RedraftRequest(Boolean ai) {}
 
     // ---------- Hồ sơ / tiến độ phát triển ----------
 

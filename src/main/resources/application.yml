@@ -288,6 +288,12 @@ carenest:
         data-class: PUBLIC_CATALOG
         deadline: ${AI_EDU_PLAN_DEADLINE:30s}
         max-repair-rounds: 0
+      # Nhận xét tháng / học kỳ / cuối năm: số liệu kỳ và nhận xét tự do của GV (đã lọc tên, ngày sinh) ⇒ dữ liệu dẫn xuất từ trẻ
+      PERIOD_COMMENT:
+        chain: [groq]
+        data-class: CHILD_DERIVED
+        deadline: 20s
+        max-repair-rounds: 0
   # Embedding (AI-06): xếp lại món ứng viên theo ngữ nghĩa, chỉ sau lọc cứng. Thiếu base URL/model/key hoặc AI tắt thì
   # bỏ qua, gợi ý chạy như cũ. Chỉ gửi văn bản danh mục công khai và câu mong muốn của PHT, không dữ liệu trẻ (AI-04)
   embedding:
