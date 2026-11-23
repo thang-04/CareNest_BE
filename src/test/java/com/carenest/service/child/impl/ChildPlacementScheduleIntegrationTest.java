@@ -153,7 +153,7 @@ class ChildPlacementScheduleIntegrationTest {
         expectField(
                 () -> recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY.plusDays(5))),
                 "effectiveDate",
-                "Ngày vào lớp phải là ngày học (thứ 2 tới thứ 6, không trùng ngày nghỉ của trường)");
+                "Ngày vào lớp 21/11/2026 là thứ Bảy. Chọn ngày từ thứ 2 tới thứ 6.");
         expectField(
                 () -> recordService.place(
                         principal, binh, new PlaceChildRequest(classA1, null, LocalDate.of(2027, 6, 1))),
@@ -249,7 +249,7 @@ class ChildPlacementScheduleIntegrationTest {
         expectField(
                 () -> recordService.place(principal, an, new PlaceChildRequest(classA2, "Đổi", SATURDAY)),
                 "effectiveDate",
-                "Ngày chuyển lớp phải là ngày học (thứ 2 tới thứ 6, không trùng ngày nghỉ của trường)");
+                "Ngày chuyển lớp 14/11/2026 là thứ Bảy. Chọn ngày từ thứ 2 tới thứ 6.");
         jdbc.update(
                 "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) "
                         + "VALUES (?, '2026-11-20', '2026-11-20', 'Nghỉ lễ')",
@@ -258,7 +258,7 @@ class ChildPlacementScheduleIntegrationTest {
                 () -> recordService.place(
                         principal, an, new PlaceChildRequest(classA2, "Đổi", LocalDate.of(2026, 11, 20))),
                 "effectiveDate",
-                "Ngày chuyển lớp phải là ngày học (thứ 2 tới thứ 6, không trùng ngày nghỉ của trường)");
+                "Ngày chuyển lớp 20/11/2026 trùng ngày nghỉ của trường: Nghỉ lễ (20/11/2026). Chọn ngày học khác.");
         expectField(
                 () -> recordService.place(
                         principal, an, new PlaceChildRequest(classA2, "Đổi", LocalDate.of(2027, 6, 1))),

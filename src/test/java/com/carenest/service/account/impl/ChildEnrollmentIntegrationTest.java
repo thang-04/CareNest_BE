@@ -107,8 +107,6 @@ class ChildEnrollmentIntegrationTest {
     }
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 29);
-    private static final String SCHOOL_DAY_REQUIRED =
-            "Ngày bắt đầu đi học phải là ngày học (thứ 2 tới thứ 6, không trùng ngày nghỉ của trường)";
 
     @MockitoBean
     private IdentityProviderClient identityProviderClient;
@@ -1792,13 +1790,16 @@ class ChildEnrollmentIntegrationTest {
                 "startDate",
                 "Ngày bắt đầu đi học không được sau ngày kết thúc năm học (31/05/2027)");
         // Thứ 7 và ngày nghỉ của trường
-        for (LocalDate offDay : List.of(LocalDate.of(2026, 10, 31), LocalDate.of(2026, 11, 20))) {
-            expectField(
-                    () -> intakeService.prepareEnrollment(principal, withStartDate(base, offDay)),
-                    ApiCode.INVALID_REQUEST_DATA,
-                    "startDate",
-                    SCHOOL_DAY_REQUIRED);
-        }
+        expectField(
+                () -> intakeService.prepareEnrollment(principal, withStartDate(base, LocalDate.of(2026, 10, 31))),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Ngày bắt đầu đi học 31/10/2026 là thứ Bảy. Chọn ngày từ thứ 2 tới thứ 6.");
+        expectField(
+                () -> intakeService.prepareEnrollment(principal, withStartDate(base, LocalDate.of(2026, 11, 20))),
+                ApiCode.INVALID_REQUEST_DATA,
+                "startDate",
+                "Ngày bắt đầu đi học 20/11/2026 trùng ngày nghỉ của trường: Nghỉ lễ (20/11/2026). Chọn ngày học khác.");
         assertThat(intakeService
                         .prepareEnrollment(principal, withStartDate(base, LocalDate.of(2026, 11, 2)))
                         .startDate())
@@ -1896,7 +1897,7 @@ class ChildEnrollmentIntegrationTest {
                                 newGuardian("0915000064", "001500000064"))),
                 ApiCode.INVALID_REQUEST_DATA,
                 "startDate",
-                SCHOOL_DAY_REQUIRED);
+                "Ngày bắt đầu đi học 12/09/2027 là Chủ nhật. Chọn ngày từ thứ 2 tới thứ 6.");
     }
 
     @Test

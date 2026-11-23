@@ -19,6 +19,7 @@ import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildAllergy;
 import com.carenest.entity.child.ChildGuardian;
@@ -58,6 +59,7 @@ import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -382,7 +384,8 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                     errors.put("classId", problem);
                 }
             }
-            String dateProblem = effectiveDateProblem(effectiveDate, earliest, today, fromClassroomId != null, target);
+            String dateProblem =
+                    effectiveDateProblem(actor, effectiveDate, earliest, today, fromClassroomId != null, target);
             if (dateProblem != null) {
                 errors.put("effectiveDate", dateProblem);
             }
@@ -624,7 +627,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             } else if (!leftAt.equals(today)) {
                 errors.put("leftAt", "Ngày nghỉ học phải là ngày thực hiện thao tác");
             } else if (!schoolYearService.isSchoolDay(leftAt)) {
-                errors.put("leftAt", "Chỉ cho nghỉ học vào ngày học. Thực hiện vào ngày học kế tiếp.");
+                errors.put("leftAt", SchoolDayMessages.explain("Ngày nghỉ học", leftAt, activeYearHolidays(actor)));
             } else if (leftAt.isBefore(child.getEnrolledOn())) {
                 errors.put(
                         "leftAt",
@@ -723,7 +726,12 @@ public class ChildRecordServiceImpl implements ChildRecordService {
      * không sau ngày kết thúc năm học của lớp, là ngày học. Null khi hợp lệ.
      */
     private String effectiveDateProblem(
-            LocalDate date, LocalDate earliest, LocalDate today, boolean transfer, ClassroomInfoResponse target) {
+            CurrentUser actor,
+            LocalDate date,
+            LocalDate earliest,
+            LocalDate today,
+            boolean transfer,
+            ClassroomInfoResponse target) {
         String label = transfer ? "Ngày chuyển lớp" : "Ngày vào lớp";
         if (date.isBefore(earliest)) {
             return earliest.equals(today)
@@ -734,9 +742,24 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             return label + " không được sau ngày kết thúc năm học (" + DAY.format(target.yearEnd()) + ")";
         }
         if (!schoolYearService.isSchoolDay(date)) {
-            return label + " phải là ngày học (thứ 2 tới thứ 6, không trùng ngày nghỉ của trường)";
+            return SchoolDayMessages.explain(label, date, holidaysOf(actor, target));
         }
         return null;
+    }
+
+    // CHD-14: đợt nghỉ của năm lớp đích; chưa có lớp đích thì không có đợt nghỉ để nêu
+    private List<SchoolHolidayItem> holidaysOf(CurrentUser actor, ClassroomInfoResponse target) {
+        return target == null || target.schoolYearId() == null
+                ? List.of()
+                : schoolYearService.getHolidays(actor, target.schoolYearId());
+    }
+
+    // CHD-14: ngày nghỉ học luôn thuộc năm đang hoạt động
+    private List<SchoolHolidayItem> activeYearHolidays(CurrentUser actor) {
+        return schoolYearService.getSchoolYears(actor, SchoolYearStatus.ACTIVE).stream()
+                .findFirst()
+                .map(year -> schoolYearService.getHolidays(actor, year.id()))
+                .orElse(List.of());
     }
 
     private boolean hasDailyOperationalData(Long childId, LocalDate date) {

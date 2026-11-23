@@ -93,8 +93,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     private static final String LOG_PREFIX = "[ChildIntakeServiceImpl]";
     private static final DateTimeFormatter YEAR_SUFFIX = DateTimeFormatter.ofPattern("yy");
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final String SCHOOL_DAY_REQUIRED =
-            "Ngày bắt đầu đi học phải là ngày học (thứ 2 tới thứ 6, không trùng ngày nghỉ của trường)";
+    private static final String START_DATE_LABEL = "Ngày bắt đầu đi học";
     // Không khớp SĐT/CCCD nào (thay danh sách rỗng trong IN)
     private static final Set<String> NO_MATCH = Set.of("-");
 
@@ -195,7 +194,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             }
             if (requestedYear != null && requestedYear.status() == SchoolYearStatus.PLANNED) {
                 // CHD-11: lớp tiếp nhận của năm sau chỉ mở từ ngày mở chuẩn bị
-                plannedTarget(schoolYearId, null);
+                plannedTarget(actor, schoolYearId, null);
             }
             List<ClassroomInfoResponse> classes = (schoolYearId == null
                             ? classroomService.findActiveYearClassrooms()
@@ -268,12 +267,13 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             }
             // Mở lại cho năm sau: kiểm năm/ngày mở chuẩn bị trước khi đổi hồ sơ (CHD-11, 2412)
             PlannedTarget target = chosenYear != null && chosenYear.status() == SchoolYearStatus.PLANNED
-                    ? plannedTarget(request.schoolYearId(), request.startDate())
+                    ? plannedTarget(actor, request.schoolYearId(), request.startDate())
                     : null;
             // G94-180/CHD-14: mở lại vào năm đang học cũng chọn ngày bắt đầu đi học
             LocalDate startDate = target != null
                     ? target.startDate()
-                    : currentYearStart(chosenYear != null ? chosenYear : activeYear(actor), request.startDate(), today);
+                    : currentYearStart(
+                            actor, chosenYear != null ? chosenYear : activeYear(actor), request.startDate(), today);
             // Chọn điểm trường khác điểm trường cũ: kiểm như tiếp nhận (G94-180/CHD-02, user chốt 2026-11-22)
             Long chosen = request.campusId();
             if (chosen != null && !chosen.equals(campusId)) {
@@ -720,12 +720,12 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         }
         LocalDate startDate;
         if (planned) {
-            PlannedTarget target = plannedTarget(schoolYearId, requestedStartDate);
+            PlannedTarget target = plannedTarget(actor, schoolYearId, requestedStartDate);
             targetYear = target.year();
             startDate = target.startDate();
         } else {
-            startDate =
-                    currentYearStart(targetYear != null ? targetYear : activeYear(actor), requestedStartDate, today);
+            startDate = currentYearStart(
+                    actor, targetYear != null ? targetYear : activeYear(actor), requestedStartDate, today);
         }
         if (classId != null) {
             ClassroomInfoResponse classroom =
@@ -772,7 +772,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
      * G94-180/CHD-14: tiếp nhận / mở lại vào năm đang học phải chọn ngày bắt đầu đi học, từ hôm nay tới ngày kết thúc
      * năm và là ngày học. Lớp (nếu có) tính từ ngày này.
      */
-    private LocalDate currentYearStart(SchoolYearDetailResponse year, LocalDate requested, LocalDate today) {
+    private LocalDate currentYearStart(
+            CurrentUser actor, SchoolYearDetailResponse year, LocalDate requested, LocalDate today) {
         if (requested == null) {
             throw fieldError("startDate", "Chọn ngày bắt đầu đi học");
         }
@@ -785,13 +786,17 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     "Ngày bắt đầu đi học không được sau ngày kết thúc năm học (" + DISPLAY_DATE.format(year.endDate())
                             + ")");
         }
-        requireSchoolDay(requested);
+        requireSchoolDay(actor, year.id(), requested);
         return requested;
     }
 
-    private void requireSchoolDay(LocalDate startDate) {
+    // G94-180/CHD-14: nói rõ ngày bắt đầu là cuối tuần hay trùng ngày nghỉ nào của năm đó
+    private void requireSchoolDay(CurrentUser actor, Long schoolYearId, LocalDate startDate) {
         if (!schoolYearService.isSchoolDay(startDate)) {
-            throw fieldError("startDate", SCHOOL_DAY_REQUIRED);
+            throw fieldError(
+                    "startDate",
+                    SchoolDayMessages.explain(
+                            START_DATE_LABEL, startDate, schoolYearService.getHolidays(actor, schoolYearId)));
         }
     }
 
@@ -812,7 +817,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
      * Năm sắp diễn ra gần nhất, chỉ nhận trẻ từ ngày mở chuẩn bị (CHD-11, CFG-YR-05; trước đó 2412). Ngày bắt đầu học
      * phải nằm trong năm học, để trống = ngày bắt đầu năm.
      */
-    private PlannedTarget plannedTarget(Long schoolYearId, LocalDate requestedStartDate) {
+    private PlannedTarget plannedTarget(CurrentUser actor, Long schoolYearId, LocalDate requestedStartDate) {
         SchoolYearDetailResponse year = schoolYearService
                 .findSchoolYearDetail(schoolYearId)
                 .orElseThrow(() -> fieldError("schoolYearId", "Năm học không tồn tại"));
@@ -829,7 +834,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (startDate.isBefore(year.startDate()) || startDate.isAfter(year.endDate())) {
             throw fieldError("startDate", "Ngày bắt đầu phải nằm trong thời gian năm học đã chọn");
         }
-        requireSchoolDay(startDate);
+        requireSchoolDay(actor, year.id(), startDate);
         return new PlannedTarget(year, startDate);
     }
 

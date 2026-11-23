@@ -228,7 +228,8 @@ class ChildRecordServiceImplTest {
                         GlobalException.class,
                         ex -> assertThat(ex.getFieldErrors()).anySatisfy(error -> {
                             assertThat(error.field()).isEqualTo("effectiveDate");
-                            assertThat(error.message()).contains("phải là ngày học");
+                            assertThat(error.message())
+                                    .isEqualTo("Ngày chuyển lớp 10/11/2026 không phải ngày học. Chọn ngày học khác.");
                         }));
         verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
     }
