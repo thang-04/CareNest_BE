@@ -8,5 +8,6 @@ public enum AiTask {
     HEALTH_TREND,
     WEEKLY_COMMENT,
     /** Soạn/duyệt kế hoạch giáo dục (EDU-95/96): nội dung chương trình, chủ đề, hoạt động; không dữ liệu trẻ. */
-    EDU_PLAN
+    EDU_PLAN,
+    PERIOD_COMMENT
 }
