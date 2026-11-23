@@ -1,6 +1,6 @@
 ---
 title: Xếp lớp khác nhóm tuổi, lịch sử "Báo ăn", đổi tên "Khai báo ăn và sức khỏe" (đợt 1)
-status: in-progress
+status: done
 owner: ATPX48-69
 jira: G94-180 / BE-FIX-10
 branch: fix/G94-180-BE-FIX-10-school-year-scope
@@ -12,7 +12,7 @@ updated: 2026-11-22
 ---
 # Xếp lớp khác nhóm tuổi, lịch sử "Báo ăn", đổi tên "Khai báo ăn và sức khỏe" (đợt 1)
 
-Đợt 1 trong 2 đợt (user test tới B5 ngày 22/11 rồi yêu cầu 5 mục). Đợt 2 (chọn năm, ngày bắt đầu đi học): `2026-11-22-intake-start-date.md`. Plan FE: `FE:docs/plans/active/2026-11-22-placement-age-group-history-rename.md`.
+Đợt 1 trong 2 đợt (user test tới B5 ngày 22/11 rồi yêu cầu 5 mục). Đợt 2 (chọn năm, ngày bắt đầu đi học): `2026-11-22-intake-start-date.md`. Plan FE: `FE:docs/plans/completed/2026-11-22-placement-age-group-history-rename.md`.
 
 ## Context
 - Code chặn xếp lớp khác nhóm tuổi (Cần, G94-236 "Standardize yearly age group placement"). Tài liệu thì cho phép: G94-180/CHD-13 (`docs/business/BUSINESS_RULES.md:413`, CONFIRMED 22/11) ghi "được xếp vào lớp khác nhóm tuổi … chỉ để gợi ý, cảnh báo". Các chỗ chặn:
@@ -107,3 +107,10 @@ updated: 2026-11-22
 - Sau sửa: 4 lớp test trên pass. `./mvnw verify` (23:41 min) ⇒ `Tests run: 2260, Failures: 5, Errors: 1, Skipped: 2`, BUILD FAILURE do lỗi có sẵn: 5 failure Edu (`EduYearPlanSchemaIntegrationTest`, `EduCurriculumServiceIntegrationTest` ×3, `EduYearPlanServiceIntegrationTest`) và error `ChildEnrollmentIntegrationTest#plannedClassOfOtherAgeGroupIsAccepted` (luật nhóm tuổi của Cần, chờ phase 1). Không có failure mới (trước: 2257 test, cùng 5 failure + 1 error).
 - Khác plan: câu "sửa khai báo sức khỏe" ở `ChildProfileChangeRequestServiceImpl.java:103` là dòng của thangnd (chỉ đổi chữ).
 - Tiếp: user review; phase 1 chờ Cần.
+
+### 2026-11-23 — 2A xong, đóng plan
+- User 23/11: "tiếp nhận trẻ không bắt buộc trẻ phải phù hợp nhóm tuổi, cho phép chọn nhóm tuổi và lớp của nhóm tuổi đó (xếp lớp chuyển lớp cũng vậy)".
+- BE: bỏ `PlacementRules.ageGroupProblem` (và phụ thuộc `AgeGroupService`), bỏ kiểm nhóm của lớp dự kiến khi tiếp nhận năm sau, bỏ luật "chuyển trong năm chỉ cùng nhóm" trong `ChildRecordServiceImpl.place`; 2416 trên bảng năm mới Cần đã tự bỏ (97a272cd). Rule G94-180/CHD-13 thêm "chuyển lớp trong năm".
+- FE: bỏ `lockAgeGroup` ở `ClassPlacementFields`, Tiếp nhận, Xếp lớp; giữ gợi ý, cảnh báo vàng, nút "Xem lớp mọi nhóm tuổi".
+- Verify: BE PlacementRulesTest, ChildRecordServiceImplTest, ChildEnrollmentIntegrationTest (55, gồm plannedClassOfOtherAgeGroupIsAccepted), ChildPlacementScheduleIntegrationTest (10), ChildPlacementListIntegrationTest, ChildRecordIntegrationTest, YearTransitionIntegrationTest, OpenApiSnapshotTest, ArchitectureRulesTest đạt; FE `npm run verify` exit 0, 1696 test.
+- Sửa dòng Cần viết ⇒ báo Cần. Commit: chưa commit.
