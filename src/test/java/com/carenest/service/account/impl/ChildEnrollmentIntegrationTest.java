@@ -715,6 +715,45 @@ class ChildEnrollmentIntegrationTest {
 
     @Test
     @DisplayName(
+            "CHD-04: trẻ chuyển từ Cơ sở A sang B rồi nghỉ thật (đóng lớp) ⇒ duplicate-check trả điểm trường lớp cuối (B)")
+    void duplicateOfWithdrawnTransferredChildReturnsLastClassCampus() {
+        Long childId = enrollmentService
+                .enroll(
+                        principal,
+                        request("Vũ Minh Khôi", "2023-06-02", classA, null, newGuardian("0916000003", "001700000003")))
+                .child()
+                .id();
+        recordService.place(
+                principal, childId, new com.carenest.dto.child.PlaceChildRequest(classB, "Chuyển điểm trường"));
+        // Lùi ngày chuyển để nghỉ sau đó đóng lớp B (không bị coi là bỏ lớp vừa vào hôm nay)
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-10-09' WHERE child_id = ? AND classroom_id = ?",
+                childId,
+                classA);
+        jdbc.update(
+                "UPDATE enrollments SET valid_from = '2026-10-10' WHERE child_id = ? AND classroom_id = ?",
+                childId,
+                classB);
+        entityManager.clear();
+
+        ChildViewResponse left = recordService.withdraw(
+                principal,
+                childId,
+                new com.carenest.dto.child.WithdrawChildRequest(TODAY.toString(), "Gia đình chuyển nhà"));
+        assertThat(left.status()).isEqualTo(ChildStatus.LEFT);
+        assertThat(count("SELECT count(*) FROM enrollments WHERE child_id = " + childId
+                        + " AND valid_to IS NOT NULL AND classroom_id = " + classB))
+                .isEqualTo(1);
+        entityManager.clear();
+
+        DuplicateCheckResponse dup =
+                intakeService.checkDuplicate(principal, "Vũ Minh Khôi", "2023-06-02", List.of("001700000003"), null);
+        assertThat(dup.kind()).isEqualTo(DuplicateChildKind.LEFT);
+        assertThat(dup.campusId()).isEqualTo(campusB);
+    }
+
+    @Test
+    @DisplayName(
             "CHD-10: lớp tiếp nhận = lớp đang hoạt động của năm đang hoạt động trong phạm vi, kèm sĩ số, chủ nhiệm")
     void placementClassesFollowActiveYearAndScope() {
         List<PlacementClassResponse> all = intakeService.listPlacementClasses(principal);
