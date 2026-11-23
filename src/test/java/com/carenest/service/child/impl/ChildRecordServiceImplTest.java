@@ -377,6 +377,38 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
+    @DisplayName(
+            "G94-180/CHD-03: leave-options hôm nay không phải ngày học ⇒ không chọn hôm nay (cùng câu lỗi withdraw),"
+                    + " ngày học kế tiếp là ngày học đầu tiên sau hôm nay")
+    void leaveOptionsOnNonSchoolDayOfferOnlyNextSchoolDay() {
+        given(schoolYearService.isSchoolDay(TODAY)).willReturn(false);
+        given(schoolYearService.isSchoolDay(LocalDate.of(2026, 11, 12))).willReturn(true);
+
+        assertThat(service.leaveOptions(PRINCIPAL, CHILD_ID))
+                .isEqualTo(new com.carenest.dto.child.LeaveOptionsResponse(
+                        TODAY,
+                        false,
+                        "Ngày nghỉ học 10/11/2026 không phải ngày học. Chọn ngày học khác.",
+                        LocalDate.of(2026, 11, 12)));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: leave-options như withdraw — trẻ đã nghỉ ⇒ 409, PHT ngoài điểm trường ⇒ 403")
+    void leaveOptionsFollowWithdrawScope() {
+        CurrentUser vice = TestPermissions.userWithDefaults(3L, CareNestRole.VICE_PRINCIPAL);
+        given(policy.managedCampusIds(vice)).willReturn(Set.of(99L));
+        assertThatThrownBy(() -> service.leaveOptions(vice, CHILD_ID))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+
+        child.withdraw(LocalDate.of(2026, 10, 1), "Đã nghỉ");
+        assertThatThrownBy(() -> service.leaveOptions(PRINCIPAL, CHILD_ID))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+    }
+
+    @Test
     @DisplayName("G94-180/CHD-03: nghỉ ngay ngày vào lớp ⇒ bỏ lớp đó (không có ngày học nào)")
     void withdrawOnFirstClassDayDropsEnrollment() {
         Enrollment today = Enrollment.start(CHILD_ID, CLASS_ID, TODAY);

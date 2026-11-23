@@ -7,6 +7,7 @@ import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
+import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
@@ -29,6 +30,12 @@ public interface ChildRecordService {
      * 00:05 ngày đó.
      */
     ChildViewResponse withdraw(CurrentUser actor, Long childId, WithdrawChildRequest request);
+
+    /**
+     * Ngày được chọn khi cho nghỉ học ({@code GET /children/{id}/leave-options}, G94-180/CHD-03): cùng phạm vi, cùng
+     * luật ngày và câu lỗi với {@link #withdraw}; trẻ đã nghỉ 409. Không ghi gì.
+     */
+    LeaveOptionsResponse leaveOptions(CurrentUser actor, Long childId);
 
     /**
      * Kiểm Sửa hồ sơ (mục 4.2 plan tiếp nhận): phạm vi, trẻ chưa nghỉ, lỗi theo ô (400), ngày sinh không sau ngày tiếp

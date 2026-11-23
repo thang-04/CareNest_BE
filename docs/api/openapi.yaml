@@ -3738,6 +3738,25 @@ paths:
           description: OK
       tags:
       - health-trend-controller
+  /api/children/{childId}/leave-options:
+    get:
+      operationId: leaveOptions
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLeaveOptionsResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/photo:
     get:
       operationId: getChildPhoto
@@ -18161,6 +18180,19 @@ components:
       required:
       - contentType
       - fileName
+    LeaveOptionsResponse:
+      type: object
+      properties:
+        nextSchoolDay:
+          type: string
+          format: date
+        today:
+          type: string
+          format: date
+        todayAllowed:
+          type: boolean
+        todayBlockedReason:
+          type: string
     LeaveRequestResponse:
       type: object
       properties:
@@ -22403,6 +22435,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/LearningResourceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonLeaveOptionsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/LeaveOptionsResponse"
         desc:
           type: string
         errorCode:

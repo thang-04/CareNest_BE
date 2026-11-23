@@ -10,6 +10,7 @@ import com.carenest.dto.child.EnrollChildRequest;
 import com.carenest.dto.child.GuardianCheckRequest;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
+import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.ParentAccountLookupResponse;
 import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.PlacementClassResponse;
@@ -195,6 +196,18 @@ public class ChildEnrollmentController {
         ChildViewResponse child = childRecordService.withdraw(currentUser, childId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw child success", child);
+    }
+
+    // G94-180/CHD-03 (user chốt 2026-11-24): hộp Cho nghỉ học hỏi hôm nay có chọn được không và ngày học kế tiếp
+    @GetMapping("/{childId}/leave-options")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<LeaveOptionsResponse>> leaveOptions(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|leaveOptions|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        LeaveOptionsResponse options = childRecordService.leaveOptions(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get leave options success", options);
     }
 
     @PostMapping("/{childId}/placement")

@@ -19,6 +19,7 @@ import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.EnrollmentChildInput;
 import com.carenest.dto.child.GuardianInput;
+import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.exception.GlobalException;
@@ -78,6 +79,9 @@ class ChildRecordIntegrationTest {
     private static final String OLD_PHONE = "0902000001";
     private static final String NEW_PHONE = "0902000099";
     private static final String CITIZEN = "001190000101";
+    // Câu chặn dữ liệu trong ngày của withdraw (G94-180/CHD-03)
+    private static final String SAME_DAY_DATA =
+            "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Thực hiện nghỉ học từ ngày học tiếp theo.";
 
     @Container
     @ServiceConnection
@@ -293,6 +297,23 @@ class ChildRecordIntegrationTest {
         recordService.withdraw(vicePrincipal, sibling, new WithdrawChildRequest("2026-11-24", "Chuyển nhà"));
         entityManager.flush();
         assertThat(validTo(sibling)).isEqualTo(LocalDate.of(2026, 11, 23));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: leave-options — trẻ đã điểm danh hôm nay ⇒ không chọn hôm nay (cùng câu chặn của"
+            + " withdraw), ngày học kế tiếp; trẻ chưa có dữ liệu trong ngày ⇒ được hôm nay")
+    void leaveOptionsBlockTodayAfterAttendance() {
+        attendance(childA, TODAY);
+
+        LeaveOptionsResponse blocked = recordService.leaveOptions(vicePrincipal, childA);
+
+        assertThat(blocked).isEqualTo(new LeaveOptionsResponse(TODAY, false, SAME_DAY_DATA, TODAY.plusDays(1)));
+        expectFieldMessage(
+                () -> recordService.withdraw(vicePrincipal, childA, new WithdrawChildRequest(TODAY.toString(), "x")),
+                "leftAt",
+                blocked.todayBlockedReason());
+        assertThat(recordService.leaveOptions(vicePrincipal, sibling))
+                .isEqualTo(new LeaveOptionsResponse(TODAY, true, null, TODAY.plusDays(1)));
     }
 
     @Test

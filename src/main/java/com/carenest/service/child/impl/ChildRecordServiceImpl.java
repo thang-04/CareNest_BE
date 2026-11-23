@@ -15,6 +15,7 @@ import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.dto.child.HealthDeclarationDraft;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
+import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
@@ -93,6 +94,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private static final int MAX_REASON = 300;
     private static final int SCHOOL_DAY_SEARCH_DAYS = 400;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    // Cùng chữ với câu chặn dữ liệu trong ngày ở withdraw (ô leftAt): đổi câu thì đổi cả hai
+    private static final String SAME_DAY_DATA_BLOCKED =
+            "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Thực hiện nghỉ học từ ngày học tiếp theo.";
 
     private final ChildRepository childRepository;
     private final ChildProfileRepository childProfileRepository;
@@ -717,9 +721,34 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public LeaveOptionsResponse leaveOptions(CurrentUser actor, Long childId) {
+        String logPrefix = LOG_PREFIX + "|leaveOptions|userId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            Child child = loadInScope(actor, childId, today);
+            if (child.getStatus() == ChildStatus.LEFT) {
+                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            }
+            // Câu withdraw trả khi chọn hôm nay: khối chặn dữ liệu trong ngày ghi sau, đè lỗi ngày cùng ô leftAt
+            String todayProblem = hasDailyOperationalData(childId, today)
+                    ? SAME_DAY_DATA_BLOCKED
+                    : leaveDateProblem(actor, child, today, today);
+            LeaveOptionsResponse options =
+                    new LeaveOptionsResponse(today, todayProblem == null, todayProblem, nextSchoolDay(today));
+            log.info("{}|todayAllowed={}|END", logPrefix, options.todayAllowed());
+            return options;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     /**
      * G94-180/CHD-03 (user chốt 2026-11-24): ngày nghỉ học không trước hôm nay, là ngày học, là hôm nay hoặc ngày học kế
-     * tiếp, không trước ngày tiếp nhận / mở lại hồ sơ. Null khi hợp lệ.
+     * tiếp, không trước ngày tiếp nhận / mở lại hồ sơ. Null khi hợp lệ. Dùng chung cho withdraw và leaveOptions.
      */
     private String leaveDateProblem(CurrentUser actor, Child child, LocalDate leftAt, LocalDate today) {
         if (leftAt.isBefore(today)) {

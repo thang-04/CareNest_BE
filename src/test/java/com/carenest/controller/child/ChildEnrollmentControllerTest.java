@@ -244,6 +244,35 @@ class ChildEnrollmentControllerTest {
     }
 
     @Test
+    @DisplayName("G94-180/CHD-03: ngày được chọn khi cho nghỉ học cần quyền CHILD_PLACEMENT ⇒ 200 trả hôm nay, ngày học"
+            + " kế tiếp")
+    void placementManagerReadsLeaveOptions() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
+        given(childRecordService.leaveOptions(actor, 301L))
+                .willReturn(new com.carenest.dto.child.LeaveOptionsResponse(
+                        LocalDate.of(2026, 11, 10), false, "Lý do giả", LocalDate.of(2026, 11, 11)));
+
+        mockMvc.perform(get("/api/children/301/leave-options").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Get leave options success"))
+                .andExpect(jsonPath("$.data.today").value("2026-11-10"))
+                .andExpect(jsonPath("$.data.todayAllowed").value(false))
+                .andExpect(jsonPath("$.data.todayBlockedReason").value("Lý do giả"))
+                .andExpect(jsonPath("$.data.nextSchoolDay").value("2026-11-11"));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: ngày được chọn khi cho nghỉ học thiếu quyền CHILD_PLACEMENT ⇒ 403, không gọi service")
+    void leaveOptionsNeedPlacementPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(get("/api/children/301/leave-options").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
+    }
+
+    @Test
     @DisplayName("CHD-10: xếp / chuyển lớp cần quyền CHILD_PLACEMENT ⇒ 200 trả hồ sơ có lớp mới")
     void placementManagerPlacesChild() throws Exception {
         CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
