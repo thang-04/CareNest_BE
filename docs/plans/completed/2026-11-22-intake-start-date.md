@@ -1,6 +1,6 @@
 ---
 title: Ngày bắt đầu đi học khi tiếp nhận, ngày hiệu lực xếp và chuyển lớp, nhắc trẻ tới ngày chưa có lớp (đợt 2)
-status: in-progress
+status: done
 owner: ATPX48-69
 jira: G94-180 / BE-FIX-10
 branch: fix/G94-180-BE-FIX-10-school-year-scope
@@ -12,7 +12,7 @@ updated: 2026-11-23
 ---
 # Ngày bắt đầu đi học khi tiếp nhận, ngày hiệu lực xếp và chuyển lớp, nhắc trẻ tới ngày chưa có lớp (đợt 2)
 
-Đợt 2, làm sau đợt 1 (`2026-11-22-placement-age-group-history-rename.md`). Plan FE: `FE:docs/plans/active/2026-11-22-intake-start-date.md`. Có migration và đổi contract ⇒ risk high. Ngày 23/11 Cần nhờ user (qua lời nói): tiếp nhận phải có ngày bắt đầu đi học, chuyển lớp phải chọn ngày thực hiện. Vì vậy user tự làm phần này, không chờ Cần.
+Đợt 2, làm sau đợt 1 (`2026-11-22-placement-age-group-history-rename.md`). Plan FE: `FE:docs/plans/completed/2026-11-22-intake-start-date.md`. Có migration và đổi contract ⇒ risk high. Ngày 23/11 Cần nhờ user (qua lời nói): tiếp nhận phải có ngày bắt đầu đi học, chuyển lớp phải chọn ngày thực hiện. Vì vậy user tự làm phần này, không chờ Cần.
 
 ## Context
 - Tiếp nhận năm đang học không có ngày bắt đầu: lớp tính từ hôm nay (`ChildIntakeServiceImpl.java:414`, `PlacementRules.java:90-92`). `startDate` chỉ dùng cho năm sau: mặc định ngày bắt đầu năm HT cấu hình, phải nằm trong năm (`EnrollChildRequest.java:15`, `ChildIntakeServiceImpl.java:656-660`, `:698-720`). Mở lại hồ sơ dùng hôm nay (`:272`).
@@ -158,3 +158,18 @@ updated: 2026-11-23
 - Phase 1: V173 `children.start_date`; `placeOf`/`readmit` kiểm `startDate` năm đang học (thiếu, trước hôm nay, sau cuối năm, ngày nghỉ); năm sau thêm kiểm ngày học, để trống = ngày học đầu tiên của năm; lớp lúc tiếp nhận tính từ ngày bắt đầu.
 - Khác plan: fixture năm sau của `ChildEnrollmentIntegrationTest` đổi ngày bắt đầu 05/09/2027 (chủ nhật) thành 06/09/2027 vì ngày bắt đầu phải là ngày học.
 - Verify: `ChildEnrollmentIntegrationTest` 54 test, 1 error có sẵn (`plannedClassOfOtherAgeGroupIsAccepted`, luật nhóm tuổi của Cần, chờ 2A); controller, import, photo, list, validator test đạt (166 test cùng đợt).
+
+### 2026-11-23 — phase 2, 3 xong
+- Commit: `21be1f15` (xếp / chuyển lớp theo ngày, lịch, hủy lịch, V174, sĩ số từ ngày, thông báo), `75dd78d3` (`startDate`, `startDue`, `nextClass` ở danh sách và hồ sơ), `f2eba2a7` (rule G94-180/CHD-14, CHD-03, module card).
+- Khác plan: `effective_from` để nullable (seed dev `R__dev_01` chèn `child_placements` không có cột này; null đọc như ngày của `placed_at`); thêm `cancelled_at`, `cancelled_by` để giữ dòng lịch bị hủy / bị thay. `YearTransitionServiceImpl` của Cần gọi `recordPlacement` 8 tham số như cũ (overload giữ hành vi). Lỗi ngày học và lỗi đã có dữ liệu trong ngày của `place` chuyển từ ô `classId` sang ô `effectiveDate` (`ChildRecordServiceImplTest` cập nhật). Trẻ chỉ có lớp chưa bắt đầu: `classId` ở hồ sơ / danh sách là lớp sắp vào, `nextClass` cùng lớp.
+- Verify từng bước: `ChildPlacementScheduleIntegrationTest` 9/9; đợt hồi quy child 218 test và 170 test chỉ còn error có sẵn `plannedClassOfOtherAgeGroupIsAccepted`; `OpenApiSnapshotTest` cập nhật ở từng commit.
+
+### 2026-11-23 — done
+- Full verify `./mvnw -q clean spotless:check verify` (Docker bật) ở `f2eba2a7`: 2290 test, 5 failure, 17 error, 2 skip. Không lỗi nào thuộc phần plan này:
+  - 5 failure Edu (EduYearPlanSchema 1, EduCurriculumService 3, EduYearPlanService 1): có sẵn trên nhánh Cần.
+  - `plannedClassOfOtherAgeGroupIsAccepted`: luật nhóm tuổi của Cần, chờ 2A.
+  - `StockDeductionListenerIntegrationTest`, `StockDeductionRecoveryIntegrationTest`: cũng lỗi trên tip Cần 591721f0 (`AttendanceServiceImpl.mealsOf:728`).
+  - 14 error `EduYearPlanServiceIntegrationTest` (`value too long for type character varying(20)` ở `edu_themes.abbr`): test ghép `"TMN3-" + System.nanoTime()`; máy chạy 11,95 ngày nên `nanoTime` có 16 chữ số (21 ký tự). Lần chạy lúc 00:58 cùng ngày chưa lỗi. Báo người phụ trách Edu.
+  - 2 skip: AI live eval cần biến môi trường.
+- Chưa push.
+
