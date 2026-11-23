@@ -29,8 +29,14 @@ public interface EduYearPlanService {
 
     YearPlanDetailResponse getYearPlan(CurrentUser currentUser, Long planId);
 
+    PageResponse<YearPlanSummaryResponse> getOverdueYearPlans(
+            CurrentUser user, Long schoolYearId, Long ageGroupId, String keyword, Pageable pageable,
+            com.carenest.utils.enums.EduPlanLevel level);
+
+    YearPlanDetailResponse getOverdueYearPlan(CurrentUser user, Long planId, Long schoolYearId);
+
     /** Kế hoạch năm/tổ đang chờ đúng người gọi duyệt ở bước hiện tại. */
-    java.util.List<YearPlanSummaryResponse> getReviewQueue(CurrentUser currentUser);
+    java.util.List<YearPlanSummaryResponse> getReviewQueue(CurrentUser currentUser, Long schoolYearId);
 
     YearPlanDetailResponse createYearPlan(CurrentUser currentUser, YearPlanRequest request, YearPlanEditRequest edit);
 

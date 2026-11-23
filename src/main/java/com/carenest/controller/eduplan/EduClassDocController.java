@@ -67,13 +67,44 @@ public class EduClassDocController {
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ClassDocsResponse>> getClassDocs(
-            @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+            @RequestParam(required = false) Long schoolYearId,
+            @RequestParam(defaultValue = "MAIN") ClassDocView view,
+            CurrentUser currentUser) {
         String logPrefix =
                 LOG_PREFIX + "|getClassDocs|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        ClassDocsResponse docs = classDocService.getClassDocs(currentUser, schoolYearId);
+        ClassDocsResponse docs = view == ClassDocView.REVIEW
+                ? classDocService.getClassDocsForReview(currentUser, schoolYearId)
+                : classDocService.getClassDocs(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class documents success", docs);
+    }
+
+    public enum ClassDocView { MAIN, REVIEW }
+
+    @GetMapping("/overdue")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<ClassDocsResponse>> getOverdueClassDocs(
+            @RequestParam Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getOverdueClassDocs|userId=" + currentUser.userId()
+                + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        var docs = classDocService.getOverdueClassDocs(currentUser, schoolYearId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get overdue class documents success", docs);
+    }
+
+    @GetMapping("/overdue/{kind}/{docKey}")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<ObjectNode>> getOverdueClassDoc(
+            @PathVariable String kind, @PathVariable String docKey,
+            @RequestParam Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getOverdueClassDoc|userId=" + currentUser.userId()
+                + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        var doc = classDocService.getOverdueClassDoc(currentUser, schoolYearId, kind, docKey);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get overdue class document success", doc);
     }
 
     @PutMapping("/{kind}/{docKey}")

@@ -6,6 +6,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,6 +46,21 @@ class EduClassDocControllerTest {
 
     @MockitoBean
     private EduClassDocService service;
+
+    @Test
+    void overdueReadsRequirePrincipalAndSchoolYear() throws Exception {
+        var url = "/api/education-plans/class-docs/overdue/semester/sp_1";
+        var principal = new CurrentUser(7L, "kc-7", "principal", "Demo", null, Set.of(CareNestRole.PRINCIPAL));
+        given(currentUserService.getCurrentUser()).willReturn(principal);
+        var jwtPrincipal = jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"));
+        mvc.perform(get(url).with(jwtPrincipal)).andExpect(status().isBadRequest());
+        mvc.perform(get(url).param("schoolYearId", "12")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+        mvc.perform(get(url).param("schoolYearId", "12").with(jwtPrincipal)).andExpect(status().isOk());
+        verify(service).getOverdueClassDoc(principal, 12L, "semester", "sp_1");
+    }
 
     @Test
     @DisplayName("EDU-47: multipart preview trả tuần hệ thống trong envelope hiện hành")

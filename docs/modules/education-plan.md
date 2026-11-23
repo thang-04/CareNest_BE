@@ -1,5 +1,7 @@
 # Module — education-plan
 
+> **Tiền chốt 23/11/2026 (EDU-107):** Các trang Kế hoạch giáo dục dùng chung bộ chọn năm trên Web và lọc dữ liệu theo ID năm học, gồm cả Kho học liệu. Cấu hình kế hoạch và Nguồn chương trình của Bộ dùng dữ liệu chung. Các thao tác chủ động lấy nguồn năm khác áp dụng điều kiện đã chốt của từng nghiệp vụ.
+
 > **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
 
 
@@ -267,10 +269,8 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 - FR-021a: `GET /goals` (`YearPlanSummaryResponse`) thêm `timeLock {deadline, extendedTo, deadlineState, timeLocked, canUnlock}` cho
   màn Kế hoạch quá hạn (FE/APP chỉ thêm trường).
 - EDU-90 (Tiền 14/11/2026): cờ `permissions.canExport` (kế hoạch năm/tổ `YearPlanDetailResponse`/`YearPlanSummaryResponse`; mọi tài liệu lớp kể cả `sp_`/`ds_`) = người tạo (`owner_id`/`created_by`) hoặc người xem có vai trò ≥ vai trò người tạo (HT > PHT > TT > GV) tại ngày tạo; GV tạo hoặc không rõ vai trò ⇒ mọi người xem được đều xuất. Khung học kỳ chưa ban hành (`semesterFrameNode`) không có cờ.
-- Lịch nhánh (`branch`): mọi người xem được lớp trong phạm vi nhận bản đầy đủ, không cần ban hành; đã bỏ `releasedBranchNode` và `branchUnreleasedSemesters` (Tiền 11/11/2026). Quyền sửa vẫn theo `permissions.canEdit`.
-- Gốc chưa ban hành (`overdueRootNode`, Tiền 11/11/2026): chỉ Hiệu trưởng thấy, và chỉ khi `canExtend` (quá hạn) hoặc đã có sự kiện `extend`; còn lại người chỉ xem (kể cả PHT không soạn/duyệt) chỉ thấy bản ban hành gần nhất (`releasedNode`). `history` chỉ giữ sự kiện `extend` (hạn mới, người mở, lý do) cho màn
-  Kế hoạch quá hạn, ẩn ghi chú gửi/trả lại. HT thấy được kế hoạch năm/tổ Nháp chưa từng ban hành khi đã quá hạn hoặc đã mở hạn
-  (để mở hạn) — Tiền xác nhận 11/11/2026 (bổ sung EDU-73).
+- **Nghiệp vụ đích (EDU-73, Tiền 23/11/2026):** mọi vai trò khi chỉ có quyền xem chỉ nhận bản đã ban hành trong phạm vi được xem. Trang Dự kiến trả lịch nhánh (`branch`) của bản ban hành theo học kỳ cho người chỉ xem. Người phụ trách soạn đọc được mọi trạng thái trong phạm vi soạn, gồm lịch nhánh dự kiến. Phạm vi quyền dựa vào phân công của từng hồ sơ. Quyền đọc và thao tác ở hàng chờ duyệt theo EDU-93.
+- **Kế hoạch quá hạn (EDU-76/97):** phạm vi đọc riêng của Hiệu trưởng cho hồ sơ chưa ban hành đang quá hạn gửi, quá hạn duyệt hoặc đã mở hạn, gồm kế hoạch năm/tổ và hai loại hồ sơ lớp. Lịch sử mở hạn gồm người mở, lý do và hạn mới. Quyền mở hạn độc lập với quyền duyệt. Các ghi chú gửi và trả lại tiếp tục theo EDU-73.
 - V106 xóa ràng buộc `ck_edu_class_docs_adjustments_day` (V103 đã thay `_week` bằng `_day`) cùng `ck_edu_class_docs_adjustments`.
 - Lỗi có cấu trúc: `GlobalException.withData(code, data, args)` ⇒ `ResponseJson.data` = `data` (vd. `{ details }`).
 - Kiểm chứng: `EduClassDocServiceIntegrationTest` (`adjustmentsRemoved`, `dossierSubmitRequiresEveryDaySection`,

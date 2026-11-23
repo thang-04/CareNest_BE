@@ -148,21 +148,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         try {
             requirePermission(currentUser, EduPermission.GOALS_VIEW);
             EduPlanAccessPolicy.ViewScope scope = listScope(currentUser, level, schoolYearId);
-            // EDU-76/97: HT cần dữ liệu Nháp quá hạn gửi và Chờ duyệt quá hạn duyệt, kể cả ngoài chuỗi.
-            boolean principal = accessPolicy.isPrincipal(currentUser);
-            if (principal) {
-                Set<EduPlanStatus> statuses = new HashSet<>(scope.schoolWideStatuses());
-                statuses.add(EduPlanStatus.DRAFT);
-                statuses.add(EduPlanStatus.REVIEW);
-                scope = new EduPlanAccessPolicy.ViewScope(
-                        Set.copyOf(statuses),
-                        scope.fullAgeGroupIds(),
-                        scope.approvedAgeGroupIds(),
-                        scope.reviewAgeGroupIds());
-            }
-            String pattern = keyword == null || keyword.isBlank()
-                    ? null
-                    : "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
             Page<EduPlan> page = yearPlanRepository.search(
                     level,
                     schoolYearId,
@@ -170,18 +155,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     scope.schoolWideStatuses(),
                     scope.fullAgeGroupIds(),
                     scope.approvedAgeGroupIds(),
-                    scope.reviewAgeGroupIds(),
-                    pattern,
+                    Set.of(),
+                    keywordPattern(keyword),
                     pageable);
-            if (principal) {
-                // Lọc các bản Nháp/Chờ duyệt không thuộc quyền xem trước khi dựng dữ liệu.
-                List<EduPlan> visible = page.getContent().stream()
-                        .filter(p -> p.publicStatus() != EduPlanStatus.REVIEW
-                                ? canView(currentUser, p)
-                                : isAuthor(currentUser, p) || hasReviewDeadlineBoardAccess(p))
-                        .toList();
-                page = new org.springframework.data.domain.PageImpl<>(visible, pageable, page.getTotalElements());
-            }
             PageResponse<YearPlanSummaryResponse> response =
                     PageResponse.from(page, summaryMapper(currentUser, page.getContent()));
             log.info("{}|END", logPrefix);
@@ -192,19 +168,80 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
     }
 
+    private static String keywordPattern(String keyword) {
+        return keyword == null || keyword.isBlank() ? null : "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public PageResponse<YearPlanSummaryResponse> getOverdueYearPlans(
+            CurrentUser user, Long schoolYearId, Long ageGroupId, String keyword, Pageable pageable,
+            EduPlanLevel level) {
+        String logPrefix = LOG_PREFIX + "|getOverdueYearPlans|userId=" + user.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            requireDeadlineBoard(user, schoolYearId);
+            var candidates = yearPlanRepository.search(
+                    level,
+                    schoolYearId,
+                    ageGroupId,
+                    Set.of(EduPlanStatus.DRAFT, EduPlanStatus.REVIEW),
+                    Set.of(),
+                    Set.of(),
+                    Set.of(),
+                    keywordPattern(keyword),
+                    Pageable.unpaged(pageable.getSort()));
+            List<EduPlan> eligible = candidates.stream().filter(this::hasDeadlineBoardAccess).toList();
+            int start = pageable.isPaged() ? (int) Math.min(pageable.getOffset(), eligible.size()) : 0;
+            int size = pageable.isPaged() ? Math.min(pageable.getPageSize(), eligible.size() - start) : eligible.size();
+            var page = new org.springframework.data.domain.PageImpl<>(
+                    eligible.subList(start, start + size), pageable, eligible.size());
+            var result = PageResponse.from(page, summaryMapper(user, page.getContent()));
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public YearPlanDetailResponse getOverdueYearPlan(CurrentUser user, Long planId, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|getOverdueYearPlan|userId=" + user.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        try {
+            requireDeadlineBoard(user, schoolYearId);
+            EduPlan plan = yearPlanRepository.findById(planId)
+                    .filter(p -> schoolYearId.equals(p.getSchoolYearId()))
+                    .filter(this::hasDeadlineBoardAccess)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
+            var result = toDetail(user, plan, true);
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private void requireDeadlineBoard(CurrentUser user, Long schoolYearId) {
+        if (schoolYearId == null) throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "năm học");
+        if (!accessPolicy.isPrincipal(user)) throw GlobalException.of(ApiCode.FORBIDDEN);
+    }
+
     @Override
     @Transactional(readOnly = true)
-    public List<YearPlanSummaryResponse> getReviewQueue(CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId();
+    public List<YearPlanSummaryResponse> getReviewQueue(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             requirePermission(currentUser, EduPermission.GOALS_VIEW);
-            // Bản Chờ duyệt chỉ hiện ở hàng chờ, cho đúng người duyệt hợp lệ của bước hiện tại
             List<EduPlan> plans = Stream.of(EduPlanLevel.SCHOOL_YEAR, EduPlanLevel.TEAM)
                     .flatMap(level -> yearPlanRepository
                             .search(
                                     level,
-                                    null,
+                                    schoolYearId,
                                     null,
                                     Set.of(EduPlanStatus.REVIEW),
                                     Set.of(),
@@ -493,8 +530,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|unlockYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             if (!accessPolicy.isPrincipal(currentUser)) throw GlobalException.of(ApiCode.FORBIDDEN);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId, false);
             String reason = note == null ? "" : note.trim();
             if (reason.isEmpty()) throw GlobalException.of(ApiCode.RETURN_REASON_REQUIRED);
             LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
@@ -532,7 +569,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         planLink(plan),
                         false,
                         planScope(plan));
-            YearPlanDetailResponse response = toDetail(currentUser, plan);
+            YearPlanDetailResponse response = toDetail(currentUser, plan, true);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -730,8 +767,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|reopenReviewDeadline|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             if (!accessPolicy.isPrincipal(currentUser)) throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId, false);
             String reason = note == null ? "" : note.trim();
             LocalDate today = LocalDate.now(clock);
             if (reason.isEmpty() || deadline == null || !deadline.isAfter(today))
@@ -753,7 +790,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     .withDeadline(deadline);
             event.initializeOwner(plan);
             eventRepository.save(event);
-            YearPlanDetailResponse response = toDetail(currentUser, plan);
+            YearPlanDetailResponse response = toDetail(currentUser, plan, true);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -1118,21 +1155,20 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private boolean canView(CurrentUser user, EduPlan plan) {
         if (isAuthor(user, plan)) return true;
         EduPlanStatus status = plan.publicStatus();
-        // Spec 005 FR-021a: HT xem (chỉ đọc) và mở hạn bản Nháp quá hạn hoặc đã được mở hạn, chưa từng ban hành
-        if (status == EduPlanStatus.DRAFT && accessPolicy.isPrincipal(user))
-            return (timeLock.locked(plan) || timeLock.info(plan).extendedTo() != null) && !timeLock.released(plan);
         if (status == EduPlanStatus.APPROVED)
             return listScope(user, plan.getPlanLevel(), plan.getSchoolYearId())
                     .allows(plan.getAgeGroupId(), EduPlanStatus.APPROVED);
-        if (status != EduPlanStatus.REVIEW) return false;
-        if (isCurrentApprover(user, plan) || isChainReviewer(user, plan)) return true;
-        return accessPolicy.isPrincipal(user) && hasReviewDeadlineBoardAccess(plan);
+        return status == EduPlanStatus.REVIEW && (isCurrentApprover(user, plan) || isChainReviewer(user, plan));
     }
 
-    private boolean hasReviewDeadlineBoardAccess(EduPlan plan) {
-        EduReviewDeadline.Info review = reviewDeadlineOf(plan);
-        return review.reopenUntil() != null
-                || (review.locked() && schoolYearService.isPlanYearWritable(plan.getSchoolYearId()));
+    private boolean hasDeadlineBoardAccess(EduPlan plan) {
+        boolean writableYear = schoolYearService.isPlanYearWritable(plan.getSchoolYearId());
+        if (plan.publicStatus() == EduPlanStatus.REVIEW) {
+            EduReviewDeadline.Info review = reviewDeadlineOf(plan);
+            return review.reopenUntil() != null || (review.locked() && writableYear);
+        }
+        return plan.publicStatus() == EduPlanStatus.DRAFT && !timeLock.released(plan)
+                && (timeLock.info(plan).extendedTo() != null || (timeLock.locked(plan) && writableYear));
     }
 
     // Người phụ trách: đủ điều kiện soạn theo cấu hình (với kế hoạch tổ là Tổ trưởng hiện hành); không xét trạng thái
@@ -1886,6 +1922,10 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     private YearPlanDetailResponse toDetail(CurrentUser user, EduPlan plan) {
+        return toDetail(user, plan, false);
+    }
+
+    private YearPlanDetailResponse toDetail(CurrentUser user, EduPlan plan, boolean deadlineBoard) {
         Long planId = plan.getId();
         List<EduGoalRow> rows = findRows(planId);
         List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId);
@@ -1952,7 +1992,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         boolean seesHistory = isAuthor(user, plan)
                 || isCurrentApprover(user, plan)
                 || isChainReviewer(user, plan)
-                || events.stream().anyMatch(e -> user.userId().equals(e.getActorId()));
+                || (!deadlineBoard && events.stream().anyMatch(e -> user.userId().equals(e.getActorId())
+                        && !isDeadlineEvent(e)));
         String lastReturnNote = events.stream()
                 .filter(e -> ACTION_RETURN.equals(e.getAction()))
                 .reduce((first, second) -> second)
@@ -1996,7 +2037,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId).stream()
                         .map(mapper::toBreak)
                         .toList(),
-                seesHistory ? events.stream().map(mapper::toHistory).toList() : List.of(),
+                events.stream().filter(e -> seesHistory || (deadlineBoard && isDeadlineEvent(e)))
+                        .map(mapper::toHistory).toList(),
                 seesHistory ? lastReturnNote : null,
                 buildReviewState(plan),
                 permissionsOf(user, plan, chain, currentId),
@@ -2048,6 +2090,11 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                                 .reduce((first, second) -> second)
                                 .filter(ACTION_RETURN::equals)
                                 .isPresent());
+    }
+
+    private static boolean isDeadlineEvent(EduPlanEvent event) {
+        return EduPlanTimeLock.ACTION_UNLOCK.equals(event.getAction())
+                || ACTION_REOPEN_REVIEW_DEADLINE.equals(event.getAction());
     }
 
     private YearPlanDetailResponse.TimeLock timeLockOf(CurrentUser user, EduPlan plan) {

@@ -134,6 +134,39 @@ class EduYearPlanControllerTest {
     }
 
     @Test
+    void overdueReadsUseSeparateScope() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(eduYearPlanService.getOverdueYearPlans(eq(principal), eq(42L), eq(null), eq(null), any(),
+                eq(com.carenest.utils.enums.EduPlanLevel.TEAM)))
+                .willReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
+        mockMvc.perform(get(GOALS).param("schoolYearId", "42").param("view", "OVERDUE").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.items").isArray());
+        mockMvc.perform(get(GOALS + "/17").param("schoolYearId", "42").param("view", "OVERDUE")
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk());
+        verify(eduYearPlanService).getOverdueYearPlan(principal, 17L, 42L);
+        verify(eduYearPlanService, never()).getYearPlan(any(), any());
+    }
+
+    @Test
+    void reviewQueueBindsOptionalSchoolYearId() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(eduYearPlanService.getReviewQueue(principal, 42L)).willReturn(List.of());
+        given(eduYearPlanService.getReviewQueue(principal, null)).willReturn(List.of());
+
+        mockMvc.perform(get(GOALS + "/review-queue")
+                        .param("schoolYearId", "42")
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+        mockMvc.perform(get(GOALS + "/review-queue").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk());
+
+        verify(eduYearPlanService).getReviewQueue(principal, 42L);
+        verify(eduYearPlanService).getReviewQueue(principal, null);
+    }
+
+    @Test
     void pageSizeAbove200IsRejected() throws Exception {
         authenticateAs(CareNestRole.VICE_PRINCIPAL);
 

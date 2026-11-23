@@ -30,6 +30,11 @@ public interface EduClassDocService {
 
     /** Tài liệu, lớp và giáo viên của năm học (null = năm đang hoạt động) trong phạm vi người xem. */
     ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId);
+    ClassDocsResponse getClassDocsForReview(CurrentUser currentUser, Long schoolYearId);
+
+    ClassDocsResponse getOverdueClassDocs(CurrentUser currentUser, Long schoolYearId);
+
+    ObjectNode getOverdueClassDoc(CurrentUser currentUser, Long schoolYearId, String kind, String docKey);
 
     /** Lưu nội dung (tạo mới nếu chưa có); chỉ giáo viên của lớp, khi tài liệu còn Nháp / Bị trả lại. */
     ObjectNode saveClassDoc(

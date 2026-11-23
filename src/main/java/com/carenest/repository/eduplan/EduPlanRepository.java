@@ -159,4 +159,5 @@ public class EduPlanRepository {
                 .search(year, age, statuses, full, approved, review, keyword, pageable)
                 .map(p -> (EduPlan) p);
     }
+
 }

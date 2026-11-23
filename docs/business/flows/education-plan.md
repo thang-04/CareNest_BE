@@ -1,5 +1,7 @@
 # Flow — Kế hoạch giáo dục và giáo án
 
+> **Tiền chốt 23/11/2026 (EDU-107):** Các trang Kế hoạch giáo dục dùng chung bộ chọn năm trên Web và lọc dữ liệu theo ID năm học, gồm cả Kho học liệu. Cấu hình kế hoạch và Nguồn chương trình của Bộ dùng dữ liệu chung. Các thao tác chủ động lấy nguồn năm khác áp dụng điều kiện đã chốt của từng nghiệp vụ.
+
 > **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
 
 
@@ -81,7 +83,8 @@ Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chư
 - Nghiệp vụ đích (EDU-97, Tiền 19/11/2026): bản Chờ duyệt được xử lý thêm số ngày do Hiệu trưởng cấu hình. Hết hạn, chặn duyệt, ban hành và trả lại kể cả với Hiệu trưởng. Hiệu trưởng mở lại hạn duyệt tại Kế hoạch quá hạn, ghi lý do, hạn mới và lịch sử. Ban hành sau hạn vẫn hiện "Ban hành trễ". Số ngày để người soạn gửi lại sau khi bị trả lại trễ được cấu hình riêng theo EDU-94. Chỉ Hiệu trưởng được thay đổi cả hai giá trị. Hiệu trưởng thấy và mở hạn cho mọi hồ sơ đủ điều kiện dù không thuộc chuỗi duyệt. Màn Kế hoạch quá hạn mặc định hiện Tất cả và lọc được theo Quá hạn gửi (EDU-76) hoặc Quá hạn duyệt (EDU-97).
 - Trạng thái duyệt (Nháp/Chờ duyệt/Bị trả lại/Đã ban hành) và trạng thái hạn (Gần đến hạn/Quá hạn/Đúng hạn/Ban hành trễ)
   hiện tách rõ; mở hạn/mở khóa chỉ Hiệu trưởng (Tiền 11/11/2026, spec 005).
-- Người chỉ xem chỉ thấy lịch nhánh của học kỳ đã ban hành.
+- **EDU-73 (Tiền 23/11/2026):** ở các trang chính, mọi vai trò khi chỉ có quyền xem chỉ thấy bản đã ban hành trong phạm vi mình được xem. Trang Dự kiến chủ đề - chủ đề nhánh trả lịch đã ban hành theo học kỳ cho người chỉ xem. Người được phân công soạn xem được lịch dự kiến và các trạng thái khác trong phạm vi soạn.
+- Hồ sơ chưa ban hành đang quá hạn hoặc đã mở hạn chỉ xuất hiện ở **Kế hoạch quá hạn** cho quyền mở hạn theo EDU-76/97. Luồng soạn và hàng chờ duyệt theo EDU-93 vẫn áp dụng theo phân công.
 
 ## Cách duyệt cố định, phiên bản và khóa theo thời gian (spec 004 — Tiền 11/11/2026, EDU-75/76/77)
 

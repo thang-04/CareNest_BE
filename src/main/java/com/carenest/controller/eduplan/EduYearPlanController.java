@@ -81,6 +81,8 @@ public class EduYearPlanController {
     }
 
     // Role chỉ là lớp 1; EduYearPlanService kiểm quyền goals.* và phạm vi nhóm tuổi (lớp 2)
+    public enum PlanView { MAIN, OVERDUE }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<PageResponse<YearPlanSummaryResponse>>> getYearPlans(
@@ -89,6 +91,7 @@ public class EduYearPlanController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planLevel,
             @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planType,
+            @RequestParam(defaultValue = "MAIN") PlanView view,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size,
             CurrentUser currentUser) {
@@ -100,13 +103,10 @@ public class EduYearPlanController {
         var level = planType != null
                 ? planType
                 : planLevel == null ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel;
-        PageResponse<YearPlanSummaryResponse> plans = eduYearPlanService.getYearPlans(
-                currentUser,
-                schoolYearId,
-                ageGroupId,
-                q,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")),
-                level);
+        var paging = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        PageResponse<YearPlanSummaryResponse> plans = view == PlanView.OVERDUE
+                ? eduYearPlanService.getOverdueYearPlans(currentUser, schoolYearId, ageGroupId, q, paging, level)
+                : eduYearPlanService.getYearPlans(currentUser, schoolYearId, ageGroupId, q, paging, level);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plans success", plans);
     }
@@ -115,10 +115,11 @@ public class EduYearPlanController {
     @GetMapping("/review-queue")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<java.util.List<YearPlanSummaryResponse>>> getReviewQueue(
+            @RequestParam(required = false) Long schoolYearId,
             CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId();
+        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        var plans = eduYearPlanService.getReviewQueue(currentUser);
+        var plans = eduYearPlanService.getReviewQueue(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get review queue success", plans);
     }
@@ -126,10 +127,15 @@ public class EduYearPlanController {
     @GetMapping("/{planId}")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> getYearPlan(
-            @PathVariable Long planId, CurrentUser currentUser) {
+            @PathVariable Long planId,
+            @RequestParam(required = false) Long schoolYearId,
+            @RequestParam(defaultValue = "MAIN") PlanView view,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan = eduYearPlanService.getYearPlan(currentUser, planId);
+        YearPlanDetailResponse plan = view == PlanView.OVERDUE
+                ? eduYearPlanService.getOverdueYearPlan(currentUser, planId, schoolYearId)
+                : eduYearPlanService.getYearPlan(currentUser, planId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plan success", plan);
     }

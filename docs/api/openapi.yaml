@@ -5165,6 +5165,13 @@ paths:
   /api/education-plans/goals/review-queue:
     get:
       operationId: getReviewQueue
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
