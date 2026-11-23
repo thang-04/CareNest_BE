@@ -335,6 +335,34 @@ class InspectionIntegrationTest {
     }
 
     @Test
+    @DisplayName("NUT-21/INS-02: ký M5 khi còn mẫu chờ duyệt thì 6115; duyệt hết ⇒ ký được")
+    void signSampleSheetBlocksWhileSamplePending() {
+        confirmedCount(kindergartenClass, 10);
+        FoodSampleResponse pending = foodSampleService.createSample(
+                kitchen,
+                new FoodSampleRequest(
+                        MONDAY,
+                        MealSession.LUNCH,
+                        List.of(com),
+                        null,
+                        null,
+                        List.of(new FoodSampleRequest.DishDetailInput(com, "100 g", "Hộp nhựa", "2-8 °C"))));
+        inspectionService.save(
+                approver, campus, MONDAY, InspectionTab.SAMPLE, new InspectionSaveRequest(0, Map.of(), List.of(row("sample:" + pending.id()))));
+
+        expectCode(
+                () -> inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null),
+                ApiCode.INSPECTION_SAMPLE_PENDING);
+
+        foodSampleService.approveSample(approver, pending.id());
+        entityManager.flush();
+        entityManager.clear();
+        InspectionSheetResponse signed =
+                inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null);
+        assertThat(signed.status()).isEqualTo(InspectionStatus.SIGNED);
+    }
+
+    @Test
     @DisplayName("AC-8: ảnh trên biên bản chỉ tải được ở đúng điểm trường chứa nó")
     void signatureImageScopedToCampus() {
         List<Map<String, Object>> rows = List.of(row("a"));

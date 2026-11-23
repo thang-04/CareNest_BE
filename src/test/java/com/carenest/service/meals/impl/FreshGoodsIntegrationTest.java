@@ -357,6 +357,10 @@ class FreshGoodsIntegrationTest {
                 .extracting(l -> l.food().code(), l -> l.result(), l -> l.note())
                 .containsExactlyInAnyOrder(
                         tuple("THIT", FreshCheckResult.SHORT, "Thiếu chút"), tuple("RAU", FreshCheckResult.ENOUGH, ""));
+        // Dòng "Đủ" để trống thực nhận ⇒ lưu bằng số cần nhận; dòng có nhập giữ nguyên số đã nhập
+        assertThat(recorded.rounds().getFirst().lines())
+                .extracting(l -> l.food().code(), l -> l.receivedQty() == null ? null : l.receivedQty().intValue())
+                .containsExactlyInAnyOrder(tuple("THIT", 118), tuple("RAU", 187));
         assertThat(recorded.rounds().get(1).recorded()).isFalse();
 
         // Ghi đè: sửa tại chỗ, không nhân đôi dòng
@@ -367,8 +371,9 @@ class FreshGoodsIntegrationTest {
                 1,
                 check(line(pork, FreshCheckResult.OVER), line(veg, FreshCheckResult.SHORT)));
         assertThat(overwritten.rounds().getFirst().lines())
-                .extracting(l -> l.food().code(), l -> l.result())
-                .containsExactlyInAnyOrder(tuple("THIT", FreshCheckResult.OVER), tuple("RAU", FreshCheckResult.SHORT));
+                .extracting(l -> l.food().code(), l -> l.result(), l -> l.receivedQty())
+                .containsExactlyInAnyOrder(
+                        tuple("THIT", FreshCheckResult.OVER, null), tuple("RAU", FreshCheckResult.SHORT, null));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM fresh_checks", Integer.class))
                 .isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM fresh_check_lines", Integer.class))
@@ -660,6 +665,9 @@ class FreshGoodsIntegrationTest {
 
         FreshCheckResponse signed = freshService.getChecks(principal, campus, MONDAY);
         assertThat(signed.editable()).isFalse();
+        // Bán trú hôm nay báo M1 tươi đã ký của đúng ngày
+        assertThat(board(principal, MONDAY).m1FreshSigned()).isTrue();
+        assertThat(board(principal, MONDAY.plusDays(1)).m1FreshSigned()).isFalse();
         assertThat(signed.lockReason()).isEqualTo(FreshCheckLock.M1_SIGNED);
         expectCode(() -> freshService.recordCheck(principal, campus, MONDAY, 1, enough), ApiCode.FRESH_CHECK_SIGNED);
         expectCode(() -> freshService.recordCheck(principal, campus, MONDAY, 2, check()), ApiCode.FRESH_CHECK_SIGNED);

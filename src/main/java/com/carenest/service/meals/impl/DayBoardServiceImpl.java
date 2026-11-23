@@ -97,7 +97,8 @@ public class DayBoardServiceImpl implements DayBoardService {
                 dryStock(campus.id(), date, menu.dayOff(), published, mealCounts.status()),
                 freshGoodsService.getReceiptStatus(campus.id(), date),
                 samples.status(),
-                samples.pendingCount());
+                samples.pendingCount(),
+                writeGuard.signed(campus.id(), date, InspectionTab.FRESH));
     }
 
     /** Số suất người duyệt thấy: số chờ xác nhận lại nếu có, không thì số đã chốt (NUT-03). */
