@@ -6978,6 +6978,18 @@ paths:
           description: OK
       tags:
       - age-group-meal-config-controller
+  /api/nutrition/age-group-configs/statuses:
+    get:
+      operationId: getGroupStatuses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListNutritionGroupStatus"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
   /api/nutrition/age-group-configs/{ageGroupId}/versions:
     get:
       operationId: getConfigVersions
@@ -10312,6 +10324,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgeGroupMealConfigRequest"
+          maxItems: 20
+          minItems: 0
+        nonEmpty:
+          type: boolean
+        statuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionGroupStatus"
           maxItems: 20
           minItems: 0
       required:
@@ -19183,6 +19203,18 @@ components:
           type: number
         proteinKcalPerG:
           type: number
+    NutritionGroupStatus:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
+        enabled:
+          type: boolean
+      required:
+      - ageGroupId
+      - enabled
     NutritionTotals:
       type: object
       properties:
@@ -22715,6 +22747,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NotificationRuleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListNutritionGroupStatus:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionGroupStatus"
         desc:
           type: string
         errorCode:

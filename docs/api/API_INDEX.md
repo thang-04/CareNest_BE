@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 411 endpoint.
+Tổng: 412 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -295,6 +295,7 @@ POST /nutrition/age-group-configs · src/main/java/com/carenest/controller/meals
 GET /nutrition/age-group-configs/{ageGroupId}/versions · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#getConfigVersions
 PUT /nutrition/age-group-configs/{configId} · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#updateConfig
 POST /nutrition/age-group-configs/batch · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#saveConfigs
+GET /nutrition/age-group-configs/statuses · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#getGroupStatuses
 GET /nutrition/allergens · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getAllergens
 GET /nutrition/day-board · src/main/java/com/carenest/controller/meals/MealPlanController.java#getDayBoard
 GET /nutrition/day-market · src/main/java/com/carenest/controller/meals/DayMarketController.java#getDayMarket
