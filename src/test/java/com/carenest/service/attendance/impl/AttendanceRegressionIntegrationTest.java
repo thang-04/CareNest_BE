@@ -2,15 +2,20 @@ package com.carenest.service.attendance.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.carenest.dto.attendance.AttendanceSummaryResponse;
 import com.carenest.dto.attendance.AttendanceSummaryResponse.ChildTotal;
 import com.carenest.dto.attendance.AttendanceSummaryResponse.DayRow;
+import com.carenest.dto.attendance.LeaveRequestDtos.CreateLeaveRequest;
+import com.carenest.dto.attendance.LeaveRequestDtos.LeaveDay;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.attendance.AttendanceService;
+import com.carenest.service.attendance.LeaveRequestService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.LeavePart;
 import com.carenest.utils.enums.Permission;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
@@ -79,6 +84,9 @@ class AttendanceRegressionIntegrationTest {
     private AttendanceService service;
 
     @Autowired
+    private LeaveRequestService leaveService;
+
+    @Autowired
     private MovableClock clock;
 
     @Autowired
@@ -88,6 +96,7 @@ class AttendanceRegressionIntegrationTest {
     private EntityManager entityManager;
 
     private CurrentUser principal;
+    private CurrentUser parent;
     private CurrentUser teacherA;
     private long year;
     private long classA;
@@ -122,6 +131,7 @@ class AttendanceRegressionIntegrationTest {
                 principal.userId());
         teacherA = user("teachera", CareNestRole.TEACHER);
         teach(teacherA, classA);
+        parent = user("parent", CareNestRole.PARENT);
     }
 
     @Test
@@ -199,6 +209,92 @@ class AttendanceRegressionIntegrationTest {
         });
         assertThat(totalOf(summary, child1).transferredInOn()).isNull();
         assertThat(totalOf(summary, child1).previousClasses()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Đơn nghỉ gửi trước khi chuyển lớp: ngày sau khi chuyển tính cho lớp mới (sổ báo ăn, tổng hợp, đơn)")
+    void leaveDaysFollowClassOfEachDateAfterTransfer() {
+        LocalDate fri = TODAY.plusDays(2);
+        guardian(child1);
+        long leaveId = leaveService
+                .createLeaveRequest(parent, new CreateLeaveRequest(child1, fri, fri, "Ốm"))
+                .id();
+        transfer(child1, classB, fri);
+
+        AttendanceService.ClassMealTally tallyB = tallyOf(fri, classB);
+        assertThat(tallyB.absent()).isEqualTo(1);
+        assertThat(tallyB.missing()).isEqualTo(1);
+        assertThat(tallyOf(fri, classA).absent()).isZero();
+        assertThat(leaveService.findMyLeaveRequests(parent))
+                .filteredOn(r -> r.id().equals(leaveId))
+                .singleElement()
+                .satisfies(r -> assertThat(r.days())
+                        .extracting(LeaveDay::date, LeaveDay::classId, LeaveDay::className)
+                        .containsExactly(tuple(fri, classB, "Lớp B")));
+
+        clock.now = Instant.parse("2026-10-23T03:00:00Z");
+        assertThat(service.getClassSummary(principal, classB, fri, fri)
+                        .days()
+                        .getFirst()
+                        .excused())
+                .isEqualTo(1);
+        assertThat(service.getClassSummary(principal, classA, fri, fri)
+                        .days()
+                        .getFirst()
+                        .excused())
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("Nghỉ sáng gửi trước khi chuyển lớp: GV lớp mới bấm Đã đến được")
+    void morningLeaveArrivalWorksInNewClassAfterTransfer() {
+        LocalDate fri = TODAY.plusDays(2);
+        guardian(child1);
+        leaveService.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, fri, fri, "Đi khám", LeavePart.MORNING, true));
+        transfer(child1, classB, fri);
+        CurrentUser teacherB = user("teacherb", CareNestRole.TEACHER);
+        teach(teacherB, classB);
+        clock.now = Instant.parse("2026-10-23T06:00:00Z"); // 13:00 thứ 6
+
+        service.markArrived(teacherB, classB, child1, fri);
+        entityManager.flush();
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT classroom_id FROM attendance_records WHERE child_id = ? AND date = ?",
+                        Long.class,
+                        child1,
+                        fri))
+                .isEqualTo(classB);
+    }
+
+    private AttendanceService.ClassMealTally tallyOf(LocalDate date, long classId) {
+        return service.tallyMeals(date, classCampus(classId), null).stream()
+                .filter(t -> t.classroomId().equals(classId))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private void transfer(long childId, long toClass, LocalDate from) {
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = ? WHERE child_id = ? AND valid_to IS NULL",
+                from.minusDays(1),
+                childId);
+        enroll(childId, toClass, from.toString());
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    private void guardian(long childId) {
+        jdbc.update(
+                "INSERT INTO child_guardians (user_id, child_id, position, full_name, relationship, phone, citizen_id,"
+                        + " linked_at) VALUES (?, ?, 0, 'Mẹ (giả)', 'MOTHER', '0900000009', '000000000009', now())",
+                parent.userId(),
+                childId);
+    }
+
+    private long classCampus(long classId) {
+        return jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classId);
     }
 
     private static ChildTotal totalOf(AttendanceSummaryResponse.ClassSummary summary, long childId) {

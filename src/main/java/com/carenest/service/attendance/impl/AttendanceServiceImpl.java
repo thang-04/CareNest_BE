@@ -373,7 +373,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                             currentUser.userId(),
                             at));
                     action = AttendanceRecordHistory.RECORDED;
-                } else if (record.differsFrom(entry.status(), meals, absentPart)) {
+                } else if (record.differsFrom(entry.status(), meals, absentPart)
+                        || !record.getClassroomId().equals(cls.id())) {
+                    record.moveToClass(cls.id(), cls.campusId());
                     record.update(entry.status(), meals, currentUser.userId(), at);
                     action = AttendanceRecordHistory.UPDATED;
                 } else {
@@ -412,10 +414,14 @@ public class AttendanceServiceImpl implements AttendanceService {
             classroomService.lockForUpdate(classId);
             DayInfoResponse info = rules.dayInfo(day, cls, null);
             LocalTime latest = rules.latestArrival(cls.schoolYearId(), day);
-            AttendanceRecord record = recordRepository.findByChildIdInAndDate(List.of(childId), day).stream()
-                    .filter(r -> r.getClassroomId().equals(classId))
-                    .findFirst()
-                    .orElse(null);
+            // Trẻ phải thuộc lớp ngày đó; bản ghi do đơn nghỉ gửi trước khi chuyển lớp vẫn mang lớp cũ
+            boolean inClassToday = enrollmentService.findChildrenInClassroom(classId, day).stream()
+                    .anyMatch(c -> c.id().equals(childId));
+            AttendanceRecord record = !inClassToday
+                    ? null
+                    : recordRepository.findByChildIdInAndDate(List.of(childId), day).stream()
+                            .findFirst()
+                            .orElse(null);
             // ATT-13: hôm nay từ giờ chốt tới giờ đến muộn nhất; ngoài khung chỉ khi lớp/ngày được mở lại
             boolean inWindow = day.equals(info.today()) && info.baseLocked() && !rules.isBaseLocked(day, latest);
             if (record == null
@@ -425,6 +431,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 throw GlobalException.of(ApiCode.ATTENDANCE_ARRIVAL_NOT_ALLOWED, latest);
             }
             Instant at = rules.now();
+            record.moveToClass(cls.id(), cls.campusId());
             record.update(AttendanceStatus.PRESENT, record.getMeals(), currentUser.userId(), at);
             historyRepository.save(AttendanceRecordHistory.of(
                     record,
@@ -638,8 +645,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<Long> childIds = enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
                 .map(ClassChildResponse::id)
                 .toList();
+        // Trẻ của lớp ngày đó: bản ghi đơn nghỉ gửi trước khi chuyển lớp tính cho lớp mới (một trẻ một bản ghi / ngày)
         Map<Long, AttendanceRecord> records = recordRepository.findByChildIdInAndDate(childIds, date).stream()
-                .filter(r -> r.getClassroomId().equals(cls.id()))
                 .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
         int present = 0;
         int absent = 0;

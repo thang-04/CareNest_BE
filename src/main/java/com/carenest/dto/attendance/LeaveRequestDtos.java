@@ -56,7 +56,11 @@ public final class LeaveRequestDtos {
             LeavePart part,
             Boolean eats,
             Long ageGroupId,
-            List<MealSession> eatsMeals) {}
+            List<MealSession> eatsMeals,
+            List<LeaveDay> days) {}
+
+    /** Một ngày học của đơn gắn với lớp trẻ học ngày đó (trẻ chuyển lớp sau khi gửi đơn, Cần chốt 24/11/2026). */
+    public record LeaveDay(LocalDate date, Long classId, String className) {}
 
     /** Nhãn "Phụ huynh báo nghỉ" ở dòng trẻ của màn điểm danh. */
     /** eats null = không áp dụng (cả ngày, hoặc buổi còn học không có bữa); eatsMeals: các bữa của buổi còn học. */
