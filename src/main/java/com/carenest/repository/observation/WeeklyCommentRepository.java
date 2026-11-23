@@ -17,4 +17,7 @@ public interface WeeklyCommentRepository extends JpaRepository<WeeklyComment, Lo
             Long classroomId, Long childId, LocalDate weekStart);
 
     List<WeeklyComment> findByChildIdAndStatusOrderByWeekStartDesc(Long childId, WeeklyCommentStatus status);
+
+    List<WeeklyComment> findByChildIdAndStatusAndWeekStartBetweenOrderByWeekStartAsc(
+            Long childId, WeeklyCommentStatus status, LocalDate from, LocalDate to);
 }

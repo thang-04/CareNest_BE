@@ -31,7 +31,7 @@ public final class SemesterAssessmentDtos {
             Boolean met) {}
 
     @Schema(name = "SemesterAssessmentChild")
-    public record Child(Long childId, String fullName, List<Domain> domains) {}
+    public record Child(Long childId, String fullName, List<Domain> domains, String historyStatus) {}
 
     @Schema(name = "SemesterAssessmentResponse")
     public record Response(

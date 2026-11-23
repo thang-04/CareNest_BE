@@ -169,16 +169,11 @@ class ChildEnrollmentIntegrationTest {
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         plannedYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
                 + "VALUES ('2027-2028', '2027-09-06', '2028-05-31') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, activeYear);
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, plannedYear);
         classA = classroom(campusA, activeYear, "Lớp A1", ag3, 2);
         classB = classroom(campusB, activeYear, "Lớp B1", ag3, 25);
         plannedClass = classroom(campusA, plannedYear, "Lớp A năm sau", ag3, 25);
-        // Nhóm tuổi của từng năm (V154): xếp lớp kiểm trẻ đúng nhóm tuổi của năm đó (PlacementRules.ageGroupProblem)
-        for (long year : List.of(activeYear, plannedYear)) {
-            jdbc.update(
-                    "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
-                            + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
-                    year);
-        }
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principalId);

@@ -273,6 +273,9 @@ class LeaveRequestIntegrationTest {
         // ATT-05b: hôm nay đã qua giờ chốt ⇒ không đổi điểm danh hôm nay
         assertThat(leave.skippedDates()).containsExactly(TODAY);
         assertThat(leave.appliedDates()).containsExactly(THU);
+        expectError(
+                () -> service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Bổ sung")),
+                ApiCode.LEAVE_NO_SCHOOL_DAY);
         assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
                 .isZero();
         // Ngày bị bỏ qua không mang nhãn đơn nghỉ, nên không khóa điểm danh của GV hôm đó (ATT-05b)

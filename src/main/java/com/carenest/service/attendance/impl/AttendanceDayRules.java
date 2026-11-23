@@ -14,6 +14,7 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
+import com.carenest.service.organization.TeacherReadAccessService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -48,6 +49,7 @@ class AttendanceDayRules {
     private final CampusAccessPolicy campusAccessPolicy;
     private final AccountService accountService;
     private final SchoolYearService schoolYearService;
+    private final TeacherReadAccessService teacherReadAccessService;
 
     LocalDate today() {
         return LocalDate.now(clock);
@@ -117,6 +119,7 @@ class AttendanceDayRules {
         // GV có quyền ghi điểm danh / sức khỏe luôn xem được lớp đang dạy, kể cả khi HT thu hồi quyền Xem (chỉ bớt xem
         // tổng hợp), để quyền ghi không bị mất theo
         if ((user.hasPermission(Permission.ATTENDANCE_RECORD) || user.hasPermission(Permission.DAILY_HEALTH_RECORD))
+                && !yearEnded(cls)
                 && canRecord(user, cls)) {
             return true;
         }
@@ -127,14 +130,43 @@ class AttendanceDayRules {
             return campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, cls.campusId())
                     || ledClosedYear(user, cls, Permission.ATTENDANCE_VIEW);
         }
-        return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
+        return (!yearEnded(cls) && classroomAccessPolicy.canReadClassroom(user, cls.id()))
+                || canReadHistoryRange(user, cls, cls.yearStart(), cls.yearEnd());
     }
 
     /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
-        return canView(user, cls)
-                || (user.hasRole(CareNestRole.TEACHER)
-                        && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+        if (yearEnded(cls)
+                && user.hasRole(CareNestRole.TEACHER)
+                && !user.hasRole(CareNestRole.PRINCIPAL)
+                && !user.hasRole(CareNestRole.VICE_PRINCIPAL)) return canReadHistoryRange(user, cls, date, date);
+        return canView(user, cls) || canReadHistoryRange(user, cls, date, date);
+    }
+
+    boolean canReadHistoryRange(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+        return from != null
+                && to != null
+                && cls.yearStart() != null
+                && cls.yearEnd() != null
+                && !from.isBefore(cls.yearStart())
+                && !to.isAfter(cls.yearEnd())
+                && user.hasRole(CareNestRole.TEACHER)
+                && user.hasPermission(Permission.ATTENDANCE_VIEW)
+                && teacherReadAccessService.covers(user.userId(), cls.id(), from, to);
+    }
+
+    LocalDate lastReadableDay(CurrentUser user, ClassroomInfoResponse cls) {
+        if (!user.hasRole(CareNestRole.TEACHER) || !user.hasPermission(Permission.ATTENDANCE_VIEW)) return null;
+        LocalDate end = cls.yearEnd() == null || cls.yearEnd().isAfter(today()) ? today() : cls.yearEnd();
+        return teacherReadAccessService.latestDay(user.userId(), cls.id(), cls.yearStart(), end);
+    }
+
+    boolean canViewRange(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+        if (yearEnded(cls)
+                && user.hasRole(CareNestRole.TEACHER)
+                && !user.hasRole(CareNestRole.PRINCIPAL)
+                && !user.hasRole(CareNestRole.VICE_PRINCIPAL)) return canReadHistoryRange(user, cls, from, to);
+        return canView(user, cls) || canReadHistoryRange(user, cls, from, to);
     }
 
     /** Người dạy thay có đợt trong năm của lớp: lớp vẫn có trong danh sách để mở lại đúng ngày mình dạy thay. */
@@ -158,6 +190,10 @@ class AttendanceDayRules {
         if (user.hasRole(CareNestRole.PRINCIPAL)
                 && staffAssignmentService.hadRoleInYear(user.userId(), StaffRole.PRINCIPAL, null, cls.schoolYearId())) {
             return true;
+        }
+        Long pinnedCampus = user.pinnedCampusId(permission);
+        if (pinnedCampus != null && !pinnedCampus.equals(cls.campusId())) {
+            return false;
         }
         return user.hasRole(CareNestRole.VICE_PRINCIPAL)
                 && staffAssignmentService.hadRoleInYear(

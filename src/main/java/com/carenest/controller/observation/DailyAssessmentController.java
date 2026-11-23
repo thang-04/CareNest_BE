@@ -31,6 +31,17 @@ public class DailyAssessmentController {
 
     private final DailyAssessmentService dailyAssessmentService;
 
+    @GetMapping("/assessment/daily/classes")
+    @PreAuthorize("@permissionGuard.hasAny('ASSESSMENT_VIEW', 'ASSESSMENT_UNLOCK')")
+    public ResponseEntity<ResponseJson<java.util.List<com.carenest.dto.attendance.AttendanceClassResponse>>>
+            listClasses(@RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        var classes = dailyAssessmentService.listClasses(currentUser, schoolYearId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get assessment classes success", classes);
+    }
+
     @GetMapping("/classes/{classId}/daily-assessment")
     @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<DailySheetResponse>> getDailySheet(

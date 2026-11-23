@@ -55,6 +55,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     private static final TypeReference<Map<Long, String>> COMMENTS = new TypeReference<>() {};
 
     private final ObservationDayRules rules;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final ChildEvaluationRepository evaluationRepository;
     private final ThemeEvaluationRepository themeRepository;
     private final ThemeEvaluationService themeEvaluationService;
@@ -305,7 +306,13 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         Presentation presentation = ev.isConfirmed() && ev.getSheetPresentation() != null
                 ? objectMapper.readValue(ev.getSheetPresentation(), Presentation.class)
                 : presentation(ev, cls);
-        boolean canEdit = !ev.isConfirmed()
+        boolean canEdit = childClassHistoryService
+                        .statuses(
+                                cls.id(),
+                                List.of(ev.getChildId()),
+                                rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today())
+                        .isEmpty()
+                && !ev.isConfirmed()
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
                 && rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
@@ -380,7 +387,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
 
     // GV xem: đang dạy lớp hoặc từng dạy lớp của năm đã kết thúc (như đánh giá cuối năm)
     private boolean teaches(CurrentUser user, ClassroomInfoResponse cls) {
-        return user.hasRole(CareNestRole.TEACHER) && (rules.canRecord(user, cls) || rules.taughtClosedYear(user, cls));
+        return user.hasRole(CareNestRole.TEACHER) && rules.canView(user, cls);
     }
 
     // Trường chỉ có 1 Hiệu trưởng: điền sẵn tên ở bản in (Cần chốt 10/11/2026)
@@ -397,6 +404,12 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
             throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         }
+        if (!childClassHistoryService
+                .statuses(
+                        cls.id(),
+                        List.of(ev.getChildId()),
+                        rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today())
+                .isEmpty()) throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         if (ev.isConfirmed()) {
             throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
         }

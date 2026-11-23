@@ -80,12 +80,21 @@ class ClassCommentServiceTest {
                             inv.<java.time.LocalDate>getArgument(0).getDayOfWeek();
                     return d != java.time.DayOfWeek.SATURDAY && d != java.time.DayOfWeek.SUNDAY;
                 });
-        var rules =
-                new ObservationDayRules(clock, unlocks, classes, staff, classPolicy, campusPolicy, accounts, calendar);
+        var rules = new ObservationDayRules(
+                clock,
+                unlocks,
+                classes,
+                staff,
+                classPolicy,
+                campusPolicy,
+                accounts,
+                calendar,
+                mock(com.carenest.service.organization.TeacherReadAccessService.class));
         service = new DailyAssessmentServiceImpl(
                 rules,
                 observations,
                 results,
+                mock(com.carenest.service.attendance.ChildClassHistoryService.class),
                 enrollments,
                 attendance,
                 health,

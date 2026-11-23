@@ -45,7 +45,8 @@ public final class WeeklyCommentDtos {
             Instant updatedAt,
             boolean reopened,
             WeekData data,
-            boolean historical) {}
+            boolean historical,
+            String historyStatus) {}
 
     /**
      * Tuần nhận xét (OBS-29): weekStart = thứ Hai (khóa lưu); from–to = ngày học có giáo án tuần đã duyệt (source

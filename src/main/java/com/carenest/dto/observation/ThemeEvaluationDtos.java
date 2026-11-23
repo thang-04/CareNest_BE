@@ -31,7 +31,7 @@ public final class ThemeEvaluationDtos {
             Long goalId, Short goalNo, String text, int metChildren, int assessedChildren, Integer rate) {}
 
     /** auto: kết quả hệ thống tính từ KTKN (để màn hình biết ô sửa tay có khác kết quả tự tính không). */
-    public record Cell(Long goalId, Boolean met, boolean manual, Boolean auto) {}
+    public record Cell(Long goalId, Boolean met, boolean manual, Boolean auto, Boolean canEdit) {}
 
     /** passed: trẻ đạt từ passPercent% số MT đã chấm; null khi chưa chấm MT nào. */
     public record ChildRow(
@@ -43,7 +43,8 @@ public final class ThemeEvaluationDtos {
             int notMet,
             Integer rate,
             Boolean passed,
-            Boolean historical) {}
+            Boolean historical,
+            String historyStatus) {}
 
     public record ThemeEvaluationResponse(
             Long classId,

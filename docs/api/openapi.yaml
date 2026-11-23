@@ -1203,6 +1203,25 @@ paths:
           description: OK
       tags:
       - class-rating-controller
+  /api/assessment/daily/classes:
+    get:
+      operationId: listClasses_1
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAttendanceClassResponse"
+          description: OK
+      tags:
+      - daily-assessment-controller
   /api/assessment/day-unlocks:
     get:
       operationId: getUnlocks_3
@@ -1519,6 +1538,11 @@ paths:
         schema:
           type: integer
           format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedraftRequest"
       responses:
         "200":
           content:
@@ -7009,6 +7033,18 @@ paths:
           description: OK
       tags:
       - age-group-meal-config-controller
+  /api/nutrition/age-group-configs/statuses:
+    get:
+      operationId: getGroupStatuses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListNutritionGroupStatus"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
   /api/nutrition/age-group-configs/{ageGroupId}/versions:
     get:
       operationId: getConfigVersions
@@ -9963,6 +9999,8 @@ components:
           format: int64
         fullName:
           type: string
+        historyStatus:
+          type: string
     AccessToken:
       type: object
       properties:
@@ -10202,6 +10240,35 @@ components:
           - CHUA_TICH_CUC
       required:
       - key
+    ActivityResult:
+      type: object
+      properties:
+        goalsEffort:
+          type: array
+          items:
+            type: integer
+            format: int64
+        goalsMet:
+          type: array
+          items:
+            type: integer
+            format: int64
+        goalsNotMet:
+          type: array
+          items:
+            type: integer
+            format: int64
+        key:
+          type: string
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
+        updatedAt:
+          type: string
+          format: date-time
     AddGuardianRequest:
       type: object
       properties:
@@ -10345,6 +10412,14 @@ components:
             $ref: "#/components/schemas/AgeGroupMealConfigRequest"
           maxItems: 20
           minItems: 0
+        nonEmpty:
+          type: boolean
+        statuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionGroupStatus"
+          maxItems: 20
+          minItems: 0
       required:
       - items
     AgeGroupMealConfigRequest:
@@ -10376,6 +10451,18 @@ components:
         animalProteinGMin:
           type: number
           maximum: 9999
+          minimum: 0
+        appliedGlucidPct:
+          type: number
+          maximum: 100
+          minimum: 0
+        appliedLipidPct:
+          type: number
+          maximum: 100
+          minimum: 0
+        appliedProteinPct:
+          type: number
+          maximum: 100
           minimum: 0
         calciumMax:
           type: number
@@ -10550,10 +10637,18 @@ components:
           type: number
         animalProteinGMin:
           type: number
+        appliedGlucidPct:
+          type: number
+        appliedLipidPct:
+          type: number
+        appliedProteinPct:
+          type: number
         calciumMax:
           type: number
         calciumMin:
           type: number
+        conversion:
+          $ref: "#/components/schemas/NutritionConversionResponse"
         dailyKcalNeed:
           type: number
         editable:
@@ -11238,9 +11333,14 @@ components:
           type: boolean
         canUnlock:
           type: boolean
+        historicalReadOnly:
+          type: boolean
         id:
           type: integer
           format: int64
+        lastReadableDate:
+          type: string
+          format: date
         mealSessions:
           type: array
           items:
@@ -11268,6 +11368,8 @@ components:
           type: integer
           format: int64
         className:
+          type: string
+        historyStatus:
           type: string
         latest:
           $ref: "#/components/schemas/DailyHealthEntryResponse"
@@ -11609,6 +11711,8 @@ components:
       properties:
         auto:
           type: boolean
+        canEdit:
+          type: boolean
         goalId:
           type: integer
           format: int64
@@ -11738,6 +11842,8 @@ components:
           type: string
         hasAllergy:
           type: boolean
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
@@ -11805,6 +11911,8 @@ components:
         handedOverAt:
           type: string
           format: date-time
+        historyStatus:
+          type: string
     ChildEnrollmentResponse:
       type: object
       properties:
@@ -12278,6 +12386,8 @@ components:
           format: date
         fullName:
           type: string
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
@@ -12298,6 +12408,8 @@ components:
           type: string
         historical:
           type: boolean
+        historyStatus:
+          type: string
         met:
           type: integer
           format: int32
@@ -12323,6 +12435,8 @@ components:
         excused:
           type: integer
           format: int32
+        historyStatus:
+          type: string
         mealCounts:
           type: object
           additionalProperties:
@@ -13019,6 +13133,19 @@ components:
           format: int64
         name:
           type: string
+    ConvertedGrams:
+      type: object
+      properties:
+        animalLipidG:
+          type: number
+        animalProteinG:
+          type: number
+        glucidG:
+          type: number
+        plantLipidG:
+          type: number
+        plantProteinG:
+          type: number
     CopyClassesRequest:
       type: object
       properties:
@@ -13318,6 +13445,87 @@ components:
           format: time-local
         year:
           $ref: "#/components/schemas/Year"
+    DailyAssessmentRow:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityResult"
+        attendanceStatus:
+          type: string
+          enum:
+          - PRESENT
+          - EXCUSED
+          - UNEXCUSED
+        behaviorNote:
+          type: string
+        behaviors:
+          type: array
+          items:
+            type: string
+            enum:
+            - HOP_TAC_TOT
+            - GIUP_DO_BAN
+            - CHUA_HOP_TAC
+            - TRANH_GIANH
+            - KHONG_TAP_TRUNG
+            - RUT_RE
+            - KHAC
+        childId:
+          type: integer
+          format: int64
+        comment:
+          type: string
+        emotion:
+          type: string
+          enum:
+          - HAPPY
+          - CALM
+          - SAD
+          - UPSET
+        flag:
+          type: boolean
+        fullName:
+          type: string
+        generalRecorded:
+          type: boolean
+        health:
+          $ref: "#/components/schemas/Health"
+        historyStatus:
+          type: string
+        meals:
+          type: object
+          additionalProperties:
+            type: string
+            enum:
+            - AN_HET
+            - AN_IT
+            - KHONG_AN
+        nap:
+          type: string
+          enum:
+          - NGU_TOT
+          - NGU_IT
+          - KHONG_NGU
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
+        recorded:
+          type: boolean
+        skillsRecorded:
+          type: boolean
+        skippedMeals:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
     DailyHealthContact:
       type: object
       properties:
@@ -13492,7 +13700,7 @@ components:
         rows:
           type: array
           items:
-            $ref: "#/components/schemas/Row"
+            $ref: "#/components/schemas/DailyAssessmentRow"
         today:
           type: string
           format: date
@@ -13967,6 +14175,8 @@ components:
           format: date
         fullName:
           type: string
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
@@ -14224,6 +14434,11 @@ components:
         generatedAt:
           type: string
           format: date-time
+        source:
+          type: string
+          enum:
+          - TEMPLATE
+          - AI
     DryIntake:
       type: object
       properties:
@@ -14831,6 +15046,8 @@ components:
       properties:
         aiDraft:
           $ref: "#/components/schemas/Draft"
+        aiEnabled:
+          type: boolean
         campusId:
           type: integer
           format: int64
@@ -14861,6 +15078,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EventRow"
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
@@ -16110,6 +16329,35 @@ components:
           format: int64
         username:
           type: string
+    Health:
+      type: object
+      properties:
+        note:
+          type: string
+        overridden:
+          type: boolean
+        prefillSigns:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        signs:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
     HealthBmiProgress:
       type: object
       properties:
@@ -19219,6 +19467,35 @@ components:
           type: array
           items:
             type: string
+    NutritionConversionResponse:
+      type: object
+      properties:
+        animalLipidShare:
+          type: number
+        animalProteinShare:
+          type: number
+        atKcalMax:
+          $ref: "#/components/schemas/ConvertedGrams"
+        atKcalMin:
+          $ref: "#/components/schemas/ConvertedGrams"
+        glucidKcalPerG:
+          type: number
+        lipidKcalPerG:
+          type: number
+        proteinKcalPerG:
+          type: number
+    NutritionGroupStatus:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
+        enabled:
+          type: boolean
+      required:
+      - ageGroupId
+      - enabled
     NutritionTotals:
       type: object
       properties:
@@ -20730,6 +21007,11 @@ components:
           - CAMPUS
           - AGE_GROUP
           - CLASSROOM
+    RedraftRequest:
+      type: object
+      properties:
+        ai:
+          type: boolean
     Referral:
       type: object
       properties:
@@ -22789,6 +23071,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NotificationRuleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListNutritionGroupStatus:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionGroupStatus"
         desc:
           type: string
         errorCode:
@@ -24855,6 +25152,8 @@ components:
             $ref: "#/components/schemas/SemesterAssessmentDomain"
         fullName:
           type: string
+        historyStatus:
+          type: string
     SemesterAssessmentDomain:
       type: object
       properties:
@@ -26051,6 +26350,8 @@ components:
           format: int32
         historical:
           type: boolean
+        historyStatus:
+          type: string
         issuedElsewhere:
           type: boolean
         presentDays:
@@ -26221,6 +26522,8 @@ components:
           format: int32
         historical:
           type: boolean
+        historyStatus:
+          type: string
         monthly:
           type: integer
           format: int32
@@ -26740,6 +27043,8 @@ components:
           type: string
         historical:
           type: boolean
+        historyStatus:
+          type: string
         reopened:
           type: boolean
         sentAt:

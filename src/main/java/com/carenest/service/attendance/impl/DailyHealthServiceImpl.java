@@ -72,6 +72,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final ChildIntakeService childIntakeService;
     private final SchoolStructureService schoolStructureService;
     private final AccountService accountService;
@@ -108,7 +109,8 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                     handedOverAt == null && canRecordFor(currentUser, cls, childId, day),
                     entries,
                     handedOverAt,
-                    contacts(childId));
+                    contacts(childId),
+                    historyStatus(cls, childId));
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
@@ -277,6 +279,10 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 int checked =
                         (int) present.stream().filter(byChild::containsKey).count();
                 int noted = 0;
+                var history = childClassHistoryService.statuses(
+                        cls.id(),
+                        children.keySet(),
+                        rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());
                 for (Map.Entry<Long, List<DailyHealthEntryResponse>> e : byChild.entrySet()) {
                     DailyHealthEntryResponse latest = e.getValue().getFirst();
                     // Sức khỏe đầu ngày chỉ đo khi trẻ có mặt (Cần chốt 04/11/2026): trẻ đổi sang vắng sau khi ghi thì
@@ -295,7 +301,8 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                             cls.name(),
                             cls.campusId(),
                             latest,
-                            readings));
+                            readings,
+                            history.get(e.getKey())));
                 }
                 totals[0] += present.size();
                 totals[1] += checked;
@@ -354,7 +361,8 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                     false,
                     toViews(entries),
                     handedOverAt(childId, date),
-                    contacts(childId));
+                    contacts(childId),
+                    historyStatus(cls, childId));
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
@@ -393,6 +401,15 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
+    }
+
+    private String historyStatus(ClassroomInfoResponse cls, Long childId) {
+        return childClassHistoryService
+                .statuses(
+                        cls.id(),
+                        List.of(childId),
+                        rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today())
+                .get(childId);
     }
 
     private List<DailyHealthContact> contacts(Long childId) {

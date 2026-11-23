@@ -164,6 +164,10 @@ class AttendanceIntegrationTest {
         teacherB = user("teacherb", CareNestRole.TEACHER);
         teach(teacherA, classA);
         teach(teacherA, oldClass);
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_from='2025-09-01',valid_to='2026-05-31' WHERE user_id=? AND classroom_id=?",
+                teacherA.userId(),
+                oldClass);
         teach(teacherB, classB);
     }
 
@@ -179,6 +183,31 @@ class AttendanceIntegrationTest {
                 jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass));
         LocalDate oldDay = LocalDate.of(2026, 3, 4);
         assertThat(service.getClassAttendance(oldVp, oldClass, oldDay)).isNotNull();
+        Long historicCampus =
+                jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass);
+        Long otherCampus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
+        CurrentUser pinnedHistoric = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ATTENDANCE_VIEW, historicCampus));
+        CurrentUser pinnedOther = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ATTENDANCE_VIEW, otherCampus));
+        assertThat(service.getClassAttendance(pinnedHistoric, oldClass, oldDay)).isNotNull();
+        expectCode(() -> service.getClassAttendance(pinnedOther, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
         expectCode(() -> service.getClassAttendance(oldVp, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
         // PHT điểm trường B năm nay không có phân công năm 2025-2026 ⇒ không xem lớp năm đó
         expectCode(() -> service.getClassAttendance(vpB, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
@@ -242,7 +271,7 @@ class AttendanceIntegrationTest {
                         AttendanceClassResponse::id,
                         AttendanceClassResponse::teaches,
                         AttendanceClassResponse::canRecord)
-                .containsExactly(tuple(oldClass, true, false));
+                .containsExactly(tuple(oldClass, false, false));
 
         ClassAttendanceResponse empty = service.getClassAttendance(teacherA, classA, TODAY);
         assertThat(empty.canRecord()).isTrue();
@@ -286,18 +315,27 @@ class AttendanceIntegrationTest {
                         AttendanceClassResponse::id,
                         AttendanceClassResponse::teaches,
                         AttendanceClassResponse::canRecord)
-                .containsExactly(tuple(oldClass, true, false));
+                .containsExactly(tuple(oldClass, false, false));
         assertThat(service.getClassAttendance(teacherB, oldClass, LocalDate.of(2026, 5, 29))
                         .canRecord())
                 .isFalse();
         expectError(
                 () -> service.saveClassAttendance(teacherB, oldClass, request(TODAY, present(child1))),
                 ApiCode.FORBIDDEN);
-        // Năm đang hoạt động: chỉ lớp đang được phân công
+        // Lớp hết phân công vẫn hiện để đọc đúng đợt cũ; hôm nay và quyền ghi không được mở rộng.
         expectError(() -> service.getClassAttendance(teacherB, classA, TODAY), ApiCode.FORBIDDEN);
+        assertThat(service.getClassAttendance(teacherB, classA, LocalDate.of(2026, 9, 15))
+                        .canRecord())
+                .isFalse();
         assertThat(service.getClasses(teacherB, null))
                 .extracting(AttendanceClassResponse::id)
-                .containsExactly(classB);
+                .containsExactlyInAnyOrder(classA, classB);
+        assertThat(service.getClasses(teacherB, null).stream()
+                        .filter(c -> c.id().equals(classA))
+                        .findFirst()
+                        .orElseThrow()
+                        .historicalReadOnly())
+                .isTrue();
     }
 
     @Test
@@ -337,7 +375,7 @@ class AttendanceIntegrationTest {
                 ApiCode.BAD_REQUEST);
         expectError(
                 () -> service.saveClassAttendance(teacherA, oldClass, request(TODAY, present(child1))),
-                ApiCode.CONFLICT);
+                ApiCode.FORBIDDEN);
     }
 
     @Test
