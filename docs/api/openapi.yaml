@@ -4281,6 +4281,37 @@ paths:
           description: OK
       tags:
       - teacher-assignment-controller
+  /api/classes/{classId}/transferred-assessment-history:
+    get:
+      operationId: getTransferredHistory
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonTransferredAssessmentHistoryResponse"
+          description: OK
+      tags:
+      - daily-assessment-controller
   /api/classrooms:
     get:
       operationId: listClassrooms
@@ -12059,6 +12090,38 @@ components:
             $ref: "#/components/schemas/HealthMeasurementResponse"
         openCampaign:
           $ref: "#/components/schemas/HealthOpenCampaign"
+    ChildHistory:
+      type: object
+      properties:
+        attendance:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryAttendance"
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryDay"
+        health:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryHealth"
+        stays:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassStay"
+        themeResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryThemeResult"
+        weeklyComments:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryWeeklyComment"
     ChildHistoryResponse:
       type: object
       properties:
@@ -12964,6 +13027,20 @@ components:
         substitute:
           type: integer
           format: int32
+    ClassStay:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
     ClassSummary:
       type: object
       properties:
@@ -14936,6 +15013,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GoalRef"
+        recordedAt:
+          type: string
+          format: date-time
+        recordedById:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
     EvaluationDetailResponse:
       type: object
       properties:
@@ -17631,6 +17716,93 @@ components:
           type: string
         tone:
           type: string
+    HistoryAttendance:
+      type: object
+      properties:
+        absentPart:
+          type: string
+          enum:
+          - MORNING
+          - AFTERNOON
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        recordedById:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+        status:
+          type: string
+          enum:
+          - PRESENT
+          - EXCUSED
+          - UNEXCUSED
+    HistoryDay:
+      type: object
+      properties:
+        day:
+          $ref: "#/components/schemas/EvaluationDay"
+        recordedAt:
+          type: string
+          format: date-time
+        recordedById:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+    HistoryGoalResult:
+      type: object
+      properties:
+        goalId:
+          type: integer
+          format: int64
+        goalNo:
+          type: integer
+          format: int32
+        met:
+          type: boolean
+        text:
+          type: string
+    HistoryHealth:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        note:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        recordedById:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+        symptoms:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        temperature:
+          type: number
     HistoryRow:
       type: object
       properties:
@@ -17658,6 +17830,69 @@ components:
           format: int64
         userName:
           type: string
+    HistoryThemeResult:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedById:
+          type: integer
+          format: int64
+        confirmedByName:
+          type: string
+        endDate:
+          type: string
+          format: date
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryGoalResult"
+        met:
+          type: integer
+          format: int32
+        notMet:
+          type: integer
+          format: int32
+        passed:
+          type: boolean
+        rate:
+          type: integer
+          format: int32
+        startDate:
+          type: string
+          format: date
+        themeId:
+          type: integer
+          format: int64
+        themeName:
+          type: string
+    HistoryWeeklyComment:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        content:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        sentById:
+          type: integer
+          format: int64
+        sentByName:
+          type: string
+        weekStart:
+          type: string
+          format: date
     Impact:
       type: object
       properties:
@@ -24175,6 +24410,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonTransferredAssessmentHistoryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/TransferredAssessmentHistoryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonUserPermissionOverridesResponse:
       type: object
       properties:
@@ -25126,6 +25374,8 @@ components:
         metActivities:
           type: integer
           format: int32
+        sourceClassName:
+          type: string
         text:
           type: string
     SemesterAssessmentRequest:
@@ -26323,6 +26573,10 @@ components:
         flagCount:
           type: integer
           format: int32
+        issuedByNames:
+          type: array
+          items:
+            type: string
         presentDays:
           type: integer
           format: int32
@@ -26518,6 +26772,22 @@ components:
         substitute:
           type: integer
           format: int32
+    TransferredAssessmentHistoryResponse:
+      type: object
+      properties:
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildHistory"
+        classId:
+          type: integer
+          format: int64
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
     TrendWarning:
       type: object
       properties:

@@ -244,6 +244,11 @@ class AssessmentContinuityIntegrationTest {
                 .extracting(e -> e.classId(), e -> e.flagCount())
                 .containsExactlyInAnyOrder(
                         org.assertj.core.groups.Tuple.tuple(classA, 2), org.assertj.core.groups.Tuple.tuple(classB, 1));
+        // OBS-35: căn cứ nêu người đã phát phiếu tuần ở lớp đó
+        assertThat(receivingSummary.evidence())
+                .filteredOn(e -> e.classId().equals(classB))
+                .singleElement()
+                .satisfies(e -> assertThat(e.issuedByNames()).containsExactly("ticket-receiver"));
         var oldSummary = ticketService
                 .getSummary(principal, classA, LocalDate.of(2026, 10, 1))
                 .rows()

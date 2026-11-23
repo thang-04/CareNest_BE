@@ -79,6 +79,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
     private final BehaviourTicketRepository ticketRepository;
     private final TicketParentNotifier ticketParentNotifier;
     private final com.carenest.service.child.ChildService childService;
+    private final com.carenest.service.account.AccountService accountService;
 
     /** Số ngày có mặt và số cờ (chỉ ngày có mặt) của từng trẻ trong một tuần. */
     private record WeekStats(Map<Long, Integer> present, Map<Long, Integer> flags) {}
@@ -565,6 +566,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
     private static final class EvidenceLookup {
         private final Map<Set<Long>, List<AttendanceService.ClassChildDay>> days = new HashMap<>();
         private final Map<Long, String> classNames = new HashMap<>();
+        private final Map<Long, String> userNames = new HashMap<>();
     }
 
     private List<TicketEvidence> evidenceOf(
@@ -575,6 +577,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         Map<Long, Integer> present = new HashMap<>();
         Map<Long, Integer> flags = new HashMap<>();
         Map<Long, Integer> weeklyTickets = new HashMap<>();
+        Map<Long, Set<Long>> issuers = new HashMap<>();
         Set<Long> classroomIds = enrollmentService.findChildStays(childId, from, to).stream()
                 .map(EnrollmentService.ChildClassStay::classroomId)
                 .filter(id -> historyClassId == null || historyClassId.equals(id))
@@ -605,7 +608,18 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                 .forEach(t -> {
                     classroomIds.add(t.getClassroomId());
                     weeklyTickets.merge(t.getClassroomId(), 1, Integer::sum);
+                    if (t.getIssuedBy() != null) {
+                        issuers.computeIfAbsent(t.getClassroomId(), id -> new LinkedHashSet<>())
+                                .add(t.getIssuedBy());
+                    }
                 });
+        Set<Long> unknown = issuers.values().stream()
+                .flatMap(Set::stream)
+                .filter(id -> !lookup.userNames.containsKey(id))
+                .collect(Collectors.toSet());
+        if (!unknown.isEmpty()) {
+            lookup.userNames.putAll(accountService.findFullNames(unknown));
+        }
         return classroomIds.stream()
                 .map(classId -> new TicketEvidence(
                         classId,
@@ -617,7 +631,12 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                                         .orElse("Lớp đã lưu")),
                         present.getOrDefault(classId, 0),
                         flags.getOrDefault(classId, 0),
-                        weeklyTickets.getOrDefault(classId, 0)))
+                        weeklyTickets.getOrDefault(classId, 0),
+                        issuers.getOrDefault(classId, Set.of()).stream()
+                                .map(lookup.userNames::get)
+                                .filter(java.util.Objects::nonNull)
+                                .distinct()
+                                .toList()))
                 .sorted(Comparator.comparing(TicketEvidence::className))
                 .toList();
     }

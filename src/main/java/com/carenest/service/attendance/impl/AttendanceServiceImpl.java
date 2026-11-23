@@ -51,6 +51,7 @@ import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -955,6 +956,32 @@ public class AttendanceServiceImpl implements AttendanceService {
                                     r.getStatus(),
                                     r.getMeals() == null ? List.of() : List.copyOf(r.getMeals()),
                                     r.getAbsentPart()))
+                            .toList();
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChildAttendanceDay> findChildAttendance(Collection<Long> childIds, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findChildAttendance|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildAttendanceDay> result = childIds.isEmpty()
+                    ? List.of()
+                    : recordRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
+                            .map(r -> new ChildAttendanceDay(
+                                    r.getChildId(),
+                                    r.getClassroomId(),
+                                    r.getDate(),
+                                    r.getStatus(),
+                                    r.getAbsentPart(),
+                                    r.getRecordedBy()))
+                            .sorted(Comparator.comparing(ChildAttendanceDay::date))
                             .toList();
             log.info("{}|count={}|END", logPrefix, result.size());
             return result;

@@ -117,6 +117,18 @@ class ObservationDayRules {
                 || canReadHistoryRange(user, cls, cls.yearStart(), cls.yearEnd());
     }
 
+    /** Lịch sử lớp cũ của trẻ chuyển đến: chỉ người đang phụ trách lớp (BGH theo scope, GV còn phân công), không cô cũ. */
+    boolean canViewAsCurrentClass(CurrentUser user, ClassroomInfoResponse cls) {
+        if (!user.hasPermission(Permission.ASSESSMENT_VIEW)) {
+            return false;
+        }
+        if (isLeader(user)) {
+            return campusAccessPolicy.canEditCampus(user, Permission.ASSESSMENT_VIEW, cls.campusId())
+                    || ledClosedYear(user, cls);
+        }
+        return !yearEnded(cls) && classroomAccessPolicy.canReadClassroom(user, cls.id());
+    }
+
     /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         if (yearEnded(cls)

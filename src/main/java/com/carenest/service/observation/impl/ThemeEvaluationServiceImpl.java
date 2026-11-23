@@ -381,6 +381,44 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ConfirmedChildTheme> confirmedChildThemes(Long classId, Long childId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|confirmedChildThemes|classId=" + classId + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ConfirmedChildTheme> result = new ArrayList<>();
+            for (ThemeEvaluation saved : evaluationRepository.findByClassroomId(classId)) {
+                // Chỉ bảng đã xác nhận (snapshot đã chốt), chủ đề giao khoảng trẻ học lớp này
+                ThemeEvaluationResponse frozen = snapshot(saved);
+                if (frozen == null
+                        || frozen.startDate().isAfter(to)
+                        || frozen.endDate().isBefore(from)) {
+                    continue;
+                }
+                frozen.rows().stream()
+                        .filter(r -> childId.equals(r.childId()))
+                        .findFirst()
+                        .ifPresent(row -> result.add(new ConfirmedChildTheme(
+                                frozen.themeId(),
+                                frozen.themeName(),
+                                frozen.startDate(),
+                                frozen.endDate(),
+                                frozen.goals(),
+                                row,
+                                saved.getConfirmedBy(),
+                                frozen.confirmedByName(),
+                                frozen.confirmedAt() != null ? frozen.confirmedAt() : saved.getConfirmedAt())));
+            }
+            result.sort(Comparator.comparing(ConfirmedChildTheme::startDate));
+            log.info("{}|themes={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private record ThemeGoal(Long theme, Long goal) {}
 
     private record ThemeValue(boolean met, String themeName, Set<String> classNames) {}

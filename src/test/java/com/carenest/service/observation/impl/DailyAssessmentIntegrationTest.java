@@ -122,6 +122,9 @@ class DailyAssessmentIntegrationTest {
     private EvaluationSources sources;
 
     @Autowired
+    private com.carenest.service.observation.TransferredAssessmentHistoryService transferredHistory;
+
+    @Autowired
     private com.carenest.service.organization.ClassroomService classrooms;
 
     @Autowired
@@ -665,6 +668,137 @@ class DailyAssessmentIntegrationTest {
         assertThat(old.days()).extracting(d -> d.classId()).containsExactly(classA);
         assertThat(old.child().historyStatus()).isEqualTo("TRANSFERRED");
         expectCode(() -> evaluations.development(teacherA, child1, TODAY, TODAY), ApiCode.CHILD_ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("OBS-35: cô lớp mới xem đánh giá ngày, nhận xét tuần đã gửi ở lớp cũ của trẻ chuyển đến, chỉ xem")
+    void receivingTeacherSeesTransferredChildOldDaysAndSentWeeklyCommentsOnly() {
+        attendance(child1, classA, TODAY);
+        attendance(child2, classA, TODAY);
+        service.saveGeneral(teacherA, classA, general(TODAY, child1, "Bé vui ở lớp cũ"));
+        service.saveGeneral(teacherA, classA, general(TODAY, child2, "Bạn cùng lớp cũ"));
+        jdbc.update("UPDATE daily_observations SET date=?", YESTERDAY);
+        jdbc.update("UPDATE attendance_records SET date=?", YESTERDAY);
+        jdbc.update("UPDATE enrollments SET valid_to=? WHERE child_id=? AND classroom_id=?", YESTERDAY, child1, classA);
+        jdbc.update("INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,?)", child1, classB, TODAY);
+        jdbc.update(
+                "INSERT INTO weekly_comments (child_id, classroom_id, campus_id, school_year_id, week_start, content, status, "
+                        + "sent_at, sent_by, created_by, created_at, updated_at) SELECT ?, id, campus_id, school_year_id, "
+                        + "'2026-10-19', 'Tuần trước bé ngoan', 'SENT', now(), ?, ?, now(), now() FROM classrooms WHERE id=?",
+                child1,
+                teacherA.userId(),
+                teacherA.userId(),
+                classA);
+        jdbc.update(
+                "INSERT INTO weekly_comments (child_id, classroom_id, campus_id, school_year_id, week_start, content, status, "
+                        + "created_by, created_at, updated_at) SELECT ?, id, campus_id, school_year_id, '2026-10-26', "
+                        + "'Nháp chưa gửi', 'DRAFT', ?, now(), now() FROM classrooms WHERE id=?",
+                child1,
+                teacherA.userId(),
+                classA);
+        jdbc.update(
+                "INSERT INTO daily_health_entries (request_id, child_id, classroom_id, campus_id, date, temperature, "
+                        + "observation, symptoms, note, recorded_by, recorded_at) SELECT 'h1', ?, id, campus_id, ?, 37.5, "
+                        + "'NOTED', 'COUGH', 'Ho nhẹ', ?, now() FROM classrooms WHERE id=?",
+                child1,
+                YESTERDAY,
+                teacherA.userId(),
+                classA);
+        // Sức khỏe của bạn cùng lớp cũ không lộ sang lớp mới
+        jdbc.update(
+                "INSERT INTO daily_health_entries (request_id, child_id, classroom_id, campus_id, date, observation, "
+                        + "recorded_by, recorded_at) SELECT 'h2', ?, id, campus_id, ?, 'NO_CONCERN', ?, now() "
+                        + "FROM classrooms WHERE id=?",
+                child2,
+                YESTERDAY,
+                teacherA.userId(),
+                classA);
+        String snapshot = "{\"classId\":" + classA + ",\"className\":\"Lớp A\",\"themeId\":901,"
+                + "\"themeName\":\"Gia đình\",\"startDate\":\"2026-10-12\",\"endDate\":\"2026-10-23\","
+                + "\"status\":\"CONFIRMED\",\"goals\":[{\"goalId\":51,\"goalNo\":5,\"text\":\"Kể tên người thân\",\"metChildren\":1,"
+                + "\"assessedChildren\":2}],"
+                + "\"rows\":[{\"childId\":" + child1
+                + ",\"fullName\":\"x\",\"cells\":[{\"goalId\":51,\"met\":true,\"manual\":false}],"
+                + "\"met\":1,\"notMet\":0,\"rate\":100,\"passed\":true},{\"childId\":" + child2
+                + ",\"fullName\":\"y\",\"cells\":[{\"goalId\":51,\"met\":false,\"manual\":false}],\"met\":0,\"notMet\":1}],"
+                + "\"assessedChildren\":2,\"passedChildren\":1,\"notPassedChildren\":1,\"passPercent\":70,"
+                + "\"canEdit\":false,\"canConfirm\":false,\"confirmedByName\":\"teachera\",\"confirmedAt\":\"2026-10-24T03:00:00Z\"}";
+        jdbc.update(
+                "INSERT INTO theme_evaluations (classroom_id, campus_id, school_year_id, theme_id, theme_name, start_date, "
+                        + "end_date, cells, confirmed_by, confirmed_at, updated_at, presentation_snapshot) SELECT id, "
+                        + "campus_id, school_year_id, 901, 'Gia đình', '2026-10-12', '2026-10-23', '[]', ?, now(), now(), "
+                        + "CAST(? AS jsonb) FROM classrooms WHERE id=?",
+                teacherA.userId(),
+                snapshot,
+                classA);
+        // Bảng chủ đề chưa xác nhận (nháp) không trả về
+        jdbc.update(
+                "INSERT INTO theme_evaluations (classroom_id, campus_id, school_year_id, theme_id, theme_name, start_date, "
+                        + "end_date, cells, updated_at) SELECT id, campus_id, school_year_id, 902, 'Nháp', '2026-10-19', "
+                        + "'2026-10-30', '[]', now() FROM classrooms WHERE id=?",
+                classA);
+        entityManager.clear();
+        int observations = jdbc.queryForObject("SELECT count(*) FROM daily_observations", Integer.class);
+
+        var history = transferredHistory.findHistory(teacherB, classB, LocalDate.of(2026, 10, 1), TODAY);
+
+        assertThat(history.children()).extracting(c -> c.childId()).containsExactly(child1);
+        var child = history.children().getFirst();
+        assertThat(child.stays()).singleElement().satisfies(s -> {
+            assertThat(s.classId()).isEqualTo(classA);
+            assertThat(s.className()).isEqualTo("Lớp A");
+            assertThat(s.to()).isEqualTo(YESTERDAY);
+        });
+        assertThat(child.days()).singleElement().satisfies(d -> {
+            assertThat(d.day().date()).isEqualTo(YESTERDAY);
+            assertThat(d.day().classId()).isEqualTo(classA);
+            assertThat(d.day().comment()).isEqualTo("Bé vui ở lớp cũ");
+            assertThat(d.recordedByName()).isEqualTo("teachera");
+        });
+        assertThat(child.weeklyComments()).singleElement().satisfies(c -> {
+            assertThat(c.content()).isEqualTo("Tuần trước bé ngoan");
+            assertThat(c.className()).isEqualTo("Lớp A");
+            assertThat(c.sentByName()).isEqualTo("teachera");
+        });
+        assertThat(child.attendance()).singleElement().satisfies(a -> {
+            assertThat(a.date()).isEqualTo(YESTERDAY);
+            assertThat(a.status()).isEqualTo(com.carenest.utils.enums.AttendanceStatus.PRESENT);
+            assertThat(a.className()).isEqualTo("Lớp A");
+            assertThat(a.recordedById()).isEqualTo(principal.userId());
+            assertThat(a.recordedByName()).isNotBlank();
+        });
+        assertThat(child.health()).singleElement().satisfies(h -> {
+            assertThat(h.date()).isEqualTo(YESTERDAY);
+            assertThat(h.temperature()).isEqualByComparingTo("37.5");
+            assertThat(h.symptoms()).containsExactly(com.carenest.utils.enums.HealthSymptom.COUGH);
+            assertThat(h.className()).isEqualTo("Lớp A");
+            assertThat(h.recordedByName()).isEqualTo("teachera");
+        });
+        assertThat(child.themeResults()).singleElement().satisfies(t -> {
+            assertThat(t.themeName()).isEqualTo("Gia đình");
+            assertThat(t.className()).isEqualTo("Lớp A");
+            assertThat(t.passed()).isTrue();
+            assertThat(t.goals())
+                    .singleElement()
+                    .satisfies(g -> assertThat(g.met()).isTrue());
+            assertThat(t.confirmedById()).isEqualTo(teacherA.userId());
+            assertThat(t.confirmedByName()).isEqualTo("teachera");
+        });
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM daily_observations", Integer.class))
+                .isEqualTo(observations);
+        // Lớp cũ không tự có quyền xem trẻ của lớp mới; khoảng ngày sai bị từ chối
+        expectCode(
+                () -> transferredHistory.findHistory(teacherA, classB, YESTERDAY, TODAY), ApiCode.CLASS_ACCESS_DENIED);
+        expectCode(
+                () -> transferredHistory.findHistory(teacherB, classB, TODAY, YESTERDAY), ApiCode.INVALID_DATE_RANGE);
+        expectCode(
+                () -> transferredHistory.findHistory(teacherB, classB, TODAY.minusDays(62), TODAY),
+                ApiCode.DATE_RANGE_TOO_LONG);
+        // Lớp A không có trẻ chuyển đến
+        assertThat(transferredHistory
+                        .findHistory(teacherA, classA, YESTERDAY, TODAY)
+                        .children())
+                .isEmpty();
     }
 
     @Test

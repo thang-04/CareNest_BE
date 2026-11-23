@@ -109,4 +109,16 @@ public interface AttendanceService {
 
     /** Điểm danh của các lớp trong khoảng ngày (báo cáo chất lượng tháng đọc); ngày chưa điểm danh thì không có dòng. */
     List<ClassChildDay> findClassDays(Collection<Long> classroomIds, LocalDate from, LocalDate to);
+
+    /** Một dòng điểm danh của trẻ kèm lớp và người điểm danh (chỉ dùng nội bộ, module gọi tự kiểm quyền). */
+    record ChildAttendanceDay(
+            Long childId,
+            Long classroomId,
+            LocalDate date,
+            AttendanceStatus status,
+            DayPart absentPart,
+            Long recordedBy) {}
+
+    /** Lịch sử lớp cũ của trẻ chuyển đến (OBS-35); ngày chưa điểm danh thì không có dòng. */
+    List<ChildAttendanceDay> findChildAttendance(Collection<Long> childIds, LocalDate from, LocalDate to);
 }

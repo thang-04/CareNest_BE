@@ -519,4 +519,33 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             throw ex;
         }
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChildHealthEntry> findDayEntries(Collection<Long> childIds, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findDayEntries|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildHealthEntry> result = new ArrayList<>();
+            if (!childIds.isEmpty()) {
+                entryRepository
+                        .findByChildIdInAndDateBetweenOrderByRecordedAtDescIdDesc(childIds, from, to)
+                        .forEach(e -> result.add(new ChildHealthEntry(
+                                e.getChildId(),
+                                e.getClassroomId(),
+                                e.getDate(),
+                                e.getTemperature(),
+                                e.getObservation() == HealthObservation.NOTED ? e.getSymptoms() : List.of(),
+                                e.getNote(),
+                                e.getRecordedBy(),
+                                e.getRecordedAt())));
+                Collections.reverse(result);
+            }
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 }
