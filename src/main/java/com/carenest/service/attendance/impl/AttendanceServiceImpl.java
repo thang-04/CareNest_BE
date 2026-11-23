@@ -44,6 +44,7 @@ import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.LeavePart;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.TemperatureLevel;
 import java.time.Instant;
@@ -102,26 +103,29 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|getClasses|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
-            List<AttendanceClassResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
-                    // Người dạy thay đã hết đợt vẫn thấy lớp để mở ngày được mở lại trong đợt (xem / ghi xét theo ngày)
-                    .filter(c -> rules.canView(currentUser, c) || rules.lastReadableDay(currentUser, c) != null)
-                    .map(c -> {
-                        boolean teaches = c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, c);
-                        boolean records = teaches && rules.canRecordAttendance(currentUser, c);
-                        LocalDate last = rules.lastReadableDay(currentUser, c);
-                        return new AttendanceClassResponse(
-                                c.id(),
-                                c.name(),
-                                c.campusId(),
-                                c.ageGroupId(),
-                                c.mealSessions(),
-                                teaches,
-                                records,
-                                c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canUnlock(currentUser, c.campusId()),
-                                !teaches && last != null,
-                                last);
-                    })
-                    .toList();
+            // Phân công hôm nay đọc một lần cho mọi lớp; mỗi lớp chỉ xét quyền một lần
+            Set<Long> active = rules.activeTeacherClassIds(currentUser);
+            List<AttendanceClassResponse> classes = new ArrayList<>();
+            for (ClassroomInfoResponse c : classroomService.findYearClassrooms(schoolYearId)) {
+                LocalDate last = rules.lastReadableDay(currentUser, c);
+                // Người dạy thay đã hết đợt vẫn thấy lớp để mở ngày được mở lại trong đợt (xem / ghi xét theo ngày)
+                if (last == null && !rules.canView(currentUser, c, active)) {
+                    continue;
+                }
+                boolean teaches = c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, c, active);
+                boolean records = teaches && currentUser.hasPermission(Permission.ATTENDANCE_RECORD);
+                classes.add(new AttendanceClassResponse(
+                        c.id(),
+                        c.name(),
+                        c.campusId(),
+                        c.ageGroupId(),
+                        c.mealSessions(),
+                        teaches,
+                        records,
+                        c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canUnlock(currentUser, c.campusId()),
+                        !teaches && last != null,
+                        last));
+            }
             log.info("{}|END", logPrefix);
             return classes;
         } catch (RuntimeException ex) {

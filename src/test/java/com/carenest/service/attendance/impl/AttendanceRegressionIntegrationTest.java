@@ -18,12 +18,15 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.LeavePart;
 import com.carenest.utils.enums.Permission;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +43,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Lỗi tổng hợp điểm danh, đơn nghỉ khi chuyển lớp, quyền dạy thay. Hôm nay = thứ 4, 21/10/2026; giờ chốt 08:30. */
-@SpringBootTest
+@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class AttendanceRegressionIntegrationTest {
@@ -94,6 +97,9 @@ class AttendanceRegressionIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     private CurrentUser principal;
     private CurrentUser parent;
@@ -290,6 +296,47 @@ class AttendanceRegressionIntegrationTest {
                 .isNotNull();
         assertThat(service.getClassAttendance(teacherA, classA, LocalDate.of(2026, 10, 14)))
                 .isNotNull();
+    }
+
+    @Test
+    @DisplayName("Danh sách lớp điểm danh của GV: mỗi lớp thêm không kéo theo nhiều truy vấn phân công")
+    void classListDoesNotRepeatAssignmentLookupsPerClass() {
+        long two = statements(() -> service.getClasses(teacherA, null));
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long campus = classCampus(classA);
+        for (int i = 0; i < 5; i++) {
+            classroom(campus, year, "Lớp thêm " + i, ag3);
+        }
+        long seven = statements(() -> service.getClasses(teacherA, null));
+        assertThat((seven - two) / 5.0).isLessThanOrEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("Danh sách đơn nghỉ: số truy vấn không tăng theo số đơn")
+    void leaveListsDoNotQueryPerLeave() {
+        guardian(child1);
+        leaveService.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, TODAY.plusDays(1), TODAY.plusDays(1), "Ốm"));
+        long mineOne = statements(() -> leaveService.findMyLeaveRequests(parent));
+        long searchOne = statements(
+                () -> leaveService.searchLeaveRequests(teacherA, classA, null, TODAY, TODAY.plusDays(14), null));
+        for (int i : new int[] {2, 5, 6}) {
+            leaveService.createLeaveRequest(
+                    parent, new CreateLeaveRequest(child1, TODAY.plusDays(i), TODAY.plusDays(i), "Ốm"));
+        }
+        assertThat(statements(() -> leaveService.findMyLeaveRequests(parent))).isEqualTo(mineOne);
+        assertThat(statements(() ->
+                        leaveService.searchLeaveRequests(teacherA, classA, null, TODAY, TODAY.plusDays(14), null)))
+                .isEqualTo(searchOne);
+    }
+
+    private long statements(Supplier<?> call) {
+        entityManager.flush();
+        entityManager.clear();
+        var stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        stats.clear();
+        call.get();
+        return stats.getPrepareStatementCount();
     }
 
     private AttendanceService.ClassMealTally tallyOf(LocalDate date, long classId) {

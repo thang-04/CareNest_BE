@@ -134,15 +134,27 @@ class AttendanceDayRules {
 
     // Quyền xem của BGH theo đúng scope HT cấp; GV/tổ trưởng vẫn theo lớp/nhóm tuổi được phân công.
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
+        return canView(user, cls, null);
+    }
+
+    /** Lớp GV đang được phân công hôm nay, đọc một lần cho cả danh sách lớp (thay vì tra phân công từng lớp). */
+    Set<Long> activeTeacherClassIds(CurrentUser user) {
+        return user.hasRole(CareNestRole.TEACHER)
+                ? staffAssignmentService.findCurrentTeacherClassroomIds(user.userId(), today())
+                : Set.of();
+    }
+
+    /** active: kết quả activeTeacherClassIds đã đọc sẵn; null = tra theo từng lớp. */
+    boolean canView(CurrentUser user, ClassroomInfoResponse cls, Set<Long> active) {
         // GV có quyền ghi điểm danh / sức khỏe luôn xem được lớp đang dạy, kể cả khi HT thu hồi quyền Xem (chỉ bớt xem
         // tổng hợp), để quyền ghi không bị mất theo
         // Người dạy thay chỉ xem đúng ngày mình dạy thay (canViewDay / canViewRange), không xem cả lớp (Cần chốt
         // 24/11/2026)
-        boolean substituteOnly = substituteOnly(user, cls);
+        boolean substituteOnly = (active == null || active.contains(cls.id())) && substituteOnly(user, cls);
         if ((user.hasPermission(Permission.ATTENDANCE_RECORD) || user.hasPermission(Permission.DAILY_HEALTH_RECORD))
                 && !yearEnded(cls)
                 && !substituteOnly
-                && canRecord(user, cls)) {
+                && canRecord(user, cls, active)) {
             return true;
         }
         if (!user.hasPermission(Permission.ATTENDANCE_VIEW) || substituteOnly) {
@@ -152,8 +164,11 @@ class AttendanceDayRules {
             return campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, cls.campusId())
                     || ledClosedYear(user, cls, Permission.ATTENDANCE_VIEW);
         }
-        return (!yearEnded(cls) && classroomAccessPolicy.canReadClassroom(user, cls.id()))
-                || canReadHistoryRange(user, cls, cls.yearStart(), cls.yearEnd());
+        // Như ClassroomAccessPolicy.canReadClassroom: GV đang dạy lớp, hoặc đọc được điểm trường của lớp
+        boolean readsClass = active == null
+                ? classroomAccessPolicy.canReadClassroom(user, cls.id())
+                : active.contains(cls.id()) || campusAccessPolicy.canReadCampus(user, cls.campusId());
+        return (!yearEnded(cls) && readsClass) || canReadHistoryRange(user, cls, cls.yearStart(), cls.yearEnd());
     }
 
     // GV chỉ có đợt dạy thay đang hiệu lực ở lớp, không dạy chính (BGH xem theo điểm trường như thường)
@@ -272,8 +287,14 @@ class AttendanceDayRules {
     /** AUTH-03: ghi điểm danh = giáo viên đang được phân công lớp. */
     // GV đang dạy lớp; sau ngày kết thúc năm mà HT chưa đóng năm, GV từng dạy ghi được ngày BGH mở lại (ATT-08)
     boolean canRecord(CurrentUser user, ClassroomInfoResponse cls) {
+        return canRecord(user, cls, null);
+    }
+
+    boolean canRecord(CurrentUser user, ClassroomInfoResponse cls, Set<Long> active) {
         return user.hasRole(CareNestRole.TEACHER)
-                && (staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today())
+                && ((active == null
+                                ? staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today())
+                                : active.contains(cls.id()))
                         || (cls.yearStatus() == SchoolYearStatus.ACTIVE && taughtClosedYear(user, cls)));
     }
 
