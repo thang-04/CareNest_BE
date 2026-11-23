@@ -11415,6 +11415,8 @@ components:
           type: string
         freshReceiptStatus:
           type: string
+        m1FreshSigned:
+          type: boolean
         mealCounts:
           $ref: "#/components/schemas/MealCounts"
         menu:
@@ -14071,6 +14073,14 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+        usedInTemplates:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateUsage"
+        usedInWeeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekUsage"
     DishIngredientLine:
       type: object
       properties:
@@ -18279,8 +18289,6 @@ components:
           minLength: 0
         reason:
           type: string
-          maxLength: 500
-          minLength: 0
       required:
       - items
     MealPlanRequest:
@@ -25726,6 +25734,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Leader"
+    TemplateUsage:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     Theme:
       type: object
       properties:
@@ -26533,6 +26549,17 @@ components:
       required:
       - key
       - label
+    WeekUsage:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - PUBLISHED
+        weekStart:
+          type: string
+          format: date
     WeeklyCommentBoardResponse:
       type: object
       properties:
