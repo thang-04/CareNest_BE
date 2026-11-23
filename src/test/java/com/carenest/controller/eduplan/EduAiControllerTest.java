@@ -14,8 +14,8 @@ import com.carenest.dto.eduplan.EduAiResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
-import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.security.RestAccessDeniedHandler;
+import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.service.eduplan.EduAiService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -33,40 +33,49 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(EduAiController.class)
 @Import({WebMvcConfig.class, SecurityConfig.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
 class EduAiControllerTest {
-    @Autowired private MockMvc mvc;
-    @MockitoBean private CurrentUserService users;
-    @MockitoBean private EduAiService ai;
+    @Autowired
+    private MockMvc mvc;
+
+    @MockitoBean
+    private CurrentUserService users;
+
+    @MockitoBean
+    private EduAiService ai;
 
     private void user() {
-        given(users.getCurrentUser()).willReturn(new CurrentUser(7L,"kc7","demo","Demo",null,Set.of(CareNestRole.VICE_PRINCIPAL)));
+        given(users.getCurrentUser())
+                .willReturn(new CurrentUser(7L, "kc7", "demo", "Demo", null, Set.of(CareNestRole.VICE_PRINCIPAL)));
     }
 
     @Test
     void annualEndpointReturnsVerifiedCatalogText() throws Exception {
         user();
-        given(ai.matchGoalContents(any(),eq(9L))).willReturn(new EduAiResponse.GoalContentMap(
-                List.of(new EduAiResponse.GoalContentMatch(1L,2L,"Hát theo giai điệu","hát")), List.of()));
+        given(ai.matchGoalContents(any(), eq(9L)))
+                .willReturn(new EduAiResponse.GoalContentMap(
+                        List.of(new EduAiResponse.GoalContentMatch(1L, 2L, "Hát theo giai điệu", "hát")), List.of()));
         mvc.perform(post("/api/education-plans/ai/year-plans/9/goal-content-map")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.matches[0].text").value("Hát theo giai điệu"));
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.matches[0].text").value("Hát theo giai điệu"));
     }
 
     @Test
     void annualEndpointRelaysServicePermissionFailure() throws Exception {
         user();
-        given(ai.matchGoalContents(any(),any())).willThrow(GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN));
+        given(ai.matchGoalContents(any(), any())).willThrow(GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN));
         mvc.perform(post("/api/education-plans/ai/year-plans/9/goal-content-map")
-                .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
                 .andExpect(status().isForbidden());
     }
 
     @Test
     void feedbackAcceptsSchoolYearAndRejectsInvalidKind() throws Exception {
         user();
-        for(String kind: List.of("SCHOOL_YEAR","YEAR"))
-            mvc.perform(post("/api/education-plans/ai/feedback").contentType(MediaType.APPLICATION_JSON)
-                    .content("{\"kind\":\""+kind+"\",\"suggested\":2,\"kept\":1}")
-                    .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+        for (String kind : List.of("SCHOOL_YEAR", "YEAR"))
+            mvc.perform(post("/api/education-plans/ai/feedback")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"kind\":\"" + kind + "\",\"suggested\":2,\"kept\":1}")
+                            .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
                     .andExpect(kind.equals("SCHOOL_YEAR") ? status().isOk() : status().isBadRequest());
     }
 }

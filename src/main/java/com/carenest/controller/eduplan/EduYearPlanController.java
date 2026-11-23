@@ -4,7 +4,6 @@ import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.GoalFilePreviewResponse;
 import com.carenest.dto.eduplan.PlanActionRequest;
 import com.carenest.dto.eduplan.PreviousYearTicksResponse;
-import com.carenest.service.eduplan.EduPreviousYearTickService;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
@@ -12,6 +11,7 @@ import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduGoalFileService;
+import com.carenest.service.eduplan.EduPreviousYearTickService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
@@ -60,8 +60,7 @@ public class EduYearPlanController {
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<PreviousYearTicksResponse>> getPreviousYearTicks(
             @PathVariable Long planId, CurrentUser currentUser) {
-        String logPrefix =
-                LOG_PREFIX + "|getPreviousYearTicks|userId=" + currentUser.userId() + "|planId=" + planId;
+        String logPrefix = LOG_PREFIX + "|getPreviousYearTicks|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         PreviousYearTicksResponse result = eduPreviousYearTickService.getPreviousYearTicks(currentUser, planId);
         log.info("{}|END", logPrefix);
@@ -81,7 +80,10 @@ public class EduYearPlanController {
     }
 
     // Role chỉ là lớp 1; EduYearPlanService kiểm quyền goals.* và phạm vi nhóm tuổi (lớp 2)
-    public enum PlanView { MAIN, OVERDUE }
+    public enum PlanView {
+        MAIN,
+        OVERDUE
+    }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
@@ -115,9 +117,9 @@ public class EduYearPlanController {
     @GetMapping("/review-queue")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<java.util.List<YearPlanSummaryResponse>>> getReviewQueue(
-            @RequestParam(required = false) Long schoolYearId,
-            CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+            @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         var plans = eduYearPlanService.getReviewQueue(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);

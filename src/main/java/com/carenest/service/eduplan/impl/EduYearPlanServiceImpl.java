@@ -169,15 +169,22 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     private static String keywordPattern(String keyword) {
-        return keyword == null || keyword.isBlank() ? null : "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+        return keyword == null || keyword.isBlank()
+                ? null
+                : "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
     }
 
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public PageResponse<YearPlanSummaryResponse> getOverdueYearPlans(
-            CurrentUser user, Long schoolYearId, Long ageGroupId, String keyword, Pageable pageable,
+            CurrentUser user,
+            Long schoolYearId,
+            Long ageGroupId,
+            String keyword,
+            Pageable pageable,
             EduPlanLevel level) {
-        String logPrefix = LOG_PREFIX + "|getOverdueYearPlans|userId=" + user.userId() + "|schoolYearId=" + schoolYearId;
+        String logPrefix =
+                LOG_PREFIX + "|getOverdueYearPlans|userId=" + user.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             requireDeadlineBoard(user, schoolYearId);
@@ -191,7 +198,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     Set.of(),
                     keywordPattern(keyword),
                     Pageable.unpaged(pageable.getSort()));
-            List<EduPlan> eligible = candidates.stream().filter(this::hasDeadlineBoardAccess).toList();
+            List<EduPlan> eligible =
+                    candidates.stream().filter(this::hasDeadlineBoardAccess).toList();
             int start = pageable.isPaged() ? (int) Math.min(pageable.getOffset(), eligible.size()) : 0;
             int size = pageable.isPaged() ? Math.min(pageable.getPageSize(), eligible.size() - start) : eligible.size();
             var page = new org.springframework.data.domain.PageImpl<>(
@@ -212,7 +220,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         log.info("{}|START", logPrefix);
         try {
             requireDeadlineBoard(user, schoolYearId);
-            EduPlan plan = yearPlanRepository.findById(planId)
+            EduPlan plan = yearPlanRepository
+                    .findById(planId)
                     .filter(p -> schoolYearId.equals(p.getSchoolYearId()))
                     .filter(this::hasDeadlineBoardAccess)
                     .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
@@ -233,7 +242,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     @Override
     @Transactional(readOnly = true)
     public List<YearPlanSummaryResponse> getReviewQueue(CurrentUser currentUser, Long schoolYearId) {
-        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        String logPrefix =
+                LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             requirePermission(currentUser, EduPermission.GOALS_VIEW);
@@ -1167,7 +1177,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             EduReviewDeadline.Info review = reviewDeadlineOf(plan);
             return review.reopenUntil() != null || (review.locked() && writableYear);
         }
-        return plan.publicStatus() == EduPlanStatus.DRAFT && !timeLock.released(plan)
+        return plan.publicStatus() == EduPlanStatus.DRAFT
+                && !timeLock.released(plan)
                 && (timeLock.info(plan).extendedTo() != null || (timeLock.locked(plan) && writableYear));
     }
 
@@ -1992,8 +2003,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         boolean seesHistory = isAuthor(user, plan)
                 || isCurrentApprover(user, plan)
                 || isChainReviewer(user, plan)
-                || (!deadlineBoard && events.stream().anyMatch(e -> user.userId().equals(e.getActorId())
-                        && !isDeadlineEvent(e)));
+                || (!deadlineBoard
+                        && events.stream().anyMatch(e -> user.userId().equals(e.getActorId()) && !isDeadlineEvent(e)));
         String lastReturnNote = events.stream()
                 .filter(e -> ACTION_RETURN.equals(e.getAction()))
                 .reduce((first, second) -> second)
@@ -2037,8 +2048,10 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId).stream()
                         .map(mapper::toBreak)
                         .toList(),
-                events.stream().filter(e -> seesHistory || (deadlineBoard && isDeadlineEvent(e)))
-                        .map(mapper::toHistory).toList(),
+                events.stream()
+                        .filter(e -> seesHistory || (deadlineBoard && isDeadlineEvent(e)))
+                        .map(mapper::toHistory)
+                        .toList(),
                 seesHistory ? lastReturnNote : null,
                 buildReviewState(plan),
                 permissionsOf(user, plan, chain, currentId),

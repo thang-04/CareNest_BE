@@ -80,14 +80,17 @@ public class EduClassDocController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class documents success", docs);
     }
 
-    public enum ClassDocView { MAIN, REVIEW }
+    public enum ClassDocView {
+        MAIN,
+        REVIEW
+    }
 
     @GetMapping("/overdue")
     @PreAuthorize("hasRole('PRINCIPAL')")
     public ResponseEntity<ResponseJson<ClassDocsResponse>> getOverdueClassDocs(
             @RequestParam Long schoolYearId, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getOverdueClassDocs|userId=" + currentUser.userId()
-                + "|schoolYearId=" + schoolYearId;
+        String logPrefix =
+                LOG_PREFIX + "|getOverdueClassDocs|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         var docs = classDocService.getOverdueClassDocs(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
@@ -97,10 +100,12 @@ public class EduClassDocController {
     @GetMapping("/overdue/{kind}/{docKey}")
     @PreAuthorize("hasRole('PRINCIPAL')")
     public ResponseEntity<ResponseJson<ObjectNode>> getOverdueClassDoc(
-            @PathVariable String kind, @PathVariable String docKey,
-            @RequestParam Long schoolYearId, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getOverdueClassDoc|userId=" + currentUser.userId()
-                + "|schoolYearId=" + schoolYearId;
+            @PathVariable String kind,
+            @PathVariable String docKey,
+            @RequestParam Long schoolYearId,
+            CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getOverdueClassDoc|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         var doc = classDocService.getOverdueClassDoc(currentUser, schoolYearId, kind, docKey);
         log.info("{}|END", logPrefix);

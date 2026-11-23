@@ -97,7 +97,8 @@ class EduPreviousYearTickServiceImplTest {
     }
 
     @Test
-    @DisplayName("EDU-104: lấy bản APPROVED versionNo lớn nhất của năm liền trước, tick chỉ của chủ đề nguồn, bỏ chữ trống")
+    @DisplayName(
+            "EDU-104: lấy bản APPROVED versionNo lớn nhất của năm liền trước, tick chỉ của chủ đề nguồn, bỏ chữ trống")
     void readsLatestApprovedOfPreviousYear() {
         current(EduPlanLevel.TEAM, true, 3L);
         EduPlan draft = plan(50L, EduPlanStatus.DRAFT, 4);
@@ -124,7 +125,8 @@ class EduPreviousYearTickServiceImplTest {
         assertThat(out.reason()).isNull();
         assertThat(out.source().planId()).isEqualTo(52L);
         assertThat(out.source().schoolYearId()).isEqualTo(2L);
-        assertThat(out.themes()).extracting(PreviousYearTicksResponse.Theme::name)
+        assertThat(out.themes())
+                .extracting(PreviousYearTicksResponse.Theme::name)
                 .containsExactly("Trường mầm non", "Gia đình");
         assertThat(out.ticks()).containsExactly(new PreviousYearTicksResponse.Tick(4L, "Bé chào cô", 9L));
     }
@@ -135,7 +137,8 @@ class EduPreviousYearTickServiceImplTest {
         current(EduPlanLevel.TEAM, false, 3L);
         assertThatThrownBy(() -> service.getPreviousYearTicks(user, 100L))
                 .isInstanceOfSatisfying(
-                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN));
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN));
         current(EduPlanLevel.SCHOOL_YEAR, true, 3L);
         assertThatThrownBy(() -> service.getPreviousYearTicks(user, 100L)).isInstanceOf(GlobalException.class);
         verify(plans, never()).findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(any(), any(), any());
@@ -152,7 +155,8 @@ class EduPreviousYearTickServiceImplTest {
 
         current(EduPlanLevel.TEAM, true, 3L);
         EduPlan review = plan(60L, EduPlanStatus.REVIEW, 1);
-        when(plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(eq(EduPlanLevel.TEAM), eq(2L), anyLong()))
+        when(plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
+                        eq(EduPlanLevel.TEAM), eq(2L), anyLong()))
                 .thenReturn(List.of(review));
         when(structure.findAgeGroup(5L)).thenReturn(Optional.empty());
         PreviousYearTicksResponse missing = service.getPreviousYearTicks(user, 100L);

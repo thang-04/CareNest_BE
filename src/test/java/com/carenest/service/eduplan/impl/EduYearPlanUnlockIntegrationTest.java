@@ -93,7 +93,8 @@ class EduYearPlanUnlockIntegrationTest {
         YearPlanDetailResponse draft = service.createYearPlan(
                 vp, request(year, ageGroup, domain), new YearPlanEditRequest(session, 0L, UUID.randomUUID()));
 
-        assertThat(service.getYearPlans(ht, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR).items())
+        assertThat(service.getYearPlans(ht, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
+                        .items())
                 .noneMatch(item -> item.id().equals(draft.id()));
         assertThat(overdue(ht, year, draft.id()).timeLock()).satisfies(lock -> {
             assertThat(lock.timeLocked()).isTrue();
@@ -120,7 +121,8 @@ class EduYearPlanUnlockIntegrationTest {
             assertThat(lock.timeLocked()).isTrue();
             assertThat(lock.canUnlock()).isFalse();
         });
-        assertThat(service.getOverdueYearPlans(ht, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR).items())
+        assertThat(service.getOverdueYearPlans(ht, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
+                        .items())
                 .noneMatch(item -> item.id().equals(draft.id()));
         assertThatThrownBy(() -> service.unlockYearPlan(ht, draft.id(), "Lý do", LocalDate.of(2026, 10, 30)))
                 .isInstanceOfSatisfying(GlobalException.class, ex -> {
@@ -140,8 +142,13 @@ class EduYearPlanUnlockIntegrationTest {
     }
 
     private YearPlanSummaryResponse overdue(CurrentUser user, long year, Long planId) {
-        return service.getOverdueYearPlans(user, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
-                .items().stream().filter(p -> p.id().equals(planId)).findFirst().orElseThrow();
+        return service
+                .getOverdueYearPlans(user, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
+                .items()
+                .stream()
+                .filter(p -> p.id().equals(planId))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static YearPlanRequest request(long year, long ageGroup, long domain) {

@@ -28,6 +28,7 @@ class EduAiExampleServiceImplTest {
     private final EduGoalContentRepository contents = mock(EduGoalContentRepository.class);
     private final EduContentThemeTickRepository ticks = mock(EduContentThemeTickRepository.class);
     private final SchoolStructureService structure = mock(SchoolStructureService.class);
+
     private EduAiExampleServiceImpl service(boolean enabled) {
         return new EduAiExampleServiceImpl(plans, themes, goals, contents, ticks, structure, enabled);
     }
@@ -36,7 +37,8 @@ class EduAiExampleServiceImplTest {
         YearPlanDetailResponse target = mock(YearPlanDetailResponse.class);
         when(target.ageGroupId()).thenReturn(1L);
         List<YearPlanDetailResponse.Theme> list = new ArrayList<>();
-        for (long i = 1; i <= count; i++) list.add(new YearPlanDetailResponse.Theme(i, "Gia đình", "GD", null, null, "", ""));
+        for (long i = 1; i <= count; i++)
+            list.add(new YearPlanDetailResponse.Theme(i, "Gia đình", "GD", null, null, "", ""));
         when(target.themes()).thenReturn(list);
         return target;
     }
@@ -69,7 +71,8 @@ class EduAiExampleServiceImplTest {
             lines.add(line);
             pairs.add(EduContentThemeTick.of(plan * 100 + i, plan));
         }
-        when(contents.findAllByGoalRowIdInOrderBySortOrderAsc(java.util.Set.of(plan))).thenReturn(lines);
+        when(contents.findAllByGoalRowIdInOrderBySortOrderAsc(java.util.Set.of(plan)))
+                .thenReturn(lines);
         when(ticks.findAllByThemeIdIn(java.util.Set.of(plan))).thenReturn(pairs);
     }
 
@@ -82,9 +85,10 @@ class EduAiExampleServiceImplTest {
     @Test
     void approvedSameAgeRangeComesFirstAndDraftDisabledAreNeverRead() {
         var service = service(true);
-        when(structure.findAgeGroups()).thenReturn(List.of(
-                new AgeGroupResponse(1L, "", "", "", (short) 1, (short) 36, (short) 48),
-                new AgeGroupResponse(2L, "", "", "", (short) 1, (short) 36, (short) 48)));
+        when(structure.findAgeGroups())
+                .thenReturn(List.of(
+                        new AgeGroupResponse(1L, "", "", "", (short) 1, (short) 36, (short) 48),
+                        new AgeGroupResponse(2L, "", "", "", (short) 1, (short) 36, (short) 48)));
         var otherAge = source(10, 3, EduPlanStatus.APPROVED, false);
         var sameAge = source(20, 2, EduPlanStatus.APPROVED, false);
         var draft = source(30, 1, EduPlanStatus.DRAFT, false);

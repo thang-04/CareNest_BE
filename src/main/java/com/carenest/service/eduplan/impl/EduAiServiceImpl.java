@@ -1,5 +1,6 @@
 package com.carenest.service.eduplan.impl;
 
+import com.carenest.dto.eduplan.CurriculumContentResponse;
 import com.carenest.dto.eduplan.EduAiRequest;
 import com.carenest.dto.eduplan.EduAiResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
@@ -11,13 +12,12 @@ import com.carenest.integration.ai.AiProperties;
 import com.carenest.integration.ai.AiRawResult;
 import com.carenest.integration.ai.AiRequest;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.eduplan.EduAiExampleService;
 import com.carenest.service.eduplan.EduAiService;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
-import com.carenest.service.eduplan.EduYearPlanService;
-import com.carenest.service.eduplan.EduAiExampleService;
 import com.carenest.service.eduplan.EduCurriculumService;
-import com.carenest.dto.eduplan.CurriculumContentResponse;
+import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AiErrorReason;
 import com.carenest.utils.enums.AiTask;
@@ -450,23 +450,38 @@ public class EduAiServiceImpl implements EduAiService {
             for (var domain : nullSafe(plan.domains())) {
                 Map<Long, String> goals = new LinkedHashMap<>();
                 for (var row : nullSafe(domain.rows())) {
-                    if (row.id() == null || !"goal".equalsIgnoreCase(row.kind()) || row.text() == null
-                            || row.text().isBlank() || nullSafe(row.contents()).stream()
+                    if (row.id() == null
+                            || !"goal".equalsIgnoreCase(row.kind())
+                            || row.text() == null
+                            || row.text().isBlank()
+                            || nullSafe(row.contents()).stream()
                                     .anyMatch(c -> c.text() != null && !c.text().isBlank())) continue;
                     goals.put(row.id(), row.text());
                 }
                 Map<Long, String> candidates = new LinkedHashMap<>();
                 for (var c : catalog)
-                    if (c.id() != null && java.util.Objects.equals(domain.domainId(), c.domainId())
-                            && c.text() != null && !c.text().isBlank()) candidates.put(c.id(), c.text());
+                    if (c.id() != null
+                            && java.util.Objects.equals(domain.domainId(), c.domainId())
+                            && c.text() != null
+                            && !c.text().isBlank()) candidates.put(c.id(), c.text());
                 if (goals.isEmpty() || candidates.isEmpty()) continue;
                 Map<String, Object> body = new LinkedHashMap<>();
                 body.put("domain", nz(domain.name()));
-                body.put("goals", goals.entrySet().stream()
-                        .map(e -> Map.of("goalId", e.getKey(), "text", e.getValue())).toList());
-                body.put("contents", candidates.entrySet().stream()
-                        .map(e -> Map.of("curriculumContentId", e.getKey(), "text", e.getValue())).toList());
-                asks.add(new GoalAsk(domain.domainId(), nz(domain.name()), goals, candidates,
+                body.put(
+                        "goals",
+                        goals.entrySet().stream()
+                                .map(e -> Map.of("goalId", e.getKey(), "text", e.getValue()))
+                                .toList());
+                body.put(
+                        "contents",
+                        candidates.entrySet().stream()
+                                .map(e -> Map.of("curriculumContentId", e.getKey(), "text", e.getValue()))
+                                .toList());
+                asks.add(new GoalAsk(
+                        domain.domainId(),
+                        nz(domain.name()),
+                        goals,
+                        candidates,
                         objectMapper.writeValueAsString(body)));
             }
             if (asks.isEmpty()) {
@@ -480,35 +495,48 @@ public class EduAiServiceImpl implements EduAiService {
             List<EduAiResponse.FailedDomain> failed = new ArrayList<>();
             RuntimeException firstError = null;
             try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
-                List<Future<AiRawResult>> calls = asks.stream().map(a -> pool.submit(
-                        () -> complete(AiTask.EDU_MATCH, GOAL_MATCHER, "goal-content-map", a.prompt(), until))).toList();
+                List<Future<AiRawResult>> calls = asks.stream()
+                        .map(a -> pool.submit(
+                                () -> complete(AiTask.EDU_MATCH, GOAL_MATCHER, "goal-content-map", a.prompt(), until)))
+                        .toList();
                 for (int i = 0; i < asks.size(); i++) {
                     GoalAsk ask = asks.get(i);
                     try {
                         JsonNode out = parseJson(calls.get(i).get().content()).path("matches");
                         Set<String> seen = new HashSet<>();
                         for (JsonNode m : out) {
-                            long goalId = m.path("goalId").asLong(-1), contentId = m.path("curriculumContentId").asLong(-1);
-                            String goal = ask.goals().get(goalId), text = ask.candidates().get(contentId);
+                            long goalId = m.path("goalId").asLong(-1),
+                                    contentId = m.path("curriculumContentId").asLong(-1);
+                            String goal = ask.goals().get(goalId),
+                                    text = ask.candidates().get(contentId);
                             String from = m.path("from").asString("").trim();
-                            if (goal == null || text == null || from.isBlank()
+                            if (goal == null
+                                    || text == null
+                                    || from.isBlank()
                                     || !goal.toLowerCase(Locale.ROOT).contains(from.toLowerCase(Locale.ROOT))
                                     || !seen.add(goalId + ":" + contentId)) continue;
-                            matches.add(new EduAiResponse.GoalContentMatch(goalId, contentId, text, clip(from, FROM_MAX)));
+                            matches.add(
+                                    new EduAiResponse.GoalContentMatch(goalId, contentId, text, clip(from, FROM_MAX)));
                         }
                     } catch (InterruptedException ex) {
                         Thread.currentThread().interrupt();
                         throw GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, ex);
                     } catch (ExecutionException | RuntimeException ex) {
                         Throwable cause = ex instanceof ExecutionException ? ex.getCause() : ex;
-                        if (firstError == null) firstError = cause instanceof RuntimeException rt ? rt
-                                : GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, cause);
+                        if (firstError == null)
+                            firstError = cause instanceof RuntimeException rt
+                                    ? rt
+                                    : GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, cause);
                         failed.add(new EduAiResponse.FailedDomain(ask.domainId(), ask.name()));
                     }
                 }
             }
             if (failed.size() == asks.size()) throw firstError;
-            log.info("{}|END|matches={}|failed={}|ms={}", logPrefix, matches.size(), failed.size(),
+            log.info(
+                    "{}|END|matches={}|failed={}|ms={}",
+                    logPrefix,
+                    matches.size(),
+                    failed.size(),
                     (System.nanoTime() - started) / 1_000_000);
             return new EduAiResponse.GoalContentMap(matches, failed);
         } catch (RuntimeException ex) {
@@ -517,7 +545,8 @@ public class EduAiServiceImpl implements EduAiService {
         }
     }
 
-    private record GoalAsk(Long domainId, String name, Map<Long, String> goals, Map<Long, String> candidates, String prompt) {}
+    private record GoalAsk(
+            Long domainId, String name, Map<Long, String> goals, Map<Long, String> candidates, String prompt) {}
 
     @Override
     public void logFeedback(CurrentUser currentUser, EduAiRequest.Feedback request) {

@@ -652,7 +652,8 @@ class EduClassDocServiceIntegrationTest {
 
         assertThat(service.getClassDocs(vicePrincipal, schoolYear).semesterPackages())
                 .filteredOn(d -> d.path("semesterNo").asInt() == 1)
-                .singleElement().satisfies(d -> assertThat(d.has("status")).isFalse());
+                .singleElement()
+                .satisfies(d -> assertThat(d.has("status")).isFalse());
         assertThat(service.getClassDocsForReview(vicePrincipal, schoolYear).semesterPackages())
                 .filteredOn(d -> d.path("semesterNo").asInt() == 1)
                 .singleElement()
@@ -1489,7 +1490,8 @@ class EduClassDocServiceIntegrationTest {
         // FR-003 + spec 005 FR-021: HT thấy gói Nháp quá hạn để mở hạn (không thấy tên nhánh đang soạn); PHT không mở
         // được
         assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
-                .filteredOn(d -> d.path("id").asString().equals(sp)).singleElement()
+                .filteredOn(d -> d.path("id").asString().equals(sp))
+                .singleElement()
                 .satisfies(d -> assertThat(d.has("status")).isFalse());
         assertErrorCode(() -> service.getOverdueClassDocs(vicePrincipal, schoolYear), ApiCode.FORBIDDEN);
         assertThat(service.getOverdueClassDocs(principal, schoolYear).semesterPackages())
@@ -1542,8 +1544,11 @@ class EduClassDocServiceIntegrationTest {
         fillSemesterPackage(teacher, String.valueOf(classId), 1);
         ObjectNode sent = service.actOnClassDoc(teacher, "semester", sp, submit(), versionOf(sp));
         assertThat(sent.path("status").asString()).isEqualTo("REVIEW");
-        assertThat(notificationsOf(leader, "EDU_SUBMITTED",
-                "/education/theme-plans/" + classId + "?hk=1&plan=" + plan.id() + "&review=1")).isEqualTo(1);
+        assertThat(notificationsOf(
+                        leader,
+                        "EDU_SUBMITTED",
+                        "/education/theme-plans/" + classId + "?hk=1&plan=" + plan.id() + "&review=1"))
+                .isEqualTo(1);
     }
 
     @Test
@@ -1566,7 +1571,8 @@ class EduClassDocServiceIntegrationTest {
         assertThat(changed).isEqualTo(1);
         entityManager.clear();
         assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
-                .filteredOn(doc -> doc.path("id").asString().equals(semester)).singleElement()
+                .filteredOn(doc -> doc.path("id").asString().equals(semester))
+                .singleElement()
                 .satisfies(doc -> assertThat(doc.has("status")).isFalse());
         assertThat(service.getOverdueClassDocs(principal, schoolYear).semesterPackages())
                 .filteredOn(doc -> doc.path("id").asString().equals(semester))
@@ -1595,10 +1601,14 @@ class EduClassDocServiceIntegrationTest {
                     assertThat(doc.path("permissions").path("canApprove").asBoolean())
                             .isFalse();
                 });
-        assertThat(service.getOverdueClassDoc(principal, schoolYear, "semester", semester).path("history").size())
+        assertThat(service.getOverdueClassDoc(principal, schoolYear, "semester", semester)
+                        .path("history")
+                        .size())
                 .isEqualTo(1);
-        assertErrorCode(() -> service.getOverdueClassDoc(vicePrincipal, schoolYear, "semester", semester), ApiCode.FORBIDDEN);
-        assertErrorCode(() -> service.getOverdueClassDoc(principal, schoolYear + 1, "semester", semester),
+        assertErrorCode(
+                () -> service.getOverdueClassDoc(vicePrincipal, schoolYear, "semester", semester), ApiCode.FORBIDDEN);
+        assertErrorCode(
+                () -> service.getOverdueClassDoc(principal, schoolYear + 1, "semester", semester),
                 ApiCode.CLASS_DOC_NOT_FOUND);
     }
 
@@ -1836,14 +1846,22 @@ class EduClassDocServiceIntegrationTest {
         for (CurrentUser viewer : List.of(second, principal, vicePrincipal, leader)) {
             ClassDocsResponse docs = service.getClassDocs(viewer, schoolYear);
             assertThat(docs.branchPlans()).isEmpty();
-            assertThat(docs.semesterPackages()).filteredOn(p -> "APPROVED".equals(p.path("status").asString()))
-                    .singleElement().satisfies(published -> {
-                        assertThat(published.path("branchNames").has("2026-09-07")).isTrue();
-                        assertThat(published.path("branchNames").has("2026-10-05")).isFalse();
+            assertThat(docs.semesterPackages())
+                    .filteredOn(p -> "APPROVED".equals(p.path("status").asString()))
+                    .singleElement()
+                    .satisfies(published -> {
+                        assertThat(published.path("branchNames").has("2026-09-07"))
+                                .isTrue();
+                        assertThat(published.path("branchNames").has("2026-10-05"))
+                                .isFalse();
                         assertThat(published.has("canExtend")).isFalse();
                     });
         }
-        assertThat(service.getClassDocs(teacher, schoolYear).branchPlans().getFirst().path("names").has("2026-10-05"))
+        assertThat(service.getClassDocs(teacher, schoolYear)
+                        .branchPlans()
+                        .getFirst()
+                        .path("names")
+                        .has("2026-10-05"))
                 .isTrue();
     }
 
@@ -1851,16 +1869,20 @@ class EduClassDocServiceIntegrationTest {
     @DisplayName("Bản ban hành cũ chưa lưu lịch nhánh: người chỉ xem nhận lịch hiện hành")
     void legacyReleaseWithoutCalendarFallsBackToCurrentCalendar() {
         approveBranch();
-        jdbc.update("UPDATE edu_class_docs SET content = content || "
-                + "'{\"schemaVersion\":2,\"themeSchedules\":{},\"branches\":{}}'::jsonb, status = 'APPROVED' WHERE kind = 'branch'");
-        jdbc.update("UPDATE edu_class_doc_releases SET print_snapshot = jsonb_set(print_snapshot, '{members}', "
-                + "(SELECT jsonb_agg(CASE WHEN m->>'kind' = 'branch' THEN m - 'content' ELSE m END) FROM jsonb_array_elements(print_snapshot->'members') m))");
+        jdbc.update(
+                "UPDATE edu_class_docs SET content = content || "
+                        + "'{\"schemaVersion\":2,\"themeSchedules\":{},\"branches\":{}}'::jsonb, status = 'APPROVED' WHERE kind = 'branch'");
+        jdbc.update(
+                "UPDATE edu_class_doc_releases SET print_snapshot = jsonb_set(print_snapshot, '{members}', "
+                        + "(SELECT jsonb_agg(CASE WHEN m->>'kind' = 'branch' THEN m - 'content' ELSE m END) FROM jsonb_array_elements(print_snapshot->'members') m))");
         entityManager.clear();
 
         assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
                 .filteredOn(p -> "APPROVED".equals(p.path("status").asString()))
                 .singleElement()
-                .satisfies(published -> assertThat(published.path("effectiveCalendar").isObject()).isTrue());
+                .satisfies(published -> assertThat(
+                                published.path("effectiveCalendar").isObject())
+                        .isTrue());
     }
 
     @Test

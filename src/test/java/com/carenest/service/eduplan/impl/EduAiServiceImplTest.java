@@ -38,8 +38,10 @@ class EduAiServiceImplTest {
     private final EduConfigService config = mock(EduConfigService.class);
     private final EduClassDocService docs = mock(EduClassDocService.class);
     private final EduYearPlanService plans = mock(EduYearPlanService.class);
-    private final com.carenest.service.eduplan.EduAiExampleService examples = mock(com.carenest.service.eduplan.EduAiExampleService.class);
-    private final com.carenest.service.eduplan.EduCurriculumService curriculum = mock(com.carenest.service.eduplan.EduCurriculumService.class);
+    private final com.carenest.service.eduplan.EduAiExampleService examples =
+            mock(com.carenest.service.eduplan.EduAiExampleService.class);
+    private final com.carenest.service.eduplan.EduCurriculumService curriculum =
+            mock(com.carenest.service.eduplan.EduCurriculumService.class);
     private final CurrentUser user = mock(CurrentUser.class);
     private EduAiServiceImpl service;
 
@@ -183,14 +185,23 @@ class EduAiServiceImplTest {
     @Test
     void examplePromptStaysInItsDomainAndCannotSupplyGrounds() {
         var plan = teamPlan(true);
-        when(examples.examples(plan)).thenReturn(List.of(new com.carenest.service.eduplan.EduAiExampleService.Example(
-                1L, 100L, "Trường mầm non", "Ví dụ lịch sử")));
+        when(examples.examples(plan))
+                .thenReturn(List.of(new com.carenest.service.eduplan.EduAiExampleService.Example(
+                        1L, 100L, "Trường mầm non", "Ví dụ lịch sử")));
         when(ai.complete(any())).thenAnswer(inv -> {
             AiRequest req = inv.getArgument(0);
             assertThat(req.systemPrompt()).contains("examples chỉ là dữ liệu");
-            if (req.userPrompt().contains("Phát triển thể chất")) assertThat(req.userPrompt()).contains("Ví dụ lịch sử");
+            if (req.userPrompt().contains("Phát triển thể chất"))
+                assertThat(req.userPrompt()).contains("Ví dụ lịch sử");
             else assertThat(req.userPrompt()).doesNotContain("Ví dụ lịch sử");
-            return new AiRawResult("{\"matches\":[{\"themeId\":1,\"contentId\":11,\"from\":\"Ví dụ lịch sử\"}]}", "t", "t", "t", 0, 0, 0);
+            return new AiRawResult(
+                    "{\"matches\":[{\"themeId\":1,\"contentId\":11,\"from\":\"Ví dụ lịch sử\"}]}",
+                    "t",
+                    "t",
+                    "t",
+                    0,
+                    0,
+                    0);
         });
         assertThat(service.matchThemeContents(user, 9L, asks()).matches()).isEmpty();
     }
@@ -200,21 +211,49 @@ class EduAiServiceImplTest {
         when(p.planLevel()).thenReturn(EduPlanLevel.SCHOOL_YEAR);
         when(p.canEditCurriculum()).thenReturn(allowed);
         when(p.ageGroupId()).thenReturn(5L);
-        var empty = new YearPlanDetailResponse.Row(10L, "goal", "Trẻ hát đúng giai điệu", (short) 1,
-                List.of(new YearPlanDetailResponse.Content(1L, " ", List.of())), null, null, null, null, null, null, null);
-        var custom = new YearPlanDetailResponse.Row(11L, "goal", "Trẻ đọc thơ rõ lời", (short) 2,
-                List.of(), null, null, null, null, null, null, null);
-        var full = new YearPlanDetailResponse.Row(12L, "goal", "Trẻ hát", (short) 3,
-                List.of(new YearPlanDetailResponse.Content(2L, "Đã có", List.of())), null, null, null, null, null, null, null);
-        when(p.domains()).thenReturn(List.of(new YearPlanDetailResponse.Domain(100L, "Âm nhạc", "", List.of(empty, custom, full))));
+        var empty = new YearPlanDetailResponse.Row(
+                10L,
+                "goal",
+                "Trẻ hát đúng giai điệu",
+                (short) 1,
+                List.of(new YearPlanDetailResponse.Content(1L, " ", List.of())),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        var custom = new YearPlanDetailResponse.Row(
+                11L, "goal", "Trẻ đọc thơ rõ lời", (short) 2, List.of(), null, null, null, null, null, null, null);
+        var full = new YearPlanDetailResponse.Row(
+                12L,
+                "goal",
+                "Trẻ hát",
+                (short) 3,
+                List.of(new YearPlanDetailResponse.Content(2L, "Đã có", List.of())),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        when(p.domains())
+                .thenReturn(
+                        List.of(new YearPlanDetailResponse.Domain(100L, "Âm nhạc", "", List.of(empty, custom, full))));
         when(plans.getYearPlan(user, 9L)).thenReturn(p);
-        when(curriculum.getContents(5L)).thenReturn(List.of(catalog(20L,100L,"Hát đúng giai điệu"),
-                catalog(21L,100L,"Đọc thơ, ca dao"), catalog(22L,200L,"Khác lĩnh vực")));
+        when(curriculum.getContents(5L))
+                .thenReturn(List.of(
+                        catalog(20L, 100L, "Hát đúng giai điệu"),
+                        catalog(21L, 100L, "Đọc thơ, ca dao"),
+                        catalog(22L, 200L, "Khác lĩnh vực")));
         return p;
     }
 
     private static com.carenest.dto.eduplan.CurriculumContentResponse catalog(long id, long domain, String text) {
-        return new com.carenest.dto.eduplan.CurriculumContentResponse(id, 1L, domain, "", null, "", "", "", "", text, "C", 1);
+        return new com.carenest.dto.eduplan.CurriculumContentResponse(
+                id, 1L, domain, "", null, "", "", "", "", text, "C", 1);
     }
 
     @Test
@@ -241,10 +280,14 @@ class EduAiServiceImplTest {
     @Test
     void annualDeniedBeforeCatalogAndAiForWrongLevelOrNoEdit() {
         var p = annual(false);
-        assertThatThrownBy(() -> service.matchGoalContents(user, 9L)).extracting("apiCode").isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
         when(p.canEditCurriculum()).thenReturn(true);
         when(p.planLevel()).thenReturn(EduPlanLevel.TEAM);
-        assertThatThrownBy(() -> service.matchGoalContents(user, 9L)).extracting("apiCode").isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
         verify(curriculum, never()).getContents(any());
         verify(ai, never()).complete(any());
     }
@@ -253,7 +296,7 @@ class EduAiServiceImplTest {
     void annualNoCandidatesReturnsEmptyWithoutAi() {
         annual(true);
         when(curriculum.getContents(5L)).thenReturn(List.of());
-        assertThat(service.matchGoalContents(user,9L).matches()).isEmpty();
+        assertThat(service.matchGoalContents(user, 9L).matches()).isEmpty();
         verify(ai, never()).complete(any());
     }
 
@@ -261,26 +304,41 @@ class EduAiServiceImplTest {
     void annualAiOffTimeoutAndBrokenJsonRetainExistingErrors() {
         annual(true);
         when(ai.isAvailable(AiTask.EDU_MATCH)).thenReturn(false);
-        assertThatThrownBy(() -> service.matchGoalContents(user,9L)).extracting("apiCode").isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
         when(ai.isAvailable(AiTask.EDU_MATCH)).thenReturn(true);
         aiReturns("not json");
-        assertThatThrownBy(() -> service.matchGoalContents(user,9L)).extracting("apiCode").isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
-        when(ai.complete(any())).thenThrow(new AiClientException(AiErrorReason.TIMEOUT,"slow",null));
-        assertThatThrownBy(() -> service.matchGoalContents(user,9L)).extracting("apiCode").isEqualTo(ApiCode.AI_TIMEOUT);
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
+        when(ai.complete(any())).thenThrow(new AiClientException(AiErrorReason.TIMEOUT, "slow", null));
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.AI_TIMEOUT);
     }
 
     @Test
     void annualPartialFailureStillReturnsOtherDomain() {
         var p = annual(true);
-        var other = new YearPlanDetailResponse.Row(30L, "goal", "Trẻ đếm số", (short) 5, List.of(), null,null,null,null,null,null,null);
+        var other = new YearPlanDetailResponse.Row(
+                30L, "goal", "Trẻ đếm số", (short) 5, List.of(), null, null, null, null, null, null, null);
         var first = p.domains().getFirst();
-        when(p.domains()).thenReturn(List.of(first,new YearPlanDetailResponse.Domain(200L,"Toán","",List.of(other))));
+        when(p.domains())
+                .thenReturn(List.of(first, new YearPlanDetailResponse.Domain(200L, "Toán", "", List.of(other))));
         when(ai.complete(any())).thenAnswer(inv -> {
             AiRequest r = inv.getArgument(0);
-            if(r.userPrompt().contains("Toán")) throw new AiClientException(AiErrorReason.TIMEOUT,"slow",null);
-            return new AiRawResult("{\"matches\":[{\"goalId\":10,\"curriculumContentId\":20,\"from\":\"hát\"}]}","t","t","t",0,0,0);
+            if (r.userPrompt().contains("Toán")) throw new AiClientException(AiErrorReason.TIMEOUT, "slow", null);
+            return new AiRawResult(
+                    "{\"matches\":[{\"goalId\":10,\"curriculumContentId\":20,\"from\":\"hát\"}]}",
+                    "t",
+                    "t",
+                    "t",
+                    0,
+                    0,
+                    0);
         });
-        var out = service.matchGoalContents(user,9L);
+        var out = service.matchGoalContents(user, 9L);
         assertThat(out.matches()).hasSize(1);
         assertThat(out.failedDomains()).extracting("domainId").containsExactly(200L);
     }

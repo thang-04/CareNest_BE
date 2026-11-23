@@ -58,7 +58,8 @@ public class EduPreviousYearTickServiceImpl implements EduPreviousYearTickServic
         String logPrefix = LOG_PREFIX + "|getPreviousYearTicks|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            // Quyền theo kế hoạch đang soạn (người soạn kế hoạch tổ, bản DRAFT); nguồn năm trước không qua canView (EDU-104 Q1=A)
+            // Quyền theo kế hoạch đang soạn (người soạn kế hoạch tổ, bản DRAFT); nguồn năm trước không qua canView
+            // (EDU-104 Q1=A)
             YearPlanDetailResponse plan = yearPlanService.getYearPlan(currentUser, planId);
             if (plan.planLevel() != EduPlanLevel.TEAM || !plan.canAssignContents())
                 throw GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
@@ -111,8 +112,9 @@ public class EduPreviousYearTickServiceImpl implements EduPreviousYearTickServic
     // Nhóm tuổi năm trước có thể là bản ghi khác nhưng cùng khoảng tháng tuổi
     private Optional<EduPlan> sameAgeRange(Long schoolYearId, Long ageGroupId) {
         Optional<AgeGroupResponse> current = schoolStructureService.findAgeGroup(ageGroupId);
-        if (current.isEmpty() || current.get().ageFromMonths() == null || current.get().ageToMonths() == null)
-            return Optional.empty();
+        if (current.isEmpty()
+                || current.get().ageFromMonths() == null
+                || current.get().ageToMonths() == null) return Optional.empty();
         AgeGroupResponse age = current.get();
         return schoolStructureService.findAgeGroups().stream()
                 .filter(g -> !Objects.equals(g.id(), ageGroupId)

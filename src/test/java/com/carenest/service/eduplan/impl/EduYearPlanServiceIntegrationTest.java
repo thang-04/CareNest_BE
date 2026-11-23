@@ -1663,47 +1663,64 @@ class EduYearPlanServiceIntegrationTest {
 
         var team = teamDraft(ageGroup3, leader3);
         service.submitYearPlan(leader3, team.id(), "Gửi duyệt tổ", edit(leader3, team.id(), true));
-        var annual = service.createYearPlan(vicePrincipal, sampleSchoolYearRequest(ageGroup4),
+        var annual = service.createYearPlan(
+                vicePrincipal,
+                sampleSchoolYearRequest(ageGroup4),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
         service.submitYearPlan(vicePrincipal, annual.id(), "Gửi duyệt năm", edit(vicePrincipal, annual.id(), true));
         entityManager.flush();
         long priorAnnual = insertId(
                 "INSERT INTO edu_year_plans (code, school_year_id, age_group_id, title, status, owner_id) "
                         + "VALUES ('KHN-PRIOR', ?, ?, 'Kế hoạch năm trước', 'REVIEW', ?) RETURNING id",
-                priorYear, ageGroup4, vicePrincipal.userId());
+                priorYear,
+                ageGroup4,
+                vicePrincipal.userId());
         long priorSource = insertId(
                 "INSERT INTO edu_year_plans (code, school_year_id, age_group_id, title, status, owner_id) "
                         + "VALUES ('KHN-PRIOR-SOURCE', ?, ?, 'Nguồn đã ban hành', 'APPROVED', ?) RETURNING id",
-                priorYear, ageGroup3, vicePrincipal.userId());
-        long priorTeam = insertId("INSERT INTO edu_team_plans "
+                priorYear,
+                ageGroup3,
+                vicePrincipal.userId());
+        long priorTeam = insertId(
+                "INSERT INTO edu_team_plans "
                         + "(code, school_year_id, age_group_id, title, status, owner_id, curriculum_source_plan_id) "
                         + "VALUES ('KHT-PRIOR', ?, ?, 'Kế hoạch tổ năm trước', 'REVIEW', ?, ?) RETURNING id",
-                priorYear, ageGroup3, leader3.userId(), priorSource);
+                priorYear,
+                ageGroup3,
+                leader3.userId(),
+                priorSource);
         entityManager.clear();
 
         var currentQueue = service.getReviewQueue(principal, schoolYear);
-        assertThat(currentQueue).extracting(YearPlanSummaryResponse::id)
+        assertThat(currentQueue)
+                .extracting(YearPlanSummaryResponse::id)
                 .containsExactlyInAnyOrder(annual.id(), team.id());
         assertThat(currentQueue).allMatch(plan -> plan.schoolYearId().equals(schoolYear));
-        assertThat(currentQueue).filteredOn(plan -> plan.id().equals(annual.id()))
-                .singleElement().satisfies(plan -> assertThat(plan.permissions().canApprove()).isTrue());
-        assertThat(currentQueue).filteredOn(plan -> plan.id().equals(team.id()))
-                .singleElement().satisfies(plan -> assertThat(plan.permissions().canApprove()).isFalse());
+        assertThat(currentQueue)
+                .filteredOn(plan -> plan.id().equals(annual.id()))
+                .singleElement()
+                .satisfies(plan -> assertThat(plan.permissions().canApprove()).isTrue());
+        assertThat(currentQueue)
+                .filteredOn(plan -> plan.id().equals(team.id()))
+                .singleElement()
+                .satisfies(plan -> assertThat(plan.permissions().canApprove()).isFalse());
         assertThat(service.getReviewQueue(vicePrincipal, schoolYear))
-                .singleElement().satisfies(plan -> {
+                .singleElement()
+                .satisfies(plan -> {
                     assertThat(plan.id()).isEqualTo(team.id());
                     assertThat(plan.permissions().canApprove()).isTrue();
                 });
 
         var priorQueue = service.getReviewQueue(principal, priorYear);
-        assertThat(priorQueue).extracting(YearPlanSummaryResponse::id)
+        assertThat(priorQueue)
+                .extracting(YearPlanSummaryResponse::id)
                 .containsExactlyInAnyOrder(priorAnnual, priorTeam);
         assertThat(priorQueue).allMatch(plan -> !plan.permissions().canApprove());
         assertThat(service.getReviewQueue(principal, emptyYear)).isEmpty();
-        assertThat(service.getReviewQueue(principal, null)).extracting(YearPlanSummaryResponse::id)
+        assertThat(service.getReviewQueue(principal, null))
+                .extracting(YearPlanSummaryResponse::id)
                 .contains(annual.id(), team.id(), priorAnnual, priorTeam);
     }
-
 
     @Test
     void principalCanListAndReopenExpiredTeamReviewOutsideApprovalChain() {
@@ -1725,8 +1742,13 @@ class EduYearPlanServiceIntegrationTest {
                         .items())
                 .noneMatch(plan -> plan.id().equals(draft.id()));
         assertErrorCode(() -> service.getYearPlan(principal, draft.id()), ApiCode.EDU_PLAN_NOT_RELEASED);
-        assertThat(service.getOverdueYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20),
-                        com.carenest.utils.enums.EduPlanLevel.TEAM)
+        assertThat(service.getOverdueYearPlans(
+                                principal,
+                                schoolYear,
+                                null,
+                                null,
+                                PageRequest.of(0, 20),
+                                com.carenest.utils.enums.EduPlanLevel.TEAM)
                         .items())
                 .filteredOn(plan -> plan.id().equals(draft.id()))
                 .singleElement()
@@ -1739,10 +1761,13 @@ class EduYearPlanServiceIntegrationTest {
                 principal, reviewed.id(), "Mở lại hạn duyệt", LocalDate.parse("2026-10-28"));
         assertThat(reopened.timeLock().reviewDeadline().locked()).isFalse();
         assertThat(reopened.permissions().canApprove()).isFalse();
-        assertThat(service.getOverdueYearPlan(principal, reviewed.id(), schoolYear).history())
+        assertThat(service.getOverdueYearPlan(principal, reviewed.id(), schoolYear)
+                        .history())
                 .singleElement();
         assertErrorCode(() -> service.getOverdueYearPlan(vicePrincipal, reviewed.id(), schoolYear), ApiCode.FORBIDDEN);
-        assertErrorCode(() -> service.getOverdueYearPlan(principal, reviewed.id(), schoolYear + 1), ApiCode.YEAR_PLAN_NOT_FOUND);
+        assertErrorCode(
+                () -> service.getOverdueYearPlan(principal, reviewed.id(), schoolYear + 1),
+                ApiCode.YEAR_PLAN_NOT_FOUND);
         assertThat(service.getYearPlan(vicePrincipal, draft.id()).permissions().canApprove())
                 .isTrue();
     }

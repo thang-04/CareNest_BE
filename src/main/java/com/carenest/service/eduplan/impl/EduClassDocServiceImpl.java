@@ -498,8 +498,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             LocalDate today = LocalDate.now(clock);
             if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
-            if (!canReadLiveRoot(currentUser, cls, doc))
-                throw GlobalException.of(ApiCode.EDU_PLAN_NOT_RELEASED);
+            if (!canReadLiveRoot(currentUser, cls, doc)) throw GlobalException.of(ApiCode.EDU_PLAN_NOT_RELEASED);
             SchoolYearDetailResponse year = yearOf(cls);
             List<EduClassDoc> planDocs =
                     classDocRepository.findAllByClassroomIdAndYearPlanId(cls.id(), doc.getYearPlanId());
@@ -717,9 +716,15 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     classroomService.findOpenedDates(classIds),
                     new HashMap<>());
             ClassDocsResponse response = new ClassDocsResponse(
-                    deadlineBoard ? List.of() : toNodes(currentUser, docs, EduClassDoc.BRANCH, evaluations, context, reviewView),
-                    deadlineBoard ? List.of() : toNodes(currentUser, docs, EduClassDoc.THEME, evaluations, context, reviewView),
-                    deadlineBoard ? List.of() : toNodes(currentUser, docs, EduClassDoc.WEEK, evaluations, context, reviewView),
+                    deadlineBoard
+                            ? List.of()
+                            : toNodes(currentUser, docs, EduClassDoc.BRANCH, evaluations, context, reviewView),
+                    deadlineBoard
+                            ? List.of()
+                            : toNodes(currentUser, docs, EduClassDoc.THEME, evaluations, context, reviewView),
+                    deadlineBoard
+                            ? List.of()
+                            : toNodes(currentUser, docs, EduClassDoc.WEEK, evaluations, context, reviewView),
                     classItems,
                     List.copyOf(staff.values()),
                     deadlineBoard ? List.of() : buildCreationCapabilities(classItems, context),
@@ -729,7 +734,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     deadlineBoard
                             ? overdueNodes(currentUser, docs, EduClassDoc.DOSSIER, context)
                             : toNodes(currentUser, docs, EduClassDoc.DOSSIER, evaluations, context, reviewView),
-                    deadlineBoard ? List.of() : toNodes(currentUser, docs, EduClassDoc.DAY, evaluations, context, reviewView),
+                    deadlineBoard
+                            ? List.of()
+                            : toNodes(currentUser, docs, EduClassDoc.DAY, evaluations, context, reviewView),
                     !classes.isEmpty() && yearsById.values().stream().anyMatch(y -> !EduSemesters.configured(y)));
             log.info("{}|END", logPrefix);
             return response;
@@ -747,9 +754,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         try {
             requireOverdueRead(user, schoolYearId);
             if (!EduClassDoc.isRoot(kind)) throw GlobalException.of(ApiCode.INVALID_VALUE, "loại tài liệu");
-            EduClassDoc doc = classDocRepository.findByDocKey(docKey)
+            EduClassDoc doc = classDocRepository
+                    .findByDocKey(docKey)
                     .filter(d -> kind.equals(d.getKind()))
-                    .filter(d -> schoolYearId.equals(requireClass(d.getClassroomId()).schoolYearId()))
+                    .filter(d ->
+                            schoolYearId.equals(requireClass(d.getClassroomId()).schoolYearId()))
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
             ObjectNode result = overdueNode(user, doc, null);
             if (result == null) throw GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND);
@@ -762,7 +771,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 content.remove(META_FIELDS);
                 content.put("id", member.getDocKey());
                 content.put("kind", member.getKind());
-                if (member.getWeekStart() != null) content.put("weekStart", member.getWeekStart().toString());
+                if (member.getWeekStart() != null)
+                    content.put("weekStart", member.getWeekStart().toString());
                 members.add(content);
             }
             log.info("{}|END", logPrefix);
@@ -1239,7 +1249,10 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 releaseRepository.save(EduClassDocRelease.create(
                         doc.getId(),
                         doc.getVersion(),
-                        releaseSnapshot(snapshot, all, semesterBranchNames(doc, planDocs, year),
+                        releaseSnapshot(
+                                snapshot,
+                                all,
+                                semesterBranchNames(doc, planDocs, year),
                                 semesterCalendar(doc, planDocs, year)),
                         currentUser.userId(),
                         at));
@@ -2029,7 +2042,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (root == null) return null;
         var releases = releaseRepository.findAllByClassDocIdInOrderByReleasedAtAscIdAsc(List.of(root.getId()));
         if (releases.isEmpty()) {
-            if (doc.getStatus() != EduClassDocStatus.APPROVED || root.getStatus() != EduClassDocStatus.APPROVED) return null;
+            if (doc.getStatus() != EduClassDocStatus.APPROVED || root.getStatus() != EduClassDocStatus.APPROVED)
+                return null;
             ObjectNode legacy = toNode(currentUser, doc, null, context);
             // Bản ban hành cũ chưa lưu lịch: người chỉ xem dùng lịch hiện hành (Tiền chốt 23/11)
             legacy.remove("branchNames");
@@ -2081,8 +2095,20 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         node.put("releasedView", true);
         boolean canExport = node.path("permissions").path("canExport").asBoolean(false);
         node.putObject("permissions").put("canExport", canExport);
-        node.remove(List.of("approvals", "history", "review", "reviewDeadline", "canExtend", "canRevise",
-                "missing", "blockedReason", "deadlineState", "extendedTo", "graceTo", "daysLeft", "timeLocked"));
+        node.remove(List.of(
+                "approvals",
+                "history",
+                "review",
+                "reviewDeadline",
+                "canExtend",
+                "canRevise",
+                "missing",
+                "blockedReason",
+                "deadlineState",
+                "extendedTo",
+                "graceTo",
+                "daysLeft",
+                "timeLocked"));
         return node;
     }
 
@@ -2096,7 +2122,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     private List<ObjectNode> overdueNodes(
             CurrentUser user, List<EduClassDoc> docs, String kind, ClassListContext context) {
-        return docs.stream().filter(d -> kind.equals(d.getKind()))
+        return docs.stream()
+                .filter(d -> kind.equals(d.getKind()))
                 .map(d -> overdueNode(user, d, context))
                 .filter(Objects::nonNull)
                 .toList();
@@ -2825,7 +2852,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         LocalDate from = EduSemesters.start(year, root.getSemesterNo());
         LocalDate to = EduSemesters.end(year, root.getSemesterNo());
         if (from == null || to == null) return null;
-        return docs.stream().filter(d -> EduClassDoc.BRANCH.equals(d.getKind())).findFirst()
+        return docs.stream()
+                .filter(d -> EduClassDoc.BRANCH.equals(d.getKind()))
+                .findFirst()
                 .map(d -> readObject(d.getContent()))
                 .filter(calendar -> calendar.path("schemaVersion").asInt() == 2)
                 .map(calendar -> {
@@ -2835,14 +2864,17 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         for (JsonNode entry : calendar.path(field)) {
                             String start = entry.path("startDate").asString("");
                             String end = entry.path("endDate").asString("");
-                            if (!start.isBlank() && !end.isBlank()
-                                    && start.compareTo(to.toString()) <= 0 && end.compareTo(from.toString()) >= 0) {
+                            if (!start.isBlank()
+                                    && !end.isBlank()
+                                    && start.compareTo(to.toString()) <= 0
+                                    && end.compareTo(from.toString()) >= 0) {
                                 entries.add(entry);
                             }
                         }
                     }
                     return scoped;
-                }).orElse(null);
+                })
+                .orElse(null);
     }
 
     /** Tạo gốc còn thiếu: kế hoạch giáo dục ngày cho mỗi kế hoạch chủ đề, kế hoạch giáo dục chủ đề khi năm đã cấu hình học kỳ. */

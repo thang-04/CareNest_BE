@@ -11,7 +11,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface EduTeamPlanRepository extends EduHeaderRepository<EduTeamPlan> {
 
-    @Query("select p from EduTeamPlan p where p.status = com.carenest.utils.enums.EduPlanStatus.APPROVED and p.disabled = false order by p.schoolYearId desc, p.versionNo desc, p.id desc")
+    @Query(
+            "select p from EduTeamPlan p where p.status = com.carenest.utils.enums.EduPlanStatus.APPROVED and p.disabled = false order by p.schoolYearId desc, p.versionNo desc, p.id desc")
     List<EduTeamPlan> findApprovedForExamples();
 
     // EDU-91: kế hoạch tổ không có kế hoạch năm học nguồn (dữ liệu cũ trước khi tách 2 cấp) không hiện trên web
