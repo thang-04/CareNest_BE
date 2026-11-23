@@ -277,7 +277,8 @@ final class MealPlanEvaluator {
                     micro.get(Micronutrient.VITAMIN_B1),
                     micro.get(Micronutrient.VITAMIN_B2),
                     micro.get(Micronutrient.VITAMIN_PP),
-                    micro.get(Micronutrient.VITAMIN_C));
+                    micro.get(Micronutrient.VITAMIN_C),
+                    micro.get(Micronutrient.ZINC));
         }
     }
 
