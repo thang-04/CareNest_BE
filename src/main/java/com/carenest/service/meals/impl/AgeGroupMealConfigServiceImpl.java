@@ -270,6 +270,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         checkRange("vitamin B2", request.vitaminB2Min(), request.vitaminB2Max());
         checkRange("vitamin PP", request.vitaminPpMin(), request.vitaminPpMax());
         checkRange("vitamin C", request.vitaminCMin(), request.vitaminCMax());
+        checkRange("kẽm", request.zincMin(), request.zincMax());
         checkSessionShares(request);
         BigDecimal serviceFee = request.serviceFee() == null ? BigDecimal.ZERO : request.serviceFee();
         // NUT-19: phí dịch vụ là một phần giá suất ⇒ ngân sách thực phẩm không âm
@@ -323,6 +324,8 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                         request.vitaminPpMax(),
                         request.vitaminCMin(),
                         request.vitaminCMax(),
+                        request.zincMin(),
+                        request.zincMax(),
                         request.appliedProteinPct(),
                         request.appliedLipidPct(),
                         request.appliedGlucidPct()),

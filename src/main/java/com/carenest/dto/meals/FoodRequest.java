@@ -38,8 +38,8 @@ public record FoodRequest(
         @DecimalMin("0") @DecimalMax("1000000") BigDecimal vitaminB2,
         @DecimalMin("0") @DecimalMax("1000000") BigDecimal vitaminPp,
         @DecimalMin("0") @DecimalMax("1000000") BigDecimal vitaminC,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal zinc,
         @Size(max = 200) String nutrientSource,
-        @Size(max = 50) String nutrientSourceVersion,
 
         @NotNull @DecimalMin("0") @DecimalMax(value = "100", inclusive = false)
         BigDecimal wastePct,
