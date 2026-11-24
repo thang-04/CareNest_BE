@@ -58,6 +58,12 @@ P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng e
 - Mẫu nhận xét nền phải chạy khi AI tắt (OBS-04).
 - Không lưu bản sao hoạt động/MT của giáo án; tham chiếu giáo án và MT bằng id, đọc qua service education-plan. Lớp chưa có giáo án duyệt thì khóa phần chấm theo MT (EDU-19).
 
+- API phụ huynh (OBS-36, AUTH-04, chỉ role PARENT, `ParentAssessmentController`; lỗi `4108` PARENT_CHILD_FORBIDDEN, `4109` PARENT_RANGE_INVALID — tối đa 62 ngày, một năm học):
+  - `GET /children/{childId}/daily-assessments?from&to` ⇒ `[{date, status ASSESSED|ABSENT|NOT_RECORDED, classId, className, teacherName, savedAt, symptoms[], healthNote, meals{}, nap, emotion, participation, behaviors[], behaviorNote, activities[{key,label,participation,goalsMet[],goalsEffort[],goalsNotMet[]}], flag, comment}]` — ngày lớp đang được mở lại và cô vừa sửa ⇒ NOT_RECORDED.
+  - `GET /children/{childId}/evaluations?schoolYearId` ⇒ `{childId, schoolYearId, themes[], semesters[], yearEnd}` — chỉ kết quả đã xác nhận của riêng trẻ (cuối chủ đề, học kỳ + nhận xét học kỳ đã xác nhận, phiếu cuối năm + lưu ý cho phụ huynh); không đánh giá tháng; `schoolYearId` bỏ trống = năm của lớp gần nhất.
+  - `GET /children/{childId}/rewards?from&to` ⇒ `{flags[{date,flag,classId,className}], tickets[{type,periodStart,periodEnd,presentDays,flagCount,weeklyTickets,issuedByName,issuedAt,classId,className}], yearEndTitles[{schoolYearId,classId,className,titles[],teacherNote}]}` — danh hiệu chỉ từ danh sách đã duyệt; `teacherNote` = ghi chú của dòng trẻ trong danh sách (lời cô).
+- Nhận xét tuần (OBS-29, V179 `weekly_comments.ai_reviewed_at`): `POST /assessment/weekly-comments/viewed {classId, weekStart, childId}` ghi cô đã mở xem nháp; lưu sửa (`PUT`) hoặc gửi riêng một trẻ cũng tính là đã xem; `POST .../send` không `childId` (Gửi tất cả) trả `7367` WEEKLY_COMMENT_AI_NOT_REVIEWED nêu tên trẻ còn nháp AI chưa xem; viết lại nháp đặt lại chưa xem. Dòng bảng có thêm `aiReviewed`.
+
 ## Related issues
 Chưa có.
 

@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 419 endpoint.
+Tổng: 423 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -105,6 +105,7 @@ POST /assessment/weekly-comments/send · src/main/java/com/carenest/controller/o
 GET /assessment/weekly-comments/unlocks · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getUnlocks
 POST /assessment/weekly-comments/unlocks · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#unlock
 POST /assessment/weekly-comments/unlocks/{unlockId}/revoke · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#revokeUnlock
+POST /assessment/weekly-comments/viewed · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#markViewed
 GET /attendance/classes · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClasses
 GET /attendance/day-info · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getDayInfo
 GET /attendance/day-unlocks · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getUnlocks
@@ -136,8 +137,10 @@ GET /children/{childId}/account-recipient · src/main/java/com/carenest/controll
 PUT /children/{childId}/account-recipient · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#select
 GET /children/{childId}/attendance · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getAttendance
 GET /children/{childId}/attendance/today · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getToday
+GET /children/{childId}/daily-assessments · src/main/java/com/carenest/controller/observation/ParentAssessmentController.java#getDailyAssessments
 GET /children/{childId}/daily-health · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getChildHistory
 GET /children/{childId}/daily-health/parent · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getDailyHealth
+GET /children/{childId}/evaluations · src/main/java/com/carenest/controller/observation/ParentAssessmentController.java#getEvaluations
 GET /children/{childId}/guardian-photos/{guardianId} · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getGuardianPhoto
 GET /children/{childId}/guardian-photos/{guardianId}/url · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getGuardianPhotoUrl
 GET /children/{childId}/guardians · src/main/java/com/carenest/controller/child/GuardianController.java#listGuardians
@@ -164,6 +167,7 @@ GET /children/{childId}/profile · src/main/java/com/carenest/controller/child/C
 POST /children/{childId}/profile-change-requests · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#submitProfileChange
 GET /children/{childId}/profile-change-requests/latest · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#getLatestProfileChanges
 POST /children/{childId}/readmit · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#readmit
+GET /children/{childId}/rewards · src/main/java/com/carenest/controller/observation/ParentAssessmentController.java#getRewards
 GET /children/{childId}/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#listForParent
 POST /children/{childId}/withdraw · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
 GET /children/duplicate-check · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#checkDuplicate

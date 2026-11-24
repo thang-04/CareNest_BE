@@ -2210,6 +2210,24 @@ paths:
           description: OK
       tags:
       - weekly-comment-controller
+  /api/assessment/weekly-comments/viewed:
+    post:
+      operationId: markViewed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentViewRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
   /api/attendance/classes:
     get:
       operationId: getClasses
@@ -3303,6 +3321,37 @@ paths:
           description: OK
       tags:
       - parent-attendance-controller
+  /api/children/{childId}/daily-assessments:
+    get:
+      operationId: getDailyAssessments
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListParentDailyAssessment"
+          description: OK
+      tags:
+      - parent-assessment-controller
   /api/children/{childId}/daily-health:
     get:
       operationId: getChildHistory
@@ -3359,6 +3408,31 @@ paths:
           description: OK
       tags:
       - parent-attendance-controller
+  /api/children/{childId}/evaluations:
+    get:
+      operationId: getEvaluations
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentEvaluationsResponse"
+          description: OK
+      tags:
+      - parent-assessment-controller
   /api/children/{childId}/guardian-photos/{guardianId}:
     get:
       operationId: getGuardianPhoto_1
@@ -3977,6 +4051,37 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/{childId}/rewards:
+    get:
+      operationId: getRewards
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentRewardsResponse"
+          description: OK
+      tags:
+      - parent-assessment-controller
   /api/children/{childId}/weekly-comments:
     get:
       operationId: listForParent
@@ -20276,6 +20381,31 @@ components:
       properties:
         username:
           type: string
+    ParentActivity:
+      type: object
+      properties:
+        goalsEffort:
+          type: array
+          items:
+            type: string
+        goalsMet:
+          type: array
+          items:
+            type: string
+        goalsNotMet:
+          type: array
+          items:
+            type: string
+        key:
+          type: string
+        label:
+          type: string
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
     ParentAttendanceDay:
       type: object
       properties:
@@ -20355,6 +20485,86 @@ components:
         schoolDays:
           type: integer
           format: int32
+    ParentDailyAssessment:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentActivity"
+        behaviorNote:
+          type: string
+        behaviors:
+          type: array
+          items:
+            type: string
+            enum:
+            - HOP_TAC_TOT
+            - GIUP_DO_BAN
+            - CHUA_HOP_TAC
+            - TRANH_GIANH
+            - KHONG_TAP_TRUNG
+            - RUT_RE
+            - KHAC
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        comment:
+          type: string
+        date:
+          type: string
+          format: date
+        emotion:
+          type: string
+          enum:
+          - HAPPY
+          - CALM
+          - SAD
+          - UPSET
+        flag:
+          type: boolean
+        healthNote:
+          type: string
+        meals:
+          type: object
+          additionalProperties:
+            type: string
+            enum:
+            - AN_HET
+            - AN_IT
+            - KHONG_AN
+        nap:
+          type: string
+          enum:
+          - NGU_TOT
+          - NGU_IT
+          - KHONG_NGU
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
+        savedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        symptoms:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        teacherName:
+          type: string
     ParentDailyHealthResponse:
       type: object
       properties:
@@ -20383,6 +20593,59 @@ components:
             - OTHER
         temperature:
           type: number
+    ParentDomain:
+      type: object
+      properties:
+        comment:
+          type: string
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentGoal"
+        name:
+          type: string
+    ParentEvaluationsResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        schoolYearId:
+          type: integer
+          format: int64
+        semesters:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentSemesterResult"
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentThemeResult"
+        yearEnd:
+          $ref: "#/components/schemas/ParentYearEndResult"
+    ParentFlag:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        flag:
+          type: boolean
+    ParentGoal:
+      type: object
+      properties:
+        goalNo:
+          type: integer
+          format: int32
+        met:
+          type: boolean
+        text:
+          type: string
     ParentPasswordResponse:
       type: object
       properties:
@@ -20393,6 +20656,121 @@ components:
           format: int64
         username:
           type: string
+    ParentRewardsResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        flags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentFlag"
+        from:
+          type: string
+          format: date
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentTicket"
+        to:
+          type: string
+          format: date
+        yearEndTitles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentYearEndTitle"
+    ParentSemesterResult:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        comment:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDomain"
+        endDate:
+          type: string
+          format: date
+        semester:
+          type: integer
+          format: int32
+        startDate:
+          type: string
+          format: date
+    ParentThemeResult:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentGoal"
+        met:
+          type: integer
+          format: int32
+        notMet:
+          type: integer
+          format: int32
+        startDate:
+          type: string
+          format: date
+        themeName:
+          type: string
+    ParentTicket:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        flagCount:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        issuedAt:
+          type: string
+          format: date-time
+        issuedByName:
+          type: string
+        periodEnd:
+          type: string
+          format: date
+        periodStart:
+          type: string
+          format: date
+        presentDays:
+          type: integer
+          format: int32
+        type:
+          type: string
+          enum:
+          - WEEKLY
+          - MONTHLY
+        weeklyTickets:
+          type: integer
+          format: int32
     ParentTodayResponse:
       type: object
       properties:
@@ -20450,6 +20828,50 @@ components:
         weekStart:
           type: string
           format: date
+    ParentYearEndResult:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        comment:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDomain"
+        met:
+          type: integer
+          format: int32
+        notMet:
+          type: integer
+          format: int32
+        noteForParent:
+          type: string
+        programCompleted:
+          type: boolean
+    ParentYearEndTitle:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        teacherNote:
+          type: string
+        titles:
+          type: array
+          items:
+            type: string
     PendingTakeover:
       type: object
       properties:
@@ -23670,6 +24092,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListParentDailyAssessment:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDailyAssessment"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListParentDailyHealthResponse:
       type: object
       properties:
@@ -24365,6 +24802,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonParentEvaluationsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentEvaluationsResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonParentPasswordResponse:
       type: object
       properties:
@@ -24373,6 +24823,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentPasswordResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentRewardsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentRewardsResponse"
         desc:
           type: string
         errorCode:
@@ -27651,6 +28114,8 @@ components:
       properties:
         absentAllWeek:
           type: boolean
+        aiReviewed:
+          type: boolean
         childId:
           type: integer
           format: int64
@@ -27824,6 +28289,22 @@ components:
         weekStart:
           type: string
           format: date
+    WeeklyCommentViewRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        weekStart:
+          type: string
+          format: date
+      required:
+      - childId
+      - classId
+      - weekStart
     WindowInput:
       type: object
       properties:
