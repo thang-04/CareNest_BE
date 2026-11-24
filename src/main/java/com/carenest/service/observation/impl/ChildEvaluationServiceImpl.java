@@ -753,7 +753,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         List<ChildEvaluation> saved = evaluationRepository.saveAllAndFlush(created);
         Instant at = rules.now();
         eventRepository.saveAll(saved.stream()
-                .map(e -> ChildEvaluationEvent.of(e.getId(), EvaluationAction.AI_DRAFTED, null, at))
+                // Nháp tạo sẵn luôn từ mẫu câu (EvaluationDraftWriter), không phải AI
+                .map(e -> ChildEvaluationEvent.of(e.getId(), EvaluationAction.TEMPLATE_DRAFTED, null, at))
                 .toList());
         log.info("{}|ensureDrafts|classId={}|type={}|created={}", LOG_PREFIX, cls.id(), type, saved.size());
     }

@@ -15611,6 +15611,7 @@ components:
           enum:
           - AI_DRAFTED
           - AI_REDRAFTED
+          - TEMPLATE_DRAFTED
           - EDITED
           - CONFIRMED
         at:

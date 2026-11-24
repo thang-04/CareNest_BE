@@ -1043,6 +1043,8 @@ V81: child_evaluations thêm `domain_comments` TEXT (JSON {"<domainId>": "nhận
 
 V175: `child_evaluations.sheet_presentation` TEXT nullable — JSON `{ageGroupName, teachers, principal, measurement}` chốt khi xác nhận phiếu cuối năm (OBS-28). Cân đo gồm ngày, cân nặng và chiều cao tại lúc chốt. Phiếu cũ để null, không tự backfill thông tin người ký/cân đo hiện tại thành lịch sử.
 
+V181: `child_evaluation_events.action` thêm `TEMPLATE_DRAFTED` (CHECK `ck_child_evaluation_events_action`: AI_DRAFTED | AI_REDRAFTED | TEMPLATE_DRAFTED | EDITED | CONFIRMED) — nháp hệ thống tạo sẵn từ mẫu câu ghi vết riêng, không ghi là AI (AI-03). Vết cũ `AI_DRAFTED` giữ nguyên.
+
 V171: child_evaluations thêm nguồn bản nháp (OBS-34, AI-01): `draft_source` VARCHAR(10) NOT NULL DEFAULT 'TEMPLATE' (CHECK TEMPLATE | AI), `draft_model` VARCHAR(100) và `draft_prompt_version` VARCHAR(60) (chỉ có khi nguồn là AI). Nháp cũ đều là mẫu câu nên mặc định TEMPLATE; không lưu prompt hay phản hồi thô (AI-05).
 
 V74: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "Cần cố gắng", OBS-15).

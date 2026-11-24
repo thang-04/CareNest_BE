@@ -1461,6 +1461,23 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("AI-03: bản nháp hệ thống tạo từ mẫu câu ghi vết TEMPLATE_DRAFTED, không ghi là AI")
+    void templateDraftIsLoggedAsTemplate() {
+        jdbc.update("UPDATE school_years SET end_date = '2026-10-31', semester1_start = start_date,"
+                + " semester1_end = '2026-09-30', semester2_start = '2026-10-01', semester2_end = '2026-10-27'"
+                + " WHERE status = 'ACTIVE'");
+        entityManager.clear();
+        long id = evaluations
+                .list(teacherA, com.carenest.utils.enums.EvaluationPeriodType.YEAR, null, classA, null)
+                .getFirst()
+                .id();
+
+        assertThat(jdbc.queryForList(
+                        "SELECT action FROM child_evaluation_events WHERE evaluation_id = ?", String.class, id))
+                .containsExactly("TEMPLATE_DRAFTED");
+    }
+
+    @Test
     void yearDraftSurvivesTransferAndProgramReportCountsCurrentRosterOnce() {
         var year = com.carenest.utils.enums.EvaluationPeriodType.YEAR;
         // OBS-06 (Cần chốt 10/11/2026): cuối năm mở khi học kỳ II kết thúc (27/10, trước hôm nay 28/10)
