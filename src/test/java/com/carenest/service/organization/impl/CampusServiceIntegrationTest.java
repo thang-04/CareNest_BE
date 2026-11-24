@@ -61,6 +61,7 @@ class CampusServiceIntegrationTest {
     private CurrentUser vicePrincipal;
     private long campusA;
     private long campusB;
+    private long schoolYearId;
 
     @BeforeEach
     void setUp() {
@@ -78,14 +79,14 @@ class CampusServiceIntegrationTest {
                         + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
                 vpId,
                 campusA);
-        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+        schoolYearId = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         jdbc.update(
                 "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
                         + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
-                year);
+                schoolYearId);
         long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusA + ", "
-                + year + ", 'Lớp A1') RETURNING id");
+                + schoolYearId + ", 'Lớp A1') RETURNING id");
         long child = insertId(
                 "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ IT', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
         jdbc.update(
@@ -178,6 +179,22 @@ class CampusServiceIntegrationTest {
         assertCampusCreateFails(
                 new CampusRequest("CS-C", "Cơ sở mới", " cs   a ", "Địa chỉ C", null, false),
                 ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+    }
+
+    @Test
+    @DisplayName("Không thể đổi bản thiết lập năm học thành định danh của điểm trường đã ngừng hoạt động")
+    void yearCampusUpdateKeepsInactiveIdentifiersReserved() {
+        jdbc.update(
+                "UPDATE campuses SET status = 'INACTIVE', name = 'Cơ sở A', short_name = 'CS A' WHERE id = ?", campusA);
+
+        assertThatThrownBy(() -> service.updateCampus(
+                        principal,
+                        campusB,
+                        new CampusRequest("cs - a", "Campus B", "B", "Địa chỉ B", null, false),
+                        schoolYearId))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_CODE_EXISTS);
     }
 
     private void assertCampusCreateFails(CampusRequest request, ApiCode code) {

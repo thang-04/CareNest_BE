@@ -265,17 +265,19 @@ public class CampusServiceImpl implements CampusService {
             if (schoolYearId != null && !inYear) {
                 throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
             }
-            // Cần chốt 22/10/2026: sửa ở năm nào chỉ năm đó đổi; mã, tên không trùng trong cùng năm
+            // Mã, tên và tên ngắn là định danh toàn trường, kể cả điểm trường đang ngừng hoạt động.
+            // Không cho trùng trong bản thiết lập năm học, vì khi kích hoạt lại sẽ không thể phân biệt.
+            if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
+                throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
+            }
+            if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
+                throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
+            }
+            if (campusRepository.existsShortName(data.shortName(), campusId)) {
+                throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+            }
+            // Cần chốt 22/10/2026: sửa ở năm nào chỉ năm đó đổi.
             if (inYear) {
-                if (campusRepository.existsCodeInYear(yearId, campusId, data.code())) {
-                    throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
-                }
-                if (campusRepository.existsNameInYear(yearId, campusId, data.name())) {
-                    throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
-                }
-                if (campusRepository.existsShortNameInYear(yearId, campusId, data.shortName())) {
-                    throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
-                }
                 campusRepository.updateYearInfo(
                         yearId, campusId, data.code(), data.name(), data.shortName(), data.address(), data.phone());
             }
@@ -290,15 +292,6 @@ public class CampusServiceImpl implements CampusService {
                             .map(y -> y.getStatus() == SchoolYearStatus.ACTIVE)
                             .orElse(true);
             if (!inYear || activeYear) {
-                if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
-                    throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
-                }
-                if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
-                    throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
-                }
-                if (campusRepository.existsShortName(data.shortName(), campusId)) {
-                    throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
-                }
                 campus.changeInfo(data.code(), data.name(), data.shortName(), data.address(), data.phone());
             }
             // Đổi điểm chính ở năm nào chỉ năm đó đổi; bảng chung theo năm đang hoạt động
