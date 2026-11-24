@@ -247,6 +247,16 @@ class DevSeedIntegrationTest {
                 .isZero();
     }
 
+    @Test
+    @DisplayName("Mục 2: mọi trẻ đã có lớp trong dữ liệu dev đều có ngày bắt đầu đi học")
+    void everyEnrolledChildHasStartDate() {
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + SCHEMA + ".children c where c.start_date is null"
+                                + " and exists (select 1 from " + SCHEMA + ".enrollments e where e.child_id = c.id)",
+                        Long.class))
+                .isZero();
+    }
+
     private Map<String, Long> rowCounts() {
         Map<String, Long> counts = new LinkedHashMap<>();
         tables().forEach(t -> counts.put(t, count(t)));

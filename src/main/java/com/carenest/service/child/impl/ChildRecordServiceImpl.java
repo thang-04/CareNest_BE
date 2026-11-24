@@ -445,6 +445,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             });
             placementRules.startEnrollment(childId, target, actor.userId(), effectiveDate);
             // G94-180/CHD-02: lớp ở điểm trường khác ⇒ trẻ chuyển điểm trường (điểm trường suy từ lớp)
+            // Mục 2 (25/11): trẻ chờ xếp lớp chưa có ngày bắt đầu đi học ⇒ lấy ngày vào lớp đầu tiên
+            if (child.getStatus() == ChildStatus.PENDING_PLACEMENT && child.getStartDate() == null) {
+                child.startOn(effectiveDate);
+            }
             child.placeInClass();
             childRepository.save(child);
             placementRules.recordPlacement(

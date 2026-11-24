@@ -312,6 +312,41 @@ class ChildPlacementScheduleIntegrationTest {
     }
 
     @Test
+    @DisplayName("Mục 2: xếp lớp lần đầu cho trẻ chờ xếp lớp chưa có ngày bắt đầu ⇒ ngày bắt đầu = ngày vào lớp")
+    void firstPlacementFillsMissingStartDate() {
+        long binh = child("Trần Bình Chưa Ngày", "PENDING_PLACEMENT", campusA, null, null);
+
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY));
+        entityManager.flush();
+
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+    }
+
+    @Test
+    @DisplayName("Mục 2: trẻ chờ xếp lớp đã có ngày bắt đầu ⇒ xếp lớp giữ nguyên ngày bắt đầu")
+    void firstPlacementKeepsExistingStartDate() {
+        long binh = child("Trần Bình Có Ngày", "PENDING_PLACEMENT", campusA, MONDAY, null);
+
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY.plusDays(1)));
+        entityManager.flush();
+
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+    }
+
+    @Test
+    @DisplayName("Mục 2: chuyển lớp trẻ đang học không đổi ngày bắt đầu (kể cả khi chưa có)")
+    void transferKeepsStartDate() {
+        recordService.place(principal, an, new PlaceChildRequest(classA2, "Đổi lớp", MONDAY));
+        entityManager.flush();
+
+        assertThat(startDateOf(an)).isNull();
+    }
+
+    private LocalDate startDateOf(long childId) {
+        return jdbc.queryForObject("SELECT start_date FROM children WHERE id = ?", LocalDate.class, childId);
+    }
+
+    @Test
     @DisplayName("G94-180/CHD-14: chuyển lần nữa thay lịch cũ; hủy lịch ⇒ ở lại lớp cũ; không còn lịch ⇒ 400")
     void transferReplacesAndCancelsSchedule() {
         recordService.place(principal, an, new PlaceChildRequest(classA2, "Đổi lớp", MONDAY));
