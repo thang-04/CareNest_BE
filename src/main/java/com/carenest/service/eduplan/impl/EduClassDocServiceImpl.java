@@ -730,6 +730,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             "blockedReason",
             // "missing" (mục còn thiếu) cần kế hoạch tuần/giáo án ngày ⇒ không có ở bản gọn, trang soạn tự tính
             "completedAt",
+            // EDU-112 (4)–(5): các lần ban hành (bản cũ, mới) cho trang danh sách phiên bản
+            "releases",
+            "everReleased",
             "review",
             "approvals",
             "permissions",
