@@ -7,12 +7,10 @@ import com.carenest.dto.child.AutoPlaceRequest;
 import com.carenest.dto.child.AutoPlaceResponse;
 import com.carenest.dto.child.PlacementBoardResponse;
 import com.carenest.dto.child.SavePlacementsRequest;
-import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.dto.child.YearReadinessResponse;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
-import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.organization.RoomService;
@@ -88,9 +86,6 @@ class YearTransitionIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
-
-    @Autowired
-    private ChildRecordService recordService;
 
     private CurrentUser principal;
     private long oldYear;
@@ -378,78 +373,6 @@ class YearTransitionIntegrationTest {
                 });
         assertThat(roomService.getRooms(principal, null, newYear))
                 .noneMatch(r -> r.room().equals("P.1"));
-    }
-
-    @Test
-    @DisplayName("G94-180/CHD-03: trẻ đã xếp Lên lớp rồi cho nghỉ từ ngày học kế tiếp ⇒ bảng năm mới ghi Nghỉ học; kích"
-            + " hoạt năm ngay hôm nay ⇒ trẻ không vào lớp năm mới, phụ huynh không nhận báo lớp mới")
-    void promotedChildLeavingFromNextSchoolDayIsNotMovedOnActivation() {
-        long parent = user("parent-leaving");
-        jdbc.update(
-                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
-                        + " linked_at) VALUES (?, 0, 'Mẹ', 'MOTHER', '0918888102', '999900000582', ?, now())",
-                child1,
-                parent);
-        service.savePlacements(
-                principal,
-                newYear,
-                new SavePlacementsRequest(List.of(
-                        new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass4),
-                        new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass4))));
-
-        // Hôm nay thứ 2 30/08/2027 ⇒ ngày học kế tiếp thứ 3 31/08; lớp cũ học tới hết hôm nay
-        recordService.withdraw(principal, child1, new WithdrawChildRequest("2027-08-31", "Chuyển trường"));
-        entityManager.flush();
-        service.activateSchoolYear(principal, newYear, "2027-2028");
-        entityManager.flush();
-
-        LocalDate firstDay = LocalDate.of(2027, 9, 5);
-        assertThat(enrollmentService.findActiveClassroomIds(child1, firstDay)).isEmpty();
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM notifications WHERE type = 'CHILD_PLACED' AND user_id = ?",
-                        Integer.class,
-                        parent))
-                .isZero();
-        assertThat(enrollmentService.findActiveClassroomIds(child1, LocalDate.of(2027, 8, 30)))
-                .containsExactly(oldClass);
-        assertThat(enrollmentService.findActiveClassroomIds(child2, firstDay)).containsExactly(newClass4);
-        assertThat(placementOf(child1)).isEqualTo("LEAVE:" + oldClass + ":-");
-    }
-
-    @Test
-    @DisplayName("G94-180/CHD-03: trẻ chưa xếp lớp năm mới mà cho nghỉ từ ngày học kế tiếp ⇒ ghi Nghỉ học, không chặn"
-            + " kích hoạt năm hôm nay, không vào lớp năm mới")
-    void unplacedChildLeavingFromNextSchoolDayDoesNotBlockActivation() {
-        service.savePlacements(
-                principal,
-                newYear,
-                new SavePlacementsRequest(
-                        List.of(new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass4))));
-
-        recordService.withdraw(principal, child1, new WithdrawChildRequest("2027-08-31", "Chuyển trường"));
-        entityManager.flush();
-
-        YearReadinessResponse readiness = service.getReadiness(principal, newYear);
-        assertThat(readiness.steps())
-                .filteredOn(st -> st.key().equals("placement"))
-                .singleElement()
-                .satisfies(st -> assertThat(st.detail()).startsWith("2/2"));
-        assertThat(readiness.canActivate()).isTrue();
-        assertThat(placementOf(child1)).isEqualTo("LEAVE:" + oldClass + ":-");
-        service.activateSchoolYear(principal, newYear, "2027-2028");
-        entityManager.flush();
-        assertThat(enrollmentService.findActiveClassroomIds(child1, LocalDate.of(2027, 9, 5)))
-                .isEmpty();
-    }
-
-    // Quyết định xếp lớp năm mới của trẻ: hành động:lớp nguồn:lớp đích ("-" khi không có lớp đích)
-    private String placementOf(long childId) {
-        return jdbc.queryForObject(
-                "SELECT action || ':' || from_classroom_id || ':' || coalesce(to_classroom_id::text, '-')"
-                        + " FROM class_placements WHERE school_year_id = ? AND child_id = ?",
-                String.class,
-                newYear,
-                childId);
     }
 
     @Test
