@@ -26,7 +26,7 @@ public interface EduTeamPlanRepository extends EduHeaderRepository<EduTeamPlan> 
               and (p.disabled = false or p.disabled is null)
               and p.legacyTeamWithoutSource = false
               and (p.status in :schoolWideStatuses
-                   or p.ageGroupId in :fullAgeGroupIds
+                   or (p.ageGroupId in :fullAgeGroupIds and (:fullOwnerId is null or p.ownerId = :fullOwnerId))
                    or (p.status = com.carenest.utils.enums.EduPlanStatus.REVIEW
                        and p.ageGroupId in :reviewAgeGroupIds)
                    or (p.status = com.carenest.utils.enums.EduPlanStatus.APPROVED
@@ -43,6 +43,7 @@ public interface EduTeamPlanRepository extends EduHeaderRepository<EduTeamPlan> 
             @Param("ageGroupId") Long ageGroupId,
             @Param("schoolWideStatuses") Collection<EduPlanStatus> schoolWideStatuses,
             @Param("fullAgeGroupIds") Collection<Long> fullAgeGroupIds,
+            @Param("fullOwnerId") Long fullOwnerId,
             @Param("approvedAgeGroupIds") Collection<Long> approvedAgeGroupIds,
             @Param("reviewAgeGroupIds") Collection<Long> reviewAgeGroupIds,
             @Param("keyword") String keyword,

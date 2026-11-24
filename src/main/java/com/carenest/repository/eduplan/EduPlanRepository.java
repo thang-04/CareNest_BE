@@ -170,8 +170,24 @@ public class EduPlanRepository {
             String keyword,
             boolean currentOnly,
             Pageable pageable) {
+        return search(level, year, age, statuses, full, null, approved, review, keyword, currentOnly, pageable);
+    }
+
+    /** fullOwnerId: phần "mọi trạng thái" chỉ gồm kế hoạch của người này (EDU-07 (c)); null = không giới hạn. */
+    public Page<EduPlan> search(
+            EduPlanLevel level,
+            Long year,
+            Long age,
+            Collection<EduPlanStatus> statuses,
+            Collection<Long> full,
+            Long fullOwnerId,
+            Collection<Long> approved,
+            Collection<Long> review,
+            String keyword,
+            boolean currentOnly,
+            Pageable pageable) {
         return forLevel(level)
-                .search(year, age, statuses, full, approved, review, keyword, currentOnly, pageable)
+                .search(year, age, statuses, full, fullOwnerId, approved, review, keyword, currentOnly, pageable)
                 .map(p -> (EduPlan) p);
     }
 }

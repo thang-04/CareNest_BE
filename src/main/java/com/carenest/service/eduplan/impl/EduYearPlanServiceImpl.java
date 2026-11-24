@@ -161,6 +161,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                             null,
                             scope.schoolWideStatuses(),
                             scope.fullAgeGroupIds(),
+                            fullOwnerOf(currentUser, level),
                             scope.approvedAgeGroupIds(),
                             Set.of(),
                             null,
@@ -174,6 +175,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                             null,
                             scope.schoolWideStatuses(),
                             scope.fullAgeGroupIds(),
+                            fullOwnerOf(currentUser, level),
                             scope.approvedAgeGroupIds(),
                             Set.of(),
                             null,
@@ -219,6 +221,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     ageGroupId,
                     scope.schoolWideStatuses(),
                     scope.fullAgeGroupIds(),
+                    fullOwnerOf(currentUser, level),
                     scope.approvedAgeGroupIds(),
                     Set.of(),
                     keywordPattern(keyword),
@@ -1354,8 +1357,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
      * Người phụ trách thấy mọi trạng thái; người duyệt của chuỗi (đúng lượt hoặc bước khác, EDU-93) thấy bản Chờ duyệt;
      * người khác trong phạm vi chỉ thấy bản đã ban hành (spec 002 FR-007).
      */
+    // EDU-07 (c): kế hoạch năm học chưa ban hành chỉ chủ kế hoạch xem; kế hoạch tổ giữ như cũ
+    private static Long fullOwnerOf(CurrentUser user, EduPlanLevel level) {
+        return level == EduPlanLevel.SCHOOL_YEAR ? user.userId() : null;
+    }
+
     private boolean canView(CurrentUser user, EduPlan plan) {
-        if (isAuthor(user, plan)) return true;
+        if (isEditor(user, plan)) return true;
         EduPlanStatus status = plan.publicStatus();
         if (status == EduPlanStatus.APPROVED)
             return listScope(user, plan.getPlanLevel(), plan.getSchoolYearId())
@@ -2371,7 +2379,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                         && plan.getId().equals(currentId)
                         && chain.stream().allMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED)
-                        && author
+                        // EDU-07 (b): PHT có quyền soạn nào cũng tạo phiên bản, thành chủ phiên bản mới
+                        && isAuthor(user, plan)
                         && !timeLock.locked(plan),
                 EduPlanAccessPolicy.canExport(
                         user.userId(),
