@@ -421,6 +421,12 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             }
 
             Instant now = clock.instant();
+            // Mục 2: thay lịch vào lớp đầu tiên chưa bắt đầu ⇒ ngày bắt đầu đi học theo ngày vào lớp mới (chỉ khi ngày
+            // bắt đầu đang trùng ngày lớp bị thay; ngày chọn khi tiếp nhận khác thì giữ nguyên)
+            boolean startFollowsFirstClass = fromClassroomId == null
+                    && upcoming.isPresent()
+                    && upcoming.get().getValidFrom().equals(child.getStartDate())
+                    && neverAttended(childId, today);
             // Chuyển / xếp lại khi đã có lớp chưa bắt đầu ⇒ thay lịch cũ (G94-180/CHD-14); chỉ đổi ngày cùng lớp thì
             // không báo hủy
             upcoming.ifPresent(old -> placementRules.cancelUpcoming(
@@ -445,6 +451,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             });
             placementRules.startEnrollment(childId, target, actor.userId(), effectiveDate);
             // G94-180/CHD-02: lớp ở điểm trường khác ⇒ trẻ chuyển điểm trường (điểm trường suy từ lớp)
+            if (startFollowsFirstClass) {
+                child.startOn(effectiveDate);
+            }
             // Mục 2 (25/11): trẻ chờ xếp lớp chưa có ngày bắt đầu đi học ⇒ lấy ngày vào lớp đầu tiên
             if (child.getStatus() == ChildStatus.PENDING_PLACEMENT && child.getStartDate() == null) {
                 child.startOn(effectiveDate);
@@ -468,6 +477,14 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /** Chưa từng học ngày nào: mọi lớp của trẻ đều bắt đầu sau hôm nay (gọi trước khi hủy / thay lớp chưa bắt đầu). */
+    private boolean neverAttended(Long childId, LocalDate today) {
+        return enrollmentRepository
+                .findFirstByChildIdOrderByValidFromAscIdAsc(childId)
+                .map(first -> first.getValidFrom().isAfter(today))
+                .orElse(true);
     }
 
     @Override
@@ -500,6 +517,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                     actor.userId(),
                     clock.instant(),
                     today);
+            boolean clearStart = current.isEmpty()
+                    && upcoming.getValidFrom().equals(child.getStartDate())
+                    && neverAttended(childId, today);
             if (current.isPresent()) {
                 // Trẻ ở lại lớp hiện tại, lớp không còn ngày kết thúc
                 Enrollment stay = current.get();
@@ -514,6 +534,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             } else {
                 // Chưa học lớp nào ⇒ về Chờ xếp lớp ở điểm trường của lớp bị hủy
                 child.awaitPlacement(campusId);
+                if (clearStart) {
+                    // Mục 2: hủy lịch vào lớp đầu tiên ⇒ chưa có ngày vào lớp, lần xếp lớp sau ghi lại
+                    child.startOn(null);
+                }
                 childRepository.save(child);
             }
             ChildViewResponse view = childIntakeService.getChildView(childId);

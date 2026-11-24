@@ -342,6 +342,52 @@ class ChildPlacementScheduleIntegrationTest {
         assertThat(startDateOf(an)).isNull();
     }
 
+    @Test
+    @DisplayName("Mục 2: thay lịch vào lớp đầu tiên chưa bắt đầu ⇒ ngày bắt đầu theo ngày vào lớp mới")
+    void replacingFirstPlacementMovesStartDate() {
+        long binh = child("Trần Bình Thay Lịch", "PENDING_PLACEMENT", campusA, null, null);
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY));
+        entityManager.flush();
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+
+        recordService.place(principal, binh, new PlaceChildRequest(classA2, null, MONDAY.plusDays(1)));
+        entityManager.flush();
+
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY.plusDays(1));
+    }
+
+    @Test
+    @DisplayName("Mục 2: hủy lịch vào lớp đầu tiên ⇒ ngày bắt đầu về trống, xếp lớp lại ghi ngày mới")
+    void cancellingFirstPlacementClearsStartDate() {
+        long binh = child("Trần Bình Hủy Lịch", "PENDING_PLACEMENT", campusA, null, null);
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY));
+        entityManager.flush();
+
+        recordService.cancelScheduledPlacement(principal, binh);
+        entityManager.flush();
+        assertThat(startDateOf(binh)).isNull();
+
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY.plusDays(2)));
+        entityManager.flush();
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY.plusDays(2));
+    }
+
+    @Test
+    @DisplayName("Mục 2: ngày bắt đầu chọn khi tiếp nhận khác ngày vào lớp ⇒ thay / hủy lịch không đổi")
+    void intakeStartDateDifferentFromPlacementIsUntouched() {
+        long binh = child("Trần Bình Ngày Riêng", "PENDING_PLACEMENT", campusA, MONDAY, null);
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY.plusDays(1)));
+        entityManager.flush();
+
+        recordService.place(principal, binh, new PlaceChildRequest(classA2, null, MONDAY.plusDays(2)));
+        entityManager.flush();
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+
+        recordService.cancelScheduledPlacement(principal, binh);
+        entityManager.flush();
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+    }
+
     private LocalDate startDateOf(long childId) {
         return jdbc.queryForObject("SELECT start_date FROM children WHERE id = ?", LocalDate.class, childId);
     }
