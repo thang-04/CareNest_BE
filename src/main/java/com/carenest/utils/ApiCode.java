@@ -102,6 +102,15 @@ public enum ApiCode {
             1125,
             HttpStatus.BAD_REQUEST,
             "Việc được giao có nơi áp dụng không phù hợp. Vui lòng tải lại trang rồi giao lại việc"),
+    PERMISSION_CAMPUS_INVALID(
+            1146,
+            HttpStatus.BAD_REQUEST,
+            "Điểm trường được giao không tồn tại hoặc đã ngừng hoạt động. Vui lòng tải lại trang rồi chọn lại"),
+    WORK_CAMPUS_TEACHER_ONLY(1147, HttpStatus.BAD_REQUEST, "Chỉ giáo viên mới chọn cơ sở công tác riêng"),
+    TEACHER_WORK_CAMPUS_HAS_CLASS(
+            1148,
+            HttpStatus.CONFLICT,
+            "Giáo viên đang dạy lớp ở cơ sở khác. Đổi phân công lớp trước rồi mới đổi cơ sở công tác"),
     PHONE_NUMBER_INVALID(
             1124, HttpStatus.BAD_REQUEST, "Số điện thoại di động gồm 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09"),
     NOT_PARENT_ACCOUNT(1126, HttpStatus.BAD_REQUEST, "Tài khoản này không phải tài khoản phụ huynh"),
@@ -534,6 +543,7 @@ public enum ApiCode {
     MEAL_SESSION_KCAL_PCT_INVALID(
             6049, HttpStatus.BAD_REQUEST, "Tổng tỷ lệ năng lượng tối thiểu của các bữa là {0}%, vượt 100%"),
     MEAL_SERVICE_FEE_INVALID(6107, HttpStatus.BAD_REQUEST, "Phí dịch vụ không được lớn hơn giá suất"),
+    APPLIED_STRUCTURE_INVALID(6115, HttpStatus.BAD_REQUEST, "Cơ cấu áp dụng không hợp lệ: {0}"),
     AGE_GROUP_INVALID(6024, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
     SUPPLIER_NOT_FOUND(6025, HttpStatus.NOT_FOUND, "Không tìm thấy nhà cung cấp"),
     FOOD_ORIGIN_REQUIRED(6026, HttpStatus.BAD_REQUEST, "Cần chọn nguồn gốc động vật hoặc thực vật của thực phẩm"),
@@ -632,6 +642,7 @@ public enum ApiCode {
     SUPPLIER_INACTIVE(6101, HttpStatus.CONFLICT, "Nhà cung cấp đã ngừng hoạt động"),
     SUPPLIER_CONTRACT_RANGE_INVALID(
             6102, HttpStatus.BAD_REQUEST, "Ngày kết thúc hợp đồng không được trước ngày bắt đầu"),
+    // NUT-28: cơ cấu áp dụng định mức (6115)
     // AI-07: nháp gợi ý thực đơn (6111–6114; 6091–6107 của dev dành cho sửa ngoại lệ thực đơn, giá thực phẩm, kiểm
     // nhận, phí dịch vụ)
     MENU_AI_DRAFT_NOT_FOUND(6111, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
@@ -644,6 +655,21 @@ public enum ApiCode {
             HttpStatus.CONFLICT,
             "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
     MENU_AI_DRAFT_KIND_INVALID(6114, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
+    // INS-05: mở ghi biên bản kiểm thực ngày cũ cần HT duyệt (6116–6123)
+    INSPECTION_APPROVAL_REQUIRED(
+            6116,
+            HttpStatus.CONFLICT,
+            "Ngày đã qua: cần Hiệu trưởng duyệt mở mẫu này trước khi ghi, hãy gửi yêu cầu mở"),
+    INSPECTION_APPROVAL_NOT_NEEDED(6117, HttpStatus.BAD_REQUEST, "Chỉ ngày đã qua mới cần Hiệu trưởng duyệt mở"),
+    INSPECTION_APPROVAL_PENDING(6118, HttpStatus.CONFLICT, "Mẫu này đã có yêu cầu mở đang chờ Hiệu trưởng duyệt"),
+    INSPECTION_APPROVAL_ACTIVE(6119, HttpStatus.CONFLICT, "Mẫu này đang được mở, hãy sửa và ký"),
+    INSPECTION_APPROVAL_NOT_FOUND(6120, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu mở mẫu"),
+    INSPECTION_APPROVAL_STATE_INVALID(
+            6121, HttpStatus.CONFLICT, "Yêu cầu không còn ở trạng thái này nên không xử lý được"),
+    INSPECTION_APPROVAL_DENIED(
+            6122, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được duyệt, từ chối hoặc thu hồi yêu cầu mở"),
+    INSPECTION_APPROVAL_REASON_REQUIRED(
+            6123, HttpStatus.UNPROCESSABLE_ENTITY, "Nhập lý do hoặc ghi chú, ít nhất 3 ký tự"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

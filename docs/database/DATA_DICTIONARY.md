@@ -192,6 +192,17 @@ Mục đích: phân công nhân sự — nguồn scope của BGH/GV/bếp (ADR-0
 Ràng buộc: `ck_staff_assignments_scope` (đúng cột scope theo vai trò), `ck_staff_assignments_valid_range`, `ck_staff_assignments_homeroom`. Kết thúc phân công = đặt `valid_to`, không xóa (giữ lịch sử); phân công chưa từng có hiệu lực (bắt đầu từ hôm nay/ngày đầu năm sắp tới) thì xóa. Phân công qua API: từ max(hôm nay, ngày đầu năm học) tới ngày cuối năm học. Phân công GV có `valid_to` trước ngày cuối năm học của lớp = dạy thay (AUTH-24, không tính luật một lớp dạy chính/năm).
 Index: `user_id`, `campus_id`, `classroom_id`, `age_group_id`, `school_year_id`.
 
+## teacher_work_campuses  (module: school-structure, scope: CAMPUS)
+Mục đích: cơ sở công tác của giáo viên, có ngay khi tạo tài khoản, chưa cần lớp (AUTH-15, chốt 21/11/2026). PHT/bếp không có dòng ở đây (cơ sở = điểm trường phân công). Migration: V168 (backfill theo lớp dạy chính gần nhất, không lấy dạy thay; GV chưa từng có lớp để trống).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| user_id | BIGINT PK FK user_accounts | không | Giáo viên | AUTH-15 |
+| campus_id | BIGINT FK campuses | không | Cơ sở công tác; xếp dạy chính lớp ở cơ sở khác ⇒ chuyển theo lớp | AUTH-15 |
+| updated_by | BIGINT FK user_accounts | có | Người đặt/chuyển gần nhất; NULL = backfill | — |
+| updated_at | TIMESTAMPTZ | không | | — |
+Đổi/thu hồi vai trò khỏi GV ⇒ xóa dòng. Danh bạ GV (`GET /teacher-assignments`) lấy điểm trường từ đây, chưa có thì theo lớp gần nhất.
+Index: `campus_id`.
+
 ## age_groups  (module: school-structure, scope: SCHOOL)
 Mục đích: nhóm tuổi (khối) dùng chung toàn trường. Migration: `V10__create_age_groups.sql`, seed 4 nhóm `ag-2`..`ag-5` theo UI.
 | Column | Type | Null | Ý nghĩa | Rule ID |
@@ -862,10 +873,10 @@ Dùng chung hai điểm trường (SCH-06). Xóa = `status` `INACTIVE` (thực �
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price (V155: chỉ còn lưu, không đọc làm nguồn giá — giá ở `food_prices`), kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), nutrient_source_version, waste_pct [0,100), storage `FRESH`/`DRY`, origin `ANIMAL`/`PLANT` (V55), vi chất trên 100 đơn vị ăn được calcium, phosphorus, iron (mg), vitamin_a (µg), vitamin_b1, vitamin_b2, vitamin_pp, vitamin_c (mg) (V73, NUMERIC(10,3), null = chưa có số liệu), allergen_codes (V83, mã chất dị ứng cách dấu phẩy, vd. `EGG,SHRIMP`; danh mục 9 chất cố định là enum `Allergen`, không có bảng riêng), note, status | CHECK nhóm, đơn vị, không âm (cả vi chất khi có giá trị) | NUT-05, NUT-10, NUT-18, NUT-24, NUT-26 |
+| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price (V155: chỉ còn lưu, không đọc làm nguồn giá — giá ở `food_prices`), kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), waste_pct [0,100), storage `FRESH`/`DRY`, origin `ANIMAL`/`PLANT` (V55), vi chất trên 100 đơn vị ăn được calcium, phosphorus, iron, zinc (mg), vitamin_a (µg), vitamin_b1, vitamin_b2, vitamin_pp, vitamin_c (mg) (V73, V172, NUMERIC(10,3), null = chưa có số liệu), allergen_codes (V83, mã chất dị ứng cách dấu phẩy, vd. `EGG,SHRIMP`; danh mục 9 chất cố định là enum `Allergen`, không có bảng riêng), note, status | CHECK nhóm, đơn vị, không âm (cả vi chất khi có giá trị) | NUT-05, NUT-10, NUT-18, NUT-24, NUT-26 |
 | dishes | code (UK), name, dish_type, description, reference (món tham khảo chỉ đọc), status | | NUT-18 |
 | dish_ingredients | dish_id, food_id, age_group_id, grams_per_child (>0) | UK (dish, food, age_group) | NUT-18 |
-| age_group_meal_configs | age_group_id, effective_from, meal_price, service_fee (V159, phí dịch vụ/trẻ/ngày trong giá suất, mặc định 0; ngân sách thực phẩm = meal_price − service_fee), kcal min–max, protein/lipid/glucid_pct min–max (cơ cấu P:L:G, % năng lượng), animal/plant_protein_g, animal/plant_lipid_g, glucid_g min–max (V58, gam/trẻ/ngày), morning/lunch/afternoon_kcal_pct min–max (V58, % nhu cầu năng lượng cả ngày của bữa), daily_kcal_need (V62, kcal/trẻ/ngày, > 0), calcium/phosphorus/iron/vitamin_a/vitamin_b1/vitamin_b2/vitamin_pp/vitamin_c `_min`/`_max` (V73, mg hoặc µg/trẻ/ngày trên các bữa trường phục vụ, max null = chỉ cần đạt min) — null = chưa chốt, norm_basis. V58 đổi animal_protein_pct/animal_lipid_pct (V55) sang gam rồi bỏ | UK (age_group, effective_from); 0 ≤ service_fee ≤ meal_price; min ≤ max (cả vi chất); vi chất ≥ 0; daily_kcal_need > 0 | NUT-17, NUT-19, NUT-24, NUT-25, NUT-26 |
+| age_group_meal_configs | age_group_id, effective_from, meal_price, service_fee (V159, phí dịch vụ/trẻ/ngày trong giá suất, mặc định 0; ngân sách thực phẩm = meal_price − service_fee), kcal min–max, protein/lipid/glucid_pct min–max (cơ cấu P:L:G, % năng lượng), animal/plant_protein_g, animal/plant_lipid_g, glucid_g min–max (V58, gam/trẻ/ngày), morning/lunch/afternoon_kcal_pct min–max (V58, % nhu cầu năng lượng cả ngày của bữa), applied_protein_pct/applied_lipid_pct/applied_glucid_pct (V169, cơ cấu áp dụng P:L:G, % năng lượng 0–100, null = chưa chọn), daily_kcal_need (V62, kcal/trẻ/ngày, > 0), calcium/phosphorus/iron/zinc/vitamin_a/vitamin_b1/vitamin_b2/vitamin_pp/vitamin_c `_min`/`_max` (V73, V172, mg hoặc µg/trẻ/ngày trên các bữa trường phục vụ, max null = chỉ cần đạt min) — null = chưa chốt, norm_basis. V58 đổi animal_protein_pct/animal_lipid_pct (V55) sang gam rồi bỏ | UK (age_group, effective_from); 0 ≤ service_fee ≤ meal_price; min ≤ max (cả vi chất); vi chất ≥ 0; daily_kcal_need > 0 | NUT-17, NUT-19, NUT-24, NUT-25, NUT-26, NUT-28 |
 | suppliers | name, phone, address, id_card (dữ liệu cá nhân), delivery_person, status, contract_no, contract_start, contract_end (V155, hợp đồng hiện hành; gia hạn = sửa ngày) | CHECK start ≤ end | NUT-12, NUT-27 |
 | food_prices (V155) | food_id, supplier_id (null = chưa gán NCC), price (theo đơn vị mua), effective_from, reason | UK (food, effective_from); price ≥ 0; giá và NCC tại ngày D = dòng có effective_from gần nhất ≤ D (trước dòng đầu dùng dòng đầu); dòng effective_from ≤ hôm nay không sửa/xóa (service); backfill 1 dòng/thực phẩm từ `unit_price` | NUT-27 |
 
@@ -981,18 +992,19 @@ Mục đích: một bảng cho cả ma trận quyền theo role do Hiệu trư�
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| role | VARCHAR(20) | có | Dòng role: chỉ `PRINCIPAL`/`VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK `ck_permission_grants_role`, `TEAM_LEADER` từ V38, `PRINCIPAL` từ V170); role khác cố định trong code. `PRINCIPAL` chỉ có dòng cho 8 mã `EDU_*_EDIT/APPROVE` (API kiểm), mã khác của HT vẫn cố định. Ô tick 8 mã EDU của mọi vai trò quyết định chuỗi soạn/duyệt (`edu_settings.workflow_policy`); 8 mã này không có dòng người. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23, EDU-110 |
+| role | VARCHAR(20) | có | Dòng role: chỉ `PRINCIPAL`/`VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK `ck_permission_grants_role`, `TEAM_LEADER` từ V38, `PRINCIPAL` từ V178); role khác cố định trong code. `PRINCIPAL` chỉ có dòng cho 8 mã `EDU_*_EDIT/APPROVE` (API kiểm), mã khác của HT vẫn cố định. Ô tick 8 mã EDU của mọi vai trò quyết định chuỗi soạn/duyệt (`edu_settings.workflow_policy`); 8 mã này không có dòng người. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23, EDU-110 |
 | user_id | BIGINT | có | Dòng người: FK `user_accounts`, người được cấp/thu quyền. Đúng một trong `role`/`user_id` có giá trị (CHECK) | AUTH-10 |
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
 | effect | VARCHAR(10) | có | Chỉ dòng người: `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định); dòng role NULL | AUTH-10, AUTH-13 |
 | scope | VARCHAR(10) | có | Chỉ GRANT (CHECK): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (chỉ mã sửa theo mảng — API kiểm); REVOKE và dòng role NULL (ADR-0023) | AUTH-20 |
+| campus_id | BIGINT | có | FK `campuses`, chỉ GRANT `scope = CAMPUS` (CHECK `ck_permission_grants_campus`): điểm trường HT giao cụ thể, PHT chỉ sửa việc đó ở điểm trường này, kể cả khác điểm trường phụ trách; NULL = điểm trường đang phân công. Migration V167 | AUTH-20 |
 | reason | VARCHAR(500) | có | Lý do; bắt buộc ở dòng người | AUTH-14 |
 | granted_by | BIGINT | có | FK `user_accounts`: người bật ô ma trận (null với dòng seed) / người sửa ngoại lệ gần nhất (bắt buộc, CHECK khác `user_id`) | AUTH-12, AUTH-14 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Index: `uk_permission_grants_role_permission` (role, permission_code) WHERE role IS NOT NULL; `uk_permission_grants_user_permission` (user_id, permission_code) WHERE user_id IS NOT NULL.
 
 ## permission_change_log  (module: identity-access, scope: SYSTEM)
-Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`).
+Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`), V167 (`before_campus_id`, `after_campus_id`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -1002,6 +1014,7 @@ Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm 
 | permission_code | VARCHAR(64) | không | Mã quyền đã đổi | — |
 | before_state, after_state | VARCHAR(10) | không | `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ) | AUTH-14 |
 | before_scope, after_scope | VARCHAR(10) | có | Phạm vi GRANT trước/sau (`CAMPUS`/`SCHOOL`); NULL với ma trận, REVOKE, INHERIT | AUTH-14, AUTH-20 |
+| before_campus_id, after_campus_id | BIGINT | có | Điểm trường giao cụ thể trước/sau (NULL = điểm trường đang phân công); đổi nơi giao cũng ghi một dòng | AUTH-14, AUTH-20 |
 | reason | VARCHAR(500) | không | Lý do bắt buộc | AUTH-14 |
 | changed_at | TIMESTAMPTZ | không | Thời điểm đổi | — |
 Index: `idx_permission_change_log_changed_at`, `idx_permission_change_log_target_role`, `idx_permission_change_log_target_user` (kèm `changed_at DESC`).
@@ -1025,8 +1038,31 @@ V79: child_evaluations thêm phiếu đánh giá sự phát triển cuối năm 
 
 V81: child_evaluations thêm `domain_comments` TEXT (JSON {"<domainId>": "nhận xét"}, lĩnh vực chưa gắn mã dùng khóa "0") — nhận xét dưới từng lĩnh vực của phiếu cuối năm (OBS-28).
 
+V171: child_evaluations thêm nguồn bản nháp (OBS-34, AI-01): `draft_source` VARCHAR(10) NOT NULL DEFAULT 'TEMPLATE' (CHECK TEMPLATE | AI), `draft_model` VARCHAR(100) và `draft_prompt_version` VARCHAR(60) (chỉ có khi nguồn là AI). Nháp cũ đều là mẫu câu nên mặc định TEMPLATE; không lưu prompt hay phản hồi thô (AI-05).
+
 V74: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "Cần cố gắng", OBS-15).
 
 ## Bảng đánh giá học kỳ theo lớp — 05/11/2026
 
 `semester_assessments`: FK classroom_id → classrooms, campus_id → campuses, school_year_id → school_years, confirmed_by → user_accounts; unique(classroom_id,semester_no). period_start/end là kỳ cấu hình; note; result_snapshot TEXT chốt domains/goals/children/counts; confirmed_at; version optimistic. Mỗi lớp-năm (lớp gắn một năm) có tối đa hai bảng, không thay child_evaluations cũ.
+
+
+`nutrition_group_settings` (V170): `age_group_id` PK/FK age_groups (ON DELETE CASCADE), `enabled` boolean mặc định true, `updated_by`, `updated_at`. Cờ chỉ dành cho soạn thực đơn; thiếu dòng được hiểu là bật.
+
+## inspection_day_grants  (module: nutrition, scope: CAMPUS)
+Mục đích: yêu cầu và quyền mở ghi biên bản kiểm thực / sổ lưu mẫu của ngày đã qua 00:00 `Asia/Ho_Chi_Minh`; một dòng = một mẫu + một ngày + một điểm trường. PHT gửi yêu cầu, HT duyệt hoặc tự mở (INS-05). Migration: `V174__create_inspection_day_grants.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| campus_id | BIGINT FK campuses | không | Điểm trường của biên bản | INS-01 |
+| sheet_date | DATE | không | Ngày của biên bản cần mở ghi (đã qua) | INS-05 |
+| tab | VARCHAR(10) | không | `FRESH`/`DRY`/`PROCESS`/`SERVE`/`SAMPLE` (CHECK) | INS-01 |
+| status | VARCHAR(10) | không | `PENDING` chờ HT · `APPROVED` đang mở (còn hạn) · `REJECTED` · `REVOKED` · `CONSUMED` đã ký xong · `EXPIRED` quá hạn chưa ký (CHECK) | INS-05 |
+| self_opened | BOOLEAN | không | `TRUE` khi HT tự mở, không qua duyệt (mặc định `FALSE`) | INS-05 |
+| reason | VARCHAR(500) | không | Lý do yêu cầu / lý do HT tự mở (≥3 ký tự kiểm ở service) | INS-05 |
+| requested_by, requested_by_name, requested_at | BIGINT FK user_accounts, VARCHAR(255), TIMESTAMPTZ | không | Người gửi (hoặc HT tự mở) kèm tên tại thời điểm gửi, giữ được khi tài khoản đổi tên | INS-05 |
+| decided_by, decided_by_name, decided_at, decision_note | BIGINT FK user_accounts, VARCHAR(255), TIMESTAMPTZ, VARCHAR(500) | có | Người quyết định (duyệt, từ chối, thu hồi) và ghi chú; CHECK: khác `PENDING` thì có `decided_at` | INS-05 |
+| expires_at | TIMESTAMPTZ | có | Hạn mở; CHECK: `APPROVED` thì bắt buộc có. Mặc định `Constants.Inspection.GRANT_DEFAULT_HOURS` (48 giờ), HT chọn tối đa 168 | INS-05 |
+| consumed_at | TIMESTAMPTZ | có | Lúc ký thành công đóng quyền mở | INS-05 |
+Index: `uk_inspection_day_grants_open` unique một phần `(campus_id, sheet_date, tab)` khi `status IN ('PENDING','APPROVED')` (mỗi phạm vi chỉ một dòng đang mở); `idx_inspection_day_grants_day (campus_id, sheet_date)`; `idx_inspection_day_grants_queue (status, requested_at)` cho hàng chờ HT.
+Quá hạn tính lười: dòng `APPROVED` quá `expires_at` vẫn nằm trong bảng, API trả `EXPIRED`; yêu cầu mới của cùng phạm vi đóng dòng cũ thành `EXPIRED` rồi mới tạo dòng mới.

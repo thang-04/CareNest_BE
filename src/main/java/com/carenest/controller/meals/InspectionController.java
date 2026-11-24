@@ -2,22 +2,29 @@ package com.carenest.controller.meals;
 
 import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
+import com.carenest.dto.meals.InspectionApprovalDecisionRequest;
+import com.carenest.dto.meals.InspectionApprovalRequest;
+import com.carenest.dto.meals.InspectionApprovalResponse;
 import com.carenest.dto.meals.InspectionDayResponse;
 import com.carenest.dto.meals.InspectionReopenRequest;
 import com.carenest.dto.meals.InspectionSaveRequest;
 import com.carenest.dto.meals.InspectionSheetResponse;
 import com.carenest.dto.meals.InspectionSignRequest;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.InspectionGrantService;
 import com.carenest.service.meals.InspectionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
+import com.carenest.utils.enums.InspectionGrantStatus;
 import com.carenest.utils.enums.InspectionTab;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,11 +35,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Biên bản kiểm thực ba bước và soát sổ lưu mẫu (INS-01..04) cho HT/PHT trên Web. Bếp và giáo viên không dùng; quyền ghi
- * theo điểm trường kiểm ở service.
+ * Biên bản kiểm thực ba bước và soát sổ lưu mẫu (INS-01..05) cho HT/PHT trên Web. Bếp và giáo viên không dùng; quyền ghi
+ * theo điểm trường kiểm ở service. Ngày cũ cần HT duyệt mở (INS-05): PHT gửi yêu cầu, chỉ HT duyệt hoặc tự mở.
  */
 @RestController
 @RequestMapping("/inspections")
@@ -41,8 +49,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class InspectionController {
     private static final String LOG_PREFIX = "[InspectionController]";
     private static final String MANAGERS = "hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')";
+    private static final String PRINCIPAL_ONLY = "hasRole('PRINCIPAL')";
 
     private final InspectionService inspectionService;
+    private final InspectionGrantService grantService;
 
     @GetMapping("/day")
     @PreAuthorize(MANAGERS)
@@ -103,6 +113,76 @@ public class InspectionController {
         InspectionSheetResponse sheet = inspectionService.reopen(currentUser, campusId, date, tab, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reopen inspection success", sheet);
+    }
+
+    /** PHT gửi yêu cầu mở mẫu của ngày cũ chờ HT; HT gọi thì mở ngay kèm lý do (INS-05). */
+    @PostMapping("/day/{tab}/approvals")
+    @PreAuthorize(MANAGERS)
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<ResponseJson<InspectionApprovalResponse>> requestApproval(
+            @PathVariable InspectionTab tab,
+            @RequestParam Long campusId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Valid @RequestBody InspectionApprovalRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|requestApproval|userId=" + currentUser.userId() + "|campusId=" + campusId
+                + "|tab=" + tab;
+        log.info("{}|START", logPrefix);
+        InspectionApprovalResponse approval = grantService.request(currentUser, campusId, date, tab, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Request inspection approval success", approval);
+    }
+
+    @GetMapping("/approvals")
+    @PreAuthorize(PRINCIPAL_ONLY)
+    public ResponseEntity<ResponseJson<List<InspectionApprovalResponse>>> getApprovals(
+            @RequestParam(required = false) Long campusId,
+            @RequestParam(required = false) InspectionGrantStatus status,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getApprovals|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        List<InspectionApprovalResponse> approvals = grantService.queue(currentUser, campusId, status);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get inspection approvals success", approvals);
+    }
+
+    @PostMapping("/approvals/{approvalId}/approve")
+    @PreAuthorize(PRINCIPAL_ONLY)
+    public ResponseEntity<ResponseJson<InspectionApprovalResponse>> approveApproval(
+            @PathVariable Long approvalId,
+            @Valid @RequestBody(required = false) InspectionApprovalDecisionRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|approveApproval|userId=" + currentUser.userId() + "|approvalId=" + approvalId;
+        log.info("{}|START", logPrefix);
+        InspectionApprovalResponse approval = grantService.approve(currentUser, approvalId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Approve inspection approval success", approval);
+    }
+
+    @PostMapping("/approvals/{approvalId}/reject")
+    @PreAuthorize(PRINCIPAL_ONLY)
+    public ResponseEntity<ResponseJson<InspectionApprovalResponse>> rejectApproval(
+            @PathVariable Long approvalId,
+            @Valid @RequestBody InspectionApprovalDecisionRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|rejectApproval|userId=" + currentUser.userId() + "|approvalId=" + approvalId;
+        log.info("{}|START", logPrefix);
+        InspectionApprovalResponse approval = grantService.reject(currentUser, approvalId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reject inspection approval success", approval);
+    }
+
+    @PostMapping("/approvals/{approvalId}/revoke")
+    @PreAuthorize(PRINCIPAL_ONLY)
+    public ResponseEntity<ResponseJson<InspectionApprovalResponse>> revokeApproval(
+            @PathVariable Long approvalId,
+            @Valid @RequestBody InspectionApprovalDecisionRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|revokeApproval|userId=" + currentUser.userId() + "|approvalId=" + approvalId;
+        log.info("{}|START", logPrefix);
+        InspectionApprovalResponse approval = grantService.revoke(currentUser, approvalId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Revoke inspection approval success", approval);
     }
 
     @GetMapping("/signatures/{imageKey}/url")

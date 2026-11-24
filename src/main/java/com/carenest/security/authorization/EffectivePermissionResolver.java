@@ -8,7 +8,9 @@ import com.carenest.utils.enums.PermissionEffect;
 import com.carenest.utils.enums.PermissionScope;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -72,6 +74,27 @@ public final class EffectivePermissionResolver {
                     && permission.get().campusScoped()
                     && isConfigurableForAny(permission.get(), roles)) {
                 result.add(permission.get());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Mã sửa theo mảng được GRANT tại một điểm trường cụ thể (AUTH-20, chốt 21/11/2026): mã → điểm trường. PHT chỉ sửa
+     * việc đó ở điểm trường này, không kèm điểm trường đang phụ trách. Dòng lệch bị bỏ qua như {@link #schoolWide}.
+     */
+    public static Map<Permission, Long> pinnedCampuses(
+            Set<CareNestRole> roles, Collection<UserPermissionOverride> overrides) {
+        Map<Permission, Long> result = new EnumMap<>(Permission.class);
+        for (UserPermissionOverride override : overrides) {
+            Optional<Permission> permission = Permission.fromCode(override.getPermissionCode());
+            if (override.getEffect() == PermissionEffect.GRANT
+                    && override.getScope() == PermissionScope.CAMPUS
+                    && override.getCampusId() != null
+                    && permission.isPresent()
+                    && permission.get().campusScoped()
+                    && isConfigurableForAny(permission.get(), roles)) {
+                result.put(permission.get(), override.getCampusId());
             }
         }
         return result;

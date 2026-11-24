@@ -9,6 +9,7 @@ public record PermissionOverrideResponse(
         Permission permission,
         PermissionEffect effect,
         PermissionScope scope,
+        Long campusId,
         String reason,
         Long updatedBy,
         Instant updatedAt) {}

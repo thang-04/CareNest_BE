@@ -81,6 +81,14 @@ public class CampusAccessPolicy {
         if (!user.hasRole(CareNestRole.VICE_PRINCIPAL)) {
             return false;
         }
+        // Giao tại điểm trường cụ thể (chốt 21/11/2026): chỉ điểm trường đó, vẫn cần đang có phân công PHT
+        Long pinnedCampusId = user.pinnedCampusId(permission);
+        if (pinnedCampusId != null) {
+            return pinnedCampusId.equals(campusId)
+                    && !staffAssignmentService
+                            .findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, today)
+                            .isEmpty();
+        }
         if (user.hasSchoolWidePermission(permission)) {
             return !staffAssignmentService
                     .findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, today)

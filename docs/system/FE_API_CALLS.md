@@ -77,7 +77,7 @@ GET /assessment/theme-evaluations/themes · src/services/assessment/api/assessme
 GET /assessment/weekly-comments · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getBoard
 GET /assessment/weekly-comments/overview · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getOverview
 GET /assessment/weekly-comments/unlocks · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getUnlocks
-GET /attendance/classes · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClasses
+GET /assessment/daily/classes · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#listClasses
 GET /attendance/classes · src/services/attendance/api/attendanceApi.js [attendance: api] → src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClasses
 GET /attendance/day-info · src/services/attendance/api/attendanceApi.js [attendance: api] → src/main/java/com/carenest/controller/attendance/AttendanceController.java#getDayInfo
 GET /attendance/day-unlocks · src/services/attendance/api/attendanceApi.js [attendance: api] → src/main/java/com/carenest/controller/attendance/AttendanceController.java#getUnlocks
@@ -447,3 +447,5 @@ PUT /school/appearance · src/services/appearance/api/appearanceApi.js [appearan
 PUT /team-leader-assignments · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#assignTeamLeader
 PUT /users/{x} · src/services/school-config/api/schoolConfigApi.js [school-config: api] → (BE chưa có — pending)
 ```
+
+GET /nutrition/age-group-configs/statuses · src/services/nutritionCatalogApi.js [nutrition-catalog: api] → AgeGroupMealConfigController#getGroupStatuses

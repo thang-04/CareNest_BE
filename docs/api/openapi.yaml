@@ -1507,6 +1507,11 @@ paths:
         schema:
           type: integer
           format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RedraftRequest"
       responses:
         "200":
           content:
@@ -6334,6 +6339,111 @@ paths:
           description: OK
       tags:
       - health-check-controller
+  /api/inspections/approvals:
+    get:
+      operationId: getApprovals
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/approve:
+    post:
+      operationId: approveApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/reject:
+    post:
+      operationId: rejectApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/revoke:
+    post:
+      operationId: revokeApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
   /api/inspections/day:
     get:
       operationId: getDay
@@ -6399,6 +6509,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
           description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}/approvals:
+    post:
+      operationId: requestApproval
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: Created
       tags:
       - inspection-controller
   /api/inspections/day/{tab}/reopen:
@@ -7164,6 +7316,18 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonListAgeGroupMealConfigResponse"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
+  /api/nutrition/age-group-configs/statuses:
+    get:
+      operationId: getGroupStatuses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListNutritionGroupStatus"
           description: OK
       tags:
       - age-group-meal-config-controller
@@ -10214,6 +10378,9 @@ components:
           format: int64
         username:
           type: string
+        workCampusId:
+          type: integer
+          format: int64
     AccountPhotoResponse:
       type: object
       properties:
@@ -10296,6 +10463,9 @@ components:
           format: int64
         username:
           type: string
+        workCampusId:
+          type: integer
+          format: int64
     ActivateSchoolYearRequest:
       type: object
       properties:
@@ -10526,6 +10696,14 @@ components:
             $ref: "#/components/schemas/AgeGroupMealConfigRequest"
           maxItems: 20
           minItems: 0
+        nonEmpty:
+          type: boolean
+        statuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionGroupStatus"
+          maxItems: 20
+          minItems: 0
       required:
       - items
     AgeGroupMealConfigRequest:
@@ -10557,6 +10735,18 @@ components:
         animalProteinGMin:
           type: number
           maximum: 9999
+          minimum: 0
+        appliedGlucidPct:
+          type: number
+          maximum: 100
+          minimum: 0
+        appliedLipidPct:
+          type: number
+          maximum: 100
+          minimum: 0
+        appliedProteinPct:
+          type: number
+          maximum: 100
           minimum: 0
         calciumMax:
           type: number
@@ -10709,6 +10899,14 @@ components:
           type: number
           maximum: 100000
           minimum: 0
+        zincMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        zincMin:
+          type: number
+          maximum: 100000
+          minimum: 0
       required:
       - ageGroupId
       - effectiveFrom
@@ -10731,10 +10929,18 @@ components:
           type: number
         animalProteinGMin:
           type: number
+        appliedGlucidPct:
+          type: number
+        appliedLipidPct:
+          type: number
+        appliedProteinPct:
+          type: number
         calciumMax:
           type: number
         calciumMin:
           type: number
+        conversion:
+          $ref: "#/components/schemas/NutritionConversionResponse"
         dailyKcalNeed:
           type: number
         editable:
@@ -10815,6 +11021,10 @@ components:
           type: number
         vitaminPpMin:
           type: number
+        zincMax:
+          type: number
+        zincMin:
+          type: number
     AgeGroupNutrition:
       type: object
       properties:
@@ -10854,6 +11064,8 @@ components:
         vitaminC:
           type: number
         vitaminPp:
+          type: number
+        zinc:
           type: number
     AgeGroupRequest:
       type: object
@@ -13166,6 +13378,19 @@ components:
           format: int64
         name:
           type: string
+    ConvertedGrams:
+      type: object
+      properties:
+        animalLipidG:
+          type: number
+        animalProteinG:
+          type: number
+        glucidG:
+          type: number
+        plantLipidG:
+          type: number
+        plantProteinG:
+          type: number
     CopyClassesRequest:
       type: object
       properties:
@@ -14371,6 +14596,11 @@ components:
         generatedAt:
           type: string
           format: date-time
+        source:
+          type: string
+          enum:
+          - TEMPLATE
+          - AI
     DryIntake:
       type: object
       properties:
@@ -15058,6 +15288,8 @@ components:
       properties:
         aiDraft:
           $ref: "#/components/schemas/Draft"
+        aiEnabled:
+          type: boolean
         campusId:
           type: integer
           format: int64
@@ -15366,10 +15598,6 @@ components:
           type: string
           maxLength: 200
           minLength: 0
-        nutrientSourceVersion:
-          type: string
-          maxLength: 50
-          minLength: 0
         origin:
           type: string
           enum:
@@ -15428,6 +15656,10 @@ components:
         wastePct:
           type: number
           exclusiveMaximum: 100
+          minimum: 0
+        zinc:
+          type: number
+          maximum: 1000000
           minimum: 0
       required:
       - foodGroup
@@ -15490,8 +15722,6 @@ components:
           type: string
         nutrientSource:
           type: string
-        nutrientSourceVersion:
-          type: string
         origin:
           type: string
           enum:
@@ -15538,6 +15768,8 @@ components:
         vitaminPp:
           type: number
         wastePct:
+          type: number
+        zinc:
           type: number
     FoodSampleDisposeRequest:
       type: object
@@ -17732,9 +17964,85 @@ components:
       - ageGroupId
       - foodId
       - gramsPerChild
+    InspectionApprovalDecisionRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        validHours:
+          type: integer
+          format: int32
+          maximum: 168
+          minimum: 1
+    InspectionApprovalRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        validHours:
+          type: integer
+          format: int32
+          maximum: 168
+          minimum: 1
+    InspectionApprovalResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        decidedAt:
+          type: string
+          format: date-time
+        decidedByName:
+          type: string
+        decisionNote:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        requestedByName:
+          type: string
+        selfOpened:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
     InspectionDayResponse:
       type: object
       properties:
+        approvals:
+          type: array
+          items:
+            $ref: "#/components/schemas/TabApproval"
         campusId:
           type: integer
           format: int64
@@ -18909,6 +19217,26 @@ components:
           format: int64
         name:
           type: string
+    MenuStatisticsItem:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        dishId:
+          type: integer
+          format: int64
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+      required:
+      - dishId
+      - session
     MenuStatisticsRequest:
       type: object
       properties:
@@ -18929,11 +19257,10 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/Item"
+            $ref: "#/components/schemas/MenuStatisticsItem"
           maxItems: 60
           minItems: 0
       required:
-      - ageGroupId
       - items
     MenuStatisticsResponse:
       type: object
@@ -18969,6 +19296,10 @@ components:
           type: number
         freshCost:
           type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/MenuStatisticsResponse"
         ingredients:
           type: array
           items:
@@ -19146,6 +19477,11 @@ components:
             - PERMISSION_MANAGE
         photoUploaded:
           type: boolean
+        pinnedCampusPermissions:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
         profileUpdateRequired:
           type: boolean
         roles:
@@ -19455,6 +19791,35 @@ components:
           type: array
           items:
             type: string
+    NutritionConversionResponse:
+      type: object
+      properties:
+        animalLipidShare:
+          type: number
+        animalProteinShare:
+          type: number
+        atKcalMax:
+          $ref: "#/components/schemas/ConvertedGrams"
+        atKcalMin:
+          $ref: "#/components/schemas/ConvertedGrams"
+        glucidKcalPerG:
+          type: number
+        lipidKcalPerG:
+          type: number
+        proteinKcalPerG:
+          type: number
+    NutritionGroupStatus:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
+        enabled:
+          type: boolean
+      required:
+      - ageGroupId
+      - enabled
     NutritionTotals:
       type: object
       properties:
@@ -19489,6 +19854,8 @@ components:
         vitaminC:
           type: number
         vitaminPp:
+          type: number
+        zinc:
           type: number
     Option:
       type: object
@@ -19555,6 +19922,10 @@ components:
     OverrideItem:
       type: object
       properties:
+        campusId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
         effect:
           type: string
           enum:
@@ -19910,6 +20281,9 @@ components:
         actorUserId:
           type: integer
           format: int64
+        afterCampusId:
+          type: integer
+          format: int64
         afterScope:
           type: string
           enum:
@@ -19926,6 +20300,9 @@ components:
         batchId:
           type: string
           format: uuid
+        beforeCampusId:
+          type: integer
+          format: int64
         beforeScope:
           type: string
           enum:
@@ -19967,6 +20344,9 @@ components:
     PermissionOverrideResponse:
       type: object
       properties:
+        campusId:
+          type: integer
+          format: int64
         effect:
           type: string
           enum:
@@ -20992,6 +21372,11 @@ components:
           - CAMPUS
           - AGE_GROUP
           - CLASSROOM
+    RedraftRequest:
+      type: object
+      properties:
+        ai:
+          type: boolean
     Referral:
       type: object
       properties:
@@ -22358,6 +22743,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonInspectionApprovalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/InspectionApprovalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonInspectionDayResponse:
       type: object
       properties:
@@ -22945,6 +23343,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListInspectionApprovalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InspectionApprovalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListIssuedTicket:
       type: object
       properties:
@@ -23090,6 +23503,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NotificationRuleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListNutritionGroupStatus:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NutritionGroupStatus"
         desc:
           type: string
         errorCode:
@@ -26109,6 +26537,44 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    TabApproval:
+      type: object
+      properties:
+        approvalId:
+          type: integer
+          format: int64
+        canRequest:
+          type: boolean
+        decisionNote:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        locked:
+          type: boolean
+        reason:
+          type: string
+        requestedByName:
+          type: string
+        selfOpen:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
     Takeover:
       type: object
       properties:
@@ -26677,6 +27143,10 @@ components:
           type: string
           maxLength: 150
           minLength: 0
+        workCampusId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
       required:
       - fullName
     UpdateAccountStatusRequest:

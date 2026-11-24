@@ -41,6 +41,7 @@ import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationAction;
+import com.carenest.utils.enums.EvaluationDraftSource;
 import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.EvaluationStatus;
@@ -100,6 +101,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final YearEndSheetService yearEndSheetService;
     private final EvaluationNotifier evaluationNotifier;
     private final EvaluationDeadlineService evaluationDeadlineService;
+    private final AiPeriodCommentDraftGenerator aiDraftGenerator;
+    private final PeriodCommentFactsBuilder factsBuilder;
 
     @Override
     @Transactional
@@ -288,23 +291,15 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
 
     @Override
     @Transactional
-    public EvaluationRow redraft(CurrentUser currentUser, Long id) {
-        String logPrefix = LOG_PREFIX + "|redraft|userId=" + currentUser.userId() + "|id=" + id;
+    public EvaluationRow redraft(CurrentUser currentUser, Long id, boolean ai) {
+        String logPrefix = LOG_PREFIX + "|redraft|userId=" + currentUser.userId() + "|id=" + id + "|ai=" + ai;
         log.info("{}|START", logPrefix);
         try {
             ChildEvaluation ev = find(id);
             ClassroomInfoResponse cls = checkEditable(currentUser, ev);
             Instant at = rules.now();
-            ev.redraft(
-                    draftOf(
-                            cls,
-                            ev.getChildId(),
-                            childName(ev),
-                            ev.getPeriodType(),
-                            ev.getPeriodStart(),
-                            ev.getPeriodEnd(),
-                            confirmedMonths(ev)),
-                    at);
+            DraftResult draft = draftOf(logPrefix, cls, ev, ai);
+            ev.redraft(draft.content(), draft.source(), draft.model(), draft.promptVersion(), at);
             evaluationRepository.saveAndFlush(ev);
             eventRepository.save(
                     ChildEvaluationEvent.of(ev.getId(), EvaluationAction.AI_REDRAFTED, currentUser.userId(), at));
@@ -758,21 +753,41 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         return drafts;
     }
 
-    @SuppressWarnings("java:S107")
-    private String draftOf(
-            ClassroomInfoResponse cls,
-            Long childId,
-            String childName,
-            EvaluationPeriodType type,
-            LocalDate start,
-            LocalDate end,
-            int confirmedMonths) {
-        EvaluationSources.ChildData d = sources.load(cls, List.of(childId), start, minDate(end, rules.today()), false)
-                .get(childId);
-        return d == null
-                ? null
-                : EvaluationDraftWriter.write(
-                        type, childName, start, d.presentDays(), d.flagCount(), d.structured(), confirmedMonths);
+    private record DraftResult(String content, EvaluationDraftSource source, String model, String promptVersion) {}
+
+    // Mẫu câu luôn có; xin AI (OBS-34) mà AI tắt / lỗi / đầu ra không đạt kiểm thì giữ mẫu câu (AI-03)
+    private DraftResult draftOf(String logPrefix, ClassroomInfoResponse cls, ChildEvaluation ev, boolean ai) {
+        LocalDate today = rules.today();
+        EvaluationSources.ChildData d = sources.load(
+                        cls, List.of(ev.getChildId()), ev.getPeriodStart(), minDate(ev.getPeriodEnd(), today), false)
+                .get(ev.getChildId());
+        if (d == null) {
+            return new DraftResult(null, EvaluationDraftSource.TEMPLATE, null, null);
+        }
+        ClassChildResponse child = childOf(ev);
+        String template = EvaluationDraftWriter.write(
+                ev.getPeriodType(),
+                child == null ? "" : child.fullName(),
+                ev.getPeriodStart(),
+                d.presentDays(),
+                d.flagCount(),
+                d.structured(),
+                confirmedMonths(ev));
+        DraftResult fallback = new DraftResult(template, EvaluationDraftSource.TEMPLATE, null, null);
+        if (!ai || child == null || !aiDraftGenerator.isEnabled()) {
+            return fallback;
+        }
+        try {
+            PeriodCommentFacts facts = factsBuilder.build(cls, ev, child, today);
+            if (facts == null || !facts.hasContent()) {
+                return fallback;
+            }
+            AiPeriodCommentDraftGenerator.Result result = aiDraftGenerator.generate(facts);
+            return new DraftResult(result.content(), EvaluationDraftSource.AI, result.model(), result.promptVersion());
+        } catch (RuntimeException ex) {
+            log.warn("{}|aiFallback|type={}", logPrefix, ex.getClass().getSimpleName());
+            return fallback;
+        }
     }
 
     // Số đánh giá tháng đã xác nhận của từng trẻ trong lớp, tháng bắt đầu trong khoảng [start, end]
@@ -906,6 +921,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 .distinct()
                 .toList());
         Map<String, Map<LocalDate, Boolean>> flags = flagsOf(evaluations);
+        boolean aiEnabled = aiDraftGenerator.isEnabled();
         Map<Long, Integer> ageFrom = evaluations.stream().anyMatch(e -> e.getPeriodType() == EvaluationPeriodType.YEAR)
                 ? ageFromMonths()
                 : Map.of();
@@ -930,7 +946,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             e.getPeriodEnd(),
                             e.getStatus(),
                             teacher && e.getDraftContent() != null
-                                    ? new Draft(e.getDraftContent(), e.getDraftAt())
+                                    ? new Draft(e.getDraftContent(), e.getDraftAt(), e.getDraftSource())
                                     : null,
                             e.isConfirmed() || teacher ? e.getFinalContent() : null,
                             programApplicable(e, cls, ageFrom),
@@ -946,7 +962,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                                             ev.getUserId(),
                                             ev.getUserId() == null ? null : userNames.get(ev.getUserId()),
                                             ev.getAt()))
-                                    .toList());
+                                    .toList(),
+                            teacher && aiEnabled);
                 })
                 .sorted(Comparator.comparing(EvaluationRow::periodStart)
                         .reversed()
@@ -982,11 +999,6 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 .filter(c -> c.id().equals(ev.getChildId()))
                 .findFirst()
                 .orElse(null);
-    }
-
-    private String childName(ChildEvaluation ev) {
-        ClassChildResponse child = childOf(ev);
-        return child == null ? "" : child.fullName();
     }
 
     // Ngày có cờ của từng trẻ (cờ chỉ ghi ở ngày trẻ có mặt)

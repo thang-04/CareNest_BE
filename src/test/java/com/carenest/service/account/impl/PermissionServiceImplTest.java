@@ -29,7 +29,9 @@ import com.carenest.repository.account.UserPermissionOverrideRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
+import com.carenest.service.organization.CampusService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.carenest.utils.enums.Permission;
@@ -76,6 +78,9 @@ class PermissionServiceImplTest {
     @Mock
     private TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
 
+    @Mock
+    private CampusService campusService;
+
     private PermissionServiceImpl permissionService;
 
     private final CurrentUser principal = TestPermissions.userWithDefaults(PRINCIPAL_ID, CareNestRole.PRINCIPAL);
@@ -93,7 +98,8 @@ class PermissionServiceImplTest {
                 teamLeaderAssignmentChecker,
                 eduPlanAccessPolicy,
                 workflowSync,
-                java.time.Clock.systemUTC());
+                java.time.Clock.systemUTC(),
+                campusService);
     }
 
     @Mock
@@ -486,6 +492,75 @@ class PermissionServiceImplTest {
         assertThat(response.overrides())
                 .singleElement()
                 .satisfies(override -> assertThat(override.scope()).isEqualTo(PermissionScope.SCHOOL));
+    }
+
+    @Test
+    @DisplayName("AUTH-20: giao việc tại điểm trường khác nơi PHT phụ trách lưu ID điểm trường và ghi lịch sử")
+    void grantAtSpecificCampusSavesCampusAndHistory() {
+        givenTarget(VICE_PRINCIPAL_ID, "VICE_PRINCIPAL");
+        given(campusService.findCampusStatus(3L)).willReturn(Optional.of(CampusStatus.ACTIVE));
+        given(userPermissionOverrideRepository.findByUserId(VICE_PRINCIPAL_ID))
+                .willReturn(List.of(UserPermissionOverride.create(
+                        VICE_PRINCIPAL_ID, "FOOD_SAFETY_APPROVE", PermissionEffect.GRANT, "x", 1L)));
+        var request = new UpdatePermissionOverridesRequest(
+                List.of(new OverrideItem(
+                        Permission.FOOD_SAFETY_APPROVE, PermissionEffect.GRANT, PermissionScope.CAMPUS, 3L)),
+                "Phụ trách an toàn thực phẩm Cơ sở 3");
+
+        permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, request);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UserPermissionOverride>> saved = ArgumentCaptor.forClass(List.class);
+        verify(userPermissionOverrideRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).singleElement().satisfies(override -> {
+            assertThat(override.getScope()).isEqualTo(PermissionScope.CAMPUS);
+            assertThat(override.getCampusId()).isEqualTo(3L);
+        });
+        // Hiệu lực và phạm vi không đổi, chỉ đổi nơi giao ⇒ vẫn phải có dòng lịch sử
+        assertThat(capturedLogs()).singleElement().satisfies(log -> {
+            assertThat(log.getBeforeCampusId()).isNull();
+            assertThat(log.getAfterCampusId()).isEqualTo(3L);
+        });
+    }
+
+    @Test
+    @DisplayName("AUTH-20: điểm trường giao cụ thể phải đi với GRANT phạm vi điểm trường của mã sửa theo mảng")
+    void specificCampusOnlyForCampusScopedGrant() {
+        givenTarget(VICE_PRINCIPAL_ID, "VICE_PRINCIPAL");
+        var schoolScope = new UpdatePermissionOverridesRequest(
+                List.of(new OverrideItem(
+                        Permission.FOOD_SAFETY_APPROVE, PermissionEffect.GRANT, PermissionScope.SCHOOL, 3L)),
+                "sai phạm vi");
+        var notScoped = new UpdatePermissionOverridesRequest(
+                List.of(new OverrideItem(Permission.CHILD_ENROLL, PermissionEffect.GRANT, PermissionScope.CAMPUS, 3L)),
+                "sai phạm vi");
+
+        assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, schoolScope))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
+        assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, notScoped))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
+        verify(userPermissionOverrideRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-20: không giao việc tại điểm trường đã ngừng hoạt động hoặc không tồn tại")
+    void inactiveOrMissingCampusRejected() {
+        givenTarget(VICE_PRINCIPAL_ID, "VICE_PRINCIPAL");
+        given(campusService.findCampusStatus(3L)).willReturn(Optional.of(CampusStatus.INACTIVE));
+        given(campusService.findCampusStatus(9L)).willReturn(Optional.empty());
+
+        for (Long campusId : List.of(3L, 9L)) {
+            var request = new UpdatePermissionOverridesRequest(
+                    List.of(new OverrideItem(
+                            Permission.FOOD_SAFETY_APPROVE, PermissionEffect.GRANT, PermissionScope.CAMPUS, campusId)),
+                    "giao");
+            assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, request))
+                    .extracting("apiCode")
+                    .isEqualTo(ApiCode.PERMISSION_CAMPUS_INVALID);
+        }
+        verify(userPermissionOverrideRepository, never()).saveAll(any());
     }
 
     private void givenTarget(Long userId, String... realmRoles) {

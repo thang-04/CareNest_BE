@@ -35,4 +35,15 @@ public final class Constants {
 
         private Nutrition() {}
     }
+
+    /** Mở ghi biên bản kiểm thực ngày cũ (INS-05). */
+    public static final class Inspection {
+        // Hạn mở mặc định khi HT không chọn; HT chọn tối đa MAX giờ
+        public static final int GRANT_DEFAULT_HOURS = 48;
+        public static final int GRANT_MAX_HOURS = 168;
+        public static final int REASON_MIN = 3;
+        public static final int QUEUE_LIMIT = 200;
+
+        private Inspection() {}
+    }
 }

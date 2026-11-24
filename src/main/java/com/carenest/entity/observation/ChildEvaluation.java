@@ -1,5 +1,6 @@
 package com.carenest.entity.observation;
 
+import com.carenest.utils.enums.EvaluationDraftSource;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.EvaluationStatus;
 import jakarta.persistence.Column;
@@ -61,6 +62,17 @@ public class ChildEvaluation {
 
     @Column(name = "draft_at")
     private Instant draftAt;
+
+    /** Nguồn bản nháp (OBS-34, AI-01); model và prompt version chỉ có khi nguồn là AI. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "draft_source", nullable = false, length = 10)
+    private EvaluationDraftSource draftSource = EvaluationDraftSource.TEMPLATE;
+
+    @Column(name = "draft_model", length = 100)
+    private String draftModel;
+
+    @Column(name = "draft_prompt_version", length = 60)
+    private String draftPromptVersion;
 
     @Column(name = "final_content", length = 3000)
     private String finalContent;
@@ -136,8 +148,16 @@ public class ChildEvaluation {
 
     /** Tạo lại bản nháp; nội dung GV đã sửa giữ nguyên. */
     public void redraft(String content, Instant at) {
+        redraft(content, EvaluationDraftSource.TEMPLATE, null, null, at);
+    }
+
+    /** Tạo lại bản nháp kèm nguồn; model và prompt version bỏ trống khi nguồn là mẫu câu. */
+    public void redraft(String content, EvaluationDraftSource source, String model, String promptVersion, Instant at) {
         this.draftContent = content;
         this.draftAt = at;
+        this.draftSource = source;
+        this.draftModel = source == EvaluationDraftSource.AI ? model : null;
+        this.draftPromptVersion = source == EvaluationDraftSource.AI ? promptVersion : null;
     }
 
     /** Trẻ lớp 5–6 tuổi: hoàn thành / chưa hoàn thành chương trình GDMN (đánh giá cuối năm). */

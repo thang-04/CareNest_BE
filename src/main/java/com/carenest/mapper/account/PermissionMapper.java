@@ -27,6 +27,7 @@ public class PermissionMapper {
                 permission,
                 override.getEffect(),
                 override.getScope(),
+                override.getCampusId(),
                 override.getReason(),
                 override.getCreatedBy(),
                 override.getUpdatedAt());
@@ -47,6 +48,8 @@ public class PermissionMapper {
                 log.getAfterState(),
                 log.getBeforeScope(),
                 log.getAfterScope(),
+                log.getBeforeCampusId(),
+                log.getAfterCampusId(),
                 log.getReason(),
                 log.getChangedAt());
     }

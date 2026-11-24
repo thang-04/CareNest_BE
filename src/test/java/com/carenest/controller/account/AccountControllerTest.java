@@ -331,7 +331,14 @@ class AccountControllerTest {
                 new ChangeStaffRoleRequest(CareNestRole.KITCHEN_STAFF, new StaffAssignmentScopeRequest(3L, null));
         given(accountProvisioningService.changeStaffRole(principal, 42L, request))
                 .willReturn(new AccountDetailResponse(
-                        42L, "0912345678", "GV A", null, CareNestRole.KITCHEN_STAFF, UserStatus.ACTIVE, List.of()));
+                        42L,
+                        "0912345678",
+                        "GV A",
+                        null,
+                        CareNestRole.KITCHEN_STAFF,
+                        UserStatus.ACTIVE,
+                        List.of(),
+                        null));
 
         mockMvc.perform(put("/api/accounts/42/staff-role")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
