@@ -272,8 +272,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Set<Long> getUnionAuthorUserIdsForDossier(EduClassDoc doc) {
+        // Gọi theo từng hồ sơ chủ đề khi dựng danh sách: không log START/END
         String logPrefix = LOG_PREFIX + "|getUnionAuthorUserIdsForDossier";
-        log.info("{}|START", logPrefix);
         try {
             Set<Long> docIds = new HashSet<>();
             docIds.add(doc.getId());
@@ -295,9 +295,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             }
 
             userIds.addAll(authorRepository.findUserIdsByClassDocIdIn(docIds));
-            var result = Set.copyOf(userIds);
-            log.info("{}|END", logPrefix);
-            return result;
+            return Set.copyOf(userIds);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -837,13 +835,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
     @Override
     public List<Approval> parseApprovals(String approvalsJson) {
+        // Helper đọc gọi theo từng hồ sơ trong vòng lặp danh sách: không log START/END (log ồn ~2 dòng × số hồ sơ)
         String logPrefix = LOG_PREFIX + "|parseApprovals";
-        log.info("{}|START", logPrefix);
         try {
             if (approvalsJson == null || approvalsJson.isBlank()) {
-                var result = List.<Approval>of();
-                log.info("{}|END", logPrefix);
-                return result;
+                return List.<Approval>of();
             }
             try {
                 JsonNode tree = objectMapper.readTree(approvalsJson);
@@ -874,7 +870,6 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                             : 0;
                     result.add(new Approval(userId, name, roleKey, at, note, round));
                 }
-                log.info("{}|END", logPrefix);
                 return result;
             } catch (Exception ex) {
                 throw new IllegalStateException("Cannot read stored approval history", ex);
@@ -1083,8 +1078,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             Instant completedAt,
             String completionPolicyJson,
             String printSnapshotJson) {
+        // Helper dựng response theo từng hồ sơ: không log START/END
         String logPrefix = LOG_PREFIX + "|toReviewStateResponse";
-        log.info("{}|START", logPrefix);
         try {
             List<String> roles =
                     policy != null ? policy.reviewers().stream().map(Enum::name).toList() : List.of();
@@ -1112,7 +1107,6 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                     completedAt,
                     completionPolicyObj,
                     printSnapshotObj);
-            log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
