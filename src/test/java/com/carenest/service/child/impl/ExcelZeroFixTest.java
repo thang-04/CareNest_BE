@@ -32,11 +32,12 @@ class ExcelZeroFixTest {
     }
 
     @Test
-    @DisplayName("CCCD 9–11 số ⇒ đệm 0 tới 12; còn lại giữ nguyên")
+    @DisplayName("CCCD 10–11 số ⇒ đệm 0 tới 12; 9 số (mã tỉnh 001–096 chỉ mất tối đa 2 số 0) và còn lại giữ nguyên")
     void citizenId() {
         assertThat(ExcelZeroFix.citizenId("1623120001")).contains("001623120001");
         assertThat(ExcelZeroFix.citizenId("30224591837")).contains("030224591837");
         assertThat(ExcelZeroFix.citizenId("030224591837")).isEmpty();
+        assertThat(ExcelZeroFix.citizenId("123456789")).isEmpty();
         assertThat(ExcelZeroFix.citizenId("12345678")).isEmpty();
     }
 

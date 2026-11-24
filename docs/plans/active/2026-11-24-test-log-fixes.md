@@ -118,7 +118,7 @@ Cũng ngày 24/11, user cho phép:
 
 Viết theo phương án A của Q1–Q3. User chọn B thì sửa AC và phase tương ứng trước khi làm.
 
-- **AC-4** (CHD-01): Nhập Excel (.csv, .xlsx, .xls) có SĐT 9 chữ số bắt đầu 3/5/7/8/9, hoặc CCCD 9–11 chữ số.
+- **AC-4** (CHD-01): Nhập Excel (.csv, .xlsx, .xls) có SĐT 9 chữ số bắt đầu 3/5/7/8/9, hoặc CCCD 10–11 chữ số (CCCD 9 chữ số giữ nguyên, báo lỗi như trước).
   - Xem trước bù số 0 đầu (`0916231201`, `001623120001`), dòng hợp lệ, `notes` có "Đã thêm số 0 đầu cho SĐT/CCCD (Excel bỏ mất). Kiểm tra lại trước khi nhập."
   - Nhập tạo đúng hồ sơ.
 - **AC-5** (G94-180/CHD-04): `GET /children/duplicate-check` trả trẻ đã nghỉ trong phạm vi ⇒ có `campusId` = điểm trường của trẻ (lớp cuối, không có lớp thì điểm trường tiếp nhận).

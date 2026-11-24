@@ -13,9 +13,12 @@ final class ExcelZeroFix {
         return Optional.empty();
     }
 
-    /** CCCD 9–11 chữ số ⇒ đệm 0 bên trái tới 12; còn lại empty (giữ nguyên). */
+    /**
+     * CCCD 10–11 chữ số ⇒ đệm 0 bên trái tới 12; còn lại empty (giữ nguyên). Mã tỉnh 001–096 đứng đầu nên Excel chỉ bỏ
+     * được 1–2 số 0: 9 số là CCCD sai, không đệm.
+     */
     static Optional<String> citizenId(String raw) {
-        if (raw != null && raw.matches("\\d{9,11}")) return Optional.of("0".repeat(12 - raw.length()) + raw);
+        if (raw != null && raw.matches("\\d{10,11}")) return Optional.of("0".repeat(12 - raw.length()) + raw);
         return Optional.empty();
     }
 }
