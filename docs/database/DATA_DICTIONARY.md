@@ -1048,3 +1048,21 @@ V74: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "C
 
 
 `nutrition_group_settings` (V170): `age_group_id` PK/FK age_groups (ON DELETE CASCADE), `enabled` boolean mặc định true, `updated_by`, `updated_at`. Cờ chỉ dành cho soạn thực đơn; thiếu dòng được hiểu là bật.
+
+## inspection_day_grants  (module: nutrition, scope: CAMPUS)
+Mục đích: yêu cầu và quyền mở ghi biên bản kiểm thực / sổ lưu mẫu của ngày đã qua 00:00 `Asia/Ho_Chi_Minh`; một dòng = một mẫu + một ngày + một điểm trường. PHT gửi yêu cầu, HT duyệt hoặc tự mở (INS-05). Migration: `V174__create_inspection_day_grants.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| campus_id | BIGINT FK campuses | không | Điểm trường của biên bản | INS-01 |
+| sheet_date | DATE | không | Ngày của biên bản cần mở ghi (đã qua) | INS-05 |
+| tab | VARCHAR(10) | không | `FRESH`/`DRY`/`PROCESS`/`SERVE`/`SAMPLE` (CHECK) | INS-01 |
+| status | VARCHAR(10) | không | `PENDING` chờ HT · `APPROVED` đang mở (còn hạn) · `REJECTED` · `REVOKED` · `CONSUMED` đã ký xong · `EXPIRED` quá hạn chưa ký (CHECK) | INS-05 |
+| self_opened | BOOLEAN | không | `TRUE` khi HT tự mở, không qua duyệt (mặc định `FALSE`) | INS-05 |
+| reason | VARCHAR(500) | không | Lý do yêu cầu / lý do HT tự mở (≥3 ký tự kiểm ở service) | INS-05 |
+| requested_by, requested_by_name, requested_at | BIGINT FK user_accounts, VARCHAR(255), TIMESTAMPTZ | không | Người gửi (hoặc HT tự mở) kèm tên tại thời điểm gửi, giữ được khi tài khoản đổi tên | INS-05 |
+| decided_by, decided_by_name, decided_at, decision_note | BIGINT FK user_accounts, VARCHAR(255), TIMESTAMPTZ, VARCHAR(500) | có | Người quyết định (duyệt, từ chối, thu hồi) và ghi chú; CHECK: khác `PENDING` thì có `decided_at` | INS-05 |
+| expires_at | TIMESTAMPTZ | có | Hạn mở; CHECK: `APPROVED` thì bắt buộc có. Mặc định `Constants.Inspection.GRANT_DEFAULT_HOURS` (48 giờ), HT chọn tối đa 168 | INS-05 |
+| consumed_at | TIMESTAMPTZ | có | Lúc ký thành công đóng quyền mở | INS-05 |
+Index: `uk_inspection_day_grants_open` unique một phần `(campus_id, sheet_date, tab)` khi `status IN ('PENDING','APPROVED')` (mỗi phạm vi chỉ một dòng đang mở); `idx_inspection_day_grants_day (campus_id, sheet_date)`; `idx_inspection_day_grants_queue (status, requested_at)` cho hàng chờ HT.
+Quá hạn tính lười: dòng `APPROVED` quá `expires_at` vẫn nằm trong bảng, API trả `EXPIRED`; yêu cầu mới của cùng phạm vi đóng dòng cũ thành `EXPIRED` rồi mới tạo dòng mới.
