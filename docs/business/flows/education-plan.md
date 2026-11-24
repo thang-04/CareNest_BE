@@ -84,7 +84,7 @@ Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chư
 - **EDU-109 (Tiền 23/11/2026) thay phần trên:** bỏ ngày duyệt thêm và N ngày gửi lại; tới hạn khóa ngay (gửi và duyệt); nhãn chung **Quá hạn** thay nhãn trạng thái; Hiệu trưởng mở hạn nhiều lần; nhắc 7 ngày + hằng ngày (web + email) cho người soạn hoặc người duyệt đúng lượt; quá hạn báo Hiệu trưởng hằng ngày; bỏ nhãn Ban hành trễ (chỉ Đã ban hành). (9) 24/11: một hạn hiệu lực chung cho gửi và duyệt (gia hạn gần nhất ?? hạn gốc), quá hạn = hôm nay ≥ hạn đó; bỏ submissionCutoff; gộp mở hạn; bỏ ngoại lệ lớp mở giữa năm.
 - Trạng thái duyệt (Nháp/Chờ duyệt/Bị trả lại/Đã ban hành) và trạng thái hạn (Gần đến hạn/Quá hạn/Đúng hạn/Ban hành trễ)
   hiện tách rõ; mở hạn/mở khóa chỉ Hiệu trưởng (Tiền 11/11/2026, spec 005).
-- **EDU-73 (Tiền 23/11/2026):** ở các trang chính, mọi vai trò khi chỉ có quyền xem chỉ thấy bản đã ban hành trong phạm vi mình được xem. Trang Dự kiến chủ đề - chủ đề nhánh trả lịch đã ban hành theo học kỳ cho người chỉ xem. Người được phân công soạn xem được lịch dự kiến và các trạng thái khác trong phạm vi soạn.
+- **EDU-73 (Tiền 23/11/2026):** ở các trang chính, mọi vai trò khi chỉ có quyền xem chỉ thấy bản đã ban hành trong phạm vi mình được xem. Trang Dự kiến chủ đề - chủ đề nhánh: thay bởi EDU-111 (5) (Tiền 25/11/2026) — mọi người xem được lớp đọc lịch nhánh hiện tại ở mọi trạng thái (GV lưu là người xem thấy), chỉ GVCN sửa; gói học kỳ đã duyệt vẫn bất biến (EDU-111 (8)). Người được phân công soạn xem được lịch dự kiến và các trạng thái khác trong phạm vi soạn.
 - Hồ sơ chưa ban hành đang quá hạn hoặc đã mở hạn chỉ xuất hiện ở **Kế hoạch quá hạn** cho quyền mở hạn theo EDU-76/97. Luồng soạn và hàng chờ duyệt theo EDU-93 vẫn áp dụng theo phân công.
 
 ## Cách duyệt cố định, phiên bản và khóa theo thời gian (spec 004 — Tiền 11/11/2026, EDU-75/76/77)
@@ -161,3 +161,15 @@ Thiết kế: `UI-giaoan/docs/superpowers/specs/2026-11-22-edu-ai-content-matchi
 4. **Kế hoạch năm — nội dung mục C cho mục tiêu (EDU-106):** mục tiêu chưa có nội dung → AI chọn nội dung mục C cùng nhóm tuổi/lĩnh vực → duyệt → Áp dụng chép chữ. BE đã có API `POST /education-plans/ai/year-plans/{planId}/goal-content-map` chỉ trả nháp đã lọc; chữ nội dung do BE đọc từ catalog. Web tự Lưu trước, duyệt theo mục tiêu, rồi chép vào bản soạn. Đã chạy thử trên dữ liệu năm thật trước khi làm UI.
 
 Đo chất lượng: mỗi lần Áp dụng ghi log số dòng gợi ý/giữ (không lưu DB); tỉ lệ giữ < ~80% ⇒ sửa prompt/ví dụ. AI tắt/lỗi ⇒ báo, soạn tay bình thường (EDU-95).
+
+## Chủ đề nhánh sau ban hành (EDU-111 — Tiền 25/11/2026)
+
+1. GVCN sửa lịch nhánh ở trang Dự kiến chủ đề - chủ đề nhánh.
+2. Gói học kỳ đang Chờ duyệt ⇒ khóa mọi nhánh của học kỳ.
+3. Hồ sơ chủ đề (kế hoạch giáo dục chủ đề kèm giáo án ngày) của một chủ đề đã gửi hoặc đã duyệt ⇒ khóa mọi nhánh của chủ đề đó (không thêm, sửa, xóa).
+4. Chủ đề chưa khóa, kể cả khi gói học kỳ đã ban hành ⇒ thêm, sửa tên, sửa ngày, xóa nhánh.
+5. Gói học kỳ đã duyệt bất biến: tên, lịch, ghi chú nhánh giữ như lúc ban hành; thay đổi chỉ đi xuống trang Kế hoạch giáo dục ngày.
+6. Xóa nhánh ⇒ tuần biến mất khỏi trang Kế hoạch giáo dục ngày; kế hoạch tuần, giáo án ngày đang soạn (Nháp) của tuần đó bị xóa; bản đã ban hành giữ nguyên. Thêm lại nhánh vào tuần còn bản đã ban hành ⇒ hiện lại bản đó.
+7. Thêm nhánh ⇒ tuần mới hiện ở trang Kế hoạch giáo dục ngày với biểu mẫu kế hoạch tuần rỗng để tạo.
+8. Ghi chú tuần nhập ở trang Dự kiến hiện chỉ đọc ("Ghi chú tuần: …") ở tuần đó trên trang Kế hoạch giáo dục ngày; không vào bản in.
+9. Mọi người xem được lớp (HT, PHT, Tổ trưởng, GV) đọc lịch nhánh hiện tại trên trang Dự kiến ở mọi trạng thái.
