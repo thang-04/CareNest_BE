@@ -35,6 +35,7 @@ import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -305,6 +306,15 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                             && cls.ageGroupId().equals(c.ageGroupId()))
                     .forEach(classes::add);
             classes.add(cls);
+            Map<Long, Map<Long, ThemeEvaluation>> savedByClass =
+                    evaluationRepository
+                            .findByClassroomIdIn(classes.stream()
+                                    .map(ClassroomInfoResponse::id)
+                                    .toList())
+                            .stream()
+                            .collect(Collectors.groupingBy(
+                                    ThemeEvaluation::getClassroomId,
+                                    Collectors.toMap(ThemeEvaluation::getThemeId, Function.identity())));
             // Gộp (Cần + Tiền, 11/11/2026): lịch chủ đề theo lớp (effectiveThemes) và bảng đã xác nhận dùng snapshot
             // (Tiền);
             // chỉ chủ đề đã tới ngày kết thúc, lọc theo kỳ, một chủ đề tính một lần, có lớp Đạt là Đạt, MT Đạt khi ≥50%
@@ -316,11 +326,10 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 return new ThemeValue(a.met() || b.met(), a.themeName(), Set.copyOf(names));
             };
             for (ClassroomInfoResponse c : classes) {
-                Map<Long, ThemeEvaluation> savedByTheme = evaluationRepository.findByClassroomId(c.id()).stream()
-                        .collect(Collectors.toMap(ThemeEvaluation::getThemeId, Function.identity()));
+                Map<Long, ThemeEvaluation> savedByTheme = savedByClass.getOrDefault(c.id(), Map.of());
                 String className = c.id().equals(classId) ? null : c.name();
                 Set<String> classNames = className == null ? Set.of() : Set.of(className);
-                List<ThemeRow> themes = effectiveThemes(c);
+                List<ThemeRow> themes = effectiveThemes(c, savedByTheme.values());
                 Set<Long> lineages = new HashSet<>();
                 for (ThemeRow theme : themes) {
                     lineages.add(theme.getLineage());
@@ -474,6 +483,10 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     }
 
     private List<ThemeRow> effectiveThemes(ClassroomInfoResponse cls) {
+        return effectiveThemes(cls, evaluationRepository.findByClassroomId(cls.id()));
+    }
+
+    private List<ThemeRow> effectiveThemes(ClassroomInfoResponse cls, Collection<ThemeEvaluation> savedEvaluations) {
         Map<Long, ThemeRow> source =
                 evaluationRepository.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId()).stream()
                         .collect(Collectors.toMap(ThemeRow::getId, Function.identity()));
@@ -506,7 +519,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                     }
                 })
                 .toList());
-        for (ThemeEvaluation saved : evaluationRepository.findByClassroomId(cls.id())) {
+        for (ThemeEvaluation saved : savedEvaluations) {
             if (!saved.isConfirmed() || snapshot(saved) != null) continue;
             Long id = themes.stream()
                     .filter(t -> t.getLineage().equals(saved.getThemeId()))

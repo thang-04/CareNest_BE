@@ -11,6 +11,7 @@ import com.carenest.dto.attendance.DailyHealthResponse.Option;
 import com.carenest.dto.attendance.DailyHealthResponse.Options;
 import com.carenest.dto.attendance.DailyHealthResponse.Overview;
 import com.carenest.dto.attendance.DailyHealthResponse.Totals;
+import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
@@ -25,6 +26,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.notification.NotificationService;
@@ -52,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -72,6 +73,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
+    private final ChildService childService;
     private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final ChildIntakeService childIntakeService;
     private final SchoolStructureService schoolStructureService;
@@ -259,14 +261,23 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                             .collect(Collectors.groupingBy(AttendanceRecord::getClassroomId));
             List<DailyHealthEntryResponse> dayEntries =
                     toViews(entryRepository.findByClassroomIdInAndDateOrderByRecordedAtDescIdDesc(classIds, date));
+            Map<Long, Set<Long>> childrenByClass = enrollmentService.findChildIdsInClassrooms(classIds, date);
+            Set<Long> childIds = childrenByClass.values().stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            Map<Long, ChildBriefResponse> children = childService.findChildBriefs(childIds);
+            LocalDate statusDate = classes.isEmpty()
+                            || !rules.today().isAfter(classes.getFirst().yearEnd())
+                    ? rules.today()
+                    : classes.getFirst().yearEnd();
+            Map<Long, Map<Long, String>> historyByClass =
+                    childClassHistoryService.statusesByClass(childrenByClass, statusDate);
 
             int[] totals = new int[3];
             List<ClassRow> rows = new ArrayList<>();
             List<Attention> attention = new ArrayList<>();
             for (ClassroomInfoResponse cls : classes) {
-                Map<Long, ClassChildResponse> children =
-                        enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
-                                .collect(Collectors.toMap(ClassChildResponse::id, Function.identity()));
+                Set<Long> classChildIds = childrenByClass.getOrDefault(cls.id(), Set.of());
                 Set<Long> present = presentByClass.getOrDefault(cls.id(), List.of()).stream()
                         .map(AttendanceRecord::getChildId)
                         .collect(Collectors.toSet());
@@ -279,10 +290,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 int checked =
                         (int) present.stream().filter(byChild::containsKey).count();
                 int noted = 0;
-                var history = childClassHistoryService.statuses(
-                        cls.id(),
-                        children.keySet(),
-                        rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());
+                var history = historyByClass.getOrDefault(cls.id(), Map.of());
                 for (Map.Entry<Long, List<DailyHealthEntryResponse>> e : byChild.entrySet()) {
                     DailyHealthEntryResponse latest = e.getValue().getFirst();
                     // Sức khỏe đầu ngày chỉ đo khi trẻ có mặt (Cần chốt 04/11/2026): trẻ đổi sang vắng sau khi ghi thì
@@ -291,7 +299,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                         continue;
                     }
                     noted++;
-                    ClassChildResponse child = children.get(e.getKey());
+                    ChildBriefResponse child = children.get(e.getKey());
                     List<DailyHealthEntryResponse> readings = new ArrayList<>(e.getValue());
                     Collections.reverse(readings);
                     attention.add(new Attention(
@@ -308,7 +316,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 totals[1] += checked;
                 totals[2] += noted;
                 rows.add(new ClassRow(
-                        cls.id(), cls.name(), cls.campusId(), children.size(), present.size(), checked, noted));
+                        cls.id(), cls.name(), cls.campusId(), classChildIds.size(), present.size(), checked, noted));
             }
             attention.sort(Comparator.comparing((Attention a) -> a.latest().recordedAt())
                     .reversed());
