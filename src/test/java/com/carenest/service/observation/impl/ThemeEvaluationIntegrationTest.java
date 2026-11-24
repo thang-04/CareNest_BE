@@ -592,6 +592,22 @@ class ThemeEvaluationIntegrationTest {
                 campaign2,
                 classA,
                 teacher.userId());
+        // OBS-28, HLT-11: phiếu khám nháp (chưa công bố) ngày gần hơn không được lấy lên phiếu cuối năm
+        jdbc.update(
+                "UPDATE health_check_campaigns SET closed_at = now(), closed_by = ? WHERE id = ?",
+                teacher.userId(),
+                campaign2);
+        long examCampaign = insertId("INSERT INTO health_check_campaigns (kind, campus_id, name, start_date, end_date,"
+                + " examiner, created_by) SELECT 'EXAM', c.campus_id, 'Khám', '2026-10-01', '2026-10-30', 'BS', "
+                + teacher.userId() + " FROM classrooms c WHERE c.id = " + classA + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, height_cm, weight_kg,"
+                        + " measured_by, exam, exam_status) VALUES (?, ?, ?, '2026-10-21', 99.0, 16.9, ?, '{}'::jsonb,"
+                        + " 'DRAFT')",
+                kid1,
+                examCampaign,
+                classA,
+                teacher.userId());
 
         // OBS-06 (Cần chốt 10/11/2026): trước ngày kết thúc HK II phiếu chỉ xem, mọi thao tác sửa bị chặn
         assertThat(sheetService.get(teacher, yearEval).canEdit()).isFalse();

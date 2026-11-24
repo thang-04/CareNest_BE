@@ -29,6 +29,7 @@ import com.carenest.utils.enums.InterpretationStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -300,11 +301,15 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
         String logPrefix = LOG_PREFIX + "|findLatestMeasurement|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
+            // OBS-28, HLT-11: bỏ phiếu khám nháp; cùng ngày lấy phiếu khám rồi bản lưu sau (như HLT-08)
             Optional<LatestMeasurement> latest =
                     measurementRepository.findByChildIdOrderByDateDescIdDesc(childId).stream()
+                            .filter(m -> !m.isDraft())
                             .filter(m -> !m.getDate().isAfter(onOrBefore))
                             .filter(m -> m.getWeightKg() != null || m.getHeightCm() != null)
-                            .findFirst()
+                            .max(Comparator.comparing(HealthMeasurement::getDate)
+                                    .thenComparing(HealthMeasurement::isExam)
+                                    .thenComparing(HealthMeasurement::getId))
                             .map(m -> new LatestMeasurement(m.getDate(), m.getWeightKg(), m.getHeightCm()));
             log.info("{}|END", logPrefix);
             return latest;
