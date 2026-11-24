@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 415 endpoint.
+Tổng: 419 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -134,7 +134,10 @@ GET /children/{childId} · src/main/java/com/carenest/controller/child/ChildCont
 PUT /children/{childId} · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#update
 GET /children/{childId}/account-recipient · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#candidates
 PUT /children/{childId}/account-recipient · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#select
+GET /children/{childId}/attendance · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getAttendance
+GET /children/{childId}/attendance/today · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getToday
 GET /children/{childId}/daily-health · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getChildHistory
+GET /children/{childId}/daily-health/parent · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getDailyHealth
 GET /children/{childId}/guardian-photos/{guardianId} · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getGuardianPhoto
 GET /children/{childId}/guardian-photos/{guardianId}/url · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getGuardianPhotoUrl
 GET /children/{childId}/guardians · src/main/java/com/carenest/controller/child/GuardianController.java#listGuardians
@@ -272,6 +275,7 @@ GET /leave-requests · src/main/java/com/carenest/controller/attendance/LeaveReq
 POST /leave-requests · src/main/java/com/carenest/controller/attendance/LeaveRequestController.java#createLeaveRequest
 PATCH /leave-requests/{leaveRequestId}/cancel · src/main/java/com/carenest/controller/attendance/LeaveRequestController.java#cancelLeaveRequest
 GET /leave-requests/me · src/main/java/com/carenest/controller/attendance/LeaveRequestController.java#findMyLeaveRequests
+POST /leave-requests/preview · src/main/java/com/carenest/controller/attendance/LeaveRequestController.java#previewLeaveRequest
 GET /locations · src/main/java/com/carenest/controller/organization/RoomController.java#getRooms
 POST /locations · src/main/java/com/carenest/controller/organization/RoomController.java#createRoom
 DELETE /locations/{roomId} · src/main/java/com/carenest/controller/organization/RoomController.java#deleteRoom
