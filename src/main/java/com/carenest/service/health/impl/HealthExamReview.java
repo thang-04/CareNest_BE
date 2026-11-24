@@ -152,7 +152,7 @@ final class HealthExamReview {
                     ? "từ " + formatDecimal(ref.temperature().feverFrom(), 1) + " °C"
                     : "dưới " + formatDecimal(ref.temperature().hypothermiaBelow(), 1) + " °C";
             String word = hint.equals(FEVER) ? "sốt" : "hạ thân nhiệt";
-            return "Nhiệt độ " + formatDecimal(value, 1) + " °C: " + word + " (" + limit + ")";
+            return "Nhiệt độ " + formatDecimal(value, 2) + " °C: " + word + " (" + limit + ")";
         }
         HealthExamRange range = item.key().equals(PULSE) ? ref.pulse() : ref.respiratoryRate();
         String side = hint.equals(FAST) ? "trên" : "dưới";

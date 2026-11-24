@@ -631,6 +631,48 @@ class HealthExamLogicTest {
     // ---------- Lịch sử sửa ----------
 
     @Test
+    @DisplayName("HLT-08: nhiệt độ lưu 2 số lẻ nên sửa 36,5 ⇒ 36,54 vẫn ghi vào lịch sử, điểm xem lại hiện 35,96")
+    void temperatureTwoDecimalsInDiffAndReview() {
+        Draft d = new Draft();
+        d.temperature = new BigDecimal("36.5");
+        HealthExamForm before = normalize(d, STANDARD, false);
+        d.temperature = new BigDecimal("36.54");
+        HealthExamForm after = normalize(d, STANDARD, false);
+
+        assertThat(HealthExamDiff.changes(snapshot(before), snapshot(after)))
+                .extracting(HealthMeasurementChange::field, HealthMeasurementChange::from, HealthMeasurementChange::to)
+                .containsExactly(tuple("exam.vitals.temperatureC", "36,5", "36,54"));
+
+        d.temperature = new BigDecimal("35.96");
+        d.temperatureStatus = "HYPOTHERMIA";
+        assertThat(HealthExamReview.points(normalize(d, STANDARD, false), AT_40_MONTHS)
+                        .vitals())
+                .extracting(HealthExamVitalPoint::text)
+                .contains("Nhiệt độ 35,96 °C: hạ thân nhiệt (dưới 36 °C)");
+    }
+
+    @Test
+    @DisplayName("HLT-08: định dạng nhiệt độ kiểm bằng cách đếm chữ số, số mũ cực lớn bị từ chối ngay")
+    void temperatureFormatRejectsHugeExponentsFast() {
+        org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(2), () -> {
+            assertThat(HealthExamValidator.temperatureFormatError(new BigDecimal("1e999999999")))
+                    .isNotNull();
+            assertThat(HealthExamValidator.temperatureFormatError(new BigDecimal("1e-999999999")))
+                    .isNotNull();
+        });
+        for (String ok : List.of("40", "36.500", "36.55", "99.99")) {
+            assertThat(HealthExamValidator.temperatureFormatError(new BigDecimal(ok)))
+                    .as(ok)
+                    .isNull();
+        }
+        for (String bad : List.of("0.5", "0", "-36.5", "100", "36.555")) {
+            assertThat(HealthExamValidator.temperatureFormatError(new BigDecimal(bad)))
+                    .as(bad)
+                    .isNotNull();
+        }
+    }
+
+    @Test
     @DisplayName("HLT-13: sửa nhiệt độ và số định danh ⇒ ghi ô đổi, giá trị hiển thị, CCCD che còn 3 số cuối")
     void diffOfChangedVitalAndMaskedIdNumber() {
         Draft d = new Draft();

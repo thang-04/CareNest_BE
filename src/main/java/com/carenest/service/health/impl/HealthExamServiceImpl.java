@@ -155,8 +155,8 @@ public class HealthExamServiceImpl implements HealthExamService {
                                     child.dateOfBirth(),
                                     child.guardians().size()))
                             : draftErrors(height, weight, head));
-            // Định dạng nhiệt độ kiểm trên số gửi lên (trước khi làm tròn), cả nháp lẫn kết luận; thay lỗi khoảng cùng
-            // ô
+            // Kiểm định dạng nhiệt độ trên số gửi lên (chưa làm tròn), cả nháp lẫn kết luận.
+            // Lỗi định dạng thay lỗi khoảng của cùng ô.
             FieldErrorResponse temperatureError = HealthExamValidator.temperatureFormatError(
                     request.exam() == null || request.exam().vitals() == null
                             ? null

@@ -836,6 +836,29 @@ class HealthExamIntegrationTest {
                         .contains(org.assertj.core.groups.Tuple.tuple(
                                 "exam.vitals.temperatureC", "Nhập nhiệt độ từ 34 đến 42 °C")));
 
+        // Khoảng 34-42 so ở 2 số lẻ: 33.96 và 42.04 ngoài khoảng, 34.00 và 42.00 hợp lệ
+        for (String out : List.of("33.96", "42.04")) {
+            HealthExamForm outside = withTemperature(exam("NO", null, normal()), new BigDecimal(out));
+            assertThatThrownBy(() -> exams.saveExam(teacherA, campaign, child1, save(outside, true, "")))
+                    .as(out)
+                    .isInstanceOf(GlobalException.class)
+                    .satisfies(ex -> assertThat(((GlobalException) ex).getFieldErrors())
+                            .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                            .contains(org.assertj.core.groups.Tuple.tuple(
+                                    "exam.vitals.temperatureC", "Nhập nhiệt độ từ 34 đến 42 °C")));
+        }
+        for (String edge : List.of("34.00", "42.00")) {
+            HealthExamForm inside = withTemperature(exam("NO", null, normal()), new BigDecimal(edge));
+            try {
+                exams.saveExam(teacherA, campaign, child1, save(inside, true, ""));
+            } catch (GlobalException ex) {
+                assertThat(ex.getFieldErrors())
+                        .extracting(FieldErrorResponse::field)
+                        .as(edge)
+                        .doesNotContain("exam.vitals.temperatureC");
+            }
+        }
+
         HealthExamResponse one = exams.saveExam(
                 teacherA,
                 campaign,
