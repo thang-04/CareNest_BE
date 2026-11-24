@@ -107,4 +107,7 @@ public interface EduYearPlanService {
      * duyệt đúng lượt; trả tên các kế hoạch đã quá hạn để gộp vào báo Hiệu trưởng.
      */
     java.util.List<String> remindPlanDeadlines(java.time.LocalDate today);
+
+    /** EDU-72: đối soát bù khi khởi động — năm học đã ban hành mới nhất mà kế hoạch tổ chưa nhận nguồn. */
+    void reconcileTeamUpdates();
 }

@@ -1017,6 +1017,21 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void reconcileTeamUpdates() {
+        String logPrefix = LOG_PREFIX + "|reconcileTeamUpdates";
+        log.info("{}|START", logPrefix);
+        try {
+            teamUpdates.reconcileLatestPublications(clock.instant());
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
     public List<String> remindPlanDeadlines(LocalDate today) {
         String logPrefix = LOG_PREFIX + "|remindPlanDeadlines";
         log.info("{}|START", logPrefix);
