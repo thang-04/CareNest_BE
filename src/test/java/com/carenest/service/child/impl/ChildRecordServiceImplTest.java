@@ -39,6 +39,7 @@ import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildLeaveDataCheck;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.notification.NotificationService;
@@ -53,6 +54,7 @@ import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.PlacementAction;
+import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.YesNo;
 import java.time.Clock;
 import java.time.Instant;
@@ -79,6 +81,10 @@ class ChildRecordServiceImplTest {
     private static final Long CLASS_ID = 10L;
     private static final Long CAMPUS_ID = 2L;
     private static final CurrentUser PRINCIPAL = TestPermissions.userWithDefaults(9L, CareNestRole.PRINCIPAL);
+    private static final LocalDate YEAR_END = LocalDate.of(2027, 5, 31);
+    // Câu chặn dữ liệu trong ngày của withdraw (G94-180/CHD-03)
+    private static final String SAME_DAY_DATA =
+            "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Thực hiện nghỉ học từ ngày học tiếp theo.";
 
     private final ChildRepository childRepository = mock(ChildRepository.class);
     private final ChildProfileRepository profileRepository = mock(ChildProfileRepository.class);
@@ -115,6 +121,7 @@ class ChildRecordServiceImplTest {
     private final com.carenest.repository.observation.DailyActivityResultRepository dailyActivityResultRepository =
             mock(com.carenest.repository.observation.DailyActivityResultRepository.class);
     private final ClassPlacementRepository classPlacementRepository = mock(ClassPlacementRepository.class);
+    private final ChildLeaveDataCheck leaveDataCheck = mock(ChildLeaveDataCheck.class);
     private final ChildRecordServiceImpl service = new ChildRecordServiceImpl(
             childRepository,
             profileRepository,
@@ -144,7 +151,8 @@ class ChildRecordServiceImplTest {
                     new com.carenest.service.observation.impl.AssessmentChildDayUsageCheck(
                             dailyObservationRepository, dailyActivityResultRepository)),
             schoolYearService,
-            classPlacementRepository);
+            classPlacementRepository,
+            List.of(leaveDataCheck));
 
     private Child child;
     private Enrollment enrollment;
@@ -172,6 +180,8 @@ class ChildRecordServiceImplTest {
         given(classroomService.findClassroomInfo(CLASS_ID)).willReturn(Optional.of(classroom(CLASS_ID, "Lớp Chồi 1")));
         given(assignmentService.findCurrentTeacherIds(List.of(CLASS_ID), TODAY))
                 .willReturn(Map.of(CLASS_ID, List.of(7L, 8L)));
+        given(schoolYearService.getSchoolYears(any(), eq(SchoolYearStatus.ACTIVE)))
+                .willReturn(List.of(schoolYear(40L, LocalDate.of(2026, 9, 1), YEAR_END, SchoolYearStatus.ACTIVE)));
     }
 
     @Test
@@ -399,16 +409,21 @@ class ChildRecordServiceImplTest {
     }
 
     private static com.carenest.dto.organization.SchoolYearDetailResponse plannedYear(Long id) {
+        return schoolYear(id, LocalDate.of(2027, 9, 1), LocalDate.of(2028, 5, 31), SchoolYearStatus.PLANNED);
+    }
+
+    private static com.carenest.dto.organization.SchoolYearDetailResponse schoolYear(
+            Long id, LocalDate start, LocalDate end, SchoolYearStatus status) {
         return new com.carenest.dto.organization.SchoolYearDetailResponse(
                 id,
-                "2027-2028",
-                LocalDate.of(2027, 9, 1),
-                LocalDate.of(2028, 5, 31),
+                start.getYear() + "-" + end.getYear(),
+                start,
+                end,
                 null,
                 null,
                 null,
                 null,
-                com.carenest.utils.enums.SchoolYearStatus.PLANNED,
+                status,
                 0,
                 null,
                 null,
@@ -438,19 +453,43 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName(
-            "G94-180/CHD-03: leave-options hôm nay không phải ngày học ⇒ không chọn hôm nay (cùng câu lỗi withdraw),"
-                    + " ngày học kế tiếp là ngày học đầu tiên sau hôm nay")
-    void leaveOptionsOnNonSchoolDayOfferOnlyNextSchoolDay() {
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): leave-options — hôm nay không phải ngày học vẫn chọn được hôm"
+            + " nay; khoảng chọn từ hôm nay tới ngày kết thúc năm học đang hoạt động")
+    void leaveOptionsAllowTodayOnNonSchoolDay() {
         given(schoolYearService.isSchoolDay(TODAY)).willReturn(false);
-        given(schoolYearService.isSchoolDay(LocalDate.of(2026, 11, 12))).willReturn(true);
+
+        assertThat(service.leaveOptions(PRINCIPAL, CHILD_ID))
+                .isEqualTo(new com.carenest.dto.child.LeaveOptionsResponse(TODAY, true, null, TODAY, YEAR_END));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): hôm nay đã có số đo / phiếu khám (không có điểm danh) ⇒"
+            + " leave-options không chọn hôm nay, từ ngày mai; withdraw hôm nay ⇒ lỗi ô leftAt cùng câu")
+    void healthDataTodayBlocksLeavingToday() {
+        given(leaveDataCheck.hasData(CHILD_ID, TODAY)).willReturn(true);
+
+        assertThat(service.leaveOptions(PRINCIPAL, CHILD_ID))
+                .isEqualTo(new com.carenest.dto.child.LeaveOptionsResponse(
+                        TODAY, false, SAME_DAY_DATA, TODAY.plusDays(1), YEAR_END));
+        expectLeftAtError(TODAY.toString(), SAME_DAY_DATA);
+        verify(childRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: năm học đang hoạt động đã kết thúc ⇒ leave-options trả ngày tối thiểu sau ngày tối đa"
+            + " (không còn ngày chọn được)")
+    void leaveOptionsAfterYearEndHaveNoSelectableDay() {
+        given(schoolYearService.getSchoolYears(any(), eq(SchoolYearStatus.ACTIVE)))
+                .willReturn(List.of(
+                        schoolYear(40L, LocalDate.of(2026, 1, 1), TODAY.minusDays(1), SchoolYearStatus.ACTIVE)));
 
         assertThat(service.leaveOptions(PRINCIPAL, CHILD_ID))
                 .isEqualTo(new com.carenest.dto.child.LeaveOptionsResponse(
                         TODAY,
                         false,
-                        "Ngày nghỉ học 10/11/2026 không phải ngày học. Chọn ngày học khác.",
-                        LocalDate.of(2026, 11, 12)));
+                        "Ngày nghỉ học phải trong năm học (tới 09/11/2026)",
+                        TODAY.plusDays(1),
+                        TODAY.minusDays(1)));
     }
 
     @Test
@@ -481,11 +520,9 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: lỗi ô leftAt theo thứ tự — trước hôm nay (kèm thiếu lý do), không phải ngày học, quá"
-            + " ngày học kế tiếp, trước ngày tiếp nhận, trước ngày mở lại hồ sơ")
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): lỗi ô leftAt theo thứ tự — trước hôm nay (kèm thiếu lý do),"
+            + " sau ngày kết thúc năm học, trước ngày tiếp nhận, trước ngày mở lại hồ sơ")
     void withdrawValidatesLeaveDateAndReason() {
-        given(schoolYearService.isSchoolDay(LocalDate.of(2026, 11, 11))).willReturn(true);
-        given(schoolYearService.isSchoolDay(LocalDate.of(2026, 11, 12))).willReturn(true);
         assertThatThrownBy(() -> service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest("2026-11-09", "")))
                 .isInstanceOfSatisfying(
                         GlobalException.class,
@@ -494,8 +531,7 @@ class ChildRecordServiceImplTest {
                                 .containsExactly(
                                         tuple("leftAt", "Ngày nghỉ học không được trước hôm nay"),
                                         tuple("reason", "Nhập lý do cho trẻ nghỉ học")));
-        expectLeftAtError("2026-11-14", "Ngày nghỉ học 14/11/2026 là thứ Bảy. Chọn ngày từ thứ 2 tới thứ 6.");
-        expectLeftAtError("2026-11-12", "Chỉ chọn hôm nay hoặc ngày học kế tiếp (11/11/2026)");
+        expectLeftAtError("2027-06-01", "Ngày nghỉ học phải trong năm học (tới 31/05/2027)");
 
         // Ngày tiếp nhận / mở lại hồ sơ sau hôm nay chỉ gặp ở dữ liệu lỗi: vẫn chặn
         ReflectionTestUtils.setField(child, "enrolledOn", TODAY.plusDays(1));

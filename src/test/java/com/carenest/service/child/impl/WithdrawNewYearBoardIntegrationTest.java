@@ -88,8 +88,9 @@ class WithdrawNewYearBoardIntegrationTest {
                 insertId("INSERT INTO campuses (code, name, is_main) VALUES ('WB-A', 'Campus A', TRUE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        // Năm đang học kết thúc 04/09/2027: ngày nghỉ học phải trong năm học đang hoạt động (user chốt 2026-11-25)
         long oldYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
-                + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+                + "VALUES ('2026-2027', '2026-09-01', '2027-09-04', 'ACTIVE') RETURNING id");
         newYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
                 + "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id");
         long room1 = room(campus, "P.1");
@@ -157,7 +158,7 @@ class WithdrawNewYearBoardIntegrationTest {
                         new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass),
                         new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass))));
 
-        // Hôm nay thứ 2 30/08/2027 ⇒ ngày học kế tiếp thứ 3 31/08; lớp cũ học tới hết hôm nay
+        // Hôm nay thứ 2 30/08/2027, nghỉ từ thứ 3 31/08; lớp cũ học tới hết hôm nay
         recordService.withdraw(principal, child1, new WithdrawChildRequest("2027-08-31", "Chuyển trường"));
         entityManager.flush();
         service.activateSchoolYear(principal, newYear, "2027-2028");

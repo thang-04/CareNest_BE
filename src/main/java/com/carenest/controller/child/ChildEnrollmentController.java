@@ -202,7 +202,7 @@ public class ChildEnrollmentController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw child success", child);
     }
 
-    // G94-180/CHD-03 (user chốt 2026-11-24): hộp Cho nghỉ học hỏi hôm nay có chọn được không và ngày học kế tiếp
+    // G94-180/CHD-03 (user chốt 2026-11-25): hộp Cho nghỉ học hỏi hôm nay có chọn được không và khoảng ngày chọn được
     @GetMapping("/{childId}/leave-options")
     @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
     public ResponseEntity<ResponseJson<LeaveOptionsResponse>> leaveOptions(

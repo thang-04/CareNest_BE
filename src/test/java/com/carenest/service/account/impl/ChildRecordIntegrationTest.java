@@ -76,6 +76,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class ChildRecordIntegrationTest {
     private static final AtomicInteger ROOM_SEQ = new AtomicInteger();
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
+    private static final LocalDate YEAR_END = LocalDate.of(2027, 5, 31);
     private static final String OLD_PHONE = "0902000001";
     private static final String NEW_PHONE = "0902000099";
     private static final String CITIZEN = "001190000101";
@@ -224,15 +225,14 @@ class ChildRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: thứ 2 chọn thứ 4 ⇒ chỉ được hôm nay hoặc ngày học kế tiếp (thứ 3)")
-    void withdrawRejectsBeyondNextSchoolDay() {
-        clock.set(LocalDate.of(2026, 11, 9), LocalTime.of(10, 0));
-
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): ngày nghỉ học sau ngày kết thúc năm học đang hoạt động ⇒ lỗi ô"
+            + " leftAt")
+    void withdrawRejectsDateAfterSchoolYear() {
         expectFieldMessage(
                 () -> recordService.withdraw(
-                        vicePrincipal, childA, new WithdrawChildRequest("2026-11-11", "Chuyển nhà")),
+                        vicePrincipal, childA, new WithdrawChildRequest("2027-06-01", "Chuyển nhà")),
                 "leftAt",
-                "Chỉ chọn hôm nay hoặc ngày học kế tiếp (10/11/2026)");
+                "Ngày nghỉ học phải trong năm học (tới 31/05/2027)");
     }
 
     @Test
@@ -275,45 +275,77 @@ class ChildRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: thứ 6 ⇒ ngày học kế tiếp qua cuối tuần (thứ 2); thứ 2 trùng ngày nghỉ của trường ⇒"
-            + " thứ 3")
-    void withdrawOnFridayAllowsNextSchoolDayAcrossWeekendAndHoliday() {
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): ngày nghỉ không bắt buộc là ngày học — thứ Bảy, ngày nghỉ của"
+            + " trường cách 3 tuần đều được")
+    void withdrawAcceptsSaturdayAndHolidayWeeksAhead() {
         jdbc.update(
                 "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) "
-                        + "VALUES (?, '2026-11-23', '2026-11-23', 'Nghỉ thử')",
+                        + "VALUES (?, '2026-12-01', '2026-12-01', 'Nghỉ thử')",
                 year);
 
-        clock.set(LocalDate.of(2026, 11, 13), LocalTime.of(10, 0));
-        recordService.withdraw(vicePrincipal, childA, new WithdrawChildRequest("2026-11-16", "Chuyển nhà"));
+        recordService.withdraw(vicePrincipal, childA, new WithdrawChildRequest("2026-11-14", "Chuyển nhà"));
+        recordService.withdraw(vicePrincipal, sibling, new WithdrawChildRequest("2026-12-01", "Chuyển nhà"));
         entityManager.flush();
-        assertThat(validTo(childA)).isEqualTo(LocalDate.of(2026, 11, 15));
 
-        clock.set(LocalDate.of(2026, 11, 20), LocalTime.of(10, 0));
-        expectFieldMessage(
-                () -> recordService.withdraw(
-                        vicePrincipal, sibling, new WithdrawChildRequest("2026-11-23", "Chuyển nhà")),
-                "leftAt",
-                "Ngày nghỉ học 23/11/2026 trùng ngày nghỉ của trường: Nghỉ thử (23/11/2026). Chọn ngày học khác.");
-        recordService.withdraw(vicePrincipal, sibling, new WithdrawChildRequest("2026-11-24", "Chuyển nhà"));
-        entityManager.flush();
-        assertThat(validTo(sibling)).isEqualTo(LocalDate.of(2026, 11, 23));
+        assertThat(count("SELECT count(*) FROM child_history WHERE child_id IN (?, ?)", childA, sibling))
+                .isEqualTo(2);
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: leave-options — trẻ đã điểm danh hôm nay ⇒ không chọn hôm nay (cùng câu chặn của"
-            + " withdraw), ngày học kế tiếp; trẻ chưa có dữ liệu trong ngày ⇒ được hôm nay")
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): leave-options — trẻ đã điểm danh hôm nay ⇒ không chọn hôm nay"
+            + " (cùng câu chặn của withdraw), chọn từ ngày mai; trẻ chưa có dữ liệu trong ngày ⇒ từ hôm nay; tới ngày kết"
+            + " thúc năm học")
     void leaveOptionsBlockTodayAfterAttendance() {
         attendance(childA, TODAY);
 
         LeaveOptionsResponse blocked = recordService.leaveOptions(vicePrincipal, childA);
 
-        assertThat(blocked).isEqualTo(new LeaveOptionsResponse(TODAY, false, SAME_DAY_DATA, TODAY.plusDays(1)));
+        assertThat(blocked)
+                .isEqualTo(new LeaveOptionsResponse(TODAY, false, SAME_DAY_DATA, TODAY.plusDays(1), YEAR_END));
         expectFieldMessage(
                 () -> recordService.withdraw(vicePrincipal, childA, new WithdrawChildRequest(TODAY.toString(), "x")),
                 "leftAt",
                 blocked.todayBlockedReason());
         assertThat(recordService.leaveOptions(vicePrincipal, sibling))
-                .isEqualTo(new LeaveOptionsResponse(TODAY, true, null, TODAY.plusDays(1)));
+                .isEqualTo(new LeaveOptionsResponse(TODAY, true, null, TODAY, YEAR_END));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): hôm nay có số đo kỳ cân đo hoặc phiếu khám nháp (không điểm"
+            + " danh) ⇒ leave-options không chọn hôm nay; withdraw hôm nay ⇒ lỗi ô leftAt")
+    void healthDataTodayBlocksLeavingToday() {
+        long campaign = insertId("INSERT INTO health_check_campaigns (kind, campus_id, name, start_date, end_date,"
+                + " created_by) VALUES ('MEASUREMENT', " + campusA + ", 'Cân đo thử', '2026-11-01', '2026-11-30', "
+                + principalId + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, height_cm, weight_kg,"
+                        + " note, measured_by, published_at, published_by, created_at, updated_at) VALUES (?, ?, ?, ?,"
+                        + " 98.5, 15.2, '', ?, now(), ?, now(), now())",
+                childA,
+                campaign,
+                classA,
+                TODAY,
+                teacher,
+                teacher);
+        jdbc.update(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, note, measured_by, exam,"
+                        + " exam_status, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, '{}'::jsonb, 'DRAFT', now(),"
+                        + " now())",
+                sibling,
+                campaign,
+                classA,
+                TODAY,
+                teacher);
+
+        for (long child : List.of(childA, sibling)) {
+            assertThat(recordService.leaveOptions(vicePrincipal, child))
+                    .isEqualTo(new LeaveOptionsResponse(TODAY, false, SAME_DAY_DATA, TODAY.plusDays(1), YEAR_END));
+            expectFieldMessage(
+                    () -> recordService.withdraw(
+                            vicePrincipal, child, new WithdrawChildRequest(TODAY.toString(), "Chuyển nhà")),
+                    "leftAt",
+                    SAME_DAY_DATA);
+        }
     }
 
     @Test

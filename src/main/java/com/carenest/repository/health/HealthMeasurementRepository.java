@@ -20,6 +20,9 @@ public interface HealthMeasurementRepository extends JpaRepository<HealthMeasure
     /** Lần đo của trẻ trong ngày: tối đa một số đo kỳ cân đo và một phiếu khám (HLT-01, HLT-08 — V186). */
     List<HealthMeasurement> findByChildIdAndDate(Long childId, LocalDate date);
 
+    /** Trẻ có số đo kỳ cân đo hoặc phiếu khám (kể cả nháp) trong ngày — chặn cho nghỉ học từ ngày đó (CHD-03). */
+    boolean existsByChildIdAndDate(Long childId, LocalDate date);
+
     Optional<HealthMeasurement> findByChildIdAndCampaignId(Long childId, Long campaignId);
 
     List<HealthMeasurement> findByChildIdOrderByDateDescIdDesc(Long childId);

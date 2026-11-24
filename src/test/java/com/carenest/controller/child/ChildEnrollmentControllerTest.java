@@ -244,13 +244,17 @@ class ChildEnrollmentControllerTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: ngày được chọn khi cho nghỉ học cần quyền CHILD_PLACEMENT ⇒ 200 trả hôm nay, ngày học"
-            + " kế tiếp")
+    @DisplayName("G94-180/CHD-03: ngày được chọn khi cho nghỉ học cần quyền CHILD_PLACEMENT ⇒ 200 trả hôm nay, khoảng"
+            + " ngày chọn được (user chốt 2026-11-25)")
     void placementManagerReadsLeaveOptions() throws Exception {
         CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
         given(childRecordService.leaveOptions(actor, 301L))
                 .willReturn(new com.carenest.dto.child.LeaveOptionsResponse(
-                        LocalDate.of(2026, 11, 10), false, "Lý do giả", LocalDate.of(2026, 11, 11)));
+                        LocalDate.of(2026, 11, 10),
+                        false,
+                        "Lý do giả",
+                        LocalDate.of(2026, 11, 11),
+                        LocalDate.of(2027, 5, 31)));
 
         mockMvc.perform(get("/api/children/301/leave-options").with(token(CareNestRole.PRINCIPAL)))
                 .andExpect(status().isOk())
@@ -258,7 +262,9 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data.today").value("2026-11-10"))
                 .andExpect(jsonPath("$.data.todayAllowed").value(false))
                 .andExpect(jsonPath("$.data.todayBlockedReason").value("Lý do giả"))
-                .andExpect(jsonPath("$.data.nextSchoolDay").value("2026-11-11"));
+                .andExpect(jsonPath("$.data.minDate").value("2026-11-11"))
+                .andExpect(jsonPath("$.data.maxDate").value("2027-05-31"))
+                .andExpect(jsonPath("$.data.nextSchoolDay").doesNotExist());
     }
 
     @Test

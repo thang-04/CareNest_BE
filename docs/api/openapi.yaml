@@ -12592,6 +12592,8 @@ components:
           - UPDATED
           - WITHDRAWN
           - READMITTED
+          - LEAVE_SCHEDULED
+          - LEAVE_CANCELLED
         at:
           type: string
           format: date-time
@@ -18975,7 +18977,10 @@ components:
     LeaveOptionsResponse:
       type: object
       properties:
-        nextSchoolDay:
+        maxDate:
+          type: string
+          format: date
+        minDate:
           type: string
           format: date
         today:

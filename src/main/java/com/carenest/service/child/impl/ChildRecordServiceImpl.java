@@ -47,6 +47,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildLeaveDataCheck;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.YearTransitionService;
@@ -81,7 +82,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -96,7 +96,6 @@ import tools.jackson.databind.ObjectMapper;
 public class ChildRecordServiceImpl implements ChildRecordService {
     private static final String LOG_PREFIX = "[ChildRecordServiceImpl]";
     private static final int MAX_REASON = 300;
-    private static final int SCHOOL_DAY_SEARCH_DAYS = 400;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     // Cùng chữ với câu chặn dữ liệu trong ngày ở withdraw (ô leftAt): đổi câu thì đổi cả hai
     private static final String SAME_DAY_DATA_BLOCKED =
@@ -127,6 +126,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final List<com.carenest.service.child.ChildDayUsageCheck> dayUsageChecks;
     private final SchoolYearService schoolYearService;
     private final ClassPlacementRepository classPlacementRepository;
+    private final List<ChildLeaveDataCheck> leaveDataChecks;
 
     @Override
     @Transactional(readOnly = true)
@@ -661,8 +661,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
 
             Map<String, String> errors = new LinkedHashMap<>();
             LocalDate leftAt = parseDate(request == null ? null : request.leftAt());
-            String leftAtProblem =
-                    leftAt == null ? "Chọn ngày nghỉ học" : leaveDateProblem(actor, child, leftAt, today);
+            String leftAtProblem = leftAt == null
+                    ? "Chọn ngày nghỉ học"
+                    : leaveDateProblem(child, leftAt, today, activeYearEnd(actor));
             if (leftAtProblem != null) {
                 errors.put("leftAt", leftAtProblem);
             }
@@ -678,6 +679,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 errors.put(
                         "leftAt",
                         "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Thực hiện nghỉ học từ ngày học tiếp theo.");
+            }
+            // G94-180/CHD-03 (user chốt 2026-11-25): số đo kỳ cân đo, phiếu khám trong hôm nay cũng chặn nghỉ hôm nay
+            if (leftAt != null && leftAt.equals(today) && hasLeaveData(childId, today)) {
+                errors.putIfAbsent("leftAt", SAME_DAY_DATA_BLOCKED);
             }
             if (!errors.isEmpty()) {
                 throw GlobalException.withFieldErrors(
@@ -773,12 +778,19 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             if (child.getStatus() == ChildStatus.LEFT) {
                 throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
             }
-            // Câu withdraw trả khi chọn hôm nay: khối chặn dữ liệu trong ngày ghi sau, đè lỗi ngày cùng ô leftAt
+            // Câu withdraw trả khi chọn hôm nay, cùng thứ tự: dữ liệu ChildDayUsageCheck đè lỗi ngày cùng ô leftAt, dữ
+            // liệu ChildLeaveDataCheck chỉ báo khi ngày không lỗi
+            LocalDate yearEnd = activeYearEnd(actor);
             String todayProblem = hasDailyOperationalData(childId, today)
                     ? SAME_DAY_DATA_BLOCKED
-                    : leaveDateProblem(actor, child, today, today);
-            LeaveOptionsResponse options =
-                    new LeaveOptionsResponse(today, todayProblem == null, todayProblem, nextSchoolDay(today));
+                    : leaveDateProblem(child, today, today, yearEnd);
+            if (todayProblem == null && hasLeaveData(childId, today)) {
+                todayProblem = SAME_DAY_DATA_BLOCKED;
+            }
+            boolean todayAllowed = todayProblem == null;
+            // G94-180/CHD-03 (user chốt 2026-11-25): chọn ngày bất kỳ tới hết năm học; min sau max ⇒ FE khóa chọn ngày
+            LeaveOptionsResponse options = new LeaveOptionsResponse(
+                    today, todayAllowed, todayProblem, todayAllowed ? today : today.plusDays(1), yearEnd);
             log.info("{}|todayAllowed={}|END", logPrefix, options.todayAllowed());
             return options;
         } catch (RuntimeException ex) {
@@ -788,21 +800,16 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     }
 
     /**
-     * G94-180/CHD-03 (user chốt 2026-11-24): ngày nghỉ học không trước hôm nay, là ngày học, là hôm nay hoặc ngày học kế
-     * tiếp, không trước ngày tiếp nhận / mở lại hồ sơ. Null khi hợp lệ. Dùng chung cho withdraw và leaveOptions.
+     * G94-180/CHD-03 (user chốt 2026-11-25): ngày nghỉ học là ngày bất kỳ (không bắt buộc ngày học) từ hôm nay tới ngày
+     * kết thúc năm học đang hoạt động ({@code yearEnd}, null ⇒ không giới hạn), không trước ngày tiếp nhận / mở lại hồ sơ.
+     * Null khi hợp lệ. Dùng chung cho withdraw và leaveOptions.
      */
-    private String leaveDateProblem(CurrentUser actor, Child child, LocalDate leftAt, LocalDate today) {
+    private String leaveDateProblem(Child child, LocalDate leftAt, LocalDate today, LocalDate yearEnd) {
         if (leftAt.isBefore(today)) {
             return "Ngày nghỉ học không được trước hôm nay";
         }
-        if (!schoolYearService.isSchoolDay(leftAt)) {
-            return SchoolDayMessages.explain("Ngày nghỉ học", leftAt, activeYearHolidays(actor));
-        }
-        if (!leftAt.equals(today)) {
-            LocalDate next = nextSchoolDay(today);
-            if (!leftAt.equals(next)) {
-                return "Chỉ chọn hôm nay hoặc ngày học kế tiếp" + (next == null ? "" : " (" + DAY.format(next) + ")");
-            }
+        if (yearEnd != null && leftAt.isAfter(yearEnd)) {
+            return "Ngày nghỉ học phải trong năm học (tới " + DAY.format(yearEnd) + ")";
         }
         if (leftAt.isBefore(child.getEnrolledOn())) {
             return "Ngày nghỉ học không được trước ngày tiếp nhận (" + DAY.format(child.getEnrolledOn()) + ")";
@@ -829,15 +836,6 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 .orElseGet(() -> ClassPlacement.create(planned.id(), childId));
         placement.decide(currentClassroomId, PlacementAction.LEAVE, null, actorId);
         classPlacementRepository.save(placement);
-    }
-
-    // G94-180/CHD-03: ngày học đầu tiên sau hôm nay, tìm tối đa 400 ngày như FE firstSchoolDay; không có ⇒ null
-    private LocalDate nextSchoolDay(LocalDate today) {
-        return Stream.iterate(today.plusDays(1), day -> day.plusDays(1))
-                .limit(SCHOOL_DAY_SEARCH_DAYS)
-                .filter(schoolYearService::isSchoolDay)
-                .findFirst()
-                .orElse(null);
     }
 
     /**
@@ -873,16 +871,21 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 : schoolYearService.getHolidays(actor, target.schoolYearId());
     }
 
-    // CHD-14: ngày nghỉ học luôn thuộc năm đang hoạt động
-    private List<SchoolHolidayItem> activeYearHolidays(CurrentUser actor) {
+    // CHD-03: ngày nghỉ học luôn thuộc năm đang hoạt động; chưa có năm đang hoạt động ⇒ null
+    private LocalDate activeYearEnd(CurrentUser actor) {
         return schoolYearService.getSchoolYears(actor, SchoolYearStatus.ACTIVE).stream()
                 .findFirst()
-                .map(year -> schoolYearService.getHolidays(actor, year.id()))
-                .orElse(List.of());
+                .map(SchoolYearDetailResponse::endDate)
+                .orElse(null);
     }
 
     private boolean hasDailyOperationalData(Long childId, LocalDate date) {
         return dayUsageChecks.stream().anyMatch(check -> check.hasData(childId, date));
+    }
+
+    // G94-180/CHD-03: dữ liệu trong ngày chỉ chặn nghỉ học (số đo, phiếu khám), ngoài ChildDayUsageCheck
+    private boolean hasLeaveData(Long childId, LocalDate date) {
+        return leaveDataChecks.stream().anyMatch(check -> check.hasData(childId, date));
     }
 
     @Override
