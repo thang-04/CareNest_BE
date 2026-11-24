@@ -143,6 +143,7 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_EXISTS);
             }
             checkNotMeasuredInLinkedRound(childId, round);
+            rules.checkPresent(childId, date);
             if (measurementRepository.findByChildIdAndDate(childId, date).isPresent()) {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN, date);
             }

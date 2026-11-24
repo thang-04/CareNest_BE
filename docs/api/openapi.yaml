@@ -16413,6 +16413,8 @@ components:
     HealthCheckChild:
       type: object
       properties:
+        absentToday:
+          type: boolean
         bmi:
           type: number
         bmiStatus:

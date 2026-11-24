@@ -118,6 +118,9 @@ public class HealthExamServiceImpl implements HealthExamService {
             }
             // Ngày khám hệ thống ghi ở lần lưu đầu, nháp hay kết luận đều giữ (HLT-08, user chốt 2026-11-04)
             LocalDate date = m != null ? m.getDate() : rules.referenceDate(campaign);
+            if (m == null) {
+                rules.checkPresent(childId, date);
+            }
             HealthExamReference reference = HealthExamReview.reference(child.dateOfBirth(), child.gender(), date);
             HealthConclusionMode mode = conclusionMode(s, m);
             if (request.conclude() && request.conclusionMode() != null && request.conclusionMode() != mode) {

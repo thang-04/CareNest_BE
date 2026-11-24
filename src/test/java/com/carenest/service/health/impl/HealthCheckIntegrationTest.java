@@ -941,6 +941,94 @@ class HealthCheckIntegrationTest {
                 .satisfies(e -> assertThat(e.userId()).isEqualTo(substitute.userId()));
     }
 
+    // ---------- HLT-01 (user chốt 2026-11-24): trẻ vắng theo điểm danh ngày đo ----------
+
+    @Test
+    @DisplayName("HLT-01: thứ 2–6 trẻ điểm danh vắng (có phép, không phép) ⇒ không nhập số đo mới; dòng có absentToday")
+    void absentChildCannotBeMeasuredOnSchoolDay() {
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
+        long child3 = child("Cường", "2023-03-01");
+        enroll(child3, classA);
+        // Hôm nay thứ 3 10/11: An vắng không phép, Cường nghỉ có phép, Bình có mặt
+        attendance(child1, "2026-11-10", "UNEXCUSED");
+        attendance(child3, "2026-11-10", "EXCUSED");
+        attendance(child2, "2026-11-10", "PRESENT");
+
+        for (long absent : new long[] {child1, child3}) {
+            assertThatThrownBy(() -> measurements.createMeasurement(teacherA, absent, measure(round.id())))
+                    .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                        assertThat(ex.getApiCode()).isEqualTo(ApiCode.HEALTH_CHILD_ABSENT);
+                        assertThat(ex.getMessage())
+                                .isEqualTo("Trẻ vắng ngày 10/11/2026 (điểm danh). Nhập khi trẻ có mặt.");
+                    });
+        }
+        HealthCheckClassResponse roster = checks.getHealthCheckClass(teacherA, round.id(), classA);
+        assertThat(roster.children())
+                .extracting(
+                        HealthCheckClassResponse.HealthCheckChild::childId,
+                        HealthCheckClassResponse.HealthCheckChild::absentToday)
+                .containsExactlyInAnyOrder(tuple(child1, true), tuple(child2, false), tuple(child3, true));
+        assertThat(measurements
+                        .createMeasurement(teacherA, child2, measure(round.id()))
+                        .date())
+                .isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM health_measurements WHERE campaign_id = ?", Long.class, round.id()))
+                .isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("HLT-01: thứ 7, chủ nhật không xét điểm danh ⇒ nhập được số đo")
+    void weekendMeasurementAllowedWithoutAttendance() {
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
+        // Thứ 7 14/11: An không có điểm danh; Bình có dòng vắng (dữ liệu lạ) vẫn không chặn
+        testClock.setInstant(Instant.parse("2026-11-14T02:00:00Z"));
+        attendance(child2, "2026-11-14", "UNEXCUSED");
+
+        assertThat(checks.getHealthCheckClass(teacherA, round.id(), classA).children())
+                .extracting(HealthCheckClassResponse.HealthCheckChild::absentToday)
+                .containsOnly(false);
+        assertThat(measurements
+                        .createMeasurement(teacherA, child1, measure(round.id()))
+                        .date())
+                .isEqualTo(LocalDate.of(2026, 11, 14));
+        assertThat(measurements
+                        .createMeasurement(teacherA, child2, measure(round.id()))
+                        .date())
+                .isEqualTo(LocalDate.of(2026, 11, 14));
+    }
+
+    @Test
+    @DisplayName("HLT-01: ngày học chưa điểm danh ⇒ nhập được số đo, dòng không đánh dấu vắng")
+    void unmarkedAttendanceAllowsMeasurement() {
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
+        // An có dòng vắng hôm qua, hôm nay (thứ 3) chưa điểm danh
+        attendance(child1, "2026-11-09", "UNEXCUSED");
+
+        assertThat(rowOf(checks.getHealthCheckClass(teacherA, round.id(), classA), child1)
+                        .absentToday())
+                .isFalse();
+        assertThat(measurements
+                        .createMeasurement(teacherA, child1, measure(round.id()))
+                        .date())
+                .isEqualTo(LocalDate.of(2026, 11, 10));
+    }
+
+    private void attendance(long childId, String date, String status) {
+        jdbc.update(
+                "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, recorded_by,"
+                        + " recorded_at) VALUES (?, ?, ?, ?, ?, ?, now())",
+                childId,
+                classA,
+                campusA,
+                LocalDate.parse(date),
+                status,
+                teacherA.userId());
+    }
+
     private record LinkedTransfer(long roundA, long roundB, long child, long measurementId) {}
 
     // Kỳ cân đo cùng ngày ở hai điểm trường; Cường cân ngày 10/11 ở Lớp B (điểm B), chuyển sang Lớp A (điểm A) từ 12/11

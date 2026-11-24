@@ -691,6 +691,10 @@ public class HealthCheckServiceImpl implements HealthCheckService {
         results.linked().stream()
                 .filter(l -> l.statusOn(rules.today()) == HealthCheckStatus.IN_PROGRESS)
                 .forEach(l -> editableCampaigns.add(l.getId()));
+        // HLT-01: trẻ điểm danh vắng hôm nay không nhập kết quả mới; tra một lần khi đợt/kỳ đang diễn ra
+        Set<Long> absentToday = campaign.statusOn(rules.today()) == HealthCheckStatus.IN_PROGRESS
+                ? rules.absentOn(childIds, rules.today())
+                : Set.of();
         return rows.stream()
                 .map(r -> toChild(
                         r,
@@ -702,7 +706,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                                 && r.movedTo() == null
                                 && (r.measurement() == null
                                         || editableCampaigns.contains(
-                                                r.measurement().getCampaignId()))))
+                                                r.measurement().getCampaignId())),
+                        absentToday.contains(r.childId())))
                 .toList();
     }
 
@@ -712,7 +717,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             ChildBriefResponse brief,
             HealthRecords.Snapshot s,
             HealthCheckCampaign campaign,
-            boolean canEdit) {
+            boolean canEdit,
+            boolean absentToday) {
         HealthMeasurement m = row.measurement();
         // Phiếu khám nháp chưa là kết quả: chưa có mức, kết luận
         boolean hasResult = m != null && !m.isDraft();
@@ -747,7 +753,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                         row.childId(), m == null ? null : m.getId(), m != null ? m.getDate() : campaign.getStartDate()),
                 canEdit,
                 row.movedTo(),
-                row.measuredIn());
+                row.measuredIn(),
+                absentToday);
     }
 
     private static HealthScheduleWarningResponse.HealthScheduleWarningItem warning(

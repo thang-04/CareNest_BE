@@ -11,6 +11,7 @@ import com.carenest.repository.health.HealthCheckCampaignRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.ClassroomAccessPolicy;
+import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolStructureService;
@@ -24,9 +25,11 @@ import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -60,6 +63,7 @@ class HealthCheckRules {
     private final EnrollmentService enrollmentService;
     private final HealthCheckCampaignRepository campaignRepository;
     private final SchoolYearService schoolYearService;
+    private final AttendanceService attendanceService;
 
     /**
      * Một trẻ trong danh sách lớp của đợt/kỳ; {@code measurement} null khi chưa có kết quả. {@code movedTo}: trẻ đã chuyển
@@ -226,6 +230,28 @@ class HealthCheckRules {
         return classId != null
                 && user.hasRole(CareNestRole.TEACHER)
                 && staffAssignmentService.hasActiveTeacherAssignment(user.userId(), classId, today());
+    }
+
+    /**
+     * HLT-01 (user chốt 2026-11-24): trẻ có điểm danh vắng (có phép, không phép) ngày {@code date} từ thứ 2 tới thứ 6; thứ
+     * 7, chủ nhật và ngày chưa điểm danh không tính vắng.
+     */
+    Set<Long> absentOn(Collection<Long> childIds, LocalDate date) {
+        DayOfWeek day = date.getDayOfWeek();
+        if (childIds.isEmpty() || day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+            return Set.of();
+        }
+        return attendanceService.findDayStatuses(childIds, date, date).stream()
+                .filter(s -> s.status().isAbsent())
+                .map(AttendanceService.ChildDayStatus::childId)
+                .collect(Collectors.toSet());
+    }
+
+    /** HLT-01: trẻ vắng ngày đo, ngày khám thì không nhập số đo mới, không mở phiếu khám mới. */
+    void checkPresent(Long childId, LocalDate date) {
+        if (absentOn(List.of(childId), date).contains(childId)) {
+            throw GlobalException.of(ApiCode.HEALTH_CHILD_ABSENT, date);
+        }
     }
 
     /**

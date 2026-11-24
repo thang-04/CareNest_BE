@@ -20,7 +20,7 @@ public record HealthCheckClassResponse(
      * previous}: lần khám trước (đợt khám); {@code bmi}, {@code bmiStatus}: BMI và mức BMI theo tuổi của số đo kỳ cân đo
      * (HLT-18). Trẻ chuyển lớp khi đợt/kỳ đang mở (G94-180/HLT-09): {@code movedTo} ở lớp cũ (chỉ xem, không tính tiến
      * độ), {@code measuredIn} ở lớp hiện tại khi kết quả đo ở lớp khác; {@code canEdit}: người xem nhập/sửa được kết quả
-     * của dòng này.
+     * của dòng này. {@code absentToday}: hôm nay (thứ 2–6) trẻ có điểm danh vắng, không nhập kết quả mới (HLT-01).
      */
     public record HealthCheckChild(
             Long childId,
@@ -45,7 +45,8 @@ public record HealthCheckClassResponse(
             HealthExamResponse.HealthPreviousExam previous,
             boolean canEdit,
             MovedTo movedTo,
-            MeasuredIn measuredIn) {}
+            MeasuredIn measuredIn,
+            boolean absentToday) {}
 
     /** Lớp trẻ đã chuyển sang (học từ ngày {@code from}); kết quả ở lại lớp đã đo. */
     public record MovedTo(String className, String campusName, LocalDate from) {}

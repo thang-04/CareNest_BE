@@ -505,6 +505,8 @@ public enum ApiCode {
     HEALTH_INTERPRETATION_NOT_FOUND(5040, HttpStatus.NOT_FOUND, "Không tìm thấy bản giải thích xu hướng sức khỏe"),
     HEALTH_INTERPRETATION_APPROVE_DENIED(
             5041, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được sửa và duyệt giải thích xu hướng"),
+    // Ngày đo, ngày khám thứ 2–6 trẻ có điểm danh vắng (HLT-01, user chốt 2026-11-24)
+    HEALTH_CHILD_ABSENT(5042, HttpStatus.CONFLICT, "Trẻ vắng ngày {0} (điểm danh). Nhập khi trẻ có mặt."),
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),

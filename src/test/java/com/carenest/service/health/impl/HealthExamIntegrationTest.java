@@ -620,6 +620,37 @@ class HealthExamIntegrationTest {
                 ApiCode.HEALTH_EXAM_NOT_FOUND);
     }
 
+    @Test
+    @DisplayName(
+            "HLT-01, HLT-08: trẻ điểm danh vắng ngày khám (thứ 2–6) ⇒ không mở phiếu khám mới; phiếu đã có vẫn lưu")
+    void absentChildCannotStartExam() {
+        long campaign = examCampaign(campusA);
+        // Bình đã có phiếu nháp sáng nay rồi về sớm, điểm danh vắng; An vắng không phép cả ngày (thứ 3 10/11)
+        exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""));
+        for (long childId : new long[] {child1, child2}) {
+            jdbc.update(
+                    "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, recorded_by,"
+                            + " recorded_at) VALUES (?, ?, ?, '2026-11-10', 'UNEXCUSED', ?, now())",
+                    childId,
+                    classA,
+                    campusA,
+                    teacherA.userId());
+        }
+
+        assertThatThrownBy(
+                        () -> exams.saveExam(teacherA, campaign, child1, save(HealthExamCatalog.template(), false, "")))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.HEALTH_CHILD_ABSENT);
+                    assertThat(ex.getMessage()).isEqualTo("Trẻ vắng ngày 10/11/2026 (điểm danh). Nhập khi trẻ có mặt.");
+                });
+        assertThat(rowOf(campaign, child1).absentToday()).isTrue();
+        assertThat(rowOf(campaign, child1).result()).isEqualTo(HealthCheckResult.NOT_RECORDED);
+        assertThat(exams.saveExam(teacherA, campaign, child2, save(exam("NO", null, normal()), true, ""))
+                        .measurement()
+                        .examStatus())
+                .isEqualTo(HealthExamStatus.CONCLUDED);
+    }
+
     private long examCampaign(long campusId) {
         return checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusId, "2026-11-10", "2026-11-20"))
                 .id();
