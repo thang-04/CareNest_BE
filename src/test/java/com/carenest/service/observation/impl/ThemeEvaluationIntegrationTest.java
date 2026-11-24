@@ -602,7 +602,7 @@ class ThemeEvaluationIntegrationTest {
                 + teacher.userId() + " FROM classrooms c WHERE c.id = " + classA + " RETURNING id");
         jdbc.update(
                 "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, height_cm, weight_kg,"
-                        + " measured_by, exam, exam_status) VALUES (?, ?, ?, '2026-10-21', 99.0, 16.9, ?, '{}'::jsonb,"
+                        + " measured_by, exam, exam_status) VALUES (?, ?, ?, '2026-10-15', 99.0, 16.9, ?, '{}'::jsonb,"
                         + " 'DRAFT')",
                 kid1,
                 examCampaign,
