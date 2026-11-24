@@ -18,6 +18,7 @@ import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockResponse;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentViewRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.ai.AiClientException;
 import com.carenest.integration.ai.AiGateway;
@@ -291,6 +292,78 @@ class WeeklyCommentIntegrationTest {
                         Integer.class,
                         parent1.userId()))
                 .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName(
+            "OBS-29: Gửi tất cả chặn nháp AI cô chưa xem hoặc sửa, báo tên trẻ chưa xem; mở xem hoặc sửa thì gửi được")
+    void sendAllBlocksAiDraftsNotReviewed() {
+        when(aiGateway.isAvailable(AiTask.WEEKLY_COMMENT)).thenReturn(true);
+        when(aiGateway.complete(any()))
+                .thenReturn(new AiRawResult(
+                        "Tuần này con đi học vui vẻ.",
+                        "groq",
+                        "test",
+                        "observation/weekly_comment_v1",
+                        null,
+                        null,
+                        0L));
+        // Trẻ phải có mặt trong tuần mới có nháp AI (nghỉ cả tuần viết theo mẫu câu)
+        attendance(child2, classA, WEEK);
+        service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, child1, false, true));
+        WeeklyCommentBoardResponse drafts =
+                service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, child2, false, true));
+        assertThat(row(drafts, child1).aiReviewed()).isFalse();
+
+        // Cả hai bản nháp AI chưa mở: chặn, nêu tên cả hai trẻ
+        assertThatThrownBy(() -> service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, null, null)))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.WEEKLY_COMMENT_AI_NOT_REVIEWED);
+                    assertThat(ex.getMessage()).contains("An").contains("Bình");
+                });
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM weekly_comments WHERE status = 'SENT'", Integer.class))
+                .isZero();
+
+        // Mở xem bản của An: chỉ còn Bình bị nêu
+        WeeklyCommentBoardResponse viewed =
+                service.markViewed(teacherA, new WeeklyCommentViewRequest(classA, WEEK, child1));
+        assertThat(row(viewed, child1).aiReviewed()).isTrue();
+        assertThat(row(viewed, child2).aiReviewed()).isFalse();
+        assertThatThrownBy(() -> service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, null, null)))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> assertThat(ex.getMessage()).contains("Bình").doesNotContain("An"));
+
+        // Sửa bản của Bình ⇒ đã xem; gửi tất cả được
+        service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child2, "Bình tuần này ngoan."));
+        WeeklyCommentBoardResponse sent =
+                service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, null, null));
+        assertThat(row(sent, child1).status()).isEqualTo("SENT");
+        assertThat(row(sent, child2).status()).isEqualTo("SENT");
+    }
+
+    @Test
+    @DisplayName("OBS-29: viết lại nháp AI thì phải xem lại; gửi riêng một trẻ là cô đã xem")
+    void redraftingAiResetsReviewAndSingleSendCountsAsReviewed() {
+        when(aiGateway.isAvailable(AiTask.WEEKLY_COMMENT)).thenReturn(true);
+        when(aiGateway.complete(any()))
+                .thenReturn(new AiRawResult(
+                        "Tuần này con đi học vui vẻ.",
+                        "groq",
+                        "test",
+                        "observation/weekly_comment_v1",
+                        null,
+                        null,
+                        0L));
+        service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, child1, false, true));
+        service.markViewed(teacherA, new WeeklyCommentViewRequest(classA, WEEK, child1));
+        WeeklyCommentBoardResponse again =
+                service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, child1, true, true));
+        assertThat(row(again, child1).aiReviewed()).isFalse();
+
+        WeeklyCommentBoardResponse sent =
+                service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, null));
+        assertThat(row(sent, child1).status()).isEqualTo("SENT");
     }
 
     @Test

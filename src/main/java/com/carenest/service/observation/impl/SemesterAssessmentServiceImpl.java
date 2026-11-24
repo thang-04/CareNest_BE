@@ -241,7 +241,8 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                                 g.getText(),
                                 r == null ? null : r.met(),
                                 r == null ? 0 : r.metThemes(),
-                                r == null ? 0 : r.totalThemes()));
+                                r == null ? 0 : r.totalThemes(),
+                                r == null ? null : r.className()));
                     }
                 if (!cells.isEmpty()) domains.add(summarize(domain.domainId(), domain.name(), cells));
             }

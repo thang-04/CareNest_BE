@@ -6,12 +6,16 @@ import com.carenest.service.organization.TeacherReadAccessService;
 import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -19,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class TeacherReadAccessServiceImpl implements TeacherReadAccessService {
     private static final String LOG_PREFIX = "[TeacherReadAccessServiceImpl]";
+    private static final Object CACHE_KEY = new Object();
     private final StaffAssignmentService staffAssignmentService;
 
     @Override
@@ -50,12 +55,33 @@ public class TeacherReadAccessServiceImpl implements TeacherReadAccessService {
     }
 
     private List<StaffAssignmentResponse> assignments(Long userId, Long classId) {
-        return staffAssignmentService.findAssignments(userId).stream()
+        return assignmentsOf(userId).stream()
                 .filter(a -> a.staffRole() == StaffRole.TEACHER && Objects.equals(a.classroomId(), classId))
                 .filter(a -> a.validFrom() != null
                         && (a.validTo() == null || !a.validTo().isBefore(a.validFrom())))
                 .sorted(Comparator.comparing(StaffAssignmentResponse::validFrom))
                 .toList();
+    }
+
+    // Danh sách lớp/chủ đề gọi covers cho từng lớp: trong 1 giao dịch chỉ đọc, tải phân công 1 lần mỗi user
+    @SuppressWarnings("unchecked")
+    private List<StaffAssignmentResponse> assignmentsOf(Long userId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+                || !TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
+            return staffAssignmentService.findAssignments(userId);
+        }
+        var cache = (Map<Long, List<StaffAssignmentResponse>>) TransactionSynchronizationManager.getResource(CACHE_KEY);
+        if (cache == null) {
+            cache = new HashMap<>();
+            TransactionSynchronizationManager.bindResource(CACHE_KEY, cache);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    TransactionSynchronizationManager.unbindResourceIfPossible(CACHE_KEY);
+                }
+            });
+        }
+        return cache.computeIfAbsent(userId, staffAssignmentService::findAssignments);
     }
 
     private boolean coversRange(Long userId, Long classId, LocalDate from, LocalDate to) {

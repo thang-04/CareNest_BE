@@ -82,6 +82,24 @@ public class AgeGroupServiceImpl implements AgeGroupService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<AgeGroupDetailResponse> getYearAgeGroups(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix =
+                LOG_PREFIX + "|getYearAgeGroups|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            // CFG-YR-05: năm chưa tới ngày mở chuẩn bị chỉ HT thấy
+            schoolConfigAccess.checkYearVisible(currentUser, findYear(schoolYearId));
+            List<AgeGroupDetailResponse> response = yearDetails(schoolYearId);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public AgeGroupDetailResponse createAgeGroup(CurrentUser currentUser, AgeGroupRequest request, Long schoolYearId) {
         String logPrefix =
                 LOG_PREFIX + "|createAgeGroup|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
@@ -177,9 +195,23 @@ public class AgeGroupServiceImpl implements AgeGroupService {
             short sortOrder = (short) (ageGroupRepository.findMaxSortOrder() + 1);
             AgeGroup ageGroup = AgeGroup.create(nextCode(sortOrder), sortOrder);
             applyRequest(ageGroup, request);
+            // Gọi không kèm năm học (client cũ): như API theo năm, chỉ thêm vào năm sắp diễn ra; năm đang hoạt động /
+            // đã
+            // kết thúc không đổi
+            List<SchoolYear> plannedYears = plannedYears();
+            if (plannedYears.isEmpty()) {
+                SchoolYear latest = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
+                        .findFirst()
+                        .orElseThrow(() -> GlobalException.of(ApiCode.NO_ACTIVE_SCHOOL_YEAR));
+                throw GlobalException.of(
+                        ApiCode.AGE_GROUP_CREATE_YEAR_NOT_PLANNED,
+                        latest.getName(),
+                        latest.getStatus().name());
+            }
             ageGroup = ageGroupRepository.save(ageGroup);
-            // Gọi không kèm năm học (client cũ): nhóm có ở mọi năm còn mở như trước
-            ageGroupRepository.addToOpenYears(ageGroup.getId());
+            for (SchoolYear year : plannedYears) {
+                ageGroupRepository.addToYear(year.getId(), ageGroup.getId());
+            }
             log.info("{}|ageGroupId={}|END", logPrefix, ageGroup.getId());
             return schoolStructureMapper.toDetailResponse(ageGroup);
         } catch (RuntimeException ex) {
@@ -237,15 +269,14 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                 log.info("{}|END", logPrefix);
                 return response;
             }
-            AgeGroup ageGroup = ageGroupRepository
-                    .findById(ageGroupId)
+            // Nhóm không ở năm đang hoạt động: sửa ở năm sắp diễn ra chứa nhóm; bảng chung (năm khác dùng) giữ nguyên
+            SchoolYear planned = plannedYears().stream()
+                    .filter(y -> ageGroupRepository.isInYear(y.getId(), ageGroupId))
+                    .findFirst()
                     .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
-            validate(request, ageGroupId);
-            checkMaxClassSize(ageGroupId, request.maxClassSize());
-            applyRequest(ageGroup, request);
-            ageGroupRepository.flush();
+            AgeGroupDetailResponse response = updateAgeGroup(currentUser, ageGroupId, request, planned.getId());
             log.info("{}|END", logPrefix);
-            return schoolStructureMapper.toDetailResponse(ageGroup);
+            return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -299,10 +330,22 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                 .orElse(null);
     }
 
-    private SchoolYear openYear(Long schoolYearId) {
-        SchoolYear year = schoolYearRepository
+    // Năm sắp diễn ra, sớm nhất trước
+    private List<SchoolYear> plannedYears() {
+        return schoolYearRepository.findAllByOrderByStartDateDesc().stream()
+                .filter(y -> y.getStatus() == SchoolYearStatus.PLANNED)
+                .sorted(Comparator.comparing(SchoolYear::getStartDate))
+                .toList();
+    }
+
+    private SchoolYear findYear(Long schoolYearId) {
+        return schoolYearRepository
                 .findById(schoolYearId)
                 .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+    }
+
+    private SchoolYear openYear(Long schoolYearId) {
+        SchoolYear year = findYear(schoolYearId);
         if (year.getStatus() == SchoolYearStatus.CLOSED) {
             throw GlobalException.of(ApiCode.SCHOOL_YEAR_CLOSED, year.getName());
         }
@@ -437,12 +480,7 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                 });
     }
 
-    // Không hạ sĩ số tối đa xuống dưới sĩ số/số trẻ của lớp năm chưa kết thúc thuộc nhóm tuổi
-    private void checkMaxClassSize(Long ageGroupId, int maxClassSize) {
-        checkMaxClassSize(ageGroupId, maxClassSize, null);
-    }
-
-    // Có năm học: chỉ xét lớp của năm đó
+    // Không hạ sĩ số tối đa xuống dưới sĩ số/số trẻ của lớp năm đó thuộc nhóm tuổi
     private void checkMaxClassSize(Long ageGroupId, int maxClassSize, Long schoolYearId) {
         List<Classroom> classes = classroomRepository.findOpenYearClassesByAgeGroupId(ageGroupId).stream()
                 .filter(c -> schoolYearId == null || schoolYearId.equals(c.getSchoolYearId()))

@@ -35,6 +35,7 @@ class EvaluationTimelineSourcesTest {
         var health = mock(DailyHealthService.class);
         var lessons = mock(EduLessonQueryService.class);
         var classes = mock(ClassroomService.class);
+        var accounts = mock(com.carenest.service.account.AccountService.class);
         var oldClass = classroom(1L, "Class A");
         when(oldClass.mealSessions()).thenReturn(List.of(MealSession.MORNING, MealSession.LUNCH));
         var newClass = classroom(2L, "Class B");
@@ -46,6 +47,9 @@ class EvaluationTimelineSourcesTest {
         when(oldObservation.getClassroomId()).thenReturn(1L);
         when(oldObservation.getDate()).thenReturn(oldDay);
         when(oldObservation.getMeals()).thenReturn("{\"MORNING\":\"AN_HET\"}");
+        when(oldObservation.getRecordedBy()).thenReturn(7L);
+        when(oldObservation.getRecordedAt()).thenReturn(Instant.parse("2026-10-13T03:00:00Z"));
+        when(accounts.findFullNames(anyCollection())).thenReturn(Map.of(1L, "Cô An", 7L, "Cô Bình"));
         when(observations.findByChildIdInAndDateBetween(ids, oldDay, newDay)).thenReturn(List.of(oldObservation));
         when(classes.findClassroomInfo(1L)).thenReturn(Optional.of(oldClass));
         when(activities.findByChildIdInAndDateBetween(ids, oldDay, newDay))
@@ -62,7 +66,7 @@ class EvaluationTimelineSourcesTest {
                         newDay, lesson(newDay, 2001L, "New goal")));
         when(lessons.findGoalLineages(anyCollection())).thenReturn(Map.of(1001L, 1001L, 2001L, 2001L));
         var sources = new EvaluationSources(
-                attendance, observations, activities, health, lessons, new ObjectMapper(), classes);
+                attendance, observations, activities, health, lessons, new ObjectMapper(), classes, accounts);
         var data = sources.loadTimeline(newClass, 10L, oldDay, newDay).get(10L);
         var days = data.days();
         assertThat(data.structured().meals().get(MealSession.MORNING).get(com.carenest.utils.enums.EatingLevel.AN_HET))
@@ -71,6 +75,9 @@ class EvaluationTimelineSourcesTest {
         assertThat(days.getFirst().met()).extracting(g -> g.id()).containsExactly(1001L);
         assertThat(days.getFirst().met().getFirst().description()).isEqualTo("Original goal");
         assertThat(days.getFirst().className()).isEqualTo("Class A");
+        // OBS-35: người lưu gần nhất trong ngày (kết quả KTKN lưu sau phần chung)
+        assertThat(days.getFirst().recordedById()).isEqualTo(1L);
+        assertThat(days.getFirst().recordedByName()).isEqualTo("Cô An");
         assertThat(days.getLast().className()).isEqualTo("Class B");
         assertThat(days.getLast().met()).extracting(g -> g.id()).containsExactly(2001L);
     }

@@ -160,7 +160,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         log.info("{}|START", logPrefix);
         try {
             boolean principal = isPrincipal(currentUser);
-            checkCanPlace(currentUser);
+            checkCanPlace(currentUser, schoolYearId);
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             Board board = loadBoard(setup);
             Map<Long, Boolean> completion = graduatingCompletion(setup, board);
@@ -257,7 +257,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 LOG_PREFIX + "|savePlacements|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            checkCanPlace(currentUser);
+            checkCanPlace(currentUser, schoolYearId);
             YearSetupResponse setup = checkPlanned(schoolYearId);
             Board board = loadBoard(setup);
             board.purgeStale();
@@ -346,7 +346,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         String logPrefix = LOG_PREFIX + "|autoPlace|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            checkCanPlace(currentUser);
+            checkCanPlace(currentUser, schoolYearId);
             YearSetupResponse setup = checkPlanned(schoolYearId);
             Board board = loadBoard(setup);
             board.purgeStale();
@@ -852,10 +852,12 @@ public class YearTransitionServiceImpl implements YearTransitionService {
 
     // AUTH-01: xếp lớp và kích hoạt năm do Hiệu trưởng có phân công còn hiệu lực
     // Phân quyền động (Cần chốt 10/11/2026): HT luôn xếp được; PHT khi HT cấp YEAR_PLACEMENT_MANAGE, ở đúng phạm vi
-    private void checkCanPlace(CurrentUser user) {
+    // CFG-YR-05: năm chưa tới ngày mở chuẩn bị chỉ HT thấy, PHT không xem / xếp lớp được
+    private void checkCanPlace(CurrentUser user, Long schoolYearId) {
         if (!isPrincipal(user) && !user.hasPermission(Permission.YEAR_PLACEMENT_MANAGE)) {
             throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
         }
+        schoolYearService.checkYearVisible(user, schoolYearId);
     }
 
     private boolean placesCampus(CurrentUser user, Long campusId) {

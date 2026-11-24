@@ -92,6 +92,7 @@ public final class EvaluationDtos {
 
     public record DayHealth(List<HealthSymptom> signs, String note) {}
 
+    /** recordedBy*: người lưu gần nhất phần chung hoặc kiến thức kỹ năng của ngày (OBS-35); null với dữ liệu cũ. */
     public record EvaluationDay(
             LocalDate date,
             DayHealth health,
@@ -105,7 +106,10 @@ public final class EvaluationDtos {
             List<GoalRef> notMet,
             String comment,
             Long classId,
-            String className) {}
+            String className,
+            Long recordedById,
+            String recordedByName,
+            Instant recordedAt) {}
 
     public record SummaryInfo(StructuredSummary structured, int presentDays, int assessedDays, int assessmentCount) {}
 

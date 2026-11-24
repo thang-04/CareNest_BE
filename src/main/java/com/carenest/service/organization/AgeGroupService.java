@@ -26,6 +26,9 @@ public interface AgeGroupService {
     /** Nhóm tuổi của một năm học (Cần chốt 22/10/2026: mỗi năm danh sách riêng, mã nhóm giữ nguyên). */
     List<AgeGroupDetailResponse> getYearAgeGroups(Long schoolYearId);
 
+    /** Nhóm tuổi của năm cho người xem; năm chưa tới ngày mở chuẩn bị chỉ HT thấy (CFG-YR-05). */
+    List<AgeGroupDetailResponse> getYearAgeGroups(CurrentUser currentUser, Long schoolYearId);
+
     /** Thêm nhóm tuổi chỉ vào năm học đang chọn; trùng tên nhóm có ở năm khác ⇒ dùng lại nhóm đó. */
     AgeGroupDetailResponse createAgeGroup(CurrentUser currentUser, AgeGroupRequest request, Long schoolYearId);
 

@@ -43,8 +43,9 @@ public class AgeGroupController {
                 LOG_PREFIX + "|getAgeGroups|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         // Có năm học: nhóm tuổi của năm đó; không có: cả danh mục (bếp, kế hoạch dùng mã chung)
-        List<AgeGroupDetailResponse> ageGroups =
-                schoolYearId == null ? ageGroupService.getAgeGroups() : ageGroupService.getYearAgeGroups(schoolYearId);
+        List<AgeGroupDetailResponse> ageGroups = schoolYearId == null
+                ? ageGroupService.getAgeGroups()
+                : ageGroupService.getYearAgeGroups(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get age groups success", ageGroups);
     }

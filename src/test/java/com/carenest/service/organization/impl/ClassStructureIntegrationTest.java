@@ -152,6 +152,7 @@ class ClassStructureIntegrationTest {
 
     @Test
     void createAgeGroupOutsideExistingRanges() {
+        plannedYear();
         AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
                 principal,
                 new AgeGroupRequest(
@@ -164,6 +165,7 @@ class ClassStructureIntegrationTest {
     @Test
     @DisplayName("Lỗi xóa nhóm tuổi nêu năm học và tổ trưởng đang giữ nhóm (nhóm tuổi dùng chung mọi năm)")
     void deleteAgeGroupNamesYearAndLeader() {
+        plannedYear();
         AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
                 principal, new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH), 15, ""));
         long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
@@ -576,14 +578,15 @@ class ClassStructureIntegrationTest {
 
         jdbc.update("UPDATE school_years SET prep_date = '2026-10-20' WHERE id = ?", planned);
         jdbc.update("UPDATE staff_assignments SET valid_from = '2026-10-20' WHERE user_id = ?", teacherId);
+        entityManager.clear();
         assertThat(classService.getSchoolStructure(teacher, planned, null).classes())
                 .extracting(ClassResponse::id)
                 .containsExactly(cls);
     }
 
     @Test
-    @DisplayName("CFG-YR-05: GV năm cũ vẫn xem lớp mình đã dạy tới khi HT đóng năm (Cần chốt 17/11/2026)")
-    void oldYearTeacherSeesOwnClassUntilYearClosed() {
+    @DisplayName("CFG-YR-05, AUTH-03: GV năm cũ vẫn xem lớp mình đã dạy, cả sau khi HT đóng năm (Cần chốt 24/11/2026)")
+    void oldYearTeacherSeesOwnClassBeforeAndAfterYearClosed() {
         long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
                 + "VALUES ('kc-old', 'old.it', 'GV cũ') RETURNING id");
         CurrentUser teacher =
@@ -606,8 +609,15 @@ class ClassStructureIntegrationTest {
 
         jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", oldYear);
         entityManager.clear();
-        assertThatThrownBy(() -> classService.getSchoolStructure(teacher, oldYear, null))
-                .isInstanceOf(GlobalException.class);
+        assertThat(classService.getSchoolStructure(teacher, oldYear, null).classes())
+                .extracting(ClassResponse::id)
+                .containsExactly(cls);
+    }
+
+    // Thêm nhóm tuổi không kèm năm chỉ vào năm sắp diễn ra
+    private long plannedYear() {
+        return insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
     }
 
     private RoomResponse createRoom(long campusId, String code, int capacity) {

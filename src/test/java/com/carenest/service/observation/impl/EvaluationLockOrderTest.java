@@ -42,7 +42,14 @@ class EvaluationLockOrderTest {
                 mock(com.carenest.service.observation.EvaluationDeadlineService.class),
                 mock(AiPeriodCommentDraftGenerator.class),
                 mock(PeriodCommentFactsBuilder.class));
-        var user = new CurrentUser(1L, "demo", "demo", "Demo", null, Set.of(CareNestRole.TEACHER));
+        var user = new CurrentUser(
+                1L,
+                "demo",
+                "demo",
+                "Demo",
+                null,
+                Set.of(CareNestRole.TEACHER),
+                Set.of(com.carenest.utils.enums.Permission.ASSESSMENT_RECORD));
         when(classes.findYearClassrooms(null)).thenReturn(List.of(cls(20L, "A"), cls(10L, "Z")));
         when(rules.today()).thenReturn(LocalDate.of(2026, 10, 28));
         when(rules.canRecord(eq(user), any())).thenReturn(true);

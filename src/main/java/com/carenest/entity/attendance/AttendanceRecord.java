@@ -98,6 +98,12 @@ public class AttendanceRecord {
         return differsFrom(newStatus, newMeals) || absentPart != newAbsentPart;
     }
 
+    /** Trẻ chuyển lớp sau khi bản ghi được tạo (đơn nghỉ gửi trước): bản ghi theo lớp trẻ học ngày đó. */
+    public void moveToClass(Long classroomId, Long campusId) {
+        this.classroomId = classroomId;
+        this.campusId = campusId;
+    }
+
     public void markAbsentPart(DayPart part) {
         this.absentPart = part;
     }

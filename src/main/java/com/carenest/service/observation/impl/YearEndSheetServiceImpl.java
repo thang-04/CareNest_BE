@@ -105,6 +105,26 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public YearEndSheetResponse getConfirmedSheet(Long evaluationId) {
+        String logPrefix = LOG_PREFIX + "|getConfirmedSheet|id=" + evaluationId;
+        log.info("{}|START", logPrefix);
+        try {
+            ChildEvaluation ev = findYearEnd(evaluationId);
+            if (!ev.isConfirmed()) {
+                throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
+            }
+            // Phiếu đã xác nhận không có thao tác sửa nên không cần người xem
+            YearEndSheetResponse response = view(null, ev, rules.findClass(ev.getClassroomId()));
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     @Transactional
     public YearEndSheetResponse save(CurrentUser currentUser, Long evaluationId, YearEndSheetRequest request) {
         String logPrefix = LOG_PREFIX + "|save|userId=" + currentUser.userId() + "|id=" + evaluationId;

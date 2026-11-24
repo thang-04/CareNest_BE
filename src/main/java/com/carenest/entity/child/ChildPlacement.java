@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 /**
  * Một lần xếp / chuyển lớp của trẻ, chỉ thêm (V89): tiếp nhận có lớp ({@code fromClassroomId} null) và xếp / chuyển lớp
  * (CHD-10, G94-180/CHD-02). Lớp tại một ngày vẫn đọc từ {@link Enrollment}; bảng này chỉ để hiện lịch sử kèm lý do.
- * G94-180/CHD-14 (V177): ngày vào lớp mới có thể ở tương lai; lịch chưa tới ngày bị hủy / bị thay thì ghi
+ * G94-180/CHD-14 (V185): ngày vào lớp mới có thể ở tương lai; lịch chưa tới ngày bị hủy / bị thay thì ghi
  * {@code cancelledAt}, dòng vẫn giữ.
  */
 @Getter

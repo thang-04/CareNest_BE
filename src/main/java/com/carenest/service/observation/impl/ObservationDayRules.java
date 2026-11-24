@@ -46,6 +46,7 @@ class ObservationDayRules {
     private final AccountService accountService;
     private final SchoolYearService schoolYearService;
     private final TeacherReadAccessService teacherReadAccessService;
+    private final com.carenest.service.child.EnrollmentService enrollmentService;
 
     /** Ngày theo giờ trường (Clock của ứng dụng đặt Asia/Ho_Chi_Minh). */
     void lockClassForUpdate(Long id) {
@@ -54,6 +55,11 @@ class ObservationDayRules {
 
     LocalDate today() {
         return LocalDate.now(clock);
+    }
+
+    /** Lớp trẻ đang học hôm nay (trẻ đã chuyển lớp / nghỉ học không còn việc ở lớp cũ); trẻ không còn lớp thì không có. */
+    Map<Long, Long> currentClassOf(java.util.Collection<Long> childIds) {
+        return childIds.isEmpty() ? Map.of() : enrollmentService.findActiveClassroomIdByChildIds(childIds, today());
     }
 
     // OBS-06 / OBS-14 (Cần chốt 10/11/2026): việc cuối năm mở từ ngày kết thúc HK II; chưa đặt HK II thì ngày kết
@@ -115,6 +121,18 @@ class ObservationDayRules {
         }
         return (!yearEnded(cls) && classroomAccessPolicy.canReadClassroom(user, cls.id()))
                 || canReadHistoryRange(user, cls, cls.yearStart(), cls.yearEnd());
+    }
+
+    /** Lịch sử lớp cũ của trẻ chuyển đến: chỉ người đang phụ trách lớp (BGH theo scope, GV còn phân công), không cô cũ. */
+    boolean canViewAsCurrentClass(CurrentUser user, ClassroomInfoResponse cls) {
+        if (!user.hasPermission(Permission.ASSESSMENT_VIEW)) {
+            return false;
+        }
+        if (isLeader(user)) {
+            return campusAccessPolicy.canEditCampus(user, Permission.ASSESSMENT_VIEW, cls.campusId())
+                    || ledClosedYear(user, cls);
+        }
+        return !yearEnded(cls) && classroomAccessPolicy.canReadClassroom(user, cls.id());
     }
 
     /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */
@@ -246,7 +264,9 @@ class ObservationDayRules {
      * lớp, hoặc người dạy thay có đợt dạy thay chứa ngày đó (kể cả đợt đã hết khi ngày được mở lại).
      */
     boolean canRecordDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
-        return canRecordPeriod(user, cls)
+        // GV dạy chính chỉ ghi ngày thuộc phân công của mình: ngày mở lại trước khi nhận lớp thuộc người dạy lúc đó
+        return (canRecordPeriod(user, cls)
+                        && staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), date))
                 || (user.hasRole(CareNestRole.TEACHER)
                         && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
     }

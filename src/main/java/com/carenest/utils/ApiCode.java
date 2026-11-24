@@ -232,6 +232,7 @@ public enum ApiCode {
     ROOM_NOT_FOUND(2104, HttpStatus.NOT_FOUND, "Không tìm thấy phòng"),
     CAMPUS_CODE_EXISTS(2105, HttpStatus.CONFLICT, "Mã điểm trường đã tồn tại"),
     CAMPUS_NAME_EXISTS(2106, HttpStatus.CONFLICT, "Tên điểm trường đã tồn tại"),
+    CAMPUS_SHORT_NAME_EXISTS(2126, HttpStatus.CONFLICT, "Tên ngắn điểm trường đã tồn tại"),
     MAIN_CAMPUS_REQUIRED(
             2107, HttpStatus.CONFLICT, "Trường cần một điểm trường chính, chọn điểm trường chính khác trước"),
     MAIN_CAMPUS_NOT_DELETABLE(2108, HttpStatus.CONFLICT, "Không xóa được điểm trường chính"),
@@ -293,6 +294,10 @@ public enum ApiCode {
             2223,
             HttpStatus.CONFLICT,
             "Chỉ thêm hoặc bỏ nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
+    ASSIGNMENT_YEAR_ENDED(
+            2224,
+            HttpStatus.CONFLICT,
+            "Năm học {0} đã qua ngày kết thúc {1}, không phân công thêm được. Kết thúc năm học rồi phân công ở năm mới"),
 
     // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
     REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),
@@ -447,6 +452,9 @@ public enum ApiCode {
     PICKUP_CHILD_NOT_PRESENT(4105, HttpStatus.CONFLICT, "Trẻ chưa được điểm danh có mặt hôm nay"),
     PICKUP_CHILD_ABSENT(4106, HttpStatus.CONFLICT, "Trẻ được điểm danh vắng hôm nay"),
     PICKUP_ALREADY_HANDED_OVER(4107, HttpStatus.CONFLICT, "Trẻ đã được trả cho người đón hôm nay"),
+    // AUTH-04 (Cần chốt 24/11/2026): API phụ huynh xem điểm danh, sức khỏe đầu ngày của con
+    PARENT_CHILD_FORBIDDEN(4108, HttpStatus.FORBIDDEN, "Bạn chỉ xem được thông tin của con mình"),
+    PARENT_RANGE_INVALID(4109, HttpStatus.BAD_REQUEST, "Chọn khoảng ngày trong một năm học, tối đa {0} ngày"),
 
     // ========== 50xx SỨC KHỎE ==========
     HEALTH_OVERVIEW_ACCESS_DENIED(5001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp sức khỏe"),
@@ -667,6 +675,33 @@ public enum ApiCode {
             HttpStatus.CONFLICT,
             "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
     MENU_AI_DRAFT_KIND_INVALID(6114, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
+    // INS-05: mở ghi biên bản kiểm thực ngày cũ cần HT duyệt (6116–6123)
+    INSPECTION_APPROVAL_REQUIRED(
+            6116,
+            HttpStatus.CONFLICT,
+            "Ngày đã qua: cần Hiệu trưởng duyệt mở mẫu này trước khi ghi, hãy gửi yêu cầu mở"),
+    INSPECTION_APPROVAL_NOT_NEEDED(6117, HttpStatus.BAD_REQUEST, "Chỉ ngày đã qua mới cần Hiệu trưởng duyệt mở"),
+    INSPECTION_APPROVAL_PENDING(6118, HttpStatus.CONFLICT, "Mẫu này đã có yêu cầu mở đang chờ Hiệu trưởng duyệt"),
+    INSPECTION_APPROVAL_ACTIVE(6119, HttpStatus.CONFLICT, "Mẫu này đang được mở, hãy sửa và ký"),
+    INSPECTION_APPROVAL_NOT_FOUND(6120, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu mở mẫu"),
+    STOCK_DISPOSAL_LOT_NOT_FOUND(6129, HttpStatus.NOT_FOUND, "Không tìm thấy lô cần xuất kho ở điểm trường này"),
+    STOCK_DISPOSAL_LOT_DUPLICATE(6130, HttpStatus.BAD_REQUEST, "Mỗi lô chỉ được chọn một lần trong phiếu xuất kho"),
+    STOCK_DISPOSAL_LOT_EXPIRED(
+            6131, HttpStatus.BAD_REQUEST, "Lô {0} đã hết hạn, không trả nhà cung cấp được: dùng Xuất kho (hết hạn)"),
+    STOCK_DISPOSAL_LOT_NOT_EXPIRED(
+            6132,
+            HttpStatus.BAD_REQUEST,
+            "Lô {0} còn hạn, không xuất hủy được: trả nhà cung cấp bằng Xuất kho cho NCC"),
+    STOCK_DISPOSAL_SUPPLIER_MISMATCH(6133, HttpStatus.BAD_REQUEST, "Lô {0} không do nhà cung cấp đã chọn giao"),
+    STOCK_DISPOSAL_QUANTITY_EXCEEDED(6134, HttpStatus.BAD_REQUEST, "Số lượng xuất của lô {0} vượt tồn của lô ({1})"),
+    STOCK_DISPOSAL_SUPPLIER_REQUIRED(6135, HttpStatus.BAD_REQUEST, "Chọn nhà cung cấp nhận hàng trả"),
+    STOCK_DISPOSAL_REASON_TOO_SHORT(6136, HttpStatus.BAD_REQUEST, "Lý do xuất kho cần từ 3 ký tự"),
+    INSPECTION_APPROVAL_STATE_INVALID(
+            6121, HttpStatus.CONFLICT, "Yêu cầu không còn ở trạng thái này nên không xử lý được"),
+    INSPECTION_APPROVAL_DENIED(
+            6122, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được duyệt, từ chối hoặc thu hồi yêu cầu mở"),
+    INSPECTION_APPROVAL_REASON_REQUIRED(
+            6123, HttpStatus.UNPROCESSABLE_ENTITY, "Nhập lý do hoặc ghi chú, ít nhất 3 ký tự"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
@@ -786,6 +821,11 @@ public enum ApiCode {
     DOMAIN_NAME_EXISTS(7207, HttpStatus.CONFLICT, "Tên lĩnh vực {0} đã tồn tại"),
 
     // ========== 73xx ĐÁNH GIÁ TRẺ ==========
+    // Cần chốt 24/11/2026: bỏ nhận xét tháng và nhận xét học kỳ cá nhân; chỉ còn cuối năm
+    EVALUATION_PERIOD_RETIRED(
+            7375,
+            HttpStatus.CONFLICT,
+            "Nhận xét tháng và nhận xét học kỳ cá nhân đã bỏ, chỉ xem lại được. Nhận xét cuối năm dùng như cũ"),
     ASSESSMENT_FUTURE_DATE(7301, HttpStatus.BAD_REQUEST, "Chỉ đánh giá cho hôm nay hoặc ngày đã qua"),
     ASSESSMENT_NOT_SCHOOL_DAY(7302, HttpStatus.BAD_REQUEST, "Ngày đã chọn không phải ngày học"),
     ASSESSMENT_DATE_OUT_OF_YEAR(7303, HttpStatus.BAD_REQUEST, "Chọn ngày trong năm học của lớp, từ {0} đến hôm nay"),
@@ -927,6 +967,8 @@ public enum ApiCode {
     WEEKLY_COMMENT_WEEK_INVALID(
             7365, HttpStatus.BAD_REQUEST, "Chọn tuần trong năm học của lớp, từ tuần có ngày {0} đến tuần có ngày {1}"),
     WEEKLY_COMMENT_FUTURE_WEEK(7366, HttpStatus.BAD_REQUEST, "Tuần này chưa bắt đầu, chưa viết nhận xét được"),
+    WEEKLY_COMMENT_AI_NOT_REVIEWED(
+            7367, HttpStatus.BAD_REQUEST, "Còn nháp AI cô chưa xem hoặc sửa: {0}. Mở từng bản để xem lại rồi gửi"),
     WEEKLY_COMMENT_CHILD_NOT_IN_CLASS(7368, HttpStatus.BAD_REQUEST, "Trẻ không thuộc lớp trong tuần này"),
     WEEKLY_COMMENT_PARENT_FORBIDDEN(7369, HttpStatus.FORBIDDEN, "Bạn không xem được nhận xét của trẻ này"),
     WEEKLY_COMMENT_NOTHING_TO_SEND(7399, HttpStatus.BAD_REQUEST, "Chưa có nhận xét nào viết xong để gửi phụ huynh"),

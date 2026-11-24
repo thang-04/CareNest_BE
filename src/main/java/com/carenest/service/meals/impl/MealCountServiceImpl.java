@@ -461,15 +461,19 @@ public class MealCountServiceImpl implements MealCountService {
         log.info("{}|START", logPrefix);
         try {
             mealCountRepository.lockCampusDay(campusId, date);
-            List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, date);
+            // Điểm trường có thể có sổ của năm khác cùng ngày: chỉ sổ của năm học của lớp
+            Long yearId = classroomService
+                    .findClassroomInfo(classroomId)
+                    .map(ClassroomInfoResponse::schoolYearId)
+                    .orElse(null);
+            List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, date).stream()
+                    .filter(c -> c.getSchoolYearId().equals(yearId))
+                    .toList();
             if (!counts.isEmpty()) {
-                ClassMealTally tally =
-                        attendanceService
-                                .tallyMeals(date, campusId, counts.getFirst().getSchoolYearId())
-                                .stream()
-                                .filter(t -> t.classroomId().equals(classroomId))
-                                .findFirst()
-                                .orElse(null);
+                ClassMealTally tally = attendanceService.tallyMeals(date, campusId, yearId).stream()
+                        .filter(t -> t.classroomId().equals(classroomId))
+                        .findFirst()
+                        .orElse(null);
                 Instant at = clock.instant();
                 boolean alreadyFlagged = counts.stream().anyMatch(MealCount::isNeedsReconfirmation);
                 for (MealCount count : counts) {

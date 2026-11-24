@@ -20,8 +20,17 @@ public final class TicketDtos {
 
     public record TicketChild(Long id, String fullName, String code) {}
 
-    /** Căn cứ phát phiếu của trẻ, tách theo lớp để không mất lịch sử khi chuyển lớp. */
-    public record TicketEvidence(Long classId, String className, int presentDays, int flagCount, int weeklyTickets) {}
+    /**
+     * Căn cứ phát phiếu của trẻ, tách theo lớp để không mất lịch sử khi chuyển lớp; issuedByNames: người đã phát các phiếu
+     * tuần ở lớp đó (OBS-35, cô lớp mới biết ai phát).
+     */
+    public record TicketEvidence(
+            Long classId,
+            String className,
+            int presentDays,
+            int flagCount,
+            int weeklyTickets,
+            List<String> issuedByNames) {}
 
     public record IssuedTicket(
             Long id,

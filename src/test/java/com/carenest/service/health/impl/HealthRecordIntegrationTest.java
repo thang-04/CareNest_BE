@@ -293,7 +293,7 @@ class HealthRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("HLT-01 (V180): ngày đã có phiếu khám và số đo kỳ cân đo ⇒ DB vẫn chặn số đo kỳ cân đo thứ hai")
+    @DisplayName("HLT-01 (V186): ngày đã có phiếu khám và số đo kỳ cân đo ⇒ DB vẫn chặn số đo kỳ cân đo thứ hai")
     void databaseKeepsOneRoundMeasurementPerDay() {
         examResult(
                 campaign(HealthCheckKind.EXAM, "Khám định kỳ (giả)", "2026-11-03", "2026-11-05"),

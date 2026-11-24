@@ -467,6 +467,8 @@ class ThemeEvaluationIntegrationTest {
         assertThat(child.domains().getFirst().goals()).anySatisfy(g -> {
             assertThat(g.goalId()).isEqualTo(goal2);
             assertThat(g.met()).isTrue();
+            // Kết quả lấy ở lớp cũ ghi kèm tên lớp đó
+            assertThat(g.sourceClassName()).isEqualTo("MG B");
         });
         service.confirm(otherTeacher, new ThemeEvaluationRequest(classB, 9201L, null, List.of()));
         // Bản kế hoạch mới bỏ MT2: kết quả đã chốt ở lớp cũ vẫn phải hiện trên học kỳ.

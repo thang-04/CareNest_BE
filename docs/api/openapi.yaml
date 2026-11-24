@@ -2210,6 +2210,24 @@ paths:
           description: OK
       tags:
       - weekly-comment-controller
+  /api/assessment/weekly-comments/viewed:
+    post:
+      operationId: markViewed
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentViewRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
   /api/attendance/classes:
     get:
       operationId: getClasses
@@ -2336,6 +2354,12 @@ paths:
         schema:
           type: string
           format: date
+      - in: query
+        name: semester
+        required: false
+        schema:
+          type: integer
+          format: int32
       responses:
         "200":
           content:
@@ -3259,6 +3283,87 @@ paths:
           description: OK
       tags:
       - selected-parent-account-controller
+  /api/children/{childId}/attendance:
+    get:
+      operationId: getAttendance
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentAttendanceResponse"
+          description: OK
+      tags:
+      - parent-attendance-controller
+  /api/children/{childId}/attendance/today:
+    get:
+      operationId: getToday
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentTodayResponse"
+          description: OK
+      tags:
+      - parent-attendance-controller
+  /api/children/{childId}/daily-assessments:
+    get:
+      operationId: getDailyAssessments
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListParentDailyAssessment"
+          description: OK
+      tags:
+      - parent-assessment-controller
   /api/children/{childId}/daily-health:
     get:
       operationId: getChildHistory
@@ -3284,6 +3389,62 @@ paths:
           description: OK
       tags:
       - daily-health-controller
+  /api/children/{childId}/daily-health/parent:
+    get:
+      operationId: getDailyHealth
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListParentDailyHealthResponse"
+          description: OK
+      tags:
+      - parent-attendance-controller
+  /api/children/{childId}/evaluations:
+    get:
+      operationId: getEvaluations
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentEvaluationsResponse"
+          description: OK
+      tags:
+      - parent-assessment-controller
   /api/children/{childId}/guardian-photos/{guardianId}:
     get:
       operationId: getGuardianPhoto_1
@@ -3940,6 +4101,37 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/{childId}/rewards:
+    get:
+      operationId: getRewards
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentRewardsResponse"
+          description: OK
+      tags:
+      - parent-assessment-controller
   /api/children/{childId}/weekly-comments:
     get:
       operationId: listForParent
@@ -4147,6 +4339,12 @@ paths:
         schema:
           type: string
           format: date
+      - in: query
+        name: semester
+        required: false
+        schema:
+          type: integer
+          format: int32
       responses:
         "200":
           content:
@@ -4331,6 +4529,37 @@ paths:
           description: OK
       tags:
       - teacher-assignment-controller
+  /api/classes/{classId}/transferred-assessment-history:
+    get:
+      operationId: getTransferredHistory
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonTransferredAssessmentHistoryResponse"
+          description: OK
+      tags:
+      - daily-assessment-controller
   /api/classrooms:
     get:
       operationId: listClassrooms
@@ -6232,6 +6461,111 @@ paths:
           description: OK
       tags:
       - health-check-controller
+  /api/inspections/approvals:
+    get:
+      operationId: getApprovals
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/approve:
+    post:
+      operationId: approveApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/reject:
+    post:
+      operationId: rejectApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/approvals/{approvalId}/revoke:
+    post:
+      operationId: revokeApproval
+      parameters:
+      - in: path
+        name: approvalId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalDecisionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: OK
+      tags:
+      - inspection-controller
   /api/inspections/day:
     get:
       operationId: getDay
@@ -6297,6 +6631,48 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
           description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}/approvals:
+    post:
+      operationId: requestApproval
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionApprovalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionApprovalResponse"
+          description: Created
       tags:
       - inspection-controller
   /api/inspections/day/{tab}/reopen:
@@ -6500,6 +6876,24 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonListLeaveRequestResponse"
+          description: OK
+      tags:
+      - leave-request-controller
+  /api/leave-requests/preview:
+    post:
+      operationId: previewLeaveRequest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreviewLeaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLeavePreviewResponse"
           description: OK
       tags:
       - leave-request-controller
@@ -8562,6 +8956,8 @@ paths:
           - ADJUST
           - SHORTFALL_DEDUCT
           - RECEIPT_CANCEL
+          - SUPPLIER_RETURN
+          - WRITE_OFF
       - in: query
         name: page
         required: false
@@ -8747,6 +9143,24 @@ paths:
           description: OK
       tags:
       - stock-controller
+  /api/nutrition/stock/returns:
+    post:
+      operationId: createReturn
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockDisposalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockDisposalResponse"
+          description: Created
+      tags:
+      - stock-controller
   /api/nutrition/stock/shortfalls:
     get:
       operationId: getShortfalls
@@ -8764,6 +9178,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonListStockShortfallResponse"
           description: OK
+      tags:
+      - stock-controller
+  /api/nutrition/stock/write-offs:
+    post:
+      operationId: createWriteOff
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockDisposalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockDisposalResponse"
+          description: Created
       tags:
       - stock-controller
   /api/nutrition/suppliers:
@@ -10646,6 +11078,14 @@ components:
           type: number
           maximum: 100000
           minimum: 0
+        zincMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        zincMin:
+          type: number
+          maximum: 100000
+          minimum: 0
       required:
       - ageGroupId
       - effectiveFrom
@@ -10760,6 +11200,10 @@ components:
           type: number
         vitaminPpMin:
           type: number
+        zincMax:
+          type: number
+        zincMin:
+          type: number
     AgeGroupNutrition:
       type: object
       properties:
@@ -10799,6 +11243,8 @@ components:
         vitaminC:
           type: number
         vitaminPp:
+          type: number
+        zinc:
           type: number
     AgeGroupRequest:
       type: object
@@ -12104,6 +12550,38 @@ components:
             $ref: "#/components/schemas/HealthMeasurementResponse"
         openCampaign:
           $ref: "#/components/schemas/HealthOpenCampaign"
+    ChildHistory:
+      type: object
+      properties:
+        attendance:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryAttendance"
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryDay"
+        health:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryHealth"
+        stays:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassStay"
+        themeResults:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryThemeResult"
+        weeklyComments:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryWeeklyComment"
     ChildHistoryResponse:
       type: object
       properties:
@@ -12482,6 +12960,13 @@ components:
         present:
           type: integer
           format: int32
+        previousClasses:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreviousClassTotal"
+        transferredInOn:
+          type: string
+          format: date
         unexcused:
           type: integer
           format: int32
@@ -13044,6 +13529,20 @@ components:
         substitute:
           type: integer
           format: int32
+    ClassStay:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
     ClassSummary:
       type: object
       properties:
@@ -14457,6 +14956,33 @@ components:
       - dishType
       - ingredients
       - name
+    DisposalLine:
+      type: object
+      properties:
+        expiryDate:
+          type: string
+          format: date
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        lotId:
+          type: integer
+          format: int64
+        lotNo:
+          type: string
+        quantity:
+          type: number
+    DisposalLineInput:
+      type: object
+      properties:
+        lotId:
+          type: integer
+          format: int64
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+      required:
+      - lotId
+      - quantity
     Draft:
       type: object
       properties:
@@ -15019,6 +15545,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GoalRef"
+        recordedAt:
+          type: string
+          format: date-time
+        recordedById:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
     EvaluationDetailResponse:
       type: object
       properties:
@@ -15239,6 +15773,7 @@ components:
           enum:
           - AI_DRAFTED
           - AI_REDRAFTED
+          - TEMPLATE_DRAFTED
           - EDITED
           - CONFIRMED
         at:
@@ -15392,10 +15927,6 @@ components:
           type: string
           maxLength: 200
           minLength: 0
-        nutrientSourceVersion:
-          type: string
-          maxLength: 50
-          minLength: 0
         origin:
           type: string
           enum:
@@ -15454,6 +15985,10 @@ components:
         wastePct:
           type: number
           exclusiveMaximum: 100
+          minimum: 0
+        zinc:
+          type: number
+          maximum: 1000000
           minimum: 0
       required:
       - foodGroup
@@ -15516,8 +16051,6 @@ components:
           type: string
         nutrientSource:
           type: string
-        nutrientSourceVersion:
-          type: string
         origin:
           type: string
           enum:
@@ -15564,6 +16097,8 @@ components:
         vitaminPp:
           type: number
         wastePct:
+          type: number
+        zinc:
           type: number
     FoodSampleDisposeRequest:
       type: object
@@ -17722,6 +18257,93 @@ components:
           type: string
         tone:
           type: string
+    HistoryAttendance:
+      type: object
+      properties:
+        absentPart:
+          type: string
+          enum:
+          - MORNING
+          - AFTERNOON
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        recordedById:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+        status:
+          type: string
+          enum:
+          - PRESENT
+          - EXCUSED
+          - UNEXCUSED
+    HistoryDay:
+      type: object
+      properties:
+        day:
+          $ref: "#/components/schemas/EvaluationDay"
+        recordedAt:
+          type: string
+          format: date-time
+        recordedById:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+    HistoryGoalResult:
+      type: object
+      properties:
+        goalId:
+          type: integer
+          format: int64
+        goalNo:
+          type: integer
+          format: int32
+        met:
+          type: boolean
+        text:
+          type: string
+    HistoryHealth:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        note:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+        recordedById:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+        symptoms:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        temperature:
+          type: number
     HistoryRow:
       type: object
       properties:
@@ -17749,6 +18371,69 @@ components:
           format: int64
         userName:
           type: string
+    HistoryThemeResult:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedById:
+          type: integer
+          format: int64
+        confirmedByName:
+          type: string
+        endDate:
+          type: string
+          format: date
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistoryGoalResult"
+        met:
+          type: integer
+          format: int32
+        notMet:
+          type: integer
+          format: int32
+        passed:
+          type: boolean
+        rate:
+          type: integer
+          format: int32
+        startDate:
+          type: string
+          format: date
+        themeId:
+          type: integer
+          format: int64
+        themeName:
+          type: string
+    HistoryWeeklyComment:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        content:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        sentById:
+          type: integer
+          format: int64
+        sentByName:
+          type: string
+        weekStart:
+          type: string
+          format: date
     Impact:
       type: object
       properties:
@@ -17801,9 +18486,85 @@ components:
       - ageGroupId
       - foodId
       - gramsPerChild
+    InspectionApprovalDecisionRequest:
+      type: object
+      properties:
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        validHours:
+          type: integer
+          format: int32
+          maximum: 168
+          minimum: 1
+    InspectionApprovalRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        validHours:
+          type: integer
+          format: int32
+          maximum: 168
+          minimum: 1
+    InspectionApprovalResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        decidedAt:
+          type: string
+          format: date-time
+        decidedByName:
+          type: string
+        decisionNote:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        requestedByName:
+          type: string
+        selfOpened:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
     InspectionDayResponse:
       type: object
       properties:
+        approvals:
+          type: array
+          items:
+            $ref: "#/components/schemas/TabApproval"
         campusId:
           type: integer
           format: int64
@@ -18200,6 +18961,17 @@ components:
       required:
       - contentType
       - fileName
+    LeaveDay:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
     LeaveOptionsResponse:
       type: object
       properties:
@@ -18213,6 +18985,43 @@ components:
           type: boolean
         todayBlockedReason:
           type: string
+    LeavePreviewResponse:
+      type: object
+      properties:
+        appliedDates:
+          type: array
+          items:
+            type: string
+            format: date
+        eatsApplies:
+          type: boolean
+        keptMeals:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        offMeals:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        part:
+          type: string
+          enum:
+          - FULL_DAY
+          - MORNING
+          - AFTERNOON
+        skippedDates:
+          type: array
+          items:
+            type: string
+            format: date
     LeaveRequestResponse:
       type: object
       properties:
@@ -18248,6 +19057,10 @@ components:
           format: int64
         createdByName:
           type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaveDay"
         eats:
           type: boolean
         eatsMeals:
@@ -18264,9 +19077,19 @@ components:
         fromDate:
           type: string
           format: date
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
+        offMeals:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
         part:
           type: string
           enum:
@@ -18281,6 +19104,11 @@ components:
             type: string
             format: date
         status:
+          type: string
+        teacherSeenAt:
+          type: string
+          format: date-time
+        teacherSeenByName:
           type: string
         toDate:
           type: string
@@ -19001,6 +19829,26 @@ components:
           format: int64
         name:
           type: string
+    MenuStatisticsItem:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        dishId:
+          type: integer
+          format: int64
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+      required:
+      - dishId
+      - session
     MenuStatisticsRequest:
       type: object
       properties:
@@ -19021,11 +19869,10 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/Item"
+            $ref: "#/components/schemas/MenuStatisticsItem"
           maxItems: 60
           minItems: 0
       required:
-      - ageGroupId
       - items
     MenuStatisticsResponse:
       type: object
@@ -19061,6 +19908,10 @@ components:
           type: number
         freshCost:
           type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/MenuStatisticsResponse"
         ingredients:
           type: array
           items:
@@ -19606,6 +20457,8 @@ components:
           type: number
         vitaminPp:
           type: number
+        zinc:
+          type: number
     Option:
       type: object
       properties:
@@ -19963,6 +20816,271 @@ components:
       properties:
         username:
           type: string
+    ParentActivity:
+      type: object
+      properties:
+        goalsEffort:
+          type: array
+          items:
+            type: string
+        goalsMet:
+          type: array
+          items:
+            type: string
+        goalsNotMet:
+          type: array
+          items:
+            type: string
+        key:
+          type: string
+        label:
+          type: string
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
+    ParentAttendanceDay:
+      type: object
+      properties:
+        absentPart:
+          type: string
+          enum:
+          - MORNING
+          - AFTERNOON
+        arrivedAt:
+          type: string
+          format: date-time
+        cancelledMeals:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        mealsEaten:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        pickedUpByName:
+          type: string
+        status:
+          type: string
+          enum:
+          - PRESENT
+          - ABSENT_EXCUSED
+          - ABSENT
+          - NOT_RECORDED
+          - NO_SCHOOL
+          - NOT_ENROLLED
+    ParentAttendanceResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentAttendanceDay"
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        totals:
+          $ref: "#/components/schemas/ParentAttendanceTotals"
+    ParentAttendanceTotals:
+      type: object
+      properties:
+        absent:
+          type: number
+          format: double
+        excused:
+          type: number
+          format: double
+        present:
+          type: number
+          format: double
+        schoolDays:
+          type: integer
+          format: int32
+    ParentDailyAssessment:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentActivity"
+        behaviorNote:
+          type: string
+        behaviors:
+          type: array
+          items:
+            type: string
+            enum:
+            - HOP_TAC_TOT
+            - GIUP_DO_BAN
+            - CHUA_HOP_TAC
+            - TRANH_GIANH
+            - KHONG_TAP_TRUNG
+            - RUT_RE
+            - KHAC
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        comment:
+          type: string
+        date:
+          type: string
+          format: date
+        emotion:
+          type: string
+          enum:
+          - HAPPY
+          - CALM
+          - SAD
+          - UPSET
+        flag:
+          type: boolean
+        healthNote:
+          type: string
+        meals:
+          type: object
+          additionalProperties:
+            type: string
+            enum:
+            - AN_HET
+            - AN_IT
+            - KHONG_AN
+        nap:
+          type: string
+          enum:
+          - NGU_TOT
+          - NGU_IT
+          - KHONG_NGU
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
+        savedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+        symptoms:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        teacherName:
+          type: string
+    ParentDailyHealthResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        note:
+          type: string
+        recordedByName:
+          type: string
+        symptoms:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        temperature:
+          type: number
+    ParentDomain:
+      type: object
+      properties:
+        comment:
+          type: string
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentGoal"
+        name:
+          type: string
+    ParentEvaluationsResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        schoolYearId:
+          type: integer
+          format: int64
+        semesters:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentSemesterResult"
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentThemeResult"
+        yearEnd:
+          $ref: "#/components/schemas/ParentYearEndResult"
+    ParentFlag:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        flag:
+          type: boolean
+    ParentGoal:
+      type: object
+      properties:
+        goalNo:
+          type: integer
+          format: int32
+        met:
+          type: boolean
+        text:
+          type: string
     ParentPasswordResponse:
       type: object
       properties:
@@ -19973,6 +21091,149 @@ components:
           format: int64
         username:
           type: string
+    ParentRewardsResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        flags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentFlag"
+        from:
+          type: string
+          format: date
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentTicket"
+        to:
+          type: string
+          format: date
+        yearEndTitles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentYearEndTitle"
+    ParentSemesterResult:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        comment:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDomain"
+        endDate:
+          type: string
+          format: date
+        semester:
+          type: integer
+          format: int32
+        startDate:
+          type: string
+          format: date
+    ParentThemeResult:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentGoal"
+        met:
+          type: integer
+          format: int32
+        notMet:
+          type: integer
+          format: int32
+        startDate:
+          type: string
+          format: date
+        themeName:
+          type: string
+    ParentTicket:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        flagCount:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        issuedAt:
+          type: string
+          format: date-time
+        issuedByName:
+          type: string
+        periodEnd:
+          type: string
+          format: date
+        periodStart:
+          type: string
+          format: date
+        presentDays:
+          type: integer
+          format: int32
+        type:
+          type: string
+          enum:
+          - WEEKLY
+          - MONTHLY
+        weeklyTickets:
+          type: integer
+          format: int32
+    ParentTodayResponse:
+      type: object
+      properties:
+        absentPart:
+          type: string
+          enum:
+          - MORNING
+          - AFTERNOON
+        arrivedAt:
+          type: string
+          format: date-time
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - PRESENT
+          - ABSENT_EXCUSED
+          - ABSENT
+          - NOT_RECORDED
+          - NO_SCHOOL
+          - NOT_ENROLLED
     ParentWeeklyCommentResponse:
       type: object
       properties:
@@ -20002,6 +21263,50 @@ components:
         weekStart:
           type: string
           format: date
+    ParentYearEndResult:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        comment:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDomain"
+        met:
+          type: integer
+          format: int32
+        notMet:
+          type: integer
+          format: int32
+        noteForParent:
+          type: string
+        programCompleted:
+          type: boolean
+    ParentYearEndTitle:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        teacherNote:
+          type: string
+        titles:
+          type: array
+          items:
+            type: string
     PendingTakeover:
       type: object
       properties:
@@ -20656,6 +21961,34 @@ components:
             $ref: "#/components/schemas/PreviewRow"
         supported:
           type: boolean
+    PreviewLeaveRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        eats:
+          type: boolean
+        fromDate:
+          type: string
+          format: date
+        part:
+          type: string
+          enum:
+          - FULL_DAY
+          - MORNING
+          - AFTERNOON
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        toDate:
+          type: string
+          format: date
+      required:
+      - childId
+      - fromDate
+      - toDate
     PreviewRow:
       type: object
       properties:
@@ -20678,6 +22011,29 @@ components:
           format: int32
         selectionError:
           type: string
+    PreviousClassTotal:
+      type: object
+      properties:
+        absent:
+          type: integer
+          format: int32
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        excused:
+          type: integer
+          format: int32
+        from:
+          type: string
+          format: date
+        present:
+          type: integer
+          format: int32
+        to:
+          type: string
+          format: date
     ProgramCompletionRequest:
       type: object
       properties:
@@ -22417,6 +23773,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonInspectionApprovalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/InspectionApprovalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonInspectionDayResponse:
       type: object
       properties:
@@ -22491,6 +23860,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/LeaveOptionsResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonLeavePreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/LeavePreviewResponse"
         desc:
           type: string
         errorCode:
@@ -23017,6 +24399,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListInspectionApprovalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InspectionApprovalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListIssuedTicket:
       type: object
       properties:
@@ -23207,6 +24604,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ParentAccountRowResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListParentDailyAssessment:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDailyAssessment"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListParentDailyHealthResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentDailyHealthResponse"
         desc:
           type: string
         errorCode:
@@ -23879,6 +25306,32 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonParentAttendanceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentAttendanceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentEvaluationsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentEvaluationsResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonParentPasswordResponse:
       type: object
       properties:
@@ -23887,6 +25340,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentPasswordResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentRewardsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentRewardsResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentTodayResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentTodayResponse"
         desc:
           type: string
         errorCode:
@@ -24217,6 +25696,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonStockDisposalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/StockDisposalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonStockReceiptResponse:
       type: object
       properties:
@@ -24329,6 +25821,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/TicketSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonTransferredAssessmentHistoryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/TransferredAssessmentHistoryResponse"
         desc:
           type: string
         errorCode:
@@ -25285,6 +26790,8 @@ components:
         metActivities:
           type: integer
           format: int32
+        sourceClassName:
+          type: string
         text:
           type: string
     SemesterAssessmentRequest:
@@ -25717,6 +27224,64 @@ components:
           type: string
         decision:
           type: string
+    StockDisposalRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DisposalLineInput"
+          minItems: 1
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        supplierId:
+          type: integer
+          format: int64
+      required:
+      - campusId
+      - lines
+      - reason
+    StockDisposalResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        code:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: integer
+          format: int64
+        disposalDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - SUPPLIER_RETURN
+          - WRITE_OFF
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DisposalLine"
+        reason:
+          type: string
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
     StockFoodRef:
       type: object
       properties:
@@ -25778,6 +27343,9 @@ components:
         createdBy:
           type: integer
           format: int64
+        disposalId:
+          type: integer
+          format: int64
         food:
           $ref: "#/components/schemas/StockFoodRef"
         id:
@@ -25806,6 +27374,8 @@ components:
           - ADJUST
           - SHORTFALL_DEDUCT
           - RECEIPT_CANCEL
+          - SUPPLIER_RETURN
+          - WRITE_OFF
     StockReceiptCancelRequest:
       type: object
       properties:
@@ -26108,6 +27678,44 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    TabApproval:
+      type: object
+      properties:
+        approvalId:
+          type: integer
+          format: int64
+        canRequest:
+          type: boolean
+        decisionNote:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        locked:
+          type: boolean
+        reason:
+          type: string
+        requestedByName:
+          type: string
+        selfOpen:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - REVOKED
+          - CONSUMED
+          - EXPIRED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
     Takeover:
       type: object
       properties:
@@ -26482,6 +28090,10 @@ components:
         flagCount:
           type: integer
           format: int32
+        issuedByNames:
+          type: array
+          items:
+            type: string
         presentDays:
           type: integer
           format: int32
@@ -26677,6 +28289,22 @@ components:
         substitute:
           type: integer
           format: int32
+    TransferredAssessmentHistoryResponse:
+      type: object
+      properties:
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildHistory"
+        classId:
+          type: integer
+          format: int64
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
     TrendWarning:
       type: object
       properties:
@@ -27117,6 +28745,8 @@ components:
       properties:
         absentAllWeek:
           type: boolean
+        aiReviewed:
+          type: boolean
         childId:
           type: integer
           format: int64
@@ -27290,6 +28920,22 @@ components:
         weekStart:
           type: string
           format: date
+    WeeklyCommentViewRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        weekStart:
+          type: string
+          format: date
+      required:
+      - childId
+      - classId
+      - weekStart
     WindowInput:
       type: object
       properties:

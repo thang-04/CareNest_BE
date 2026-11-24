@@ -15,6 +15,10 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
 
     List<ThemeEvaluation> findByClassroomId(Long classroomId);
 
+    /** Bảng cuối chủ đề đã xác nhận của các lớp trong một năm học (App phụ huynh xem kết quả của con). */
+    List<ThemeEvaluation> findByClassroomIdInAndSchoolYearIdAndConfirmedAtIsNotNull(
+            Collection<Long> classroomIds, Long schoolYearId);
+
     /** Chủ đề của kế hoạch năm học đã duyệt (bản mới nhất) của nhóm tuổi; chỉ đọc bảng của module kế hoạch giáo dục. */
     interface ThemeRow {
         Long getId();
