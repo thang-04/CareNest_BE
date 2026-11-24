@@ -2,6 +2,7 @@ package com.carenest.service.child.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
@@ -480,21 +481,38 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: ngày nghỉ khác ngày thao tác, trước ngày tiếp nhận, thiếu lý do ⇒ lỗi theo ô")
-    void withdrawValidatesFields() {
-        assertThatThrownBy(() -> service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest("2026-11-11", "")))
+    @DisplayName("G94-180/CHD-03: lỗi ô leftAt theo thứ tự — trước hôm nay (kèm thiếu lý do), không phải ngày học, quá"
+            + " ngày học kế tiếp, trước ngày tiếp nhận, trước ngày mở lại hồ sơ")
+    void withdrawValidatesLeaveDateAndReason() {
+        given(schoolYearService.isSchoolDay(LocalDate.of(2026, 11, 11))).willReturn(true);
+        given(schoolYearService.isSchoolDay(LocalDate.of(2026, 11, 12))).willReturn(true);
+        assertThatThrownBy(() -> service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest("2026-11-09", "")))
                 .isInstanceOfSatisfying(
                         GlobalException.class,
                         ex -> assertThat(ex.getFieldErrors())
-                                .extracting(FieldErrorResponse::field)
-                                .containsExactly("leftAt", "reason"));
-        assertThatThrownBy(() -> service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest("2026-08-31", "x")))
-                .isInstanceOfSatisfying(
-                        GlobalException.class,
-                        ex -> assertThat(ex.getFieldErrors())
-                                .extracting(FieldErrorResponse::field)
-                                .containsExactly("leftAt"));
+                                .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                                .containsExactly(
+                                        tuple("leftAt", "Ngày nghỉ học không được trước hôm nay"),
+                                        tuple("reason", "Nhập lý do cho trẻ nghỉ học")));
+        expectLeftAtError("2026-11-14", "Ngày nghỉ học 14/11/2026 là thứ Bảy. Chọn ngày từ thứ 2 tới thứ 6.");
+        expectLeftAtError("2026-11-12", "Chỉ chọn hôm nay hoặc ngày học kế tiếp (11/11/2026)");
+
+        // Ngày tiếp nhận / mở lại hồ sơ sau hôm nay chỉ gặp ở dữ liệu lỗi: vẫn chặn
+        ReflectionTestUtils.setField(child, "enrolledOn", TODAY.plusDays(1));
+        expectLeftAtError("2026-11-10", "Ngày nghỉ học không được trước ngày tiếp nhận (11/11/2026)");
+        ReflectionTestUtils.setField(child, "enrolledOn", LocalDate.of(2026, 9, 1));
+        ReflectionTestUtils.setField(child, "readmittedOn", TODAY.plusDays(1));
+        expectLeftAtError("2026-11-10", "Ngày nghỉ học không được trước ngày mở lại hồ sơ (11/11/2026)");
         verify(childRepository, never()).save(any());
+    }
+
+    private void expectLeftAtError(String leftAt, String message) {
+        assertThatThrownBy(() -> service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(leftAt, "Chuyển nhà")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                                .containsExactly(tuple("leftAt", message)));
     }
 
     @Test
