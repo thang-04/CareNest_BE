@@ -2536,7 +2536,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         boolean isRootDoc = root.getId().equals(doc.getId());
         if (!isRootDoc && (member == null || !member.isObject())) return null;
         ObjectNode node = toNode(currentUser, doc, null, context);
-        JsonNode currentCalendar = node.remove("effectiveCalendar");
+        node.remove("effectiveCalendar");
         if (member != null && member.isObject()) {
             JsonNode content = member;
             readObject(doc.getContent()).propertyNames().forEach(key -> {
@@ -2562,9 +2562,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 if (EduClassDoc.BRANCH.equals(m.path("kind").asString(""))) {
                     node.set("branchNames", m.path("names"));
                     // Snapshot cũ không có lịch nhánh ⇒ dùng lịch hiện hành (Tiền chốt 23/11)
-                    JsonNode calendar = m.path("content").isObject()
-                            ? m.path("content")
-                            : currentCalendar != null ? currentCalendar : latestBranchCalendar(doc, context);
+                    // EDU-111 (8): gói đã duyệt bất biến; snapshot cũ thiếu lịch thì chỉ còn tên nhánh lúc ban hành
+                    JsonNode calendar = m.path("content").isObject() ? m.path("content") : null;
                     if (calendar != null) node.set("effectiveCalendar", calendar);
                 }
             }
@@ -2595,24 +2594,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 "daysLeft",
                 "timeLocked"));
         return node;
-    }
-
-    // EDU-100 (2): lịch nhánh của lớp luôn ở Nháp và giữ bản mới nhất ⇒ snapshot cũ thiếu lịch thì lấy lịch này
-    private JsonNode latestBranchCalendar(EduClassDoc doc, ClassListContext context) {
-        return context.docsByKey().values().stream()
-                .filter(d -> EduClassDoc.BRANCH.equals(d.getKind())
-                        && d.getClassroomId().equals(doc.getClassroomId())
-                        && Objects.equals(d.getYearPlanId(), doc.getYearPlanId()))
-                .map(d -> readObject(d.getContent()))
-                .filter(c -> c.path("schemaVersion").asInt() == 2)
-                .findFirst()
-                .<JsonNode>map(c -> {
-                    ObjectNode calendar = objectMapper.createObjectNode();
-                    calendar.set("themeSchedules", c.path("themeSchedules"));
-                    calendar.set("branches", c.path("branches"));
-                    return calendar;
-                })
-                .orElse(null);
     }
 
     private ObjectNode publishedOrFrame(CurrentUser currentUser, EduClassDoc doc, ClassListContext context) {
@@ -2890,8 +2871,10 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             ArrayNode themeIds = node.putArray("themeIds");
             info.themeIds().forEach(id -> themeIds.add(String.valueOf(id)));
             if (doc.getSemesterNo() != null) node.put("semesterNo", doc.getSemesterNo());
-            if (EduClassDoc.SEMESTER.equals(doc.getKind()))
+            if (EduClassDoc.SEMESTER.equals(doc.getKind())) {
                 node.set("branchNames", semesterBranchNames(doc, planDocs, year));
+                if (doc.getStatus() == EduClassDocStatus.APPROVED) applyReleasedBranches(doc, node);
+            }
             blocked = !doc.getStatus().editable()
                     ? "NOT_DRAFT"
                     : EduDeadline.OVERDUE.equals(info.deadline().state())
@@ -3290,6 +3273,18 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /** Tên nhánh các tuần thuộc học kỳ của gói (chụp vào bản ban hành, FR-015). */
+    /** EDU-111 (8): gói học kỳ đã duyệt giữ tên nhánh, lịch như lúc ban hành; sửa nhánh sau đó không đổi gói. */
+    private void applyReleasedBranches(EduClassDoc doc, ObjectNode node) {
+        var releases = releaseRepository.findAllByClassDocIdInOrderByReleasedAtAscIdAsc(List.of(doc.getId()));
+        if (releases.isEmpty()) return;
+        for (JsonNode m : readObject(releases.getLast().getPrintSnapshot()).path("members")) {
+            if (!EduClassDoc.BRANCH.equals(m.path("kind").asString(""))) continue;
+            node.set("branchNames", m.path("names"));
+            if (m.path("content").isObject()) node.set("effectiveCalendar", m.path("content"));
+            else node.remove("effectiveCalendar");
+        }
+    }
+
     private ObjectNode semesterBranchNames(EduClassDoc root, List<EduClassDoc> docs, SchoolYearDetailResponse year) {
         if (!EduClassDoc.SEMESTER.equals(root.getKind())) return null;
         ObjectNode names = objectMapper.createObjectNode();
