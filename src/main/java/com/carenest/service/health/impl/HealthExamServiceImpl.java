@@ -155,6 +155,16 @@ public class HealthExamServiceImpl implements HealthExamService {
                                     child.dateOfBirth(),
                                     child.guardians().size()))
                             : draftErrors(height, weight, head));
+            // Định dạng nhiệt độ kiểm trên số gửi lên (trước khi làm tròn), cả nháp lẫn kết luận; thay lỗi khoảng cùng
+            // ô
+            FieldErrorResponse temperatureError = HealthExamValidator.temperatureFormatError(
+                    request.exam() == null || request.exam().vitals() == null
+                            ? null
+                            : request.exam().vitals().temperatureC());
+            if (temperatureError != null) {
+                errors.removeIf(e -> e.field().equals(temperatureError.field()));
+                errors.add(0, temperatureError);
+            }
             // HLT-08: mỗi ngày một phiếu khám (cả nháp); ngày đã có số đo kỳ cân đo vẫn lưu, chỉ phiếu mới có thể trùng
             Long currentId = m == null ? null : m.getId();
             if (measurementRepository.findByChildIdAndDate(childId, date).stream()

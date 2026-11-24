@@ -43,6 +43,7 @@ import com.carenest.service.health.impl.HealthExamCatalog.Option;
 import com.carenest.service.health.impl.HealthExamCatalog.VitalItem;
 import com.carenest.utils.enums.HealthConclusionMode;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -326,6 +327,25 @@ final class HealthExamValidator {
             errors.putIfAbsent("exam.conclusion.specialty", "Ghi chuyên khoa bác sĩ đề nghị, ví dụ Mắt");
         }
         checkLength(errors, "exam.conclusion.specialty", c.specialty(), SPECIALTY);
+    }
+
+    /**
+     * Định dạng nhiệt độ theo số người dùng gửi (chưa làm tròn): lớn hơn 0, phần nguyên đúng 2 chữ số, tối đa 2 chữ số
+     * sau dấu phẩy. Trả lỗi ô hoặc null nếu hợp lệ hay chưa nhập.
+     */
+    static FieldErrorResponse temperatureFormatError(BigDecimal raw) {
+        if (raw == null) {
+            return null;
+        }
+        BigDecimal v = raw.stripTrailingZeros();
+        boolean valid = v.signum() > 0
+                && v.scale() <= 2
+                && v.setScale(0, RoundingMode.DOWN).precision() == 2;
+        return valid
+                ? null
+                : new FieldErrorResponse(
+                        "exam.vitals.temperatureC",
+                        "Nhập nhiệt độ gồm 2 chữ số, tối đa 2 chữ số sau dấu phẩy (vd 36,5)");
     }
 
     // So khoảng trên số đã làm tròn 0,1 như lúc lưu (số trong phiếu đã chuẩn hóa không đổi); quá ±10^9 ⇒ ngoài khoảng

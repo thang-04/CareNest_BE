@@ -415,7 +415,7 @@ class HealthExamLogicTest {
 
         HealthExamForm exam = normalize(d, STANDARD, false);
 
-        assertThat(exam.vitals().temperatureC()).isEqualTo(new BigDecimal("37.5"));
+        assertThat(exam.vitals().temperatureC()).isEqualTo(new BigDecimal("37.45"));
         assertThat(exam.vitals().temperatureStatus()).isEmpty();
         assertThat(exam.vitals().pulse()).isEqualTo(new BigDecimal("100"));
         assertThat(exam.vitals().respiratoryRate()).isEqualTo(new BigDecimal("24"));

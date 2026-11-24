@@ -812,6 +812,54 @@ class HealthExamIntegrationTest {
         return new HealthMeasurementRequest(round, new BigDecimal("98.5"), new BigDecimal(weightKg), "", reason);
     }
 
+    @Test
+    @DisplayName("HLT-08: nhiệt độ gồm 2 chữ số nguyên, tối đa 2 chữ số sau dấu phẩy (nháp và kết luận)")
+    void temperatureFormatIsCheckedOnDraftAndConclude() {
+        long campaign = examCampaign(campusA);
+        for (String bad : List.of("3115345", "9.5", "36.555")) {
+            HealthExamForm form = withTemperature(HealthExamCatalog.template(), new BigDecimal(bad));
+            assertThatThrownBy(() -> exams.saveExam(teacherA, campaign, child1, save(form, false, "")))
+                    .as("nháp " + bad)
+                    .isInstanceOf(GlobalException.class)
+                    .satisfies(ex -> assertThat(((GlobalException) ex).getFieldErrors())
+                            .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                            .contains(org.assertj.core.groups.Tuple.tuple(
+                                    "exam.vitals.temperatureC",
+                                    "Nhập nhiệt độ gồm 2 chữ số, tối đa 2 chữ số sau dấu phẩy (vd 36,5)")));
+        }
+        // Kết luận 33.5: chỉ còn lỗi khoảng như cũ
+        HealthExamForm low = withTemperature(exam("NO", null, normal()), new BigDecimal("33.5"));
+        assertThatThrownBy(() -> exams.saveExam(teacherA, campaign, child1, save(low, true, "")))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> assertThat(((GlobalException) ex).getFieldErrors())
+                        .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                        .contains(org.assertj.core.groups.Tuple.tuple(
+                                "exam.vitals.temperatureC", "Nhập nhiệt độ từ 34 đến 42 °C")));
+
+        HealthExamResponse one = exams.saveExam(
+                teacherA,
+                campaign,
+                child1,
+                save(withTemperature(HealthExamCatalog.template(), new BigDecimal("36.5")), false, ""));
+        assertThat(one.measurement().exam().vitals().temperatureC()).isEqualByComparingTo("36.5");
+        HealthExamResponse two = exams.saveExam(
+                teacherA,
+                campaign,
+                child1,
+                save(withTemperature(HealthExamCatalog.template(), new BigDecimal("36.55")), false, ""));
+        assertThat(two.measurement().exam().vitals().temperatureC()).isEqualByComparingTo("36.55");
+        assertThat(exams.getExam(teacherA, campaign, child1)
+                        .measurement()
+                        .exam()
+                        .vitals()
+                        .temperatureC())
+                .isEqualByComparingTo("36.55");
+    }
+
+    private static HealthExamForm withTemperature(HealthExamForm f, BigDecimal temperature) {
+        return withVitals(f, new HealthExamForm.HealthExamVitals(temperature, null, null, null, null, null));
+    }
+
     private static HealthExamRequest save(HealthExamForm exam, boolean conclude, String reason) {
         return save(exam, conclude, reason, null);
     }
