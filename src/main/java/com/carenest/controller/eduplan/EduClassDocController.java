@@ -117,12 +117,13 @@ public class EduClassDocController {
             @RequestParam(defaultValue = "false") boolean myTurn,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "5") int size,
+            @RequestParam(defaultValue = "false") boolean currentOnly,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getClassDocSummaries|userId=" + currentUser.userId() + "|schoolYearId="
                 + schoolYearId + "|page=" + page;
         log.info("{}|START", logPrefix);
         var filter = new com.carenest.dto.eduplan.ClassDocSummaryFilter(
-                classId, classIds, kind, semesterNo, themeId, status, myTurn, page, size);
+                classId, classIds, kind, semesterNo, themeId, status, myTurn, page, size, currentOnly);
         var result =
                 classDocService.getClassDocSummaries(currentUser, schoolYearId, view == ClassDocView.REVIEW, filter);
         log.info("{}|END", logPrefix);

@@ -17,7 +17,21 @@ public record ClassDocSummaryFilter(
         Set<String> statuses,
         boolean myTurn,
         int page,
-        int size) {
+        int size,
+        boolean currentOnly) {
+
+    public ClassDocSummaryFilter(
+            Long classId,
+            Set<String> classIds,
+            Set<String> kinds,
+            Integer semesterNo,
+            String themeId,
+            Set<String> statuses,
+            boolean myTurn,
+            int page,
+            int size) {
+        this(classId, classIds, kinds, semesterNo, themeId, statuses, myTurn, page, size, false);
+    }
 
     public boolean matches(ObjectNode node) {
         return in(classIds, node.path("classId").asString(""))

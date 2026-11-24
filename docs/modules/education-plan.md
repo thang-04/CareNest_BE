@@ -333,3 +333,11 @@ EDU-98 (20/11/2026). Bộ lọc nhóm tuổi dùng danh mục age_groups; ở D�
 EDU-99 (Tiền, 20/11/2026): thông báo lỗi và kiểm tra dữ liệu dùng đỏ. Hướng dẫn, mục mới và kết quả đã xử lý dùng xanh lá. Lý do trả lại hiện chữ đỏ, không có nền hoặc khung đỏ.
 
 Lịch sử duyệt (EDU-73/99): dùng cùng thẻ đóng/mở với các phần nội dung. Các sự kiện hiển thị theo thứ tự thời gian, có nhãn tiếng Việt, người thực hiện và thời gian nếu có. Sự kiện tự động hiển thị tên hệ thống khi thiếu người thực hiện và không đưa dữ liệu cấu hình vào ghi chú.
+
+## Phiên bản điều chỉnh và danh sách phiên bản (EDU-112 — Tiền 25/11/2026)
+
+- Tạo phiên bản: kế hoạch năm học và kế hoạch tổ dùng chung `POST /goals/{id}/versions` (`EduYearPlanServiceImpl.createVersion`, bỏ chặn TEAM); cờ `canCreateVersion` = có quyền soạn, bản ban hành mới nhất, chuỗi không còn bản dở, chưa khóa theo năm học. Gói học kỳ, hồ sơ chủ đề giữ thao tác `revise` / cờ `canRevise` (khóa từ đầu học kỳ / đầu chủ đề, EDU-76).
+- Ban hành muộn (EDU-72, EDU-112 (3)): `EduTeamUpdateGenerator.updateAfterPublication` tạo bản cập nhật tổ cả khi tổ đã khóa theo thời gian (bản mới quá hạn, HT mở hạn EDU-109 (9)); `reconcileTeamUpdates` chạy khi khởi động để đối soát bù, không tạo trùng.
+- Danh sách: `GET /class-docs/summary` trả thêm `releases`, `everReleased`; tham số `currentOnly` loại hồ sơ có `yearPlanId` là kế hoạch tổ đã bị thay thế (`EduClassDocRepository.findSummaryPage`, `SUMMARY_PAGE_WHERE`; id tổ bị thay thế tính qua `findDistinctYearPlanIds` + `isSuperseded`).
+- Bản ban hành cũ: `GET /class-docs/releases/{id}` cho mọi người xem được lớp (HT, PHT xem mọi bản cũ, mới — EDU-112 (5)).
+- FE: `ClassDocListPage` (route `/education/theme-plans`, `/education/day-plans`), feature doc `CareNest_FE/docs/features/education-plan-version-lists.md`.

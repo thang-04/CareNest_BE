@@ -28,9 +28,12 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
             + " and (:allStatuses = true or d.status in :statuses)"
             + " and (:semesterNo is null or d.semesterNo = :semesterNo) and (:themeId is null or d.themeId = :themeId)";
 
+    // EDU-112 (4): "chỉ bản đang hiệu lực" loại hồ sơ thuộc kế hoạch tổ đã bị phiên bản mới thay thế
+    String SUMMARY_PAGE_WHERE = SUMMARY_WHERE + " and (:allPlans = true or d.yearPlanId not in :excludedPlanIds)";
+
     @Query(
-            value = "select d from EduClassDoc d where " + SUMMARY_WHERE,
-            countQuery = "select count(d) from EduClassDoc d where " + SUMMARY_WHERE)
+            value = "select d from EduClassDoc d where " + SUMMARY_PAGE_WHERE,
+            countQuery = "select count(d) from EduClassDoc d where " + SUMMARY_PAGE_WHERE)
     org.springframework.data.domain.Page<EduClassDoc> findSummaryPage(
             @Param("classIds") Collection<Long> classIds,
             @Param("allKinds") boolean allKinds,
@@ -39,6 +42,8 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
             @Param("statuses") Collection<com.carenest.utils.enums.EduClassDocStatus> statuses,
             @Param("semesterNo") Integer semesterNo,
             @Param("themeId") Long themeId,
+            @Param("allPlans") boolean allPlans,
+            @Param("excludedPlanIds") Collection<Long> excludedPlanIds,
             org.springframework.data.domain.Pageable pageable);
 
     @Query("select d from EduClassDoc d where " + SUMMARY_WHERE + " order by d.id asc")
@@ -50,6 +55,10 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
             @Param("statuses") Collection<com.carenest.utils.enums.EduClassDocStatus> statuses,
             @Param("semesterNo") Integer semesterNo,
             @Param("themeId") Long themeId);
+
+    @Query(
+            "select distinct d.yearPlanId from EduClassDoc d where d.classroomId in :classIds and d.yearPlanId is not null")
+    List<Long> findDistinctYearPlanIds(@Param("classIds") Collection<Long> classIds);
 
     Optional<EduClassDoc> findByDocKey(String docKey);
 
