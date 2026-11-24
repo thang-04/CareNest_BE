@@ -722,8 +722,12 @@ class EduClassDocServiceIntegrationTest {
                 classId);
         entityManager.clear();
 
+        // EDU-111 (5): GV không chủ nhiệm xem lịch nhánh hiện tại, chỉ xem
         assertThat(service.getClassDocs(second, schoolYear).branchPlans())
-                .noneMatch(d -> d.path("id").asString().equals(key));
+                .filteredOn(d -> d.path("id").asString().equals(key))
+                .singleElement()
+                .satisfies(d -> assertThat(d.path("permissions").path("canEdit").asBoolean())
+                        .isFalse());
         assertThat(service.getClassDocs(teacher, schoolYear).branchPlans())
                 .filteredOn(d -> d.path("id").asString().equals(key))
                 .singleElement()
@@ -2018,8 +2022,13 @@ class EduClassDocServiceIntegrationTest {
                         .collect(java.util.stream.Collectors.toSet()));
         for (CurrentUser viewer : List.of(second, principal, vicePrincipal, nutritionVp, leader)) {
             ClassDocsResponse docs = service.getClassDocs(viewer, schoolYear);
-            // Tiền 24/11/2026: GV không chủ nhiệm cũng như HT/PHT/Tổ trưởng chỉ xem lịch nhánh theo gói đã ban hành
-            assertThat(docs.branchPlans()).isEmpty();
+            // EDU-111 (5): GV không chủ nhiệm, HT/PHT/Tổ trưởng xem lịch nhánh hiện tại (kể cả nhánh chưa ban hành),
+            // chỉ xem
+            assertThat(docs.branchPlans()).singleElement().satisfies(current -> {
+                assertThat(current.path("names").has("2026-10-05")).isTrue();
+                assertThat(current.path("permissions").path("canEdit").asBoolean())
+                        .isFalse();
+            });
             assertThat(docs.semesterPackages())
                     .filteredOn(p -> "APPROVED".equals(p.path("status").asString()))
                     .singleElement()
