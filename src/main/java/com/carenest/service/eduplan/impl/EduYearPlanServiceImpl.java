@@ -1039,9 +1039,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             List<String> overdue = new ArrayList<>();
             for (EduPlan plan : yearPlanRepository.findAll()) {
                 EduPlanStatus status = plan.publicStatus();
-                if (plan.isDisabled()
-                        || (status != EduPlanStatus.DRAFT && status != EduPlanStatus.REVIEW)
-                        || timeLock.released(plan)) continue;
+                if (plan.isDisabled() || (status != EduPlanStatus.DRAFT && status != EduPlanStatus.REVIEW)) continue;
                 EduDeadline.Info info = timeLock.info(plan);
                 if (EduDeadline.OVERDUE.equals(info.state())) {
                     overdue.add(planLabel(plan));
@@ -1370,15 +1368,15 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     private boolean hasDeadlineBoardAccess(EduPlan plan) {
         boolean writableYear = schoolYearService.isPlanYearWritable(plan.getSchoolYearId());
-        boolean open = plan.publicStatus() == EduPlanStatus.REVIEW
-                || (plan.publicStatus() == EduPlanStatus.DRAFT && !timeLock.released(plan));
+        // EDU-112 (3): bản Nháp/phiên bản đang soạn quá hạn (kể cả chuỗi đã từng ban hành) lên màn quá hạn
+        boolean open = plan.publicStatus() == EduPlanStatus.REVIEW || plan.publicStatus() == EduPlanStatus.DRAFT;
         return open && (timeLock.info(plan).extendedTo() != null || (timeLock.locked(plan) && writableYear));
     }
 
-    /** EDU-109 (9): HT mở hạn khi quá hạn: Chờ duyệt, hoặc Nháp/Trả lại của chuỗi chưa từng ban hành (spec 005). */
+    /** EDU-109 (9), EDU-112 (3): HT mở hạn khi quá hạn: Chờ duyệt, hoặc Nháp/Trả lại (kể cả phiên bản của chuỗi đã ban hành). */
     private boolean reopenable(EduPlan plan) {
         return reviewDeadlineOf(plan).locked()
-                && (plan.publicStatus() == EduPlanStatus.REVIEW || !timeLock.released(plan));
+                && (plan.publicStatus() == EduPlanStatus.REVIEW || plan.publicStatus() == EduPlanStatus.DRAFT);
     }
 
     // Người phụ trách: đủ điều kiện soạn theo cấu hình (với kế hoạch tổ là Tổ trưởng hiện hành); không xét trạng thái
