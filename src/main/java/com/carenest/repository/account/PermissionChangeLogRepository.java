@@ -11,4 +11,6 @@ public interface PermissionChangeLogRepository extends JpaRepository<PermissionC
     Page<PermissionChangeLog> findByTargetRole(CareNestRole targetRole, Pageable pageable);
 
     Page<PermissionChangeLog> findByTargetUserId(Long targetUserId, Pageable pageable);
+
+    boolean existsByReason(String reason);
 }

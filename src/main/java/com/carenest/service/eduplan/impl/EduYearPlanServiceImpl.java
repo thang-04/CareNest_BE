@@ -548,7 +548,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 throw GlobalException.of(ApiCode.INVALID_VALUE, "hạn mới");
             if (!timeLock.locked(plan)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở khóa khi đã khóa");
             // EDU-109 (9): mở hạn gửi/duyệt gộp một — lùi hạn hiệu lực chung, Nháp/Trả lại/Chờ duyệt đều được
-            if (!reopenable(plan)) throw GlobalException.of(ApiCode.INVALID_VALUE, "kế hoạch đã ban hành không mở khóa");
+            if (!reopenable(plan))
+                throw GlobalException.of(ApiCode.INVALID_VALUE, "kế hoạch đã ban hành không mở khóa");
             Instant now = clock.instant();
             EduPlanEvent event = EduPlanEvent.of(
                             plan.getId(),
@@ -715,6 +716,82 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
+    public YearPlanDetailResponse publishByPrincipal(
+            CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit) {
+        String logPrefix = LOG_PREFIX + "|publishByPrincipal|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        try {
+            // NFR1.5: khóa đọc policy để không đổi chuỗi giữa chừng
+            settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
+            if (edit != null && edit.requestId() != null && edit.requestId().equals(plan.getLastSaveRequestId())) {
+                log.info("{}|END", logPrefix);
+                return toDetail(currentUser, plan);
+            }
+            Instant now = clock.instant();
+            // BR6.2: chỉ HT hiệu lực, loại có HT soạn và chuỗi duyệt rỗng
+            EduWorkflowPolicy.RolePolicy policy = eduWorkflowService.loadPolicy(plan.workflowKey());
+            if (!accessPolicy.isPrincipal(currentUser)
+                    || !policy.creators().equals(List.of(EduWorkflowPolicy.Role.PRINCIPAL))
+                    || !policy.reviewers().isEmpty()) {
+                throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, "ban hành");
+            }
+            requireRevision(plan, edit);
+            if (plan.publicStatus() == EduPlanStatus.DRAFT) {
+                // Nháp: HT là người soạn, qua cùng kiểm tra trước khi gửi
+                if (!isEditor(currentUser, plan)) throw GlobalException.of(ApiCode.YEAR_PLAN_SUBMIT_FORBIDDEN);
+                requireSession(currentUser, plan, edit, now);
+                if (timeLock.locked(plan)) throw GlobalException.of(ApiCode.PLAN_TIME_LOCKED);
+                plan.submit(currentUser.userId(), now);
+            } else if (plan.publicStatus() == EduPlanStatus.REVIEW) {
+                // EDU-110 (10): hồ sơ đang chờ theo chuỗi cũ, chuỗi loại này nay rỗng ⇒ HT ban hành
+                if (reviewDeadlineOf(plan).locked()) throw GlobalException.of(ApiCode.EDU_REVIEW_DEADLINE_PASSED);
+            } else {
+                throw GlobalException.of(ApiCode.YEAR_PLAN_INVALID_STATUS, "ban hành");
+            }
+            requireReadyToIssue(plan);
+
+            List<EduWorkflowPolicy.Approval> approvals =
+                    new ArrayList<>(eduWorkflowService.parseApprovals(plan.getApprovals()));
+            approvals.add(new EduWorkflowPolicy.Approval(
+                    currentUser.userId(),
+                    currentUser.fullName(),
+                    EduWorkflowPolicy.Role.PRINCIPAL,
+                    now,
+                    note,
+                    plan.getReviewRound()));
+            long rev = eduWorkflowService.getPolicyRevision();
+            String snapshotJson = eduWorkflowService.buildPrintSnapshot(
+                    plan.workflowKey(),
+                    rev,
+                    approvals,
+                    policy,
+                    now,
+                    eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId()));
+            plan.publish(
+                    currentUser.userId(),
+                    null,
+                    null,
+                    eduWorkflowService.serializeApprovals(approvals),
+                    rev,
+                    objectMapper.writeValueAsString(policy),
+                    snapshotJson,
+                    now);
+            plan.recordSave(edit == null ? null : edit.requestId());
+            yearPlanRepository.save(plan);
+            teamUpdates.updateAfterPublication(plan, now);
+            recordEvent(plan, ACTION_ISSUE, "Ban hành", currentUser, roleLabel(currentUser), TONE_OK, note, now);
+            YearPlanDetailResponse response = toDetail(currentUser, plan);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
     public YearPlanDetailResponse returnYearPlan(
             CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|returnYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -781,8 +858,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (reason.isEmpty() || deadline == null || !deadline.isAfter(today))
                 throw GlobalException.of(ApiCode.INVALID_VALUE, "lý do hoặc hạn mở lại");
             // EDU-109 (9): giữ action cũ cho tương thích, cùng điều kiện với mở khóa (unlock)
-            if (!reopenable(plan))
-                throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
+            if (!reopenable(plan)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
             Instant now = clock.instant();
             EduPlanEvent event = EduPlanEvent.of(
                             plan.getId(),
@@ -2198,6 +2274,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 .map(EduPlanEvent::getNote)
                 .orElse(null);
     }
+
     private YearPlanDetailResponse.Permissions permissionsOf(
             CurrentUser user, EduPlan plan, List<EduPlan> chain, Long currentId) {
         Instant now = clock.instant();

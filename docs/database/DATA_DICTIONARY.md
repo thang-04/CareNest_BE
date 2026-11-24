@@ -981,7 +981,7 @@ Mục đích: một bảng cho cả ma trận quyền theo role do Hiệu trư�
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| role | VARCHAR(20) | có | Dòng role: chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK, `TEAM_LEADER` từ V38); role khác cố định trong code. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23 |
+| role | VARCHAR(20) | có | Dòng role: chỉ `PRINCIPAL`/`VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK `ck_permission_grants_role`, `TEAM_LEADER` từ V38, `PRINCIPAL` từ V170); role khác cố định trong code. `PRINCIPAL` chỉ có dòng cho 8 mã `EDU_*_EDIT/APPROVE` (API kiểm), mã khác của HT vẫn cố định. Ô tick 8 mã EDU của mọi vai trò quyết định chuỗi soạn/duyệt (`edu_settings.workflow_policy`); 8 mã này không có dòng người. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23, EDU-110 |
 | user_id | BIGINT | có | Dòng người: FK `user_accounts`, người được cấp/thu quyền. Đúng một trong `role`/`user_id` có giá trị (CHECK) | AUTH-10 |
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
 | effect | VARCHAR(10) | có | Chỉ dòng người: `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định); dòng role NULL | AUTH-10, AUTH-13 |

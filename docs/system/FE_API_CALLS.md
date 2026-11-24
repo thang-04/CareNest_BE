@@ -211,8 +211,6 @@ GET /nutrition/suppliers/{x} · src/services/nutritionCatalogApi.js [nutrition-c
 GET /nutrition/suppliers/{x}/foods · src/services/nutritionCatalogApi.js [nutrition-catalog: api] → src/main/java/com/carenest/controller/meals/SupplierController.java#getSupplierFoods
 GET /permission-change-logs · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionChangeLogs
 GET /permissions · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
-GET /permissions/edu-workflow · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/eduplan/EduWorkflowPermissionController.java#getWorkflowPermissions
-PUT /permissions/edu-workflow · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/eduplan/EduWorkflowPermissionController.java#saveWorkflowPermissions
 GET /permissions · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
 GET /pickups · src/services/pickup/api/pickupApi.js [pickup: api] → src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
 GET /pickups/children/{x} · src/services/pickup/api/pickupApi.js [pickup: api] → src/main/java/com/carenest/controller/attendance/PickupController.java#getChild
@@ -409,6 +407,7 @@ PUT /education-plans/config · src/services/education-plan/api/educationPlanApi.
 PUT /education-plans/duration-policy · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduDurationPolicyController.java#save
 PUT /education-plans/lessons/{x} · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → (BE chưa có — pending)
 PUT /education-plans/themes/{x} · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → (BE chưa có — pending)
+PUT /education-plans/workflow-policy · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#updateWorkflowPolicy
 PUT /health-checks/{x} · src/services/children/api/healthCheckApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthCheckController.java#updateHealthCheck
 PUT /health-checks/{x}/children/{x}/exam · src/services/children/api/healthCheckApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthExamController.java#saveExam
 PUT /inspections/day/{x} · src/services/kitchen/api/inspectionApi.js [kitchen-inspection: api] → src/main/java/com/carenest/controller/meals/InspectionController.java#saveSheet

@@ -194,22 +194,30 @@ public enum Permission {
             "education-plan",
             "Soạn kế hoạch năm học",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER)),
     EDU_SCHOOL_YEAR_PLAN_APPROVE(
             "education-plan",
             "Duyệt kế hoạch năm học",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
     EDU_TEAM_PLAN_EDIT(
             "education-plan",
             "Soạn kế hoạch tổ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER)),
     EDU_TEAM_PLAN_APPROVE(
             "education-plan",
             "Duyệt kế hoạch tổ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
     EDU_SEMESTER_PACKAGE_EDIT(
             "education-plan",
             "Soạn gói học kỳ (chủ đề nhánh, kế hoạch chủ đề, kế hoạch tuần theo kỳ)",
@@ -218,12 +226,16 @@ public enum Permission {
                     CareNestRole.VICE_PRINCIPAL,
                     CareNestRole.TEACHER,
                     CareNestRole.TEAM_LEADER),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER)),
     EDU_SEMESTER_PACKAGE_APPROVE(
             "education-plan",
             "Duyệt gói học kỳ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
     EDU_THEME_PLAN_EDIT(
             "education-plan",
             "Soạn hồ sơ chủ đề (kế hoạch tuần, kế hoạch ngày)",
@@ -232,12 +244,16 @@ public enum Permission {
                     CareNestRole.VICE_PRINCIPAL,
                     CareNestRole.TEACHER,
                     CareNestRole.TEAM_LEADER),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER)),
     EDU_THEME_PLAN_APPROVE(
             "education-plan",
             "Duyệt hồ sơ chủ đề",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
     // Quyết định 11/11/2026: cấu hình kế hoạch chỉ HT; PHT mặc định tắt, HT bật được
     EDU_PLAN_CONFIG(
             "education-plan",
@@ -248,9 +264,27 @@ public enum Permission {
     PERMISSION_MANAGE(
             "account", "Quản lý phân quyền", EnumSet.of(CareNestRole.PRINCIPAL), EnumSet.noneOf(CareNestRole.class));
 
-    /** Role có hàng trong ma trận; quyền các role khác cố định trong code (AUTH-11). TEAM_LEADER theo AUTH-23. */
+    /**
+     * Role có hàng trong ma trận; quyền các role khác cố định trong code (AUTH-11). TEAM_LEADER theo AUTH-23.
+     * PRINCIPAL chỉ có ô cho 8 mã soạn/duyệt kế hoạch giáo dục (EDU-110), mã khác của HT vẫn cố định.
+     */
     public static final Set<CareNestRole> CONFIGURABLE_ROLES = Collections.unmodifiableSet(EnumSet.of(
-            CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF, CareNestRole.TEAM_LEADER));
+            CareNestRole.PRINCIPAL,
+            CareNestRole.VICE_PRINCIPAL,
+            CareNestRole.TEACHER,
+            CareNestRole.KITCHEN_STAFF,
+            CareNestRole.TEAM_LEADER));
+
+    /** EDU-110: 8 mã soạn/duyệt theo loại hồ sơ — chuỗi duyệt suy từ ma trận nên không có ngoại lệ theo người. */
+    public static final Set<Permission> EDU_WORKFLOW = Collections.unmodifiableSet(EnumSet.of(
+            EDU_SCHOOL_YEAR_PLAN_EDIT,
+            EDU_SCHOOL_YEAR_PLAN_APPROVE,
+            EDU_TEAM_PLAN_EDIT,
+            EDU_TEAM_PLAN_APPROVE,
+            EDU_SEMESTER_PACKAGE_EDIT,
+            EDU_SEMESTER_PACKAGE_APPROVE,
+            EDU_THEME_PLAN_EDIT,
+            EDU_THEME_PLAN_APPROVE));
 
     private final String module;
     private final String description;
@@ -298,6 +332,10 @@ public enum Permission {
 
     public boolean isConfigurableFor(CareNestRole role) {
         return configurableRoles.contains(role);
+    }
+
+    public boolean overridable() {
+        return !EDU_WORKFLOW.contains(this);
     }
 
     public static boolean isConfigurableRole(CareNestRole role) {

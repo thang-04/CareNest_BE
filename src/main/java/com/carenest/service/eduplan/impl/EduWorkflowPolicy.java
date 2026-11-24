@@ -42,8 +42,9 @@ public class EduWorkflowPolicy {
         public RolePolicy {
             List<Role> cList = List.copyOf(creators);
             List<Role> rList = List.copyOf(reviewers);
+            // EDU-110 (8) BR1.5: chuỗi rỗng chỉ khi HT là người soạn (HT ban hành thẳng)
             if (cList.size() != 1
-                    || rList.isEmpty()
+                    || (rList.isEmpty() && cList.getFirst() != Role.PRINCIPAL)
                     || Set.copyOf(cList).size() != cList.size()
                     || Set.copyOf(rList).size() != rList.size()
                     || rList.contains(Role.TEACHER)
@@ -70,6 +71,10 @@ public class EduWorkflowPolicy {
             List<Approval> approvals,
             Set<Long> excludedAuthorIds,
             Map<Role, Set<Long>> candidates) {
+        // BR6.3, EDU-110 (10): chuỗi rỗng ⇒ không có bước duyệt nào; HT ban hành bằng thao tác ban hành thẳng
+        if (policy.reviewers().isEmpty()) {
+            return new Evaluation(null, List.of(), false, null);
+        }
         Set<Role> approved = approvals.stream()
                 .filter(a -> a.round() == round && a.userId() != null && !excludedAuthorIds.contains(a.userId()))
                 .map(Approval::roleKey)

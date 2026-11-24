@@ -30,7 +30,11 @@ class EduReviewDeadlineTest {
 
     @Test
     void noDeadlineOrIssuedIsNotLocked() {
-        assertThat(EduReviewDeadline.of(EduDeadline.of(null, null, HAN, false, null)).locked()).isFalse();
-        assertThat(EduReviewDeadline.of(EduDeadline.of(HAN, null, HAN.plusDays(1), true, HAN)).locked()).isFalse();
+        assertThat(EduReviewDeadline.of(EduDeadline.of(null, null, HAN, false, null))
+                        .locked())
+                .isFalse();
+        assertThat(EduReviewDeadline.of(EduDeadline.of(HAN, null, HAN.plusDays(1), true, HAN))
+                        .locked())
+                .isFalse();
     }
 }

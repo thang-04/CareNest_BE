@@ -75,14 +75,6 @@ class PermissionTest {
                         Permission.MENU_MANAGE,
                         Permission.STOCK_MANAGE,
                         Permission.FOOD_SAFETY_APPROVE,
-                        Permission.EDU_SCHOOL_YEAR_PLAN_EDIT,
-                        Permission.EDU_SCHOOL_YEAR_PLAN_APPROVE,
-                        Permission.EDU_TEAM_PLAN_EDIT,
-                        Permission.EDU_TEAM_PLAN_APPROVE,
-                        Permission.EDU_SEMESTER_PACKAGE_EDIT,
-                        Permission.EDU_SEMESTER_PACKAGE_APPROVE,
-                        Permission.EDU_THEME_PLAN_EDIT,
-                        Permission.EDU_THEME_PLAN_APPROVE,
                         Permission.EDU_PLAN_CONFIG,
                         Permission.PERMISSION_MANAGE);
         assertThat(Permission.fixedPermissionsOf(CareNestRole.ADMIN))
@@ -92,7 +84,20 @@ class PermissionTest {
         assertThat(Permission.fixedPermissionsOf(CareNestRole.TEACHER)).containsExactly(Permission.ASSESSMENT_VIEW);
         assertThat(Permission.fixedPermissionsOf(CareNestRole.TEAM_LEADER)).containsExactly(Permission.ASSESSMENT_VIEW);
         assertThat(Permission.fixedPermissionsOf(CareNestRole.VICE_PRINCIPAL)).isEmpty();
-        assertThat(Permission.configurablePermissionsOf(CareNestRole.PRINCIPAL)).isEmpty();
+        // EDU-110: HT chỉ có ô cho đúng 8 mã soạn/duyệt
+        assertThat(Permission.configurablePermissionsOf(CareNestRole.PRINCIPAL))
+                .containsExactlyInAnyOrderElementsOf(Permission.EDU_WORKFLOW);
+    }
+
+    @Test
+    @DisplayName("EDU-110 BR5.1: 8 mã soạn/duyệt không ghi đè theo người, mã khác vẫn được")
+    void eduWorkflowCodesAreNotOverridable() {
+        assertThat(Permission.EDU_WORKFLOW).hasSize(8).noneMatch(Permission::overridable);
+        assertThat(Permission.EDU_PLAN_CONFIG.overridable()).isTrue();
+        assertThat(Permission.CHILD_PROFILE_VIEW.overridable()).isTrue();
+        assertThat(Permission.CONFIGURABLE_ROLES).contains(CareNestRole.PRINCIPAL);
+        assertThat(Permission.CHILD_ENROLL.isConfigurableFor(CareNestRole.PRINCIPAL))
+                .isFalse();
     }
 
     @Test
@@ -144,8 +149,8 @@ class PermissionTest {
                 .noneMatch(Permission::campusScoped)
                 .allMatch(p -> p.defaultRoles().contains(ht));
         assertThat(Permission.EDU_SCHOOL_YEAR_PLAN_EDIT.defaultRoles()).containsExactlyInAnyOrder(ht, vp);
-        assertThat(Permission.EDU_SCHOOL_YEAR_PLAN_EDIT.configurableRoles()).containsExactlyInAnyOrder(vp, gv, tt);
-        assertThat(Permission.EDU_SCHOOL_YEAR_PLAN_APPROVE.configurableRoles()).containsExactlyInAnyOrder(vp, tt);
+        assertThat(Permission.EDU_SCHOOL_YEAR_PLAN_EDIT.configurableRoles()).containsExactlyInAnyOrder(ht, vp, gv, tt);
+        assertThat(Permission.EDU_SCHOOL_YEAR_PLAN_APPROVE.configurableRoles()).containsExactlyInAnyOrder(ht, vp, tt);
         assertThat(Permission.EDU_TEAM_PLAN_EDIT.defaultRoles()).containsExactlyInAnyOrder(ht, vp, tt);
         assertThat(Permission.EDU_TEAM_PLAN_APPROVE.defaultRoles()).containsExactlyInAnyOrder(ht, vp);
         assertThat(Permission.EDU_SEMESTER_PACKAGE_EDIT.defaultRoles()).containsExactlyInAnyOrder(ht, vp, gv, tt);

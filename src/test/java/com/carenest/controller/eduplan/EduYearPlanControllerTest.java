@@ -297,6 +297,36 @@ class EduYearPlanControllerTest {
     }
 
     @Test
+    @DisplayName("EDU-110 BR6.2: HT ban hành thẳng qua /principal-publish; vai trò khác bị chặn ở lớp quyền")
+    void principalPublishRoute() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(eduYearPlanService.publishByPrincipal(eq(principal), eq(5L), eq(null), any()))
+                .willReturn(detail(EduPlanStatus.APPROVED));
+
+        mockMvc.perform(post(GOALS + "/5/principal-publish")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .header("X-Plan-Revision", "0")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+
+        given(eduYearPlanService.publishByPrincipal(eq(principal), eq(6L), eq(null), any()))
+                .willThrow(GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, "ban hành"));
+        mockMvc.perform(post(GOALS + "/6/principal-publish")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .header("X-Plan-Revision", "0")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000003"))
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.NOT_YOUR_REVIEW_STEP.getErrorCode()));
+
+        authenticateAs(CareNestRole.VICE_PRINCIPAL);
+        mockMvc.perform(post(GOALS + "/5/principal-publish")
+                        .with(token(CareNestRole.VICE_PRINCIPAL))
+                        .header("X-Plan-Revision", "0")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000004"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void submitWithoutBodyPassesNullNote() throws Exception {
         CurrentUser leader = authenticateAs(CareNestRole.TEACHER);
         given(eduYearPlanService.submitYearPlan(eq(leader), eq(5L), eq(null), any()))

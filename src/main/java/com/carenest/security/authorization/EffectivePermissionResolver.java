@@ -41,7 +41,10 @@ public final class EffectivePermissionResolver {
         }
         for (UserPermissionOverride override : overrides) {
             Optional<Permission> permission = Permission.fromCode(override.getPermissionCode());
-            if (permission.isEmpty() || !isConfigurableForAny(permission.get(), roles)) {
+            // EDU-110 (BR5.1): 8 mã soạn/duyệt không có ngoại lệ theo người; dòng cũ bị bỏ qua
+            if (permission.isEmpty()
+                    || !permission.get().overridable()
+                    || !isConfigurableForAny(permission.get(), roles)) {
                 continue;
             }
             if (override.getEffect() == PermissionEffect.GRANT) {

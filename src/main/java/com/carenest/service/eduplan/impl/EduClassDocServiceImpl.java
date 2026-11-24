@@ -14,7 +14,6 @@ import com.carenest.entity.eduplan.EduBreak;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduClassDocRelease;
 import com.carenest.entity.eduplan.EduPlan;
-import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduBreakRepository;
@@ -78,7 +77,8 @@ import tools.jackson.databind.node.ObjectNode;
 public class EduClassDocServiceImpl implements EduClassDocService {
     private static final String LOG_PREFIX = "[EduClassDocServiceImpl]";
 
-    // ponytail: như EduPlanTimeLock — cờ chỉ để bộ test cũ (lớp tạo sau hạn, đồng hồ cố định) tắt hạn; ứng dụng luôn bật
+    // ponytail: như EduPlanTimeLock — cờ chỉ để bộ test cũ (lớp tạo sau hạn, đồng hồ cố định) tắt hạn; ứng dụng luôn
+    // bật
     private boolean deadlineEnabled = true;
 
     @org.springframework.beans.factory.annotation.Value("${carenest.eduplan.plan-time-lock-enabled:true}")
@@ -104,6 +104,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private static final String ACTION_SUBMIT = "submit";
     private static final String ACTION_APPROVE = "approve";
     private static final String ACTION_REJECT = "reject";
+    // EDU-110 BR6.2/(10): HT soạn, chuỗi duyệt rỗng ⇒ ban hành thẳng
+    private static final String ACTION_PUBLISH = "principal_publish";
     // Spec 003: HT/PHT mở hạn gói/hồ sơ quá hạn
     private static final String ACTION_EXTEND = "extend";
     private static final String ACTION_REOPEN_REVIEW_DEADLINE = "reopen_review_deadline";
@@ -196,7 +198,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             requireView(currentUser);
             Long classId = request.classId();
             ClassroomInfoResponse cls = requireClass(classId);
-            requireClassDocAuthor(currentUser, cls);
+            requireClassDocAuthor(currentUser, cls, EduClassDoc.BRANCH);
             EduPlan plan = requireIssuedPlan(request.yearPlanId(), cls);
             if (isSuperseded(plan.getId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
             var currentBranch =
@@ -379,7 +381,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         try {
             LocalDate today = LocalDate.now(clock);
             ClassroomInfoResponse authorClass = requireClass(classId);
-            requireClassDocAuthor(currentUser, authorClass);
+            requireClassDocAuthor(currentUser, authorClass, EduClassDoc.BRANCH);
             ClassroomInfoResponse cls = requireClass(classId);
             EduPlan plan = requireIssuedPlan(yearPlanId, cls);
             if (isSuperseded(plan.getId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
@@ -471,7 +473,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             }
             if (write) {
                 schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
-                requireClassDocAuthor(currentUser, cls);
+                requireClassDocAuthor(currentUser, cls, doc.getKind());
                 // Như lưu giáo án ngày: kế hoạch giáo dục ngày chứa nó phải còn Nháp (chờ duyệt/ban hành ⇒ khóa)
                 boolean dossierDraft =
                         dossierOf(doc).map(r -> r.getStatus().editable()).orElse(false);
@@ -852,7 +854,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
             LocalDate today = LocalDate.now(clock);
             // EDU-12: author eligibility according to policy and reviewer precedence
-            requireClassDocAuthor(currentUser, cls);
+            requireClassDocAuthor(currentUser, cls, kind);
             EduPlan plan = requireIssuedPlan(yearPlanId, cls);
             if (!expectedKey(kind, classId, plan, themeId, weekStart).equals(docKey)) {
                 throw GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH);
@@ -1153,7 +1155,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             }
             if (ACTION_REVISE.equals(request.action())) {
                 // Spec 004 (Q2, Q3): bản đã ban hành giữ hiệu lực tới khi phiên bản mới ban hành (bảng releases)
-                requireClassDocAuthor(currentUser, cls);
+                requireClassDocAuthor(currentUser, cls, kind);
                 if (doc.getStatus() != EduClassDocStatus.APPROVED) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 if (timeLocked(doc, info, today)) throw GlobalException.of(ApiCode.CLASS_DOC_TIME_LOCKED);
                 reopenRoot(doc.getDocKey(), cls.id(), doc.getYearPlanId(), year, currentUser);
@@ -1164,8 +1166,35 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             int round = doc.getReviewRound();
             EduWorkflowPolicy.Role actingRole = evaluation.waitingRole();
             EduClassDocStatus next = EduClassDocStatus.REVIEW;
-            if (ACTION_SUBMIT.equals(request.action())) {
-                requireClassDocAuthor(currentUser, cls);
+            if (ACTION_PUBLISH.equals(request.action())) {
+                if (!accessPolicy.isPrincipal(currentUser)
+                        || !policy.creators().equals(List.of(EduWorkflowPolicy.Role.PRINCIPAL))
+                        || !policy.reviewers().isEmpty()) {
+                    throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, request.action());
+                }
+                if (doc.getStatus().editable()) {
+                    // Nháp: HT là người soạn, qua cùng kiểm tra trước khi gửi
+                    requireClassDocAuthor(currentUser, cls, kind);
+                    if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
+                    if (EduDeadline.OVERDUE.equals(info.deadline().state()))
+                        throw GlobalException.of(ApiCode.CLASS_DOC_DEADLINE_PASSED);
+                    requireCanSubmit(doc, planDocs, year);
+                    long unresolved = all.stream()
+                            .mapToLong(d -> unresolvedVersionFixes(d, today))
+                            .sum();
+                    if (unresolved > 0) throw GlobalException.of(ApiCode.CLASS_DOC_VERSION_FIX_REQUIRED, unresolved);
+                    round++;
+                    approvals.clear();
+                } else if (doc.getStatus() == EduClassDocStatus.REVIEW) {
+                    // EDU-110 (10): hồ sơ chờ theo chuỗi cũ, chuỗi loại này nay rỗng ⇒ HT ban hành
+                    if (reviewDeadlineOf(info).locked()) throw GlobalException.of(ApiCode.EDU_REVIEW_DEADLINE_PASSED);
+                } else throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                actingRole = EduWorkflowPolicy.Role.PRINCIPAL;
+                approvals.add(new EduWorkflowPolicy.Approval(
+                        currentUser.userId(), currentUser.fullName(), actingRole, at, note, round));
+                next = EduClassDocStatus.APPROVED;
+            } else if (ACTION_SUBMIT.equals(request.action())) {
+                requireClassDocAuthor(currentUser, cls, kind);
                 if (!doc.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
                 if (EduDeadline.OVERDUE.equals(info.deadline().state()))
@@ -1239,7 +1268,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         "tone",
                         ACTION_REJECT.equals(request.action())
                                 ? TONE_ERR
-                                : ACTION_APPROVE.equals(request.action()) ? TONE_OK : TONE_NONE);
+                                : next == EduClassDocStatus.APPROVED || ACTION_APPROVE.equals(request.action())
+                                        ? TONE_OK
+                                        : TONE_NONE);
                 history.add(event);
                 member.snapshotSignChain(objectMapper.writeValueAsString(policy.reviewers()));
                 member.updateWorkflowState(
@@ -1618,8 +1649,19 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return Objects.equals(homeroomId, user.userId());
     }
 
-    private void requireClassDocAuthor(CurrentUser user, ClassroomInfoResponse classroom) {
-        if (!isHomeroomAuthor(user, classroom)) throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+    private void requireClassDocAuthor(CurrentUser user, ClassroomInfoResponse classroom, String kind) {
+        if (!isClassDocAuthor(user, classroom, kind)) throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+    }
+
+    /**
+     * EDU-110 (11): loại hồ sơ có HT là người soạn ⇒ chỉ HT có phân công hiệu lực (có mã soạn) soạn hồ sơ của mọi
+     * lớp, GV chủ nhiệm không soạn; loại khác giữ luật cũ (GV chủ nhiệm của lớp).
+     */
+    private boolean isClassDocAuthor(CurrentUser user, ClassroomInfoResponse classroom, String kind) {
+        if (eduWorkflowService.loadPolicy(kind).creators().contains(EduWorkflowPolicy.Role.PRINCIPAL)) {
+            return accessPolicy.isPrincipal(user) && accessPolicy.canAuthorDoc(user, EduClassDoc.policyType(kind));
+        }
+        return isHomeroomAuthor(user, classroom);
     }
 
     /** EDU-12: tài liệu lớp chỉ nhận tổ đã ban hành đúng nhóm tuổi, năm học của lớp. */
@@ -2363,7 +2405,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 doc.publicStatus() == EduClassDocStatus.DRAFT
                         && lastClassReviewWasReturned(readArray(root.getHistory())));
         node.put("dossierVersion", root.getVersion() == null ? 0L : root.getVersion());
-        boolean author = isHomeroomAuthor(currentUser, cls);
+        // ponytail: đọc policy mỗi hồ sơ; gom theo kind nếu danh sách lớn chậm
+        boolean author = isClassDocAuthor(currentUser, cls, doc.getKind());
         // EDU-89: năm đã kết thúc / năm sắp tới chưa tới ngày mở chuẩn bị ⇒ chỉ xem
         boolean yearOpen = planYearOpen(year);
         boolean activeVersion = context == null
@@ -2455,12 +2498,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             reviewDeadlineNode.put("locked", reviewDeadline.locked());
             reviewDeadlineNode.put("isCurrentReviewer", reviewable);
             reviewDeadlineNode.put(
-                    "canReopen",
-                    yearOpen && accessPolicy.isPrincipal(currentUser) && reopenable(doc, info));
+                    "canReopen", yearOpen && accessPolicy.isPrincipal(currentUser) && reopenable(doc, info));
             reviewDeadlineNode.put("reason", reviewDeadlineReasonOf(doc));
-            node.put(
-                    "canExtend",
-                    yearOpen && accessPolicy.isPrincipal(currentUser) && reopenable(doc, info));
+            node.put("canExtend", yearOpen && accessPolicy.isPrincipal(currentUser) && reopenable(doc, info));
             node.put(
                     "canRevise",
                     yearOpen && author && activeVersion && doc.getStatus() == EduClassDocStatus.APPROVED && !locked);
@@ -2722,6 +2762,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     /** EDU-109 (9): dùng cho reconcile (EduWorkflowServiceImpl) — cùng phép tính Quá hạn với màn hình. */
     boolean reviewDeadlineLocked(EduClassDoc root) {
+        // Hồ sơ cũ không phải gốc (vd. chủ đề nhánh) không có hạn duyệt riêng, không có chủ đề ⇒ không khóa
+        if (!EduClassDoc.isRoot(root.getKind())) return false;
         var cls = classroomService.findClassroomInfo(root.getClassroomId());
         if (cls.isEmpty()) return false;
         RootInfo info = rootInfo(
@@ -2814,12 +2856,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 ? null
                 : LocalDate.ofInstant(releases.getFirst().getReleasedAt(), SCHOOL_ZONE);
         return new RootInfo(
-                EduDeadline.of(
-                        deadline,
-                        extended,
-                        today,
-                        root.getStatus() == EduClassDocStatus.APPROVED,
-                        firstRelease),
+                EduDeadline.of(deadline, extended, today, root.getStatus() == EduClassDocStatus.APPROVED, firstRelease),
                 themeIds,
                 !releases.isEmpty(),
                 opened);

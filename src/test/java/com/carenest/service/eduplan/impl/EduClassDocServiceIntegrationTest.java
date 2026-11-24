@@ -1606,8 +1606,10 @@ class EduClassDocServiceIntegrationTest {
                 .filteredOn(doc -> doc.path("id").asString().equals(semester))
                 .singleElement()
                 .satisfies(doc -> {
-                    assertThat(doc.path("reviewDeadline").path("locked").asBoolean()).isTrue();
-                    assertThat(doc.path("permissions").path("canApprove").asBoolean()).isFalse();
+                    assertThat(doc.path("reviewDeadline").path("locked").asBoolean())
+                            .isTrue();
+                    assertThat(doc.path("permissions").path("canApprove").asBoolean())
+                            .isFalse();
                 });
     }
 

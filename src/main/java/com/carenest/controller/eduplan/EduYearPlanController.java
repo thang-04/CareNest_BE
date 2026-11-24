@@ -243,6 +243,27 @@ public class EduYearPlanController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Issue year plan success", plan);
     }
 
+    // EDU-110 BR6.2: HT soạn, chuỗi duyệt rỗng ⇒ ban hành thẳng
+    @PostMapping("/{planId}/principal-publish")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> publishByPrincipal(
+            @PathVariable Long planId,
+            @Valid @RequestBody(required = false) PlanActionRequest.Note request,
+            CurrentUser currentUser,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("Idempotency-Key") UUID requestId) {
+        String logPrefix = LOG_PREFIX + "|publishByPrincipal|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan = eduYearPlanService.publishByPrincipal(
+                currentUser,
+                planId,
+                request == null ? null : request.note(),
+                new YearPlanEditRequest(sessionId, revision, requestId));
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Publish year plan success", plan);
+    }
+
     @PostMapping("/{planId}/return")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> returnYearPlan(

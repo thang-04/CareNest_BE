@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
  * Kích hoạt và đối soát các tài liệu đang pending / backfill snapshot trước khi ứng dụng nhận traffic.
  */
 @Configuration
+@org.springframework.core.annotation.Order(org.springframework.core.Ordered.LOWEST_PRECEDENCE - 100) // trước EDU-110
 public class EduWorkflowActivationConfig implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(EduWorkflowActivationConfig.class);

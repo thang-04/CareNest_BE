@@ -62,6 +62,8 @@ class PermissionSchemaIntegrationTest {
     @DisplayName("AUTH-07: seed V7 khớp quyền mặc định của enum cho mọi role cấu hình được")
     void seedMatchesEnumDefaults() {
         for (CareNestRole role : Permission.CONFIGURABLE_ROLES) {
+            // EDU-110 (9): ô 8 mã EDU của HT do EduRoleMatrixMigrationRunner đặt từ chuỗi đang chạy, không có seed V7
+            if (role == CareNestRole.PRINCIPAL) continue;
             Set<String> seeded = rolePermissionRepository.findByRole(role).stream()
                     .map(RolePermission::getPermissionCode)
                     .collect(Collectors.toSet());
@@ -76,10 +78,10 @@ class PermissionSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("AUTH-11: DB chặn ô ma trận cho role cố định")
+    @DisplayName("AUTH-11: DB chặn ô ma trận cho role cố định (HT được lưu dòng từ V170, EDU-110)")
     void fixedRoleRowIsRejected() {
         assertThatThrownBy(() -> rolePermissionRepository.saveAndFlush(
-                        RolePermission.create(CareNestRole.PRINCIPAL, "CHILD_PROFILE_VIEW", null)))
+                        RolePermission.create(CareNestRole.ADMIN, "CHILD_PROFILE_VIEW", null)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

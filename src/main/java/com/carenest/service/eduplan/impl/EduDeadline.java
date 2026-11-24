@@ -14,6 +14,7 @@ final class EduDeadline {
     static final String ON_TIME = "ON_TIME";
     /** EDU-109: ban hành sau hạn — không nhãn hạn (bỏ "Ban hành trễ"). */
     static final String ISSUED = "ISSUED";
+
     static final int NEAR_DAYS = 7;
 
     record Info(LocalDate deadline, LocalDate extendedTo, Long daysLeft, String state) {
@@ -31,11 +32,7 @@ final class EduDeadline {
      * EDU-109 (9): quá hạn = hôm nay >= hạn hiệu lực và chưa ban hành; không còn ngoại lệ ngày mở lớp.
      */
     static Info of(
-            LocalDate deadline,
-            LocalDate extendedTo,
-            LocalDate today,
-            boolean approved,
-            LocalDate firstRelease) {
+            LocalDate deadline, LocalDate extendedTo, LocalDate today, boolean approved, LocalDate firstRelease) {
         if (deadline == null) return new Info(null, null, null, NORMAL);
         LocalDate effective = extendedTo != null ? extendedTo : deadline;
         long daysLeft = ChronoUnit.DAYS.between(today, effective);

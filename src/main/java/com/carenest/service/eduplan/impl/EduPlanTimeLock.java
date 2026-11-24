@@ -3,7 +3,6 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.entity.eduplan.EduPlanEvent;
-import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.repository.eduplan.EduPlanEventRepository;
 import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.repository.eduplan.EduSettingsRepository;

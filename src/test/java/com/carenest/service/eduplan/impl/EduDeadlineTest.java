@@ -11,16 +11,14 @@ class EduDeadlineTest {
     private static final LocalDate HAN = LocalDate.of(2026, 11, 16);
 
     private static String state(LocalDate today, boolean approved, LocalDate firstRelease, LocalDate extended) {
-        return EduDeadline.of(HAN, extended, today, approved, firstRelease)
-                .state();
+        return EduDeadline.of(HAN, extended, today, approved, firstRelease).state();
     }
 
     @Test
     void nearWindowIsSevenDays() {
         assertThat(state(HAN.minusDays(8), false, null, null)).isEqualTo(EduDeadline.NORMAL);
         assertThat(state(HAN.minusDays(7), false, null, null)).isEqualTo(EduDeadline.NEAR);
-        assertThat(EduDeadline.of(HAN, null, HAN.minusDays(7), false, null)
-                        .daysLeft())
+        assertThat(EduDeadline.of(HAN, null, HAN.minusDays(7), false, null).daysLeft())
                 .isEqualTo(7);
         assertThat(state(HAN.minusDays(1), false, null, null)).isEqualTo(EduDeadline.NEAR);
         assertThat(state(HAN, false, null, null)).isEqualTo(EduDeadline.OVERDUE);

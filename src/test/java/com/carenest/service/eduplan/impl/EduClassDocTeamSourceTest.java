@@ -102,6 +102,7 @@ class EduClassDocTeamSourceTest {
         when(staffAssignmentService.findHomeroomTeacherIds(eq(List.of(1L)), any()))
                 .thenReturn(java.util.Map.of(1L, 10L));
         when(yearPlanRepository.findById(20L)).thenReturn(Optional.of(annual));
+        teacherAuthorsBranch();
 
         assertThatThrownBy(() ->
                         service.previewClassCalendar(user, new ClassCalendarPreviewRequest(1L, 20L, -1L, null, null)))
@@ -187,12 +188,21 @@ class EduClassDocTeamSourceTest {
         when(clock.instant()).thenReturn(Instant.parse("2026-11-09T00:00:00Z"));
         when(staffAssignmentService.findHomeroomTeacherIds(eq(List.of(1L)), any()))
                 .thenReturn(java.util.Map.of(1L, 11L));
+        teacherAuthorsBranch();
 
-        assertThatThrownBy(() ->
-                        ReflectionTestUtils.invokeMethod(service, "requireClassDocAuthor", nonHomeroom, classroom))
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                        service, "requireClassDocAuthor", nonHomeroom, classroom, EduClassDoc.BRANCH))
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.CLASS_DOC_TEACHER_ONLY);
+    }
+
+    // EDU-110 (11): người soạn hồ sơ lớp theo policy; GV soạn ⇒ giữ luật GV chủ nhiệm của lớp
+    private void teacherAuthorsBranch() {
+        when(eduWorkflowService.loadPolicy(EduClassDoc.BRANCH))
+                .thenReturn(new EduWorkflowPolicy.RolePolicy(
+                        List.of(EduWorkflowPolicy.Role.TEACHER),
+                        List.of(EduWorkflowPolicy.Role.TEAM_LEADER, EduWorkflowPolicy.Role.VICE_PRINCIPAL)));
     }
 
     private static EduPlan plan(EduPlanLevel level) {

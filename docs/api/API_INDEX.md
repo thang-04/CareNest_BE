@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 415 endpoint.
+Tổng: 419 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -216,6 +216,8 @@ POST /education-plans/class-docs/day/{docKey}/learning-resources/confirm · src/
 POST /education-plans/class-docs/day/{docKey}/learning-resources/links · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#addLink
 PUT /education-plans/class-docs/day/{docKey}/learning-resources/order · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#reorder
 POST /education-plans/class-docs/day/{docKey}/learning-resources/upload-url · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#uploadUrl
+GET /education-plans/class-docs/overdue · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getOverdueClassDocs
+GET /education-plans/class-docs/overdue/{kind}/{docKey} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getOverdueClassDoc
 GET /education-plans/class-docs/releases/{releaseId} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocRelease
 GET /education-plans/config · src/main/java/com/carenest/controller/eduplan/EduConfigController.java#getEduConfig
 PUT /education-plans/config · src/main/java/com/carenest/controller/eduplan/EduConfigController.java#updateEduConfig
@@ -234,6 +236,7 @@ POST /education-plans/goals/{planId}/editing-heartbeat · src/main/java/com/care
 POST /education-plans/goals/{planId}/finish-editing · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#finishEditing
 POST /education-plans/goals/{planId}/issue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#issueYearPlan
 GET /education-plans/goals/{planId}/previous-year-ticks · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getPreviousYearTicks
+POST /education-plans/goals/{planId}/principal-publish · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#publishByPrincipal
 POST /education-plans/goals/{planId}/return · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#returnYearPlan
 POST /education-plans/goals/{planId}/review-deadline/reopen · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#reopenReviewDeadline
 POST /education-plans/goals/{planId}/review/{reviewItemId}/resolve · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#resolveReview
@@ -384,15 +387,15 @@ POST /parent-accounts/phone-change-requests/{requestId}/reject · src/main/java/
 POST /parent-activation · src/main/java/com/carenest/controller/account/ParentActivationController.java#activateParentAccount
 GET /permission-change-logs · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionChangeLogs
 GET /permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
-GET /permissions/edu-workflow · src/main/java/com/carenest/controller/eduplan/EduWorkflowPermissionController.java#getWorkflowPermissions
-PUT /permissions/edu-workflow · src/main/java/com/carenest/controller/eduplan/EduWorkflowPermissionController.java#saveWorkflowPermissions
 GET /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
 POST /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#recordResult
 GET /pickups/children/{childId} · src/main/java/com/carenest/controller/attendance/PickupController.java#getChild
 GET /pickups/classes · src/main/java/com/carenest/controller/attendance/PickupController.java#listClasses
 GET /role-permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermissions
+PUT /role-permissions · src/main/java/com/carenest/controller/account/PermissionController.java#updateRolePermissionsBulk
 GET /role-permissions/{role} · src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermission
 PUT /role-permissions/{role} · src/main/java/com/carenest/controller/account/PermissionController.java#updateRolePermissions
+GET /role-permissions/edu-workflow-issues · src/main/java/com/carenest/controller/account/PermissionController.java#getEduWorkflowIssues
 GET /school-structure · src/main/java/com/carenest/controller/organization/ClassController.java#getSchoolStructure
 GET /school-years · src/main/java/com/carenest/controller/organization/SchoolYearController.java#getSchoolYears
 POST /school-years · src/main/java/com/carenest/controller/organization/SchoolYearController.java#createSchoolYear

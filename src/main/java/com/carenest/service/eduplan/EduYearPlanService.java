@@ -51,6 +51,10 @@ public interface EduYearPlanService {
 
     YearPlanDetailResponse issueYearPlan(CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit);
 
+    /** EDU-110 BR6.2/(10): HT soạn, chuỗi duyệt rỗng ⇒ ban hành thẳng từ Nháp (hoặc hồ sơ đang chờ chuỗi cũ). */
+    YearPlanDetailResponse publishByPrincipal(
+            CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit);
+
     YearPlanDetailResponse returnYearPlan(CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit);
 
     /** Spec 004 (Q5): Hiệu trưởng mở khóa kế hoạch năm học / tổ đã khóa theo ngày bắt đầu năm học. */

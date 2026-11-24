@@ -4511,6 +4511,15 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: view
+        required: false
+        schema:
+          type: string
+          default: MAIN
+          enum:
+          - MAIN
+          - REVIEW
       responses:
         "200":
           content: {}
@@ -4828,6 +4837,48 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
+  /api/education-plans/class-docs/overdue:
+    get:
+      operationId: getOverdueClassDocs
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
+  /api/education-plans/class-docs/overdue/{kind}/{docKey}:
+    get:
+      operationId: getOverdueClassDoc
+      parameters:
+      - in: path
+        name: kind
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/releases/{releaseId}:
     get:
       operationId: getClassDocRelease
@@ -5078,6 +5129,15 @@ paths:
           - SCHOOL_YEAR
           - TEAM
       - in: query
+        name: view
+        required: false
+        schema:
+          type: string
+          default: MAIN
+          enum:
+          - MAIN
+          - OVERDUE
+      - in: query
         name: page
         required: false
         schema:
@@ -5227,6 +5287,21 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: view
+        required: false
+        schema:
+          type: string
+          default: MAIN
+          enum:
+          - MAIN
+          - OVERDUE
       responses:
         "200":
           content:
@@ -5435,6 +5510,48 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonPreviousYearTicksResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/principal-publish:
+    post:
+      operationId: publishByPrincipal
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Edit-Session
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Note"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
           description: OK
       tags:
       - edu-year-plan-controller
@@ -5868,23 +5985,6 @@ paths:
   /api/education-plans/workflow-policy:
     get:
       operationId: getWorkflowPolicy
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonEduWorkflowPolicyResponse"
-          description: OK
-      tags:
-      - edu-workflow-controller
-    put:
-      operationId: updateWorkflowPolicy
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/EduWorkflowPolicyRequest"
-        required: true
       responses:
         "200":
           content:
@@ -6977,6 +7077,7 @@ paths:
           - EDU_RETURNED
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
+          - EDU_OVERDUE_DIGEST
           - SCHOOL_ANNOUNCEMENT
           - DAILY_HEALTH_NOTED
           - MENU_PUBLISHED
@@ -9201,6 +9302,35 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonListRolePermissionResponse"
+          description: OK
+      tags:
+      - permission-controller
+    put:
+      operationId: updateRolePermissionsBulk
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkUpdateRolePermissionsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListRolePermissionResponse"
+          description: OK
+      tags:
+      - permission-controller
+  /api/role-permissions/edu-workflow-issues:
+    get:
+      operationId: getEduWorkflowIssues
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduWorkflowIssuesResponse"
           description: OK
       tags:
       - permission-controller
@@ -11469,6 +11599,21 @@ components:
           format: int64
         name:
           type: string
+    BulkUpdateRolePermissionsRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleItem"
+          minItems: 1
+      required:
+      - reason
+      - roles
     CalendarDraft:
       type: object
       properties:
@@ -14523,16 +14668,6 @@ components:
             type: string
             maxLength: 150
             minLength: 0
-        lateApprovalGraceDays:
-          type: integer
-          format: int32
-          maximum: 30
-          minimum: 0
-        lateReturnGraceDays:
-          type: integer
-          format: int32
-          maximum: 30
-          minimum: 0
         signers:
           $ref: "#/components/schemas/Signers"
         weekRows:
@@ -14561,12 +14696,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EduConfigDomainResponse"
-        lateApprovalGraceDays:
-          type: integer
-          format: int32
-        lateReturnGraceDays:
-          type: integer
-          format: int32
         planDefaults:
           type: object
           additionalProperties: true
@@ -14654,19 +14783,13 @@ components:
           format: int32
         waitingRole:
           type: string
-    EduWorkflowPolicyRequest:
+    EduWorkflowIssuesResponse:
       type: object
       properties:
-        policies:
-          type: object
-          additionalProperties:
-            $ref: "#/components/schemas/PolicyEntry"
-        revision:
-          type: integer
-          format: int64
-      required:
-      - policies
-      - revision
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/Issue"
     EduWorkflowPolicyResponse:
       type: object
       properties:
@@ -19011,6 +19134,15 @@ components:
             - STOCK_MANAGE
             - KITCHEN_RECORD
             - FOOD_SAFETY_APPROVE
+            - EDU_SCHOOL_YEAR_PLAN_EDIT
+            - EDU_SCHOOL_YEAR_PLAN_APPROVE
+            - EDU_TEAM_PLAN_EDIT
+            - EDU_TEAM_PLAN_APPROVE
+            - EDU_SEMESTER_PACKAGE_EDIT
+            - EDU_SEMESTER_PACKAGE_APPROVE
+            - EDU_THEME_PLAN_EDIT
+            - EDU_THEME_PLAN_APPROVE
+            - EDU_PLAN_CONFIG
             - PERMISSION_MANAGE
         photoUploaded:
           type: boolean
@@ -19061,6 +19193,15 @@ components:
             - STOCK_MANAGE
             - KITCHEN_RECORD
             - FOOD_SAFETY_APPROVE
+            - EDU_SCHOOL_YEAR_PLAN_EDIT
+            - EDU_SCHOOL_YEAR_PLAN_APPROVE
+            - EDU_TEAM_PLAN_EDIT
+            - EDU_TEAM_PLAN_APPROVE
+            - EDU_SEMESTER_PACKAGE_EDIT
+            - EDU_SEMESTER_PACKAGE_APPROVE
+            - EDU_THEME_PLAN_EDIT
+            - EDU_THEME_PLAN_APPROVE
+            - EDU_PLAN_CONFIG
             - PERMISSION_MANAGE
         userId:
           type: integer
@@ -19216,6 +19357,7 @@ components:
           - EDU_RETURNED
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
+          - EDU_OVERDUE_DIGEST
           - SCHOOL_ANNOUNCEMENT
           - DAILY_HEALTH_NOTED
           - MENU_PUBLISHED
@@ -19288,6 +19430,7 @@ components:
           - EDU_RETURNED
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
+          - EDU_OVERDUE_DIGEST
           - SCHOOL_ANNOUNCEMENT
           - DAILY_HEALTH_NOTED
           - MENU_PUBLISHED
@@ -19448,6 +19591,15 @@ components:
           - STOCK_MANAGE
           - KITCHEN_RECORD
           - FOOD_SAFETY_APPROVE
+          - EDU_SCHOOL_YEAR_PLAN_EDIT
+          - EDU_SCHOOL_YEAR_PLAN_APPROVE
+          - EDU_TEAM_PLAN_EDIT
+          - EDU_TEAM_PLAN_APPROVE
+          - EDU_SEMESTER_PACKAGE_EDIT
+          - EDU_SEMESTER_PACKAGE_APPROVE
+          - EDU_THEME_PLAN_EDIT
+          - EDU_THEME_PLAN_APPROVE
+          - EDU_PLAN_CONFIG
           - PERMISSION_MANAGE
         scope:
           type: string
@@ -19851,6 +20003,15 @@ components:
           - STOCK_MANAGE
           - KITCHEN_RECORD
           - FOOD_SAFETY_APPROVE
+          - EDU_SCHOOL_YEAR_PLAN_EDIT
+          - EDU_SCHOOL_YEAR_PLAN_APPROVE
+          - EDU_TEAM_PLAN_EDIT
+          - EDU_TEAM_PLAN_APPROVE
+          - EDU_SEMESTER_PACKAGE_EDIT
+          - EDU_SEMESTER_PACKAGE_APPROVE
+          - EDU_THEME_PLAN_EDIT
+          - EDU_THEME_PLAN_APPROVE
+          - EDU_PLAN_CONFIG
           - PERMISSION_MANAGE
         reason:
           type: string
@@ -19901,6 +20062,15 @@ components:
           - STOCK_MANAGE
           - KITCHEN_RECORD
           - FOOD_SAFETY_APPROVE
+          - EDU_SCHOOL_YEAR_PLAN_EDIT
+          - EDU_SCHOOL_YEAR_PLAN_APPROVE
+          - EDU_TEAM_PLAN_EDIT
+          - EDU_TEAM_PLAN_APPROVE
+          - EDU_SEMESTER_PACKAGE_EDIT
+          - EDU_SEMESTER_PACKAGE_APPROVE
+          - EDU_THEME_PLAN_EDIT
+          - EDU_THEME_PLAN_APPROVE
+          - EDU_PLAN_CONFIG
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -21832,6 +22002,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EduDurationPolicyResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonEduWorkflowIssuesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/EduWorkflowIssuesResponse"
         desc:
           type: string
         errorCode:
@@ -24505,6 +24688,65 @@ components:
           minLength: 0
       required:
       - name
+    RoleItem:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CHILD_PROFILE_VIEW
+            - CHILD_ENROLL
+            - CHILD_PROFILE_EDIT
+            - CHILD_PLACEMENT
+            - ACCOUNT_MANAGE
+            - ACCOUNT_STATUS_MANAGE
+            - STAFF_ASSIGNMENT_MANAGE
+            - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
+            - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
+            - NUTRITION_MANAGE
+            - MEAL_CONFIG_MANAGE
+            - MENU_MANAGE
+            - STOCK_MANAGE
+            - KITCHEN_RECORD
+            - FOOD_SAFETY_APPROVE
+            - EDU_SCHOOL_YEAR_PLAN_EDIT
+            - EDU_SCHOOL_YEAR_PLAN_APPROVE
+            - EDU_TEAM_PLAN_EDIT
+            - EDU_TEAM_PLAN_APPROVE
+            - EDU_SEMESTER_PACKAGE_EDIT
+            - EDU_SEMESTER_PACKAGE_APPROVE
+            - EDU_THEME_PLAN_EDIT
+            - EDU_THEME_PLAN_APPROVE
+            - EDU_PLAN_CONFIG
+            - PERMISSION_MANAGE
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+          - TEAM_LEADER
+      required:
+      - permissions
+      - role
     RolePermissionResponse:
       type: object
       properties:
@@ -24541,6 +24783,15 @@ components:
             - STOCK_MANAGE
             - KITCHEN_RECORD
             - FOOD_SAFETY_APPROVE
+            - EDU_SCHOOL_YEAR_PLAN_EDIT
+            - EDU_SCHOOL_YEAR_PLAN_APPROVE
+            - EDU_TEAM_PLAN_EDIT
+            - EDU_TEAM_PLAN_APPROVE
+            - EDU_SEMESTER_PACKAGE_EDIT
+            - EDU_SEMESTER_PACKAGE_APPROVE
+            - EDU_THEME_PLAN_EDIT
+            - EDU_THEME_PLAN_APPROVE
+            - EDU_PLAN_CONFIG
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -24577,6 +24828,15 @@ components:
             - STOCK_MANAGE
             - KITCHEN_RECORD
             - FOOD_SAFETY_APPROVE
+            - EDU_SCHOOL_YEAR_PLAN_EDIT
+            - EDU_SCHOOL_YEAR_PLAN_APPROVE
+            - EDU_TEAM_PLAN_EDIT
+            - EDU_TEAM_PLAN_APPROVE
+            - EDU_SEMESTER_PACKAGE_EDIT
+            - EDU_SEMESTER_PACKAGE_APPROVE
+            - EDU_THEME_PLAN_EDIT
+            - EDU_THEME_PLAN_APPROVE
+            - EDU_PLAN_CONFIG
             - PERMISSION_MANAGE
         role:
           type: string
@@ -26358,9 +26618,6 @@ components:
         extendedTo:
           type: string
           format: date
-        graceTo:
-          type: string
-          format: date
         reviewDeadline:
           $ref: "#/components/schemas/ReviewDeadline"
         timeLocked:
@@ -26489,6 +26746,15 @@ components:
             - STOCK_MANAGE
             - KITCHEN_RECORD
             - FOOD_SAFETY_APPROVE
+            - EDU_SCHOOL_YEAR_PLAN_EDIT
+            - EDU_SCHOOL_YEAR_PLAN_APPROVE
+            - EDU_TEAM_PLAN_EDIT
+            - EDU_TEAM_PLAN_APPROVE
+            - EDU_SEMESTER_PACKAGE_EDIT
+            - EDU_SEMESTER_PACKAGE_APPROVE
+            - EDU_THEME_PLAN_EDIT
+            - EDU_THEME_PLAN_APPROVE
+            - EDU_PLAN_CONFIG
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -26533,6 +26799,15 @@ components:
             - STOCK_MANAGE
             - KITCHEN_RECORD
             - FOOD_SAFETY_APPROVE
+            - EDU_SCHOOL_YEAR_PLAN_EDIT
+            - EDU_SCHOOL_YEAR_PLAN_APPROVE
+            - EDU_TEAM_PLAN_EDIT
+            - EDU_TEAM_PLAN_APPROVE
+            - EDU_SEMESTER_PACKAGE_EDIT
+            - EDU_SEMESTER_PACKAGE_APPROVE
+            - EDU_THEME_PLAN_EDIT
+            - EDU_THEME_PLAN_APPROVE
+            - EDU_PLAN_CONFIG
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -26567,6 +26842,15 @@ components:
             - STOCK_MANAGE
             - KITCHEN_RECORD
             - FOOD_SAFETY_APPROVE
+            - EDU_SCHOOL_YEAR_PLAN_EDIT
+            - EDU_SCHOOL_YEAR_PLAN_APPROVE
+            - EDU_TEAM_PLAN_EDIT
+            - EDU_TEAM_PLAN_APPROVE
+            - EDU_SEMESTER_PACKAGE_EDIT
+            - EDU_SEMESTER_PACKAGE_APPROVE
+            - EDU_THEME_PLAN_EDIT
+            - EDU_THEME_PLAN_APPROVE
+            - EDU_PLAN_CONFIG
             - PERMISSION_MANAGE
         overrides:
           type: array
