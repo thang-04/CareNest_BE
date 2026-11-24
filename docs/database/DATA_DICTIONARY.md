@@ -92,6 +92,7 @@ Mục đích: nhận xét tuần theo trẻ gửi phụ huynh. Migration: V129.
 | status | VARCHAR(10) | không | `DRAFT` / `SENT`; SENT thì khóa | OBS-29 |
 | draft_source | VARCHAR(10) | không | `TEMPLATE` / `AI` / `MANUAL`: nguồn bản nháp | OBS-29 |
 | sent_by / sent_at | BIGINT, TIMESTAMPTZ | có | Người, lúc gửi; có ⇔ SENT (CHECK) | OBS-29 |
+| ai_reviewed_at | TIMESTAMPTZ | có | Lần đầu GV xem / sửa nháp AI; null = chưa xem, chặn "Gửi tất cả"; viết lại nháp đặt null (V179, Cần chốt 24/11/2026) | OBS-29 |
 | created_* / updated_* / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Người tạo, lần lưu gần nhất, khóa lạc quan | OBS-29 |
 
 ## weekly_comment_unlocks  (module: learning-observation, scope: CLASS)

@@ -16,6 +16,7 @@ import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockResponse;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentViewRequest;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.observation.BehaviourTicket;
 import com.carenest.entity.observation.WeeklyComment;
@@ -226,7 +227,39 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             checkCurrentChild(cls, request.childId());
             WeeklyComment comment = editableComment(currentUser, cls, request.childId(), week);
             comment.write(text, comment.getDraftSource(), currentUser.userId(), rules.now());
+            // Cô sửa bản nháp tức là đã xem (nháp AI được "Gửi tất cả")
+            comment.markReviewed(rules.now());
             commentRepository.saveAndFlush(comment);
+            WeeklyCommentBoardResponse response = board(currentUser, cls, week, false);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public WeeklyCommentBoardResponse markViewed(CurrentUser currentUser, WeeklyCommentViewRequest request) {
+        String logPrefix = LOG_PREFIX + "|markViewed|userId=" + currentUser.userId() + "|classId=" + request.classId()
+                + "|childId=" + request.childId();
+        log.info("{}|START", logPrefix);
+        try {
+            ClassroomInfoResponse cls = editableClass(currentUser, request.classId());
+            LocalDate week = weekOf(cls, request.weekStart());
+            rules.lockClassForUpdate(cls.id());
+            checkInClass(roster(cls, week), request.childId());
+            checkCurrentChild(cls, request.childId());
+            // Chỉ ghi dấu đã xem, không mở lại bản đã gửi
+            commentRepository
+                    .findByClassroomIdAndChildIdAndWeekStart(cls.id(), request.childId(), week)
+                    .filter(c -> !c.isSent())
+                    .ifPresent(c -> {
+                        checkSameClass(cls, c);
+                        c.markReviewed(rules.now());
+                        commentRepository.saveAndFlush(c);
+                    });
             WeeklyCommentBoardResponse response = board(currentUser, cls, week, false);
             log.info("{}|END", logPrefix);
             return response;
@@ -256,6 +289,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 WeeklyComment comment = editableComment(currentUser, cls, request.childId(), week);
                 String text = request.content() == null ? comment.getContent() : request.content();
                 comment.write(checkContent(text, true), comment.getDraftSource(), currentUser.userId(), rules.now());
+                comment.markReviewed(rules.now());
                 toSend.add(comment);
             } else {
                 comments(cls.id(), roster.keySet(), week).values().stream()
@@ -265,6 +299,14 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                         .forEach(toSend::add);
                 if (toSend.isEmpty()) {
                     throw GlobalException.of(ApiCode.WEEKLY_COMMENT_NOTHING_TO_SEND);
+                }
+                // OBS-29 (Cần chốt 24/11/2026): nháp AI cô chưa mở xem hoặc sửa không gửi hàng loạt, nêu tên trẻ
+                List<String> unseen = toSend.stream()
+                        .filter(c -> !c.isAiReviewed())
+                        .map(c -> roster.get(c.getChildId()).fullName())
+                        .toList();
+                if (!unseen.isEmpty()) {
+                    throw GlobalException.of(ApiCode.WEEKLY_COMMENT_AI_NOT_REVIEWED, String.join(", ", unseen));
                 }
                 toSend.forEach(c -> checkContent(c.getContent(), true));
             }
@@ -855,7 +897,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                             c != null && !sent && reopened.contains(c.getId()),
                             w.data(),
                             !current.contains(child.id()),
-                            history.get(child.id()));
+                            history.get(child.id()),
+                            c == null || c.isAiReviewed());
                 })
                 .toList();
         List<WeekOption> weeks = weeks(cls);

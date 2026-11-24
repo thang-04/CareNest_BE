@@ -71,6 +71,10 @@ public class WeeklyComment {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** Lần đầu GV xem / sửa bản nháp AI (OBS-29, Cần chốt 24/11/2026); null = chưa xem. */
+    @Column(name = "ai_reviewed_at")
+    private Instant aiReviewedAt;
+
     @Version
     private long version;
 
@@ -98,9 +102,21 @@ public class WeeklyComment {
         return status == WeeklyCommentStatus.SENT;
     }
 
+    /** Nháp AI đã được GV xem / sửa; nguồn khác AI không cần xem. */
+    public boolean isAiReviewed() {
+        return draftSource != WeeklyCommentSource.AI || aiReviewedAt != null;
+    }
+
+    public void markReviewed(Instant at) {
+        if (aiReviewedAt == null) {
+            this.aiReviewedAt = at;
+        }
+    }
+
     public void write(String text, WeeklyCommentSource source, Long by, Instant at) {
         this.content = text;
         this.draftSource = source;
+        this.aiReviewedAt = null;
         this.updatedBy = by;
         this.updatedAt = at;
     }

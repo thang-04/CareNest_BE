@@ -928,6 +928,8 @@ public enum ApiCode {
     WEEKLY_COMMENT_WEEK_INVALID(
             7365, HttpStatus.BAD_REQUEST, "Chọn tuần trong năm học của lớp, từ tuần có ngày {0} đến tuần có ngày {1}"),
     WEEKLY_COMMENT_FUTURE_WEEK(7366, HttpStatus.BAD_REQUEST, "Tuần này chưa bắt đầu, chưa viết nhận xét được"),
+    WEEKLY_COMMENT_AI_NOT_REVIEWED(
+            7367, HttpStatus.BAD_REQUEST, "Còn nháp AI cô chưa xem hoặc sửa: {0}. Mở từng bản để xem lại rồi gửi"),
     WEEKLY_COMMENT_CHILD_NOT_IN_CLASS(7368, HttpStatus.BAD_REQUEST, "Trẻ không thuộc lớp trong tuần này"),
     WEEKLY_COMMENT_PARENT_FORBIDDEN(7369, HttpStatus.FORBIDDEN, "Bạn không xem được nhận xét của trẻ này"),
     WEEKLY_COMMENT_NOTHING_TO_SEND(7399, HttpStatus.BAD_REQUEST, "Chưa có nhận xét nào viết xong để gửi phụ huynh"),
