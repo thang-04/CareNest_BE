@@ -56,8 +56,10 @@ Biên bản kiểm thực + chữ ký ảnh + trường lưu mẫu Mẫu 5 (V84�
 
 Phần chưa có API (món thay thế dị ứng, ảnh bữa) — thiết kế bảng (PROPOSED): `MEAL_NUTRITION_AI_SCHEMA.md` (file thiết kế của dev, chưa có trong repo) §3–§6; nháp AI (`ai_drafts`).
 
+Khóa ghi ngày cũ + phê duyệt HT (23/11/2026, INS-05, NUT-21, G94-450): ghi biên bản kiểm thực (`FRESH|DRY|PROCESS|SERVE|SAMPLE`: lưu nháp, ký, sửa lại) của ngày đã qua 00:00 `Asia/Ho_Chi_Minh` (đồng hồ BE) bị từ chối khi chưa có grant HT. PHT (`FOOD_SAFETY_APPROVE` theo điểm trường) gửi yêu cầu cho đúng một mẫu + một ngày + một điểm trường kèm lý do; HT duyệt/từ chối hoặc tự mở (SELF_OPEN, lý do ≥3 ký tự, ghi lịch sử). Grant có hạn (mặc định 48h), tiêu thụ khi ký thành công; từ chối/thu hồi/hết hạn không mở. Xem/in không bị khóa. Lệnh bếp ghi/hủy mẫu (`/food-samples`) không thêm khóa: ghi mẫu vốn chỉ hôm nay, hủy mẫu là bước hợp lệ sau 24 giờ.
+
 ## PENDING
-Kiểm thực ba bước (M1–M3), sổ lưu mẫu Mẫu 4–5 và chữ ký ảnh: user chốt 09–10/11 (INS-01..04, SIG-01, ADR-0024; đóng P-26, P-27), đã cài đặt ở BE (xem trên); còn mở: danh sách chọn chuẩn cho dụng cụ chứa/nhiệt độ lưu mẫu (hiện là chuỗi tự do), ghi đồng thời hai luồng chưa có test riêng, ô nhà sản xuất của M1 khô chưa có nguồn (kho chưa lưu), App bếp chưa có ô ba trường. Đã đóng 28/10: P-04..P-10; 01/11: P-24, P-25, P-37; 09/11: P-26, P-27.
+Kiểm thực ba bước (M1–M3), sổ lưu mẫu Mẫu 4–5 và chữ ký ảnh: user chốt 09–10/11 (INS-01..05, SIG-01, ADR-0024; đóng P-26, P-27), đã cài đặt ở BE (xem trên); còn mở: danh sách chọn chuẩn cho dụng cụ chứa/nhiệt độ lưu mẫu (hiện là chuỗi tự do), ghi đồng thời hai luồng chưa có test riêng, ô nhà sản xuất của M1 khô chưa có nguồn (kho chưa lưu), App bếp chưa có ô ba trường. Đã đóng 28/10: P-04..P-10; 01/11: P-24, P-25, P-37; 09/11: P-26, P-27.
 
 ## Known pitfalls
 

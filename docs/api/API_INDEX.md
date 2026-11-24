@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 423 endpoint.
+Tổng: 428 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -269,8 +269,13 @@ POST /health-checks/{campaignId}/close · src/main/java/com/carenest/controller/
 POST /health-checks/{campaignId}/reopen · src/main/java/com/carenest/controller/health/HealthCheckController.java#reopenHealthCheck
 GET /health-checks/growth-report · src/main/java/com/carenest/controller/health/HealthCheckController.java#getGrowthReport
 GET /health-checks/schedule-warnings · src/main/java/com/carenest/controller/health/HealthCheckController.java#getScheduleWarnings
+GET /inspections/approvals · src/main/java/com/carenest/controller/meals/InspectionController.java#getApprovals
+POST /inspections/approvals/{approvalId}/approve · src/main/java/com/carenest/controller/meals/InspectionController.java#approveApproval
+POST /inspections/approvals/{approvalId}/reject · src/main/java/com/carenest/controller/meals/InspectionController.java#rejectApproval
+POST /inspections/approvals/{approvalId}/revoke · src/main/java/com/carenest/controller/meals/InspectionController.java#revokeApproval
 GET /inspections/day · src/main/java/com/carenest/controller/meals/InspectionController.java#getDay
 PUT /inspections/day/{tab} · src/main/java/com/carenest/controller/meals/InspectionController.java#saveSheet
+POST /inspections/day/{tab}/approvals · src/main/java/com/carenest/controller/meals/InspectionController.java#requestApproval
 POST /inspections/day/{tab}/reopen · src/main/java/com/carenest/controller/meals/InspectionController.java#reopenSheet
 POST /inspections/day/{tab}/sign · src/main/java/com/carenest/controller/meals/InspectionController.java#signSheet
 GET /inspections/signatures/{imageKey} · src/main/java/com/carenest/controller/meals/InspectionController.java#getSignatureImage
