@@ -54,6 +54,10 @@ public class StockMovement {
     @Column(name = "receipt_id")
     private Long receiptId;
 
+    /** Phiếu xuất kho khô (trả NCC, xuất hủy) sinh ra bút toán này; null với các loại khác. */
+    @Column(name = "disposal_id")
+    private Long disposalId;
+
     @Column(nullable = false, length = 500)
     private String reason = "";
 
@@ -83,6 +87,20 @@ public class StockMovement {
         movement.correctionFor = correctionFor;
         movement.receiptId = receiptId;
         movement.reason = reason == null ? "" : reason;
+        movement.createdBy = createdBy;
+        return movement;
+    }
+
+    /** Bút toán âm của một lô trong phiếu xuất kho (NUT-29, NUT-30); {@code quantity} truyền số dương. */
+    public static StockMovement disposal(StockLot lot, StockDisposal disposal, BigDecimal quantity, Long createdBy) {
+        StockMovement movement = new StockMovement();
+        movement.lotId = lot.getId();
+        movement.campusId = lot.getCampusId();
+        movement.foodId = lot.getFoodId();
+        movement.movementType = disposal.getKind().movementType();
+        movement.quantity = quantity.negate();
+        movement.disposalId = disposal.getId();
+        movement.reason = disposal.getReason();
         movement.createdBy = createdBy;
         return movement;
     }
