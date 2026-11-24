@@ -99,7 +99,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Map<Long, SchoolYearDetailResponse> years,
             Map<Long, LocalDate> opened,
             // EDU-90: vai trò người tạo theo (người tạo, ngày tạo), tránh truy vấn lặp cho cả danh sách
-            Map<String, Optional<EduWorkflowPolicy.Role>> creatorRoles) {}
+            Map<String, Optional<EduWorkflowPolicy.Role>> creatorRoles,
+            // GV chủ nhiệm hiện hành theo lớp, nạp một lần cho cả danh sách (tránh truy vấn mỗi hồ sơ)
+            Map<Long, Long> homerooms) {}
 
     private static final String ACTION_SUBMIT = "submit";
     private static final String ACTION_APPROVE = "approve";
@@ -728,7 +730,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     docsByKey,
                     years,
                     classroomService.findOpenedDates(classIds),
-                    new HashMap<>());
+                    new HashMap<>(),
+                    homerooms);
             ClassDocsResponse response = new ClassDocsResponse(
                     deadlineBoard
                             ? List.of()
@@ -1658,10 +1661,21 @@ public class EduClassDocServiceImpl implements EduClassDocService {
      * lớp, GV chủ nhiệm không soạn; loại khác giữ luật cũ (GV chủ nhiệm của lớp).
      */
     private boolean isClassDocAuthor(CurrentUser user, ClassroomInfoResponse classroom, String kind) {
-        if (eduWorkflowService.loadPolicy(kind).creators().contains(EduWorkflowPolicy.Role.PRINCIPAL)) {
+        return isClassDocAuthor(user, classroom, kind, eduWorkflowService.loadPolicy(kind), null);
+    }
+
+    /** homerooms: GV chủ nhiệm theo lớp đã nạp sẵn của danh sách; null ⇒ tra riêng lớp này. */
+    private boolean isClassDocAuthor(
+            CurrentUser user,
+            ClassroomInfoResponse classroom,
+            String kind,
+            EduWorkflowPolicy.RolePolicy policy,
+            Map<Long, Long> homerooms) {
+        if (policy.creators().contains(EduWorkflowPolicy.Role.PRINCIPAL)) {
             return accessPolicy.isPrincipal(user) && accessPolicy.canAuthorDoc(user, EduClassDoc.policyType(kind));
         }
-        return isHomeroomAuthor(user, classroom);
+        if (homerooms == null) return isHomeroomAuthor(user, classroom);
+        return user.hasRole(CareNestRole.TEACHER) && Objects.equals(homerooms.get(classroom.id()), user.userId());
     }
 
     /** EDU-12: tài liệu lớp chỉ nhận tổ đã ban hành đúng nhóm tuổi, năm học của lớp. */
@@ -2194,6 +2208,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     private ObjectNode publishedOrFrame(CurrentUser currentUser, EduClassDoc doc, ClassListContext context) {
+        // EDU-73 (Tiền 24/11/2026): lịch nhánh đang soạn chỉ cho người soạn; người xem đọc tên nhánh ở gói học kỳ đã
+        // ban hành
         if (EduClassDoc.BRANCH.equals(doc.getKind())) return null;
         ObjectNode released = releasedNode(currentUser, doc, context);
         return released == null && EduClassDoc.SEMESTER.equals(doc.getKind())
@@ -2405,8 +2421,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 doc.publicStatus() == EduClassDocStatus.DRAFT
                         && lastClassReviewWasReturned(readArray(root.getHistory())));
         node.put("dossierVersion", root.getVersion() == null ? 0L : root.getVersion());
-        // ponytail: đọc policy mỗi hồ sơ; gom theo kind nếu danh sách lớn chậm
-        boolean author = isClassDocAuthor(currentUser, cls, doc.getKind());
+        // Danh sách dùng policy đã nạp một lần trong context, không đọc lại cài đặt cho từng hồ sơ
+        EduWorkflowPolicy.RolePolicy authorPolicy =
+                context == null ? null : context.policies().get(EduClassDoc.policyType(doc.getKind()));
+        boolean author = authorPolicy == null
+                ? isClassDocAuthor(currentUser, cls, doc.getKind())
+                : isClassDocAuthor(currentUser, cls, doc.getKind(), authorPolicy, context.homerooms());
         // EDU-89: năm đã kết thúc / năm sắp tới chưa tới ngày mở chuẩn bị ⇒ chỉ xem
         boolean yearOpen = planYearOpen(year);
         boolean activeVersion = context == null

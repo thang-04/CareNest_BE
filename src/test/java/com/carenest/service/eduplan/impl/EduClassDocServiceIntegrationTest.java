@@ -634,6 +634,29 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("EDU-73 (Tiền 24/11/2026): GV không chủ nhiệm không nhận lịch nhánh đang soạn; GVCN nhận, sửa được")
+    void secondTeacherDoesNotSeeDraftBranchSchedule() {
+        String key = "bp_" + classId + "_" + plan.id();
+        ObjectNode content = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        service.saveClassDoc(teacher, "branch", key, content, versionOf(key), rootVersionOf("branch", content));
+        CurrentUser second = user("second", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-09-01', false)",
+                second.userId(),
+                classId);
+        entityManager.clear();
+
+        assertThat(service.getClassDocs(second, schoolYear).branchPlans())
+                .noneMatch(d -> d.path("id").asString().equals(key));
+        assertThat(service.getClassDocs(teacher, schoolYear).branchPlans())
+                .filteredOn(d -> d.path("id").asString().equals(key))
+                .singleElement()
+                .satisfies(d -> assertThat(d.path("permissions").path("canEdit").asBoolean())
+                        .isTrue());
+    }
+
+    @Test
     @DisplayName("Lịch tuần: bỏ tuần nghỉ trọn tuần, tuần học đánh số liên tục qua các chủ đề")
     void teachingWeeksSkipBreaks() {
         assertThat(service.getClassDocs(teacher, schoolYear).branchPlans()).isEmpty();
@@ -1908,6 +1931,7 @@ class EduClassDocServiceIntegrationTest {
 
         for (CurrentUser viewer : List.of(second, principal, vicePrincipal, leader)) {
             ClassDocsResponse docs = service.getClassDocs(viewer, schoolYear);
+            // Tiền 24/11/2026: GV không chủ nhiệm cũng như HT/PHT/Tổ trưởng chỉ xem lịch nhánh theo gói đã ban hành
             assertThat(docs.branchPlans()).isEmpty();
             assertThat(docs.semesterPackages())
                     .filteredOn(p -> "APPROVED".equals(p.path("status").asString()))
