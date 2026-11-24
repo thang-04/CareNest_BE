@@ -21,6 +21,7 @@ import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem;
+import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildAllergy;
 import com.carenest.entity.child.ChildGuardian;
@@ -29,6 +30,7 @@ import com.carenest.entity.child.ChildHealthDeclarationHistory;
 import com.carenest.entity.child.ChildHistory;
 import com.carenest.entity.child.ChildPlacement;
 import com.carenest.entity.child.ChildProfile;
+import com.carenest.entity.child.ClassPlacement;
 import com.carenest.entity.child.Enrollment;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.child.ChildAllergyRepository;
@@ -39,6 +41,7 @@ import com.carenest.repository.child.ChildHistoryRepository;
 import com.carenest.repository.child.ChildPlacementRepository;
 import com.carenest.repository.child.ChildProfileRepository;
 import com.carenest.repository.child.ChildRepository;
+import com.carenest.repository.child.ClassPlacementRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
@@ -60,6 +63,7 @@ import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -122,6 +126,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final com.carenest.repository.child.PlannedAdmissionRepository plannedAdmissionRepository;
     private final List<com.carenest.service.child.ChildDayUsageCheck> dayUsageChecks;
     private final SchoolYearService schoolYearService;
+    private final ClassPlacementRepository classPlacementRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -693,6 +698,14 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                         admission.cancel();
                         plannedAdmissionRepository.save(admission);
                     });
+            // Nghỉ từ ngày học kế tiếp: hôm nay trẻ còn ở lớp năm đang học nên còn trên bảng xếp lớp năm sau
+            if (leftAt.isAfter(today)) {
+                open.stream()
+                        .filter(e -> !e.getValidFrom().isAfter(today))
+                        .findFirst()
+                        .ifPresent(current ->
+                                markLeavingOnNewYearBoard(childId, current.getClassroomId(), actor.userId()));
+            }
             childHistoryRepository.save(ChildHistory.record(
                     childId, ChildHistoryAction.WITHDRAWN, actor.userId(), reason, clock.instant()));
             for (Long notifiedClassId : classroomIds) {
@@ -770,6 +783,24 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             return "Ngày nghỉ học không được trước ngày mở lại hồ sơ (" + DAY.format(child.getReadmittedOn()) + ")";
         }
         return null;
+    }
+
+    /**
+     * G94-180/CHD-03: ghi quyết định Nghỉ học cho trẻ ở bảng xếp lớp năm sắp tới (thay quyết định cũ nếu có), để kích hoạt
+     * năm trước ngày nghỉ không xếp trẻ vào lớp mới, không báo phụ huynh lớp mới, không chặn bước xếp lớp. Lớp nguồn là
+     * lớp trẻ đang học hôm nay, như bảng xếp lớp đọc.
+     */
+    private void markLeavingOnNewYearBoard(Long childId, Long currentClassroomId, Long actorId) {
+        SchoolYearDetailResponse planned = schoolYearService.findNextPlannedYear();
+        if (planned == null) {
+            return;
+        }
+        ClassPlacement placement = classPlacementRepository.findAllBySchoolYearId(planned.id()).stream()
+                .filter(p -> p.getChildId().equals(childId))
+                .findFirst()
+                .orElseGet(() -> ClassPlacement.create(planned.id(), childId));
+        placement.decide(currentClassroomId, PlacementAction.LEAVE, null, actorId);
+        classPlacementRepository.save(placement);
     }
 
     // G94-180/CHD-03: ngày học đầu tiên sau hôm nay, tìm tối đa 400 ngày như FE firstSchoolDay; không có ⇒ null

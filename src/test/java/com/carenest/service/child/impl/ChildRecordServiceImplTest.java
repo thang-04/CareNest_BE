@@ -24,12 +24,14 @@ import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildGuardian;
 import com.carenest.entity.child.ChildHistory;
 import com.carenest.entity.child.ChildProfile;
+import com.carenest.entity.child.ClassPlacement;
 import com.carenest.entity.child.Enrollment;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.child.ChildGuardianRepository;
 import com.carenest.repository.child.ChildHistoryRepository;
 import com.carenest.repository.child.ChildProfileRepository;
 import com.carenest.repository.child.ChildRepository;
+import com.carenest.repository.child.ClassPlacementRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
@@ -49,6 +51,7 @@ import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.YesNo;
 import java.time.Clock;
 import java.time.Instant;
@@ -110,6 +113,7 @@ class ChildRecordServiceImplTest {
             mock(com.carenest.repository.observation.DailyObservationRepository.class);
     private final com.carenest.repository.observation.DailyActivityResultRepository dailyActivityResultRepository =
             mock(com.carenest.repository.observation.DailyActivityResultRepository.class);
+    private final ClassPlacementRepository classPlacementRepository = mock(ClassPlacementRepository.class);
     private final ChildRecordServiceImpl service = new ChildRecordServiceImpl(
             childRepository,
             profileRepository,
@@ -138,7 +142,8 @@ class ChildRecordServiceImplTest {
                             attendanceRecordRepository, dailyHealthEntryRepository, pickupRecordRepository),
                     new com.carenest.service.observation.impl.AssessmentChildDayUsageCheck(
                             dailyObservationRepository, dailyActivityResultRepository)),
-            schoolYearService);
+            schoolYearService,
+            classPlacementRepository);
 
     private Child child;
     private Enrollment enrollment;
@@ -355,6 +360,61 @@ class ChildRecordServiceImplTest {
                         eq("Bé An nghỉ học từ ngày 11/11/2026."),
                         eq(CHILD_ID));
         verify(events, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/CHD-03: nghỉ từ ngày học kế tiếp khi đã có năm học sắp tới ⇒ bảng xếp lớp năm sau ghi Nghỉ học"
+                    + " thay quyết định cũ, lớp nguồn là lớp đang học hôm nay")
+    void withdrawFromNextSchoolDayMarksLeaveOnNewYearBoard() {
+        LocalDate next = TODAY.plusDays(1);
+        given(schoolYearService.isSchoolDay(next)).willReturn(true);
+        given(schoolYearService.findNextPlannedYear()).willReturn(plannedYear(50L));
+        ClassPlacement promoted = ClassPlacement.create(50L, CHILD_ID);
+        promoted.decide(CLASS_ID, PlacementAction.PROMOTE, 60L, 2L);
+        ClassPlacement other = ClassPlacement.create(50L, 99L);
+        other.decide(CLASS_ID, PlacementAction.PROMOTE, 60L, 2L);
+        given(classPlacementRepository.findAllBySchoolYearId(50L)).willReturn(List.of(other, promoted));
+
+        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(next.toString(), "Chuyển nhà"));
+
+        verify(classPlacementRepository).save(promoted);
+        assertThat(promoted.getAction()).isEqualTo(PlacementAction.LEAVE);
+        assertThat(promoted.getFromClassroomId()).isEqualTo(CLASS_ID);
+        assertThat(promoted.getToClassroomId()).isNull();
+        assertThat(promoted.getUpdatedBy()).isEqualTo(PRINCIPAL.userId());
+        assertThat(other.getAction()).isEqualTo(PlacementAction.PROMOTE);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: nghỉ từ hôm nay ⇒ trẻ đã rời bảng xếp lớp năm sau (không còn lớp hôm nay), không ghi"
+            + " quyết định")
+    void withdrawTodayLeavesNewYearBoardUntouched() {
+        given(schoolYearService.findNextPlannedYear()).willReturn(plannedYear(50L));
+
+        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(TODAY.toString(), "Chuyển nhà"));
+
+        verify(classPlacementRepository, never()).save(any());
+    }
+
+    private static com.carenest.dto.organization.SchoolYearDetailResponse plannedYear(Long id) {
+        return new com.carenest.dto.organization.SchoolYearDetailResponse(
+                id,
+                "2027-2028",
+                LocalDate.of(2027, 9, 1),
+                LocalDate.of(2028, 5, 31),
+                null,
+                null,
+                null,
+                null,
+                com.carenest.utils.enums.SchoolYearStatus.PLANNED,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     @Test
