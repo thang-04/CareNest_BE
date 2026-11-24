@@ -959,6 +959,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (plan.getPlanLevel() == EduPlanLevel.TEAM || !canDeleteAsVicePrincipal(currentUser)) {
                 throw GlobalException.of(ApiCode.VICE_PRINCIPAL_ONLY, "xóa");
             }
+            // EDU-07 (Tiền 25/11/2026): chỉ người soạn kế hoạch (chủ kế hoạch, có quyền soạn) được xóa
+            if (!isEditor(currentUser, plan)) throw GlobalException.of(ApiCode.FORBIDDEN);
             if (plan.publicStatus() != EduPlanStatus.DRAFT) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_DELETE_DRAFT_ONLY);
             }
@@ -2363,7 +2365,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 yearOpen
                         && isDraft
                         && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
-                        && canDeleteAsVicePrincipal(user),
+                        && canDeleteAsVicePrincipal(user)
+                        && author,
                 yearOpen
                         && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                         && plan.getId().equals(currentId)
