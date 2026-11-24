@@ -155,8 +155,7 @@ public class HealthExamServiceImpl implements HealthExamService {
                                     child.dateOfBirth(),
                                     child.guardians().size()))
                             : draftErrors(height, weight, head));
-            // HLT-08 (user chốt 2026-11-24): mỗi ngày một phiếu khám (cả nháp), ngày đã có số đo kỳ cân đo vẫn lưu.
-            // Chỉ phiếu mới có thể trùng vì ngày khám không đổi
+            // HLT-08: mỗi ngày một phiếu khám (cả nháp); ngày đã có số đo kỳ cân đo vẫn lưu, chỉ phiếu mới có thể trùng
             Long currentId = m == null ? null : m.getId();
             if (measurementRepository.findByChildIdAndDate(childId, date).stream()
                     .anyMatch(other -> other.isExam() && !other.getId().equals(currentId))) {

@@ -621,7 +621,7 @@ Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng 
 | exam_status | VARCHAR(20) | có | `DRAFT` / `CONCLUDED`; có khi và chỉ khi có `exam` (V65) | HLT-08, HLT-11 |
 | concluded_at | TIMESTAMPTZ | có | Lần kết luận đầu tiên; có khi và chỉ khi `CONCLUDED` (V65) | HLT-08 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Index: `(campaign_id, classroom_id)`.
+Index: `(campaign_id, classroom_id)`; UNIQUE có điều kiện `uk_health_measurements_child_date_round (child_id, date) WHERE exam_status IS NULL` và `uk_health_measurements_child_date_exam (child_id, date) WHERE exam_status IS NOT NULL` (V180).
 
 ## health_measurement_edits  (module: health, scope: CHILD)
 Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
