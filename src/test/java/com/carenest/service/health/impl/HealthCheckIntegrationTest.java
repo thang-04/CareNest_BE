@@ -12,6 +12,7 @@ import com.carenest.dto.health.HealthCheckDetailResponse;
 import com.carenest.dto.health.HealthCheckReopenRequest;
 import com.carenest.dto.health.HealthCheckRequest;
 import com.carenest.dto.health.HealthCheckResponse;
+import com.carenest.dto.health.HealthExamRequest;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.dto.health.HealthScheduleWarningResponse;
@@ -22,6 +23,7 @@ import com.carenest.repository.health.HealthCheckCampaignHistoryRepository;
 import com.carenest.repository.health.HealthCheckCampaignRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthCheckService;
+import com.carenest.service.health.HealthExamService;
 import com.carenest.service.health.HealthMeasurementService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -83,6 +85,9 @@ class HealthCheckIntegrationTest {
 
     @Autowired
     private HealthMeasurementService measurements;
+
+    @Autowired
+    private HealthExamService exams;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -378,6 +383,46 @@ class HealthCheckIntegrationTest {
                         .createMeasurement(teacherA, child1, measure(next.id()))
                         .date())
                 .isEqualTo(LocalDate.of(2026, 11, 10));
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-01 (2026-11-24): ngày đo trẻ chỉ có phiếu khám ⇒ vẫn nhập số đo; đã có số đo kỳ khác ⇒ báo HT/PHT")
+    void roundMeasurementAllowedOnDayWithOnlyExam() {
+        long examCampaign = checks.createHealthCheck(
+                        vpA, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-11-20"))
+                .id();
+        exams.saveExam(
+                teacherA,
+                examCampaign,
+                child1,
+                new HealthExamRequest(
+                        new BigDecimal("98.0"),
+                        new BigDecimal("15.0"),
+                        null,
+                        HealthExamCatalog.template(),
+                        false,
+                        "",
+                        null));
+        checks.closeHealthCheck(vpA, examCampaign);
+        long round = checks.createHealthCheck(
+                        vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"))
+                .id();
+
+        HealthMeasurementResponse measured = measurements.createMeasurement(teacherA, child1, measure(round));
+        assertThat(measured.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(rowOf(checks.getHealthCheckClass(teacherA, round, classA), child1)
+                        .result())
+                .isEqualTo(HealthCheckResult.RECORDED);
+
+        // Kỳ cân đo khác mở cùng ngày: ngày đó đã có số đo kỳ cân đo (cùng phiếu khám) ⇒ vẫn chặn
+        checks.closeHealthCheck(vpA, round);
+        long next = checks.createHealthCheck(
+                        vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"))
+                .id();
+        expectError(
+                () -> measurements.createMeasurement(teacherA, child1, measure(next)),
+                ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN);
     }
 
     @Test

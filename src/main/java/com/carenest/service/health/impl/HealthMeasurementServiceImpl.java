@@ -144,7 +144,9 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
             }
             checkNotMeasuredInLinkedRound(childId, round);
             rules.checkPresent(childId, date);
-            if (measurementRepository.findByChildIdAndDate(childId, date).isPresent()) {
+            // HLT-01 (user chốt 2026-11-24): mỗi ngày một số đo kỳ cân đo; ngày trẻ chỉ có phiếu khám vẫn nhập được
+            if (measurementRepository.findByChildIdAndDate(childId, date).stream()
+                    .anyMatch(other -> !other.isExam())) {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN, date);
             }
             HealthMeasurement saved = measurementRepository.save(HealthMeasurement.builder()

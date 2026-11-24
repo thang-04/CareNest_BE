@@ -155,12 +155,11 @@ public class HealthExamServiceImpl implements HealthExamService {
                                     child.dateOfBirth(),
                                     child.guardians().size()))
                             : draftErrors(height, weight, head));
-            // Mỗi trẻ một lần đo một ngày (cả nháp, ràng buộc DB); chỉ phiếu mới có thể trùng vì ngày không đổi
+            // HLT-08 (user chốt 2026-11-24): mỗi ngày một phiếu khám (cả nháp), ngày đã có số đo kỳ cân đo vẫn lưu.
+            // Chỉ phiếu mới có thể trùng vì ngày khám không đổi
             Long currentId = m == null ? null : m.getId();
-            if (measurementRepository
-                    .findByChildIdAndDate(childId, date)
-                    .filter(other -> !other.getId().equals(currentId))
-                    .isPresent()) {
+            if (measurementRepository.findByChildIdAndDate(childId, date).stream()
+                    .anyMatch(other -> other.isExam() && !other.getId().equals(currentId))) {
                 // Người nhập không chọn được ngày khác: báo HT/PHT xử lý
                 errors.add(new FieldErrorResponse(
                         "date",
@@ -315,7 +314,7 @@ public class HealthExamServiceImpl implements HealthExamService {
             measurement = records.views(s, List.of(m), child.dateOfBirth(), child.gender(), true)
                     .getFirst();
         } else {
-            draft = new HealthExamResponse.HealthExamDraft(refDate, null, null, null, prefill(child, declared));
+            draft = prefill(child, declared, s, refDate);
         }
         return new HealthExamResponse(
                 conclusionMode(s, m),
@@ -345,8 +344,15 @@ public class HealthExamServiceImpl implements HealthExamService {
                 status != HealthCheckStatus.IN_PROGRESS);
     }
 
-    /** Phiếu mới: mẫu trống, người đi cùng mặc định là phụ huynh đầu tiên, hành chính và tiền sử điền sẵn. */
-    private static HealthExamForm prefill(ChildViewResponse child, Optional<ChildMedicalHistory> declared) {
+    /**
+     * Phiếu mới: mẫu trống, người đi cùng mặc định là phụ huynh đầu tiên, hành chính và tiền sử điền sẵn; chiều cao, cân
+     * nặng lấy từ số đo kỳ cân đo cùng ngày khám (HLT-08, user chốt 2026-11-24).
+     */
+    private static HealthExamResponse.HealthExamDraft prefill(
+            ChildViewResponse child, Optional<ChildMedicalHistory> declared, HealthRecords.Snapshot s, LocalDate date) {
+        Optional<HealthMeasurement> sameDay = s.measurements(child.id()).stream()
+                .filter(x -> !x.isExam() && x.getDate().equals(date))
+                .findFirst();
         HealthExamForm template = HealthExamCatalog.template();
         boolean hasGuardian = !child.guardians().isEmpty();
         HealthExamForm.HealthExamAdmin a = template.admin();
@@ -361,7 +367,12 @@ public class HealthExamServiceImpl implements HealthExamService {
                 a.address(),
                 hasGuardian ? YES : "",
                 new HealthExamForm.HealthExamCompanion(hasGuardian ? 0 : null, "", "", "", ""));
-        return withHistory(withProfile(withParts(template, null, admin, null), null, child), declared);
+        return new HealthExamResponse.HealthExamDraft(
+                date,
+                sameDay.map(HealthMeasurement::getHeightCm).orElse(null),
+                sameDay.map(HealthMeasurement::getWeightKg).orElse(null),
+                null,
+                withHistory(withProfile(withParts(template, null, admin, null), null, child), declared));
     }
 
     /**

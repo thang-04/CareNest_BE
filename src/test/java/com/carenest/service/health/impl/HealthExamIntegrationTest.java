@@ -544,13 +544,66 @@ class HealthExamIntegrationTest {
     }
 
     @Test
-    @DisplayName("HLT-08: phiếu mới trùng ngày khám với kết quả đo khác của trẻ ⇒ lỗi ô date kèm ngày, báo HT/PHT")
-    void newExamOnTakenDateAsksLeaders() {
+    @DisplayName("HLT-08 (2026-11-24): ngày khám trẻ đã có số đo kỳ cân đo ⇒ vẫn lưu nháp, kết luận; sổ giữ cả hai")
+    void examSavesOnDayWithRoundMeasurement() {
         long round = checks.createHealthCheck(
                         principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"))
                 .id();
-        measurements.createMeasurement(teacherA, child1, measure(round, "15.2", ""));
+        long measured = measurements
+                .createMeasurement(teacherA, child1, measure(round, "15.2", ""))
+                .id();
         checks.closeHealthCheck(principal, round);
+        long campaign = examCampaign(campusA);
+
+        HealthExamResponse draft =
+                exams.saveExam(teacherA, campaign, child1, save(HealthExamCatalog.template(), false, ""));
+        assertThat(draft.measurement().date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(draft.measurement().examStatus()).isEqualTo(HealthExamStatus.DRAFT);
+        HealthExamResponse concluded =
+                exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, ""));
+        assertThat(concluded.measurement().examStatus()).isEqualTo(HealthExamStatus.CONCLUDED);
+        assertThat(rowOf(campaign, child1).result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(measurements.getHealthRecord(teacherA, child1).measurements())
+                .extracting(HealthMeasurementResponse::id, HealthMeasurementResponse::date)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(measured, LocalDate.of(2026, 11, 10)),
+                        org.assertj.core.groups.Tuple.tuple(
+                                concluded.measurement().id(), LocalDate.of(2026, 11, 10)));
+    }
+
+    @Test
+    @DisplayName("HLT-08 (2026-11-24): phiếu khám mới điền sẵn chiều cao, cân nặng của số đo kỳ cân đo cùng ngày")
+    void examPrefillsHeightWeightFromSameDayMeasurement() {
+        // Bình cân ngày 09/11, An cân ngày 10/11 (hôm nay, cùng ngày khám)
+        testClock.setInstant(Instant.parse("2026-11-09T02:00:00Z"));
+        long round = checks.createHealthCheck(
+                        principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"))
+                .id();
+        measurements.createMeasurement(teacherA, child2, measure(round, "14.8", ""));
+        testClock.setInstant(Instant.parse("2026-11-10T02:00:00Z"));
+        measurements.createMeasurement(teacherA, child1, measure(round, "15.6", ""));
+        checks.closeHealthCheck(principal, round);
+        long campaign = examCampaign(campusA);
+
+        HealthExamResponse.HealthExamDraft prefilled =
+                exams.getExam(teacherA, campaign, child1).draft();
+        assertThat(prefilled.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(prefilled.heightCm()).isEqualByComparingTo("98.5");
+        assertThat(prefilled.weightKg()).isEqualByComparingTo("15.6");
+        assertThat(prefilled.headCircumferenceCm()).isNull();
+        // Số đo ngày khác không điền
+        HealthExamResponse.HealthExamDraft blank =
+                exams.getExam(teacherA, campaign, child2).draft();
+        assertThat(blank.heightCm()).isNull();
+        assertThat(blank.weightKg()).isNull();
+    }
+
+    @Test
+    @DisplayName("HLT-08: phiếu mới trùng ngày khám với phiếu khám của đợt khám khác ⇒ lỗi ô date kèm ngày, báo HT/PHT")
+    void newExamOnDayOfAnotherExamAsksLeaders() {
+        long first = examCampaign(campusA);
+        exams.saveExam(teacherA, first, child1, save(HealthExamCatalog.template(), false, ""));
+        checks.closeHealthCheck(principal, first);
         long campaign = examCampaign(campusA);
 
         assertThatThrownBy(
@@ -566,7 +619,7 @@ class HealthExamIntegrationTest {
                                         + "Báo Hiệu trưởng hoặc Phó hiệu trưởng.");
                     });
                 });
-        // Trẻ khác chưa có kết quả hôm nay ⇒ lưu được
+        // Trẻ khác chưa có phiếu khám hôm nay ⇒ lưu được
         assertThat(exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""))
                         .measurement()
                         .date())
