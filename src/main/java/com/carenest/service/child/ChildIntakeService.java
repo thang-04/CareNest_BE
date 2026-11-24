@@ -49,8 +49,10 @@ public interface ChildIntakeService {
     DuplicateCheckResponse checkDuplicate(
             CurrentUser actor, String fullName, String dateOfBirth, List<String> guardianIdNumbers, Long excludeId);
 
-    /** CHD-10: lớp nhận trẻ của năm đang hoạt động hoặc năm sắp tới trong phạm vi. */
-    /** from null = hôm nay; childId (nếu có) không tính vào sĩ số kiểm (CHD-14). */
+    /**
+     * CHD-10: lớp nhận trẻ của năm đang hoạt động hoặc năm sắp tới trong phạm vi; from null = hôm nay, childId (nếu có)
+     * không tính vào sĩ số kiểm (CHD-14).
+     */
     List<PlacementClassResponse> listPlacementClasses(
             CurrentUser actor, Long schoolYearId, LocalDate from, Long childId);
 

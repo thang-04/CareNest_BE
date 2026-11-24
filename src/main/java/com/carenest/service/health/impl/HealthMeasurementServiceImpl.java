@@ -331,9 +331,7 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 .flatMap(classroomService::findClassroomInfo);
     }
 
-    // G94-180/HLT-09: kỳ liên quan tính là cùng kỳ — trẻ chuyển điểm trường đã đo ở đó (ngày đo trong khoảng của kỳ)
-    // không
-    // đo lần hai; câu lỗi nêu kỳ, ngày đo để GV sửa số đo đó
+    // G94-180/HLT-09: đã đo ở kỳ liên quan (trẻ chuyển điểm trường) thì không đo lần hai; câu lỗi nêu kỳ, ngày đo
     private void checkNotMeasuredInLinkedRound(Long childId, HealthCheckCampaign round) {
         List<HealthCheckCampaign> linked = rules.linkedCampaigns(round);
         if (linked.isEmpty()) {

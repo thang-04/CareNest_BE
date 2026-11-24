@@ -263,8 +263,7 @@ class HealthCheckRules {
      * đã có kết quả của kỳ.
      */
     List<HealthCheckCampaign> linkedCampaigns(HealthCheckCampaign campaign) {
-        // Đợt khám không nối: phiếu khám mở theo đợt của điểm trường trẻ đang học, trẻ sang điểm trường khác khám ở đợt
-        // ở đó
+        // Đợt khám không nối: trẻ khám ở đợt của điểm trường đang học, sang điểm trường khác thì khám ở đợt ở đó
         if (campaign.getKind() != HealthCheckKind.MEASUREMENT) {
             return List.of();
         }

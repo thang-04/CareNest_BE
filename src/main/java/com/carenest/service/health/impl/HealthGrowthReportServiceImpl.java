@@ -122,9 +122,7 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
             List<HealthCheckAbsence> absences =
                     campaignIds.isEmpty() ? List.of() : absenceRepository.findByCampaignIdIn(campaignIds);
 
-            // Danh sách lớp như màn đợt/kỳ, hợp theo trẻ trong từng điểm trường. Lần đo tính ở lớp đã đo: bỏ dòng hiện
-            // lần
-            // đo ở lớp khác (trẻ chuyển lớp, G94-180/HLT-09), không lấy kỳ liên quan
+            // Như màn đợt/kỳ, hợp theo trẻ từng điểm trường; lần đo tính ở lớp đã đo, không lấy kỳ liên quan (HLT-09)
             Map<Long, Map<Long, ClassroomInfoResponse>> classesByCampus = new LinkedHashMap<>();
             Map<Long, Map<Long, List<Entry>>> entriesByCampus = new LinkedHashMap<>();
             for (CampusOptionResponse campus : campuses) {
