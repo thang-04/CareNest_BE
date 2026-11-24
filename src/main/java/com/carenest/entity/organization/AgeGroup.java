@@ -55,6 +55,12 @@ public class AgeGroup {
     @Column(name = "nutrition_note", nullable = false, length = 500)
     private String nutritionNote = "";
 
+    @Column(name = "standard_group", nullable = false)
+    private boolean standardGroup;
+
+    @Column(name = "regulation_ref", nullable = false, length = 200)
+    private String regulationRef = "";
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

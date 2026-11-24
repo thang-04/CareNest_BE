@@ -9,6 +9,7 @@ import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.NapLevel;
 import com.carenest.utils.enums.ObservedBehavior;
 import com.carenest.utils.enums.Participation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -37,8 +38,9 @@ public record DailySheetResponse(
         List<AbsentChild> absentChildren,
         ClassCommentResponse classComment) {
 
-    public record AbsentChild(Long childId, String fullName, AttendanceStatus attendanceStatus) {}
+    public record AbsentChild(Long childId, String fullName, AttendanceStatus attendanceStatus, String historyStatus) {}
 
+    @Schema(name = "DailyAssessmentRow")
     public record Row(
             Long childId,
             String fullName,
@@ -56,7 +58,9 @@ public record DailySheetResponse(
             // Đã lưu phần Hoạt động chung (ăn, ngủ, cảm xúc) / đã chấm Kiến thức kỹ năng: hai view đếm riêng
             boolean generalRecorded,
             boolean skillsRecorded,
-            List<ActivityResult> activities) {}
+            List<ActivityResult> activities,
+            List<MealSession> skippedMeals,
+            String historyStatus) {}
 
     /** signs đang hiện; prefillSigns theo sức khỏe trong ngày (không gồm thân nhiệt); overridden = cô đã chỉnh. */
     public record Health(

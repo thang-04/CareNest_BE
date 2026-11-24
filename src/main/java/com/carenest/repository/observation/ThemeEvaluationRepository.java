@@ -2,6 +2,7 @@ package com.carenest.repository.observation;
 
 import com.carenest.entity.observation.ThemeEvaluation;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,6 +14,10 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
     Optional<ThemeEvaluation> findByClassroomIdAndThemeId(Long classroomId, Long themeId);
 
     List<ThemeEvaluation> findByClassroomId(Long classroomId);
+
+    /** Bảng cuối chủ đề đã xác nhận của các lớp trong một năm học (App phụ huynh xem kết quả của con). */
+    List<ThemeEvaluation> findByClassroomIdInAndSchoolYearIdAndConfirmedAtIsNotNull(
+            Collection<Long> classroomIds, Long schoolYearId);
 
     /** Chủ đề của kế hoạch năm học đã duyệt (bản mới nhất) của nhóm tuổi; chỉ đọc bảng của module kế hoạch giáo dục. */
     interface ThemeRow {
@@ -89,4 +94,19 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
                     + " ORDER BY d.sort_order NULLS LAST, d.id NULLS LAST, g.goal_no, g.sort_order, g.id",
             nativeQuery = true)
     List<YearGoalRow> findYearGoals(@Param("schoolYearId") Long schoolYearId, @Param("ageGroupId") Long ageGroupId);
+
+    // Chỉ bổ sung metadata cho MT đã có kết quả lịch sử, không đưa mọi MT bản cũ vào bảng hiện tại.
+    @Query(
+            value = "SELECT DISTINCT ON (COALESCE(g.lineage_id, g.id))"
+                    + " COALESCE(g.lineage_id, g.id) AS lineage, g.goal_no AS goalNo, g.text AS text,"
+                    + " d.id AS domainId, d.name AS domainName FROM edu_plan_goals g"
+                    + " JOIN edu_team_plans p ON p.id=g.team_plan_id LEFT JOIN edu_domains d ON d.id=g.domain_id"
+                    + " WHERE p.school_year_id=:schoolYearId AND p.age_group_id=:ageGroupId AND p.status='APPROVED'"
+                    + " AND COALESCE(g.lineage_id,g.id) IN (:lineages)"
+                    + " ORDER BY COALESCE(g.lineage_id,g.id), p.version_no DESC, p.id DESC, g.id DESC",
+            nativeQuery = true)
+    List<YearGoalRow> findHistoricalYearGoals(
+            @Param("schoolYearId") Long schoolYearId,
+            @Param("ageGroupId") Long ageGroupId,
+            @Param("lineages") Collection<Long> lineages);
 }

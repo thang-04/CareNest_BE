@@ -47,6 +47,7 @@ import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ChildEditRoles;
@@ -111,6 +112,8 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final ChildPlacementRepository placementRepository;
     private final PlacementRules placementRules;
     private final com.carenest.repository.child.PlannedAdmissionRepository plannedAdmissionRepository;
+    private final List<com.carenest.service.child.ChildDayUsageCheck> dayUsageChecks;
+    private final SchoolYearService schoolYearService;
 
     @Override
     @Transactional(readOnly = true)
@@ -337,6 +340,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             Long fromClassroomId = current.map(Enrollment::getClassroomId).orElse(null);
 
             Map<String, String> errors = new LinkedHashMap<>();
+            if (!schoolYearService.isSchoolDay(today)) {
+                errors.put("classId", "Chỉ chuyển lớp vào ngày học. Thực hiện vào ngày học kế tiếp.");
+            }
             Long classId = request == null ? null : request.classId();
             ClassroomInfoResponse target = null;
             if (classId == null) {
@@ -348,7 +354,14 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 errors.put("classId", "Trẻ chưa có khai báo sức khỏe. Khai báo trước khi xếp lớp.");
             } else {
                 target = classroomService.findClassroomInfo(classId).orElse(null);
-                String problem = placementRules.classProblem(actor, target, today);
+                String problem = placementRules.classProblem(actor, target, today, child.getDateOfBirth());
+                if (problem == null && fromClassroomId != null) {
+                    ClassroomInfoResponse source =
+                            classroomService.findClassroomInfo(fromClassroomId).orElse(null);
+                    if (source == null || !Objects.equals(source.ageGroupId(), target.ageGroupId())) {
+                        problem = "Trong cùng năm học, trẻ chỉ được chuyển sang lớp cùng nhóm tuổi";
+                    }
+                }
                 if (problem != null) {
                     errors.put("classId", problem);
                 }
@@ -360,6 +373,11 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 errors.put("reason", "Nhập lý do chuyển lớp");
             } else if (reason.length() > MAX_REASON) {
                 errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
+            }
+            if (fromClassroomId != null && hasDailyOperationalData(childId, today)) {
+                errors.put(
+                        "classId",
+                        "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Chuyển lớp vào ngày học tiếp theo.");
             }
             if (!errors.isEmpty()) {
                 throw GlobalException.withFieldErrors(
@@ -509,8 +527,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             LocalDate leftAt = parseDate(request == null ? null : request.leftAt());
             if (leftAt == null) {
                 errors.put("leftAt", "Chọn ngày nghỉ học");
-            } else if (leftAt.isAfter(today)) {
-                errors.put("leftAt", "Ngày nghỉ học không được ở tương lai");
+            } else if (!leftAt.equals(today)) {
+                errors.put("leftAt", "Ngày nghỉ học phải là ngày thực hiện thao tác");
+            } else if (!schoolYearService.isSchoolDay(leftAt)) {
+                errors.put("leftAt", "Chỉ cho nghỉ học vào ngày học. Thực hiện vào ngày học kế tiếp.");
             } else if (leftAt.isBefore(child.getEnrolledOn())) {
                 errors.put(
                         "leftAt",
@@ -528,6 +548,11 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 errors.put("reason", "Nhập lý do cho trẻ nghỉ học");
             } else if (reason.length() > MAX_REASON) {
                 errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
+            }
+            if (leftAt != null && leftAt.equals(today) && hasDailyOperationalData(childId, today)) {
+                errors.put(
+                        "leftAt",
+                        "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Thực hiện nghỉ học từ ngày học tiếp theo.");
             }
             if (!errors.isEmpty()) {
                 throw GlobalException.withFieldErrors(
@@ -573,6 +598,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private boolean hasDailyOperationalData(Long childId, LocalDate date) {
+        return dayUsageChecks.stream().anyMatch(check -> check.hasData(childId, date));
     }
 
     @Override

@@ -92,6 +92,7 @@ Mục đích: nhận xét tuần theo trẻ gửi phụ huynh. Migration: V129.
 | status | VARCHAR(10) | không | `DRAFT` / `SENT`; SENT thì khóa | OBS-29 |
 | draft_source | VARCHAR(10) | không | `TEMPLATE` / `AI` / `MANUAL`: nguồn bản nháp | OBS-29 |
 | sent_by / sent_at | BIGINT, TIMESTAMPTZ | có | Người, lúc gửi; có ⇔ SENT (CHECK) | OBS-29 |
+| ai_reviewed_at | TIMESTAMPTZ | có | Lần đầu GV xem / sửa nháp AI; null = chưa xem, chặn "Gửi tất cả"; viết lại nháp đặt null (V179, Cần chốt 24/11/2026) | OBS-29 |
 | created_* / updated_* / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Người tạo, lần lưu gần nhất, khóa lạc quan | OBS-29 |
 
 ## weekly_comment_unlocks  (module: learning-observation, scope: CLASS)
@@ -229,7 +230,7 @@ Mục đích: bản chụp phòng, điểm trường, nhóm tuổi lúc năm h�
 Ghi khi năm chuyển CLOSED (kết thúc tay hoặc tự đóng khi kích hoạt năm mới), trong cùng transaction.
 
 ## school_year_campus_members  (module: school-structure, scope: SCHOOL)
-Mục đích: danh sách điểm trường riêng của từng năm học (Cần chốt 22/10/2026), như `school_year_age_group_members`. Thêm điểm trường ở năm đang chọn chỉ thêm vào năm đó; xóa ở một năm chỉ bỏ khỏi năm đó (còn lớp / PHT / phòng năm đó thì chặn), không còn năm nào thì xóa hẳn (chỉ khi chưa có dữ liệu). Tạo năm mới chép danh sách của năm gần nhất; lớp và phòng chỉ mở ở điểm trường của năm. Migration: `V151__school_year_campus_members.sql`, `V152__school_year_campus_info.sql`, `V154__school_year_config_per_year.sql`.
+Mục đích: danh sách điểm trường riêng của từng năm học (Cần chốt 22/10/2026), như `school_year_age_group_members`. Thêm điểm trường ở năm đang chọn chỉ thêm vào năm đó; xóa ở một năm chỉ bỏ khỏi năm đó (còn lớp / PHT / phòng năm đó thì chặn), không còn năm nào thì xóa hẳn (chỉ khi chưa có dữ liệu). Tạo năm mới chép danh sách của năm gần nhất; lớp và phòng chỉ mở ở điểm trường của năm. Migration: `V151__school_year_campus_members.sql`, `V152__school_year_campus_info.sql`, `V154__school_year_config_per_year.sql`, `V180__school_year_campus_main.sql`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng campus_id | — |
@@ -240,6 +241,7 @@ Mục đích: danh sách điểm trường riêng của từng năm học (Cần
 | address | VARCHAR(255) | không | Địa chỉ của năm | — |
 | phone | VARCHAR(20) | có | SĐT của năm (V152) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE` của năm; `campuses.status` = trạng thái năm đang hoạt động | CFG-CP-01 |
+| is_main | BOOLEAN DEFAULT FALSE | không | Điểm trường chính của năm (V180, Cần chốt 24/11/2026); tối đa một dòng `TRUE` mỗi năm (unique một phần `uk_year_campus_main`). Đổi ở năm nào chỉ năm đó đổi; `campuses.is_main` = điểm chính của năm đang hoạt động (đồng bộ khi sửa năm đang hoạt động và khi kích hoạt năm). Bản chụp đóng năm lấy cờ này | — |
 
 ## school_year_room_members  (module: school-structure, scope: SCHOOL)
 Mục đích: phòng / phòng ban của từng năm học còn mở (Cần chốt 19/11/2026): thêm, sửa, ngừng, xóa ở năm nào chỉ năm đó. `rooms` giữ thông tin năm đang hoạt động cho module khác; kích hoạt năm áp phòng của năm mới, phòng không có trong năm mới ngừng sử dụng. Năm đã kết thúc vẫn đọc bản chụp `school_year_rooms`. Tạo năm mới chép từ năm gần nhất. Migration: `V154__school_year_config_per_year.sql`.
@@ -361,6 +363,8 @@ Mục đích: đơn nghỉ phụ huynh gửi qua App (ATT-04, ATT-05, ATT-05b), 
 | created_by | BIGINT FK user_accounts | không | Phụ huynh gửi |
 | cancelled_from | DATE | có | Hủy từ ngày này; hiệu lực tới `cancelled_from - 1` |
 | cancelled_by, cancelled_at | BIGINT FK, TIMESTAMPTZ | có | |
+| teacher_seen_at | TIMESTAMPTZ | có | Lần đầu GV của lớp (dạy chính / dạy thay ngày của đơn) mở danh sách đơn hoặc màn điểm danh ngày của đơn; ghi một lần, không ghi đè, BGH mở không tính (V178, Cần chốt 24/11/2026) |
+| teacher_seen_by | BIGINT FK user_accounts | có | GV mở đầu tiên (V178) |
 
 ## attendance_record_history  (module: attendance, scope: CLASS)
 Mục đích: lịch sử ghi/sửa từng bản ghi điểm danh (chỉ thêm). Migration: V21.
@@ -1037,6 +1041,10 @@ Ràng buộc: UNIQUE (classroom_id, theme_id); end_date ≥ start_date.
 V79: child_evaluations thêm phiếu đánh giá sự phát triển cuối năm (OBS-28): `goal_results` TEXT (JSON ô GV sửa tay trước khi xác nhận; cả phiếu khi đã xác nhận: [{g: dòng gốc MT, m: đạt, x: sửa tay}]), `note_for_child`, `note_for_teacher`, `note_for_school`, `note_for_parent` VARCHAR(1000) (lưu ý điều chỉnh kế hoạch năm sau, null = để trống).
 
 V81: child_evaluations thêm `domain_comments` TEXT (JSON {"<domainId>": "nhận xét"}, lĩnh vực chưa gắn mã dùng khóa "0") — nhận xét dưới từng lĩnh vực của phiếu cuối năm (OBS-28).
+
+V175: `child_evaluations.sheet_presentation` TEXT nullable — JSON `{ageGroupName, teachers, principal, measurement}` chốt khi xác nhận phiếu cuối năm (OBS-28). Cân đo gồm ngày, cân nặng và chiều cao tại lúc chốt. Phiếu cũ để null, không tự backfill thông tin người ký/cân đo hiện tại thành lịch sử.
+
+V181: `child_evaluation_events.action` thêm `TEMPLATE_DRAFTED` (CHECK `ck_child_evaluation_events_action`: AI_DRAFTED | AI_REDRAFTED | TEMPLATE_DRAFTED | EDITED | CONFIRMED) — nháp hệ thống tạo sẵn từ mẫu câu ghi vết riêng, không ghi là AI (AI-03). Vết cũ `AI_DRAFTED` giữ nguyên.
 
 V171: child_evaluations thêm nguồn bản nháp (OBS-34, AI-01): `draft_source` VARCHAR(10) NOT NULL DEFAULT 'TEMPLATE' (CHECK TEMPLATE | AI), `draft_model` VARCHAR(100) và `draft_prompt_version` VARCHAR(60) (chỉ có khi nguồn là AI). Nháp cũ đều là mẫu câu nên mặc định TEMPLATE; không lưu prompt hay phản hồi thô (AI-05).
 

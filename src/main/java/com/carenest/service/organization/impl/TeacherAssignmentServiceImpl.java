@@ -76,6 +76,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             Long campusId = parseCampusId(campusParam);
             schoolConfigAccess.checkCanViewSchool(currentUser);
             SchoolYear year = findYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             List<Classroom> classes =
                     classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId()).stream()
                             .filter(c -> campusId == null || c.getCampusId().equals(campusId))
@@ -116,7 +117,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 throw GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
             }
             SchoolYear year = findYear(classroom.getSchoolYearId());
+            // CFG-YR-05: năm chưa tới ngày mở chuẩn bị chỉ HT thấy, PHT không xếp GV được
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             SchoolYearRules.checkOpen(year);
+            checkNotPastEnd(year);
             Set<Long> teacherIds = new HashSet<>(request.teacherIds());
             // AUTH-24: tuần tự hóa với các phân công đồng thời khác của lớp / GV trước khi đọc hiện trạng
             teacherClassRules.lockForAssignment(classroom, teacherIds);
@@ -236,7 +240,9 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         log.info("{}|START", logPrefix);
         try {
             schoolConfigAccess.checkCanViewSchool(currentUser);
-            TeamLeaderResponse response = toTeamLeaderResponse(findYear(schoolYearId));
+            SchoolYear year = findYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
+            TeamLeaderResponse response = toTeamLeaderResponse(year);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -254,6 +260,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             schoolConfigAccess.checkPrincipal(currentUser);
             SchoolYear year = findYear(request.schoolYearId());
             SchoolYearRules.checkOpen(year);
+            checkNotPastEnd(year);
             // Tổ trưởng chỉ cho nhóm tuổi có trong đúng năm học đó. Migration đã backfill dữ liệu cũ.
             List<Long> yearGroups = ageGroupRepository.findYearAgeGroupIds(year.getId());
             if (!ageGroupRepository.existsById(request.ageGroupId()) || !yearGroups.contains(request.ageGroupId())) {
@@ -330,6 +337,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     currentUser, Permission.STAFF_ASSIGNMENT_MANAGE, classroom.getCampusId())) {
                 throw GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
             }
+            schoolConfigAccess.checkYearVisible(currentUser, findYear(classroom.getSchoolYearId()));
             List<AssignmentHistoryResponse> history = toHistory(staffAssignmentRepository.findTeacherHistory(classId));
             log.info("{}|END", logPrefix);
             return history;
@@ -351,6 +359,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
             }
             SchoolYear year = findYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             List<AssignmentHistoryResponse> history = toHistory(staffAssignmentRepository.findTeamLeaderHistory(
                     ageGroupId, year.getId(), year.getStartDate(), year.getEndDate()));
             log.info("{}|END", logPrefix);
@@ -395,6 +404,13 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             assignment.endBefore(start);
         } else {
             staffAssignmentRepository.delete(assignment);
+        }
+    }
+
+    // SCH-04: năm đã qua ngày kết thúc (HT chưa đóng) ⇒ phân công mới sẽ bắt đầu sau ngày kết thúc năm, không hợp lệ
+    private void checkNotPastEnd(SchoolYear year) {
+        if (schoolConfigAccess.today().isAfter(year.getEndDate())) {
+            throw GlobalException.of(ApiCode.ASSIGNMENT_YEAR_ENDED, year.getName(), DMY.format(year.getEndDate()));
         }
     }
 

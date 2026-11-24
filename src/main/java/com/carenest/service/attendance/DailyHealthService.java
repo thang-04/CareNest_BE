@@ -5,6 +5,8 @@ import com.carenest.dto.attendance.DailyHealthRequest;
 import com.carenest.dto.attendance.DailyHealthResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.HealthSymptom;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -29,4 +31,18 @@ public interface DailyHealthService {
 
     /** Đánh giá trẻ điền sẵn ô Sức khỏe từ sức khỏe trong ngày (EDU-19). */
     List<ChildDaySigns> findLatestDaySigns(Collection<Long> childIds, LocalDate from, LocalDate to);
+
+    /** Một lần ghi nhận sức khỏe kèm lớp và người ghi (chỉ dùng nội bộ, module gọi tự kiểm quyền). */
+    record ChildHealthEntry(
+            Long childId,
+            Long classroomId,
+            LocalDate date,
+            BigDecimal temperature,
+            List<HealthSymptom> symptoms,
+            String note,
+            Long recordedBy,
+            Instant recordedAt) {}
+
+    /** Lịch sử lớp cũ của trẻ chuyển đến (OBS-35): mọi lần ghi nhận trong khoảng, cũ trước. */
+    List<ChildHealthEntry> findDayEntries(Collection<Long> childIds, LocalDate from, LocalDate to);
 }

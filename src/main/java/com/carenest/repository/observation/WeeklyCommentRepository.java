@@ -10,9 +10,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface WeeklyCommentRepository extends JpaRepository<WeeklyComment, Long> {
 
-    List<WeeklyComment> findByChildIdInAndWeekStart(Collection<Long> childIds, LocalDate weekStart);
+    List<WeeklyComment> findByClassroomIdAndChildIdInAndWeekStart(
+            Long classroomId, Collection<Long> childIds, LocalDate weekStart);
 
-    Optional<WeeklyComment> findByChildIdAndWeekStart(Long childId, LocalDate weekStart);
+    Optional<WeeklyComment> findByClassroomIdAndChildIdAndWeekStart(
+            Long classroomId, Long childId, LocalDate weekStart);
 
     List<WeeklyComment> findByChildIdAndStatusOrderByWeekStartDesc(Long childId, WeeklyCommentStatus status);
 

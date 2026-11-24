@@ -12,6 +12,8 @@ public interface AgeGroupRepository extends JpaRepository<AgeGroup, Long> {
 
     List<AgeGroup> findAllByOrderBySortOrderAsc();
 
+    List<AgeGroup> findAllByStandardGroupTrueOrderBySortOrderAsc();
+
     boolean existsByCode(String code);
 
     Optional<AgeGroup> findFirstByNameIgnoreCase(String name);
@@ -59,16 +61,6 @@ public interface AgeGroupRepository extends JpaRepository<AgeGroup, Long> {
                             + " from age_groups g where g.id = :ageGroupId on conflict do nothing",
             nativeQuery = true)
     void addToYear(@Param("yearId") Long yearId, @Param("ageGroupId") Long ageGroupId);
-
-    @Modifying
-    @Query(
-            value =
-                    "insert into school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
-                            + " select y.id, g.id, g.name, g.short_name, g.age_from_months, g.age_to_months, g.meal_sessions, g.max_class_size, g.nutrition_note"
-                            + " from school_years y join age_groups g on g.id = :ageGroupId where y.status <> 'CLOSED'"
-                            + " on conflict do nothing",
-            nativeQuery = true)
-    void addToOpenYears(@Param("ageGroupId") Long ageGroupId);
 
     @Modifying
     @Query(

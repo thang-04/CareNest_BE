@@ -20,7 +20,8 @@ public final class DailyHealthResponse {
             boolean canRecord,
             List<DailyHealthEntryResponse> entries,
             Instant handedOverAt,
-            List<DailyHealthContact> contacts) {}
+            List<DailyHealthContact> contacts,
+            String historyStatus) {}
 
     public record DailyHealthContact(String fullName, GuardianRelationship relationship, String phone) {}
 
@@ -53,5 +54,6 @@ public final class DailyHealthResponse {
             String className,
             Long campusId,
             DailyHealthEntryResponse latest,
-            List<DailyHealthEntryResponse> readings) {}
+            List<DailyHealthEntryResponse> readings,
+            String historyStatus) {}
 }
