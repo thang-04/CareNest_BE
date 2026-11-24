@@ -19474,6 +19474,7 @@ components:
             - EDU_THEME_PLAN_EDIT
             - EDU_THEME_PLAN_APPROVE
             - EDU_PLAN_CONFIG
+            - EDU_ACADEMIC_DUTY
             - PERMISSION_MANAGE
         photoUploaded:
           type: boolean
@@ -19538,6 +19539,7 @@ components:
             - EDU_THEME_PLAN_EDIT
             - EDU_THEME_PLAN_APPROVE
             - EDU_PLAN_CONFIG
+            - EDU_ACADEMIC_DUTY
             - PERMISSION_MANAGE
         userId:
           type: integer
@@ -19971,6 +19973,7 @@ components:
           - EDU_THEME_PLAN_EDIT
           - EDU_THEME_PLAN_APPROVE
           - EDU_PLAN_CONFIG
+          - EDU_ACADEMIC_DUTY
           - PERMISSION_MANAGE
         scope:
           type: string
@@ -20392,6 +20395,7 @@ components:
           - EDU_THEME_PLAN_EDIT
           - EDU_THEME_PLAN_APPROVE
           - EDU_PLAN_CONFIG
+          - EDU_ACADEMIC_DUTY
           - PERMISSION_MANAGE
         reason:
           type: string
@@ -20451,6 +20455,7 @@ components:
           - EDU_THEME_PLAN_EDIT
           - EDU_THEME_PLAN_APPROVE
           - EDU_PLAN_CONFIG
+          - EDU_ACADEMIC_DUTY
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -25161,6 +25166,7 @@ components:
             - EDU_THEME_PLAN_EDIT
             - EDU_THEME_PLAN_APPROVE
             - EDU_PLAN_CONFIG
+            - EDU_ACADEMIC_DUTY
             - PERMISSION_MANAGE
         role:
           type: string
@@ -25220,6 +25226,7 @@ components:
             - EDU_THEME_PLAN_EDIT
             - EDU_THEME_PLAN_APPROVE
             - EDU_PLAN_CONFIG
+            - EDU_ACADEMIC_DUTY
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -25265,6 +25272,7 @@ components:
             - EDU_THEME_PLAN_EDIT
             - EDU_THEME_PLAN_APPROVE
             - EDU_PLAN_CONFIG
+            - EDU_ACADEMIC_DUTY
             - PERMISSION_MANAGE
         role:
           type: string
@@ -27225,6 +27233,7 @@ components:
             - EDU_THEME_PLAN_EDIT
             - EDU_THEME_PLAN_APPROVE
             - EDU_PLAN_CONFIG
+            - EDU_ACADEMIC_DUTY
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -27278,6 +27287,7 @@ components:
             - EDU_THEME_PLAN_EDIT
             - EDU_THEME_PLAN_APPROVE
             - EDU_PLAN_CONFIG
+            - EDU_ACADEMIC_DUTY
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -27321,6 +27331,7 @@ components:
             - EDU_THEME_PLAN_EDIT
             - EDU_THEME_PLAN_APPROVE
             - EDU_PLAN_CONFIG
+            - EDU_ACADEMIC_DUTY
             - PERMISSION_MANAGE
         overrides:
           type: array

@@ -144,7 +144,12 @@ class PermissionTest {
         var gv = CareNestRole.TEACHER;
         var tt = CareNestRole.TEAM_LEADER;
         var ht = CareNestRole.PRINCIPAL;
-        assertThat(Arrays.stream(Permission.values()).filter(p -> p.module().equals("education-plan")))
+        // EDU_ACADEMIC_DUTY (Tiền 24/11/2026) chỉ là ngoại lệ theo PHT, không phải quyền mặc định của vai trò nào
+        assertThat(Permission.EDU_ACADEMIC_DUTY.defaultRoles()).isEmpty();
+        assertThat(Permission.EDU_ACADEMIC_DUTY.configurableRoles()).containsExactly(vp);
+        assertThat(Permission.EDU_ACADEMIC_DUTY.inRoleMatrix()).isFalse();
+        assertThat(Arrays.stream(Permission.values())
+                        .filter(p -> p.module().equals("education-plan") && p != Permission.EDU_ACADEMIC_DUTY))
                 .hasSize(9)
                 .noneMatch(Permission::campusScoped)
                 .allMatch(p -> p.defaultRoles().contains(ht));

@@ -1929,7 +1929,19 @@ class EduClassDocServiceIntegrationTest {
                 versionOf(key),
                 null);
 
-        for (CurrentUser viewer : List.of(second, principal, vicePrincipal, leader)) {
+        // Tiền 24/11/2026: PHT dinh dưỡng (thu hồi "Phụ trách chuyên môn", không còn mã KHGD) vẫn xem bản đã ban hành
+        CurrentUser nutritionVp = new CurrentUser(
+                vicePrincipal.userId(),
+                vicePrincipal.keycloakUserId(),
+                vicePrincipal.username(),
+                vicePrincipal.fullName(),
+                null,
+                vicePrincipal.roles(),
+                vicePrincipal.permissions().stream()
+                        .filter(p -> !com.carenest.utils.enums.Permission.EDU_ACADEMIC_ONLY.contains(p)
+                                && p != com.carenest.utils.enums.Permission.EDU_ACADEMIC_DUTY)
+                        .collect(java.util.stream.Collectors.toSet()));
+        for (CurrentUser viewer : List.of(second, principal, vicePrincipal, nutritionVp, leader)) {
             ClassDocsResponse docs = service.getClassDocs(viewer, schoolYear);
             // Tiền 24/11/2026: GV không chủ nhiệm cũng như HT/PHT/Tổ trưởng chỉ xem lịch nhánh theo gói đã ban hành
             assertThat(docs.branchPlans()).isEmpty();

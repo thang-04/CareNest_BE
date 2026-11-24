@@ -287,7 +287,7 @@ public class PermissionServiceImpl implements PermissionService {
                 throw GlobalException.of(ApiCode.ROLE_PERMISSIONS_FIXED);
             }
             for (Permission permission : entry.getValue()) {
-                if (!permission.isConfigurableFor(entry.getKey())) {
+                if (!permission.isConfigurableFor(entry.getKey()) || !permission.inRoleMatrix()) {
                     throw GlobalException.of(ApiCode.PERMISSION_NOT_CONFIGURABLE_FOR_ROLE, permission, entry.getKey());
                 }
             }
@@ -323,7 +323,7 @@ public class PermissionServiceImpl implements PermissionService {
         List<RolePermission> currentRows = rolePermissionRepository.findByRole(role);
         Set<Permission> currentlyOn = EffectivePermissionResolver.resolve(Set.of(role), currentRows, List.of());
         List<PermissionChangeLog> changes = new ArrayList<>();
-        for (Permission permission : Permission.configurablePermissionsOf(role)) {
+        for (Permission permission : Permission.roleMatrixPermissionsOf(role)) {
             boolean before = currentlyOn.contains(permission);
             boolean after = requested.contains(permission);
             if (before != after) {
@@ -479,7 +479,7 @@ public class PermissionServiceImpl implements PermissionService {
         return new RolePermissionResponse(
                 role,
                 Permission.isConfigurableRole(role),
-                Permission.configurablePermissionsOf(role).stream().sorted().toList(),
+                Permission.roleMatrixPermissionsOf(role).stream().sorted().toList(),
                 EffectivePermissionResolver.resolve(Set.of(role), rows, List.of()).stream()
                         .sorted()
                         .toList());

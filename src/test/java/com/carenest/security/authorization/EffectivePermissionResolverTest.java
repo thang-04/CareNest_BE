@@ -45,8 +45,9 @@ class EffectivePermissionResolverTest {
     void teacherAlwaysViewsAssessment() {
         assertThat(resolve(Set.of(CareNestRole.TEAM_LEADER), List.of(), List.of()))
                 .containsExactly(Permission.ASSESSMENT_VIEW);
+        // PHT mặc định "Phụ trách chuyên môn" (Tiền 24/11/2026), ngoài ra không có gì khi ma trận trống
         assertThat(resolve(Set.of(CareNestRole.VICE_PRINCIPAL), List.of(), List.of()))
-                .isEmpty();
+                .containsExactly(Permission.EDU_ACADEMIC_DUTY);
     }
 
     @Test
@@ -134,6 +135,41 @@ class EffectivePermissionResolverTest {
         assertThat(resolve(Set.of(CareNestRole.VICE_PRINCIPAL), List.of(vpApprove), List.of(grant, revoke)))
                 .contains(Permission.EDU_THEME_PLAN_APPROVE)
                 .doesNotContain(Permission.EDU_TEAM_PLAN_APPROVE);
+    }
+
+    @Test
+    @DisplayName(
+            "Tiền 24/11/2026: PHT mặc định chuyên môn nhận cột PHT; REVOKE EDU_ACADEMIC_DUTY ⇒ mất mã soạn/duyệt, cấu hình")
+    void nutritionViceLosesEducationPlanCodes() {
+        List<RolePermission> vpColumn = List.of(
+                RolePermission.create(CareNestRole.VICE_PRINCIPAL, "EDU_SCHOOL_YEAR_PLAN_EDIT", null),
+                RolePermission.create(CareNestRole.VICE_PRINCIPAL, "EDU_TEAM_PLAN_APPROVE", null),
+                RolePermission.create(CareNestRole.VICE_PRINCIPAL, "CHILD_PROFILE_VIEW", null),
+                // Mã chỉ là ngoại lệ theo người: dòng ma trận (nếu có) bị bỏ qua
+                RolePermission.create(CareNestRole.VICE_PRINCIPAL, "EDU_ACADEMIC_DUTY", null));
+        UserPermissionOverride config =
+                UserPermissionOverride.create(5L, "EDU_PLAN_CONFIG", PermissionEffect.GRANT, "chuyên môn", 1L);
+        assertThat(resolve(Set.of(CareNestRole.VICE_PRINCIPAL), vpColumn, List.of(config)))
+                .contains(
+                        Permission.EDU_SCHOOL_YEAR_PLAN_EDIT,
+                        Permission.EDU_TEAM_PLAN_APPROVE,
+                        Permission.EDU_PLAN_CONFIG,
+                        Permission.EDU_ACADEMIC_DUTY);
+
+        UserPermissionOverride nutrition =
+                UserPermissionOverride.create(5L, "EDU_ACADEMIC_DUTY", PermissionEffect.REVOKE, "dinh dưỡng", 1L);
+        assertThat(resolve(Set.of(CareNestRole.VICE_PRINCIPAL), vpColumn, List.of(config, nutrition)))
+                .contains(Permission.CHILD_PROFILE_VIEW)
+                .doesNotContain(Permission.EDU_ACADEMIC_DUTY)
+                .doesNotContainAnyElementsOf(Permission.EDU_ACADEMIC_ONLY);
+        // REVOKE chỉ có tác dụng với PHT; GV bị dòng lệch không mất mã của mình
+        RolePermission teacherEdit = RolePermission.create(CareNestRole.TEACHER, "EDU_THEME_PLAN_EDIT", null);
+        assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(teacherEdit), List.of(nutrition)))
+                .contains(Permission.EDU_THEME_PLAN_EDIT);
+        assertThat(Permission.roleMatrixPermissionsOf(CareNestRole.VICE_PRINCIPAL))
+                .doesNotContain(Permission.EDU_ACADEMIC_DUTY);
+        assertThat(Permission.configurablePermissionsOf(CareNestRole.VICE_PRINCIPAL))
+                .contains(Permission.EDU_ACADEMIC_DUTY);
     }
 
     @Test

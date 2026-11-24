@@ -260,6 +260,13 @@ public enum Permission {
             "Sửa cấu hình lĩnh vực, dòng hoạt động kế hoạch giáo dục",
             EnumSet.of(CareNestRole.PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // Tiền 24/11/2026 (EDU-108, EDU-110 (7)): chỉ là ngoại lệ theo PHT, không có ô ở ma trận vai trò. PHT mặc định là
+    // chuyên môn; REVOKE (PHT dinh dưỡng) ⇒ mất mã soạn/duyệt, cấu hình KHGD, chỉ xem bản đã ban hành
+    EDU_ACADEMIC_DUTY(
+            "education-plan",
+            "Phụ trách chuyên môn kế hoạch giáo dục",
+            EnumSet.noneOf(CareNestRole.class),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
     // Không giao được cho ai: nếu giao, người được giao tự cấp thêm quyền cho mình (AUTH-11)
     PERMISSION_MANAGE(
             "account", "Quản lý phân quyền", EnumSet.of(CareNestRole.PRINCIPAL), EnumSet.noneOf(CareNestRole.class));
@@ -356,7 +363,7 @@ public enum Permission {
         return result;
     }
 
-    /** Quyền HT được bật/tắt cho role; role cố định ⇒ rỗng. */
+    /** Quyền HT được bật/tắt cho role (gồm cả mã chỉ là ngoại lệ theo người); role cố định ⇒ rỗng. */
     public static Set<Permission> configurablePermissionsOf(CareNestRole role) {
         EnumSet<Permission> result = EnumSet.noneOf(Permission.class);
         for (Permission permission : values()) {
@@ -366,6 +373,31 @@ public enum Permission {
         }
         return result;
     }
+
+    /** Mã có ô ở ma trận vai trò; `EDU_ACADEMIC_DUTY` chỉ là ngoại lệ theo PHT. */
+    public boolean inRoleMatrix() {
+        return this != EDU_ACADEMIC_DUTY;
+    }
+
+    public static Set<Permission> roleMatrixPermissionsOf(CareNestRole role) {
+        EnumSet<Permission> result = EnumSet.noneOf(Permission.class);
+        configurablePermissionsOf(role).stream()
+                .filter(Permission::inRoleMatrix)
+                .forEach(result::add);
+        return result;
+    }
+
+    /** Mã bị bỏ khi PHT bị REVOKE `EDU_ACADEMIC_DUTY` (PHT dinh dưỡng): soạn/duyệt và cấu hình KHGD. */
+    public static final Set<Permission> EDU_ACADEMIC_ONLY = Collections.unmodifiableSet(EnumSet.of(
+            EDU_SCHOOL_YEAR_PLAN_EDIT,
+            EDU_SCHOOL_YEAR_PLAN_APPROVE,
+            EDU_TEAM_PLAN_EDIT,
+            EDU_TEAM_PLAN_APPROVE,
+            EDU_SEMESTER_PACKAGE_EDIT,
+            EDU_SEMESTER_PACKAGE_APPROVE,
+            EDU_THEME_PLAN_EDIT,
+            EDU_THEME_PLAN_APPROVE,
+            EDU_PLAN_CONFIG));
 
     public static Optional<Permission> fromCode(String code) {
         return Arrays.stream(values())
