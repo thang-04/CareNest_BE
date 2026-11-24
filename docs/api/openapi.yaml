@@ -8628,6 +8628,8 @@ paths:
           - ADJUST
           - SHORTFALL_DEDUCT
           - RECEIPT_CANCEL
+          - SUPPLIER_RETURN
+          - WRITE_OFF
       - in: query
         name: page
         required: false
@@ -8813,6 +8815,24 @@ paths:
           description: OK
       tags:
       - stock-controller
+  /api/nutrition/stock/returns:
+    post:
+      operationId: createReturn
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockDisposalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockDisposalResponse"
+          description: Created
+      tags:
+      - stock-controller
   /api/nutrition/stock/shortfalls:
     get:
       operationId: getShortfalls
@@ -8830,6 +8850,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonListStockShortfallResponse"
           description: OK
+      tags:
+      - stock-controller
+  /api/nutrition/stock/write-offs:
+    post:
+      operationId: createWriteOff
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockDisposalRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockDisposalResponse"
+          description: Created
       tags:
       - stock-controller
   /api/nutrition/suppliers:
@@ -14355,6 +14393,33 @@ components:
       - dishType
       - ingredients
       - name
+    DisposalLine:
+      type: object
+      properties:
+        expiryDate:
+          type: string
+          format: date
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        lotId:
+          type: integer
+          format: int64
+        lotNo:
+          type: string
+        quantity:
+          type: number
+    DisposalLineInput:
+      type: object
+      properties:
+        lotId:
+          type: integer
+          format: int64
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+      required:
+      - lotId
+      - quantity
     Draft:
       type: object
       properties:
@@ -24109,6 +24174,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonStockDisposalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/StockDisposalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonStockReceiptResponse:
       type: object
       properties:
@@ -25607,6 +25685,64 @@ components:
           type: string
         decision:
           type: string
+    StockDisposalRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DisposalLineInput"
+          minItems: 1
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        supplierId:
+          type: integer
+          format: int64
+      required:
+      - campusId
+      - lines
+      - reason
+    StockDisposalResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        code:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: integer
+          format: int64
+        disposalDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - SUPPLIER_RETURN
+          - WRITE_OFF
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DisposalLine"
+        reason:
+          type: string
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
     StockFoodRef:
       type: object
       properties:
@@ -25668,6 +25804,9 @@ components:
         createdBy:
           type: integer
           format: int64
+        disposalId:
+          type: integer
+          format: int64
         food:
           $ref: "#/components/schemas/StockFoodRef"
         id:
@@ -25696,6 +25835,8 @@ components:
           - ADJUST
           - SHORTFALL_DEDUCT
           - RECEIPT_CANCEL
+          - SUPPLIER_RETURN
+          - WRITE_OFF
     StockReceiptCancelRequest:
       type: object
       properties:

@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 417 endpoint.
+Tổng: 419 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -370,7 +370,9 @@ GET /nutrition/stock/receipts/{receiptId} · src/main/java/com/carenest/controll
 PUT /nutrition/stock/receipts/{receiptId} · src/main/java/com/carenest/controller/meals/StockController.java#updateReceipt
 POST /nutrition/stock/receipts/{receiptId}/cancel · src/main/java/com/carenest/controller/meals/StockController.java#cancelReceipt
 POST /nutrition/stock/receipts/{receiptId}/confirm · src/main/java/com/carenest/controller/meals/StockController.java#confirmReceipt
+POST /nutrition/stock/returns · src/main/java/com/carenest/controller/meals/StockController.java#createReturn
 GET /nutrition/stock/shortfalls · src/main/java/com/carenest/controller/meals/StockController.java#getShortfalls
+POST /nutrition/stock/write-offs · src/main/java/com/carenest/controller/meals/StockController.java#createWriteOff
 GET /nutrition/suppliers · src/main/java/com/carenest/controller/meals/SupplierController.java#getSuppliers
 POST /nutrition/suppliers · src/main/java/com/carenest/controller/meals/SupplierController.java#createSupplier
 GET /nutrition/suppliers/{supplierId} · src/main/java/com/carenest/controller/meals/SupplierController.java#getSupplier

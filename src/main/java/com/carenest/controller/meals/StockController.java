@@ -1,6 +1,8 @@
 package com.carenest.controller.meals;
 
 import com.carenest.dto.common.PageResponse;
+import com.carenest.dto.meals.StockDisposalRequest;
+import com.carenest.dto.meals.StockDisposalResponse;
 import com.carenest.dto.meals.StockLotResponse;
 import com.carenest.dto.meals.StockMovementResponse;
 import com.carenest.dto.meals.StockReceiptCancelRequest;
@@ -8,6 +10,7 @@ import com.carenest.dto.meals.StockReceiptRequest;
 import com.carenest.dto.meals.StockReceiptResponse;
 import com.carenest.dto.meals.StockShortfallResponse;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.StockDisposalService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.meals.StockReceiptService;
 import com.carenest.utils.ApiCode;
@@ -34,7 +37,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Kho thực phẩm › kho khô theo điểm trường: phiếu nhập, tồn theo lô, lịch sử nhập/trừ, phần thiếu (NUT-11). */
+/**
+ * Kho thực phẩm › kho khô theo điểm trường: phiếu nhập, tồn theo lô, lịch sử nhập/trừ, phần thiếu (NUT-11), xuất kho
+ * trả NCC và xuất hủy lô hết hạn (NUT-29, NUT-30).
+ */
 @RestController
 @RequestMapping("/nutrition/stock")
 @RequiredArgsConstructor
@@ -44,6 +50,7 @@ public class StockController {
 
     private final StockReceiptService stockReceiptService;
     private final StockLedgerService stockLedgerService;
+    private final StockDisposalService stockDisposalService;
 
     @GetMapping("/receipts")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
@@ -126,6 +133,31 @@ public class StockController {
         StockReceiptResponse receipt = stockReceiptService.cancelReceipt(currentUser, receiptId, request.reason());
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Cancel stock receipt success", receipt);
+    }
+
+    @PostMapping("/returns")
+    @PreAuthorize("@permissionGuard.has('STOCK_MANAGE')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<ResponseJson<StockDisposalResponse>> createReturn(
+            @Valid @RequestBody StockDisposalRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|createReturn|userId=" + currentUser.userId() + "|campusId=" + request.campusId();
+        log.info("{}|START", logPrefix);
+        StockDisposalResponse disposal = stockDisposalService.createReturn(currentUser, request);
+        log.info("{}|disposalId={}|END", logPrefix, disposal.id());
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create stock return success", disposal);
+    }
+
+    @PostMapping("/write-offs")
+    @PreAuthorize("@permissionGuard.has('STOCK_MANAGE')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<ResponseJson<StockDisposalResponse>> createWriteOff(
+            @Valid @RequestBody StockDisposalRequest request, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|createWriteOff|userId=" + currentUser.userId() + "|campusId=" + request.campusId();
+        log.info("{}|START", logPrefix);
+        StockDisposalResponse disposal = stockDisposalService.createWriteOff(currentUser, request);
+        log.info("{}|disposalId={}|END", logPrefix, disposal.id());
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create stock write-off success", disposal);
     }
 
     @PostMapping("/days/{date}/sync")
