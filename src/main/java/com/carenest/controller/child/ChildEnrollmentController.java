@@ -26,9 +26,11 @@ import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -123,12 +125,14 @@ public class ChildEnrollmentController {
     @GetMapping("/placement-classes")
     @PreAuthorize("@permissionGuard.hasAny('CHILD_ENROLL', 'CHILD_PLACEMENT')")
     public ResponseEntity<ResponseJson<List<PlacementClassResponse>>> listPlacementClasses(
-            @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+            @RequestParam(required = false) Long schoolYearId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) Long childId,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|listPlacementClasses|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        List<PlacementClassResponse> classes = schoolYearId == null
-                ? childIntakeService.listPlacementClasses(currentUser)
-                : childIntakeService.listPlacementClasses(currentUser, schoolYearId);
+        List<PlacementClassResponse> classes =
+                childIntakeService.listPlacementClasses(currentUser, schoolYearId, from, childId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "List placement classes success", classes);
     }

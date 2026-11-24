@@ -175,7 +175,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PlacementClassResponse> listPlacementClasses(CurrentUser actor, Long schoolYearId) {
+    public List<PlacementClassResponse> listPlacementClasses(
+            CurrentUser actor, Long schoolYearId, LocalDate from, Long childId) {
         String logPrefix = LOG_PREFIX + "|listPlacementClasses|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
@@ -207,6 +208,10 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             Map<Long, Long> enrolled = requestedYear != null && requestedYear.status() == SchoolYearStatus.PLANNED
                     ? plannedCounts(ids, requestedYear.id())
                     : enrolledCounts(ids, today);
+            // CHD-14: sĩ số khớp lúc kiểm xếp lớp (trẻ hẹn vào sau ngày chọn cũng chiếm chỗ); năm sau = số dự kiến
+            boolean planned = requestedYear != null && requestedYear.status() == SchoolYearStatus.PLANNED;
+            LocalDate occupiedFrom = from == null ? today : from;
+            Map<Long, Long> occupied = planned ? enrolled : occupiedCounts(ids, occupiedFrom, childId);
             Map<Long, Long> homeroom =
                     ids.isEmpty() ? Map.of() : staffAssignmentService.findHomeroomTeacherIds(ids, today);
             List<PlacementClassResponse> response = classes.stream()
@@ -218,7 +223,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                             c.schoolYearId(),
                             c.capacity(),
                             enrolled.getOrDefault(c.id(), 0L),
-                            homeroom.get(c.id())))
+                            homeroom.get(c.id()),
+                            occupied.getOrDefault(c.id(), 0L)))
                     .toList();
             log.info("{}|count={}|END", logPrefix, response.size());
             return response;
@@ -907,6 +913,13 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         return enrollmentRepository.findActiveByChildIdIn(List.of(childId), today).stream()
                 .findFirst()
                 .map(Enrollment::getClassroomId);
+    }
+
+    private Map<Long, Long> occupiedCounts(List<Long> classroomIds, LocalDate from, Long childId) {
+        Map<Long, Long> counts = new HashMap<>();
+        long exclude = childId == null ? -1L : childId;
+        classroomIds.forEach(id -> counts.put(id, enrollmentRepository.countOccupyingFrom(id, from, exclude)));
+        return counts;
     }
 
     private Map<Long, Long> enrolledCounts(List<Long> classroomIds, LocalDate today) {

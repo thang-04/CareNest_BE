@@ -3067,6 +3067,18 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: childId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -20479,6 +20491,9 @@ components:
           format: int64
         name:
           type: string
+        occupiedCount:
+          type: integer
+          format: int64
         schoolYearId:
           type: integer
           format: int64

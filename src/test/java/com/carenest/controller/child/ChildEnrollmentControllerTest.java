@@ -761,10 +761,10 @@ class ChildEnrollmentControllerTest {
     @DisplayName("CHD-10: một trong hai quyền lấy lớp là đủ, trả đủ thông tin lớp và sĩ số")
     void placementClassesAcceptEitherPermission(Permission permission) throws Exception {
         CurrentUser principal = authenticateWithPermissions(permission);
-        given(childIntakeService.listPlacementClasses(principal))
+        given(childIntakeService.listPlacementClasses(principal, null, null, null))
                 .willReturn(List.of(
-                        new PlacementClassResponse(21L, "Lớp A", 11L, 31L, 51L, 30, 12, 61L),
-                        new PlacementClassResponse(22L, "Lớp B", 12L, 32L, 51L, null, 0, null)));
+                        new PlacementClassResponse(21L, "Lớp A", 11L, 31L, 51L, 30, 12, 61L, 13),
+                        new PlacementClassResponse(22L, "Lớp B", 12L, 32L, 51L, null, 0, null, 0)));
 
         mockMvc.perform(get("/api/children/placement-classes").with(token(CareNestRole.PRINCIPAL)))
                 .andExpect(status().isOk())
@@ -779,12 +779,13 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data[0].schoolYearId").value(51))
                 .andExpect(jsonPath("$.data[0].capacity").value(30))
                 .andExpect(jsonPath("$.data[0].enrolledCount").value(12))
+                .andExpect(jsonPath("$.data[0].occupiedCount").value(13))
                 .andExpect(jsonPath("$.data[0].homeroomTeacherId").value(61))
                 .andExpect(jsonPath("$.data[1].capacity").doesNotExist())
                 .andExpect(jsonPath("$.data[1].enrolledCount").value(0))
                 .andExpect(jsonPath("$.data[1].homeroomTeacherId").doesNotExist());
 
-        verify(childIntakeService).listPlacementClasses(principal);
+        verify(childIntakeService).listPlacementClasses(principal, null, null, null);
         verifyNoInteractions(childEnrollmentService);
     }
 
@@ -792,14 +793,15 @@ class ChildEnrollmentControllerTest {
     @DisplayName("CHD-10: không có lớp phù hợp ⇒ 200, danh sách rỗng")
     void placementClassesCanBeEmpty() throws Exception {
         CurrentUser principal = authenticate(CareNestRole.PRINCIPAL);
-        given(childIntakeService.listPlacementClasses(principal)).willReturn(List.of());
+        given(childIntakeService.listPlacementClasses(principal, null, null, null))
+                .willReturn(List.of());
 
         mockMvc.perform(get("/api/children/placement-classes").with(token(CareNestRole.PRINCIPAL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        verify(childIntakeService).listPlacementClasses(principal);
+        verify(childIntakeService).listPlacementClasses(principal, null, null, null);
     }
 
     @ParameterizedTest(name = "{0}")

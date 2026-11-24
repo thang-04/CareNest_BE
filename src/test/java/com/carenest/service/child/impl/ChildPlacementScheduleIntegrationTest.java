@@ -271,6 +271,31 @@ class ChildPlacementScheduleIntegrationTest {
     }
 
     @Test
+    @DisplayName("G94-180/CHD-14: thẻ lớp trả occupiedCount gồm trẻ hẹn vào từ ngày chọn; bỏ qua trẻ đang xếp")
+    void placementClassesCountScheduledArrivals() {
+        long cap3 = classroom(campusA, "Chồi A4", 3);
+        long c1 = child("Lê Một", "ACTIVE", null, null, null);
+        long c2 = child("Lê Hai", "ACTIVE", null, null, null);
+        long arriving = child("Lê Hẹn Vào", "ACTIVE", null, null, null);
+        enroll(c1, cap3, "2026-09-01");
+        enroll(c2, cap3, "2026-09-01");
+        enroll(arriving, cap3, "2026-11-11");
+
+        var card = intakeService.listPlacementClasses(principal, null, null, null).stream()
+                .filter(c -> c.id().equals(cap3))
+                .findFirst()
+                .orElseThrow();
+        assertThat(card.enrolledCount()).isEqualTo(2);
+        assertThat(card.occupiedCount()).isEqualTo(3);
+
+        var excluded = intakeService.listPlacementClasses(principal, null, TODAY, arriving).stream()
+                .filter(c -> c.id().equals(cap3))
+                .findFirst()
+                .orElseThrow();
+        assertThat(excluded.occupiedCount()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("G94-180/CHD-14: sĩ số lớp đích tính cả trẻ đã hẹn vào lớp sau ngày chuyển")
     void capacityCountsChildrenJoiningLater() {
         long smallClass = classroom(campusA, "Chồi A3", 1);

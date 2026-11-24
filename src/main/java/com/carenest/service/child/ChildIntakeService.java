@@ -16,6 +16,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,13 @@ public interface ChildIntakeService {
             CurrentUser actor, String fullName, String dateOfBirth, List<String> guardianIdNumbers, Long excludeId);
 
     /** CHD-10: lớp nhận trẻ của năm đang hoạt động hoặc năm sắp tới trong phạm vi. */
-    List<PlacementClassResponse> listPlacementClasses(CurrentUser actor, Long schoolYearId);
+    /** from null = hôm nay; childId (nếu có) không tính vào sĩ số kiểm (CHD-14). */
+    List<PlacementClassResponse> listPlacementClasses(
+            CurrentUser actor, Long schoolYearId, LocalDate from, Long childId);
+
+    default List<PlacementClassResponse> listPlacementClasses(CurrentUser actor, Long schoolYearId) {
+        return listPlacementClasses(actor, schoolYearId, null, null);
+    }
 
     default List<PlacementClassResponse> listPlacementClasses(CurrentUser actor) {
         return listPlacementClasses(actor, null);
