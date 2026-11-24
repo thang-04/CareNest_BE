@@ -43,6 +43,8 @@ Bổ sung 10/11/2026 (G94-180, hồ sơ sức khỏe đầy đủ): bản giải
 
 Bổ sung 14/11/2026 (G94-180, HLT-21): chỉ GV đang phân công lớp hiện tại của trẻ được sửa, duyệt giải thích xu hướng — người khác 5041 `HEALTH_INTERPRETATION_APPROVE_DENIED` (403). Cần thêm vào bản Word của Cần.
 
+Bổ sung 24/11/2026 (G94-180, HLT-01, HLT-09): trẻ điểm danh vắng ngày đo, ngày khám (thứ 2–6) ⇒ 5042 `HEALTH_CHILD_ABSENT` (409, "Trẻ vắng ngày {0} (điểm danh). Nhập khi trẻ có mặt."). Trẻ chuyển điểm trường đã có số đo ở kỳ liên quan ⇒ 5019 `HEALTH_MEASUREMENT_EXISTS` kèm ô `campaignId` (câu nêu tên kỳ, điểm trường, ngày đo; `desc` giữ câu chung). Cần thêm vào bản Word của Cần.
+
 Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
 
 | Dải | Phân hệ |
@@ -129,6 +131,8 @@ Hạn, khóa, mở lại đánh giá cuối chủ đề / học kỳ / cuối n�
 | Giải thích xu hướng sức khỏe: AI chưa cấu hình hoặc viết ngôn ngữ chẩn đoán (bỏ, không lưu) / quá thời gian | `AI_SERVICE_UNAVAILABLE` (8001, 503) / `AI_TIMEOUT` (8002, 504) | HLT-04, AI-03 |
 | Duyệt bản giải thích xu hướng không tồn tại hoặc của trẻ khác / nhân sự ngoài phạm vi trẻ | `HEALTH_INTERPRETATION_NOT_FOUND` (5040, 404) / `HEALTH_RECORD_ACCESS_DENIED` (5025, 403) | HLT-05 |
 | Sửa, duyệt bản giải thích xu hướng mà không phải GV đang phân công lớp hiện tại của trẻ (HT, PHT, GV lớp khác) | `HEALTH_INTERPRETATION_APPROVE_DENIED` (5041, 403) | HLT-21 |
+| Nhập số đo mới, lưu phiếu khám lần đầu khi trẻ điểm danh vắng ngày đo, ngày khám (thứ 2–6) | `HEALTH_CHILD_ABSENT` (5042, 409) | HLT-01 |
+| Nhập số đo ở kỳ cân đo của điểm trường mới cho trẻ đã đo ở kỳ liên quan / sửa số đo của trẻ đã chuyển lớp mà không phải GV lớp hiện tại | `HEALTH_MEASUREMENT_EXISTS` (5019, 409) + ô `campaignId` / `HEALTH_MEASUREMENT_ACCESS_DENIED` (5023, 403) | G94-180/HLT-09 |
 | Phụ huynh xem kết quả sức khỏe của trẻ không liên kết | `CHILD_ACCESS_DENIED` (403) | PAR-03, AUTH-07 |
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
 | Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |
