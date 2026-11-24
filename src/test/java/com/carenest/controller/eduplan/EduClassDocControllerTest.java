@@ -66,6 +66,26 @@ class EduClassDocControllerTest {
     }
 
     @Test
+    @DisplayName("Trang của một lớp: classId ⇒ chỉ tải tài liệu lớp đó; không classId ⇒ cả phạm vi như cũ")
+    void classIdScopesDocsToOneClass() throws Exception {
+        var teacher = new CurrentUser(7L, "kc-7", "teacher", "Demo", null, Set.of(CareNestRole.TEACHER));
+        given(currentUserService.getCurrentUser()).willReturn(teacher);
+        var jwtTeacher = jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"));
+        mvc.perform(get("/api/education-plans/class-docs")
+                        .param("schoolYearId", "1")
+                        .param("classId", "3")
+                        .param("view", "REVIEW")
+                        .with(jwtTeacher))
+                .andExpect(status().isOk());
+        verify(service).getClassDocsOfClass(teacher, 1L, true, 3L);
+        mvc.perform(get("/api/education-plans/class-docs")
+                        .param("schoolYearId", "1")
+                        .with(jwtTeacher))
+                .andExpect(status().isOk());
+        verify(service).getClassDocs(teacher, 1L);
+    }
+
+    @Test
     @DisplayName("EDU-47: multipart preview trả tuần hệ thống trong envelope hiện hành")
     void previewReturnsSystemWeeks() throws Exception {
         given(currentUserService.getCurrentUser())

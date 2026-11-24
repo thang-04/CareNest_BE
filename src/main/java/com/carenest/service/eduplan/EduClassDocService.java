@@ -33,6 +33,9 @@ public interface EduClassDocService {
 
     ClassDocsResponse getClassDocsForReview(CurrentUser currentUser, Long schoolYearId);
 
+    /** Tài liệu (đủ nội dung) của đúng một lớp; classes/staff vẫn đủ phạm vi người xem. Lớp ngoài phạm vi ⇒ rỗng. */
+    ClassDocsResponse getClassDocsOfClass(CurrentUser currentUser, Long schoolYearId, boolean reviewView, Long classId);
+
     /** Danh sách gọn có phân trang (không nội dung soạn); reviewView = hàng chờ duyệt. Cùng luật xem như getClassDocs. */
     com.carenest.dto.common.PageResponse<ObjectNode> getClassDocSummaries(
             CurrentUser currentUser,

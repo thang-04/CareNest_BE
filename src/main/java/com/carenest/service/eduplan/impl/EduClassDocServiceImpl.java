@@ -620,6 +620,36 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ClassDocsResponse getClassDocsOfClass(
+            CurrentUser currentUser, Long schoolYearId, boolean reviewView, Long classId) {
+        String logPrefix = LOG_PREFIX + "|getClassDocsOfClass|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        try {
+            // Trang của một lớp chỉ cần tài liệu lớp đó (Tiền 25/11/2026); danh sách lớp, nhân sự giữ đủ cho ô chọn lớp
+            ClassDocsResponse docs = getClassDocs(currentUser, schoolYearId, false, reviewView, classId);
+            ClassDocsResponse all =
+                    getClassDocs(currentUser, schoolYearId, false, false, null, ids -> List.of(), Set.of());
+            var result = new ClassDocsResponse(
+                    docs.branchPlans(),
+                    docs.classThemePlans(),
+                    docs.weekPlans(),
+                    all.classes(),
+                    all.staff(),
+                    docs.creationCapabilities(),
+                    docs.semesterPackages(),
+                    docs.themeDossiers(),
+                    docs.dayPlans(),
+                    docs.semesterConfigMissing());
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public ClassDocsResponse getOverdueClassDocs(CurrentUser currentUser, Long schoolYearId) {
         requireOverdueRead(currentUser, schoolYearId);
         // edu-list-paging: bảng quá hạn chỉ cần gói/hồ sơ chưa ban hành ⇒ nạp chúng + thành phần, không nạp cả trường
@@ -702,7 +732,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             "completedAt",
             "review",
             "approvals",
-            "permissions");
+            "permissions",
+            // Tên nhánh theo tuần của chủ đề nhánh (nhỏ): trang toàn trường đếm tuần đã đặt tên
+            "names");
     // Lịch sử chỉ giữ vài mục cuối (người gửi, ghi chú gửi, trả lại)
     private static final int SUMMARY_HISTORY = 5;
 

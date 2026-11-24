@@ -70,13 +70,17 @@ public class EduClassDocController {
     public ResponseEntity<ResponseJson<ClassDocsResponse>> getClassDocs(
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(defaultValue = "MAIN") ClassDocView view,
+            // Trang của một lớp: chỉ tài liệu lớp đó (Tiền 25/11/2026); bỏ trống = cả phạm vi như cũ
+            @RequestParam(required = false) Long classId,
             CurrentUser currentUser) {
         String logPrefix =
                 LOG_PREFIX + "|getClassDocs|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        ClassDocsResponse docs = view == ClassDocView.REVIEW
-                ? classDocService.getClassDocsForReview(currentUser, schoolYearId)
-                : classDocService.getClassDocs(currentUser, schoolYearId);
+        ClassDocsResponse docs = classId != null
+                ? classDocService.getClassDocsOfClass(currentUser, schoolYearId, view == ClassDocView.REVIEW, classId)
+                : view == ClassDocView.REVIEW
+                        ? classDocService.getClassDocsForReview(currentUser, schoolYearId)
+                        : classDocService.getClassDocs(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class documents success", docs);
     }
