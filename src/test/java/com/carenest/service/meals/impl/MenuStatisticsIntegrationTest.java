@@ -431,7 +431,9 @@ class MenuStatisticsIntegrationTest {
                 .isEqualByComparingTo(stats.groups().stream()
                         .map(MenuStatisticsResponse::totalCost)
                         .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
-        assertThat(stats.mealPrice()).isEqualByComparingTo("35000");
+        // Giá suất và ngân sách mỗi nhóm một mức: bản "tất cả nhóm" không gộp thành số toàn trường
+        assertThat(stats.mealPrice()).isNull();
+        assertThat(stats.foodBudget()).isNull();
         assertThat(stats.costPerChild()).isEqualByComparingTo(stats.totalCost().divide(new java.math.BigDecimal(5)));
     }
 
