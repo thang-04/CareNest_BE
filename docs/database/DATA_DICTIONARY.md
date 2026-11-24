@@ -361,6 +361,8 @@ Mục đích: đơn nghỉ phụ huynh gửi qua App (ATT-04, ATT-05, ATT-05b), 
 | created_by | BIGINT FK user_accounts | không | Phụ huynh gửi |
 | cancelled_from | DATE | có | Hủy từ ngày này; hiệu lực tới `cancelled_from - 1` |
 | cancelled_by, cancelled_at | BIGINT FK, TIMESTAMPTZ | có | |
+| teacher_seen_at | TIMESTAMPTZ | có | Lần đầu GV của lớp (dạy chính / dạy thay ngày của đơn) mở danh sách đơn hoặc màn điểm danh ngày của đơn; ghi một lần, không ghi đè, BGH mở không tính (V178, Cần chốt 24/11/2026) |
+| teacher_seen_by | BIGINT FK user_accounts | có | GV mở đầu tiên (V178) |
 
 ## attendance_record_history  (module: attendance, scope: CLASS)
 Mục đích: lịch sử ghi/sửa từng bản ghi điểm danh (chỉ thêm). Migration: V21.

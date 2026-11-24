@@ -4,6 +4,7 @@ import com.carenest.config.AttendanceProperties;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.DayUnlockResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.entity.attendance.AttendanceDayUnlock;
 import com.carenest.entity.organization.AttendanceCutoff;
 import com.carenest.exception.GlobalException;
@@ -315,6 +316,26 @@ class AttendanceDayRules {
 
     boolean canRecordAttendanceDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return user.hasPermission(Permission.ATTENDANCE_RECORD) && canRecordDay(user, cls, date);
+    }
+
+    /** Phân công giáo viên (dạy chính, dạy thay) của người dùng, đọc một lần; không phải GV ⇒ rỗng. */
+    List<StaffAssignmentResponse> teacherAssignments(CurrentUser user) {
+        return user.hasRole(CareNestRole.TEACHER)
+                ? staffAssignmentService.findAssignments(user.userId()).stream()
+                        .filter(a -> a.staffRole() == StaffRole.TEACHER)
+                        .toList()
+                : List.of();
+    }
+
+    /** Người dùng là GV của lớp (dạy chính hoặc dạy thay) ít nhất một ngày trong from..to. */
+    static boolean teachesDuring(
+            List<StaffAssignmentResponse> assignments, Long classId, LocalDate from, LocalDate to) {
+        return assignments.stream()
+                .anyMatch(a -> classId.equals(a.classroomId())
+                        && a.validFrom() != null
+                        && !a.validFrom().isAfter(to)
+                        && (a.validTo() == null
+                                || (!a.validTo().isBefore(from) && !a.validTo().isBefore(a.validFrom()))));
     }
 
     /** Người nhận thông báo việc theo ngày: GV dạy chính hiện tại và người dạy thay ngày đó. */

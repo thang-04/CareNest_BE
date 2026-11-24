@@ -203,7 +203,6 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public ClassAttendanceResponse getClassAttendance(CurrentUser currentUser, Long classId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|getClassAttendance|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
@@ -234,6 +233,13 @@ public class AttendanceServiceImpl implements AttendanceService {
                             .collect(Collectors.groupingBy(DailyHealthEntry::getChildId));
             Map<Long, LeaveTag> leaves =
                     leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day, cls);
+            // Cần chốt 24/11/2026: GV của lớp ngày đó (dạy chính / dạy thay) mở màn điểm danh ⇒ đã xem đơn; BGH không
+            // tính
+            if (!leaves.isEmpty()
+                    && AttendanceDayRules.teachesDuring(rules.teacherAssignments(currentUser), cls.id(), day, day)) {
+                leaveRequestRepository.markTeacherSeen(
+                        leaves.values().stream().map(LeaveTag::requestId).toList(), currentUser.userId(), rules.now());
+            }
             Set<Long> childIds = children.stream().map(ClassChildResponse::id).collect(Collectors.toSet());
             Set<Long> withoutMeals = childService.findChildIdsWithoutMeals(childIds);
             Set<Long> allergic = childService.findChildIdsWithAllergies(childIds);

@@ -3,9 +3,12 @@ package com.carenest.service.attendance.impl;
 import com.carenest.config.AttendanceProperties;
 import com.carenest.dto.attendance.LeaveRequestDtos.CreateLeaveRequest;
 import com.carenest.dto.attendance.LeaveRequestDtos.LeaveDay;
+import com.carenest.dto.attendance.LeaveRequestDtos.LeavePreviewResponse;
 import com.carenest.dto.attendance.LeaveRequestDtos.LeaveRequestResponse;
+import com.carenest.dto.attendance.LeaveRequestDtos.PreviewLeaveRequest;
 import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.LeaveRequest;
@@ -85,65 +88,22 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 LOG_PREFIX + "|createLeaveRequest|userId=" + currentUser.userId() + "|childId=" + request.childId();
         log.info("{}|START", logPrefix);
         try {
-            checkGuardian(currentUser, request.childId());
+            LeavePlan plan = planLeave(
+                    currentUser,
+                    request.childId(),
+                    request.fromDate(),
+                    request.toDate(),
+                    request.part(),
+                    request.eats(),
+                    true);
             LocalDate from = request.fromDate();
             LocalDate to = request.toDate();
-            if (to.isBefore(from)) {
-                throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
-            }
-            if (from.isBefore(rules.today())) {
-                throw GlobalException.of(ApiCode.LEAVE_DATE_IN_PAST);
-            }
-            LeavePart part = request.part() == null ? LeavePart.FULL_DAY : request.part();
-
-            // ATT-12: nghỉ một buổi chỉ cho đơn 1 ngày
-            if (part != LeavePart.FULL_DAY && !from.equals(to)) {
-                throw GlobalException.of(ApiCode.LEAVE_HALF_DAY_SINGLE_DAY);
-            }
-            ClassroomInfoResponse startingClass = activeClassOf(request.childId(), from);
-            // ATT-12 (Cần chốt 18/11/2026): công tắc ăn chỉ áp dụng khi buổi còn học có bữa của nhóm tuổi
-            boolean hasMeals = part != LeavePart.FULL_DAY
-                    && !part.dayPart()
-                            .other()
-                            .mealsOf(startingClass.mealSessions())
-                            .isEmpty();
-            Boolean eats = hasMeals ? (Boolean) (request.eats() == null || request.eats()) : null;
-            if (from.isBefore(startingClass.yearStart()) || to.isAfter(startingClass.yearEnd())) {
-                throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
-            }
-            // ATT-05: một đơn tối đa leaveMaxDays ngày lịch, tính cả ngày đầu và ngày cuối
-            if (ChronoUnit.DAYS.between(from, to) + 1 > attendanceProperties.leaveMaxDays()) {
-                throw GlobalException.of(ApiCode.LEAVE_TOO_LONG, attendanceProperties.leaveMaxDays());
-            }
-            lockClasses(request.childId(), from, to);
-            List<LocalDate> applied = new ArrayList<>();
-            List<LocalDate> skipped = new ArrayList<>();
-            Map<LocalDate, ClassroomInfoResponse> classOf = new HashMap<>();
-            List<LeaveDay> days = new ArrayList<>();
-            for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
-                if (!rules.isSchoolDay(d)) {
-                    continue;
-                }
-                ClassroomInfoResponse cls = activeClassOf(request.childId(), d);
-                days.add(new LeaveDay(d, cls.id(), cls.name()));
-                // ATT-05b: ngày đã qua giờ chốt giữ nguyên điểm danh và số suất
-                if (rules.isBaseLocked(d, rules.cutoff(cls.schoolYearId(), d))) {
-                    skipped.add(d);
-                } else {
-                    applied.add(d);
-                    classOf.put(d, cls);
-                }
-            }
-            if (applied.isEmpty()) {
-                throw GlobalException.of(ApiCode.LEAVE_NO_SCHOOL_DAY);
-            }
-            for (LeaveRequest other : leaveRequestRepository.findOverlapping(List.of(request.childId()), from, to)) {
-                for (LocalDate day : applied) {
-                    if (!day.isBefore(other.getFromDate()) && !day.isAfter(other.effectiveTo())) {
-                        throw GlobalException.of(ApiCode.LEAVE_OVERLAP, day.format(DD_MM_YYYY));
-                    }
-                }
-            }
+            LeavePart part = plan.part();
+            Boolean eats = plan.eats();
+            List<LocalDate> applied = plan.applied();
+            List<LocalDate> skipped = plan.skipped();
+            Map<LocalDate, ClassroomInfoResponse> classOf = plan.classOf();
+            List<LeaveDay> days = plan.days();
             Instant at = rules.now();
             LeaveRequest saved = leaveRequestRepository.save(LeaveRequest.create(
                             request.childId(), from, to, request.reason().trim(), currentUser.userId(), at)
@@ -169,6 +129,115 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     accountService.findFullNames(Set.of(saved.getCreatedBy())));
             log.info("{}|leaveRequestId={}|days={}|END", logPrefix, saved.getId(), applied.size());
             return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /** Kiểm tra đơn nghỉ dùng chung cho gửi và xem trước: cùng thứ tự kiểm tra, cùng mã lỗi (ATT-04, ATT-05, ATT-12). */
+    private record LeavePlan(
+            LeavePart part,
+            Boolean eats,
+            List<LocalDate> applied,
+            List<LocalDate> skipped,
+            Map<LocalDate, ClassroomInfoResponse> classOf,
+            List<LeaveDay> days) {}
+
+    private LeavePlan planLeave(
+            CurrentUser user,
+            Long childId,
+            LocalDate from,
+            LocalDate to,
+            LeavePart requestedPart,
+            Boolean requestedEats,
+            boolean lock) {
+        checkGuardian(user, childId);
+        if (to.isBefore(from)) {
+            throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
+        }
+        if (from.isBefore(rules.today())) {
+            throw GlobalException.of(ApiCode.LEAVE_DATE_IN_PAST);
+        }
+        LeavePart part = requestedPart == null ? LeavePart.FULL_DAY : requestedPart;
+
+        // ATT-12: nghỉ một buổi chỉ cho đơn 1 ngày
+        if (part != LeavePart.FULL_DAY && !from.equals(to)) {
+            throw GlobalException.of(ApiCode.LEAVE_HALF_DAY_SINGLE_DAY);
+        }
+        ClassroomInfoResponse startingClass = activeClassOf(childId, from);
+        // ATT-12 (Cần chốt 18/11/2026): công tắc ăn chỉ áp dụng khi buổi còn học có bữa của nhóm tuổi
+        boolean hasMeals = part != LeavePart.FULL_DAY
+                && !part.dayPart().other().mealsOf(startingClass.mealSessions()).isEmpty();
+        Boolean eats = hasMeals ? (Boolean) (requestedEats == null || requestedEats) : null;
+        if (from.isBefore(startingClass.yearStart()) || to.isAfter(startingClass.yearEnd())) {
+            throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
+        }
+        // ATT-05: một đơn tối đa leaveMaxDays ngày lịch, tính cả ngày đầu và ngày cuối
+        if (ChronoUnit.DAYS.between(from, to) + 1 > attendanceProperties.leaveMaxDays()) {
+            throw GlobalException.of(ApiCode.LEAVE_TOO_LONG, attendanceProperties.leaveMaxDays());
+        }
+        if (lock) {
+            lockClasses(childId, from, to);
+        }
+        List<LocalDate> applied = new ArrayList<>();
+        List<LocalDate> skipped = new ArrayList<>();
+        Map<LocalDate, ClassroomInfoResponse> classOf = new HashMap<>();
+        List<LeaveDay> days = new ArrayList<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if (!rules.isSchoolDay(d)) {
+                continue;
+            }
+            ClassroomInfoResponse cls = activeClassOf(childId, d);
+            days.add(new LeaveDay(d, cls.id(), cls.name()));
+            // ATT-05b: ngày đã qua giờ chốt giữ nguyên điểm danh và số suất
+            if (rules.isBaseLocked(d, rules.cutoff(cls.schoolYearId(), d))) {
+                skipped.add(d);
+            } else {
+                applied.add(d);
+                classOf.put(d, cls);
+            }
+        }
+        if (applied.isEmpty()) {
+            throw GlobalException.of(ApiCode.LEAVE_NO_SCHOOL_DAY);
+        }
+        for (LeaveRequest other : leaveRequestRepository.findOverlapping(List.of(childId), from, to)) {
+            for (LocalDate day : applied) {
+                if (!day.isBefore(other.getFromDate()) && !day.isAfter(other.effectiveTo())) {
+                    throw GlobalException.of(ApiCode.LEAVE_OVERLAP, day.format(DD_MM_YYYY));
+                }
+            }
+        }
+        return new LeavePlan(part, eats, applied, skipped, classOf, days);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public LeavePreviewResponse previewLeaveRequest(CurrentUser currentUser, PreviewLeaveRequest request) {
+        String logPrefix =
+                LOG_PREFIX + "|previewLeaveRequest|userId=" + currentUser.userId() + "|childId=" + request.childId();
+        log.info("{}|START", logPrefix);
+        try {
+            // Không lưu gì: chỉ kiểm tra như khi gửi và trả bữa bị hủy / còn ăn theo nhóm tuổi của lớp ngày đó
+            LeavePlan plan = planLeave(
+                    currentUser,
+                    request.childId(),
+                    request.fromDate(),
+                    request.toDate(),
+                    request.part(),
+                    request.eats(),
+                    false);
+            ClassroomInfoResponse cls = plan.classOf().get(plan.applied().getFirst());
+            List<MealSession> kept = eatsMeals(plan.part(), cls);
+            LeavePreviewResponse preview = new LeavePreviewResponse(
+                    plan.part(),
+                    offMeals(plan.part(), cls),
+                    kept,
+                    plan.part() != LeavePart.FULL_DAY && !kept.isEmpty(),
+                    plan.applied(),
+                    plan.skipped());
+            log.info("{}|days={}|END", logPrefix, plan.applied().size());
+            return preview;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -318,7 +387,6 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<LeaveRequestResponse> searchLeaveRequests(
             CurrentUser currentUser, Long classId, Long campusId, LocalDate from, LocalDate to, Long schoolYearId) {
         String logPrefix = LOG_PREFIX + "|searchLeaveRequests|userId=" + currentUser.userId() + "|classId=" + classId
@@ -364,6 +432,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             if (!staysOfChild.isEmpty()) {
                 List<LeaveRequest> leaves = leaveRequestRepository.findOverlapping(staysOfChild.keySet(), start, end);
                 LeaveViews views = new LeaveViews(leaves);
+                List<StaffAssignmentResponse> teaching = rules.teacherAssignments(currentUser);
+                Set<Long> seen = new java.util.HashSet<>();
                 for (LeaveRequest r : leaves) {
                     // Đơn đã hủy hết vẫn hiện (giữ lịch sử đơn), xét theo khoảng ngày phụ huynh gửi
                     LocalDate leaveEnd = r.effectiveTo().isBefore(r.getFromDate()) ? r.getToDate() : r.effectiveTo();
@@ -371,7 +441,18 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                             .filter(x -> !x.stay().from().isAfter(leaveEnd)
                                     && !x.stay().to().isBefore(r.getFromDate()))
                             .min(Comparator.comparing(x -> x.stay().from()))
-                            .ifPresent(x -> result.add(toResponse(r, x.cls(), null, null, names, views)));
+                            .ifPresent(x -> {
+                                result.add(toResponse(r, x.cls(), null, null, names, views));
+                                // Cần chốt 24/11/2026: GV của lớp (dạy chính / dạy thay ngày của đơn) mở danh sách ⇒ đã
+                                // xem
+                                if (AttendanceDayRules.teachesDuring(
+                                        teaching, x.cls().id(), r.getFromDate(), r.getToDate())) {
+                                    seen.add(r.getId());
+                                }
+                            });
+                }
+                if (!seen.isEmpty()) {
+                    leaveRequestRepository.markTeacherSeen(seen, currentUser.userId(), rules.now());
                 }
             }
             log.info("{}|count={}|END", logPrefix, result.size());
@@ -513,8 +594,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         private final Map<Long, ClassroomInfoResponse> classes = new HashMap<>();
 
         LeaveViews(Collection<LeaveRequest> leaves) {
-            userNames = accountService.findFullNames(
-                    leaves.stream().map(LeaveRequest::getCreatedBy).collect(Collectors.toSet()));
+            userNames = accountService.findFullNames(leaves.stream()
+                    .flatMap(r -> java.util.stream.Stream.of(r.getCreatedBy(), r.getTeacherSeenBy()))
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toSet()));
             leaves.stream()
                     .collect(Collectors.groupingBy(LeaveRequest::getChildId))
                     .forEach((childId, own) -> stays.put(
@@ -597,7 +680,20 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 r.getEats(),
                 cls == null ? null : cls.ageGroupId(),
                 eatsMeals(r.getPart(), cls),
-                days);
+                days,
+                offMeals(r.getPart(), cls),
+                r.getTeacherSeenAt(),
+                r.getTeacherSeenBy() == null ? null : userNames.get(r.getTeacherSeenBy()));
+    }
+
+    /** Bữa của buổi nghỉ theo nhóm tuổi của lớp: cả ngày = mọi bữa (ATT-12). */
+    static List<MealSession> offMeals(LeavePart part, ClassroomInfoResponse cls) {
+        if (cls == null) {
+            return List.of();
+        }
+        return part == null || part == LeavePart.FULL_DAY
+                ? cls.mealSessions().stream().sorted().toList()
+                : part.dayPart().mealsOf(cls.mealSessions());
     }
 
     /** Các bữa của buổi còn học theo nhóm tuổi của lớp (ghi rõ tên bữa ở ô "Bé tham gia ăn"). */
