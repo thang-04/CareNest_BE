@@ -174,16 +174,16 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
 
 **Files:** M `src/main/java/com/carenest/repository/child/ChildRepository.java:26-67` · Test `src/test/java/com/carenest/service/child/impl/ChildLeftSchoolIntegrationTest.java`
 
-- [ ] **Bước 1: Viết test hỏng.** Hai test mới:
+- [x] **Bước 1: Viết test hỏng.** Hai test mới:
   - `readmittedChildDoesNotShowClosedClassOfYear`:
     - Trẻ có lớp năm đang học, cho nghỉ, mở lại hồ sơ vào năm đang học.
     - `childListService` lọc theo `schoolYear` = năm đang học ⇒ trẻ `status = PENDING_PLACEMENT`, `classId == null`, `className == null`.
   - `pendingChildKeepsPlannedClassOfNextYear`:
     - Trẻ tiếp nhận năm sau có lớp dự kiến.
     - Lọc theo năm sau ⇒ `classId` = lớp dự kiến.
-- [ ] **Bước 2: Chạy, thấy test 1 hỏng.** `./mvnw -q test -Dtest=ChildLeftSchoolIntegrationTest` ⇒ FAIL ở `classId` (đang là lớp cũ).
-- [ ] **Bước 3: Sửa truy vấn.** Trong `LATERAL` thêm điều kiện: `c.status <> 'PENDING_PLACEMENT' OR e.valid_to IS NULL OR e.valid_to >= :today`. Sửa Javadoc dòng 13-25 cho khớp.
-- [ ] **Bước 4: Chạy lại** ⇒ PASS cả 2 test cũ và mới của class.
+- [x] **Bước 2: Chạy, thấy test 1 hỏng.** `./mvnw -q test -Dtest=ChildLeftSchoolIntegrationTest` ⇒ FAIL ở `classId` (đang là lớp cũ).
+- [x] **Bước 3: Sửa truy vấn.** Trong `LATERAL` thêm điều kiện: `c.status <> 'PENDING_PLACEMENT' OR e.valid_to IS NULL OR e.valid_to >= :today`. Sửa Javadoc dòng 13-25 cho khớp.
+- [x] **Bước 4: Chạy lại** ⇒ PASS cả 2 test cũ và mới của class.
 
 #### Task B1.2: Duplicate-check trả điểm trường (mục 5)
 
@@ -191,17 +191,17 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
 
 **Interfaces:** Tạo ra `DuplicateCheckResponse.campusId: Long`. FE Task F2.2 dùng trường này.
 
-- [ ] **Bước 1: Viết test hỏng.** `duplicateOfLeftChildReturnsCampus`: trẻ nghỉ ở lớp Cơ sở 2 ⇒ `checkDuplicate(...).campusId()` = id Cơ sở 2. `otherCampus` ⇒ `campusId == null`.
-- [ ] **Bước 2:** chạy ⇒ không biên dịch / FAIL.
-- [ ] **Bước 3:** thêm trường, truyền giá trị. Sửa `ChildEnrollmentControllerTest` nếu dựng record bằng constructor.
-- [ ] **Bước 4:** chạy class test ⇒ PASS.
+- [x] **Bước 1: Viết test hỏng.** `duplicateOfLeftChildReturnsCampus`: trẻ nghỉ ở lớp Cơ sở 2 ⇒ `checkDuplicate(...).campusId()` = id Cơ sở 2. `otherCampus` ⇒ `campusId == null`.
+- [x] **Bước 2:** chạy ⇒ không biên dịch / FAIL.
+- [x] **Bước 3:** thêm trường, truyền giá trị. Sửa `ChildEnrollmentControllerTest` nếu dựng record bằng constructor.
+- [x] **Bước 4:** chạy class test ⇒ PASS.
 
 #### Task B1.3: Seed dev đủ tuần thai (mục 7)
 
 **Files:** C `src/main/resources/db/dev/R__dev_12_profile_gestation_weeks.sql`
 
-- [ ] **Bước 1:** viết SQL lặp lại được: `UPDATE child_profiles SET gestation_weeks = CASE WHEN premature = 'YES' THEN 35 ELSE 39 END WHERE gestation_weeks IS NULL;`. Thêm 1 dòng chú thích lý do (CHD-08).
-- [ ] **Bước 2:** kiểm trên DB mới bằng test Flyway có sẵn (verify chạy toàn bộ seed). Sau đó trên `carenest_scope2`: `select count(*) from child_profiles where gestation_weeks is null` ⇒ `0` (chạy khi BE khởi động lại, Flyway áp R__ mới).
+- [x] **Bước 1:** viết SQL lặp lại được: `UPDATE child_profiles SET gestation_weeks = CASE WHEN premature = 'YES' THEN 35 ELSE 39 END WHERE gestation_weeks IS NULL;`. Thêm 1 dòng chú thích lý do (CHD-08).
+- [x] **Bước 2:** kiểm trên DB mới bằng test Flyway có sẵn (verify chạy toàn bộ seed). Sau đó trên `carenest_scope2`: `select count(*) from child_profiles where gestation_weeks is null` ⇒ `0` (chạy khi BE khởi động lại, Flyway áp R__ mới).
 
 #### Task B1.4: Câu lỗi ngày học rõ lý do (mục 8)
 
@@ -211,17 +211,17 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
 - `static String problem(String label, LocalDate date, List<SchoolHolidayItem> holidays)` trả `null` khi là ngày học.
 - Ngày nghỉ lấy bằng `schoolYearService.getHolidays(actor, yearId)`; `yearId` = năm của lớp đích hoặc năm tiếp nhận.
 
-- [ ] **Bước 1: Viết test hỏng** (JUnit thuần, không Spring):
+- [x] **Bước 1: Viết test hỏng** (JUnit thuần, không Spring):
   - `problem("Ngày vào lớp", 2026-11-28, [])` = `"Ngày vào lớp 28/11/2026 là thứ Bảy. Chọn ngày từ thứ 2 tới thứ 6."`
   - Chủ nhật ⇒ chữ "Chủ nhật".
   - Ngày nghỉ "Nghỉ thử" 09/12–09/12 ⇒ `"Ngày vào lớp 09/12/2026 trùng ngày nghỉ của trường: Nghỉ thử (09/12/2026). Chọn ngày học khác."`
   - Đợt 01/01–03/01/2027 ⇒ "(01/01/2027 – 03/01/2027)".
   - Ngày học ⇒ `null`.
-- [ ] **Bước 2:** chạy ⇒ FAIL (chưa có class).
-- [ ] **Bước 3:** viết `SchoolDayMessages`. Thay câu chung ở 3 chỗ:
+- [x] **Bước 2:** chạy ⇒ FAIL (chưa có class).
+- [x] **Bước 3:** viết `SchoolDayMessages`. Thay câu chung ở 3 chỗ:
   - Nghỉ học: label "Ngày nghỉ học", cuối câu ngày nghỉ thêm " Thực hiện vào ngày học kế tiếp."
   - Vẫn gọi `schoolYearService.isSchoolDay(date)` để quyết định có lỗi hay không, chỉ dùng `SchoolDayMessages` để tạo câu.
-- [ ] **Bước 4:** chạy test mới + `ChildRecordServiceImplTest`, `ChildPlacementScheduleIntegrationTest`, `ChildEnrollmentIntegrationTest`. Câu cũ trong test cũ thì sửa sang câu mới ⇒ PASS.
+- [x] **Bước 4:** chạy test mới + `ChildRecordServiceImplTest`, `ChildPlacementScheduleIntegrationTest`, `ChildEnrollmentIntegrationTest`. Câu cũ trong test cũ thì sửa sang câu mới ⇒ PASS.
 
 #### Task B1.5: Nghỉ học hôm nay hoặc ngày học kế tiếp (mục 9, Q1=A)
 
@@ -235,7 +235,7 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
   - FE Task F2.4 dùng endpoint này.
 - Job: `@Scheduled(cron = "0 5 0 * * *", zone = "${carenest.time-zone}") void lockParentsOfChildrenLeavingToday()` publish `ChildrenLeftSchoolEvent(ids, today)` cho trẻ `status = LEFT AND left_on = today`.
 
-- [ ] **Bước 1: Viết test hỏng:**
+- [x] **Bước 1: Viết test hỏng:**
   - `withdrawRejectsPastDate`: `leftAt = today-1` ⇒ lỗi ô `leftAt` "Ngày nghỉ học không được trước hôm nay".
   - `withdrawRejectsBeyondNextSchoolDay`: thứ 2 chọn thứ 4 ⇒ "Chỉ chọn hôm nay hoặc ngày học kế tiếp (dd/mm/yyyy)".
   - `withdrawFromNextSchoolDayKeepsTodayRoster`: có điểm danh hôm nay, `leftAt` = ngày học kế tiếp ⇒ lưu được.
@@ -245,18 +245,18 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
   - `scheduledLeaveJobLocksParentOnLeaveDay`: đặt clock = `leftAt`, gọi job ⇒ tài khoản `INACTIVE`.
   - Thứ 6 chọn ngày học kế tiếp = thứ 2 tuần sau (qua cuối tuần) ⇒ được.
   - `leaveOptionsBlockTodayAfterAttendance`: trẻ có điểm danh hôm nay ⇒ `todayAllowed = false`, `todayBlockedReason` = câu của Cần, `nextSchoolDay` = ngày học kế tiếp. Trẻ chưa có dữ liệu ⇒ `todayAllowed = true`.
-- [ ] **Bước 2:** chạy ⇒ FAIL.
-- [ ] **Bước 3: Sửa `withdraw`:**
+- [x] **Bước 2:** chạy ⇒ FAIL.
+- [x] **Bước 3: Sửa `withdraw`:**
   - Thay `!leftAt.equals(today)` bằng 2 lỗi trên. Tính "ngày học kế tiếp" bằng vòng `isSchoolDay` từ `today+1` (tối đa 400 ngày, như FE `firstSchoolDay`).
   - Giữ nguyên khối chặn của Cần (`:646`).
   - Chỉ `publishEvent(ChildrenLeftSchoolEvent)` khi `leftAt.equals(today)`; còn lại để job.
   - Thông báo GV giữ câu "nghỉ học từ ngày dd/mm/yyyy".
-- [ ] **Bước 4:** viết `ScheduledLeaveJob` (trong `service/child/impl`, dùng `ChildRepository` — thêm truy vấn `findIdsLeavingOn(LocalDate)`). Dùng `ShedLock` nếu các job khác có dùng (kiểm `HealthCheckServiceImpl.java:357`).
+- [x] **Bước 4:** viết `ScheduledLeaveJob` (trong `service/child/impl`, dùng `ChildRepository` — thêm truy vấn `findIdsLeavingOn(LocalDate)`). Dùng `ShedLock` nếu các job khác có dùng (kiểm `HealthCheckServiceImpl.java:357`).
   - Thêm `leaveOptions(actor, childId)` vào `ChildRecordService` và route `GET /children/{id}/leave-options` ở controller đang có `POST /children/{id}/withdraw`.
   - Dùng chung hàm tính `nextSchoolDay` và kiểm dữ liệu trong ngày với `withdraw`.
-- [ ] **Bước 5:** chạy test ⇒ PASS. Cập nhật CHD-03 (bỏ "không ở tương lai", ghi luật mới, "user chốt 2026-11-24").
+- [x] **Bước 5:** chạy test ⇒ PASS. Cập nhật CHD-03 (bỏ "không ở tương lai", ghi luật mới, "user chốt 2026-11-24").
 
-- [ ] **Exit B1:** `node scripts/verify.mjs` ⇒ `VERIFY PASS`. Cho phép chỉ các lỗi đã biết, ghi số: Edu nanoTime flake theo memory `be-edu-nanotime-flake`. **Dừng chờ review.**
+- [x] **Exit B1:** `node scripts/verify.mjs` ⇒ `VERIFY PASS`. Cho phép chỉ các lỗi đã biết, ghi số: Edu nanoTime flake theo memory `be-edu-nanotime-flake`. **Dừng chờ review.**
 
 ### Phase B2 — Sĩ số khi xếp lớp tính cả trẻ hẹn vào (mục 10, 16)
 
@@ -268,14 +268,14 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
 - Năm sắp diễn ra: `occupiedCount = plannedCount`.
 - FE Task F3.1 dùng.
 
-- [ ] **Bước 1: Viết test hỏng.** `placementClassesCountScheduledArrivals`:
+- [x] **Bước 1: Viết test hỏng.** `placementClassesCountScheduledArrivals`:
   - Lớp sức chứa 3: 2 trẻ đang học, 1 trẻ hẹn chuyển vào ngày mai.
   - `from` = hôm nay ⇒ `enrolledCount = 2`, `occupiedCount = 3`.
   - Truyền `childId` của trẻ hẹn ⇒ `occupiedCount = 2`.
-- [ ] **Bước 2:** chạy ⇒ FAIL.
-- [ ] **Bước 3:** thêm trường + tham số. Tách hàm `occupiedCounts(ids, from, childId)` dùng `countOccupyingFrom` cho từng lớp: chỉ vài chục lớp, chấp nhận N truy vấn; nếu verify chậm thì gộp 1 truy vấn `GROUP BY`.
-- [ ] **Bước 4:** chạy ⇒ PASS. Sinh lại `docs/integration/API_INDEX` nếu repo có script (`scripts/` — kiểm tên khi làm).
-- [ ] **Exit B2:** verify ⇒ PASS. **Dừng chờ review.**
+- [x] **Bước 2:** chạy ⇒ FAIL.
+- [x] **Bước 3:** thêm trường + tham số. Tách hàm `occupiedCounts(ids, from, childId)` dùng `countOccupyingFrom` cho từng lớp: chỉ vài chục lớp, chấp nhận N truy vấn; nếu verify chậm thì gộp 1 truy vấn `GROUP BY`.
+- [x] **Bước 4:** chạy ⇒ PASS. Sinh lại `docs/integration/API_INDEX` nếu repo có script (`scripts/` — kiểm tên khi làm).
+- [x] **Exit B2:** verify ⇒ PASS. **Dừng chờ review.**
 
 ### Phase B3 — Nhập Excel bù số 0 đầu (mục 4)
 
@@ -285,7 +285,7 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
 - `static Optional<String> phone(String raw)`: chỉ chữ số, dài 9, bắt đầu `[35789]` ⇒ `"0" + raw`, còn lại `Optional.empty()` (giữ nguyên).
 - `static Optional<String> citizenId(String raw)`: chỉ chữ số, dài 9–11 ⇒ đệm `0` bên trái tới 12, còn lại empty.
 
-- [ ] **Bước 1: Viết test hỏng:**
+- [x] **Bước 1: Viết test hỏng:**
   - `phone("916231201")` = `"0916231201"`.
   - `phone("0916231201")` empty.
   - `phone("123456789")` empty.
@@ -294,10 +294,10 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
   - `citizenId("030224591837")` empty.
   - `citizenId("12345678")` empty.
   - Preview của file 2 dòng như `TEST-nhap-tre-2027-2028.csv` ⇒ 0 lỗi dòng, `notes` có `"Đã thêm số 0 đầu cho SĐT/CCCD (Excel bỏ mất). Kiểm tra lại trước khi nhập."`
-- [ ] **Bước 2:** chạy ⇒ FAIL.
-- [ ] **Bước 3:** áp `ExcelZeroFix` lên giá trị thô trước khi dựng payload. Ghi note 1 lần mỗi dòng.
-- [ ] **Bước 4:** chạy ⇒ PASS.
-- [ ] **Exit B3:** verify ⇒ PASS. **Dừng chờ review.**
+- [x] **Bước 2:** chạy ⇒ FAIL.
+- [x] **Bước 3:** áp `ExcelZeroFix` lên giá trị thô trước khi dựng payload. Ghi note 1 lần mỗi dòng.
+- [x] **Bước 4:** chạy ⇒ PASS.
+- [x] **Exit B3:** verify ⇒ PASS. **Dừng chờ review.**
 
 ### Phase B4 — Kỳ cân đo: trẻ chuyển lớp, trẻ vắng (mục 11, 13) — chờ Q2, Q5(c)
 
@@ -315,7 +315,7 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
 - "Kỳ liên quan" của kỳ K là kỳ L cùng `kind`, cùng `school_year_id`, khác `campus_id`, chưa hủy, khoảng ngày giao nhau với K, và ngày đo nằm trong khoảng của K. Một hàm `linkedCampaignIds(K)` ở `HealthCheckRules`.
 - Lớp hiện tại của trẻ = lớp tại `referenceDate(K)` (`enrollmentService` sẵn có).
 
-- [ ] **Bước 1: Viết test hỏng (Q2=A):**
+- [x] **Bước 1: Viết test hỏng (Q2=A):**
   - `transferWithinRoundMovesEditingToNewClass`: cùng kỳ, đo ở lớp A, chuyển sang lớp B hôm nay.
     - Danh sách lớp B: trẻ `RECORDED`, `canEdit = true`, `measuredIn.className = A`.
     - Danh sách lớp A: trẻ có `movedTo.className = B`, `canEdit = false`; tiến độ lớp A không đếm trẻ.
@@ -323,25 +323,25 @@ Trước khi làm: WIP 2A (chưa commit) đang sửa `ChildIntakeServiceImpl`, `
   - `newClassTeacherEditsMovedMeasurement`: GV lớp B `PUT` ⇒ 200, `measuredBy` = GV B, có 1 dòng `health_measurement_edits`.
   - `oldClassTeacherCannotEditMovedMeasurement`: GV lớp A `PUT` ⇒ `HEALTH_MEASUREMENT_ACCESS_DENIED`.
   - `secondMeasurementInLinkedRoundRejected`: `POST` ở kỳ Cơ sở 1 ⇒ `HEALTH_MEASUREMENT_EXISTS`.
-- [ ] **Bước 2: Viết test hỏng (mục 13):**
+- [x] **Bước 2: Viết test hỏng (mục 13):**
   - `absentChildCannotBeMeasuredOnSchoolDay`: điểm danh `UNEXCUSED` hôm nay (thứ 2–6) ⇒ `POST` lỗi; dòng có `absentToday = true`.
   - `weekendMeasurementAllowedWithoutAttendance`: clock thứ 7 ⇒ được.
   - `unmarkedAttendanceAllowsMeasurement` ⇒ được.
   - `absentChildCannotStartExam` (nếu Q5(c) = có).
-- [ ] **Bước 3:** chạy ⇒ FAIL.
-- [ ] **Bước 4: Sửa `rosterOf`:**
+- [x] **Bước 3:** chạy ⇒ FAIL.
+- [x] **Bước 4: Sửa `rosterOf`:**
   - Thành viên hiện tại lấy số đo của trẻ trong K **hoặc** trong kỳ liên quan (bỏ lọc `classroomId` cho thành viên hiện tại).
   - Trẻ có số đo ở lớp này mà nay ở lớp khác ⇒ dòng `movedTo`, đánh dấu không tính tiến độ: `Progress.of` bỏ dòng `movedTo != null`.
-- [ ] **Bước 5: Sửa quyền:**
+- [x] **Bước 5: Sửa quyền:**
   - `updateMeasurement` kiểm `rules.canRecord(user, currentClassOf(child))`, với lớp hiện tại thuộc điểm trường của kỳ hoặc của kỳ liên quan đang mở.
   - Sửa thì `m.reassignRecorder(currentUser.userId())`: thêm hàm entity `HealthMeasurement`, đổi `measuredBy`.
   - `createMeasurement` từ chối khi đã có số đo ở kỳ liên quan: câu `"Trẻ đã có số đo trong kỳ «<tên kỳ>» (<điểm trường>) ngày dd/mm/yyyy. Sửa số đo đó."`.
-- [ ] **Bước 6: Sửa vắng:**
+- [x] **Bước 6: Sửa vắng:**
   - `createMeasurement` (và `saveExam` lần đầu khi Q5(c)) gọi `attendanceService.findDayStatuses(List.of(childId), date, date)`.
   - Thứ 2–6 và `status.isAbsent()` ⇒ lỗi mới `ApiCode.HEALTH_CHILD_ABSENT` (số kế tiếp trong nhóm 50xx, kiểm `ApiCodeTest`), câu "Trẻ vắng ngày dd/mm/yyyy (điểm danh). Nhập khi trẻ có mặt."
   - Dòng danh sách: `absentToday` tính 1 lần cho cả lớp bằng `findDayStatuses(ids, today, today)`.
-- [ ] **Bước 7:** chạy test health ⇒ PASS. Ghi luật mới vào `BUSINESS_RULES.md` (HLT-09 thêm ý chuyển lớp; HLT-01 thêm ý trẻ vắng), "user chốt 2026-11-24".
-- [ ] **Exit B4:** verify ⇒ PASS. **Dừng chờ review.**
+- [x] **Bước 7:** chạy test health ⇒ PASS. Ghi luật mới vào `BUSINESS_RULES.md` (HLT-09 thêm ý chuyển lớp; HLT-01 thêm ý trẻ vắng), "user chốt 2026-11-24".
+- [x] **Exit B4:** verify ⇒ PASS. **Dừng chờ review.**
 
 ### Phase B5 — Phiếu khám trùng ngày đã cân đo (mục 14) — chờ Q3
 
@@ -349,43 +349,43 @@ Q3 = B ⇒ BE không đổi. Chỉ thêm `dateTakenBy` vào view phiếu (`Healt
 
 Q3 = A:
 
-**Files:** C `src/main/resources/db/migration/V178__health_measurement_same_day.sql` (số kiểm lại) · M `HealthExamServiceImpl.java:155-166`, `prefill` `:346-361` · M chỗ đọc chuỗi số đo theo ngày (tìm `findByChildId` / `ORDER BY date` trong `service/health`, `HealthGrowth`, `HealthMeasurementServiceImpl.findLatestMeasurement`) · Test `HealthExamIntegrationTest.java`, `HealthRecordIntegrationTest.java`
+**Files:** C `src/main/resources/db/migration/V180__health_measurement_same_day.sql` · M `HealthExamServiceImpl.java:155-166`, `prefill` `:346-361` · M chỗ đọc chuỗi số đo theo ngày (tìm `findByChildId` / `ORDER BY date` trong `service/health`, `HealthGrowth`, `HealthMeasurementServiceImpl.findLatestMeasurement`) · Test `HealthExamIntegrationTest.java`, `HealthRecordIntegrationTest.java`
 
-- [ ] **Bước 1: Viết test hỏng:**
+- [x] **Bước 1: Viết test hỏng:**
   - `examSavesOnDayWithRoundMeasurement`: trẻ có số đo kỳ cân đo hôm nay ⇒ lưu nháp phiếu khám đợt khác cùng ngày được.
   - `examPrefillsHeightWeightFromSameDayMeasurement`.
   - `growthSeriesKeepsOnePointPerDayPreferringExam`: 2 dòng cùng ngày ⇒ chuỗi có 1 điểm, giá trị của phiếu khám.
-- [ ] **Bước 2:** chạy ⇒ FAIL.
-- [ ] **Bước 3:** migration bỏ `uk_health_measurements_child_date`. Ràng buộc `(child_id, campaign_id)` giữ.
-- [ ] **Bước 4: Sửa code:**
+- [x] **Bước 2:** chạy ⇒ FAIL.
+- [x] **Bước 3:** migration bỏ `uk_health_measurements_child_date`. Ràng buộc `(child_id, campaign_id)` giữ.
+- [x] **Bước 4: Sửa code:**
   - `HealthExamServiceImpl` bỏ lỗi ô `date` khi dòng trùng ngày là kỳ cân đo khác. Giữ lỗi khi trùng ngày với **đợt khám** khác.
   - `prefill` lấy chiều cao, cân nặng của lần đo cùng ngày.
   - Chỗ đọc chuỗi: cùng ngày ⇒ ưu tiên dòng có `exam_status`, rồi `id` lớn hơn.
   - `HealthMeasurementServiceImpl.createMeasurement:140`: giữ chặn khi trùng ngày với kỳ cân đo khác, bỏ chặn khi dòng trùng là phiếu khám.
-- [ ] **Bước 5:** chạy ⇒ PASS. Sửa HLT-01, HLT-08 trong `BUSINESS_RULES.md`.
-- [ ] **Exit B5:** verify ⇒ PASS. **Dừng chờ review.**
+- [x] **Bước 5:** chạy ⇒ PASS. Sửa HLT-01, HLT-08 trong `BUSINESS_RULES.md`.
+- [x] **Exit B5:** verify ⇒ PASS. **Dừng chờ review.**
 
 ### Phase B6 — Tài liệu, contract, kiểm App
 
-- [ ] `docs/modules/child.md`, `docs/modules/health.md`: thêm luật mục 9, 11, 13, 14.
-- [ ] Grep `carenest_app` các path `placement-classes`, `duplicate-check`, `health-checks/.*/classes` ⇒ ghi kết quả (dự kiến không dùng).
+- [x] `docs/modules/child.md`, `docs/modules/health.md`: thêm luật mục 9, 11, 13, 14.
+- [x] Grep `carenest_app` các path `placement-classes`, `duplicate-check`, `health-checks/.*/classes` ⇒ ghi kết quả (dự kiến không dùng).
 - [ ] FE đồng bộ contract: `node scripts/api-index.mjs --from ../be-school-year-scope` (memory `fe-api-index-from-worktree`) — làm ở plan FE.
-- [ ] Cập nhật `TEST-tac-dong-Can-2026-11-23.md`: B6, B7, C0, C5, F5, H1 + ca mới cho mục 11 (kỳ chuyển điểm trường), mục 14.
+- [x] Cập nhật `TEST-tac-dong-Can-2026-11-23.md`: B6, B7, C0, C5, F5, H1 + ca mới cho mục 11 (kỳ chuyển điểm trường), mục 14.
 
 ## Test matrix
 
 | AC | Rule | Test (tầng) | Phase | Kết quả |
 | --- | --- | --- | --- | --- |
-| AC-4 | CHD-01 | `ExcelZeroFixTest` (unit), preview ở `ChildEnrollmentIntegrationTest` (IT) | B3 | |
-| AC-5 | G94-180/CHD-04 | `ChildEnrollmentIntegrationTest#duplicateOfLeftChildReturnsCampus` (IT) | B1 | |
-| AC-6 | G94-180/CHD-09 | `ChildLeftSchoolIntegrationTest` 2 test (IT) | B1 | |
-| AC-7 | G94-180/CHD-08 | verify (Flyway + seed) + truy vấn DB | B1 | |
-| AC-8 | G94-180/CHD-14 | `SchoolDayMessagesTest` (unit), test cũ sửa câu (IT) | B1 | |
-| AC-9 | G94-180/CHD-03 | `ChildRecordIntegrationTest` 5 test (IT) | B1 | |
-| AC-10 | G94-180/CHD-14 | `ChildPlacementScheduleIntegrationTest#placementClassesCountScheduledArrivals` (IT) | B2 | |
-| AC-11 | HLT-09, HLT-13 | `HealthCheckIntegrationTest`, `HealthRecordIntegrationTest` 5 test (IT) | B4 | |
-| AC-13 | HLT-01 | `HealthRecordIntegrationTest` 3–4 test (IT) | B4 | |
-| AC-14 | HLT-08 | `HealthExamIntegrationTest` 3 test (IT) | B5 | |
+| AC-4 | CHD-01 | `ExcelZeroFixTest` (unit), preview ở `ChildEnrollmentIntegrationTest` (IT) | B3 | PASS: `ExcelZeroFixTest#phone`, `#citizenId`, `#previewRestoresZeros` |
+| AC-5 | G94-180/CHD-04 | `ChildEnrollmentIntegrationTest#duplicateOfLeftChildReturnsCampus` (IT) | B1 | PASS: `#duplicateOfLeftChildReturnsCampus`, `#duplicateOfWithdrawnTransferredChildReturnsLastClassCampus` |
+| AC-6 | G94-180/CHD-09 | `ChildLeftSchoolIntegrationTest` 2 test (IT) | B1 | PASS: `ChildPlacementListIntegrationTest#readmittedChildDoesNotShowClosedClassOfYear`, `#pendingChildKeepsPlannedClassOfNextYear` |
+| AC-7 | G94-180/CHD-08 | verify (Flyway + seed) + truy vấn DB | B1 | PASS: `DevSeedIntegrationTest#everyProfileHasGestationWeeks` + verify full |
+| AC-8 | G94-180/CHD-14 | `SchoolDayMessagesTest` (unit), test cũ sửa câu (IT) | B1 | PASS: `SchoolDayMessagesTest` (6 test), `ChildRecordServiceImplTest#withdrawValidatesLeaveDateAndReason`, test cũ sửa câu |
+| AC-9 | G94-180/CHD-03 | `ChildRecordIntegrationTest` 5 test (IT) | B1 | PASS: `ChildRecordIntegrationTest#withdrawRejectsPastDate`, `#withdrawRejectsBeyondNextSchoolDay`, `#withdrawFromNextSchoolDayKeepsTodayRoster`, `#withdrawOnFridayAllowsNextSchoolDayAcrossWeekendAndHoliday`, `#leaveOptionsBlockTodayAfterAttendance`; `ScheduledLeaveJobIntegrationTest#scheduledLeaveJobLocksParentOnLeaveDay`; `ChildRecordServiceImplTest#withdrawFromNextSchoolDay*`; `YearTransitionIntegrationTest` 2 test LEAVE |
+| AC-10 | G94-180/CHD-14 | `ChildPlacementScheduleIntegrationTest#placementClassesCountScheduledArrivals` (IT) | B2 | PASS: `#placementClassesCountScheduledArrivals` |
+| AC-11 | HLT-09, HLT-13 | `HealthCheckIntegrationTest`, `HealthRecordIntegrationTest` 5 test (IT) | B4 | PASS: `HealthCheckIntegrationTest#transferWithinRoundMovesEditingToNewClass`, `#transferAcrossCampusesShowsMeasurementFromLinkedRound`, `#newClassTeacherEditsMovedMeasurement`, `#oldClassTeacherCannotEditMovedMeasurement`, `#secondMeasurementInLinkedRoundRejected`, `#scheduledTransferKeepsOldClassUntilEffectiveDate`, `#substituteOfNewClassEditsMovedMeasurement` |
+| AC-13 | HLT-01 | `HealthRecordIntegrationTest` 3–4 test (IT) | B4 | PASS: `HealthCheckIntegrationTest#absentChildCannotBeMeasuredOnSchoolDay`, `#weekendMeasurementAllowedWithoutAttendance`, `#unmarkedAttendanceAllowsMeasurement`; `HealthExamIntegrationTest#absentChildCannotStartExam` |
+| AC-14 | HLT-08 | `HealthExamIntegrationTest` 3 test (IT) | B5 | PASS: `HealthExamIntegrationTest#examSavesOnDayWithRoundMeasurement`, `#examPrefillsHeightWeightFromSameDayMeasurement`, `#newExamOnDayOfAnotherExamAsksLeaders`; `HealthRecordIntegrationTest#growthSeriesKeepsOnePointPerDayPreferringExam`, `#databaseKeepsOneRoundMeasurementPerDay`; `HealthGrowthReportIntegrationTest#sameDayExamIsCountedInsteadOfMeasurement` |
 
 ## Review Focus
 
@@ -427,3 +427,27 @@ Các tình huống spec không nói rõ, dễ gây lỗi cho người dùng. M�
 - Verify: chưa chạy (chưa sửa code)
 - Điều tra: đọc 19 ảnh, DB `carenest_scope2` (HS26041, HS26066, HS26140, lớp Mầm 1), code BE/FE nêu ở bảng Context
 - Tiếp: user trả lời Q1–Q5 → `approved` → Phase B1
+
+### 2026-11-24 — Làm xong B1–B6 (BE)
+- Commit theo task (nhánh `fix/G94-180-BE-FIX-10-school-year-scope`, chưa push):
+  - B1.1 `c09efe73` danh sách trẻ bỏ lớp đã đóng của trẻ chờ xếp lớp
+  - B1.2 `9c2b9033` + `cb6e2386` duplicate-check trả `campusId`, test
+  - B1.3 `ec465085` seed tuần thai
+  - B1.4 `147ac502` `SchoolDayMessages`
+  - B1.5 `4b869ed9` nghỉ học hôm nay/ngày học kế tiếp, `55e8c24a` `GET /children/{id}/leave-options`, `41f316cf` LEAVE trên bảng năm mới, `4c8882a7` `ScheduledLeaveJob` 00:05, `4258bb83` test từng luật ngày nghỉ
+  - B2 `f872c899` `placement-classes` `from`/`childId`/`occupiedCount`
+  - B3 `fbf40eba` `ExcelZeroFix` + note xem trước
+  - B4 `925910be` roster chuyển lớp/kỳ nối, `4a3af2b2` chặn trẻ vắng (5042), `82027a54` docs luật (HLT-01, HLT-09)
+  - B5 `185b3d97` phiếu khám cùng ngày số đo (V180), `6edfaa6e` 1 điểm tăng trưởng mỗi ngày, `fa6a28fd` docs luật
+  - B6 tài liệu module/contract/flow/data dictionary + kết quả plan (2 commit cuối)
+- Verify: full tại `ec465085`: 2353 test, 0 fail, 14 error Edu nanoTime flake (không phải regression). Full tại `6edfaa6e`: 2397 test, 0 fail, 14 error Edu flake, 3 skip. B6 (docs + 1 comment): `check-ai-layer` 0 lỗi; `verify --quick` tự nâng lên full ("không map được test theo tên"): 2397 test, 0 fail, 14 error Edu flake, 3 skip (VERIFY FAIL chỉ vì flake đã biết).
+- Khác plan:
+  - Migration là `V180` (không phải V178; V178/V179 đã bị nhánh khác dùng): bỏ UNIQUE `(child_id, date)`, thêm 2 UNIQUE có điều kiện `uk_health_measurements_child_date_round` / `_exam`.
+  - Thêm endpoint `GET /children/{id}/leave-options` (không có trong plan) cho hộp Cho nghỉ học.
+  - `ScheduledLeaveJob` chỉ chạy theo cron 00:05, không chạy lúc khởi động.
+  - Trẻ nghỉ từ ngày học kế tiếp hiện trạng thái LEAVE trên bảng xếp lớp năm mới (plan không nêu).
+  - Chỉ nối các kỳ cân đo (MEASUREMENT) giữa điểm trường; đợt khám không nối.
+  - Báo cáo tăng trưởng tính lớp tại lúc đo.
+  - `findLatestMeasurement` không đổi.
+- App: grep `carenest_app` (dart) không có `placement-classes`, `duplicate-check`, `leave-options`, `withdraw`; `/health/measurements` và `health-checks` chỉ xuất hiện trong plan/tài liệu (`docs/plans/active/2026-11-15-teacher-api-integration.md`, `2026-11-16-app-be-integration.md`, `docs/integration/BE_API_INDEX.md`), không có code dart gọi ⇒ chưa ảnh hưởng. Khi App làm màn nhập số đo của GV phải đọc `canEdit`, `movedTo`, `measuredIn`, `absentToday`, mã 5042.
+- Còn lại: FE đồng bộ contract (`api-index --from ../be-school-year-scope`) ở plan FE; file test tay `TEST-tac-dong-Can-2026-11-23.md` đã cập nhật (B6, B7, C0, C5, F5, H1, ca mới F5b, F5c).
