@@ -1127,8 +1127,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         log.info("{}|START", logPrefix);
         try {
             EduPlan source = loadPlanForUpdate(currentUser, planId);
-            if (source.getPlanLevel() == EduPlanLevel.TEAM)
-                throw GlobalException.of(ApiCode.YEAR_PLAN_VERSION_COMPARE_INVALID);
+            // EDU-112 (2): kế hoạch năm học và kế hoạch tổ đều tạo phiên bản điều chỉnh trước hạn
             // EDU-25: người được sửa kế hoạch (PHT, TT nhóm tuổi) tạo phiên bản
             if (!eduWorkflowService.isAuthorEligible(
                     currentUser, source.workflowKey(), source.getSchoolYearId(), source.getAgeGroupId(), null)) {
@@ -2371,10 +2370,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         && canDeleteAsVicePrincipal(user)
                         && author,
                 yearOpen
-                        && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                         && plan.getId().equals(currentId)
                         && chain.stream().allMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED)
-                        // EDU-07: người có quyền soạn tạo phiên bản
+                        // EDU-07, EDU-112 (2): người có quyền soạn tạo phiên bản trước hạn (năm học và tổ)
                         && isAuthor(user, plan)
                         && !timeLock.locked(plan),
                 EduPlanAccessPolicy.canExport(
