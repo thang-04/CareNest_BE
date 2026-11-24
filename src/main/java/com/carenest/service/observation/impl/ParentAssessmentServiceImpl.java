@@ -212,15 +212,12 @@ public class ParentAssessmentServiceImpl implements ParentAssessmentService {
                 return new ParentEvaluationsResponse(childId, yearId, List.of(), List.of(), null);
             }
             List<ChildEvaluation> confirmed = evaluationRepository.findByChildIdAndSchoolYearIdAndStatusAndPeriodTypeIn(
-                    childId,
-                    yearId,
-                    EvaluationStatus.CONFIRMED,
-                    List.of(EvaluationPeriodType.SEMESTER, EvaluationPeriodType.YEAR));
+                    childId, yearId, EvaluationStatus.CONFIRMED, List.of(EvaluationPeriodType.YEAR));
             ParentEvaluationsResponse response = new ParentEvaluationsResponse(
                     childId,
                     yearId,
                     themes(childId, yearId, classIds, all),
-                    semesters(childId, yearId, classIds, all, confirmed),
+                    semesters(yearId, childId, classIds, all),
                     yearEnd(confirmed, all));
             log.info("{}|END", logPrefix);
             return response;
@@ -494,9 +491,9 @@ public class ParentAssessmentServiceImpl implements ParentAssessmentService {
         return result;
     }
 
-    // OBS-25: kết quả học kỳ đã xác nhận (chụp lúc xác nhận) và nhận xét học kỳ giáo viên đã xác nhận
-    private List<ParentSemesterResult> semesters(
-            Long childId, Long yearId, List<Long> classIds, Stays stays, List<ChildEvaluation> confirmed) {
+    // OBS-25: kết quả Đánh giá học kỳ đã xác nhận (chụp lúc xác nhận). Cần chốt 24/11/2026: bỏ nhận xét học kỳ cá nhân
+    // ⇒ comment luôn null (giữ trường cho client cũ)
+    private List<ParentSemesterResult> semesters(Long yearId, Long childId, List<Long> classIds, Stays stays) {
         List<ParentSemesterResult> result = new ArrayList<>();
         for (SemesterAssessment sa :
                 semesterRepository.findByClassroomIdInAndSchoolYearIdAndConfirmedAtIsNotNull(classIds, yearId)) {
@@ -512,14 +509,6 @@ public class ParentAssessmentServiceImpl implements ParentAssessmentService {
             if (row == null) {
                 continue;
             }
-            String comment = confirmed.stream()
-                    .filter(e -> e.getPeriodType() == EvaluationPeriodType.SEMESTER
-                            && e.getClassroomId().equals(sa.getClassroomId())
-                            && e.getPeriodStart().equals(sa.getStart()))
-                    .map(ChildEvaluation::getFinalContent)
-                    .filter(Objects::nonNull)
-                    .findFirst()
-                    .orElse(null);
             ClassroomInfoResponse cls = stays.classInfo(sa.getClassroomId());
             result.add(new ParentSemesterResult(
                     sa.getClassroomId(),
@@ -535,7 +524,7 @@ public class ParentAssessmentServiceImpl implements ParentAssessmentService {
                                             .toList(),
                                     null))
                             .toList(),
-                    comment,
+                    null,
                     sa.getConfirmedAt()));
         }
         result.sort(Comparator.comparing(ParentSemesterResult::semester));

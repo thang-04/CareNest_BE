@@ -807,6 +807,11 @@ public enum ApiCode {
     DOMAIN_NAME_EXISTS(7207, HttpStatus.CONFLICT, "Tên lĩnh vực {0} đã tồn tại"),
 
     // ========== 73xx ĐÁNH GIÁ TRẺ ==========
+    // Cần chốt 24/11/2026: bỏ nhận xét tháng và nhận xét học kỳ cá nhân; chỉ còn cuối năm
+    EVALUATION_PERIOD_RETIRED(
+            7375,
+            HttpStatus.CONFLICT,
+            "Nhận xét tháng và nhận xét học kỳ cá nhân đã bỏ, chỉ xem lại được. Nhận xét cuối năm dùng như cũ"),
     ASSESSMENT_FUTURE_DATE(7301, HttpStatus.BAD_REQUEST, "Chỉ đánh giá cho hôm nay hoặc ngày đã qua"),
     ASSESSMENT_NOT_SCHOOL_DAY(7302, HttpStatus.BAD_REQUEST, "Ngày đã chọn không phải ngày học"),
     ASSESSMENT_DATE_OUT_OF_YEAR(7303, HttpStatus.BAD_REQUEST, "Chọn ngày trong năm học của lớp, từ {0} đến hôm nay"),

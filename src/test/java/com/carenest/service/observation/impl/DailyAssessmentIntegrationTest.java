@@ -1113,38 +1113,6 @@ class DailyAssessmentIntegrationTest {
                 .isEqualTo(nextDoc);
     }
 
-    @Test
-    void monthlyDraftSurvivesTransferWithoutDuplicateOrLostName() {
-        var month = com.carenest.utils.enums.EvaluationPeriodType.MONTH;
-        attendance(child1, classA, LocalDate.of(2026, 9, 15));
-        var old = evaluations
-                .list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1))
-                .getFirst();
-        jdbc.update(
-                "UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ? AND classroom_id = ?",
-                child1,
-                classA);
-        jdbc.update(
-                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-20')",
-                child1,
-                classB);
-        attendance(child1, classB, LocalDate.of(2026, 9, 21));
-        entityManager.clear();
-        var next = evaluations
-                .list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1))
-                .getFirst();
-        assertThat(next.id()).isNotEqualTo(old.id());
-        assertThat(evaluations.list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1)))
-                .hasSize(1);
-        assertThat(evaluations.get(teacherA, old.id()).child().fullName()).isEqualTo("An");
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM child_evaluations WHERE child_id = ? AND period_type = 'MONTH'",
-                        Integer.class,
-                        child1))
-                .isEqualTo(2);
-        expectCode(() -> evaluations.get(teacherB, old.id()), ApiCode.EVALUATION_VIEW_FORBIDDEN);
-    }
-
     private static final String AI_TEXT = "{TEN} đi học 1 ngày trong tháng 09/2026, hay giúp bạn xếp đồ chơi. "
             + "Cô và gia đình tiếp tục khuyến khích con tự tin hơn khi tham gia hoạt động ở lớp.";
 
@@ -1401,24 +1369,69 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("GV chỉ có quyền xem mở danh sách đánh giá tháng không tạo bản nháp (không ghi DB)")
-    void viewOnlyTeacherListingMonthEvaluationsCreatesNoDrafts() {
+    @DisplayName("Cần chốt 24/11/2026: bỏ nhận xét tháng, nhận xét học kỳ cá nhân ⇒ mở danh sách không tạo nháp")
+    void retiredPeriodsCreateNoDrafts() {
         attendance(child1, classA, LocalDate.of(2026, 9, 15));
-        var viewOnly = new CurrentUser(
-                teacherA.userId(),
-                teacherA.keycloakUserId(),
-                teacherA.username(),
-                teacherA.fullName(),
-                null,
-                teacherA.roles(),
-                Set.of(Permission.ASSESSMENT_VIEW));
-        var month = com.carenest.utils.enums.EvaluationPeriodType.MONTH;
-        assertThat(evaluations.list(viewOnly, month, null, classA, LocalDate.of(2026, 9, 1)))
+        jdbc.update("UPDATE school_years SET semester1_start = start_date, semester1_end = '2026-09-30', "
+                + "semester2_start = '2026-10-01', semester2_end = end_date WHERE status = 'ACTIVE'");
+        entityManager.clear();
+
+        assertThat(evaluations.list(
+                        teacherA,
+                        com.carenest.utils.enums.EvaluationPeriodType.MONTH,
+                        null,
+                        classA,
+                        LocalDate.of(2026, 9, 1)))
+                .isEmpty();
+        assertThat(evaluations.list(
+                        teacherA, com.carenest.utils.enums.EvaluationPeriodType.SEMESTER, null, classA, null))
                 .isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM child_evaluations", Integer.class))
                 .isZero();
-        assertThat(evaluations.list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1)))
-                .isNotEmpty();
+    }
+
+    @Test
+    @DisplayName(
+            "Cần chốt 24/11/2026: nhận xét tháng / học kỳ cá nhân cũ vẫn xem được nhưng không sửa, xác nhận, tạo lại")
+    void retiredPeriodRowsStayReadableButNotWritable() {
+        long month = retiredEvaluation("MONTH", "2026-09-01", "2026-09-30");
+        long semester = retiredEvaluation("SEMESTER", "2026-09-01", "2026-09-30");
+        entityManager.clear();
+
+        assertThat(evaluations.list(
+                        teacherA,
+                        com.carenest.utils.enums.EvaluationPeriodType.MONTH,
+                        null,
+                        classA,
+                        LocalDate.of(2026, 9, 1)))
+                .extracting(com.carenest.dto.observation.EvaluationDtos.EvaluationRow::id)
+                .containsExactly(month);
+        assertThat(evaluations.get(teacherA, semester).evaluation().id()).isEqualTo(semester);
+        for (long id : List.of(month, semester)) {
+            expectCode(
+                    () -> evaluations.saveContent(teacherA, id, "Nhận xét đã được giáo viên kiểm tra đầy đủ dữ liệu."),
+                    ApiCode.EVALUATION_PERIOD_RETIRED);
+            expectCode(
+                    () -> evaluations.confirm(teacherA, id, "Nhận xét đã được giáo viên kiểm tra đầy đủ dữ liệu."),
+                    ApiCode.EVALUATION_PERIOD_RETIRED);
+            expectCode(() -> evaluations.redraft(teacherA, id, true), ApiCode.EVALUATION_PERIOD_RETIRED);
+        }
+        verify(aiGateway, never()).complete(any());
+    }
+
+    // Nhận xét tháng / học kỳ cá nhân có từ trước khi bỏ (Cần chốt 24/11/2026)
+    private long retiredEvaluation(String type, String start, String end) {
+        return jdbc.queryForObject(
+                "INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id, period_type,"
+                        + " period_start, period_end, status, draft_content, draft_at, created_at, updated_at)"
+                        + " SELECT ?, c.id, c.campus_id, c.school_year_id, ?, ?::date, ?::date, 'AWAITING_REVIEW',"
+                        + " 'Nháp cũ', now(), now(), now() FROM classrooms c WHERE c.id = ? RETURNING id",
+                Long.class,
+                child1,
+                type,
+                start,
+                end,
+                classA);
     }
 
     @Test
@@ -1580,33 +1593,6 @@ class DailyAssessmentIntegrationTest {
 
     @Autowired
     private com.carenest.service.observation.QualityReportService qualityReports;
-
-    @Test
-    void firstMonthlyListingIncludesChildWhoTransferredBeforeMonthEnd() {
-        attendance(child1, classA, LocalDate.of(2026, 9, 15));
-        jdbc.update(
-                "UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ? AND classroom_id = ?",
-                child1,
-                classA);
-        jdbc.update(
-                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-20')",
-                child1,
-                classB);
-        attendance(child1, classB, LocalDate.of(2026, 9, 21));
-        entityManager.clear();
-        var month = com.carenest.utils.enums.EvaluationPeriodType.MONTH;
-        var old = evaluations.list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1));
-        assertThat(old)
-                .extracting(com.carenest.dto.observation.EvaluationDtos.EvaluationRow::childId)
-                .containsExactly(child1);
-        assertThat(old.getFirst().childName()).isEqualTo("An");
-        assertThat(evaluations.list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1)))
-                .extracting(com.carenest.dto.observation.EvaluationDtos.EvaluationRow::childId)
-                .contains(child1);
-        assertThat(evaluations.list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1)))
-                .hasSize(1);
-        expectCode(() -> evaluations.get(teacherB, old.getFirst().id()), ApiCode.EVALUATION_VIEW_FORBIDDEN);
-    }
 
     @Test
     @DisplayName("OBS-23: hôm nay lớp chưa điểm danh thì chưa tính là ngày phải đi (không hạ bé chăm, chuyên cần)")

@@ -381,20 +381,10 @@ class EvaluationDeadlineIntegrationTest {
     }
 
     @Test
-    @DisplayName("OBS-30: tiến độ học kỳ không tính trẻ đã chuyển lớp, nên lớp xác nhận đủ thì không còn quá hạn")
-    void semesterProgressExcludesChildrenWhoLeftTheClass() {
-        long classB = jdbc.queryForObject("SELECT id FROM classrooms WHERE name = 'Lớp B'", Long.class);
-        long mover =
-                insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ("
-                        + "'ED' || substr(md5(random()::text), 1, 12), 'Bình', '2023-01-01', 'MALE', 'ACTIVE', '2026-09-01')"
-                        + " RETURNING id");
-        jdbc.update(
-                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01', "
-                        + "'2026-10-10'), (?, ?, '2026-10-11', NULL)",
-                mover,
-                classA,
-                mover,
-                classB);
+    @DisplayName(
+            "Cần chốt 24/11/2026: tiến độ, quá hạn kỳ học kỳ theo Đánh giá học kỳ của lớp, không theo nhận xét cá nhân")
+    void semesterProgressFollowsClassSemesterAssessment() {
+        // Nhận xét học kỳ cá nhân cũ đã xác nhận không còn tính
         jdbc.update(
                 "INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id, period_type, "
                         + "period_start, period_end, status, final_content, confirmed_by, confirmed_at, created_at, "
@@ -410,6 +400,18 @@ class EvaluationDeadlineIntegrationTest {
                         p.kind() == com.carenest.utils.enums.EvaluationLockKind.SEMESTER && "1".equals(p.periodKey()))
                 .findFirst()
                 .orElseThrow();
+        assertThat(service.progress(cls, semester1)).containsExactly(0, 1);
+        assertThat(service.overdueOf(List.of(cls)))
+                .extracting(OverdueClassItem::kind, OverdueClassItem::periodKey)
+                .contains(org.assertj.core.groups.Tuple.tuple("SEMESTER", "1"));
+
+        jdbc.update(
+                "INSERT INTO semester_assessments (classroom_id, campus_id, school_year_id, semester_no, period_start,"
+                        + " period_end, result_snapshot, confirmed_by, confirmed_at) SELECT id, campus_id,"
+                        + " school_year_id, 1, '2026-09-01', '2026-10-23', '{}', ?, now() FROM classrooms WHERE id = ?",
+                teacherA.userId(),
+                classA);
+
         assertThat(service.progress(cls, semester1)).containsExactly(1, 1);
         assertThat(service.overdueOf(List.of(cls)))
                 .extracting(OverdueClassItem::kind, OverdueClassItem::periodKey)

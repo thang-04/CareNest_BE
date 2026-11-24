@@ -336,7 +336,8 @@ class ParentAssessmentIntegrationTest {
             assertThat(s.domains())
                     .singleElement()
                     .satisfies(d -> assertThat(d.goals()).hasSize(1));
-            assertThat(s.comment()).isEqualTo("Nhận xét học kỳ I");
+            // Cần chốt 24/11/2026: bỏ nhận xét học kỳ cá nhân ⇒ không trả cho phụ huynh dù có dữ liệu cũ
+            assertThat(s.comment()).isNull();
         });
         assertThat(result.yearEnd().className()).isEqualTo("Lớp B");
         assertThat(result.yearEnd().met()).isEqualTo(1);

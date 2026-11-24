@@ -6,7 +6,7 @@ Feature: `observation` (trong `controller/`, `service/`, `repository/`, ... — 
 Hồ sơ phát triển liên tục của trẻ: đánh giá hằng ngày có cấu trúc, đánh giá hằng ngày theo MT của giáo án đã duyệt, nhận xét định kỳ, khen thưởng; nhận xét chung về lớp mỗi ngày cho báo cáo BGH (RPT-02).
 
 ## Owns
-ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ (tháng/học kỳ/năm — `EvaluationPeriodType` MONTH/SEMESTER/YEAR; học kỳ lấy ngày học kỳ của năm học; DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
+ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ theo trẻ (Cần chốt 24/11/2026: chỉ còn cuối năm `YEAR`; `MONTH`/`SEMESTER` giữ trong enum cho dữ liệu cũ, chỉ xem — không tạo nháp, nhắc hạn, tiến độ, AI, trả phụ huynh A6; sửa / xác nhận / tạo lại nháp ⇒ `EVALUATION_PERIOD_RETIRED` 7375; DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
 
 ## KHÔNG owns
 Kế hoạch giáo dục, giáo án và hoạt động, MT của chúng (module education-plan, ADR-0020 — chỉ đọc bản đã duyệt, OBS-07); dữ liệu sức khỏe/điểm danh/bữa ăn (chỉ đọc).
@@ -43,6 +43,7 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng enum theo danh sách FE đã chốt với Cần, lệch OBS-02 cho tới khi có màn cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
 
 ## Known pitfalls
+- Kỳ học kỳ ở hạn / mở lại / nhắc (`EvaluationLockKind.SEMESTER`) dùng chung cho Đánh giá học kỳ theo lĩnh vực (`SemesterAssessmentServiceImpl`); tiến độ, quá hạn kỳ này tính theo `semester_assessments` đã xác nhận của lớp (Cần chốt 24/11/2026), không theo nhận xét học kỳ cá nhân.
 
 - OBS-28: freeze chốt cả kết quả và metadata MT (số, câu, lĩnh vực) — đã sửa, xem [lỗi phiếu cuối năm](../knowledge/incidents/BUG-261104-confirmed-year-sheet-live-goals.md). Khi client lưu/tải lại phiếu, cần giữ hoặc khóa nháp trong lúc chờ để tránh mất nội dung.
 

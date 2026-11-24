@@ -142,11 +142,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 // nhận
                 // nên lượt xem của họ không ghi DB, không khóa lớp
                 // Chỉ quyền ghi mới tạo nháp: người chỉ có ASSESSMENT_VIEW mở danh sách không ghi DB
-                if (cls.yearStatus() == SchoolYearStatus.ACTIVE
+                if (type == EvaluationPeriodType.YEAR
+                        && cls.yearStatus() == SchoolYearStatus.ACTIVE
                         && currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
                         && (rules.canRecordPeriod(currentUser, cls)
                                 || (type == EvaluationPeriodType.YEAR && rules.finishesYearEnd(currentUser, cls)))) {
-                    ensureDrafts(currentUser, cls, type);
+                    ensureDrafts(currentUser, cls);
                 }
             }
             Map<Long, ClassroomInfoResponse> byId =
@@ -699,54 +700,26 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
 
     // ---------- tạo bản nháp ----------
 
-    // Tháng: mỗi tháng đã kết thúc của năm học, trẻ có đi học hoặc có đánh giá trong tháng.
-    // Học kỳ (OBS-06): mỗi học kỳ đã đặt ngày ở Cấu hình thời gian và đã kết thúc, như tháng.
-    // Cuối năm: từ ngày 1 tháng cuối của năm học, mọi trẻ đang học lớp.
-    private void ensureDrafts(CurrentUser currentUser, ClassroomInfoResponse cls, EvaluationPeriodType type) {
+    // Cuối năm: từ ngày 1 tháng cuối của năm học, mọi trẻ đang học lớp. Cần chốt 24/11/2026: bỏ nhận xét tháng và nhận
+    // xét học kỳ cá nhân, không tạo nháp hai loại này nữa (dữ liệu cũ chỉ xem)
+    private void ensureDrafts(CurrentUser currentUser, ClassroomInfoResponse cls) {
         classroomService.lockForUpdate(cls.id());
-        LocalDate today = rules.today();
+        if (!yearEndOpen(currentUser, cls)) {
+            return;
+        }
+        EvaluationPeriodType type = EvaluationPeriodType.YEAR;
         Set<String> existing = evaluationRepository.findByClassroomIdInAndPeriodType(List.of(cls.id()), type).stream()
                 .map(e -> e.getChildId() + "|" + e.getPeriodStart())
                 .collect(Collectors.toCollection(HashSet::new));
-        List<ChildEvaluation> created = new ArrayList<>();
-        if (type == EvaluationPeriodType.MONTH) {
-            for (LocalDate m = cls.yearStart().withDayOfMonth(1); !m.isAfter(cls.yearEnd()); m = m.plusMonths(1)) {
-                LocalDate start = maxDate(m, cls.yearStart());
-                LocalDate end = minDate(m.with(TemporalAdjusters.lastDayOfMonth()), cls.yearEnd());
-                if (!end.isBefore(today)) {
-                    break;
-                }
-                created.addAll(draftsFor(cls, type, start, end, existing, Map.of()));
-            }
-        } else if (type == EvaluationPeriodType.SEMESTER) {
-            SchoolYearDetailResponse year = schoolYearService.getSchoolYear(currentUser, cls.schoolYearId());
-            List<LocalDate[]> semesters = List.of(
-                    new LocalDate[] {year.semester1Start(), year.semester1End()},
-                    new LocalDate[] {year.semester2Start(), year.semester2End()});
-            for (LocalDate[] s : semesters) {
-                if (s[0] == null || s[1] == null) {
-                    continue;
-                }
-                LocalDate start = maxDate(s[0], cls.yearStart());
-                LocalDate end = minDate(s[1], cls.yearEnd());
-                // Học kỳ kết thúc trong tháng cuối năm học mở cùng lúc với cuối năm: năm cũ có thể bị đóng ngay khi
-                // kích hoạt năm mới, không chờ được tới sau ngày kết thúc
-                boolean lastMonth = yearEndOpen(currentUser, cls)
-                        && !end.isBefore(cls.yearEnd().withDayOfMonth(1));
-                if (!end.isBefore(today) && !lastMonth) {
-                    continue;
-                }
-                created.addAll(draftsFor(cls, type, start, end, existing, confirmedMonthsBetween(cls, start, end)));
-            }
-        } else if (yearEndOpen(currentUser, cls)) {
-            Map<Long, Integer> months =
-                    evaluationRepository
-                            .findByClassroomIdInAndPeriodType(List.of(cls.id()), EvaluationPeriodType.MONTH)
-                            .stream()
-                            .filter(ChildEvaluation::isConfirmed)
-                            .collect(Collectors.toMap(ChildEvaluation::getChildId, e -> 1, Integer::sum));
-            created.addAll(draftsFor(cls, type, cls.yearStart(), cls.yearEnd(), existing, months));
-        }
+        // Đánh giá tháng đã xác nhận trước đây vẫn đếm vào nháp cuối năm
+        Map<Long, Integer> months =
+                evaluationRepository
+                        .findByClassroomIdInAndPeriodType(List.of(cls.id()), EvaluationPeriodType.MONTH)
+                        .stream()
+                        .filter(ChildEvaluation::isConfirmed)
+                        .collect(Collectors.toMap(ChildEvaluation::getChildId, e -> 1, Integer::sum));
+        List<ChildEvaluation> created =
+                new ArrayList<>(draftsFor(cls, type, cls.yearStart(), cls.yearEnd(), existing, months));
         if (created.isEmpty()) {
             return;
         }
@@ -756,7 +729,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 // Nháp tạo sẵn luôn từ mẫu câu (EvaluationDraftWriter), không phải AI
                 .map(e -> ChildEvaluationEvent.of(e.getId(), EvaluationAction.TEMPLATE_DRAFTED, null, at))
                 .toList());
-        log.info("{}|ensureDrafts|classId={}|type={}|created={}", LOG_PREFIX, cls.id(), type, saved.size());
+        log.info("{}|ensureDrafts|classId={}|created={}", LOG_PREFIX, cls.id(), saved.size());
     }
 
     private List<ChildEvaluation> draftsFor(
@@ -841,17 +814,6 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         }
     }
 
-    // Số đánh giá tháng đã xác nhận của từng trẻ trong lớp, tháng bắt đầu trong khoảng [start, end]
-    private Map<Long, Integer> confirmedMonthsBetween(ClassroomInfoResponse cls, LocalDate start, LocalDate end) {
-        return evaluationRepository
-                .findByClassroomIdInAndPeriodType(List.of(cls.id()), EvaluationPeriodType.MONTH)
-                .stream()
-                .filter(ChildEvaluation::isConfirmed)
-                .filter(e -> !e.getPeriodStart().isBefore(start)
-                        && !e.getPeriodStart().isAfter(end))
-                .collect(Collectors.toMap(ChildEvaluation::getChildId, e -> 1, Integer::sum));
-    }
-
     // Chỉ đếm đánh giá tháng của chính lớp này, khớp danh sách ở trang chi tiết
     private int confirmedMonths(ChildEvaluation ev) {
         return ev.getPeriodType() != EvaluationPeriodType.MONTH
@@ -889,6 +851,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     }
 
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {
+        // Cần chốt 24/11/2026: nhận xét tháng, nhận xét học kỳ cá nhân đã bỏ — dữ liệu cũ chỉ xem, không sửa / xác nhận
+        // /
+        // tạo lại nháp (chặn trước khi gọi AI)
+        if (ev.getPeriodType() != EvaluationPeriodType.YEAR) {
+            throw GlobalException.of(ApiCode.EVALUATION_PERIOD_RETIRED);
+        }
         ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
         boolean yearEnd = ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.finishesYearEnd(user, cls);
         if (!rules.canRecordPeriod(user, cls) && !yearEnd) {
@@ -910,14 +878,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         if (ev.getPeriodType() == EvaluationPeriodType.YEAR && !yearEndOpen(user, cls)) {
             throw GlobalException.of(ApiCode.YEAR_END_NOT_OPEN);
         }
-        // OBS-06, OBS-28: quá hạn sau ngày kết thúc học kỳ / HK II thì khóa cả lớp, trừ khi BGH đang mở lại
-        if (ev.getPeriodType() == EvaluationPeriodType.SEMESTER) {
-            evaluationDeadlineService.checkWritable(
-                    cls, EvaluationLockKind.SEMESTER, evaluationDeadlineService.semesterKey(cls, ev.getPeriodEnd()));
-        } else if (ev.getPeriodType() == EvaluationPeriodType.YEAR) {
-            evaluationDeadlineService.checkWritable(
-                    cls, EvaluationLockKind.YEAR, EvaluationDeadlineServiceImpl.YEAR_KEY);
-        }
+        // OBS-28: quá hạn sau ngày kết thúc HK II thì khóa cả lớp, trừ khi BGH đang mở lại
+        evaluationDeadlineService.checkWritable(cls, EvaluationLockKind.YEAR, EvaluationDeadlineServiceImpl.YEAR_KEY);
         return cls;
     }
 

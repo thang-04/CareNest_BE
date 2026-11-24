@@ -14,6 +14,7 @@ import com.carenest.entity.observation.ThemeEvaluation;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.observation.ChildEvaluationRepository;
 import com.carenest.repository.observation.EvaluationUnlockRepository;
+import com.carenest.repository.observation.SemesterAssessmentRepository;
 import com.carenest.repository.observation.ThemeEvaluationRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
@@ -64,6 +65,7 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
     private final EvaluationUnlockRepository unlockRepository;
     private final ChildEvaluationRepository childEvaluationRepository;
     private final ThemeEvaluationRepository themeEvaluationRepository;
+    private final SemesterAssessmentRepository semesterAssessmentRepository;
     private final EduPlanCalendarQueryService calendarQueryService;
     private final SchoolYearService schoolYearService;
     private final ClassroomService classroomService;
@@ -497,23 +499,19 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
                     .orElse(false);
             return new int[] {confirmed ? 1 : 0, 1};
         }
-        EvaluationPeriodType type =
-                p.kind() == EvaluationLockKind.YEAR ? EvaluationPeriodType.YEAR : EvaluationPeriodType.SEMESTER;
+        // Cần chốt 24/11/2026: kỳ học kỳ chỉ còn Đánh giá học kỳ theo lĩnh vực của lớp (bỏ nhận xét học kỳ cá nhân)
+        if (p.kind() == EvaluationLockKind.SEMESTER) {
+            boolean confirmed = semesterAssessmentRepository
+                    .findByClassroomIdAndSemester(cls.id(), Integer.parseInt(p.periodKey()))
+                    .map(a -> a.getConfirmedAt() != null)
+                    .orElse(false);
+            return new int[] {confirmed ? 1 : 0, 1};
+        }
+        EvaluationPeriodType type = EvaluationPeriodType.YEAR;
         LocalDate today = rules.today();
         LocalDate at = today.isAfter(cls.yearEnd()) ? cls.yearEnd() : today;
-        SchoolYearDetailResponse year =
-                schoolYearService.findSchoolYearDetail(cls.schoolYearId()).orElse(null);
-        // Cùng danh sách trẻ như khi tạo nháp: học kỳ = trẻ học lớp trong kỳ, cuối năm = trẻ đang học lớp
-        List<ClassChildResponse> roster;
-        if (type == EvaluationPeriodType.YEAR) {
-            roster = enrollmentService.findChildrenInClassroom(cls.id(), at);
-        } else {
-            LocalDate start = semesterStart(cls, year, p.periodKey());
-            LocalDate end = p.openFrom().isAfter(today) ? today : p.openFrom();
-            roster = end.isBefore(start)
-                    ? List.of()
-                    : enrollmentService.findChildrenInClassroomDuring(cls.id(), start, end);
-        }
+        // Cùng danh sách trẻ như khi tạo nháp cuối năm: trẻ đang học lớp
+        List<ClassChildResponse> roster = enrollmentService.findChildrenInClassroom(cls.id(), at);
         Set<Long> childIds =
                 roster.stream().map(ClassChildResponse::id).collect(Collectors.toCollection(java.util.HashSet::new));
         // Trẻ đã chuyển lớp / nghỉ học không còn ai xác nhận ở lớp này: không tính, để kỳ có thể hoàn tất
@@ -521,22 +519,14 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
                 childIds.isEmpty() ? Map.of() : enrollmentService.findActiveClassroomIdByChildIds(childIds, at);
         childIds.removeIf(id -> !cls.id().equals(active.get(id)));
         int total = childIds.size();
-        LocalDate s1End = year == null ? null : year.semester1End();
         Map<Long, Boolean> confirmedByChild =
                 childEvaluationRepository.findByClassroomIdInAndPeriodType(List.of(cls.id()), type).stream()
                         .filter(e -> childIds.contains(e.getChildId()))
-                        .filter(e -> type == EvaluationPeriodType.YEAR
-                                || p.periodKey().equals(semesterKeyOf(s1End, e.getPeriodEnd())))
                         .collect(Collectors.toMap(
                                 ChildEvaluation::getChildId, ChildEvaluation::isConfirmed, (a, b) -> a || b));
         int done = (int)
                 confirmedByChild.values().stream().filter(Boolean::booleanValue).count();
         return new int[] {done, total};
-    }
-
-    private static LocalDate semesterStart(ClassroomInfoResponse cls, SchoolYearDetailResponse year, String key) {
-        LocalDate start = year == null ? null : SEMESTER_1.equals(key) ? year.semester1Start() : year.semester2Start();
-        return start == null || start.isBefore(cls.yearStart()) ? cls.yearStart() : start;
     }
 
     private static String semesterKeyOf(LocalDate s1End, LocalDate periodEnd) {
