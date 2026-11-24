@@ -447,6 +447,9 @@ public enum ApiCode {
     PICKUP_CHILD_NOT_PRESENT(4105, HttpStatus.CONFLICT, "Trẻ chưa được điểm danh có mặt hôm nay"),
     PICKUP_CHILD_ABSENT(4106, HttpStatus.CONFLICT, "Trẻ được điểm danh vắng hôm nay"),
     PICKUP_ALREADY_HANDED_OVER(4107, HttpStatus.CONFLICT, "Trẻ đã được trả cho người đón hôm nay"),
+    // AUTH-04 (Cần chốt 24/11/2026): API phụ huynh xem điểm danh, sức khỏe đầu ngày của con
+    PARENT_CHILD_FORBIDDEN(4108, HttpStatus.FORBIDDEN, "Bạn chỉ xem được thông tin của con mình"),
+    PARENT_RANGE_INVALID(4109, HttpStatus.BAD_REQUEST, "Chọn khoảng ngày trong một năm học, tối đa {0} ngày"),
 
     // ========== 50xx SỨC KHỎE ==========
     HEALTH_OVERVIEW_ACCESS_DENIED(5001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp sức khỏe"),
