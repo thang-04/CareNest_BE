@@ -118,18 +118,23 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
             List<HealthCheckAbsence> absences =
                     campaignIds.isEmpty() ? List.of() : absenceRepository.findByCampaignIdIn(campaignIds);
 
-            // Danh sách lớp như màn đợt/kỳ, hợp theo trẻ trong từng điểm trường
+            // Danh sách lớp như màn đợt/kỳ, hợp theo trẻ trong từng điểm trường. Lần đo tính ở lớp đã đo: bỏ dòng hiện
+            // lần
+            // đo ở lớp khác (trẻ chuyển lớp, G94-180/HLT-09), không lấy kỳ liên quan
             Map<Long, Map<Long, ClassroomInfoResponse>> classesByCampus = new LinkedHashMap<>();
             Map<Long, Map<Long, List<Entry>>> entriesByCampus = new LinkedHashMap<>();
             for (CampusOptionResponse campus : campuses) {
                 Map<Long, ClassroomInfoResponse> classes = new LinkedHashMap<>();
                 Map<Long, List<Entry>> entries = new LinkedHashMap<>();
                 for (HealthCheckCampaign campaign : campaignsByCampus.getOrDefault(campus.id(), List.of())) {
+                    HealthCheckRules.Roster roster = rules.rosterOf(campaign, List.of(), measurements, absences);
                     for (ClassroomInfoResponse cls : rules.classesOf(campaign)) {
                         classes.putIfAbsent(cls.id(), cls);
-                        for (HealthCheckRules.Row row : rules.rosterOf(campaign, cls, measurements, absences)) {
-                            entries.computeIfAbsent(row.childId(), id -> new ArrayList<>())
-                                    .add(new Entry(campaign, row));
+                        for (HealthCheckRules.Row row : roster.rowsOf(cls)) {
+                            if (row.measuredIn() == null) {
+                                entries.computeIfAbsent(row.childId(), id -> new ArrayList<>())
+                                        .add(new Entry(campaign, row));
+                            }
                         }
                     }
                 }

@@ -573,13 +573,65 @@ class HealthExamIntegrationTest {
                 .isEqualTo(LocalDate.of(2026, 11, 10));
     }
 
+    @Test
+    @DisplayName("G94-180/HLT-09: trẻ chuyển lớp trong đợt khám ⇒ phiếu hiện ở lớp mới, GV lớp mới sửa; lớp cũ chỉ xem")
+    void examOfTransferredChildFollowsCurrentClass() {
+        long classA2 = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) SELECT "
+                + campusA + ", school_year_id, 'Lớp A2', age_group_id FROM classrooms WHERE id = " + classA
+                + " RETURNING id");
+        CurrentUser teacherA2 = user("he-teachera2", CareNestRole.TEACHER);
+        teach(teacherA2, classA2);
+        long campaign = examCampaign(campusA);
+        long examId = exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, ""))
+                .measurement()
+                .id();
+        // An khám ngày 10/11 ở Lớp A, chuyển sang Lớp A2 từ 12/11
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-11-11' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-11-12')",
+                child1,
+                classA2);
+        entityManager.clear();
+
+        HealthCheckClassResponse.HealthCheckChild inNew = rowIn(campaign, teacherA2, classA2, child1);
+        assertThat(inNew.measurementId()).isEqualTo(examId);
+        assertThat(inNew.result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(inNew.canEdit()).isTrue();
+        assertThat(inNew.measuredIn())
+                .isEqualTo(new HealthCheckClassResponse.MeasuredIn("Lớp A", "Điểm A", LocalDate.of(2026, 11, 10)));
+        HealthCheckClassResponse.HealthCheckChild inOld = rowIn(campaign, teacherA, classA, child1);
+        assertThat(inOld.movedTo())
+                .isEqualTo(new HealthCheckClassResponse.MovedTo("Lớp A2", "Điểm A", LocalDate.of(2026, 11, 12)));
+        assertThat(inOld.canEdit()).isFalse();
+        assertThat(checks.getHealthCheck(vpA, campaign).classes())
+                .extracting(c -> c.className(), c -> c.total(), c -> c.recorded())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Lớp A", 1, 0),
+                        org.assertj.core.groups.Tuple.tuple("Lớp A2", 1, 1));
+        // Phiếu khám theo lớp hiện tại của trẻ: GV lớp mới sửa được, GV lớp cũ không còn mở phiếu
+        assertThat(exams.getExam(teacherA2, campaign, child1).canEdit()).isTrue();
+        expectError(
+                () -> exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, "Sửa (giả)")),
+                ApiCode.HEALTH_EXAM_NOT_FOUND);
+    }
+
     private long examCampaign(long campusId) {
         return checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusId, "2026-11-10", "2026-11-20"))
                 .id();
     }
 
     private HealthCheckClassResponse.HealthCheckChild rowOf(long campaign, long childId) {
-        return checks.getHealthCheckClass(teacherA, campaign, classA).children().stream()
+        return rowIn(campaign, teacherA, classA, childId);
+    }
+
+    private HealthCheckClassResponse.HealthCheckChild rowIn(
+            long campaign, CurrentUser user, long classId, long childId) {
+        return checks.getHealthCheckClass(user, campaign, classId).children().stream()
                 .filter(c -> c.childId().equals(childId))
                 .findFirst()
                 .orElseThrow();

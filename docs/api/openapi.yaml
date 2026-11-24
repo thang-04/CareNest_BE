@@ -16424,6 +16424,8 @@ components:
           - OVERWEIGHT_RISK
           - OVERWEIGHT
           - OBESE
+        canEdit:
+          type: boolean
         childId:
           type: integer
           format: int64
@@ -16468,9 +16470,13 @@ components:
           type: string
         heightCm:
           type: number
+        measuredIn:
+          $ref: "#/components/schemas/MeasuredIn"
         measurementId:
           type: integer
           format: int64
+        movedTo:
+          $ref: "#/components/schemas/MovedTo"
         previous:
           $ref: "#/components/schemas/HealthPreviousExam"
         published:
@@ -18759,6 +18765,16 @@ components:
         weekStart:
           type: string
           format: date
+    MeasuredIn:
+      type: object
+      properties:
+        campusName:
+          type: string
+        className:
+          type: string
+        date:
+          type: string
+          format: date
     MedicalHistoryInput:
       type: object
       properties:
@@ -19128,6 +19144,16 @@ components:
         updatedAt:
           type: string
           format: date-time
+    MovedTo:
+      type: object
+      properties:
+        campusName:
+          type: string
+        className:
+          type: string
+        from:
+          type: string
+          format: date
     MultiSummary:
       type: object
       properties:

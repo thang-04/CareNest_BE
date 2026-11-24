@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthCheckClassResponse;
 import com.carenest.dto.health.HealthCheckCloseResponse;
+import com.carenest.dto.health.HealthCheckDetailResponse;
 import com.carenest.dto.health.HealthCheckReopenRequest;
 import com.carenest.dto.health.HealthCheckRequest;
 import com.carenest.dto.health.HealthCheckResponse;
@@ -102,6 +104,7 @@ class HealthCheckIntegrationTest {
     private long campusA;
     private long campusB;
     private long classA;
+    private long classB;
     private long child1;
     private long child2;
 
@@ -115,8 +118,8 @@ class HealthCheckIntegrationTest {
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         classA = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusA
                 + ", " + year + ", 'Lớp A', " + ag3 + ") RETURNING id");
-        long classB = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
-                + campusB + ", " + year + ", 'Lớp B', " + ag3 + ") RETURNING id");
+        classB = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusB
+                + ", " + year + ", 'Lớp B', " + ag3 + ") RETURNING id");
         child1 = child("An", "2023-01-01");
         child2 = child("Bình", "2023-02-01");
         enroll(child1, classA);
@@ -733,6 +736,275 @@ class HealthCheckIntegrationTest {
                         request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2027-09-05")),
                 "endDate",
                 "Ngày khám phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
+    }
+
+    // ---------- G94-180/HLT-09 (user chốt 2026-11-24, Q2 = A): trẻ chuyển lớp khi kỳ đang mở ----------
+
+    @Test
+    @DisplayName(
+            "G94-180/HLT-09: chuyển lớp trong kỳ ⇒ lớp mới thấy số đo, sửa được; lớp cũ chỉ xem, không tính tiến độ")
+    void transferWithinRoundMovesEditingToNewClass() {
+        long classA2 = classroom(campusA, "Lớp A2");
+        CurrentUser teacherA2 = user("hc-teachera2", CareNestRole.TEACHER);
+        teach(teacherA2, classA2);
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
+        HealthMeasurementResponse saved = measurements.createMeasurement(teacherA, child1, measure(round.id()));
+        // An cân ngày 10/11 ở Lớp A, chuyển sang Lớp A2 hôm nay (12/11)
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
+        transfer(child1, classA, classA2, "2026-11-12");
+
+        HealthCheckClassResponse.HealthCheckChild inNew =
+                rowOf(checks.getHealthCheckClass(teacherA2, round.id(), classA2), child1);
+        assertThat(inNew.result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(inNew.measurementId()).isEqualTo(saved.id());
+        assertThat(inNew.canEdit()).isTrue();
+        assertThat(inNew.movedTo()).isNull();
+        assertThat(inNew.measuredIn())
+                .isEqualTo(new HealthCheckClassResponse.MeasuredIn("Lớp A", "Điểm A", LocalDate.of(2026, 11, 10)));
+
+        HealthCheckClassResponse old = checks.getHealthCheckClass(teacherA, round.id(), classA);
+        HealthCheckClassResponse.HealthCheckChild inOld = rowOf(old, child1);
+        assertThat(inOld.result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(inOld.movedTo())
+                .isEqualTo(new HealthCheckClassResponse.MovedTo("Lớp A2", "Điểm A", LocalDate.of(2026, 11, 12)));
+        assertThat(inOld.canEdit()).isFalse();
+        assertThat(inOld.measuredIn()).isNull();
+        // Bình còn ở Lớp A, chưa cân: GV Lớp A vẫn nhập cho Bình
+        assertThat(rowOf(old, child2).canEdit()).isTrue();
+
+        HealthCheckDetailResponse detail = checks.getHealthCheck(vpA, round.id());
+        assertThat(detail.classes())
+                .extracting(
+                        HealthCheckDetailResponse.HealthCheckClassProgress::className,
+                        HealthCheckDetailResponse.HealthCheckClassProgress::total,
+                        HealthCheckDetailResponse.HealthCheckClassProgress::recorded,
+                        HealthCheckDetailResponse.HealthCheckClassProgress::notRecorded)
+                .containsExactly(tuple("Lớp A", 1, 0, 1), tuple("Lớp A2", 1, 1, 0));
+        assertThat(detail.campaign().progress().total()).isEqualTo(2);
+        assertThat(detail.campaign().progress().recorded()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/HLT-09: chuyển điểm trường ⇒ kỳ cùng loại, cùng năm, giao ngày ở điểm trường mới có số đo đã đo")
+    void transferAcrossCampusesShowsMeasurementFromLinkedRound() {
+        LinkedTransfer t = measuredAtCampusBThenMovedToA();
+
+        HealthCheckClassResponse.HealthCheckChild inNew =
+                rowOf(checks.getHealthCheckClass(teacherA, t.roundA(), classA), t.child());
+        assertThat(inNew.result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(inNew.measurementId()).isEqualTo(t.measurementId());
+        assertThat(inNew.heightCm()).isEqualByComparingTo("98.5");
+        assertThat(inNew.canEdit()).isTrue();
+        assertThat(inNew.measuredIn())
+                .isEqualTo(new HealthCheckClassResponse.MeasuredIn("Lớp B", "Điểm B", LocalDate.of(2026, 11, 10)));
+        HealthCheckResponse roundA = checks.getHealthCheck(vpA, t.roundA()).campaign();
+        assertThat(roundA.progress().total()).isEqualTo(3);
+        assertThat(roundA.progress().recorded()).isEqualTo(1);
+        // Số đo vẫn thuộc kỳ của điểm B: kỳ điểm A chưa có kết quả của mình (hủy được)
+        assertThat(roundA.hasResults()).isFalse();
+
+        HealthCheckClassResponse.HealthCheckChild inOld =
+                rowOf(checks.getHealthCheckClass(teacherB, t.roundB(), classB), t.child());
+        assertThat(inOld.movedTo())
+                .isEqualTo(new HealthCheckClassResponse.MovedTo("Lớp A", "Điểm A", LocalDate.of(2026, 11, 12)));
+        assertThat(inOld.canEdit()).isFalse();
+        HealthCheckResponse roundB = checks.getHealthCheck(vpB, t.roundB()).campaign();
+        assertThat(roundB.progress().total()).isZero();
+        assertThat(roundB.hasResults()).isTrue();
+
+        // Sổ sức khỏe: kỳ đang mở ở điểm A tính là đã cân, không mời nhập lần hai
+        ChildHealthRecordResponse.HealthOpenCampaign open =
+                measurements.getHealthRecord(teacherA, t.child()).openCampaign();
+        assertThat(open.id()).isEqualTo(t.roundA());
+        assertThat(open.resultMeasurementId()).isEqualTo(t.measurementId());
+        assertThat(open.resultStatus()).isEqualTo("RECORDED");
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/HLT-09, HLT-13: GV lớp mới sửa số đo đo ở lớp cũ ⇒ thành người đo, có lịch sử, số đo ở lại nơi đo")
+    void newClassTeacherEditsMovedMeasurement() {
+        LinkedTransfer t = measuredAtCampusBThenMovedToA();
+
+        HealthMeasurementResponse edited = measurements.updateMeasurement(
+                teacherA, t.child(), t.measurementId(), edit("99.0", "Đo lại ở lớp mới (giả)"));
+
+        assertThat(edited.heightCm()).isEqualByComparingTo("99.0");
+        assertThat(edited.measuredBy()).isEqualTo(teacherA.userId());
+        assertThat(edited.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        entityManager.flush();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM health_measurement_edits WHERE measurement_id = ? AND user_id = ?",
+                        Long.class,
+                        t.measurementId(),
+                        teacherA.userId()))
+                .isEqualTo(1L);
+        assertThat(jdbc.queryForMap(
+                        "SELECT campaign_id, classroom_id, measured_by FROM health_measurements WHERE id = ?",
+                        t.measurementId()))
+                .containsEntry("campaign_id", t.roundB())
+                .containsEntry("classroom_id", classB)
+                .containsEntry("measured_by", teacherA.userId());
+    }
+
+    @Test
+    @DisplayName("G94-180/HLT-09: GV lớp cũ không sửa được số đo của trẻ đã chuyển lớp (5023)")
+    void oldClassTeacherCannotEditMovedMeasurement() {
+        LinkedTransfer t = measuredAtCampusBThenMovedToA();
+
+        expectError(
+                () -> measurements.updateMeasurement(teacherB, t.child(), t.measurementId(), edit("99.0", "Sửa (giả)")),
+                ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/HLT-09: đã đo ở kỳ liên quan ⇒ không nhập lần hai ở kỳ điểm trường mới (5019, câu nêu kỳ, ngày đo)")
+    void secondMeasurementInLinkedRoundRejected() {
+        LinkedTransfer t = measuredAtCampusBThenMovedToA();
+
+        assertThatThrownBy(() -> measurements.createMeasurement(teacherA, t.child(), measure(t.roundA())))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.HEALTH_MEASUREMENT_EXISTS);
+                    assertThat(ex.getFieldErrors())
+                            .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                            .containsExactly(tuple(
+                                    "campaignId",
+                                    "Trẻ đã có số đo trong kỳ «Cân đo tháng 11 điểm B (giả)» (Điểm B) ngày 10/11/2026."
+                                            + " Sửa số đo đó."));
+                });
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM health_measurements WHERE child_id = ?", Long.class, t.child()))
+                .isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/HLT-09: lịch chuyển lớp hẹn ngày ⇒ tới ngày chuyển lớp mới nhận số đo; trước đó lớp cũ vẫn sửa")
+    void scheduledTransferKeepsOldClassUntilEffectiveDate() {
+        long classA2 = classroom(campusA, "Lớp A2");
+        CurrentUser teacherA2 = user("hc-teachera2", CareNestRole.TEACHER);
+        teach(teacherA2, classA2);
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
+        HealthMeasurementResponse saved = measurements.createMeasurement(teacherA, child1, measure(round.id()));
+        // Hôm nay 10/11 hẹn chuyển An sang Lớp A2 từ 13/11
+        transfer(child1, classA, classA2, "2026-11-13");
+
+        HealthCheckClassResponse.HealthCheckChild before =
+                rowOf(checks.getHealthCheckClass(teacherA, round.id(), classA), child1);
+        assertThat(before.movedTo()).isNull();
+        assertThat(before.canEdit()).isTrue();
+        assertThat(checks.getHealthCheckClass(teacherA2, round.id(), classA2).children())
+                .isEmpty();
+        expectError(
+                () -> measurements.updateMeasurement(teacherA2, child1, saved.id(), edit("99.0", "Sửa (giả)")),
+                ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
+        assertThat(measurements
+                        .updateMeasurement(teacherA, child1, saved.id(), edit("99.0", "Đo lại (giả)"))
+                        .measuredBy())
+                .isEqualTo(teacherA.userId());
+
+        testClock.setInstant(Instant.parse("2026-11-13T02:00:00Z"));
+        assertThat(rowOf(checks.getHealthCheckClass(teacherA, round.id(), classA), child1)
+                        .movedTo())
+                .isEqualTo(new HealthCheckClassResponse.MovedTo("Lớp A2", "Điểm A", LocalDate.of(2026, 11, 13)));
+        assertThat(rowOf(checks.getHealthCheckClass(teacherA2, round.id(), classA2), child1)
+                        .canEdit())
+                .isTrue();
+        expectError(
+                () -> measurements.updateMeasurement(teacherA, child1, saved.id(), edit("99.5", "Sửa (giả)")),
+                ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
+        assertThat(measurements
+                        .updateMeasurement(teacherA2, child1, saved.id(), edit("99.5", "Đo lại ở lớp mới (giả)"))
+                        .measuredBy())
+                .isEqualTo(teacherA2.userId());
+    }
+
+    @Test
+    @DisplayName("G94-180/HLT-09: GV dạy thay lớp mới sửa được số đo của trẻ chuyển đến, thành người đo")
+    void substituteOfNewClassEditsMovedMeasurement() {
+        LinkedTransfer t = measuredAtCampusBThenMovedToA();
+        CurrentUser substitute = user("hc-substitute", CareNestRole.TEACHER);
+        substitute(substitute, classA, "2026-11-12", "2026-11-14");
+
+        assertThat(rowOf(checks.getHealthCheckClass(substitute, t.roundA(), classA), t.child())
+                        .canEdit())
+                .isTrue();
+        HealthMeasurementResponse edited =
+                measurements.updateMeasurement(substitute, t.child(), t.measurementId(), edit("99.0", "Đo lại (giả)"));
+        assertThat(edited.measuredBy()).isEqualTo(substitute.userId());
+        assertThat(edited.edits())
+                .singleElement()
+                .satisfies(e -> assertThat(e.userId()).isEqualTo(substitute.userId()));
+    }
+
+    private record LinkedTransfer(long roundA, long roundB, long child, long measurementId) {}
+
+    // Kỳ cân đo cùng ngày ở hai điểm trường; Cường cân ngày 10/11 ở Lớp B (điểm B), chuyển sang Lớp A (điểm A) từ 12/11
+    private LinkedTransfer measuredAtCampusBThenMovedToA() {
+        long roundA = historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"))
+                .id();
+        long roundB = historicalCampaign(
+                        vpB,
+                        new HealthCheckRequest(
+                                HealthCheckKind.MEASUREMENT,
+                                "Cân đo tháng 11 điểm B (giả)",
+                                campusB,
+                                LocalDate.of(2026, 11, 9),
+                                LocalDate.of(2026, 11, 20),
+                                "",
+                                ""))
+                .id();
+        long child = child("Cường", "2023-03-01");
+        enroll(child, classB);
+        long measurementId =
+                measurements.createMeasurement(teacherB, child, measure(roundB)).id();
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
+        transfer(child, classB, classA, "2026-11-12");
+        return new LinkedTransfer(roundA, roundB, child, measurementId);
+    }
+
+    private long classroom(long campusId, String name) {
+        return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) SELECT " + campusId
+                + ", id, '" + name + "', (SELECT id FROM age_groups WHERE code = 'ag-3') FROM school_years"
+                + " WHERE status = 'ACTIVE' RETURNING id");
+    }
+
+    // Chuyển lớp từ ngày date: lớp cũ học tới hết ngày trước đó (như xếp lớp, G94-180/CHD-14)
+    private void transfer(long childId, long fromClassId, long toClassId, String date) {
+        entityManager.flush();
+        LocalDate from = LocalDate.parse(date);
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = ? WHERE child_id = ? AND classroom_id = ? AND valid_to IS NULL",
+                from.minusDays(1),
+                childId,
+                fromClassId);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, ?)",
+                childId,
+                toClassId,
+                from);
+        entityManager.clear();
+    }
+
+    private void substitute(CurrentUser user, long classroomId, String from, String to) {
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_substitute)"
+                        + " VALUES (?, 'TEACHER', ?, ?, ?, TRUE)",
+                user.userId(),
+                classroomId,
+                LocalDate.parse(from),
+                LocalDate.parse(to));
+    }
+
+    private static HealthCheckClassResponse.HealthCheckChild rowOf(HealthCheckClassResponse roster, long childId) {
+        return roster.children().stream()
+                .filter(c -> c.childId().equals(childId))
+                .findFirst()
+                .orElseThrow();
     }
 
     private static void expectField(ThrowingCallable call, String field, String message) {

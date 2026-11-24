@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -151,12 +152,16 @@ public class HealthCheckServiceImpl implements HealthCheckService {
         log.info("{}|START", logPrefix);
         try {
             HealthCheckCampaign campaign = rules.findVisible(currentUser, campaignId);
-            Results results = results(List.of(campaign.getId()));
+            Results results = results(campaign);
             boolean open = campaign.statusOn(rules.today()) == HealthCheckStatus.IN_PROGRESS;
             List<ClassroomInfoResponse> visibleClasses = rules.visibleClassesOf(currentUser, campaign);
+            HealthCheckRules.Roster roster = rosterOf(campaign, results);
             Map<Long, List<HealthCheckRules.Row>> rowsByClass = new LinkedHashMap<>();
-            visibleClasses.forEach(cls -> rowsByClass.put(
-                    cls.id(), rules.rosterOf(campaign, cls, results.measurements(), results.absences())));
+            visibleClasses.forEach(cls -> rowsByClass.put(cls.id(), roster.rowsOf(cls)));
+            Set<Long> recordable = visibleClasses.stream()
+                    .filter(cls -> open && rules.canRecord(currentUser, cls))
+                    .map(ClassroomInfoResponse::id)
+                    .collect(Collectors.toSet());
             List<HealthCheckDetailResponse.HealthCheckClassProgress> classes = visibleClasses.stream()
                     .map(cls -> {
                         Progress p = Progress.of(rowsByClass.get(cls.id()), results);
@@ -173,17 +178,18 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                                 p.watch(),
                                 p.closeWatch(),
                                 p.bmiWarning(),
-                                open && rules.canRecord(currentUser, cls));
+                                recordable.contains(cls.id()));
                     })
                     .toList();
             // Trẻ cần chú ý: đợt khám theo mức theo dõi (theo dõi sát trước), kỳ cân đo theo cảnh báo BMI (mức nặng
-            // trước); rồi theo tên
+            // trước); rồi theo tên. Dòng trẻ đã chuyển lớp tính ở lớp mới
             List<HealthCheckRules.Row> watchRows = rowsByClass.values().stream()
                     .flatMap(List::stream)
+                    .filter(r -> r.movedTo() == null)
                     .filter(r -> isWatch(levelOf(r, results.levels())) || isBmiWarning(bmiOf(r, results.bmi())))
                     .toList();
             List<HealthCheckClassResponse.HealthCheckChild> watchList =
-                    childRows(campaign, watchRows, visibleClasses).stream()
+                    childRows(campaign, watchRows, visibleClasses, results, recordable).stream()
                             .sorted(Comparator.comparing(HealthCheckServiceImpl::attentionRank)
                                     .thenComparing(HealthCheckClassResponse.HealthCheckChild::fullName, VI))
                             .toList();
@@ -209,13 +215,14 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                     .filter(c -> c.id().equals(classId))
                     .findFirst()
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            Results results = results(List.of(campaign.getId()));
-            List<HealthCheckRules.Row> rows = rules.rosterOf(campaign, cls, results.measurements(), results.absences());
-            List<HealthCheckClassResponse.HealthCheckChild> children = childRows(campaign, rows, List.of(cls)).stream()
-                    .sorted(Comparator.comparing(HealthCheckClassResponse.HealthCheckChild::fullName, VI))
-                    .toList();
+            Results results = results(campaign);
+            List<HealthCheckRules.Row> rows = rosterOf(campaign, results).rowsOf(cls);
             boolean canRecord = campaign.statusOn(rules.today()) == HealthCheckStatus.IN_PROGRESS
                     && rules.canRecord(currentUser, cls);
+            List<HealthCheckClassResponse.HealthCheckChild> children =
+                    childRows(campaign, rows, List.of(cls), results, canRecord ? Set.of(cls.id()) : Set.of()).stream()
+                            .sorted(Comparator.comparing(HealthCheckClassResponse.HealthCheckChild::fullName, VI))
+                            .toList();
             HealthCheckClassResponse response = new HealthCheckClassResponse(
                     toView(currentUser, campaign, results),
                     new HealthCheckClassResponse.HealthCheckClassRef(cls.id(), cls.name()),
@@ -261,7 +268,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                     .build());
             record(campaign, HealthCheckAction.CREATED, currentUser, null);
             healthNotifier.campaignOpened(campaign, false);
-            HealthCheckResponse created = toView(currentUser, campaign, results(List.of(campaign.getId())));
+            HealthCheckResponse created = toView(currentUser, campaign, results(campaign));
             log.info("{}|END", logPrefix);
             return created;
         } catch (RuntimeException ex) {
@@ -282,9 +289,10 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             }
             checkDates(request);
             checkWithinYear(rules.windowOf(rules.yearOf(campaign)), request.startDate(), request.endDate());
-            Results results = results(List.of(campaign.getId()));
+            Results results = results(campaign);
             // Đổi ngày không được để kết quả đã nhập nằm ngoài khoảng mới
             results.measurements().stream()
+                    .filter(m -> m.getCampaignId().equals(campaign.getId()))
                     .map(HealthMeasurement::getDate)
                     .filter(d -> d.isBefore(request.startDate()) || d.isAfter(request.endDate()))
                     .min(Comparator.naturalOrder())
@@ -323,7 +331,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             }
             campaign.cancel(rules.now());
             record(campaign, HealthCheckAction.CANCELLED, currentUser, null);
-            HealthCheckResponse cancelled = toView(currentUser, campaign, results(List.of(campaign.getId())));
+            HealthCheckResponse cancelled = toView(currentUser, campaign, results(campaign));
             log.info("{}|END", logPrefix);
             return cancelled;
         } catch (RuntimeException ex) {
@@ -381,17 +389,18 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     }
 
     private Closure closeCampaign(HealthCheckCampaign campaign, Long userId, String reason) {
-        Results before = results(List.of(campaign.getId()));
+        Results before = results(campaign);
+        HealthCheckRules.Roster roster = rules.rosterOf(campaign, before.linked(), before.measurements(), List.of());
         List<HealthCheckRules.Row> rows = rules.classesOf(campaign).stream()
-                .flatMap(cls -> rules.rosterOf(campaign, cls, before.measurements(), List.of()).stream())
+                .flatMap(cls -> roster.rowsOf(cls).stream())
                 .toList();
-        // Đóng tay và tự động cùng chốt trẻ vắng; phiếu nháp giữ "Chưa kết luận".
+        // Đóng tay và tự động cùng chốt trẻ vắng; phiếu nháp giữ "Chưa kết luận" (trẻ đã chuyển lớp tính ở lớp mới).
         List<HealthCheckAbsence> absences = rows.stream()
                 .filter(r -> r.result() == HealthCheckResult.NOT_RECORDED)
                 .map(r -> HealthCheckAbsence.of(campaign.getId(), r.childId(), r.classId()))
                 .toList();
         int notConcluded = (int) rows.stream()
-                .filter(r -> r.result() == HealthCheckResult.IN_PROGRESS)
+                .filter(r -> r.movedTo() == null && r.result() == HealthCheckResult.IN_PROGRESS)
                 .count();
         absenceRepository.saveAll(absences);
         campaign.close(userId, rules.now());
@@ -400,7 +409,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
         return new Closure(
                 absences.size(),
                 notConcluded,
-                new Results(before.measurements(), absences, before.levels(), before.bmi()));
+                new Results(before.linked(), before.measurements(), absences, before.levels(), before.bmi()));
     }
 
     @Override
@@ -438,7 +447,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             campaign.reopen(rules.now());
             record(campaign, HealthCheckAction.REOPENED, currentUser, reason);
             healthNotifier.campaignOpened(campaign, true);
-            HealthCheckResponse reopened = toView(currentUser, campaign, results(List.of(campaign.getId())));
+            HealthCheckResponse reopened = toView(currentUser, campaign, results(campaign));
             log.info("{}|END", logPrefix);
             return reopened;
         } catch (RuntimeException ex) {
@@ -448,10 +457,12 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     }
 
     /**
-     * Kết quả, trẻ vắng của các đợt/kỳ đọc một lần; {@code levels}: mức theo dõi của từng lần đo; {@code bmi}: mức BMI
-     * của từng số đo kỳ cân đo xếp được mức (HLT-18).
+     * Kết quả, trẻ vắng của các đợt/kỳ đọc một lần; {@code linked}: kỳ liên quan của đợt/kỳ đang xem, lần đo của chúng có
+     * trong {@code measurements} (G94-180/HLT-09); {@code levels}: mức theo dõi của từng lần đo; {@code bmi}: mức BMI của
+     * từng số đo kỳ cân đo xếp được mức (HLT-18).
      */
     private record Results(
+            List<HealthCheckCampaign> linked,
             List<HealthMeasurement> measurements,
             List<HealthCheckAbsence> absences,
             Map<Long, HealthFollowUpLevel> levels,
@@ -467,7 +478,10 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             int watch,
             int closeWatch,
             Map<HealthBmiStatus, Integer> bmiCounts) {
-        static Progress of(List<HealthCheckRules.Row> rows, Results results) {
+        /** Dòng trẻ đã chuyển lớp không tính: kết quả tính ở lớp hiện tại của trẻ (G94-180/HLT-09). */
+        static Progress of(List<HealthCheckRules.Row> roster, Results results) {
+            List<HealthCheckRules.Row> rows =
+                    roster.stream().filter(r -> r.movedTo() == null).toList();
             Map<HealthBmiStatus, Integer> bmiCounts = new EnumMap<>(HealthBmiStatus.class);
             rows.forEach(r -> {
                 HealthBmiStatus status = bmiOf(r, results.bmi());
@@ -507,7 +521,21 @@ public class HealthCheckServiceImpl implements HealthCheckService {
         }
     }
 
-    private Results results(List<Long> campaignIds) {
+    // Kết quả của đợt/kỳ kèm lần đo ở kỳ liên quan (G94-180/HLT-09)
+    private Results results(HealthCheckCampaign campaign) {
+        List<HealthCheckCampaign> linked = rules.linkedCampaigns(campaign);
+        return results(
+                Stream.concat(Stream.of(campaign), linked.stream())
+                        .map(HealthCheckCampaign::getId)
+                        .toList(),
+                linked);
+    }
+
+    private HealthCheckRules.Roster rosterOf(HealthCheckCampaign campaign, Results results) {
+        return rules.rosterOf(campaign, results.linked(), results.measurements(), results.absences());
+    }
+
+    private Results results(List<Long> campaignIds, List<HealthCheckCampaign> linked) {
         List<HealthMeasurement> measurements = measurementRepository.findByCampaignIdIn(campaignIds);
         Map<Long, HealthFollowUpLevel> levels = new HashMap<>();
         measurements.forEach(m -> levels.put(m.getId(), records.outcomeOf(m).level()));
@@ -526,7 +554,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 bmi.put(m.getId(), r.status());
             }
         });
-        return new Results(measurements, absenceRepository.findByCampaignIdIn(campaignIds), levels, bmi);
+        return new Results(linked, measurements, absenceRepository.findByCampaignIdIn(campaignIds), levels, bmi);
     }
 
     private static HealthFollowUpLevel levelOf(HealthCheckRules.Row row, Map<Long, HealthFollowUpLevel> levels) {
@@ -558,7 +586,14 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     }
 
     private List<HealthCheckResponse> toViews(CurrentUser user, List<HealthCheckCampaign> campaigns) {
-        Results all = results(campaigns.stream().map(HealthCheckCampaign::getId).toList());
+        Map<Long, List<HealthCheckCampaign>> linked = new HashMap<>();
+        campaigns.forEach(c -> linked.put(c.getId(), rules.linkedCampaigns(c)));
+        Results all = results(
+                Stream.concat(campaigns.stream(), linked.values().stream().flatMap(List::stream))
+                        .map(HealthCheckCampaign::getId)
+                        .distinct()
+                        .toList(),
+                List.of());
         Map<Long, List<HealthMeasurement>> measurements =
                 all.measurements().stream().collect(Collectors.groupingBy(HealthMeasurement::getCampaignId));
         Map<Long, List<HealthCheckAbsence>> absences =
@@ -568,7 +603,10 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                         user,
                         c,
                         new Results(
-                                measurements.getOrDefault(c.getId(), List.of()),
+                                linked.get(c.getId()),
+                                Stream.concat(Stream.of(c), linked.get(c.getId()).stream())
+                                        .flatMap(x -> measurements.getOrDefault(x.getId(), List.of()).stream())
+                                        .toList(),
                                 absences.getOrDefault(c.getId(), List.of()),
                                 all.levels(),
                                 all.bmi())))
@@ -576,8 +614,9 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     }
 
     private HealthCheckResponse toView(CurrentUser user, HealthCheckCampaign c, Results results) {
+        HealthCheckRules.Roster roster = rosterOf(c, results);
         List<HealthCheckRules.Row> rows = rules.visibleClassesOf(user, c).stream()
-                .flatMap(cls -> rules.rosterOf(c, cls, results.measurements(), results.absences()).stream())
+                .flatMap(cls -> roster.rowsOf(cls).stream())
                 .toList();
         Progress p = Progress.of(rows, results);
         List<HealthCheckCampaignHistory> history =
@@ -605,7 +644,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 c.getClosedBy() != null ? names.get(c.getClosedBy()) : c.getClosedAt() != null ? "Hệ thống" : null,
                 c.getClosedAt(),
                 c.getCancelledAt(),
-                !results.measurements().isEmpty(),
+                results.measurements().stream().anyMatch(m -> m.getCampaignId().equals(c.getId())),
                 new HealthCheckResponse.HealthCheckProgress(
                         p.total(),
                         p.recorded(),
@@ -631,17 +670,39 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                         .toList());
     }
 
-    /** Dòng trẻ của danh sách lớp: kết quả, mức theo dõi, kết luận rút gọn, lần khám trước, mức BMI của kỳ cân đo. */
+    /**
+     * Dòng trẻ của danh sách lớp: kết quả, mức theo dõi, kết luận rút gọn, lần khám trước, mức BMI của kỳ cân đo. {@code
+     * recordable}: lớp người xem nhập được kết quả (đợt/kỳ đang diễn ra, GV của lớp).
+     */
     private List<HealthCheckClassResponse.HealthCheckChild> childRows(
-            HealthCheckCampaign campaign, List<HealthCheckRules.Row> rows, List<ClassroomInfoResponse> classes) {
+            HealthCheckCampaign campaign,
+            List<HealthCheckRules.Row> rows,
+            List<ClassroomInfoResponse> classes,
+            Results results,
+            Set<Long> recordable) {
         List<Long> childIds =
                 rows.stream().map(HealthCheckRules.Row::childId).distinct().toList();
         Map<Long, ChildBriefResponse> briefs = childService.findChildBriefs(childIds);
         Map<Long, ClassroomInfoResponse> classById =
                 classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, Function.identity()));
         HealthRecords.Snapshot s = records.load(childIds);
+        // G94-180/HLT-09: số đo của kỳ liên quan sửa được khi kỳ đó còn mở
+        Set<Long> editableCampaigns = new HashSet<>(Set.of(campaign.getId()));
+        results.linked().stream()
+                .filter(l -> l.statusOn(rules.today()) == HealthCheckStatus.IN_PROGRESS)
+                .forEach(l -> editableCampaigns.add(l.getId()));
         return rows.stream()
-                .map(r -> toChild(r, classById.get(r.classId()), briefs.get(r.childId()), s, campaign))
+                .map(r -> toChild(
+                        r,
+                        classById.get(r.classId()),
+                        briefs.get(r.childId()),
+                        s,
+                        campaign,
+                        recordable.contains(r.classId())
+                                && r.movedTo() == null
+                                && (r.measurement() == null
+                                        || editableCampaigns.contains(
+                                                r.measurement().getCampaignId()))))
                 .toList();
     }
 
@@ -650,7 +711,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             ClassroomInfoResponse cls,
             ChildBriefResponse brief,
             HealthRecords.Snapshot s,
-            HealthCheckCampaign campaign) {
+            HealthCheckCampaign campaign,
+            boolean canEdit) {
         HealthMeasurement m = row.measurement();
         // Phiếu khám nháp chưa là kết quả: chưa có mức, kết luận
         boolean hasResult = m != null && !m.isDraft();
@@ -682,9 +744,10 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 hasResult ? outcome.category() : null,
                 m == null ? null : s.conclusion(m),
                 s.previous(
-                        row.childId(),
-                        m == null ? null : m.getId(),
-                        m != null ? m.getDate() : campaign.getStartDate()));
+                        row.childId(), m == null ? null : m.getId(), m != null ? m.getDate() : campaign.getStartDate()),
+                canEdit,
+                row.movedTo(),
+                row.measuredIn());
     }
 
     private static HealthScheduleWarningResponse.HealthScheduleWarningItem warning(

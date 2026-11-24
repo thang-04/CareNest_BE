@@ -1,6 +1,7 @@
 package com.carenest.service.health.impl;
 
 import com.carenest.dto.child.ChildBriefResponse;
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
@@ -28,6 +29,7 @@ import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.InterpretationStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -47,6 +49,7 @@ import tools.jackson.databind.ObjectMapper;
 public class HealthMeasurementServiceImpl implements HealthMeasurementService {
     private static final String LOG_PREFIX = "[HealthMeasurementServiceImpl]";
     private static final String RECORDED = "RECORDED";
+    private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final HealthCheckRules rules;
     private final HealthRecords records;
@@ -80,9 +83,11 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
             HealthRecords.Snapshot s = records.load(List.of(childId));
             ChildHealthRecordResponse.HealthOpenCampaign openView = null;
             if (open != null) {
+                // G94-180/HLT-09: đã đo ở kỳ liên quan (điểm trường cũ) tính là kết quả của kỳ đang mở
                 HealthMeasurement result = s.measurements(childId).stream()
                         .filter(m -> m.getCampaignId().equals(open.getId()))
                         .findFirst()
+                        .or(() -> rules.linkedResultOf(open, rules.linkedCampaigns(open), s.measurements(childId)))
                         .orElse(null);
                 openView = new ChildHealthRecordResponse.HealthOpenCampaign(
                         open.getId(),
@@ -137,6 +142,7 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
             if (measurementRepository.existsByChildIdAndCampaignId(childId, round.getId())) {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_EXISTS);
             }
+            checkNotMeasuredInLinkedRound(childId, round);
             if (measurementRepository.findByChildIdAndDate(childId, date).isPresent()) {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN, date);
             }
@@ -176,15 +182,16 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
             if (m.isExam()) {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_IS_EXAM);
             }
-            ClassroomInfoResponse cls = classroomService
-                    .findClassroomInfo(m.getClassroomId())
-                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            if (!rules.canRecord(currentUser, cls)) {
-                throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
-            }
             HealthCheckCampaign round = campaignRepository
                     .findById(m.getCampaignId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_CHECK_NOT_FOUND));
+            // G94-180/HLT-09: GV lớp hiện tại của trẻ sửa, kể cả số đo đo ở lớp cũ; lớp cũ chỉ xem
+            boolean allowed = rules.editingClassOf(m, round)
+                    .filter(cls -> rules.canRecord(currentUser, cls))
+                    .isPresent();
+            if (!allowed) {
+                throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
+            }
             ChildBriefResponse child = brief(childId);
             checkOpen(round);
             // Sửa chỉ đổi chiều cao, cân nặng, ghi chú; giữ ngày đo, vòng đầu cũ (user chốt 2026-11-04)
@@ -202,6 +209,7 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 editRepository.save(HealthMeasurementEdit.of(
                         m.getId(), currentUser.userId(), reason, records.writeChanges(changes), rules.now()));
                 m.update(request.heightCm(), request.weightKg(), note, rules.now());
+                m.reassignRecorder(currentUser.userId());
                 healthNotifier.resultPublished(childId, child.fullName(), true);
             }
             HealthMeasurementResponse view = view(m, child);
@@ -318,6 +326,30 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
         return enrollmentService.findActiveClassroomIds(childId, date).stream()
                 .findFirst()
                 .flatMap(classroomService::findClassroomInfo);
+    }
+
+    // G94-180/HLT-09: kỳ liên quan tính là cùng kỳ — trẻ chuyển điểm trường đã đo ở đó (ngày đo trong khoảng của kỳ)
+    // không
+    // đo lần hai; câu lỗi nêu kỳ, ngày đo để GV sửa số đo đó
+    private void checkNotMeasuredInLinkedRound(Long childId, HealthCheckCampaign round) {
+        List<HealthCheckCampaign> linked = rules.linkedCampaigns(round);
+        if (linked.isEmpty()) {
+            return;
+        }
+        rules.linkedResultOf(round, linked, measurementRepository.findByChildIdOrderByDateDescIdDesc(childId))
+                .ifPresent(m -> {
+                    HealthCheckCampaign earlier = linked.stream()
+                            .filter(l -> l.getId().equals(m.getCampaignId()))
+                            .findFirst()
+                            .orElseThrow();
+                    throw GlobalException.withFieldErrors(
+                            ApiCode.HEALTH_MEASUREMENT_EXISTS,
+                            List.of(new FieldErrorResponse(
+                                    "campaignId",
+                                    "Trẻ đã có số đo trong kỳ «" + earlier.getName() + "» ("
+                                            + rules.campusName(earlier.getCampusId()) + ") ngày "
+                                            + DMY.format(m.getDate()) + ". Sửa số đo đó.")));
+                });
     }
 
     // Kỳ đã bắt đầu, chưa đóng, chưa hủy

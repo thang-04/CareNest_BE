@@ -135,6 +135,14 @@ public class HealthMeasurement {
         this.updatedAt = at;
     }
 
+    /**
+     * Người sửa số đo thành người đo (G94-180/HLT-09: GV lớp hiện tại sửa số đo của trẻ đo ở lớp cũ); kỳ, lớp đã đo giữ
+     * nguyên.
+     */
+    public void reassignRecorder(Long userId) {
+        this.measuredBy = userId;
+    }
+
     /** Lưu phiếu khám; {@code conclude}: kết luận và công bố (lần đầu ghi {@code concludedAt}), không thì giữ nháp. */
     public void saveExam(
             Long classroomId,
