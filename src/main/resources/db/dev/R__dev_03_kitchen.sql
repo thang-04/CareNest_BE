@@ -349,6 +349,65 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Xuất kho khô (NUT-29, NUT-30): mỗi cơ sở một phiếu trả NCC trên lô còn hạn có tồn; phiếu xuất hủy chỉ khi có lô đã hết hạn
+-- còn tồn. Bút toán không có meal_date nên không lẫn với trừ kho theo suất. Chạy lại không nhân đôi (khóa theo mã phiếu).
+DO $$
+DECLARE
+    c record;
+    lot record;
+    today date := (SELECT x.today FROM k3_ctx x);
+    did bigint;
+    qty numeric;
+    v_code text;
+BEGIN
+    FOR c IN SELECT * FROM k3_staff ORDER BY campus_id LOOP
+        v_code := 'XT-' || to_char(today, 'YYYYMMDD') || '-' || c.campus_id || '-01';
+        IF NOT EXISTS (SELECT 1 FROM stock_disposals sd WHERE sd.code = v_code) THEN
+            SELECT l.id, l.food_id, r.supplier_id, coalesce(sum(m.quantity), 0) AS bal INTO lot
+            FROM stock_receipt_lines l
+            JOIN stock_receipts r ON r.id = l.receipt_id AND r.status = 'CONFIRMED' AND r.campus_id = c.campus_id
+            LEFT JOIN stock_movements m ON m.lot_id = l.id
+            WHERE l.expiry_date >= today
+            GROUP BY l.id, l.food_id, r.supplier_id
+            HAVING coalesce(sum(m.quantity), 0) > 0
+            ORDER BY bal DESC, l.id
+            LIMIT 1;
+            IF FOUND THEN
+                qty := LEAST(lot.bal, GREATEST(round(lot.bal * 0.1, 2), 0.01));
+                INSERT INTO stock_disposals (code, campus_id, kind, supplier_id, disposal_date, reason, created_by, created_at)
+                VALUES (v_code, c.campus_id, 'SUPPLIER_RETURN', lot.supplier_id, today, 'Giao thừa so với đơn đặt',
+                        c.vp_id, now())
+                RETURNING id INTO did;
+                INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity, disposal_id, reason,
+                                             created_by, created_at)
+                VALUES (lot.id, c.campus_id, lot.food_id, 'SUPPLIER_RETURN', -qty, did, 'Giao thừa so với đơn đặt',
+                        c.vp_id, now());
+            END IF;
+        END IF;
+
+        v_code := 'XH-' || to_char(today, 'YYYYMMDD') || '-' || c.campus_id || '-01';
+        IF NOT EXISTS (SELECT 1 FROM stock_disposals sd WHERE sd.code = v_code) THEN
+            SELECT l.id, l.food_id, coalesce(sum(m.quantity), 0) AS bal INTO lot
+            FROM stock_receipt_lines l
+            JOIN stock_receipts r ON r.id = l.receipt_id AND r.status = 'CONFIRMED' AND r.campus_id = c.campus_id
+            LEFT JOIN stock_movements m ON m.lot_id = l.id
+            WHERE l.expiry_date < today
+            GROUP BY l.id, l.food_id
+            HAVING coalesce(sum(m.quantity), 0) > 0
+            ORDER BY l.expiry_date, l.id
+            LIMIT 1;
+            IF FOUND THEN
+                INSERT INTO stock_disposals (code, campus_id, kind, supplier_id, disposal_date, reason, created_by, created_at)
+                VALUES (v_code, c.campus_id, 'WRITE_OFF', NULL, today, 'Hết hạn sử dụng', c.vp_id, now())
+                RETURNING id INTO did;
+                INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity, disposal_id, reason,
+                                             created_by, created_at)
+                VALUES (lot.id, c.campus_id, lot.food_id, 'WRITE_OFF', -lot.bal, did, 'Hết hạn sử dụng', c.vp_id, now());
+            END IF;
+        END IF;
+    END LOOP;
+END $$;
+
 -- Phiếu nháp kỳ nhập tới của cơ sở chính (PHT lập trước, chờ hàng về mới xác nhận)
 INSERT INTO stock_receipts (campus_id, supplier_id, received_date, status, note, created_by, updated_by, created_at, updated_at)
 SELECT st.campus_id, s.id, nx.day, 'DRAFT', 'Hàng khô kỳ tới, chờ nhà cung cấp báo giá và giao hàng', st.vp_id, st.vp_id,

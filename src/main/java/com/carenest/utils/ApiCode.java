@@ -682,6 +682,18 @@ public enum ApiCode {
     INSPECTION_APPROVAL_PENDING(6118, HttpStatus.CONFLICT, "Mẫu này đã có yêu cầu mở đang chờ Hiệu trưởng duyệt"),
     INSPECTION_APPROVAL_ACTIVE(6119, HttpStatus.CONFLICT, "Mẫu này đang được mở, hãy sửa và ký"),
     INSPECTION_APPROVAL_NOT_FOUND(6120, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu mở mẫu"),
+    STOCK_DISPOSAL_LOT_NOT_FOUND(6129, HttpStatus.NOT_FOUND, "Không tìm thấy lô cần xuất kho ở điểm trường này"),
+    STOCK_DISPOSAL_LOT_DUPLICATE(6130, HttpStatus.BAD_REQUEST, "Mỗi lô chỉ được chọn một lần trong phiếu xuất kho"),
+    STOCK_DISPOSAL_LOT_EXPIRED(
+            6131, HttpStatus.BAD_REQUEST, "Lô {0} đã hết hạn, không trả nhà cung cấp được: dùng Xuất kho (hết hạn)"),
+    STOCK_DISPOSAL_LOT_NOT_EXPIRED(
+            6132,
+            HttpStatus.BAD_REQUEST,
+            "Lô {0} còn hạn, không xuất hủy được: trả nhà cung cấp bằng Xuất kho cho NCC"),
+    STOCK_DISPOSAL_SUPPLIER_MISMATCH(6133, HttpStatus.BAD_REQUEST, "Lô {0} không do nhà cung cấp đã chọn giao"),
+    STOCK_DISPOSAL_QUANTITY_EXCEEDED(6134, HttpStatus.BAD_REQUEST, "Số lượng xuất của lô {0} vượt tồn của lô ({1})"),
+    STOCK_DISPOSAL_SUPPLIER_REQUIRED(6135, HttpStatus.BAD_REQUEST, "Chọn nhà cung cấp nhận hàng trả"),
+    STOCK_DISPOSAL_REASON_TOO_SHORT(6136, HttpStatus.BAD_REQUEST, "Lý do xuất kho cần từ 3 ký tự"),
     INSPECTION_APPROVAL_STATE_INVALID(
             6121, HttpStatus.CONFLICT, "Yêu cầu không còn ở trạng thái này nên không xử lý được"),
     INSPECTION_APPROVAL_DENIED(
