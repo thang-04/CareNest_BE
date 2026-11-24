@@ -20,5 +20,6 @@ public record StockDisposalResponse(
         Long createdBy,
         Instant createdAt) {
 
-    public record DisposalLine(Long lotId, String lotNo, StockFoodRef food, LocalDate expiryDate, BigDecimal quantity) {}
+    public record DisposalLine(
+            Long lotId, String lotNo, StockFoodRef food, LocalDate expiryDate, BigDecimal quantity) {}
 }

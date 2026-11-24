@@ -96,9 +96,10 @@ class StockDisposalIntegrationTest {
         campus = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-X', 'X', TRUE) RETURNING id");
         supplierA = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC A', '0900000001') RETURNING id");
         supplierB = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC B', '0900000002') RETURNING id");
-        rice = insertId("INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
-                + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('GAO', 'Gạo',"
-                + " 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', 0, 'DRY', 'PLANT') RETURNING id");
+        rice = insertId(
+                "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
+                        + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('GAO', 'Gạo',"
+                        + " 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', 0, 'DRY', 'PLANT') RETURNING id");
         jdbc.update(
                 "INSERT INTO food_prices (food_id, price, effective_from, reason) VALUES (?, 20000, DATE '2000-01-01',"
                         + " 'Giá ban đầu')",
@@ -144,17 +145,17 @@ class StockDisposalIntegrationTest {
         assertThat(first.supplierName()).isEqualTo("NCC A");
         assertThat(first.reason()).isEqualTo("Giao thừa so với đơn đặt");
         assertThat(first.lines())
-                .extracting(StockDisposalResponse.DisposalLine::lotNo, l -> l.quantity().intValue())
+                .extracting(
+                        StockDisposalResponse.DisposalLine::lotNo,
+                        l -> l.quantity().intValue())
                 .containsExactly(tuple("L-NEW", 300));
         assertThat(remaining(validLot)).isEqualByComparingTo("700");
-        assertThat(movements(StockMovementType.SUPPLIER_RETURN))
-                .singleElement()
-                .satisfies(m -> {
-                    assertThat(m.quantity()).isEqualByComparingTo("-300");
-                    assertThat(m.disposalId()).isEqualTo(first.id());
-                    assertThat(m.reason()).isEqualTo("Giao thừa so với đơn đặt");
-                    assertThat(m.lotNo()).isEqualTo("L-NEW");
-                });
+        assertThat(movements(StockMovementType.SUPPLIER_RETURN)).singleElement().satisfies(m -> {
+            assertThat(m.quantity()).isEqualByComparingTo("-300");
+            assertThat(m.disposalId()).isEqualTo(first.id());
+            assertThat(m.reason()).isEqualTo("Giao thừa so với đơn đặt");
+            assertThat(m.lotNo()).isEqualTo("L-NEW");
+        });
 
         StockDisposalResponse second =
                 disposalService.createReturn(principal, returnRequest(supplierA, "Sai quy cách", line(todayLot, "50")));
@@ -166,13 +167,15 @@ class StockDisposalIntegrationTest {
     @DisplayName("NUT-29: trả NCC bị từ chối khi lô hết hạn, sai NCC, vượt tồn, trùng lô, thiếu NCC hoặc lý do ngắn")
     void returnRejectsInvalidLines() {
         expectCode(
-                () -> disposalService.createReturn(principal, returnRequest(supplierA, "Hết hạn", line(expiredLot, "1"))),
+                () -> disposalService.createReturn(
+                        principal, returnRequest(supplierA, "Hết hạn", line(expiredLot, "1"))),
                 ApiCode.STOCK_DISPOSAL_LOT_EXPIRED);
         expectCode(
                 () -> disposalService.createReturn(principal, returnRequest(supplierB, "Sai NCC", line(validLot, "1"))),
                 ApiCode.STOCK_DISPOSAL_SUPPLIER_MISMATCH);
         expectCode(
-                () -> disposalService.createReturn(principal, returnRequest(supplierA, "Thừa", line(validLot, "1000.01"))),
+                () -> disposalService.createReturn(
+                        principal, returnRequest(supplierA, "Thừa", line(validLot, "1000.01"))),
                 ApiCode.STOCK_DISPOSAL_QUANTITY_EXCEEDED);
         expectCode(
                 () -> disposalService.createReturn(
@@ -193,7 +196,8 @@ class StockDisposalIntegrationTest {
     }
 
     @Test
-    @DisplayName("NUT-30: xuất hủy chỉ lô đã hết hạn (hạn < ngày lập), không cần NCC; lô hết tồn không còn trong danh sách")
+    @DisplayName(
+            "NUT-30: xuất hủy chỉ lô đã hết hạn (hạn < ngày lập), không cần NCC; lô hết tồn không còn trong danh sách")
     void writeOffOnlyExpiredLots() {
         expectCode(
                 () -> disposalService.createWriteOff(principal, writeOffRequest("Hết hạn", line(validLot, "1"))),
@@ -242,12 +246,12 @@ class StockDisposalIntegrationTest {
         expectCode(
                 () -> disposalService.createWriteOff(
                         principal,
-                        new StockDisposalRequest(
-                                otherCampus, null, "Hết hạn", List.of(line(expiredLot, "1")))),
+                        new StockDisposalRequest(otherCampus, null, "Hết hạn", List.of(line(expiredLot, "1")))),
                 ApiCode.STOCK_DISPOSAL_LOT_NOT_FOUND);
     }
 
-    private StockDisposalRequest returnRequest(Long supplier, String reason, StockDisposalRequest.DisposalLineInput... lines) {
+    private StockDisposalRequest returnRequest(
+            Long supplier, String reason, StockDisposalRequest.DisposalLineInput... lines) {
         return new StockDisposalRequest(campus, supplier, reason, List.of(lines));
     }
 

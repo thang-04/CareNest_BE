@@ -21,5 +21,8 @@ public record StockDisposalRequest(
         @NotEmpty @Valid List<DisposalLineInput> lines) {
 
     public record DisposalLineInput(
-            @NotNull Long lotId, @NotNull @Positive @Digits(integer = 12, fraction = 2) BigDecimal quantity) {}
+            @NotNull Long lotId,
+
+            @NotNull @Positive @Digits(integer = 12, fraction = 2)
+            BigDecimal quantity) {}
 }

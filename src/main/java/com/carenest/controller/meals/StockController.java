@@ -140,7 +140,8 @@ public class StockController {
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<StockDisposalResponse>> createReturn(
             @Valid @RequestBody StockDisposalRequest request, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|createReturn|userId=" + currentUser.userId() + "|campusId=" + request.campusId();
+        String logPrefix =
+                LOG_PREFIX + "|createReturn|userId=" + currentUser.userId() + "|campusId=" + request.campusId();
         log.info("{}|START", logPrefix);
         StockDisposalResponse disposal = stockDisposalService.createReturn(currentUser, request);
         log.info("{}|disposalId={}|END", logPrefix, disposal.id());

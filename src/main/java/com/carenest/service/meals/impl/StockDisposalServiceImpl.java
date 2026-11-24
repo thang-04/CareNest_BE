@@ -56,8 +56,8 @@ public class StockDisposalServiceImpl implements StockDisposalService {
 
     @Override
     public StockDisposalResponse createReturn(CurrentUser currentUser, StockDisposalRequest request) {
-        String logPrefix = LOG_PREFIX + "|createReturn|userId=" + currentUser.userId() + "|campusId="
-                + request.campusId();
+        String logPrefix =
+                LOG_PREFIX + "|createReturn|userId=" + currentUser.userId() + "|campusId=" + request.campusId();
         log.info("{}|START", logPrefix);
         try {
             StockDisposalResponse response = create(currentUser, request, StockDisposalKind.SUPPLIER_RETURN);
@@ -71,8 +71,8 @@ public class StockDisposalServiceImpl implements StockDisposalService {
 
     @Override
     public StockDisposalResponse createWriteOff(CurrentUser currentUser, StockDisposalRequest request) {
-        String logPrefix = LOG_PREFIX + "|createWriteOff|userId=" + currentUser.userId() + "|campusId="
-                + request.campusId();
+        String logPrefix =
+                LOG_PREFIX + "|createWriteOff|userId=" + currentUser.userId() + "|campusId=" + request.campusId();
         log.info("{}|START", logPrefix);
         try {
             StockDisposalResponse response = create(currentUser, request, StockDisposalKind.WRITE_OFF);
@@ -84,7 +84,8 @@ public class StockDisposalServiceImpl implements StockDisposalService {
         }
     }
 
-    private StockDisposalResponse create(CurrentUser currentUser, StockDisposalRequest request, StockDisposalKind kind) {
+    private StockDisposalResponse create(
+            CurrentUser currentUser, StockDisposalRequest request, StockDisposalKind kind) {
         Long campusId = request.campusId();
         if (!campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, campusId)) {
             throw GlobalException.of(ApiCode.STOCK_ACCESS_DENIED);
@@ -119,10 +120,12 @@ public class StockDisposalServiceImpl implements StockDisposalService {
         StockDisposal disposal = disposalRepository.saveAndFlush(StockDisposal.of(
                 code, campusId, kind, supplier == null ? null : supplier.getId(), today, reason, currentUser.userId()));
 
-        Map<Long, Food> foods = foodRepository
-                .findAllById(lots.values().stream().map(StockLot::getFoodId).collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(Food::getId, Function.identity()));
+        Map<Long, Food> foods =
+                foodRepository
+                        .findAllById(
+                                lots.values().stream().map(StockLot::getFoodId).collect(Collectors.toSet()))
+                        .stream()
+                        .collect(Collectors.toMap(Food::getId, Function.identity()));
         List<StockDisposalResponse.DisposalLine> responseLines = new ArrayList<>();
         for (StockDisposalRequest.DisposalLineInput line : request.lines()) {
             StockLot lot = lots.get(line.lotId());
