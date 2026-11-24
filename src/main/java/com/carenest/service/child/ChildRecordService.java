@@ -12,6 +12,7 @@ import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.security.CurrentUser;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -24,10 +25,11 @@ import java.util.Optional;
 public interface ChildRecordService {
 
     /**
-     * CHD-03: trẻ Đã nghỉ từ {@code leftAt} (ngày bất kỳ từ hôm nay tới hết năm học đang hoạt động; hôm nay chỉ khi trẻ
-     * chưa có dữ liệu trong ngày, user chốt 2026-11-25), lớp đang học kết thúc ngày trước đó, lịch sử WITHDRAWN, báo giáo
-     * viên lớp; không xóa dữ liệu. Từ ngày nghỉ phụ huynh mất quyền xem trẻ; tài khoản chỉ là phụ huynh không còn con
-     * đang học bị khóa (CHD-04): nghỉ hôm nay ⇒ ngay, ngày sau ⇒ job 00:05 ngày đó.
+     * CHD-03 (user chốt 2026-11-25): {@code leftAt} là ngày bất kỳ từ hôm nay tới hết năm học đang hoạt động; hôm nay chỉ
+     * khi trẻ chưa có dữ liệu trong ngày. Hôm nay ⇒ Đã nghỉ ngay: lớp đang học kết thúc ngày trước đó, lịch sử WITHDRAWN,
+     * báo giáo viên lớp, khóa tài khoản chỉ là phụ huynh không còn con đang học (CHD-04); không xóa dữ liệu. Sau hôm nay ⇒
+     * lịch nghỉ: trẻ vẫn Đang học, lớp không đổi, lịch sử LEAVE_SCHEDULED, báo giáo viên, bảng xếp lớp năm sau ghi Nghỉ
+     * học; 00:05 ngày nghỉ {@link #applyDueScheduledLeaves} mới cho nghỉ. Trẻ đã có lịch nghỉ ⇒ lỗi ô {@code leftAt}.
      */
     ChildViewResponse withdraw(CurrentUser actor, Long childId, WithdrawChildRequest request);
 
@@ -36,6 +38,13 @@ public interface ChildRecordService {
      * luật ngày và câu lỗi với {@link #withdraw}; trẻ đã nghỉ 409. Không ghi gì.
      */
     LeaveOptionsResponse leaveOptions(CurrentUser actor, Long childId);
+
+    /**
+     * Áp các lịch nghỉ học đã tới ngày ({@code scheduled_leave_on ≤ today}, G94-180/CHD-03, CHD-04): như cho nghỉ hôm nay
+     * với ngày, lý do, người đặt lịch đã lưu; xóa lịch, lịch sử WITHDRAWN, khóa phụ huynh sau commit. Mỗi trẻ một
+     * transaction riêng: lỗi ở một trẻ chỉ log, không làm hỏng trẻ khác; lịch đã áp không áp lại. Trả id trẻ đã áp.
+     */
+    List<Long> applyDueScheduledLeaves(LocalDate today);
 
     /**
      * Kiểm Sửa hồ sơ (mục 4.2 plan tiếp nhận): phạm vi, trẻ chưa nghỉ, lỗi theo ô (400), ngày sinh không sau ngày tiếp

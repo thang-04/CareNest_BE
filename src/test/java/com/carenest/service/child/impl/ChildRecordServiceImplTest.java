@@ -70,6 +70,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
 import tools.jackson.databind.json.JsonMapper;
 
 class ChildRecordServiceImplTest {
@@ -152,7 +153,8 @@ class ChildRecordServiceImplTest {
                             dailyObservationRepository, dailyActivityResultRepository)),
             schoolYearService,
             classPlacementRepository,
-            List.of(leaveDataCheck));
+            List.of(leaveDataCheck),
+            mock(PlatformTransactionManager.class));
 
     private Child child;
     private Enrollment enrollment;
@@ -352,34 +354,57 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-24): nghỉ từ ngày học kế tiếp ⇒ lớp tới hết hôm nay, báo GV ngày"
-            + " nghỉ, không phát sự kiện khóa tài khoản (job ngày nghỉ khóa)")
-    void withdrawFromNextSchoolDayLeavesParentLockToJob() {
-        LocalDate next = TODAY.plusDays(1);
-        given(schoolYearService.isSchoolDay(next)).willReturn(true);
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): nghỉ từ thứ Bảy (sau hôm nay) ⇒ lịch nghỉ: trẻ vẫn Đang học,"
+            + " lớp không đổi, lịch sử LEAVE_SCHEDULED, báo GV ngày sẽ nghỉ, không phát sự kiện khóa tài khoản")
+    void withdrawFromLaterDaySchedulesLeave() {
+        LocalDate saturday = LocalDate.of(2026, 11, 14);
 
-        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(next.toString(), "Chuyển nhà"));
+        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(saturday.toString(), " Chuyển nhà "));
 
-        assertThat(child.getStatus()).isEqualTo(ChildStatus.LEFT);
-        assertThat(child.getLeftOn()).isEqualTo(next);
-        assertThat(enrollment.getValidTo()).isEqualTo(TODAY);
+        assertThat(child.getStatus()).isEqualTo(ChildStatus.ACTIVE);
+        assertThat(child.getLeftOn()).isNull();
+        assertThat(child.getScheduledLeaveOn()).isEqualTo(saturday);
+        assertThat(child.getScheduledLeaveReason()).isEqualTo("Chuyển nhà");
+        assertThat(child.getScheduledLeaveBy()).isEqualTo(PRINCIPAL.userId());
+        verify(childRepository).save(child);
+        assertThat(enrollment.getValidTo()).isNull();
+        verify(enrollmentRepository, never()).save(any());
+        verify(enrollmentRepository, never()).delete(any());
+        verify(placementRules, never()).cancelUpcoming(any(), any(), any(), any(), any(), any(), any());
+        ArgumentCaptor<ChildHistory> history = ArgumentCaptor.forClass(ChildHistory.class);
+        verify(historyRepository).save(history.capture());
+        assertThat(history.getValue().getAction()).isEqualTo(ChildHistoryAction.LEAVE_SCHEDULED);
+        assertThat(history.getValue().getNote()).isEqualTo("Chuyển nhà");
+        assertThat(history.getValue().getUserId()).isEqualTo(PRINCIPAL.userId());
         verify(notificationService)
                 .notifyUsers(
                         eq(Set.of(7L, 8L)),
                         eq(NotificationType.CHILD_WITHDRAWN),
                         any(),
-                        eq("Bé An nghỉ học từ ngày 11/11/2026."),
+                        eq("Bé An sẽ nghỉ học từ ngày 14/11/2026."),
                         eq(CHILD_ID));
         verify(events, never()).publishEvent(any(Object.class));
     }
 
     @Test
+    @DisplayName("G94-180/CHD-03: trẻ đã có lịch nghỉ ⇒ đặt lịch lần 2 (ngày nào cũng vậy) lỗi ô leftAt, không ghi gì")
+    void secondLeaveScheduleIsRejected() {
+        child.scheduleLeave(LocalDate.of(2026, 11, 20), "Chuyển nhà", PRINCIPAL.userId());
+
+        expectLeftAtError(
+                "2026-11-25", "Trẻ đã có lịch nghỉ học từ 20/11/2026. Hủy lịch nghỉ trước khi chọn ngày khác");
+        expectLeftAtError(
+                TODAY.toString(), "Trẻ đã có lịch nghỉ học từ 20/11/2026. Hủy lịch nghỉ trước khi chọn ngày khác");
+        verify(childRepository, never()).save(any());
+        verify(historyRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName(
-            "G94-180/CHD-03: nghỉ từ ngày học kế tiếp khi đã có năm học sắp tới ⇒ bảng xếp lớp năm sau ghi Nghỉ học"
+            "G94-180/CHD-03: đặt lịch nghỉ 3 tuần sau khi đã có năm học sắp tới ⇒ bảng xếp lớp năm sau ghi Nghỉ học"
                     + " thay quyết định cũ, lớp nguồn là lớp đang học hôm nay")
-    void withdrawFromNextSchoolDayMarksLeaveOnNewYearBoard() {
-        LocalDate next = TODAY.plusDays(1);
-        given(schoolYearService.isSchoolDay(next)).willReturn(true);
+    void scheduledLeaveMarksLeaveOnNewYearBoard() {
+        LocalDate later = TODAY.plusWeeks(3);
         given(schoolYearService.findNextPlannedYear()).willReturn(plannedYear(50L));
         ClassPlacement promoted = ClassPlacement.create(50L, CHILD_ID);
         promoted.decide(CLASS_ID, PlacementAction.PROMOTE, 60L, 2L);
@@ -387,7 +412,7 @@ class ChildRecordServiceImplTest {
         other.decide(CLASS_ID, PlacementAction.PROMOTE, 60L, 2L);
         given(classPlacementRepository.findAllBySchoolYearId(50L)).willReturn(List.of(other, promoted));
 
-        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(next.toString(), "Chuyển nhà"));
+        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(later.toString(), "Chuyển nhà"));
 
         verify(classPlacementRepository).save(promoted);
         assertThat(promoted.getAction()).isEqualTo(PlacementAction.LEAVE);
@@ -434,22 +459,51 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03, CHD-14: lớp chưa bắt đầu từ đúng ngày nghỉ (ngày học kế tiếp) ⇒ hủy lịch như lớp sau"
-            + " ngày nghỉ, lớp đang học tới hết hôm nay")
-    void withdrawFromNextSchoolDayCancelsClassStartingThatDay() {
-        LocalDate next = TODAY.plusDays(1);
-        given(schoolYearService.isSchoolDay(next)).willReturn(true);
-        enrollment.endOn(TODAY);
-        Enrollment upcoming = Enrollment.start(CHILD_ID, 11L, next);
-        given(enrollmentRepository.findOpenByChildId(CHILD_ID, TODAY)).willReturn(List.of(enrollment, upcoming));
+    @DisplayName("G94-180/CHD-03, CHD-04: áp lịch nghỉ hôm nay ⇒ Đã nghỉ từ ngày hẹn với lý do đã lưu, lớp đang học tới"
+            + " hôm qua, lớp chuyển tới từ đúng ngày nghỉ bị hủy như lịch chưa bắt đầu, lịch bị xóa, lịch sử WITHDRAWN"
+            + " ghi người đặt lịch, phát sự kiện khóa tài khoản")
+    void applyDueScheduledLeaveWithdrawsChild() {
+        Long scheduler = 5L;
+        child.scheduleLeave(TODAY, "Chuyển nhà", scheduler);
+        enrollment.endOn(TODAY.minusDays(1));
+        Enrollment transfer = Enrollment.start(CHILD_ID, 11L, TODAY);
+        given(enrollmentRepository.findOpenByChildId(CHILD_ID, TODAY)).willReturn(List.of(transfer));
+        given(childRepository.findIdsWithLeaveDue(TODAY)).willReturn(List.of(CHILD_ID));
+        given(childRepository.findLockedById(CHILD_ID)).willReturn(Optional.of(child));
+        given(classroomService.findCampusId(11L)).willReturn(Optional.of(CAMPUS_ID));
 
-        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(next.toString(), "Chuyển nhà"));
+        assertThat(service.applyDueScheduledLeaves(TODAY)).containsExactly(CHILD_ID);
 
+        assertThat(child.getStatus()).isEqualTo(ChildStatus.LEFT);
+        assertThat(child.getLeftOn()).isEqualTo(TODAY);
+        assertThat(child.getLeftReason()).isEqualTo("Chuyển nhà");
+        assertThat(child.getScheduledLeaveOn()).isNull();
+        assertThat(child.getScheduledLeaveReason()).isNull();
+        assertThat(child.getScheduledLeaveBy()).isNull();
         verify(placementRules)
-                .cancelUpcoming(
-                        eq(CHILD_ID), eq("Bé An"), eq(upcoming), eq(null), eq(PRINCIPAL.userId()), any(), eq(TODAY));
-        verify(enrollmentRepository, never()).delete(upcoming);
-        assertThat(enrollment.getValidTo()).isEqualTo(TODAY);
+                .cancelUpcoming(eq(CHILD_ID), eq("Bé An"), eq(transfer), eq(null), eq(scheduler), any(), eq(TODAY));
+        verify(enrollmentRepository, never()).delete(transfer);
+        ArgumentCaptor<ChildHistory> history = ArgumentCaptor.forClass(ChildHistory.class);
+        verify(historyRepository).save(history.capture());
+        assertThat(history.getValue().getAction()).isEqualTo(ChildHistoryAction.WITHDRAWN);
+        assertThat(history.getValue().getUserId()).isEqualTo(scheduler);
+        assertThat(history.getValue().getNote()).isEqualTo("Chuyển nhà");
+        verify(events).publishEvent(new YearTransitionService.ChildrenLeftSchoolEvent(List.of(CHILD_ID), TODAY));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: lần chạy khác đã áp lịch (job 00:05 rồi khởi động lại) ⇒ không áp lại, không ghi lịch"
+            + " sử, không phát sự kiện")
+    void applyDueScheduledLeavesSkipsLeaveAlreadyApplied() {
+        child.scheduleLeave(TODAY, "Chuyển nhà", 5L);
+        child.withdraw(TODAY, "Chuyển nhà");
+        given(childRepository.findIdsWithLeaveDue(TODAY)).willReturn(List.of(CHILD_ID));
+        given(childRepository.findLockedById(CHILD_ID)).willReturn(Optional.of(child));
+
+        assertThat(service.applyDueScheduledLeaves(TODAY)).isEmpty();
+
+        verify(historyRepository, never()).save(any());
+        verify(events, never()).publishEvent(any(Object.class));
     }
 
     @Test

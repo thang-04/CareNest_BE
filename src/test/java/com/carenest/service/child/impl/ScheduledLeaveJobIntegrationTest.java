@@ -32,10 +32,11 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Khóa tài khoản phụ huynh khi trẻ nghỉ từ ngày học kế tiếp (G94-180/CHD-03, CHD-04, user chốt 2026-11-24): job 00:05
- * và lần chạy lúc khởi động xét trẻ có ngày nghỉ trong 7 ngày gần nhất. Không có transaction của test: listener khóa tài
- * khoản chỉ chạy sau commit nên dữ liệu được commit thật (container riêng của lớp). Mỗi test cho nghỉ ở một tuần riêng
- * để khoảng 7 ngày của test này không gặp trẻ của test khác. Keycloak giả lập. Dữ liệu giả.
+ * Áp lịch nghỉ học (G94-180/CHD-03, CHD-04, user chốt 2026-11-25): trẻ vẫn Đang học tới ngày nghỉ; job 00:05 ngày đó và
+ * lần chạy lúc khởi động cho trẻ nghỉ, khóa phụ huynh không còn con đang học. Không có transaction của test: job mở
+ * transaction riêng cho từng trẻ và listener khóa tài khoản chỉ chạy sau commit nên dữ liệu được commit thật (container
+ * riêng của lớp). Mỗi test dùng một tuần riêng; lịch của test đều được áp hoặc dọn trong test nên không lọt sang test
+ * khác. Keycloak giả lập. Dữ liệu giả.
  */
 @SpringBootTest
 @Testcontainers(disabledWithoutDocker = true)
@@ -71,6 +72,7 @@ class ScheduledLeaveJobIntegrationTest {
 
     private CurrentUser principal;
     private long classroom;
+    private long otherClassroom;
 
     @BeforeEach
     void setUp() {
@@ -79,6 +81,7 @@ class ScheduledLeaveJobIntegrationTest {
             createSchool();
         }
         classroom = jdbc.queryForObject("SELECT id FROM classrooms WHERE name = 'Lớp SL1'", Long.class);
+        otherClassroom = jdbc.queryForObject("SELECT id FROM classrooms WHERE name = 'Lớp SL2'", Long.class);
         long principalId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE username = 'ht.sl'", Long.class);
         principal = new CurrentUser(
                 principalId,
@@ -91,68 +94,140 @@ class ScheduledLeaveJobIntegrationTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03, CHD-04: nghỉ từ ngày học kế tiếp ⇒ hôm nay tài khoản phụ huynh còn mở; job 00:05 ngày"
-            + " nghỉ khóa tài khoản chỉ có trẻ này")
-    void scheduledLeaveJobLocksParentOnLeaveDay() {
+    @DisplayName("G94-180/CHD-03, CHD-04: lịch nghỉ thứ 4 ⇒ job thứ 3 chưa làm gì; job 00:05 thứ 4 cho nghỉ từ ngày hẹn"
+            + " (lớp tới hết thứ 3, lịch chuyển lớp thứ 6 bị hủy, xóa lịch, lịch sử WITHDRAWN của người đặt lịch), khóa"
+            + " phụ huynh; chạy lại trong ngày không áp lần 2")
+    void jobAppliesLeaveOnLeaveDayOnlyOnce() {
         LocalDate monday = LocalDate.of(2026, 11, 16);
-        Parent parent = parentOfChildLeavingNextDay(1, monday);
-
-        // Chạy trong ngày thứ 2: chưa trẻ nào nghỉ từ hôm nay ⇒ không khóa sớm
-        scheduledLeaveJob.lockParentsOfChildrenWhoLeft();
-        assertThat(accountStatus(parent.id())).isEqualTo("ACTIVE");
-        verify(identityProviderClient, never()).setUserEnabled(eq(parent.keycloakId()), anyBoolean());
+        LocalDate wednesday = monday.plusDays(2);
+        Pupil pupil = pupilWithSoleParent(1);
+        scheduleTransfer(pupil.id(), monday.plusDays(4));
+        scheduleLeave(pupil, monday, wednesday);
 
         clock.set(monday.plusDays(1), LocalTime.of(0, 5));
-        scheduledLeaveJob.lockParentsOfChildrenWhoLeft();
+        scheduledLeaveJob.applyDueScheduledLeaves();
+        assertThat(childState(pupil.id())).isEqualTo("ACTIVE||" + wednesday + "|Chuyển trường");
+        assertThat(accountStatus(pupil.parentId())).isEqualTo("ACTIVE");
+        verify(identityProviderClient, never()).setUserEnabled(eq(pupil.keycloakId()), anyBoolean());
 
-        assertLockedBySystem(parent);
+        clock.set(wednesday, LocalTime.of(0, 5));
+        assertThat(recordService.applyDueScheduledLeaves(wednesday)).contains(pupil.id());
+
+        assertThat(childState(pupil.id())).isEqualTo("LEFT|" + wednesday + "||Chuyển trường");
+        assertThat(jdbc.queryForObject(
+                        "SELECT valid_to FROM enrollments WHERE child_id = ? AND classroom_id = ?",
+                        LocalDate.class,
+                        pupil.id(),
+                        classroom))
+                .isEqualTo(wednesday.minusDays(1));
+        assertThat(count(
+                        "SELECT count(*) FROM enrollments WHERE child_id = ? AND classroom_id = ?",
+                        pupil.id(),
+                        otherClassroom))
+                .isZero();
+        assertThat(count(
+                        "SELECT count(*) FROM child_placements WHERE child_id = ? AND to_classroom_id = ?"
+                                + " AND cancelled_at IS NOT NULL",
+                        pupil.id(),
+                        otherClassroom))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'WITHDRAWN' AND user_id = ?"
+                                + " AND note = 'Chuyển trường'",
+                        pupil.id(),
+                        principal.userId()))
+                .isEqualTo(1);
+        assertLockedBySystem(pupil);
+
+        // Khởi động lại BE trong ngày: lịch đã xóa ⇒ không áp lại, không ghi lịch sử lần 2
+        clock.set(wednesday, LocalTime.of(7, 30));
+        assertThat(recordService.applyDueScheduledLeaves(wednesday)).doesNotContain(pupil.id());
+        scheduledLeaveJob.catchUpOnStartup();
+        assertThat(count("SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'WITHDRAWN'", pupil.id()))
+                .isEqualTo(1);
+        assertThat(childState(pupil.id())).isEqualTo("LEFT|" + wednesday + "||Chuyển trường");
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03, CHD-04: BE tắt lúc 00:05 ngày nghỉ ⇒ lần chạy 00:05 ba ngày sau vẫn khóa (bù trong 7"
-            + " ngày)")
-    void missedRunIsCaughtUpWithinSevenDays() {
+    @DisplayName(
+            "G94-180/CHD-03: lịch chuyển lớp thứ 4 trước ngày nghỉ thứ 6 ⇒ thứ 4 trẻ sang lớp mới, thứ 6 nghỉ ở lớp"
+                    + " mới (lớp mới tới hết thứ 5)")
+    void transferBeforeLeaveDayEndsInNewClass() {
         LocalDate monday = LocalDate.of(2026, 11, 30);
-        Parent parent = parentOfChildLeavingNextDay(2, monday);
+        LocalDate wednesday = monday.plusDays(2);
+        LocalDate friday = monday.plusDays(4);
+        Pupil pupil = pupilWithSoleParent(2);
+        scheduleTransfer(pupil.id(), wednesday);
+        scheduleLeave(pupil, monday, friday);
 
-        // Nghỉ từ thứ 3 01/12, job chạy lại thứ 6 04/12
-        clock.set(monday.plusDays(4), LocalTime.of(0, 5));
-        scheduledLeaveJob.lockParentsOfChildrenWhoLeft();
+        clock.set(wednesday, LocalTime.of(0, 5));
+        scheduledLeaveJob.applyDueScheduledLeaves();
+        assertThat(childState(pupil.id())).startsWith("ACTIVE|");
 
-        assertLockedBySystem(parent);
+        clock.set(friday, LocalTime.of(0, 5));
+        scheduledLeaveJob.applyDueScheduledLeaves();
+
+        assertThat(childState(pupil.id())).isEqualTo("LEFT|" + friday + "||Chuyển trường");
+        assertThat(validTo(pupil.id(), classroom)).isEqualTo(wednesday.minusDays(1));
+        assertThat(validTo(pupil.id(), otherClassroom)).isEqualTo(friday.minusDays(1));
+        assertLockedBySystem(pupil);
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: ngày nghỉ đã qua 8 ngày ⇒ job không xét nữa, tài khoản giữ nguyên")
-    void leaveOlderThanSevenDaysIsLeftAlone() {
-        LocalDate monday = LocalDate.of(2026, 12, 14);
-        Parent parent = parentOfChildLeavingNextDay(3, monday);
-
-        // Nghỉ từ thứ 3 15/12, job chạy thứ 4 23/12
-        clock.set(monday.plusDays(9), LocalTime.of(0, 5));
-        scheduledLeaveJob.lockParentsOfChildrenWhoLeft();
-
-        assertThat(accountStatus(parent.id())).isEqualTo("ACTIVE");
-        verify(identityProviderClient, never()).setUserEnabled(eq(parent.keycloakId()), anyBoolean());
-    }
-
-    @Test
-    @DisplayName("G94-180/CHD-03, CHD-04: BE tắt qua 00:05 ngày nghỉ, khởi động lại buổi sáng ⇒ lần chạy lúc khởi động"
-            + " khóa bù")
-    void startupRunLocksParentWhenMidnightRunWasMissed() {
+    @DisplayName(
+            "G94-180/CHD-03, CHD-04: BE tắt qua 00:05 ngày nghỉ, khởi động lại 10 ngày sau ⇒ lần chạy lúc khởi động"
+                    + " vẫn áp lịch từ đúng ngày hẹn và khóa phụ huynh (không giới hạn số ngày lỡ)")
+    void startupRunAppliesMissedLeave() {
         LocalDate monday = LocalDate.of(2027, 1, 4);
-        Parent parent = parentOfChildLeavingNextDay(4, monday);
+        LocalDate tuesday = monday.plusDays(1);
+        Pupil pupil = pupilWithSoleParent(3);
+        scheduleLeave(pupil, monday, tuesday);
 
-        clock.set(monday.plusDays(1), LocalTime.of(7, 30));
+        clock.set(tuesday.plusDays(10), LocalTime.of(7, 30));
         scheduledLeaveJob.catchUpOnStartup();
 
-        assertLockedBySystem(parent);
+        assertThat(childState(pupil.id())).isEqualTo("LEFT|" + tuesday + "||Chuyển trường");
+        assertThat(validTo(pupil.id(), classroom)).isEqualTo(monday);
+        assertLockedBySystem(pupil);
     }
 
-    private record Parent(long id, String keycloakId) {}
+    @Test
+    @DisplayName(
+            "G94-180/CHD-03: một trẻ lỗi khi áp lịch (dữ liệu hỏng) ⇒ trẻ đó giữ nguyên lịch và trạng thái, trẻ khác"
+                    + " cùng ngày vẫn được áp")
+    void failingChildDoesNotBlockOthers() {
+        LocalDate monday = LocalDate.of(2027, 2, 1);
+        LocalDate leaveDay = monday.plusDays(7);
+        // Lịch nghỉ trước ngày tiếp nhận, đặt thẳng bằng SQL: áp lịch vi phạm ck_children_left_on (left_on ≥
+        // enrolled_on). Tạo trước để job gặp trẻ lỗi trước trẻ đúng (job đi theo id)
+        long broken = insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on,"
+                + " scheduled_leave_on, scheduled_leave_reason, scheduled_leave_by) VALUES ('SL0099', 'Trẻ giả hỏng',"
+                + " '2022-03-01', 'MALE', 'ACTIVE', '" + leaveDay.plusDays(2) + "', '" + leaveDay + "', 'Hỏng', "
+                + principal.userId() + ") RETURNING id");
+        Pupil pupil = pupilWithSoleParent(4);
+        scheduleLeave(pupil, monday, leaveDay);
 
-    // Trẻ học lớp SL1, phụ huynh chỉ có trẻ này; thứ 2 lúc 10:00 HT cho nghỉ từ thứ 3 (ngày học kế tiếp)
-    private Parent parentOfChildLeavingNextDay(int n, LocalDate monday) {
+        clock.set(leaveDay, LocalTime.of(0, 5));
+        assertThat(recordService.applyDueScheduledLeaves(leaveDay))
+                .contains(pupil.id())
+                .doesNotContain(broken);
+
+        assertThat(childState(pupil.id())).isEqualTo("LEFT|" + leaveDay + "||Chuyển trường");
+        assertLockedBySystem(pupil);
+        assertThat(childState(broken)).isEqualTo("ACTIVE||" + leaveDay + "|Hỏng");
+        assertThat(count("SELECT count(*) FROM child_history WHERE child_id = ?", broken))
+                .isZero();
+        // Dọn lịch hỏng để job ở test khác không gặp lại
+        jdbc.update(
+                "UPDATE children SET scheduled_leave_on = NULL, scheduled_leave_reason = NULL,"
+                        + " scheduled_leave_by = NULL WHERE id = ?",
+                broken);
+    }
+
+    private record Pupil(long id, long parentId, String keycloakId) {}
+
+    // Trẻ học lớp SL1 từ đầu năm, phụ huynh có tài khoản và chỉ có trẻ này
+    private Pupil pupilWithSoleParent(int n) {
         long child = insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on)"
                 + " VALUES ('SL000" + n + "', 'Trẻ giả " + n + "', '2022-03-01', 'MALE', 'ACTIVE', '2026-09-01')"
                 + " RETURNING id");
@@ -176,21 +251,64 @@ class ScheduledLeaveJobIntegrationTest {
                 phone,
                 "00119000030" + n,
                 parent);
-
-        clock.set(monday, LocalTime.of(10, 0));
-        recordService.withdraw(
-                principal, child, new WithdrawChildRequest(monday.plusDays(1).toString(), "Chuyển trường"));
-        assertThat(accountStatus(parent)).isEqualTo("ACTIVE");
-        return new Parent(parent, keycloakId);
+        return new Pupil(child, parent, keycloakId);
     }
 
-    private void assertLockedBySystem(Parent parent) {
-        assertThat(accountStatus(parent.id())).isEqualTo("INACTIVE");
+    // Lịch chuyển lớp SL1 → SL2 từ ngày {@code from}, ghi như place(): lớp cũ tới hôm trước, lớp mới từ ngày đó, dòng
+    // lịch sử xếp lớp
+    private void scheduleTransfer(long childId, LocalDate from) {
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = ? WHERE child_id = ? AND classroom_id = ?",
+                from.minusDays(1),
+                childId,
+                classroom);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, ?)",
+                childId,
+                otherClassroom,
+                from);
+        jdbc.update(
+                "INSERT INTO child_placements (child_id, from_classroom_id, to_classroom_id, placed_by, reason,"
+                        + " effective_from) VALUES (?, ?, ?, ?, 'Đổi lớp', ?)",
+                childId,
+                classroom,
+                otherClassroom,
+                principal.userId(),
+                from);
+    }
+
+    // HT đặt lịch nghỉ lúc 10:00 ngày {@code on}: trẻ vẫn Đang học, tài khoản phụ huynh còn mở
+    private void scheduleLeave(Pupil pupil, LocalDate on, LocalDate leaveDay) {
+        clock.set(on, LocalTime.of(10, 0));
+        recordService.withdraw(principal, pupil.id(), new WithdrawChildRequest(leaveDay.toString(), "Chuyển trường"));
+        assertThat(childState(pupil.id())).isEqualTo("ACTIVE||" + leaveDay + "|Chuyển trường");
+        assertThat(accountStatus(pupil.parentId())).isEqualTo("ACTIVE");
+    }
+
+    // status|left_on|scheduled_leave_on|lý do (left_reason khi đã nghỉ, scheduled_leave_reason khi có lịch)
+    private String childState(long childId) {
+        return jdbc.queryForObject(
+                "SELECT status || '|' || coalesce(left_on::text, '') || '|' || coalesce(scheduled_leave_on::text, '')"
+                        + " || '|' || coalesce(left_reason, scheduled_leave_reason, '') FROM children WHERE id = ?",
+                String.class,
+                childId);
+    }
+
+    private LocalDate validTo(long childId, long classroomId) {
+        return jdbc.queryForObject(
+                "SELECT valid_to FROM enrollments WHERE child_id = ? AND classroom_id = ?",
+                LocalDate.class,
+                childId,
+                classroomId);
+    }
+
+    private void assertLockedBySystem(Pupil pupil) {
+        assertThat(accountStatus(pupil.parentId())).isEqualTo("INACTIVE");
         assertThat(jdbc.queryForObject(
-                        "SELECT locked_by_system FROM user_accounts WHERE id = ?", Boolean.class, parent.id()))
+                        "SELECT locked_by_system FROM user_accounts WHERE id = ?", Boolean.class, pupil.parentId()))
                 .isTrue();
-        verify(identityProviderClient).setUserEnabled(parent.keycloakId(), false);
-        verify(identityProviderClient).logoutUser(parent.keycloakId());
+        verify(identityProviderClient).setUserEnabled(pupil.keycloakId(), false);
+        verify(identityProviderClient).logoutUser(pupil.keycloakId());
     }
 
     private void createSchool() {
@@ -199,10 +317,14 @@ class ScheduledLeaveJobIntegrationTest {
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         long ageGroup = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        long room = insertId("INSERT INTO rooms (campus_id, code, name, room_type, capacity) VALUES (" + campus
-                + ", 'SL1', 'Phòng SL1', 'CLASS', 30) RETURNING id");
-        insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, room_id, capacity) VALUES ("
-                + campus + ", " + year + ", 'Lớp SL1', " + ageGroup + ", " + room + ", 25) RETURNING id");
+        for (String code : new String[] {"SL1", "SL2"}) {
+            long room = insertId("INSERT INTO rooms (campus_id, code, name, room_type, capacity) VALUES (" + campus
+                    + ", '" + code + "', 'Phòng " + code + "', 'CLASS', 30) RETURNING id");
+            insertId(
+                    "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, room_id, capacity) VALUES ("
+                            + campus + ", " + year + ", 'Lớp " + code + "', " + ageGroup + ", " + room
+                            + ", 25) RETURNING id");
+        }
         long principalId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name, primary_role)"
                 + " VALUES ('kc-ht-sl', 'ht.sl', 'HT giả', 'PRINCIPAL') RETURNING id");
         jdbc.update(
@@ -212,6 +334,10 @@ class ScheduledLeaveJobIntegrationTest {
 
     private String accountStatus(long userId) {
         return jdbc.queryForObject("SELECT status FROM user_accounts WHERE id = ?", String.class, userId);
+    }
+
+    private long count(String sql, Object... args) {
+        return jdbc.queryForObject(sql, Long.class, args);
     }
 
     private long insertId(String sql) {

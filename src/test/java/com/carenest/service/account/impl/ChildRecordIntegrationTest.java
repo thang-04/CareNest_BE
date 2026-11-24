@@ -236,9 +236,10 @@ class ChildRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: đã điểm danh hôm nay, nghỉ từ ngày học kế tiếp ⇒ lưu; lớp học tới hết hôm nay, trẻ"
-            + " còn trong lớp hôm nay, chưa phát sự kiện khóa tài khoản phụ huynh")
-    void withdrawFromNextSchoolDayKeepsTodayRoster() {
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): đã điểm danh hôm nay, nghỉ từ ngày mai ⇒ lịch nghỉ: trẻ vẫn"
+            + " Đang học, lớp không đổi (còn trong lớp ngày mai tới khi job áp), lịch sử LEAVE_SCHEDULED, báo GV, chưa"
+            + " phát sự kiện khóa tài khoản phụ huynh (CHECK V188 qua)")
+    void withdrawFromLaterDayKeepsChildStudying() {
         long onlyChild = child("Lê Bé Một");
         enroll(onlyChild);
         long soleParent = parentAccount("kc-parent-only", "0903000001", "001190000201");
@@ -250,25 +251,36 @@ class ChildRecordIntegrationTest {
                 vicePrincipal, onlyChild, new WithdrawChildRequest(next.toString(), "Chuyển trường"));
         entityManager.flush();
 
-        assertThat(view.status()).isEqualTo(ChildStatus.LEFT);
-        assertThat(view.leftAt()).isEqualTo(next);
-        assertThat(validTo(onlyChild)).isEqualTo(TODAY);
-        assertThat(enrollmentService.findChildrenInClassroom(classA, TODAY))
-                .extracting(ClassChildResponse::id)
-                .contains(onlyChild);
+        assertThat(view.status()).isEqualTo(ChildStatus.ACTIVE);
+        assertThat(view.leftAt()).isNull();
+        assertThat(jdbc.queryForObject(
+                        "SELECT scheduled_leave_on || '|' || scheduled_leave_reason || '|' || scheduled_leave_by"
+                                + " FROM children WHERE id = ?",
+                        String.class,
+                        onlyChild))
+                .isEqualTo(next + "|Chuyển trường|" + vicePrincipalId);
+        assertThat(validTo(onlyChild)).isNull();
         assertThat(enrollmentService.findChildrenInClassroom(classA, next))
                 .extracting(ClassChildResponse::id)
-                .doesNotContain(onlyChild);
+                .contains(onlyChild);
+        assertThat(count(
+                        "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_SCHEDULED'"
+                                + " AND note = 'Chuyển trường' AND user_id = ?",
+                        onlyChild,
+                        vicePrincipalId))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'WITHDRAWN'", onlyChild))
+                .isZero();
         assertThat(jdbc.queryForObject(
                         "SELECT body FROM notifications WHERE user_id = ? AND type = 'CHILD_WITHDRAWN' AND child_id = ?",
                         String.class,
                         teacher,
                         onlyChild))
-                .isEqualTo("Lê Bé Một nghỉ học từ ngày 11/11/2026.");
+                .isEqualTo("Lê Bé Một sẽ nghỉ học từ ngày 11/11/2026.");
         // Khóa phụ huynh để job 00:05 ngày nghỉ (ScheduledLeaveJob); hôm nay không phát sự kiện
         assertThat(events.stream(YearTransitionService.ChildrenLeftSchoolEvent.class))
                 .isEmpty();
-        assertThat(enrollmentService.findChildIdsLeftSchool(List.of(onlyChild), TODAY))
+        assertThat(enrollmentService.findChildIdsLeftSchool(List.of(onlyChild), next))
                 .isEmpty();
         assertThat(jdbc.queryForObject("SELECT status FROM user_accounts WHERE id = ?", String.class, soleParent))
                 .isEqualTo("ACTIVE");
@@ -276,8 +288,8 @@ class ChildRecordIntegrationTest {
 
     @Test
     @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): ngày nghỉ không bắt buộc là ngày học — thứ Bảy, ngày nghỉ của"
-            + " trường cách 3 tuần đều được")
-    void withdrawAcceptsSaturdayAndHolidayWeeksAhead() {
+            + " trường cách 3 tuần đều đặt được lịch; trẻ vẫn Đang học, lớp không đổi; đặt lịch lần 2 ⇒ lỗi ô leftAt")
+    void withdrawSchedulesSaturdayAndHolidayWeeksAhead() {
         jdbc.update(
                 "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) "
                         + "VALUES (?, '2026-12-01', '2026-12-01', 'Nghỉ thử')",
@@ -287,8 +299,23 @@ class ChildRecordIntegrationTest {
         recordService.withdraw(vicePrincipal, sibling, new WithdrawChildRequest("2026-12-01", "Chuyển nhà"));
         entityManager.flush();
 
-        assertThat(count("SELECT count(*) FROM child_history WHERE child_id IN (?, ?)", childA, sibling))
-                .isEqualTo(2);
+        for (long child : List.of(childA, sibling)) {
+            assertThat(jdbc.queryForObject("SELECT status FROM children WHERE id = ?", String.class, child))
+                    .isEqualTo("ACTIVE");
+            assertThat(validTo(child)).isNull();
+            assertThat(count(
+                            "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_SCHEDULED'",
+                            child))
+                    .isEqualTo(1);
+        }
+        assertThat(jdbc.queryForObject(
+                        "SELECT scheduled_leave_on FROM children WHERE id = ?", LocalDate.class, sibling))
+                .isEqualTo(LocalDate.of(2026, 12, 1));
+        expectFieldMessage(
+                () -> recordService.withdraw(
+                        vicePrincipal, childA, new WithdrawChildRequest("2026-11-20", "Chuyển nhà")),
+                "leftAt",
+                "Trẻ đã có lịch nghỉ học từ 14/11/2026. Hủy lịch nghỉ trước khi chọn ngày khác");
     }
 
     @Test

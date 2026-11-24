@@ -1,10 +1,13 @@
 package com.carenest.repository.child;
 
 import com.carenest.entity.child.Child;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -95,10 +98,15 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
     @Query("select c.id from Child c where c.id in :childIds and c.mealRegistered = false")
     List<Long> findIdsWithoutMeals(@Param("childIds") Collection<Long> childIds);
 
-    // G94-180/CHD-03: trẻ đã cho nghỉ, ngày nghỉ trong [:from, :to] ⇒ job khóa phụ huynh (chạy bù các ngày đã lỡ)
-    @Query("select c.id from Child c where c.status = com.carenest.utils.enums.ChildStatus.LEFT"
-            + " and c.leftOn between :from and :to order by c.id")
-    List<Long> findIdsLeftBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
+    // G94-180/CHD-03: trẻ có lịch nghỉ học đã tới ngày ⇒ job áp lịch (lịch lỡ lúc BE tắt còn nguyên, lần sau áp bù)
+    @Query("select c.id from Child c where c.scheduledLeaveOn <= :today"
+            + " and c.status <> com.carenest.utils.enums.ChildStatus.LEFT order by c.id")
+    List<Long> findIdsWithLeaveDue(@Param("today") LocalDate today);
+
+    // Job áp lịch nghỉ khóa dòng trẻ: hai lần chạy chồng nhau (00:05 và lúc khởi động) không áp một lịch hai lần
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Child c where c.id = :id")
+    Optional<Child> findLockedById(@Param("id") Long id);
 
     /** Một dòng danh sách trẻ: trẻ và lớp hiển thị (null khi không có lớp). */
     interface ChildListRow {

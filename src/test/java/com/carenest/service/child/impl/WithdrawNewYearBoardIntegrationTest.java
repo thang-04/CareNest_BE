@@ -34,8 +34,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Cho nghỉ học từ ngày học kế tiếp khi năm sau đang chuẩn bị (G94-180/CHD-03): bảng xếp lớp năm mới ghi Nghỉ học, kích
- * hoạt năm trước ngày nghỉ không đưa trẻ vào lớp năm mới. PostgreSQL thật, hôm nay = thứ 2 30/08/2027. Dữ liệu giả.
+ * Đặt lịch nghỉ học khi năm sau đang chuẩn bị (G94-180/CHD-03, user chốt 2026-11-25): bảng xếp lớp năm mới ghi Nghỉ
+ * học, kích hoạt năm trước ngày nghỉ không đưa trẻ vào lớp năm mới. PostgreSQL thật, hôm nay = thứ 2 30/08/2027. Dữ liệu
+ * giả.
  */
 @SpringBootTest
 @Transactional
@@ -142,9 +143,10 @@ class WithdrawNewYearBoardIntegrationTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: trẻ đã xếp Lên lớp rồi cho nghỉ từ ngày học kế tiếp ⇒ bảng năm mới ghi Nghỉ học; kích"
-            + " hoạt năm ngay hôm nay ⇒ trẻ không vào lớp năm mới, phụ huynh không nhận báo lớp mới")
-    void promotedChildLeavingFromNextSchoolDayIsNotMovedOnActivation() {
+    @DisplayName("G94-180/CHD-03: trẻ đã xếp Lên lớp rồi đặt lịch nghỉ từ ngày mai ⇒ trẻ vẫn Đang học, bảng năm mới ghi"
+            + " Nghỉ học, lịch sử LEAVE_SCHEDULED; kích hoạt năm ngay hôm nay (trước ngày nghỉ) ⇒ trẻ không vào lớp năm"
+            + " mới, phụ huynh không nhận báo lớp mới")
+    void promotedChildWithScheduledLeaveIsNotMovedOnActivation() {
         long parent = user("parent-leaving");
         jdbc.update(
                 "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
@@ -158,9 +160,17 @@ class WithdrawNewYearBoardIntegrationTest {
                         new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass),
                         new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass))));
 
-        // Hôm nay thứ 2 30/08/2027, nghỉ từ thứ 3 31/08; lớp cũ học tới hết hôm nay
+        // Hôm nay thứ 2 30/08/2027, nghỉ từ thứ 3 31/08 ⇒ lịch nghỉ, job 00:05 ngày 31/08 mới cho nghỉ
         recordService.withdraw(principal, child1, new WithdrawChildRequest("2027-08-31", "Chuyển trường"));
         entityManager.flush();
+        assertThat(jdbc.queryForObject(
+                        "SELECT status || '|' || scheduled_leave_on FROM children WHERE id = ?", String.class, child1))
+                .isEqualTo("ACTIVE|2027-08-31");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_SCHEDULED'",
+                        Integer.class,
+                        child1))
+                .isEqualTo(1);
         service.activateSchoolYear(principal, newYear, "2027-2028");
         entityManager.flush();
 
@@ -178,9 +188,9 @@ class WithdrawNewYearBoardIntegrationTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: trẻ chưa xếp lớp năm mới mà cho nghỉ từ ngày học kế tiếp ⇒ ghi Nghỉ học, không chặn"
+    @DisplayName("G94-180/CHD-03: trẻ chưa xếp lớp năm mới mà đặt lịch nghỉ từ ngày mai ⇒ ghi Nghỉ học, không chặn"
             + " kích hoạt năm hôm nay, không vào lớp năm mới")
-    void unplacedChildLeavingFromNextSchoolDayDoesNotBlockActivation() {
+    void unplacedChildWithScheduledLeaveDoesNotBlockActivation() {
         service.savePlacements(
                 principal,
                 newYear,
