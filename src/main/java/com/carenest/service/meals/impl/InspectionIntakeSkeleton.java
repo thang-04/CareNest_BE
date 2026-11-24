@@ -50,7 +50,8 @@ class InspectionIntakeSkeleton {
 
     List<Map<String, Object>> fresh(Long campusId, LocalDate date) {
         List<FreshCheck> checks = freshCheckRepository.findByCampusIdAndCheckDate(campusId, date);
-        // Lần 2 là hàng thực nhận theo suất đã chốt: ưu tiên khi đã ghi; lần 2 không có dòng nào thì giữ hàng thực nhận ở lần 1
+        // Lần 2 là hàng thực nhận theo suất đã chốt: ưu tiên khi đã ghi; lần 2 không có dòng nào thì giữ hàng thực nhận
+        // ở lần 1
         FreshCheck check = checks.stream()
                 .filter(c -> !c.getLines().isEmpty())
                 .max(Comparator.comparingInt(c -> c.getRound() == ROUND_SERVINGS ? 1 : 0))

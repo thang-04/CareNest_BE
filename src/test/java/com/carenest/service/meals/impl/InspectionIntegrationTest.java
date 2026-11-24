@@ -191,8 +191,8 @@ class InspectionIntegrationTest {
                         + " VALUES (?, ?, 2000, 2000, 'ENOUGH')",
                 round1,
                 pork);
-        jdbc.update("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at)"
-                + " VALUES (" + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW + "')");
+        jdbc.update("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at)" + " VALUES ("
+                + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW + "')");
 
         assertThat(sheet(approver, InspectionTab.FRESH).rows())
                 .singleElement()
