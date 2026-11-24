@@ -1006,7 +1006,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             // Không giữ khóa thì bỏ qua: trang soạn gọi khi thoát, kể cả lúc khóa đã hết
             // hạn
             requireEditContext(edit);
-            requireDesignatedAuthor(currentUser, plan, edit);
             YearPlanDetailResponse response = toDetail(currentUser, plan);
             log.info("{}|status={}|END", logPrefix, plan.getStatus());
             return response;
@@ -1306,17 +1305,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
     }
 
+    // EDU-07 (Tiền 25/11/2026): quyền soạn đã kiểm ở nơi gọi; không khóa theo người tạo, chỉ cần phiên sửa hợp lệ
     private void requireSession(CurrentUser user, EduPlan plan, YearPlanEditRequest edit, Instant now) {
-        requireDesignatedAuthor(user, plan, edit);
-    }
-
-    static void requireDesignatedAuthor(CurrentUser user, EduPlan plan, YearPlanEditRequest edit) {
-        if (edit == null || edit.revision() == null || edit.revision() < 0 || edit.requestId() == null) {
-            throw GlobalException.of(ApiCode.EDIT_SESSION_REQUIRED);
-        }
-        if (user == null || !Objects.equals(user.userId(), plan.getOwnerId())) {
-            throw GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
-        }
+        requireEditContext(edit);
     }
 
     private void requireRevision(EduPlan plan, YearPlanEditRequest edit) {
