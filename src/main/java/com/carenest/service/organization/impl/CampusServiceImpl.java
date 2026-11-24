@@ -276,8 +276,18 @@ public class CampusServiceImpl implements CampusService {
             if (campusRepository.existsShortName(data.shortName(), campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
             }
-            // Cần chốt 22/10/2026: sửa ở năm nào chỉ năm đó đổi.
+            // Cần chốt 22/10/2026: sửa ở năm nào chỉ năm đó đổi. Các snapshot trong cùng
+            // năm cũng phải khác nhau, vì đây là dữ liệu người dùng nhìn thấy ở năm đó.
             if (inYear) {
+                if (campusRepository.existsCodeInYear(yearId, campusId, data.code())) {
+                    throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
+                }
+                if (campusRepository.existsNameInYear(yearId, campusId, data.name())) {
+                    throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
+                }
+                if (campusRepository.existsShortNameInYear(yearId, campusId, data.shortName())) {
+                    throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+                }
                 campusRepository.updateYearInfo(
                         yearId, campusId, data.code(), data.name(), data.shortName(), data.address(), data.phone());
             }
