@@ -102,7 +102,7 @@ User yêu cầu chọn một guardian làm người nhận tài khoản, form k�
 Known pitfall: recipient backfill trên guardian legacy có CHECK NOT VALID cần kiểm UPDATE dữ liệu cũ; xem [incident](../knowledge/incidents/BUG-261105-recipient-backfill-not-valid-check.md).
 
 ## Sửa lỗi tab Test — 24/11/2026
-Plan `docs/plans/active/2026-11-24-test-log-fixes.md` (G94-180, phần BE).
+Plan `docs/plans/completed/2026-11-24-test-log-fixes.md` (G94-180, phần BE).
 - Danh sách trẻ (G94-180/CHD-09): trẻ Chờ xếp lớp (mới tiếp nhận hoặc mở lại hồ sơ) không mang lớp đã đóng của năm đó ⇒ `classroomId = null`; lớp dự kiến năm sau (enrollment chưa đóng) vẫn hiện (`ChildRepository.findListRows`).
 - `GET /children/duplicate-check` (G94-180/CHD-04): trẻ đã nghỉ trong phạm vi trả thêm `campusId` = điểm trường của trẻ (lớp cuối, không có lớp thì điểm trường tiếp nhận) để FE bỏ lựa chọn "giữ điểm trường cũ" khi mở lại hồ sơ.
 - Câu lỗi ngày học (G94-180/CHD-14): `SchoolDayMessages` nói rõ lý do thay câu chung: thứ Bảy/Chủ nhật ("Chọn ngày từ thứ 2 tới thứ 6"), trùng ngày nghỉ của trường (kèm tên và ngày; đợt nhiều ngày ghi "dd/mm/yyyy – dd/mm/yyyy"). Dùng ở tiếp nhận, xếp/chuyển lớp, bắt đầu đi học, nghỉ học.

@@ -1,6 +1,6 @@
 ---
 title: Sửa các lỗi user ghi ở tab Test (23/11) — phần BE
-status: in-progress  # draft → approved (chỉ user duyệt) → in-progress → done | blocked | cancelled
+status: done  # draft → approved (chỉ user duyệt) → in-progress → done | blocked | cancelled
 owner: ATPX48-69
 jira: G94-180 / BE-FIX-10   # mỗi phần commit phải có mã task Jira — hỏi user trước khi commit
 branch: fix/G94-180-BE-FIX-10-school-year-scope
@@ -376,14 +376,14 @@ Q3 = A:
 
 | AC | Rule | Test (tầng) | Phase | Kết quả |
 | --- | --- | --- | --- | --- |
-| AC-4 | CHD-01 | `ExcelZeroFixTest` (unit), preview ở `ChildEnrollmentIntegrationTest` (IT) | B3 | PASS: `ExcelZeroFixTest#phone`, `#citizenId`, `#previewRestoresZeros` |
+| AC-4 | CHD-01 | `ExcelZeroFixTest` (unit), preview ở `ChildEnrollmentIntegrationTest` (IT) | B3 | PASS: `ExcelZeroFixTest#phone`, `#citizenId` (CCCD 9 số giữ nguyên), `#previewRestoresZeros` |
 | AC-5 | G94-180/CHD-04 | `ChildEnrollmentIntegrationTest#duplicateOfLeftChildReturnsCampus` (IT) | B1 | PASS: `#duplicateOfLeftChildReturnsCampus`, `#duplicateOfWithdrawnTransferredChildReturnsLastClassCampus` |
 | AC-6 | G94-180/CHD-09 | `ChildLeftSchoolIntegrationTest` 2 test (IT) | B1 | PASS: `ChildPlacementListIntegrationTest#readmittedChildDoesNotShowClosedClassOfYear`, `#pendingChildKeepsPlannedClassOfNextYear` |
-| AC-7 | G94-180/CHD-08 | verify (Flyway + seed) + truy vấn DB | B1 | PASS: `DevSeedIntegrationTest#everyProfileHasGestationWeeks` + verify full |
+| AC-7 | G94-180/CHD-08 | verify (Flyway + seed) + truy vấn DB | B1 | PASS: `DevSeedIntegrationTest#everyProfileHasGestationWeeks` + verify full; DB mới `carenest_scope4` (v180): `gestation_weeks IS NULL` = 0/223 |
 | AC-8 | G94-180/CHD-14 | `SchoolDayMessagesTest` (unit), test cũ sửa câu (IT) | B1 | PASS: `SchoolDayMessagesTest` (6 test), `ChildRecordServiceImplTest#withdrawValidatesLeaveDateAndReason`, test cũ sửa câu |
-| AC-9 | G94-180/CHD-03 | `ChildRecordIntegrationTest` 5 test (IT) | B1 | PASS: `ChildRecordIntegrationTest#withdrawRejectsPastDate`, `#withdrawRejectsBeyondNextSchoolDay`, `#withdrawFromNextSchoolDayKeepsTodayRoster`, `#withdrawOnFridayAllowsNextSchoolDayAcrossWeekendAndHoliday`, `#leaveOptionsBlockTodayAfterAttendance`; `ScheduledLeaveJobIntegrationTest#scheduledLeaveJobLocksParentOnLeaveDay`; `ChildRecordServiceImplTest#withdrawFromNextSchoolDay*`; `YearTransitionIntegrationTest` 2 test LEAVE |
+| AC-9 | G94-180/CHD-03 | `ChildRecordIntegrationTest` 5 test (IT) | B1 | PASS: `ChildRecordIntegrationTest#withdrawRejectsPastDate`, `#withdrawRejectsBeyondNextSchoolDay`, `#withdrawFromNextSchoolDayKeepsTodayRoster`, `#withdrawOnFridayAllowsNextSchoolDayAcrossWeekendAndHoliday`, `#leaveOptionsBlockTodayAfterAttendance`; `ScheduledLeaveJobIntegrationTest` 4 test (00:05 ngày nghỉ, chạy bù 3 ngày sau, bỏ qua ngày nghỉ quá 7 ngày, chạy lúc khởi động); `ChildRecordServiceImplTest#withdrawFromNextSchoolDay*`; `WithdrawNewYearBoardIntegrationTest` 2 test LEAVE |
 | AC-10 | G94-180/CHD-14 | `ChildPlacementScheduleIntegrationTest#placementClassesCountScheduledArrivals` (IT) | B2 | PASS: `#placementClassesCountScheduledArrivals` |
-| AC-11 | HLT-09, HLT-13 | `HealthCheckIntegrationTest`, `HealthRecordIntegrationTest` 5 test (IT) | B4 | PASS: `HealthCheckIntegrationTest#transferWithinRoundMovesEditingToNewClass`, `#transferAcrossCampusesShowsMeasurementFromLinkedRound`, `#newClassTeacherEditsMovedMeasurement`, `#oldClassTeacherCannotEditMovedMeasurement`, `#secondMeasurementInLinkedRoundRejected`, `#scheduledTransferKeepsOldClassUntilEffectiveDate`, `#substituteOfNewClassEditsMovedMeasurement` |
+| AC-11 | HLT-09, HLT-13 | `HealthCheckIntegrationTest`, `HealthRecordIntegrationTest` 5 test (IT) | B4 | PASS: `HealthCheckIntegrationTest#transferWithinRoundMovesEditingToNewClass`, `#transferAcrossCampusesShowsMeasurementFromLinkedRound`, `#newClassTeacherEditsMovedMeasurement`, `#oldClassTeacherCannotEditMovedMeasurement`, `#secondMeasurementInLinkedRoundRejected`, `#scheduledTransferKeepsOldClassUntilEffectiveDate`, `#substituteOfNewClassEditsMovedMeasurement`; `HealthExamIntegrationTest#examOfTransferredChildFollowsCurrentClass`, `#savingExamOfTransferredChildKeepsClassWhereTaken`, `#examRowOfChildWhoLeftOrChangedCampusIsReadOnly` |
 | AC-13 | HLT-01 | `HealthRecordIntegrationTest` 3–4 test (IT) | B4 | PASS: `HealthCheckIntegrationTest#absentChildCannotBeMeasuredOnSchoolDay`, `#weekendMeasurementAllowedWithoutAttendance`, `#unmarkedAttendanceAllowsMeasurement`; `HealthExamIntegrationTest#absentChildCannotStartExam` |
 | AC-14 | HLT-08 | `HealthExamIntegrationTest` 3 test (IT) | B5 | PASS: `HealthExamIntegrationTest#examSavesOnDayWithRoundMeasurement`, `#examPrefillsHeightWeightFromSameDayMeasurement`, `#newExamOnDayOfAnotherExamAsksLeaders`; `HealthRecordIntegrationTest#growthSeriesKeepsOnePointPerDayPreferringExam`, `#databaseKeepsOneRoundMeasurementPerDay`; `HealthGrowthReportIntegrationTest#sameDayExamIsCountedInsteadOfMeasurement` |
 
@@ -418,7 +418,7 @@ Các tình huống spec không nói rõ, dễ gây lỗi cho người dùng. M�
 - [x] Mỗi AC có test; mỗi phase có Exit = verify.
 - [x] >8 file và >3 phase: đã chia 6 phase, mỗi phase một commit nhóm; có thể tách B4–B5 (sức khỏe) thành plan riêng nếu user muốn.
 - [x] Không dùng rule PENDING/OPEN như đã chốt: Q1–Q5 còn mở, plan ghi rõ phụ thuộc.
-- [ ] Tự review lần 2 sau khi user trả lời Q1–Q5.
+- [x] Tự review lần 2 sau khi user trả lời Q1–Q5.
 
 ## Progress log
 
@@ -444,10 +444,30 @@ Các tình huống spec không nói rõ, dễ gây lỗi cho người dùng. M�
 - Khác plan:
   - Migration là `V180` (không phải V178; V178/V179 đã bị nhánh khác dùng): bỏ UNIQUE `(child_id, date)`, thêm 2 UNIQUE có điều kiện `uk_health_measurements_child_date_round` / `_exam`.
   - Thêm endpoint `GET /children/{id}/leave-options` (không có trong plan) cho hộp Cho nghỉ học.
-  - `ScheduledLeaveJob` chỉ chạy theo cron 00:05, không chạy lúc khởi động.
+  - ~~`ScheduledLeaveJob` chỉ chạy theo cron 00:05, không chạy lúc khởi động.~~ Đổi ở review cuối (Ruling 14, mục dưới).
   - Trẻ nghỉ từ ngày học kế tiếp hiện trạng thái LEAVE trên bảng xếp lớp năm mới (plan không nêu).
   - Chỉ nối các kỳ cân đo (MEASUREMENT) giữa điểm trường; đợt khám không nối.
   - Báo cáo tăng trưởng tính lớp tại lúc đo.
   - `findLatestMeasurement` không đổi.
 - App: grep `carenest_app` (dart) không có `placement-classes`, `duplicate-check`, `leave-options`, `withdraw`; `/health/measurements` và `health-checks` chỉ xuất hiện trong plan/tài liệu (`docs/plans/active/2026-11-15-teacher-api-integration.md`, `2026-11-16-app-be-integration.md`, `docs/integration/BE_API_INDEX.md`), không có code dart gọi ⇒ chưa ảnh hưởng. Khi App làm màn nhập số đo của GV phải đọc `canEdit`, `movedTo`, `measuredIn`, `absentToday`, mã 5042.
 - Còn lại: FE đồng bộ contract (`api-index --from ../be-school-year-scope`) ở plan FE; file test tay `TEST-tac-dong-Can-2026-11-23.md` đã cập nhật (B6, B7, C0, C5, F5, H1, ca mới F5b, F5c).
+
+### 2026-11-24 — Review cuối BE và vòng sửa
+- Review cuối toàn nhánh (`81539e50..dd1b7ae6`): cần sửa job khóa phụ huynh không chạy bù, `ExcelZeroFix` đệm CCCD 9 số, cùng các mục nhỏ (quyền sửa dòng phiếu khám, lớp của phiếu khám khi lưu lại, 2 test nằm trong file test của Cần, CHD-03, comment bị ngắt dòng).
+- Commit vòng sửa (chưa push):
+  - `34583e61` `ExcelZeroFix` chỉ đệm CCCD 10–11 số, AC-4
+  - `294c1e2a` `ScheduledLeaveJob` xét ngày nghỉ trong 7 ngày, chạy 00:05 và một lần lúc khởi động
+  - `027cfb8c` đợt khám: dòng của trẻ đã nghỉ học / sang điểm trường khác ở lớp cũ `canEdit = false`
+  - `cfff3853` phiếu khám ở lại lớp lúc khám khi GV lớp mới lưu tiếp (`classroom_id` ghi ở lần lưu đầu)
+  - `af0ead52` 2 test LEAVE chuyển sang `WithdrawNewYearBoardIntegrationTest`; `YearTransitionIntegrationTest` về đúng bản trước `41f316cf`
+  - `da556934` CHD-03 ghi LEAVE trên bảng năm mới và job chạy bù
+  - `435e6c21` gộp comment bị formatter ngắt dòng, gộp 2 khối Javadoc chồng
+  - commit cuối: ghi kết quả vào plan, chuyển plan sang `completed/`
+- Verify: các lớp test phủ (ScheduledLeaveJob, ExcelZeroFix, HealthExam/HealthCheck/HealthRecord/HealthGrowthReport, WithdrawNewYearBoard, YearTransition, ChildRecord IT và unit) chạy chung tại `435e6c21`: 134 test, 0 fail. `check-ai-layer` 0 lỗi. Full tại `435e6c21`: `VERIFY FAIL full | tests 2402 fail 0 err 14 skip 3 | archunit ok | snapshot ok | spotless - | 1278s` — 14 error đều là `EduYearPlanServiceIntegrationTest` (`varchar(20)`, flake nanoTime đã biết), 3 skip là test AI chạy thật (`DishSimilarityLiveEvalTest`, `MenuAiLiveEvalTest`, `PeriodCommentLiveEvalTest`); spotless không chạy trong lần đó vì build dừng ở test ⇒ chạy riêng `spotless:check` đạt.
+- Kiểm vận hành:
+  - AC-7 trên DB mới `carenest_scope4`: Flyway lên v180 (193 migration), `child_profiles.gestation_weeks IS NULL` = 0/223, có 2 index của V180 ⇒ đạt. `carenest_scope2` mang số migration cũ (trước khi gộp nhánh Cần 23/11) nên code này không khởi động được trên DB đó (Flyway validate) — có từ trước, không do plan này.
+  - Nhập CSV `TEST-nhap-tre-2027-2028.csv` (bản có dấu cách) trên `carenest_scope4`: `POST /api/children/enrollments/import/preview` ⇒ 2 dòng, 0 lỗi ⇒ đạt.
+- Khác plan:
+  - Ruling 14: `ScheduledLeaveJob` xét trẻ `LEFT` có `left_on` từ hôm nay − 7 tới hôm nay, chạy 00:05 và một lần lúc khởi động (`ApplicationReadyEvent`); chạy lặp vô hại (listener bỏ tài khoản đã khóa, còn con đang học). Chấp nhận: tài khoản HT/PHT mở tay trong 7 ngày đó mà phụ huynh không còn con đang học bị khóa lại. Đổi tên: `lockParentsOfChildrenWhoLeft`, thêm `catchUpOnStartup`, truy vấn `ChildRepository.findIdsLeftBetween` (thay `findIdsLeavingOn`).
+  - Ruling 15: `ExcelZeroFix` chỉ đệm CCCD 10–11 số (mã tỉnh 001–096 đứng đầu nên Excel chỉ bỏ 1–2 số 0); CCCD 9 số giữ nguyên, báo lỗi như trước. AC-4 đã sửa theo.
+- Còn lại cho user: thứ tự gộp với nhánh Cần (V175–V177; V180 của nhánh này với V178/V179 của Cần); báo Cần `findLatestMeasurement` cùng ngày chưa ưu tiên phiếu khám và `savePlacements` cho đổi tay LEAVE thành PROMOTE.
