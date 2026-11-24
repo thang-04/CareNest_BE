@@ -31,7 +31,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Khung dòng M1 (kiểm tra trước chế biến, INS-01): thực phẩm tươi từ kiểm nhận hàng tươi trong ngày (lần 2 nếu đã
- * ghi, không thì lần 1) kèm nhà cung cấp theo từng dòng; thực phẩm khô từ các lô đã trừ kho cho bữa ăn của ngày (NUT-11) kèm nhà cung
+ * ghi và có dòng, không thì lần 1) kèm nhà cung cấp theo từng dòng; thực phẩm khô từ các lô đã trừ kho cho bữa ăn của ngày (NUT-11) kèm nhà cung
  * cấp, ngày nhập, hạn dùng. Khối lượng đổi sang kg / lít như mẫu biểu. Chỉ đọc; ô PHT nhập để trống.
  */
 @Component
@@ -50,11 +50,12 @@ class InspectionIntakeSkeleton {
 
     List<Map<String, Object>> fresh(Long campusId, LocalDate date) {
         List<FreshCheck> checks = freshCheckRepository.findByCampusIdAndCheckDate(campusId, date);
-        // Lần 2 là hàng thực nhận theo suất đã chốt: ưu tiên khi đã ghi
+        // Lần 2 là hàng thực nhận theo suất đã chốt: ưu tiên khi đã ghi; lần 2 không có dòng nào thì giữ hàng thực nhận ở lần 1
         FreshCheck check = checks.stream()
+                .filter(c -> !c.getLines().isEmpty())
                 .max(Comparator.comparingInt(c -> c.getRound() == ROUND_SERVINGS ? 1 : 0))
                 .orElse(null);
-        if (check == null || check.getLines().isEmpty()) {
+        if (check == null) {
             return List.of();
         }
         Map<Long, Food> foods =
