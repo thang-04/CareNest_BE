@@ -64,6 +64,13 @@ public class LeaveRequest {
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
 
+    /** Lần đầu GV lớp mở đơn (danh sách đơn hoặc màn điểm danh ngày của đơn); ghi một lần (Cần chốt 24/11/2026). */
+    @Column(name = "teacher_seen_at")
+    private Instant teacherSeenAt;
+
+    @Column(name = "teacher_seen_by")
+    private Long teacherSeenBy;
+
     public static LeaveRequest create(
             Long childId, LocalDate fromDate, LocalDate toDate, String reason, Long createdBy, Instant at) {
         LeaveRequest r = new LeaveRequest();

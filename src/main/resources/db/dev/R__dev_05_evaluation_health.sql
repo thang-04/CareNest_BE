@@ -1159,7 +1159,7 @@ WITH ins AS (
                 WHEN w.sent THEN pg_temp.d05_at(w.friday, TIME '16:30') + (w.h % 40) * INTERVAL '1 minute'
                 ELSE LEAST(pg_temp.d05_at(w.friday, TIME '06:30'), now()) END
     FROM d05_wc w
-    ON CONFLICT ON CONSTRAINT uk_weekly_comments_child_week DO NOTHING
+    ON CONFLICT ON CONSTRAINT uk_weekly_comments_child_class_week DO NOTHING
     RETURNING id, child_id, week_start
 )
 INSERT INTO d05_wc_new SELECT i.id, i.child_id, i.week_start FROM ins i;

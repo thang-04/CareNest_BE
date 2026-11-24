@@ -1,6 +1,7 @@
 package com.carenest.dto.attendance;
 
 import com.carenest.utils.enums.MealSession;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -15,4 +16,6 @@ public record AttendanceClassResponse(
         List<MealSession> mealSessions,
         boolean teaches,
         boolean canRecord,
-        boolean canUnlock) {}
+        boolean canUnlock,
+        Boolean historicalReadOnly,
+        LocalDate lastReadableDate) {}

@@ -52,6 +52,7 @@ class MealCountConcurrencyIntegrationTest {
         long campus = id("INSERT INTO campuses(code,name,is_main) VALUES ('RACE','Race',true) RETURNING id");
         long year = id(
                 "INSERT INTO school_years(name,start_date,end_date,status) VALUES ('2026-2027','2026-09-01','2027-05-31','ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         long ag = jdbc.queryForObject("SELECT id FROM age_groups WHERE code='ag-3'", Long.class);
         long recorder = id(
                 "INSERT INTO user_accounts(keycloak_user_id,username,full_name) VALUES ('race','race','Race') RETURNING id");

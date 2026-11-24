@@ -232,6 +232,7 @@ public enum ApiCode {
     ROOM_NOT_FOUND(2104, HttpStatus.NOT_FOUND, "Không tìm thấy phòng"),
     CAMPUS_CODE_EXISTS(2105, HttpStatus.CONFLICT, "Mã điểm trường đã tồn tại"),
     CAMPUS_NAME_EXISTS(2106, HttpStatus.CONFLICT, "Tên điểm trường đã tồn tại"),
+    CAMPUS_SHORT_NAME_EXISTS(2126, HttpStatus.CONFLICT, "Tên ngắn điểm trường đã tồn tại"),
     MAIN_CAMPUS_REQUIRED(
             2107, HttpStatus.CONFLICT, "Trường cần một điểm trường chính, chọn điểm trường chính khác trước"),
     MAIN_CAMPUS_NOT_DELETABLE(2108, HttpStatus.CONFLICT, "Không xóa được điểm trường chính"),
@@ -283,6 +284,20 @@ public enum ApiCode {
     CLASS_PLACED_AGE_GROUP_LOCKED(2216, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào, không đổi được nhóm tuổi"),
     CLASS_PLACED_CAMPUS_LOCKED(2217, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào, không đổi được điểm trường"),
     CLASS_HAS_PLACED_CHILDREN(2218, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào năm mới, không xóa được"),
+    AGE_GROUP_CREATE_YEAR_NOT_PLANNED(
+            2219, HttpStatus.CONFLICT, "Chỉ thêm nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
+    AGE_GROUP_STANDARD_REQUIRED(2220, HttpStatus.BAD_REQUEST, "Chọn nhóm tuổi chuẩn của Bộ Giáo dục"),
+    AGE_GROUP_STANDARD_INVALID(2221, HttpStatus.BAD_REQUEST, "Nhóm tuổi chuẩn không hợp lệ"),
+    AGE_GROUP_MAX_EXCEEDS_STANDARD(
+            2222, HttpStatus.BAD_REQUEST, "Sĩ số tối đa của {0} không được vượt quá {1} trẻ/lớp"),
+    AGE_GROUP_MEMBERSHIP_YEAR_NOT_PLANNED(
+            2223,
+            HttpStatus.CONFLICT,
+            "Chỉ thêm hoặc bỏ nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
+    ASSIGNMENT_YEAR_ENDED(
+            2224,
+            HttpStatus.CONFLICT,
+            "Năm học {0} đã qua ngày kết thúc {1}, không phân công thêm được. Kết thúc năm học rồi phân công ở năm mới"),
 
     // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
     REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),
@@ -437,6 +452,9 @@ public enum ApiCode {
     PICKUP_CHILD_NOT_PRESENT(4105, HttpStatus.CONFLICT, "Trẻ chưa được điểm danh có mặt hôm nay"),
     PICKUP_CHILD_ABSENT(4106, HttpStatus.CONFLICT, "Trẻ được điểm danh vắng hôm nay"),
     PICKUP_ALREADY_HANDED_OVER(4107, HttpStatus.CONFLICT, "Trẻ đã được trả cho người đón hôm nay"),
+    // AUTH-04 (Cần chốt 24/11/2026): API phụ huynh xem điểm danh, sức khỏe đầu ngày của con
+    PARENT_CHILD_FORBIDDEN(4108, HttpStatus.FORBIDDEN, "Bạn chỉ xem được thông tin của con mình"),
+    PARENT_RANGE_INVALID(4109, HttpStatus.BAD_REQUEST, "Chọn khoảng ngày trong một năm học, tối đa {0} ngày"),
 
     // ========== 50xx SỨC KHỎE ==========
     HEALTH_OVERVIEW_ACCESS_DENIED(5001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp sức khỏe"),
@@ -801,6 +819,11 @@ public enum ApiCode {
     DOMAIN_NAME_EXISTS(7207, HttpStatus.CONFLICT, "Tên lĩnh vực {0} đã tồn tại"),
 
     // ========== 73xx ĐÁNH GIÁ TRẺ ==========
+    // Cần chốt 24/11/2026: bỏ nhận xét tháng và nhận xét học kỳ cá nhân; chỉ còn cuối năm
+    EVALUATION_PERIOD_RETIRED(
+            7375,
+            HttpStatus.CONFLICT,
+            "Nhận xét tháng và nhận xét học kỳ cá nhân đã bỏ, chỉ xem lại được. Nhận xét cuối năm dùng như cũ"),
     ASSESSMENT_FUTURE_DATE(7301, HttpStatus.BAD_REQUEST, "Chỉ đánh giá cho hôm nay hoặc ngày đã qua"),
     ASSESSMENT_NOT_SCHOOL_DAY(7302, HttpStatus.BAD_REQUEST, "Ngày đã chọn không phải ngày học"),
     ASSESSMENT_DATE_OUT_OF_YEAR(7303, HttpStatus.BAD_REQUEST, "Chọn ngày trong năm học của lớp, từ {0} đến hôm nay"),
@@ -942,6 +965,8 @@ public enum ApiCode {
     WEEKLY_COMMENT_WEEK_INVALID(
             7365, HttpStatus.BAD_REQUEST, "Chọn tuần trong năm học của lớp, từ tuần có ngày {0} đến tuần có ngày {1}"),
     WEEKLY_COMMENT_FUTURE_WEEK(7366, HttpStatus.BAD_REQUEST, "Tuần này chưa bắt đầu, chưa viết nhận xét được"),
+    WEEKLY_COMMENT_AI_NOT_REVIEWED(
+            7367, HttpStatus.BAD_REQUEST, "Còn nháp AI cô chưa xem hoặc sửa: {0}. Mở từng bản để xem lại rồi gửi"),
     WEEKLY_COMMENT_CHILD_NOT_IN_CLASS(7368, HttpStatus.BAD_REQUEST, "Trẻ không thuộc lớp trong tuần này"),
     WEEKLY_COMMENT_PARENT_FORBIDDEN(7369, HttpStatus.FORBIDDEN, "Bạn không xem được nhận xét của trẻ này"),
     WEEKLY_COMMENT_NOTHING_TO_SEND(7399, HttpStatus.BAD_REQUEST, "Chưa có nhận xét nào viết xong để gửi phụ huynh"),

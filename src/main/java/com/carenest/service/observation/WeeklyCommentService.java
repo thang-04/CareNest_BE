@@ -8,6 +8,7 @@ import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockResponse;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentViewRequest;
 import com.carenest.security.CurrentUser;
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +25,9 @@ public interface WeeklyCommentService {
     WeeklyCommentBoardResponse writeDrafts(CurrentUser currentUser, WeeklyCommentDraftRequest request);
 
     WeeklyCommentBoardResponse saveDraft(CurrentUser currentUser, WeeklyCommentSaveRequest request);
+
+    /** GV mở xem bản nháp của một trẻ: ghi đã xem một lần (không gửi, không đổi nội dung). */
+    WeeklyCommentBoardResponse markViewed(CurrentUser currentUser, WeeklyCommentViewRequest request);
 
     /** Gửi 1 trẻ hoặc cả lớp; báo từng phụ huynh đã liên kết với trẻ. */
     WeeklyCommentBoardResponse send(CurrentUser currentUser, WeeklyCommentSendRequest request);

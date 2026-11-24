@@ -162,6 +162,8 @@ class ChildEnrollmentIntegrationTest {
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         long plannedYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
                 + "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, activeYear);
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, plannedYear);
         classA = classroom(campusA, activeYear, "Lớp A1", ag3, 2);
         classB = classroom(campusB, activeYear, "Lớp B1", ag3, 25);
         plannedClass = classroom(campusA, plannedYear, "Lớp A năm sau", ag3, 25);
@@ -811,7 +813,7 @@ class ChildEnrollmentIntegrationTest {
         long childId = enrollmentService
                 .enroll(
                         principal,
-                        request("Trẻ Nghỉ Ngay", "2022-05-06", classA, null, newGuardian("0918888981", "999900000981")))
+                        request("Trẻ Nghỉ Ngay", "2023-05-06", classA, null, newGuardian("0918888981", "999900000981")))
                 .child()
                 .id();
 

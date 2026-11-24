@@ -40,6 +40,7 @@ import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -84,6 +85,7 @@ class ChildRecordServiceImplTest {
     private final GuardianChildLinkService linkService = mock(GuardianChildLinkService.class);
     private final ClassroomService classroomService = mock(ClassroomService.class);
     private final StaffAssignmentService assignmentService = mock(StaffAssignmentService.class);
+    private final SchoolYearService schoolYearService = mock(SchoolYearService.class);
     private final StaffAccessPolicy policy = mock(StaffAccessPolicy.class);
     private final ChildAccessPolicy childAccessPolicy = mock(ChildAccessPolicy.class);
     private final NotificationService notificationService = mock(NotificationService.class);
@@ -98,6 +100,16 @@ class ChildRecordServiceImplTest {
     private final com.carenest.repository.child.ChildPlacementRepository placementRepository =
             mock(com.carenest.repository.child.ChildPlacementRepository.class);
     private final PlacementRules placementRules = mock(PlacementRules.class);
+    private final com.carenest.repository.attendance.AttendanceRecordRepository attendanceRecordRepository =
+            mock(com.carenest.repository.attendance.AttendanceRecordRepository.class);
+    private final com.carenest.repository.attendance.DailyHealthEntryRepository dailyHealthEntryRepository =
+            mock(com.carenest.repository.attendance.DailyHealthEntryRepository.class);
+    private final com.carenest.repository.attendance.PickupRecordRepository pickupRecordRepository =
+            mock(com.carenest.repository.attendance.PickupRecordRepository.class);
+    private final com.carenest.repository.observation.DailyObservationRepository dailyObservationRepository =
+            mock(com.carenest.repository.observation.DailyObservationRepository.class);
+    private final com.carenest.repository.observation.DailyActivityResultRepository dailyActivityResultRepository =
+            mock(com.carenest.repository.observation.DailyActivityResultRepository.class);
     private final ChildRecordServiceImpl service = new ChildRecordServiceImpl(
             childRepository,
             profileRepository,
@@ -120,13 +132,20 @@ class ChildRecordServiceImplTest {
             tbNotifier,
             placementRepository,
             placementRules,
-            org.mockito.Mockito.mock(com.carenest.repository.child.PlannedAdmissionRepository.class));
+            org.mockito.Mockito.mock(com.carenest.repository.child.PlannedAdmissionRepository.class),
+            List.of(
+                    new com.carenest.service.attendance.impl.AttendanceChildDayUsageCheck(
+                            attendanceRecordRepository, dailyHealthEntryRepository, pickupRecordRepository),
+                    new com.carenest.service.observation.impl.AssessmentChildDayUsageCheck(
+                            dailyObservationRepository, dailyActivityResultRepository)),
+            schoolYearService);
 
     private Child child;
     private Enrollment enrollment;
 
     @BeforeEach
     void setUp() {
+        given(schoolYearService.isSchoolDay(TODAY)).willReturn(true);
         child = Child.enroll(
                 "HS26001",
                 "Bé An",
@@ -144,6 +163,7 @@ class ChildRecordServiceImplTest {
                 .willReturn(List.of(enrollment));
         given(enrollmentRepository.findOpenByChildId(CHILD_ID, TODAY)).willReturn(List.of(enrollment));
         given(classroomService.findCampusId(CLASS_ID)).willReturn(Optional.of(CAMPUS_ID));
+        given(classroomService.findClassroomInfo(CLASS_ID)).willReturn(Optional.of(classroom(CLASS_ID, "Lớp Chồi 1")));
         given(assignmentService.findCurrentTeacherIds(List.of(CLASS_ID), TODAY))
                 .willReturn(Map.of(CLASS_ID, List.of(7L, 8L)));
     }
@@ -172,6 +192,44 @@ class ChildRecordServiceImplTest {
                         any(),
                         eq(TODAY));
         assertThat(child.getStatus()).isEqualTo(ChildStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("Chuyển lớp trong ngày đã có điểm danh bị chặn để không tách dữ liệu khỏi lớp")
+    void transferIsRejectedAfterDailyDataExists() {
+        ClassroomInfoResponse target = classroom(11L, "Lớp Chồi 2");
+        given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
+        given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(target));
+        given(attendanceRecordRepository.findByChildIdInAndDate(List.of(CHILD_ID), TODAY))
+                .willReturn(List.of(mock(com.carenest.entity.attendance.AttendanceRecord.class)));
+
+        assertThatThrownBy(() -> service.place(
+                        PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, "Đổi lớp")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors()).anySatisfy(error -> {
+                            assertThat(error.field()).isEqualTo("classId");
+                            assertThat(error.message()).contains("ngày học tiếp theo");
+                        }));
+        verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("CHD-03: không chuyển lớp vào ngày nghỉ để enrollment không bắt đầu ngoài ngày học")
+    void transferIsRejectedOnNonSchoolDay() {
+        given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
+        given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(classroom(11L, "Lớp Chồi 2")));
+        given(schoolYearService.isSchoolDay(TODAY)).willReturn(false);
+
+        assertThatThrownBy(() -> service.place(
+                        PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, "Đổi lớp")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors()).anySatisfy(error -> {
+                            assertThat(error.field()).isEqualTo("classId");
+                            assertThat(error.message()).contains("ngày học kế tiếp");
+                        }));
+        verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
     }
 
     @Test
@@ -213,7 +271,8 @@ class ChildRecordServiceImplTest {
 
         given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
         given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(classroom(11L, "Lớp Chồi 2")));
-        given(placementRules.classProblem(any(), any(), any())).willReturn("Lớp Chồi 2 đã đủ 25 trẻ. Chọn lớp khác.");
+        given(placementRules.classProblem(any(), any(), any(), any()))
+                .willReturn("Lớp Chồi 2 đã đủ 25 trẻ. Chọn lớp khác.");
         expectFields(new com.carenest.dto.child.PlaceChildRequest(11L, "x".repeat(301)), "classId", "reason");
         verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
     }
@@ -284,7 +343,7 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: ngày nghỉ ở tương lai, trước ngày tiếp nhận, thiếu lý do ⇒ lỗi theo ô")
+    @DisplayName("G94-180/CHD-03: ngày nghỉ khác ngày thao tác, trước ngày tiếp nhận, thiếu lý do ⇒ lỗi theo ô")
     void withdrawValidatesFields() {
         assertThatThrownBy(() -> service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest("2026-11-11", "")))
                 .isInstanceOfSatisfying(

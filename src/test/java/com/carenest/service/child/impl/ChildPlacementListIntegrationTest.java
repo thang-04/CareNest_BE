@@ -309,8 +309,14 @@ class ChildPlacementListIntegrationTest {
     }
 
     private long classroom(long campusId, long yearId, String name) {
-        return insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusId + ", " + yearId
-                + ", '" + name + "') RETURNING id");
+        long ageGroup = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups WHERE id = ? ON CONFLICT DO NOTHING",
+                yearId,
+                ageGroup);
+        return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusId
+                + ", " + yearId + ", '" + name + "', " + ageGroup + ") RETURNING id");
     }
 
     private long child(String name, String status, String enrolledOn, Long intakeCampusId, String leftOn) {
