@@ -62,6 +62,7 @@ public final class LeaveRequestDtos {
             Long id,
             Long childId,
             String childName,
+            String historyStatus,
             Long classId,
             String className,
             Long campusId,

@@ -20,6 +20,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
+import com.carenest.service.attendance.ChildClassHistoryService;
 import com.carenest.service.attendance.LeaveRequestService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
@@ -81,6 +82,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final ChildService childService;
     private final StaffAssignmentService staffAssignmentService;
     private final NotificationService notificationService;
+    private final ChildClassHistoryService childClassHistoryService;
 
     @Override
     public LeaveRequestResponse createLeaveRequest(CurrentUser currentUser, CreateLeaveRequest request) {
@@ -126,7 +128,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     skipped,
                     childNames(saved, classOf.get(applied.getFirst())),
                     days,
-                    accountService.findFullNames(Set.of(saved.getCreatedBy())));
+                    accountService.findFullNames(Set.of(saved.getCreatedBy())),
+                    null);
             log.info("{}|leaveRequestId={}|days={}|END", logPrefix, saved.getId(), applied.size());
             return response;
         } catch (RuntimeException ex) {
@@ -592,8 +595,12 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         private final Map<Long, String> userNames;
         private final Map<Long, List<EnrollmentService.ChildClassStay>> stays = new HashMap<>();
         private final Map<Long, ClassroomInfoResponse> classes = new HashMap<>();
+        private final Collection<LeaveRequest> leaves;
+        // Nhãn chuyển lớp / nghỉ học: mỗi lớp đọc một lần cho mọi trẻ của danh sách
+        private final Map<Long, Map<Long, String>> historyByClass = new HashMap<>();
 
         LeaveViews(Collection<LeaveRequest> leaves) {
+            this.leaves = leaves;
             userNames = accountService.findFullNames(leaves.stream()
                     .flatMap(r -> java.util.stream.Stream.of(r.getCreatedBy(), r.getTeacherSeenBy()))
                     .filter(java.util.Objects::nonNull)
@@ -612,6 +619,23 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                                             .map(LeaveRequest::getToDate)
                                             .max(Comparator.naturalOrder())
                                             .orElseThrow())));
+        }
+
+        String historyStatus(LeaveRequest r, ClassroomInfoResponse cls) {
+            if (cls == null) {
+                return null;
+            }
+            return historyByClass
+                    .computeIfAbsent(
+                            cls.id(),
+                            classId -> childClassHistoryService.statuses(
+                                    classId,
+                                    leaves.stream()
+                                            .map(LeaveRequest::getChildId)
+                                            .distinct()
+                                            .toList(),
+                                    rules.today()))
+                    .get(r.getChildId());
         }
 
         ClassroomInfoResponse classOn(Long childId, LocalDate date) {
@@ -644,7 +668,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             List<LocalDate> skipped,
             Map<Long, String> childNames,
             LeaveViews views) {
-        return toResponse(r, cls, applied, skipped, childNames, views.days(r), views.userNames);
+        return toResponse(
+                r, cls, applied, skipped, childNames, views.days(r), views.userNames, views.historyStatus(r, cls));
     }
 
     private LeaveRequestResponse toResponse(
@@ -654,7 +679,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             List<LocalDate> skipped,
             Map<Long, String> childNames,
             List<LeaveDay> days,
-            Map<Long, String> userNames) {
+            Map<Long, String> userNames,
+            String historyStatus) {
         String creator = userNames.get(r.getCreatedBy());
         boolean cancelledAll =
                 r.getCancelledFrom() != null && !r.getCancelledFrom().isAfter(r.getFromDate());
@@ -662,6 +688,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 r.getId(),
                 r.getChildId(),
                 childNames.get(r.getChildId()),
+                historyStatus,
                 cls == null ? null : cls.id(),
                 cls == null ? null : cls.name(),
                 cls == null ? null : cls.campusId(),

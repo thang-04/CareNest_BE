@@ -18953,6 +18953,8 @@ components:
         fromDate:
           type: string
           format: date
+        historyStatus:
+          type: string
         id:
           type: integer
           format: int64
