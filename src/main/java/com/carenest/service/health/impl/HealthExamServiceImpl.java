@@ -198,18 +198,11 @@ public class HealthExamServiceImpl implements HealthExamService {
             boolean historyChanged = !concluded || !Objects.equals(before.history(), exam.history());
             boolean isNew = m == null;
             if (isNew) {
-                m = HealthMeasurement.newExam(childId, campaignId, currentUser.userId(), now);
+                // HLT-09: phiếu ở lại lớp lúc khám, GV lớp mới lưu tiếp không chuyển phiếu sang lớp mới
+                m = HealthMeasurement.newExam(childId, campaignId, target.cls().id(), currentUser.userId(), now);
             }
             m.saveExam(
-                    target.cls().id(),
-                    date,
-                    height,
-                    weight,
-                    head,
-                    records.writeExam(exam),
-                    request.conclude(),
-                    currentUser.userId(),
-                    now);
+                    date, height, weight, head, records.writeExam(exam), request.conclude(), currentUser.userId(), now);
             if (isNew) {
                 measurementRepository.save(m);
             }

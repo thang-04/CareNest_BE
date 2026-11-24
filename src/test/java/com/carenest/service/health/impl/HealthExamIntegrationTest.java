@@ -674,6 +674,48 @@ class HealthExamIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "G94-180/HLT-09: GV lớp mới lưu phiếu khám của trẻ chuyển lớp ⇒ phiếu ở lại lớp lúc khám, lớp cũ vẫn có"
+                    + " dòng đã chuyển")
+    void savingExamOfTransferredChildKeepsClassWhereTaken() {
+        long classA2 = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) SELECT "
+                + campusA + ", school_year_id, 'Lớp A2', age_group_id FROM classrooms WHERE id = " + classA
+                + " RETURNING id");
+        CurrentUser teacherA2 = user("he-teachera2", CareNestRole.TEACHER);
+        teach(teacherA2, classA2);
+        long campaign = examCampaign(campusA);
+        long examId = exams.saveExam(teacherA, campaign, child1, save(HealthExamCatalog.template(), false, ""))
+                .measurement()
+                .id();
+        // An khám dở (nháp) ngày 10/11 ở Lớp A, chuyển sang Lớp A2 từ 12/11; GV Lớp A2 khám tiếp và kết luận
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-11-11' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-11-12')",
+                child1,
+                classA2);
+        entityManager.clear();
+
+        exams.saveExam(teacherA2, campaign, child1, save(exam("NO", null, normal()), true, ""));
+        entityManager.flush();
+
+        assertThat(jdbc.queryForObject("SELECT classroom_id FROM health_measurements WHERE id = ?", Long.class, examId))
+                .isEqualTo(classA);
+        HealthCheckClassResponse.HealthCheckChild inOld = rowIn(campaign, teacherA, classA, child1);
+        assertThat(inOld.result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(inOld.movedTo())
+                .isEqualTo(new HealthCheckClassResponse.MovedTo("Lớp A2", "Điểm A", LocalDate.of(2026, 11, 12)));
+        HealthCheckClassResponse.HealthCheckChild inNew = rowIn(campaign, teacherA2, classA2, child1);
+        assertThat(inNew.measuredIn())
+                .isEqualTo(new HealthCheckClassResponse.MeasuredIn("Lớp A", "Điểm A", LocalDate.of(2026, 11, 10)));
+        assertThat(inNew.canEdit()).isTrue();
+    }
+
+    @Test
     @DisplayName("G94-180/HLT-09: trẻ đã nghỉ học hoặc sang điểm trường khác ⇒ dòng phiếu khám ở lớp cũ chỉ xem (phiếu"
             + " chỉ mở ở lớp hiện tại cùng điểm trường của đợt)")
     void examRowOfChildWhoLeftOrChangedCampusIsReadOnly() {
