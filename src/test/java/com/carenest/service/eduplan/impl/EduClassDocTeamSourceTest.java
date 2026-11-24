@@ -72,6 +72,30 @@ class EduClassDocTeamSourceTest {
             new ClassroomInfoResponse(1L, "Lớp mẫu", 2L, 3L, null, null, null, 4L, List.of(), null, null);
 
     @Test
+    void summariesCarryThemeNameAndNumberByStartDate() {
+        var late = mock(com.carenest.entity.eduplan.EduTheme.class);
+        var early = mock(com.carenest.entity.eduplan.EduTheme.class);
+        var undated = mock(com.carenest.entity.eduplan.EduTheme.class);
+        when(late.getId()).thenReturn(31L);
+        when(late.getName()).thenReturn("Tết");
+        when(late.getStartDate()).thenReturn(LocalDate.of(2027, 1, 4));
+        when(late.getEndDate()).thenReturn(LocalDate.of(2027, 1, 29));
+        when(early.getStartDate()).thenReturn(LocalDate.of(2026, 9, 7));
+        when(early.getEndDate()).thenReturn(LocalDate.of(2026, 10, 2));
+        when(undated.getStartDate()).thenReturn(null);
+        when(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(20L)).thenReturn(List.of(undated, late, early));
+        var mapper = new tools.jackson.databind.ObjectMapper();
+        var theme = mapper.createObjectNode().put("yearPlanId", "20").put("themeId", "31");
+        var branch = mapper.createObjectNode().put("yearPlanId", "20");
+
+        service.putThemeNames(List.of(theme, branch));
+
+        assertThat(theme.path("themeName").asString()).isEqualTo("Tết");
+        assertThat(theme.path("themeNo").asInt()).isEqualTo(2);
+        assertThat(branch.has("themeName")).isFalse();
+    }
+
+    @Test
     void classDraftCannotReorderSourceThemesEvenWhenDatesAreUnchanged() {
         var first = mock(com.carenest.entity.eduplan.EduTheme.class);
         var second = mock(com.carenest.entity.eduplan.EduTheme.class);

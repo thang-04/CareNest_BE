@@ -837,6 +837,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         .filter(Objects::nonNull)
                         .map(this::summaryOf)
                         .toList();
+                putThemeNames(items);
             }
             var result = new PageResponse<>(items, page, size, total, (int) ((total + size - 1) / size));
             log.info("{}|END", logPrefix);
@@ -937,6 +938,30 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (r != EduWorkflowPolicy.Role.TEAM_LEADER || scope.leaderAges().contains(cls.ageGroupId())) return true;
         }
         return false;
+    }
+
+    /**
+     * Bản gọn kèm tên + số thứ tự chủ đề (thứ tự theo ngày bắt đầu, chủ đề chưa có ngày không đánh số) để trang danh
+     * sách không phải tải chi tiết kế hoạch tổ chỉ để lấy tên.
+     */
+    void putThemeNames(List<ObjectNode> items) {
+        Map<String, List<EduTheme>> themesByPlan = new HashMap<>();
+        for (ObjectNode item : items) {
+            String themeId = item.path("themeId").asString("");
+            String planId = item.path("yearPlanId").asString("");
+            if (themeId.isEmpty() || planId.isEmpty() || "null".equals(planId)) continue;
+            List<EduTheme> themes = themesByPlan.computeIfAbsent(planId, id -> themeRepository
+                    .findAllByYearPlanIdOrderBySortOrderAsc(Long.valueOf(id))
+                    .stream()
+                    .filter(t -> t.getStartDate() != null && t.getEndDate() != null)
+                    .sorted(Comparator.comparing(EduTheme::getStartDate))
+                    .toList());
+            for (int i = 0; i < themes.size(); i++) {
+                if (!themeId.equals(String.valueOf(themes.get(i).getId()))) continue;
+                item.put("themeName", themes.get(i).getName());
+                item.put("themeNo", i + 1);
+            }
+        }
     }
 
     private ObjectNode summaryOf(ObjectNode node) {
