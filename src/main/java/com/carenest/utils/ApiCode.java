@@ -232,6 +232,7 @@ public enum ApiCode {
     ROOM_NOT_FOUND(2104, HttpStatus.NOT_FOUND, "Không tìm thấy phòng"),
     CAMPUS_CODE_EXISTS(2105, HttpStatus.CONFLICT, "Mã điểm trường đã tồn tại"),
     CAMPUS_NAME_EXISTS(2106, HttpStatus.CONFLICT, "Tên điểm trường đã tồn tại"),
+    CAMPUS_SHORT_NAME_EXISTS(2126, HttpStatus.CONFLICT, "Tên ngắn điểm trường đã tồn tại"),
     MAIN_CAMPUS_REQUIRED(
             2107, HttpStatus.CONFLICT, "Trường cần một điểm trường chính, chọn điểm trường chính khác trước"),
     MAIN_CAMPUS_NOT_DELETABLE(2108, HttpStatus.CONFLICT, "Không xóa được điểm trường chính"),
@@ -293,6 +294,10 @@ public enum ApiCode {
             2223,
             HttpStatus.CONFLICT,
             "Chỉ thêm hoặc bỏ nhóm tuổi khi năm học ở trạng thái Sắp diễn ra ({0} đang {1})"),
+    ASSIGNMENT_YEAR_ENDED(
+            2224,
+            HttpStatus.CONFLICT,
+            "Năm học {0} đã qua ngày kết thúc {1}, không phân công thêm được. Kết thúc năm học rồi phân công ở năm mới"),
 
     // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
     REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),

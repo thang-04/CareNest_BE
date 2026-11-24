@@ -66,16 +66,6 @@ public interface AgeGroupRepository extends JpaRepository<AgeGroup, Long> {
     @Query(
             value =
                     "insert into school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
-                            + " select y.id, g.id, g.name, g.short_name, g.age_from_months, g.age_to_months, g.meal_sessions, g.max_class_size, g.nutrition_note"
-                            + " from school_years y join age_groups g on g.id = :ageGroupId where y.status <> 'CLOSED'"
-                            + " on conflict do nothing",
-            nativeQuery = true)
-    void addToOpenYears(@Param("ageGroupId") Long ageGroupId);
-
-    @Modifying
-    @Query(
-            value =
-                    "insert into school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
                             + " select :targetYearId, m.age_group_id, coalesce(m.name, g.name), coalesce(m.short_name, g.short_name),"
                             + " coalesce(m.age_from_months, g.age_from_months), coalesce(m.age_to_months, g.age_to_months),"
                             + " coalesce(m.meal_sessions, g.meal_sessions), coalesce(m.max_class_size, g.max_class_size),"

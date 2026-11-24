@@ -230,7 +230,7 @@ Mục đích: bản chụp phòng, điểm trường, nhóm tuổi lúc năm h�
 Ghi khi năm chuyển CLOSED (kết thúc tay hoặc tự đóng khi kích hoạt năm mới), trong cùng transaction.
 
 ## school_year_campus_members  (module: school-structure, scope: SCHOOL)
-Mục đích: danh sách điểm trường riêng của từng năm học (Cần chốt 22/10/2026), như `school_year_age_group_members`. Thêm điểm trường ở năm đang chọn chỉ thêm vào năm đó; xóa ở một năm chỉ bỏ khỏi năm đó (còn lớp / PHT / phòng năm đó thì chặn), không còn năm nào thì xóa hẳn (chỉ khi chưa có dữ liệu). Tạo năm mới chép danh sách của năm gần nhất; lớp và phòng chỉ mở ở điểm trường của năm. Migration: `V151__school_year_campus_members.sql`, `V152__school_year_campus_info.sql`, `V154__school_year_config_per_year.sql`.
+Mục đích: danh sách điểm trường riêng của từng năm học (Cần chốt 22/10/2026), như `school_year_age_group_members`. Thêm điểm trường ở năm đang chọn chỉ thêm vào năm đó; xóa ở một năm chỉ bỏ khỏi năm đó (còn lớp / PHT / phòng năm đó thì chặn), không còn năm nào thì xóa hẳn (chỉ khi chưa có dữ liệu). Tạo năm mới chép danh sách của năm gần nhất; lớp và phòng chỉ mở ở điểm trường của năm. Migration: `V151__school_year_campus_members.sql`, `V152__school_year_campus_info.sql`, `V154__school_year_config_per_year.sql`, `V180__school_year_campus_main.sql`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng campus_id | — |
@@ -241,6 +241,7 @@ Mục đích: danh sách điểm trường riêng của từng năm học (Cần
 | address | VARCHAR(255) | không | Địa chỉ của năm | — |
 | phone | VARCHAR(20) | có | SĐT của năm (V152) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE` của năm; `campuses.status` = trạng thái năm đang hoạt động | CFG-CP-01 |
+| is_main | BOOLEAN DEFAULT FALSE | không | Điểm trường chính của năm (V180, Cần chốt 24/11/2026); tối đa một dòng `TRUE` mỗi năm (unique một phần `uk_year_campus_main`). Đổi ở năm nào chỉ năm đó đổi; `campuses.is_main` = điểm chính của năm đang hoạt động (đồng bộ khi sửa năm đang hoạt động và khi kích hoạt năm). Bản chụp đóng năm lấy cờ này | — |
 
 ## school_year_room_members  (module: school-structure, scope: SCHOOL)
 Mục đích: phòng / phòng ban của từng năm học còn mở (Cần chốt 19/11/2026): thêm, sửa, ngừng, xóa ở năm nào chỉ năm đó. `rooms` giữ thông tin năm đang hoạt động cho module khác; kích hoạt năm áp phòng của năm mới, phòng không có trong năm mới ngừng sử dụng. Năm đã kết thúc vẫn đọc bản chụp `school_year_rooms`. Tạo năm mới chép từ năm gần nhất. Migration: `V154__school_year_config_per_year.sql`.

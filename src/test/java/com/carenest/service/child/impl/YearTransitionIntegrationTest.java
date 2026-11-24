@@ -597,6 +597,14 @@ class YearTransitionIntegrationTest {
 
         // PHT có mã nhưng không phụ trách điểm trường của lớp ⇒ không thấy, không xếp được
         long otherVp = user("vp-other");
+        long otherCampus =
+                insertId("INSERT INTO campuses (code, name, short_name, address) VALUES ('CS-O', 'Campus O', 'O', 'O')"
+                        + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2027-08-05', '2028-05-31')",
+                otherVp,
+                otherCampus);
         CurrentUser outside = new CurrentUser(
                 otherVp,
                 "kc-vp-other",
