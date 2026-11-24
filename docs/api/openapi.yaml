@@ -4585,6 +4585,25 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/context:
+    get:
+      operationId: getClassDocContext
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassDocContextResponse"
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources:
     get:
       operationId: list
@@ -4858,6 +4877,71 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/overdue-board:
+    get:
+      operationId: getOverdueBoard
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: tab
+        required: false
+        schema:
+          type: string
+          default: overdue
+      - in: query
+        name: deadlineKind
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: ageGroupId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: semesterNo
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 5
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonBoard"
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/overdue/{kind}/{docKey}:
     get:
       operationId: getOverdueClassDoc
@@ -4900,7 +4984,112 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/summary:
+    get:
+      operationId: getClassDocSummaries
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: view
+        required: false
+        schema:
+          type: string
+          default: MAIN
+          enum:
+          - MAIN
+          - REVIEW
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+      - in: query
+        name: semesterNo
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - in: query
+        name: themeId
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+          uniqueItems: true
+      - in: query
+        name: myTurn
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 5
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/{kind}/{docKey}:
+    get:
+      operationId: getClassDoc
+      parameters:
+      - in: path
+        name: kind
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
     put:
       operationId: saveClassDoc
       parameters:
@@ -5143,6 +5332,12 @@ paths:
           - MAIN
           - OVERDUE
       - in: query
+        name: currentOnly
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - in: query
         name: page
         required: false
         schema:
@@ -5243,6 +5438,33 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonListYearPlanSummaryResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/stats:
+    get:
+      operationId: getYearPlanStats
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: planLevel
+        required: false
+        schema:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanStats"
           description: OK
       tags:
       - edu-year-plan-controller
@@ -11726,6 +11948,22 @@ components:
             - MORNING
             - LUNCH
             - AFTERNOON
+    Board:
+      type: object
+      properties:
+        extendedCount:
+          type: integer
+          format: int64
+        overdueCount:
+          type: integer
+          format: int64
+        rows:
+          $ref: "#/components/schemas/PageResponseObjectNode"
+        semesters:
+          type: array
+          items:
+            type: integer
+            format: int32
     BranchFilePreviewResponse:
       type: object
       properties:
@@ -12972,22 +13210,43 @@ components:
           minLength: 0
       required:
       - action
+    ClassDocContextResponse:
+      type: object
+      properties:
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassItem"
+        creationCapabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreationCapability"
+        semesterConfigMissing:
+          type: boolean
+        staff:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffItem"
     ClassItem:
       type: object
       properties:
         ageGroupId:
-          type: integer
-          format: int64
+          type: string
         campusId:
           type: integer
           format: int64
-        classId:
+        homeroomTeacherId:
           type: integer
           format: int64
+        id:
+          type: string
         name:
           type: string
-        teaches:
-          type: boolean
+        teacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
     ClassMealCountResponse:
       type: object
       properties:
@@ -13557,6 +13816,20 @@ components:
           format: date
       required:
       - userId
+    CreationCapability:
+      type: object
+      properties:
+        canCreate:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        reasonCode:
+          type: string
+        requires:
+          type: string
     Csrf:
       type: object
       properties:
@@ -20063,6 +20336,7 @@ components:
         totalPages:
           type: integer
           format: int32
+    PageResponseObjectNode: {}
     PageResponsePermissionChangeLogResponse:
       type: object
       properties:
@@ -21864,6 +22138,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonBoard:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/Board"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonBranchFilePreviewResponse:
       type: object
       properties:
@@ -22080,6 +22367,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassCalendarPreviewResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassDocContextResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassDocContextResponse"
         desc:
           type: string
         errorCode:
@@ -24822,6 +25122,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonYearPlanStats:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/YearPlanStats"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonYearReadinessResponse:
       type: object
       properties:
@@ -26139,6 +26452,18 @@ components:
         id:
           type: integer
           format: int64
+    StaffItem:
+      type: object
+      properties:
+        ageGroupId:
+          type: string
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        role:
+          type: string
     Step:
       type: object
       properties:
@@ -28409,6 +28734,23 @@ components:
       required:
       - deadline
       - note
+    YearPlanStats:
+      type: object
+      properties:
+        ageGroupIdsWithPlan:
+          type: array
+          items:
+            type: integer
+            format: int64
+        issued:
+          type: integer
+          format: int64
+        replaced:
+          type: integer
+          format: int64
+        total:
+          type: integer
+          format: int64
     YearPlanSummaryResponse:
       type: object
       properties:

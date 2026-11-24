@@ -47,6 +47,9 @@ class EduClassDocControllerTest {
     @MockitoBean
     private EduClassDocService service;
 
+    @MockitoBean
+    private com.carenest.service.eduplan.EduOverdueBoardService overdueBoardService;
+
     @Test
     void overdueReadsRequirePrincipalAndSchoolYear() throws Exception {
         var url = "/api/education-plans/class-docs/overdue/semester/sp_1";

@@ -33,6 +33,18 @@ public interface EduClassDocService {
 
     ClassDocsResponse getClassDocsForReview(CurrentUser currentUser, Long schoolYearId);
 
+    /** Danh sách gọn có phân trang (không nội dung soạn); reviewView = hàng chờ duyệt. Cùng luật xem như getClassDocs. */
+    com.carenest.dto.common.PageResponse<ObjectNode> getClassDocSummaries(
+            CurrentUser currentUser,
+            Long schoolYearId,
+            boolean reviewView,
+            com.carenest.dto.eduplan.ClassDocSummaryFilter filter);
+
+    /** Một tài liệu đầy đủ theo khóa, cùng luật xem và cờ can* như danh sách. */
+    ObjectNode getClassDoc(CurrentUser currentUser, String kind, String docKey);
+
+    com.carenest.dto.eduplan.ClassDocContextResponse getClassDocContext(CurrentUser currentUser, Long schoolYearId);
+
     ClassDocsResponse getOverdueClassDocs(CurrentUser currentUser, Long schoolYearId);
 
     ObjectNode getOverdueClassDoc(CurrentUser currentUser, Long schoolYearId, String kind, String docKey);

@@ -94,6 +94,8 @@ public class EduYearPlanController {
             @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planLevel,
             @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planType,
             @RequestParam(defaultValue = "MAIN") PlanView view,
+            // edu-list-paging (Tiền 25/11/2026): ẩn bản đã thay thế ngay ở truy vấn; mặc định giữ hành vi cũ
+            @RequestParam(defaultValue = "false") boolean currentOnly,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size,
             CurrentUser currentUser) {
@@ -108,9 +110,24 @@ public class EduYearPlanController {
         var paging = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
         PageResponse<YearPlanSummaryResponse> plans = view == PlanView.OVERDUE
                 ? eduYearPlanService.getOverdueYearPlans(currentUser, schoolYearId, ageGroupId, q, paging, level)
-                : eduYearPlanService.getYearPlans(currentUser, schoolYearId, ageGroupId, q, paging, level);
+                : eduYearPlanService.getYearPlans(currentUser, schoolYearId, ageGroupId, q, paging, level, currentOnly);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plans success", plans);
+    }
+
+    /** Số liệu thẻ tổng quan của danh sách kế hoạch năm/tổ (edu-list-paging): tổng, đã ban hành, nhóm tuổi đã có. */
+    @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<com.carenest.service.eduplan.EduYearPlanService.YearPlanStats>> getYearPlanStats(
+            @RequestParam(required = false) Long schoolYearId,
+            @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planLevel,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getYearPlanStats|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        var stats = eduYearPlanService.getYearPlanStats(
+                currentUser, schoolYearId, planLevel == null ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plan stats success", stats);
     }
 
     /** Kế hoạch năm/tổ đang chờ đúng người gọi duyệt (spec 002 FR-001, FR-007). */

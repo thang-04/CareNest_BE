@@ -634,6 +634,81 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "edu-list-paging: danh sách gọn không có nội dung soạn, lọc + phân trang; chi tiết theo khóa đủ nội dung")
+    void summaryIsLeanPagedAndDetailIsFull() {
+        String key = "bp_" + classId + "_" + plan.id();
+        ObjectNode content = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        service.saveClassDoc(teacher, "branch", key, content, versionOf(key), rootVersionOf("branch", content));
+        entityManager.clear();
+        var filter = new com.carenest.dto.eduplan.ClassDocSummaryFilter(
+                null, null, java.util.Set.of("branch"), null, null, null, false, 0, 5);
+
+        var page = service.getClassDocSummaries(teacher, schoolYear, false, filter);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.items())
+                .filteredOn(n -> n.path("id").asString().equals(key))
+                .singleElement()
+                .satisfies(n -> {
+                    assertThat(n.has("names")).isFalse();
+                    assertThat(n.has("branches")).isFalse();
+                    assertThat(n.path("permissions").path("canEdit").asBoolean())
+                            .isTrue();
+                });
+        assertThat(page.items()).allMatch(n -> "branch".equals(n.path("kind").asString()));
+        // Trang ngoài phạm vi ⇒ rỗng, tổng số giữ nguyên
+        var beyond = service.getClassDocSummaries(
+                teacher,
+                schoolYear,
+                false,
+                new com.carenest.dto.eduplan.ClassDocSummaryFilter(
+                        null, null, java.util.Set.of("branch"), null, null, null, false, 9, 5));
+        assertThat(beyond.items()).isEmpty();
+        assertThat(beyond.totalElements()).isEqualTo(page.totalElements());
+
+        assertThat(service.getClassDoc(teacher, "branch", key).path("names").has("2026-09-07"))
+                .isTrue();
+        // Cùng luật xem như danh sách: GV lớp khác không đọc được
+        assertApiError(() -> service.getClassDoc(otherTeacher, "branch", key), ApiCode.CLASS_DOC_NOT_FOUND);
+        assertThat(service.getClassDocContext(teacher, schoolYear).classes())
+                .extracting(ClassDocsResponse.ClassItem::id)
+                .containsExactly(String.valueOf(classId));
+    }
+
+    @Test
+    @DisplayName(
+            "edu-list-paging: hàng chờ (myTurn) giữ luật cũ — người trong chuỗi duyệt thấy, người soạn/GV lớp khác không")
+    void reviewQueueSummaryKeepsChainRule() {
+        String key = "bp_" + classId + "_" + plan.id();
+        ObjectNode content = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        service.saveClassDoc(teacher, "branch", key, content, versionOf(key), rootVersionOf("branch", content));
+        act(teacher, "branch", key, submit());
+        entityManager.clear();
+        var queue = new com.carenest.dto.eduplan.ClassDocSummaryFilter(
+                null, null, java.util.Set.of("semester", "dossier"), null, null, null, true, 0, 5);
+
+        long started = System.nanoTime();
+        var leaderPage = service.getClassDocSummaries(leader, schoolYear, true, queue);
+        System.out.println("EDU_SUMMARY_MEASURE ms=" + (System.nanoTime() - started) / 1_000_000);
+        assertThat(leaderPage.items()).singleElement().satisfies(n -> {
+            assertThat(n.path("kind").asString()).isEqualTo("semester");
+            assertThat(n.path("status").asString()).isEqualTo("REVIEW");
+            assertThat(n.path("permissions").path("canApprove").asBoolean()).isTrue();
+        });
+        assertThat(leaderPage.totalElements()).isEqualTo(1);
+        // PHT ở bước sau vẫn thấy (chỉ xem); người soạn và GV lớp khác không có trong hàng chờ
+        assertThat(service.getClassDocSummaries(vicePrincipal, schoolYear, true, queue)
+                        .items())
+                .hasSize(1);
+        assertThat(service.getClassDocSummaries(teacher, schoolYear, true, queue)
+                        .items())
+                .isEmpty();
+        assertThat(service.getClassDocSummaries(otherTeacher, schoolYear, true, queue)
+                        .items())
+                .isEmpty();
+    }
+
+    @Test
     @DisplayName("EDU-73 (Tiền 24/11/2026): GV không chủ nhiệm không nhận lịch nhánh đang soạn; GVCN nhận, sửa được")
     void secondTeacherDoesNotSeeDraftBranchSchedule() {
         String key = "bp_" + classId + "_" + plan.id();

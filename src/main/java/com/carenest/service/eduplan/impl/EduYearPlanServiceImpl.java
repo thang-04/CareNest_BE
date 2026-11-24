@@ -143,6 +143,71 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             String keyword,
             Pageable pageable,
             EduPlanLevel level) {
+        return getYearPlans(currentUser, schoolYearId, ageGroupId, keyword, pageable, level, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public YearPlanStats getYearPlanStats(CurrentUser currentUser, Long schoolYearId, EduPlanLevel level) {
+        String logPrefix = LOG_PREFIX + "|getYearPlanStats|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            requireView(currentUser);
+            EduPlanAccessPolicy.ViewScope scope = listScope(currentUser, level, schoolYearId);
+            List<EduPlan> all = yearPlanRepository
+                    .search(
+                            level,
+                            schoolYearId,
+                            null,
+                            scope.schoolWideStatuses(),
+                            scope.fullAgeGroupIds(),
+                            scope.approvedAgeGroupIds(),
+                            Set.of(),
+                            null,
+                            false,
+                            Pageable.unpaged())
+                    .getContent();
+            long current = yearPlanRepository
+                    .search(
+                            level,
+                            schoolYearId,
+                            null,
+                            scope.schoolWideStatuses(),
+                            scope.fullAgeGroupIds(),
+                            scope.approvedAgeGroupIds(),
+                            Set.of(),
+                            null,
+                            true,
+                            Pageable.unpaged())
+                    .getTotalElements();
+            long issued = all.stream()
+                    .filter(p -> p.publicStatus() == EduPlanStatus.APPROVED)
+                    .count();
+            List<Long> ages = all.stream()
+                    .map(EduPlan::getAgeGroupId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .sorted()
+                    .toList();
+            var result = new YearPlanStats(all.size(), issued, all.size() - current, ages);
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public PageResponse<YearPlanSummaryResponse> getYearPlans(
+            CurrentUser currentUser,
+            Long schoolYearId,
+            Long ageGroupId,
+            String keyword,
+            Pageable pageable,
+            EduPlanLevel level,
+            boolean currentOnly) {
         String logPrefix = LOG_PREFIX + "|getYearPlans|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
@@ -157,6 +222,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     scope.approvedAgeGroupIds(),
                     Set.of(),
                     keywordPattern(keyword),
+                    currentOnly,
                     pageable);
             PageResponse<YearPlanSummaryResponse> response =
                     PageResponse.from(page, summaryMapper(currentUser, page.getContent()));

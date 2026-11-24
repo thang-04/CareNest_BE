@@ -16,6 +16,41 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
 
     List<EduClassDoc> findAllByClassroomIdAndYearPlanId(Long classroomId, Long yearPlanId);
 
+    /** Thành phần của các hồ sơ trong một trang danh sách (cùng lớp, cùng kế hoạch tổ). */
+    List<EduClassDoc> findAllByClassroomIdInAndYearPlanIdIn(
+            Collection<Long> classroomIds, Collection<Long> yearPlanIds);
+
+    List<EduClassDoc> findAllByClassroomIdInAndYearPlanIdInAndKindIn(
+            Collection<Long> classroomIds, Collection<Long> yearPlanIds, Collection<String> kinds);
+
+    // Danh sách gọn (edu-list-paging, Tiền 25/11/2026): lọc + phân trang ngay ở truy vấn; cờ all* = không lọc trường đó
+    String SUMMARY_WHERE = "d.classroomId in :classIds and (:allKinds = true or d.kind in :kinds)"
+            + " and (:allStatuses = true or d.status in :statuses)"
+            + " and (:semesterNo is null or d.semesterNo = :semesterNo) and (:themeId is null or d.themeId = :themeId)";
+
+    @Query(
+            value = "select d from EduClassDoc d where " + SUMMARY_WHERE,
+            countQuery = "select count(d) from EduClassDoc d where " + SUMMARY_WHERE)
+    org.springframework.data.domain.Page<EduClassDoc> findSummaryPage(
+            @Param("classIds") Collection<Long> classIds,
+            @Param("allKinds") boolean allKinds,
+            @Param("kinds") Collection<String> kinds,
+            @Param("allStatuses") boolean allStatuses,
+            @Param("statuses") Collection<com.carenest.utils.enums.EduClassDocStatus> statuses,
+            @Param("semesterNo") Integer semesterNo,
+            @Param("themeId") Long themeId,
+            org.springframework.data.domain.Pageable pageable);
+
+    @Query("select d from EduClassDoc d where " + SUMMARY_WHERE + " order by d.id asc")
+    List<EduClassDoc> findSummaryCandidates(
+            @Param("classIds") Collection<Long> classIds,
+            @Param("allKinds") boolean allKinds,
+            @Param("kinds") Collection<String> kinds,
+            @Param("allStatuses") boolean allStatuses,
+            @Param("statuses") Collection<com.carenest.utils.enums.EduClassDocStatus> statuses,
+            @Param("semesterNo") Integer semesterNo,
+            @Param("themeId") Long themeId);
+
     Optional<EduClassDoc> findByDocKey(String docKey);
 
     List<EduClassDoc> findAllByKindInAndStatusIn(

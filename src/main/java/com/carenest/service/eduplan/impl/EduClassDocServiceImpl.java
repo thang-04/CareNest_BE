@@ -1,9 +1,12 @@
 package com.carenest.service.eduplan.impl;
 
+import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.BranchFilePreviewResponse;
 import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
 import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
+import com.carenest.dto.eduplan.ClassDocContextResponse;
+import com.carenest.dto.eduplan.ClassDocSummaryFilter;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.dto.eduplan.EduDurationPolicyResponse;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
@@ -619,18 +622,335 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public ClassDocsResponse getOverdueClassDocs(CurrentUser currentUser, Long schoolYearId) {
         requireOverdueRead(currentUser, schoolYearId);
-        return getClassDocs(currentUser, schoolYearId, true, false);
+        // edu-list-paging: bảng quá hạn chỉ cần gói/hồ sơ chưa ban hành ⇒ nạp chúng + thành phần, không nạp cả trường
+        return getClassDocs(currentUser, schoolYearId, true, false, null, this::unreleasedRootsWithMembers, null);
+    }
+
+    private List<EduClassDoc> unreleasedRootsWithMembers(List<Long> classIds) {
+        List<EduClassDoc> roots = classDocRepository.findSummaryCandidates(
+                classIds,
+                false,
+                List.of(EduClassDoc.SEMESTER, EduClassDoc.DOSSIER),
+                false,
+                List.of(EduClassDocStatus.DRAFT, EduClassDocStatus.REVIEW),
+                null,
+                null);
+        return withMembers(roots, null);
+    }
+
+    private static final Set<String> SUMMARY_MEMBER_KINDS =
+            Set.of(EduClassDoc.SEMESTER, EduClassDoc.DOSSIER, EduClassDoc.BRANCH);
+
+    /**
+     * Hồ sơ + thành phần cùng lớp và cùng kế hoạch tổ (để hạn, mục thiếu, khóa tính đúng như danh sách đầy đủ).
+     * memberKinds: chỉ nạp các loại này (null = mọi loại).
+     */
+    private List<EduClassDoc> withMembers(List<EduClassDoc> roots, Set<String> memberKinds) {
+        if (roots.isEmpty()) return List.of();
+        Set<String> pairs = roots.stream()
+                .map(d -> d.getClassroomId() + ":" + d.getYearPlanId())
+                .collect(Collectors.toSet());
+        Map<Long, EduClassDoc> loaded = new LinkedHashMap<>();
+        roots.forEach(d -> loaded.put(d.getId(), d));
+        Set<Long> classIds = roots.stream().map(EduClassDoc::getClassroomId).collect(Collectors.toSet());
+        Set<Long> planIds = roots.stream()
+                .map(EduClassDoc::getYearPlanId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        (planIds.isEmpty()
+                        ? List.<EduClassDoc>of()
+                        : memberKinds == null
+                                ? classDocRepository.findAllByClassroomIdInAndYearPlanIdIn(classIds, planIds)
+                                : classDocRepository.findAllByClassroomIdInAndYearPlanIdInAndKindIn(
+                                        classIds, planIds, memberKinds))
+                .stream()
+                        .filter(d -> pairs.contains(d.getClassroomId() + ":" + d.getYearPlanId()))
+                        .forEach(d -> loaded.putIfAbsent(d.getId(), d));
+        return loaded.values().stream()
+                .sorted(java.util.Comparator.comparing(EduClassDoc::getId))
+                .toList();
+    }
+
+    // Danh sách gọn (edu-list-paging, Tiền 25/11/2026): chỉ giữ trường nhận diện, trạng thái, hạn, quyền; bỏ nội dung
+    // soạn
+    private static final List<String> SUMMARY_FIELDS = List.of(
+            "id",
+            "kind",
+            "classId",
+            "yearPlanId",
+            "themeId",
+            "themeIds",
+            "semesterNo",
+            "weekStart",
+            "date",
+            "status",
+            "waitingRole",
+            "version",
+            "dossierVersion",
+            "yearPlanVersion",
+            "superseded",
+            "returned",
+            "unreleased",
+            "canRevise",
+            "containerKey",
+            "containerStatus",
+            "deadline",
+            "reviewDeadline",
+            "extendedTo",
+            "blockedReason",
+            // "missing" (mục còn thiếu) cần kế hoạch tuần/giáo án ngày ⇒ không có ở bản gọn, trang soạn tự tính
+            "completedAt",
+            "review",
+            "approvals",
+            "permissions");
+    // Lịch sử chỉ giữ vài mục cuối (người gửi, ghi chú gửi, trả lại)
+    private static final int SUMMARY_HISTORY = 5;
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public PageResponse<ObjectNode> getClassDocSummaries(
+            CurrentUser currentUser, Long schoolYearId, boolean reviewView, ClassDocSummaryFilter filter) {
+        String logPrefix = LOG_PREFIX + "|getClassDocSummaries|userId=" + currentUser.userId() + "|schoolYearId="
+                + schoolYearId + "|classId=" + filter.classId();
+        log.info("{}|START", logPrefix);
+        try {
+            requireView(currentUser);
+            int size = Math.max(1, Math.min(filter.size(), 100));
+            int page = Math.max(0, filter.page());
+            // Lớp trong phạm vi người xem (rẻ), lọc theo lớp/nhóm lớp yêu cầu; tài liệu lọc + phân trang ở truy vấn DB
+            List<ClassroomInfoResponse> classes =
+                    visibleClasses(currentUser, schoolYearId, LocalDate.now(clock)).stream()
+                            .filter(c ->
+                                    filter.classId() == null || filter.classId().equals(c.id()))
+                            .filter(c -> filter.classIds() == null
+                                    || filter.classIds().isEmpty()
+                                    || filter.classIds().contains(String.valueOf(c.id())))
+                            .toList();
+            List<Long> classIds =
+                    classes.stream().map(ClassroomInfoResponse::id).toList();
+            if (classIds.isEmpty()) {
+                log.info("{}|END", logPrefix);
+                return new PageResponse<>(List.of(), page, size, 0, 0);
+            }
+            boolean allKinds = filter.kinds() == null || filter.kinds().isEmpty();
+            List<EduClassDocStatus> statuses = filter.myTurn()
+                    ? List.of(EduClassDocStatus.REVIEW)
+                    : filter.statuses() == null
+                            ? List.of()
+                            : filter.statuses().stream()
+                                    .map(s -> {
+                                        try {
+                                            return EduClassDocStatus.valueOf(s);
+                                        } catch (IllegalArgumentException ex) {
+                                            throw GlobalException.of(ApiCode.INVALID_VALUE, "trạng thái");
+                                        }
+                                    })
+                                    .toList();
+            // Danh sách rỗng trong IN không hợp lệ ⇒ giá trị giả khi không lọc trường đó
+            List<String> kinds = allKinds ? List.of("-") : List.copyOf(filter.kinds());
+            List<EduClassDocStatus> statusArg = statuses.isEmpty() ? List.of(EduClassDocStatus.DRAFT) : statuses;
+            Long themeId = filter.themeId() == null ? null : Long.valueOf(filter.themeId());
+
+            List<EduClassDoc> pageDocs;
+            long total;
+            if (filter.myTurn()) {
+                // Hồ sơ Chờ duyệt (ít) trong phạm vi; dựng node gọn chỉ cho chúng để giữ đúng luật hàng chờ cũ (EDU-93)
+                List<EduClassDoc> candidates = classDocRepository.findSummaryCandidates(
+                        classIds, allKinds, kinds, false, statusArg, filter.semesterNo(), themeId);
+                Set<Long> candidateIds =
+                        candidates.stream().map(EduClassDoc::getId).collect(Collectors.toSet());
+                ClassDocsResponse first =
+                        getClassDocs(currentUser, schoolYearId, false, true, null, ids -> candidates, candidateIds);
+                Map<Long, ClassroomInfoResponse> byId =
+                        classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, c -> c, (a, b) -> a));
+                var scope = accessPolicy.classScopeSnapshot(currentUser, schoolYearId);
+                Set<String> inQueue = nodesOf(first)
+                        .filter(n -> inReviewQueue(n, scope, byId))
+                        .map(n -> n.path("id").asString(""))
+                        .collect(Collectors.toSet());
+                List<EduClassDoc> eligible = candidates.stream()
+                        .filter(d -> inQueue.contains(d.getDocKey()))
+                        .toList();
+                total = eligible.size();
+                int from = Math.min(page * size, eligible.size());
+                pageDocs = eligible.subList(from, Math.min(from + size, eligible.size()));
+            } else {
+                var found = classDocRepository.findSummaryPage(
+                        classIds,
+                        allKinds,
+                        kinds,
+                        statuses.isEmpty(),
+                        statusArg,
+                        filter.semesterNo(),
+                        themeId,
+                        org.springframework.data.domain.PageRequest.of(
+                                page, size, org.springframework.data.domain.Sort.by("id")));
+                total = found.getTotalElements();
+                pageDocs = found.getContent();
+            }
+            List<ObjectNode> items = List.of();
+            if (!pageDocs.isEmpty()) {
+                // Chỉ dựng node cho hồ sơ của trang; nạp kèm thành phần (cùng lớp + kế hoạch tổ) để hạn, mục thiếu đúng
+                Set<Long> pageIds = pageDocs.stream().map(EduClassDoc::getId).collect(Collectors.toSet());
+                // Danh sách chỉ hiện tiêu đề/trạng thái/hạn (Tiền 25/11/2026): nạp kèm lịch nhánh (cho hạn theo ngày
+                // chủ
+                // đề), không nạp kế hoạch tuần/giáo án ngày
+                List<EduClassDoc> loaded = withMembers(pageDocs, SUMMARY_MEMBER_KINDS);
+                ClassDocsResponse built = getClassDocs(
+                        currentUser, schoolYearId, false, reviewView || filter.myTurn(), null, ids -> loaded, pageIds);
+                Map<String, ObjectNode> byKey = nodesOf(built)
+                        .collect(Collectors.toMap(n -> n.path("id").asString(""), n -> n, (a, b) -> a));
+                items = pageDocs.stream()
+                        .map(d -> byKey.get(d.getDocKey()))
+                        .filter(Objects::nonNull)
+                        .map(this::summaryOf)
+                        .toList();
+            }
+            var result = new PageResponse<>(items, page, size, total, (int) ((total + size - 1) / size));
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ObjectNode getClassDoc(CurrentUser currentUser, String kind, String docKey) {
+        String logPrefix = LOG_PREFIX + "|getClassDoc|userId=" + currentUser.userId() + "|kind=" + kind;
+        log.info("{}|START", logPrefix);
+        try {
+            EduClassDoc doc = classDocRepository
+                    .findByDocKey(docKey)
+                    .filter(d -> kind.equals(d.getKind()))
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
+            ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
+            // Cùng đường dựng như danh sách (một lớp) ⇒ cùng luật xem EDU-73, G94-442 và cờ can*
+            ClassDocsResponse one = getClassDocs(currentUser, cls.schoolYearId(), false, false, cls.id());
+            ObjectNode node = java.util.stream.Stream.of(
+                            one.semesterPackages(),
+                            one.themeDossiers(),
+                            one.branchPlans(),
+                            one.classThemePlans(),
+                            one.weekPlans(),
+                            one.dayPlans())
+                    .flatMap(List::stream)
+                    .filter(n -> docKey.equals(n.path("id").asString(""))
+                            && kind.equals(n.path("kind").asString("")))
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
+            log.info("{}|END", logPrefix);
+            return node;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ClassDocContextResponse getClassDocContext(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|getClassDocContext|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            // Không nạp tài liệu: trang danh sách chỉ cần lớp, nhân sự (quyền tạo hồ sơ cần tài liệu ⇒ để trang soạn
+            // tải)
+            ClassDocsResponse all =
+                    getClassDocs(currentUser, schoolYearId, false, false, null, ids -> List.of(), Set.of());
+            var result =
+                    new ClassDocContextResponse(all.classes(), all.staff(), List.of(), all.semesterConfigMissing());
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private static java.util.stream.Stream<ObjectNode> nodesOf(ClassDocsResponse docs) {
+        return java.util.stream.Stream.of(
+                        docs.semesterPackages(),
+                        docs.themeDossiers(),
+                        docs.branchPlans(),
+                        docs.classThemePlans(),
+                        docs.weekPlans(),
+                        docs.dayPlans())
+                .flatMap(List::stream);
+    }
+
+    /**
+     * Cùng điều kiện hàng chờ cũ của Web (EDU-93): hồ sơ Chờ duyệt mà người xem đúng lượt (có quyền duyệt/trả lại) hoặc
+     * giữ một vai trò trong chuỗi duyệt; Tổ trưởng chỉ nhóm tuổi mình phụ trách.
+     */
+    private static boolean inReviewQueue(
+            ObjectNode node, EduPlanAccessPolicy.ClassScopeSnapshot scope, Map<Long, ClassroomInfoResponse> classes) {
+        if (!EduClassDocStatus.REVIEW.name().equals(node.path("status").asString(""))) return false;
+        JsonNode p = node.path("permissions");
+        if (p.path("canApprove").asBoolean(false)
+                || p.path("canIssue").asBoolean(false)
+                || p.path("canReject").asBoolean(false)
+                || p.path("canReturn").asBoolean(false)) return true;
+        ClassroomInfoResponse cls =
+                classes.get(Long.valueOf(node.path("classId").asString("0")));
+        if (cls == null) return false;
+        for (JsonNode role : node.path("review").path("roles")) {
+            EduWorkflowPolicy.Role r;
+            try {
+                r = EduWorkflowPolicy.Role.valueOf(role.asString(""));
+            } catch (IllegalArgumentException ex) {
+                continue;
+            }
+            if (!scope.roles().contains(r)) continue;
+            if (r != EduWorkflowPolicy.Role.TEAM_LEADER || scope.leaderAges().contains(cls.ageGroupId())) return true;
+        }
+        return false;
+    }
+
+    private ObjectNode summaryOf(ObjectNode node) {
+        ObjectNode summary = objectMapper.createObjectNode();
+        for (String field : SUMMARY_FIELDS) if (node.has(field)) summary.set(field, node.get(field));
+        JsonNode history = node.path("history");
+        if (history.isArray()) {
+            ArrayNode tail = summary.putArray("history");
+            for (int i = Math.max(0, history.size() - SUMMARY_HISTORY); i < history.size(); i++)
+                tail.add(history.get(i));
+        }
+        return summary;
     }
 
     private ClassDocsResponse getClassDocs(
             CurrentUser currentUser, Long schoolYearId, boolean deadlineBoard, boolean reviewView) {
+        return getClassDocs(currentUser, schoolYearId, deadlineBoard, reviewView, null);
+    }
+
+    private ClassDocsResponse getClassDocs(
+            CurrentUser currentUser, Long schoolYearId, boolean deadlineBoard, boolean reviewView, Long onlyClassId) {
+        return getClassDocs(currentUser, schoolYearId, deadlineBoard, reviewView, onlyClassId, null, null);
+    }
+
+    /**
+     * onlyClassId: chỉ dựng tài liệu của một lớp (chi tiết, lọc theo lớp) để không phải đọc cả trường.
+     * loadDocs: thay cách nạp tài liệu (theo id lớp trong phạm vi) để chỉ nạp hồ sơ của một trang + thành phần của chúng;
+     * outputIds: chỉ dựng node cho các id này (null = mọi tài liệu đã nạp). Edu-list-paging, Tiền 25/11/2026.
+     */
+    private ClassDocsResponse getClassDocs(
+            CurrentUser currentUser,
+            Long schoolYearId,
+            boolean deadlineBoard,
+            boolean reviewView,
+            Long onlyClassId,
+            java.util.function.Function<List<Long>, List<EduClassDoc>> loadDocs,
+            Set<Long> outputIds) {
         String logPrefix =
                 LOG_PREFIX + "|getClassDocs|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             requireView(currentUser);
             LocalDate today = LocalDate.now(clock);
-            List<ClassroomInfoResponse> classes = visibleClasses(currentUser, schoolYearId, today);
+            List<ClassroomInfoResponse> classes = visibleClasses(currentUser, schoolYearId, today).stream()
+                    .filter(c -> onlyClassId == null || onlyClassId.equals(c.id()))
+                    .toList();
             List<Long> classIds =
                     classes.stream().map(ClassroomInfoResponse::id).toList();
             Map<Long, List<Long>> teachers = staffAssignmentService.findCurrentTeacherIds(classIds, today);
@@ -672,8 +992,14 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             homerooms.get(c.id())))
                     .toList();
 
-            List<EduClassDoc> docs =
-                    classIds.isEmpty() ? List.of() : classDocRepository.findAllByClassroomIdInOrderByIdAsc(classIds);
+            List<EduClassDoc> docs = classIds.isEmpty()
+                    ? List.of()
+                    : loadDocs != null
+                            ? loadDocs.apply(classIds)
+                            : classDocRepository.findAllByClassroomIdInOrderByIdAsc(classIds);
+            List<EduClassDoc> shownDocs = outputIds == null
+                    ? docs
+                    : docs.stream().filter(d -> outputIds.contains(d.getId())).toList();
             Map<Long, EduWorkflowPolicy.Evaluation> evaluations = eduWorkflowService.evaluateClassDocs(docs, today);
             Map<Long, ClassroomInfoResponse> classInfoById =
                     classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, c -> c, (a, b) -> a));
@@ -735,25 +1061,25 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             ClassDocsResponse response = new ClassDocsResponse(
                     deadlineBoard
                             ? List.of()
-                            : toNodes(currentUser, docs, EduClassDoc.BRANCH, evaluations, context, reviewView),
+                            : toNodes(currentUser, shownDocs, EduClassDoc.BRANCH, evaluations, context, reviewView),
                     deadlineBoard
                             ? List.of()
-                            : toNodes(currentUser, docs, EduClassDoc.THEME, evaluations, context, reviewView),
+                            : toNodes(currentUser, shownDocs, EduClassDoc.THEME, evaluations, context, reviewView),
                     deadlineBoard
                             ? List.of()
-                            : toNodes(currentUser, docs, EduClassDoc.WEEK, evaluations, context, reviewView),
+                            : toNodes(currentUser, shownDocs, EduClassDoc.WEEK, evaluations, context, reviewView),
                     classItems,
                     List.copyOf(staff.values()),
                     deadlineBoard ? List.of() : buildCreationCapabilities(classItems, context),
                     deadlineBoard
-                            ? overdueNodes(currentUser, docs, EduClassDoc.SEMESTER, context)
-                            : toNodes(currentUser, docs, EduClassDoc.SEMESTER, evaluations, context, reviewView),
+                            ? overdueNodes(currentUser, shownDocs, EduClassDoc.SEMESTER, context)
+                            : toNodes(currentUser, shownDocs, EduClassDoc.SEMESTER, evaluations, context, reviewView),
                     deadlineBoard
-                            ? overdueNodes(currentUser, docs, EduClassDoc.DOSSIER, context)
-                            : toNodes(currentUser, docs, EduClassDoc.DOSSIER, evaluations, context, reviewView),
+                            ? overdueNodes(currentUser, shownDocs, EduClassDoc.DOSSIER, context)
+                            : toNodes(currentUser, shownDocs, EduClassDoc.DOSSIER, evaluations, context, reviewView),
                     deadlineBoard
                             ? List.of()
-                            : toNodes(currentUser, docs, EduClassDoc.DAY, evaluations, context, reviewView),
+                            : toNodes(currentUser, shownDocs, EduClassDoc.DAY, evaluations, context, reviewView),
                     !classes.isEmpty() && yearsById.values().stream().anyMatch(y -> !EduSemesters.configured(y)));
             log.info("{}|END", logPrefix);
             return response;

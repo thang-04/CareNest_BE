@@ -24,6 +24,21 @@ public interface EduYearPlanService {
             Pageable pageable,
             com.carenest.utils.enums.EduPlanLevel level);
 
+    /** currentOnly: ẩn bản đã ban hành bị thay thế, lọc ngay ở truy vấn (edu-list-paging, Tiền 25/11/2026). */
+    PageResponse<YearPlanSummaryResponse> getYearPlans(
+            CurrentUser user,
+            Long yearId,
+            Long ageId,
+            String keyword,
+            Pageable pageable,
+            com.carenest.utils.enums.EduPlanLevel level,
+            boolean currentOnly);
+
+    /** Số liệu thẻ tổng quan + nhóm tuổi đã có kế hoạch (để biết còn lập mới được) trong phạm vi người xem. */
+    record YearPlanStats(long total, long issued, long replaced, java.util.List<Long> ageGroupIdsWithPlan) {}
+
+    YearPlanStats getYearPlanStats(CurrentUser user, Long yearId, com.carenest.utils.enums.EduPlanLevel level);
+
     YearPlanDetailResponse createVersion(
             CurrentUser user, Long planId, YearPlanEditRequest edit, Long curriculumSourcePlanId);
 
