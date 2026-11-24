@@ -7,9 +7,7 @@ import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * G94-180/CHD-03, CHD-04 (user chốt 2026-11-24): trẻ cho nghỉ từ ngày học kế tiếp vẫn học tới hết hôm trước, nên đầu
  * ngày nghỉ mới báo module tài khoản khóa phụ huynh không còn con đang học. Cho nghỉ từ hôm nay thì withdraw báo ngay.
+ * Chỉ chạy lúc 00:05: BE tắt đúng giờ đó thì không chạy bù (không khóa lại tài khoản HT/PHT vừa mở tay); phụ huynh vẫn
+ * không xem được trẻ từ ngày nghỉ vì quyền xem xét theo ngày.
  */
 @Slf4j
 @Component
@@ -28,10 +28,8 @@ class ScheduledLeaveJob {
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    // Listener khóa tài khoản chạy sau commit nên phát sự kiện trong transaction. Chạy cả lúc khởi động (như
-    // closeExpiredHealthChecks): BE tắt lúc 00:05 vẫn khóa trong ngày nghỉ; khóa lại tài khoản đã khóa thì bỏ qua
+    // Listener khóa tài khoản chạy sau commit nên phát sự kiện trong transaction
     @Scheduled(cron = "0 5 0 * * *", zone = "${carenest.time-zone}")
-    @EventListener(ApplicationReadyEvent.class)
     @Transactional(readOnly = true)
     public void lockParentsOfChildrenLeavingToday() {
         String logPrefix = LOG_PREFIX + "|lockParentsOfChildrenLeavingToday";
