@@ -119,6 +119,41 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     @Override
+    public Map<Long, Set<Long>> findChildIdsInClassrooms(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findChildIdsInClassrooms|classes=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Set<Long>> children = enrollmentRepository.findActiveByClassroomIds(classroomIds, date).stream()
+                    .collect(Collectors.groupingBy(
+                            Enrollment::getClassroomId,
+                            Collectors.mapping(Enrollment::getChildId, Collectors.toSet())));
+            log.info("{}|count={}|END", logPrefix, children.size());
+            return children;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, Set<Long>> findChildIdsInClassroomsDuring(
+            Collection<Long> classroomIds, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findChildIdsInClassroomsDuring|classes=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Set<Long>> children = enrollmentRepository.findDuringClassroomIds(classroomIds, from, to).stream()
+                    .collect(Collectors.groupingBy(
+                            Enrollment::getClassroomId,
+                            Collectors.mapping(Enrollment::getChildId, Collectors.toSet())));
+            log.info("{}|count={}|END", logPrefix, children.size());
+            return children;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public List<ClassStay> findStaysInClassroom(Long classroomId, LocalDate from, LocalDate to) {
         String logPrefix = LOG_PREFIX + "|findStaysInClassroom|classroomId=" + classroomId;
         log.info("{}|START", logPrefix);

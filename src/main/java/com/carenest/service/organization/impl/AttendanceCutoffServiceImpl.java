@@ -136,9 +136,7 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
 
     private void notifyCutoffChanged(SchoolYear year, LocalTime time, LocalDate from) {
         LocalDate today = LocalDate.now(clock);
-        List<Long> campusIds = campusRepository.findAllByOrderByMainDescCodeAsc().stream()
-                .map(c -> c.getId())
-                .toList();
+        List<Long> campusIds = campusRepository.findYearCampusIds(year.getId());
         Set<Long> staff = staffAssignmentService.findActiveStaffUserIds(campusIds, today);
         if (staff.isEmpty()) {
             return;

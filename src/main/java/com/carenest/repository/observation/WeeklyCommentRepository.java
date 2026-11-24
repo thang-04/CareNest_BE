@@ -13,6 +13,8 @@ public interface WeeklyCommentRepository extends JpaRepository<WeeklyComment, Lo
     List<WeeklyComment> findByClassroomIdAndChildIdInAndWeekStart(
             Long classroomId, Collection<Long> childIds, LocalDate weekStart);
 
+    List<WeeklyComment> findByClassroomIdInAndWeekStart(Collection<Long> classroomIds, LocalDate weekStart);
+
     Optional<WeeklyComment> findByClassroomIdAndChildIdAndWeekStart(
             Long classroomId, Long childId, LocalDate weekStart);
 
