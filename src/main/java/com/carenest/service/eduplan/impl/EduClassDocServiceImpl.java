@@ -1883,7 +1883,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     // EDU-26/62: chỉ tổ ban hành mới thay nguồn lớp; năm ban hành hoặc tổ nháp không khóa hồ sơ cũ.
     /** EDU-112 (4): kế hoạch tổ (của các lớp) đã có bản ban hành mới hơn; rỗng thì trả id giả để truy vấn "not in" hợp lệ. */
-    private List<Long> supersededTeamPlanIds(Collection<Long> classIds) {
+    private List<Long> supersededTeamPlanIds(java.util.Collection<Long> classIds) {
         Set<Long> ids = classDocRepository.findDistinctYearPlanIds(classIds).stream()
                 .filter(this::isSuperseded)
                 .collect(Collectors.toSet());
