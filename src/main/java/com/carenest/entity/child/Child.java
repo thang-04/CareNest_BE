@@ -63,6 +63,16 @@ public class Child {
     @Column(name = "readmitted_on")
     private LocalDate readmittedOn;
 
+    // G94-180/CHD-03 (user chốt 2026-11-25): lịch nghỉ học — vẫn Đang học tới ngày này, job 00:05 ngày đó mới cho nghỉ
+    @Column(name = "scheduled_leave_on")
+    private LocalDate scheduledLeaveOn;
+
+    @Column(name = "scheduled_leave_reason", length = 300)
+    private String scheduledLeaveReason;
+
+    @Column(name = "scheduled_leave_by")
+    private Long scheduledLeaveBy;
+
     // G94-180/CHD-14: ngày bắt đầu đi học chọn khi tiếp nhận / mở lại hồ sơ; null = hồ sơ cũ
     @Column(name = "start_date")
     private LocalDate startDate;
@@ -142,6 +152,22 @@ public class Child {
         this.status = ChildStatus.LEFT;
         this.leftOn = leftOn;
         this.leftReason = reason;
+        // Đã nghỉ thì không còn lịch nghỉ (ck_children_scheduled_leave_not_left)
+        clearScheduledLeave();
+    }
+
+    /** Hẹn nghỉ học từ ngày sau hôm nay (G94-180/CHD-03): trẻ vẫn Đang học, lớp không đổi tới ngày {@code on}. */
+    public void scheduleLeave(LocalDate on, String reason, Long byUserId) {
+        this.scheduledLeaveOn = on;
+        this.scheduledLeaveReason = reason;
+        this.scheduledLeaveBy = byUserId;
+    }
+
+    /** Bỏ lịch nghỉ học: hủy lịch, hoặc lịch đã áp. */
+    public void clearScheduledLeave() {
+        this.scheduledLeaveOn = null;
+        this.scheduledLeaveReason = null;
+        this.scheduledLeaveBy = null;
     }
 
     /**
