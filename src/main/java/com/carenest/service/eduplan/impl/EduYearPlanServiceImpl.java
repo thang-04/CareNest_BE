@@ -161,7 +161,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                             null,
                             scope.schoolWideStatuses(),
                             scope.fullAgeGroupIds(),
-                            fullOwnerOf(currentUser, level),
                             scope.approvedAgeGroupIds(),
                             Set.of(),
                             null,
@@ -175,7 +174,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                             null,
                             scope.schoolWideStatuses(),
                             scope.fullAgeGroupIds(),
-                            fullOwnerOf(currentUser, level),
                             scope.approvedAgeGroupIds(),
                             Set.of(),
                             null,
@@ -221,7 +219,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     ageGroupId,
                     scope.schoolWideStatuses(),
                     scope.fullAgeGroupIds(),
-                    fullOwnerOf(currentUser, level),
                     scope.approvedAgeGroupIds(),
                     Set.of(),
                     keywordPattern(keyword),
@@ -962,7 +959,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (plan.getPlanLevel() == EduPlanLevel.TEAM || !canDeleteAsVicePrincipal(currentUser)) {
                 throw GlobalException.of(ApiCode.VICE_PRINCIPAL_ONLY, "xóa");
             }
-            // EDU-07 (Tiền 25/11/2026): chỉ người soạn kế hoạch (chủ kế hoạch, có quyền soạn) được xóa
+            // EDU-07 (Tiền 25/11/2026): chỉ người có quyền soạn được xóa (PHT dinh dưỡng không)
             if (!isEditor(currentUser, plan)) throw GlobalException.of(ApiCode.FORBIDDEN);
             if (plan.publicStatus() != EduPlanStatus.DRAFT) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_DELETE_DRAFT_ONLY);
@@ -1357,11 +1354,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
      * Người phụ trách thấy mọi trạng thái; người duyệt của chuỗi (đúng lượt hoặc bước khác, EDU-93) thấy bản Chờ duyệt;
      * người khác trong phạm vi chỉ thấy bản đã ban hành (spec 002 FR-007).
      */
-    // EDU-07 (c): kế hoạch năm học chưa ban hành chỉ chủ kế hoạch xem; kế hoạch tổ giữ như cũ
-    private static Long fullOwnerOf(CurrentUser user, EduPlanLevel level) {
-        return level == EduPlanLevel.SCHOOL_YEAR ? user.userId() : null;
-    }
-
     private boolean canView(CurrentUser user, EduPlan plan) {
         if (isEditor(user, plan)) return true;
         EduPlanStatus status = plan.publicStatus();
@@ -1447,16 +1439,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     // Kế hoạch tổ: Tổ trưởng hiện hành sửa được dù không phải người tạo bản (FR-016a); kế hoạch năm giữ người soạn
     private boolean isEditor(CurrentUser user, EduPlan plan) {
-        return isAuthor(user, plan) && (plan.getPlanLevel() == EduPlanLevel.TEAM || isOwner(user, plan));
+        // EDU-07 (Tiền 25/11/2026): theo quyền soạn, không khóa theo người tạo
+        return isAuthor(user, plan);
     }
 
     private boolean canDeleteAsVicePrincipal(CurrentUser user) {
         return accessPolicy.isVicePrincipal(user)
                 && accessPolicy.hasPermission(user, Permission.EDU_SCHOOL_YEAR_PLAN_EDIT);
-    }
-
-    private boolean isOwner(CurrentUser user, EduPlan plan) {
-        return plan.getOwnerId().equals(user.userId());
     }
 
     // Nháp / bị trả lại, kể cả khi đang có người sửa
@@ -2379,7 +2368,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                         && plan.getId().equals(currentId)
                         && chain.stream().allMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED)
-                        // EDU-07 (b): PHT có quyền soạn nào cũng tạo phiên bản, thành chủ phiên bản mới
+                        // EDU-07: người có quyền soạn tạo phiên bản
                         && isAuthor(user, plan)
                         && !timeLock.locked(plan),
                 EduPlanAccessPolicy.canExport(
