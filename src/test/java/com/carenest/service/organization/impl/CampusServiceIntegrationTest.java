@@ -155,6 +155,39 @@ class CampusServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Mã điểm trường chuẩn hóa: khác khoảng trắng và hoa thường vẫn tính là trùng (2105)")
+    void campusCodeDuplicateIgnoresSpacesAndCase() {
+        assertThatThrownBy(() -> service.createCampus(
+                        principal, new CampusRequest(" cs - a ", "Campus C", "C", "Địa chỉ C", null, false)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CAMPUS_CODE_EXISTS);
+    }
+
+    @Test
+    @DisplayName("Điểm trường ngừng hoạt động vẫn giữ mã, tên và tên ngắn để tránh trùng khi mở lại")
+    void inactiveCampusKeepsIdentifiersReserved() {
+        jdbc.update(
+                "UPDATE campuses SET status = 'INACTIVE', name = 'Cơ sở A', short_name = 'CS A' WHERE id = ?", campusA);
+
+        assertCampusCreateFails(
+                new CampusRequest("cs - a", "Cơ sở mới", "CS mới", "Địa chỉ C", null, false),
+                ApiCode.CAMPUS_CODE_EXISTS);
+        assertCampusCreateFails(
+                new CampusRequest("CS-C", "cơ  sở  a", "CS mới", "Địa chỉ C", null, false), ApiCode.CAMPUS_NAME_EXISTS);
+        assertCampusCreateFails(
+                new CampusRequest("CS-C", "Cơ sở mới", " cs   a ", "Địa chỉ C", null, false),
+                ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+    }
+
+    private void assertCampusCreateFails(CampusRequest request, ApiCode code) {
+        assertThatThrownBy(() -> service.createCampus(principal, request))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(code);
+    }
+
+    @Test
     void switchingMainKeepsOneMainCampus() {
         service.updateCampus(principal, campusB, new CampusRequest("CS-B", "Campus B", "B", "Địa chỉ B", null, true));
 

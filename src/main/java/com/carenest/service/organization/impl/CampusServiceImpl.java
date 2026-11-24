@@ -770,11 +770,15 @@ public class CampusServiceImpl implements CampusService {
                 ? null
                 : request.phone().replaceAll("[\\s.\\-]", "").replaceFirst("^\\+?84", "0");
         return new CampusRequest(
-                request.code().trim(),
+                normalizeCode(request.code()),
                 DisplayNames.normalize(request.name()),
                 DisplayNames.normalize(request.shortName()),
                 request.address().trim(),
                 phone,
                 request.isMain());
+    }
+
+    private static String normalizeCode(String code) {
+        return DisplayNames.normalize(code).replace(" ", "");
     }
 }
