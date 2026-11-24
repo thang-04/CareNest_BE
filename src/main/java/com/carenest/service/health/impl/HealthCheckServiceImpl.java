@@ -695,6 +695,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
         Set<Long> absentToday = campaign.statusOn(rules.today()) == HealthCheckStatus.IN_PROGRESS
                 ? rules.absentOn(childIds, rules.today())
                 : Set.of();
+        // G94-180/HLT-09: phiếu khám chỉ mở ở lớp hiện tại của trẻ; trẻ đã nghỉ, sang điểm trường khác ⇒ lớp cũ chỉ xem
+        boolean exam = campaign.getKind() == HealthCheckKind.EXAM;
         return rows.stream()
                 .map(r -> toChild(
                         r,
@@ -704,6 +706,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                         campaign,
                         recordable.contains(r.classId())
                                 && r.movedTo() == null
+                                && (!exam || r.inClass())
                                 && (r.measurement() == null
                                         || editableCampaigns.contains(
                                                 r.measurement().getCampaignId())),

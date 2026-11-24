@@ -68,6 +68,8 @@ class HealthCheckRules {
     /**
      * Một trẻ trong danh sách lớp của đợt/kỳ; {@code measurement} null khi chưa có kết quả. {@code movedTo}: trẻ đã chuyển
      * sang lớp nhận kết quả (dòng chỉ xem, không tính tiến độ); {@code measuredIn}: kết quả đo ở lớp khác (G94-180/HLT-09).
+     * {@code inClass}: trẻ học lớp này tại {@link #referenceDate} (dòng vắng: lúc đóng); false ở dòng kết quả của trẻ đã
+     * rời lớp.
      */
     record Row(
             Long childId,
@@ -75,7 +77,8 @@ class HealthCheckRules {
             HealthCheckResult result,
             HealthMeasurement measurement,
             HealthCheckClassResponse.MovedTo movedTo,
-            HealthCheckClassResponse.MeasuredIn measuredIn) {}
+            HealthCheckClassResponse.MeasuredIn measuredIn,
+            boolean inClass) {}
 
     LocalDate today() {
         return LocalDate.now(clock);
@@ -394,12 +397,13 @@ class HealthCheckRules {
                     rows.put(childId, memberRow(childId, cls, absent));
                 } else if (m.getCampaignId().equals(campaign.getId())
                         && m.getClassroomId().equals(cls.id())) {
-                    rows.put(childId, new Row(childId, cls.id(), resultOf(m, closed), m, movedTo(m), null));
+                    rows.put(childId, new Row(childId, cls.id(), resultOf(m, closed), m, movedTo(m), null, false));
                 }
             });
             if (closed) {
-                absent.forEach(
-                        id -> rows.putIfAbsent(id, new Row(id, cls.id(), HealthCheckResult.ABSENT, null, null, null)));
+                // Dòng vắng chốt lúc đóng cho trẻ đang học lớp khi đó
+                absent.forEach(id ->
+                        rows.putIfAbsent(id, new Row(id, cls.id(), HealthCheckResult.ABSENT, null, null, null, true)));
             }
             return List.copyOf(rows.values());
         }
@@ -410,7 +414,7 @@ class HealthCheckRules {
                     ? resultOf(m, closed)
                     : absent.contains(childId) ? HealthCheckResult.ABSENT : HealthCheckResult.NOT_RECORDED;
             boolean elsewhere = m != null && !m.getClassroomId().equals(cls.id());
-            return new Row(childId, cls.id(), result, m, null, elsewhere ? measuredIn(m) : null);
+            return new Row(childId, cls.id(), result, m, null, elsewhere ? measuredIn(m) : null, true);
         }
 
         private HealthCheckClassResponse.MeasuredIn measuredIn(HealthMeasurement m) {

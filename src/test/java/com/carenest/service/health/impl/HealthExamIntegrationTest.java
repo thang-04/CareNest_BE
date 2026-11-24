@@ -674,6 +674,43 @@ class HealthExamIntegrationTest {
     }
 
     @Test
+    @DisplayName("G94-180/HLT-09: trẻ đã nghỉ học hoặc sang điểm trường khác ⇒ dòng phiếu khám ở lớp cũ chỉ xem (phiếu"
+            + " chỉ mở ở lớp hiện tại cùng điểm trường của đợt)")
+    void examRowOfChildWhoLeftOrChangedCampusIsReadOnly() {
+        long campaign = examCampaign(campusA);
+        exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, ""));
+        exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""));
+        long child4 = child("Dũng", "2023-04-01");
+        enroll(child4, classA);
+        long classB = jdbc.queryForObject("SELECT id FROM classrooms WHERE name = 'Lớp B'", Long.class);
+        // Từ 12/11: An sang Lớp B (điểm B), Bình nghỉ học
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-11-11' WHERE child_id IN (?, ?) AND classroom_id = ?",
+                child1,
+                child2,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-11-12')",
+                child1,
+                classB);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = '2026-11-12', left_reason = 'Chuyển trường (giả)'"
+                        + " WHERE id = ?",
+                child2);
+        entityManager.clear();
+
+        for (long gone : new long[] {child1, child2}) {
+            HealthCheckClassResponse.HealthCheckChild row = rowOf(campaign, gone);
+            assertThat(row.movedTo()).isNull();
+            assertThat(row.canEdit()).isFalse();
+            expectError(() -> exams.getExam(teacherA, campaign, gone), ApiCode.HEALTH_EXAM_NOT_FOUND);
+        }
+        assertThat(rowOf(campaign, child4).canEdit()).isTrue();
+    }
+
+    @Test
     @DisplayName(
             "HLT-01, HLT-08: trẻ điểm danh vắng ngày khám (thứ 2–6) ⇒ không mở phiếu khám mới; phiếu đã có vẫn lưu")
     void absentChildCannotStartExam() {
