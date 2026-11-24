@@ -60,6 +60,10 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
     private static final int PRESCHOOL_FROM_MONTHS = 36;
     private static final Set<String> NURSERY_CODES = Set.of("ag-2");
     private static final Set<String> PRESCHOOL_CODES = Set.of("ag-3", "ag-4", "ag-5");
+    // Lần đo mới hơn: ngày sau hơn; cùng ngày lấy phiếu khám rồi id lớn hơn (HLT-08, user chốt 2026-11-24)
+    private static final Comparator<HealthMeasurement> LATEST = Comparator.comparing(HealthMeasurement::getDate)
+            .thenComparing(HealthMeasurement::isExam)
+            .thenComparing(HealthMeasurement::getId);
 
     private final HealthCheckRules rules;
     private final HealthCheckCampaignRepository campaignRepository;
@@ -239,8 +243,7 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
             List<Entry> rows = child.getValue();
             Entry chosen = rows.stream()
                     .filter(e -> counted(e.row().measurement()))
-                    .max(Comparator.comparing((Entry e) -> e.row().measurement().getDate())
-                            .thenComparing(e -> e.row().measurement().getId()))
+                    .max(Comparator.comparing((Entry e) -> e.row().measurement(), LATEST))
                     .orElseGet(() -> rows.stream()
                             .max(Comparator.comparing((Entry e) -> e.campaign().getStartDate())
                                     .thenComparing(e -> e.campaign().getId())

@@ -55,6 +55,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
@@ -264,6 +265,50 @@ class HealthRecordIntegrationTest {
     }
 
     @Test
+    @DisplayName("HLT-08 (2026-11-24): ngày có phiếu khám và số đo kỳ cân đo ⇒ biểu đồ một điểm của phiếu khám")
+    void growthSeriesKeepsOnePointPerDayPreferringExam() {
+        measure(round("Cân đo tháng 9 (giả)", "2026-09-10", "2026-09-20"), "2026-09-15", "98.0", "15.0");
+        // Phiếu khám ngày 04/11 lưu trước, số đo kỳ cân đo cùng ngày nhập sau (id lớn hơn)
+        long examId = examResult(
+                campaign(HealthCheckKind.EXAM, "Khám định kỳ (giả)", "2026-11-03", "2026-11-05"),
+                "2026-11-04",
+                "99.6",
+                "15.8");
+        long roundId =
+                measure(round("Cân đo tháng 11 (giả)", "2026-11-04", "2026-11-09"), "2026-11-04", "99.0", "15.1");
+
+        PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child);
+        // Sổ sức khỏe vẫn giữ cả hai kết quả
+        assertThat(view.results())
+                .extracting(PublishedHealthResponse.PublishedHealthResult::id)
+                .contains(examId, roundId);
+        assertThat(view.growth())
+                .extracting(PublishedHealthResponse.GrowthPoint::date)
+                .containsExactly(LocalDate.of(2026, 9, 15), LocalDate.of(2026, 11, 4));
+        assertThat(view.growth().getLast()).satisfies(p -> {
+            assertThat(p.measurementId()).isEqualTo(examId);
+            assertThat(p.heightCm()).isEqualByComparingTo("99.6");
+            assertThat(p.weightKg()).isEqualByComparingTo("15.8");
+        });
+    }
+
+    @Test
+    @DisplayName("HLT-01 (V180): ngày đã có phiếu khám và số đo kỳ cân đo ⇒ DB vẫn chặn số đo kỳ cân đo thứ hai")
+    void databaseKeepsOneRoundMeasurementPerDay() {
+        examResult(
+                campaign(HealthCheckKind.EXAM, "Khám định kỳ (giả)", "2026-11-03", "2026-11-05"),
+                "2026-11-04",
+                "99.6",
+                "15.8");
+        measure(round("Cân đo tháng 11 (giả)", "2026-11-04", "2026-11-09"), "2026-11-04", "99.0", "15.1");
+        long otherRound = round("Cân đo bổ sung (giả)", "2026-11-04", "2026-11-06");
+
+        assertThatThrownBy(() -> measure(otherRound, "2026-11-04", "99.1", "15.2"))
+                .isInstanceOf(DuplicateKeyException.class)
+                .hasMessageContaining("uk_health_measurements_child_date_round");
+    }
+
+    @Test
     @DisplayName("HLT-05: AI viết nháp (lưu V88) ⇒ phụ huynh chưa thấy; GV duyệt ⇒ phụ huynh thấy bản duyệt")
     void interpretationVisibleToParentOnlyAfterApproval() {
         measure(round("Cân đo tháng 9 (giả)", "2026-09-10", "2026-09-20"), "2026-09-15", "98.0", "15.0");
@@ -361,8 +406,12 @@ class HealthRecordIntegrationTest {
 
     /** Kỳ cân đo ở điểm trường (mỗi kỳ một lần đo/trẻ); kỳ đã qua thì đóng — mỗi điểm trường chỉ một kỳ mở. */
     private long round(String name, String start, String end) {
+        return campaign(HealthCheckKind.MEASUREMENT, name, start, end);
+    }
+
+    private long campaign(HealthCheckKind kind, String name, String start, String end) {
         HealthCheckCampaign campaign = HealthCheckCampaign.builder()
-                .kind(HealthCheckKind.MEASUREMENT)
+                .kind(kind)
                 .campusId(campus)
                 .name(name)
                 .startDate(LocalDate.parse(start))
@@ -378,11 +427,30 @@ class HealthRecordIntegrationTest {
         return campaignRepository.saveAndFlush(campaign).getId();
     }
 
-    private void measure(long campaign, String date, String height, String weight) {
-        jdbc.update(
+    private long measure(long campaign, String date, String height, String weight) {
+        return jdbc.queryForObject(
                 "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, height_cm, weight_kg, note,"
                         + " measured_by, published_at, published_by, created_at, updated_at)"
-                        + " VALUES (?, ?, ?, ?, ?, ?, '', ?, now(), ?, now(), now())",
+                        + " VALUES (?, ?, ?, ?, ?, ?, '', ?, now(), ?, now(), now()) RETURNING id",
+                Long.class,
+                child,
+                campaign,
+                classA,
+                LocalDate.parse(date),
+                new BigDecimal(height),
+                new BigDecimal(weight),
+                teacherId,
+                teacherId);
+    }
+
+    // Phiếu khám đã kết luận (nội dung phiếu không dùng ở biểu đồ)
+    private long examResult(long campaign, String date, String height, String weight) {
+        return jdbc.queryForObject(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, height_cm, weight_kg, note,"
+                        + " measured_by, published_at, published_by, exam, exam_status, concluded_at, created_at,"
+                        + " updated_at) VALUES (?, ?, ?, ?, ?, ?, '', ?, now(), ?, '{}'::jsonb, 'CONCLUDED', now(),"
+                        + " now(), now()) RETURNING id",
+                Long.class,
                 child,
                 campaign,
                 classA,

@@ -317,6 +317,23 @@ class HealthGrowthReportIntegrationTest {
         assertThat(a.total().measured()).isEqualTo(10);
     }
 
+    @Test
+    @DisplayName("HLT-20, HLT-08 (2026-11-24): cùng ngày có phiếu khám kết luận và số đo kỳ cân đo ⇒ tính phiếu khám")
+    void sameDayExamIsCountedInsteadOfMeasurement() {
+        long sameDay = child("Bé khám cùng ngày (giả)", "2021-03-10", "MALE", fiveA);
+        // Phiếu khám (bình thường) lưu trước, số đo kỳ cân đo cùng ngày (béo phì) nhập sau nên id lớn hơn
+        examResult(sameDay, exam, fiveA, "2026-09-15", "112.9", "19.5", true);
+        measure(sameDay, round, fiveA, "2026-09-15", "112.9", "24.9");
+
+        HealthGrowthCampus a = reports.getGrowthReport(principal, SEPTEMBER, campusA)
+                .campuses()
+                .getFirst();
+        assertThat(a.classes())
+                .filteredOn(c -> c.className().equals("5 tuổi A"))
+                .singleElement()
+                .satisfies(c -> assertThat(c.counts()).isEqualTo(counts(5, 4, 4, 0, 3, 1, 3, 0, 0, 1, 0)));
+    }
+
     private static HealthGrowthCounts counts(
             int enrolled,
             int measured,
