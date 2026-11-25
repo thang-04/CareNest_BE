@@ -23,6 +23,7 @@ import com.carenest.integration.keycloak.IdentityProviderClient;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.service.account.AuthStateStore;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildRecordService;
@@ -54,12 +55,14 @@ class ChildProfileEditServiceImplTest {
     private static final UpdateChildRequest REQUEST = new UpdateChildRequest(null, "Sửa");
 
     private final ChildRecordService records = mock(ChildRecordService.class);
+    private final ChildAccessPolicy childAccess = mock(ChildAccessPolicy.class);
     private final ChildIntakeService intake = mock(ChildIntakeService.class);
     private final UserAccountRepository accounts = mock(UserAccountRepository.class);
     private final IdentityProviderClient identity = mock(IdentityProviderClient.class);
     private final TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
     private final ChildProfileEditServiceImpl service = new ChildProfileEditServiceImpl(
             records,
+            childAccess,
             intake,
             accounts,
             new AccountLifecycleOperations(accounts, identity, mock(AuthStateStore.class), tx),
@@ -75,6 +78,27 @@ class ChildProfileEditServiceImplTest {
         given(accounts.findById(50L)).willReturn(Optional.of(account));
         given(accounts.findAllByCitizenIdIn(anyCollection())).willReturn(List.of(account));
         given(accounts.findAllByUsernameIn(anyCollection())).willReturn(List.of());
+    }
+
+    @Test
+    @DisplayName("CHD-11: GV sửa trực tiếp ⇒ 3013 nếu trẻ trong lớp, 3001 nếu trẻ ngoài phạm vi; không ghi")
+    void teacherEditChecksScopeBeforeApprovalNotice() {
+        CurrentUser teacher = TestPermissions.userWithDefaults(20L, CareNestRole.TEACHER);
+
+        assertThatThrownBy(() -> service.update(teacher, CHILD_ID, REQUEST))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL));
+
+        org.mockito.Mockito.doThrow(GlobalException.of(ApiCode.CHILD_ACCESS_DENIED))
+                .when(childAccess)
+                .checkCanViewChild(teacher, CHILD_ID);
+        assertThatThrownBy(() -> service.update(teacher, CHILD_ID, REQUEST))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+        verify(records, never()).prepareEdit(any(), any(), any());
+        verify(records, never()).applyEdit(any(), any());
     }
 
     @Test
