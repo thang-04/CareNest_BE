@@ -313,13 +313,14 @@ class EduBranchRangeIntegrationTest {
                         classroomId))
                 .isZero();
 
-        // (2) kế hoạch giáo dục chủ đề học kỳ 1 đã duyệt: đổi tên/ngày được, thêm nhánh bị chặn
+        // (2) EDU-111 (1) Tiền 25/11/2026: khóa theo hồ sơ chủ đề, không theo học kỳ ⇒ học kỳ 1 đã duyệt mà chủ đề chưa
+        // gửi thì vẫn thêm, đổi tên/ngày nhánh được
         String sp = "sp_" + classroomId + "_" + teamPlanId + "_1";
         assertThat(jdbc.update("UPDATE edu_class_docs SET status = 'APPROVED' WHERE doc_key = ?", sp))
                 .isOne();
         entityManager.clear();
         long version = saved.path("version").asLong();
-        assertCalendarInvalid(() -> classDocService.saveClassDoc(
+        saved = classDocService.saveClassDoc(
                 teacher,
                 "branch",
                 key,
@@ -328,13 +329,14 @@ class EduBranchRangeIntegrationTest {
                         branch(a, themeId, "2026-11-02", "2026-11-06", "Nhánh A"),
                         branch(UUID.randomUUID().toString(), themeId, "2026-11-09", "2026-11-13", "Nhánh mới")),
                 version,
-                null));
+                null);
+        assertThat(saved.path("branches")).hasSize(2);
         saved = classDocService.saveClassDoc(
                 teacher,
                 "branch",
                 key,
                 calendar(themes, branch(a, themeId, "2026-11-02", "2026-11-13", "Nhánh A đổi tên")),
-                version,
+                saved.path("version").asLong(),
                 null);
         assertThat(saved.path("branches").get(0).path("name").asString()).isEqualTo("Nhánh A đổi tên");
 

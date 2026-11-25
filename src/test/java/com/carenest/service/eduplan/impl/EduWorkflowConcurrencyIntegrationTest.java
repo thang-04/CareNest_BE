@@ -210,8 +210,12 @@ class EduWorkflowConcurrencyIntegrationTest {
                 entityManagerFactory.unwrap(org.hibernate.SessionFactory.class).getStatistics();
         statistics.clear();
         var listing = classDocs.getClassDocs(principal, year);
-        // Tiền chốt 24/11/2026: HT không có quyền xem, kế hoạch chưa quá hạn ⇒ danh sách không lộ gói đang Chờ duyệt
-        assertThat(listing.branchPlans()).isEmpty();
+        // EDU-111 (5): người xem được lớp đọc lịch nhánh hiện tại ở mọi trạng thái, chỉ xem (không quyền sửa, không lịch sử)
+        assertThat(listing.branchPlans()).hasSize(24).allSatisfy(node -> {
+            assertThat(node.path("releasedView").asBoolean()).isTrue();
+            assertThat(node.path("permissions").path("canEdit").asBoolean(false)).isFalse();
+            assertThat(node.has("history")).isFalse();
+        });
         long listingStatements = statistics.getPrepareStatementCount();
         System.out.println("EDU_LIST_MEASURE documents=24 statements=" + listingStatements);
         assertThat(listingStatements).isLessThan(100);

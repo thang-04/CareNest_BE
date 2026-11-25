@@ -650,7 +650,8 @@ class EduClassDocServiceIntegrationTest {
                 .filteredOn(n -> n.path("id").asString().equals(key))
                 .singleElement()
                 .satisfies(n -> {
-                    assertThat(n.has("names")).isFalse();
+                    // G94-445: bản gọn giữ tên nhánh theo tuần (trang toàn trường đếm tuần đã đặt tên)
+                    assertThat(n.has("names")).isTrue();
                     assertThat(n.has("branches")).isFalse();
                     assertThat(n.path("permissions").path("canEdit").asBoolean())
                             .isTrue();
@@ -2049,8 +2050,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Bản ban hành cũ chưa lưu lịch nhánh: người chỉ xem nhận lịch hiện hành")
-    void legacyReleaseWithoutCalendarFallsBackToCurrentCalendar() {
+    @DisplayName("EDU-111 (8): bản ban hành cũ chưa lưu lịch nhánh không lấy lịch hiện hành, chỉ giữ tên nhánh lúc ban hành")
+    void legacyReleaseWithoutCalendarKeepsOnlyReleasedNames() {
         approveBranch();
         jdbc.update(
                 "UPDATE edu_class_docs SET content = content || "
@@ -2063,9 +2064,10 @@ class EduClassDocServiceIntegrationTest {
         assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
                 .filteredOn(p -> "APPROVED".equals(p.path("status").asString()))
                 .singleElement()
-                .satisfies(published -> assertThat(
-                                published.path("effectiveCalendar").isObject())
-                        .isTrue());
+                .satisfies(published -> {
+                    assertThat(published.has("effectiveCalendar")).isFalse();
+                    assertThat(published.has("branchNames")).isTrue();
+                });
     }
 
     @Test
