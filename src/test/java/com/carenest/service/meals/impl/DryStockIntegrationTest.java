@@ -175,11 +175,12 @@ class DryStockIntegrationTest {
     @DisplayName("G94-457: thực phẩm phải thuộc nhà cung cấp của phiếu khi lưu nháp, sửa và xác nhận")
     void rejectsFoodNotOfSupplier() {
         long other = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC khác', '0900000002') RETURNING id");
-        StockReceiptRequest wrongSupplier = new StockReceiptRequest(
-                campus, other, RECEIVED, "", List.of(line(rice, "L1", "2026-12-01", "1000")));
+        StockReceiptRequest wrongSupplier =
+                new StockReceiptRequest(campus, other, RECEIVED, "", List.of(line(rice, "L1", "2026-12-01", "1000")));
         expectCode(() -> receiptService.createReceipt(principal, wrongSupplier), ApiCode.STOCK_FOOD_NOT_OF_SUPPLIER);
 
-        StockReceiptResponse draft = receiptService.createReceipt(principal, request(line(rice, "L1", "2026-12-01", "1000")));
+        StockReceiptResponse draft =
+                receiptService.createReceipt(principal, request(line(rice, "L1", "2026-12-01", "1000")));
         expectCode(
                 () -> receiptService.updateReceipt(principal, draft.id(), wrongSupplier),
                 ApiCode.STOCK_FOOD_NOT_OF_SUPPLIER);
@@ -434,8 +435,8 @@ class DryStockIntegrationTest {
                         + storage
                         + "', 'PLANT') RETURNING id");
         jdbc.update(
-                "INSERT INTO food_prices (food_id, supplier_id, price, effective_from, reason)"
-                        + " SELECT id, " + supplier + ", unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                "INSERT INTO food_prices (food_id, supplier_id, price, effective_from, reason)" + " SELECT id, "
+                        + supplier + ", unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
                 foodId);
         return foodId;
     }

@@ -2,8 +2,8 @@ package com.carenest.service.meals.impl;
 
 import com.carenest.dto.meals.DryIntakeRequest;
 import com.carenest.dto.meals.StockReceiptRequest;
-import com.carenest.dto.meals.SupplierFoodResponse;
 import com.carenest.dto.meals.StockReceiptResponse;
+import com.carenest.dto.meals.SupplierFoodResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.StockLot;
 import com.carenest.entity.meals.StockMovement;
@@ -172,10 +172,13 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                 throw GlobalException.of(ApiCode.STOCK_RECEIPT_STALE_DRAFT, receipt.getReceivedDate());
             }
             // Phiếu nháp cũ có thể chứa thực phẩm không còn thuộc nhà cung cấp: kiểm lại trước khi vào kho
-            Map<Long, Food> foods = foodRepository
-                    .findAllById(receipt.getLines().stream().map(StockReceiptLine::getFoodId).toList())
-                    .stream()
-                    .collect(Collectors.toMap(Food::getId, Function.identity()));
+            Map<Long, Food> foods =
+                    foodRepository
+                            .findAllById(receipt.getLines().stream()
+                                    .map(StockReceiptLine::getFoodId)
+                                    .toList())
+                            .stream()
+                            .collect(Collectors.toMap(Food::getId, Function.identity()));
             checkFoodsOfSupplier(receipt.getSupplierId(), receipt.getReceivedDate(), receipt.getLines(), foods);
             confirmInto(receipt, currentUser.userId());
             StockReceiptResponse response = toResponse(currentUser, receipt);
