@@ -6,7 +6,7 @@ File sinh tự động, không sửa tay. Sinh lại: `node scripts/check-api-co
 - Path đã chuẩn hóa tham số thành `{x}`. `[module: api|demo]` theo `src/config/integrationModules.js`.
 - Lời gọi có đường dẫn không phải chuỗi literal (vd. ghép từ biến) không nằm trong bảng.
 
-Tổng: 445 lời gọi.
+Tổng: 444 lời gọi.
 
 ```text
 DELETE /accounts/me/photo · src/services/account/api/accountPhotoApi.js [account: api] → src/main/java/com/carenest/controller/account/AccountPhotoController.java#deleteMyPhoto
@@ -356,7 +356,6 @@ POST /nutrition/food-samples/{x}/approve-disposal · src/services/kitchenRecords
 POST /nutrition/foods · src/services/nutritionCatalogApi.js [nutrition-catalog: api] → src/main/java/com/carenest/controller/meals/NutritionFoodController.java#createFood
 POST /nutrition/foods/import · src/services/nutritionCatalogApi.js [nutrition-catalog: api] → src/main/java/com/carenest/controller/meals/NutritionFoodController.java#importFoods
 POST /nutrition/foods/{x}/prices · src/services/nutritionCatalogApi.js [nutrition-catalog: api] → src/main/java/com/carenest/controller/meals/NutritionFoodController.java#adjustFoodPrice
-POST /nutrition/fresh-checks/dry-receipts · src/services/freshGoodsApi.js [fresh-goods: api] → src/main/java/com/carenest/controller/meals/FreshGoodsController.java#recordDryIntake
 POST /nutrition/fresh-forecasts · src/services/freshGoodsApi.js [fresh-goods: api] → src/main/java/com/carenest/controller/meals/FreshGoodsController.java#createForecast
 POST /nutrition/fresh-forecasts/preview · src/services/freshGoodsApi.js [fresh-goods: api] → src/main/java/com/carenest/controller/meals/FreshGoodsController.java#previewForecast
 POST /nutrition/meal-plans/{x}/publish · src/services/mealPlanApi.js [meal-plan: api] → src/main/java/com/carenest/controller/meals/MealPlanController.java#publishMealPlan
