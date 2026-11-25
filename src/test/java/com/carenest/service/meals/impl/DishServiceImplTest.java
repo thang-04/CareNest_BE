@@ -1,25 +1,40 @@
 package com.carenest.service.meals.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
+import com.carenest.dto.meals.DishCopyRequest;
 import com.carenest.dto.meals.DishDetailResponse;
+import com.carenest.dto.meals.DishRequest;
 import com.carenest.entity.meals.Dish;
 import com.carenest.entity.meals.DishIngredient;
 import com.carenest.entity.meals.Food;
+import com.carenest.entity.meals.MealPlanWeek;
+import com.carenest.entity.meals.MenuTemplateSet;
+import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
+import com.carenest.repository.meals.MealPlanWeekRepository;
+import com.carenest.repository.meals.MenuTemplateSetRepository;
+import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.organization.AgeGroupService;
+import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodGroup;
 import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
+import com.carenest.utils.enums.MenuBlock;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -32,17 +47,24 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class DishServiceImplTest {
 
     private static final long NURSERY = 2L;
     private static final long KINDERGARTEN = 5L;
     private static final long DISH_ID = 9L;
+    private static final CurrentUser USER =
+            new CurrentUser(3L, "kc-3", "viceprincipal.a", "Demo", null, Set.of(CareNestRole.VICE_PRINCIPAL));
 
     private final DishRepository dishRepository = mock(DishRepository.class);
     private final FoodPriceService foodPriceService = mock(FoodPriceService.class);
+    private final MenuTemplateSetRepository menuTemplateSetRepository = mock(MenuTemplateSetRepository.class);
+    private final MealPlanWeekRepository mealPlanWeekRepository = mock(MealPlanWeekRepository.class);
     private final DishServiceImpl service = new DishServiceImpl(
             dishRepository,
+            menuTemplateSetRepository,
+            mealPlanWeekRepository,
             mock(FoodRepository.class),
             mock(AgeGroupService.class),
             new NutritionCatalogMapper(),
@@ -133,9 +155,82 @@ class DishServiceImplTest {
         assertThat(nutrition.zinc()).isNull();
     }
 
+    @Test
+    @DisplayName("NUT-18: tạo món trùng tên (bỏ dấu, hoa thường, khoảng trắng) ⇒ 6109, kể cả món đã ngừng")
+    void createRejectsDuplicatedName() {
+        Dish existing = namedDish("Cơm trắng", 3L);
+        existing.changeStatus(CatalogStatus.INACTIVE, 1L);
+        given(dishRepository.findAllByOrderByNameAsc()).willReturn(List.of(existing));
+
+        assertThatThrownBy(() -> service.createDish(USER, dishRequest("  COM   TRANG ")))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.DISH_NAME_DUPLICATED);
+        verify(dishRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("NUT-18: sửa món giữ nguyên tên của chính nó thì được, đổi sang tên món khác ⇒ 6109")
+    void updateIgnoresItselfButRejectsOtherDish() {
+        Dish self = namedDish("Cơm trắng", DISH_ID);
+        Dish other = namedDish("Canh bí", 4L);
+        given(dishRepository.findWithIngredientsById(DISH_ID)).willReturn(Optional.of(self));
+        given(dishRepository.findAllByOrderByNameAsc()).willReturn(List.of(other, self));
+
+        assertThatThrownBy(() -> service.updateDish(USER, DISH_ID, dishRequest("canh bí")))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.DISH_NAME_DUPLICATED);
+    }
+
+    @Test
+    @DisplayName("NUT-18: sao chép món sang tên đã có ⇒ 6109")
+    void copyRejectsDuplicatedName() {
+        Dish source = namedDish("Cơm trắng", DISH_ID);
+        given(dishRepository.findWithIngredientsById(DISH_ID)).willReturn(Optional.of(source));
+        given(dishRepository.findAllByOrderByNameAsc()).willReturn(List.of(source));
+
+        assertThatThrownBy(() -> service.copyDish(USER, DISH_ID, new DishCopyRequest(null, "Cơm trắng")))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.DISH_NAME_DUPLICATED);
+    }
+
+    @Test
+    @DisplayName("Chi tiết món liệt kê thực đơn mẫu đang dùng và tuần chưa qua có món")
+    void detailListsWhereDishIsUsed() {
+        stubDish(DishIngredient.create(food("Gạo tẻ", RICE), NURSERY, bd("50")));
+        MenuTemplateSet template = MenuTemplateSet.create(1L);
+        template.changeInfo("Mẫu mùa đông", "Đông", MenuBlock.NURSERY, 1L);
+        given(menuTemplateSetRepository.findUsingDish(DISH_ID, CatalogStatus.ACTIVE))
+                .willReturn(List.of(template));
+        given(mealPlanWeekRepository.findFromWeekUsingDish(DISH_ID, LocalDate.of(2026, 11, 16)))
+                .willReturn(List.of(MealPlanWeek.draft(LocalDate.of(2026, 11, 30), 1L)));
+
+        DishDetailResponse dish = service.getDish(DISH_ID);
+
+        assertThat(dish.usedInTemplates())
+                .extracting(DishDetailResponse.TemplateUsage::name)
+                .containsExactly("Mẫu mùa đông");
+        assertThat(dish.usedInWeeks())
+                .extracting(DishDetailResponse.WeekUsage::weekStart)
+                .containsExactly(LocalDate.of(2026, 11, 30));
+    }
+
+    private static Dish namedDish(String name, Long id) {
+        Dish dish = Dish.create(1L);
+        dish.changeInfo("M" + id, name, DishType.CARB, "", 1L);
+        ReflectionTestUtils.setField(dish, "id", id);
+        return dish;
+    }
+
+    private static DishRequest dishRequest(String name) {
+        return new DishRequest(
+                null, name, DishType.CARB, null, List.of(new DishRequest.Ingredient(1L, NURSERY, bd("10"))));
+    }
+
     private void stubDish(DishIngredient... ingredients) {
         Dish dish = Dish.create(1L);
         dish.changeInfo("M001", "Món thử", DishType.CARB, "", 1L);
+        // id phải khớp stub findWithIngredientsById để usageOf tra đúng nơi đang dùng
+        ReflectionTestUtils.setField(dish, "id", DISH_ID);
         dish.replaceIngredients(List.of(ingredients));
         given(dishRepository.findWithIngredientsById(DISH_ID)).willReturn(Optional.of(dish));
     }

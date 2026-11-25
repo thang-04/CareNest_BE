@@ -18,6 +18,8 @@ public interface FoodSampleRepository extends JpaRepository<FoodSample, Long> {
 
     long countByCampusIdAndStatus(Long campusId, FoodSampleStatus status);
 
+    long countByCampusIdAndSampleDateAndStatus(Long campusId, LocalDate sampleDate, FoodSampleStatus status);
+
     long countByCampusIdAndDisposalStatus(Long campusId, FoodSampleDisposalStatus disposalStatus);
 
     // Bảng campuses thuộc module organization, chỉ đọc: kiểm tồn tại để báo 404 thay vì trả rỗng
