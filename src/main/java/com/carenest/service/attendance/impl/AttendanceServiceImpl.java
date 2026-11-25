@@ -8,11 +8,11 @@ import com.carenest.dto.attendance.AttendanceSummaryResponse.DayRow;
 import com.carenest.dto.attendance.AttendanceSummaryResponse.MultiSummary;
 import com.carenest.dto.attendance.AttendanceSummaryResponse.PreviousClassTotal;
 import com.carenest.dto.attendance.ClassAttendanceResponse;
-import com.carenest.dto.attendance.CorrectMealParticipationRequest;
 import com.carenest.dto.attendance.ClassAttendanceResponse.ChildBrief;
 import com.carenest.dto.attendance.ClassAttendanceResponse.ChildRow;
 import com.carenest.dto.attendance.ClassAttendanceResponse.HealthSummary;
 import com.carenest.dto.attendance.ClassAttendanceResponse.RecordView;
+import com.carenest.dto.attendance.CorrectMealParticipationRequest;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.LeaveRequestDtos.LeaveTag;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
@@ -591,25 +591,28 @@ public class AttendanceServiceImpl implements AttendanceService {
     @Override
     public SaveAttendanceResponse correctMealParticipation(
             CurrentUser currentUser, Long classId, Long childId, CorrectMealParticipationRequest request) {
-        String logPrefix = LOG_PREFIX + "|correctMealParticipation|userId=" + currentUser.userId() + "|classId=" + classId
-                + "|childId=" + childId;
+        String logPrefix = LOG_PREFIX + "|correctMealParticipation|userId=" + currentUser.userId() + "|classId="
+                + classId + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = findClass(classId);
-            if (!request.date().equals(rules.today()) || !rules.canRecordAttendanceDay(currentUser, cls, request.date())) {
+            if (!request.date().equals(rules.today())
+                    || !rules.canRecordAttendanceDay(currentUser, cls, request.date())) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
             }
             DayInfoResponse info = rules.dayInfo(request.date(), cls, null);
             if (!info.baseLocked()) throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
             classroomService.lockForUpdate(classId);
             AttendanceRecord record = recordRepository.findByChildIdInAndDate(List.of(childId), request.date()).stream()
-                    .filter(r -> r.getClassroomId().equals(classId)).findFirst()
+                    .filter(r -> r.getClassroomId().equals(classId))
+                    .findFirst()
                     .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_LIST_MISMATCH));
             if (record.getStatus() != AttendanceStatus.PRESENT
                     || childService.findChildIdsWithoutMeals(Set.of(childId)).contains(childId)) {
                 throw GlobalException.of(ApiCode.ABSENT_CHILD_NO_MEAL);
             }
-            List<MealSession> served = record.getAbsentPart() == null ? cls.mealSessions()
+            List<MealSession> served = record.getAbsentPart() == null
+                    ? cls.mealSessions()
                     : record.getAbsentPart().other().mealsOf(cls.mealSessions());
             ensureMealChangeAllowed(cls, request.date(), new LinkedHashSet<>(served));
             List<MealSession> meals = request.participates() ? served : List.of();
@@ -617,7 +620,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             Instant at = rules.now();
             record.update(AttendanceStatus.PRESENT, meals, currentUser.userId(), at);
             historyRepository.save(AttendanceRecordHistory.of(record, AttendanceRecordHistory.UPDATED, null));
-            eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(request.date(), cls.campusId(), cls.id()));
+            eventPublisher.publishEvent(
+                    new AttendanceService.AttendanceChangedEvent(request.date(), cls.campusId(), cls.id()));
             log.info("{}|END", logPrefix);
             return new SaveAttendanceResponse(at, 1, 1);
         } catch (RuntimeException ex) {
@@ -968,7 +972,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
         mealCountRepository.lockCampusDay(cls.campusId(), date);
         inspectionSheetRepository.lockCampus(cls.campusId());
-        boolean signed = Stream.of(com.carenest.utils.enums.InspectionTab.PROCESS, com.carenest.utils.enums.InspectionTab.SERVE)
+        boolean signed = Stream.of(
+                        com.carenest.utils.enums.InspectionTab.PROCESS, com.carenest.utils.enums.InspectionTab.SERVE)
                 .anyMatch(tab -> inspectionSheetRepository.existsByCampusIdAndSheetDateAndTabAndStatus(
                         cls.campusId(), date, tab, com.carenest.utils.enums.InspectionStatus.SIGNED));
         if (signed) {

@@ -7,13 +7,13 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.carenest.dto.attendance.CorrectMealParticipationRequest;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.DayUnlockResponse;
-import com.carenest.dto.attendance.CorrectMealParticipationRequest;
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
@@ -139,15 +139,26 @@ class AttendanceServiceImplTest {
     void correctMealParticipationAfterCutoffUpdatesOnlyUnconfirmedMealParticipation() {
         CurrentUser teacher = new CurrentUser(1L, "kc", "t", "t", null, Set.of(CareNestRole.TEACHER), Set.of());
         AttendanceRecord present = AttendanceRecord.create(
-                CHILD, CLASS, CAMPUS, TODAY, AttendanceStatus.PRESENT, List.of(MealSession.LUNCH, MealSession.AFTERNOON), 1L, NOW);
-        when(rules.canRecordAttendanceDay(teacher, classrooms.findClassroomInfo(CLASS).orElseThrow(), TODAY)).thenReturn(true);
+                CHILD,
+                CLASS,
+                CAMPUS,
+                TODAY,
+                AttendanceStatus.PRESENT,
+                List.of(MealSession.LUNCH, MealSession.AFTERNOON),
+                1L,
+                NOW);
+        when(rules.canRecordAttendanceDay(
+                        teacher, classrooms.findClassroomInfo(CLASS).orElseThrow(), TODAY))
+                .thenReturn(true);
         when(rules.dayInfo(eq(TODAY), any(), any()))
-                .thenReturn(new DayInfoResponse(TODAY, TODAY, "09:00", "08:30", null, null, true, true, NOW, true, null));
+                .thenReturn(
+                        new DayInfoResponse(TODAY, TODAY, "09:00", "08:30", null, null, true, true, NOW, true, null));
         when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(present));
         when(children.findChildIdsWithoutMeals(Set.of(CHILD))).thenReturn(Set.of());
         when(mealCounts.findByCampusIdAndDate(CAMPUS, TODAY)).thenReturn(List.of());
 
-        var result = service.correctMealParticipation(teacher, CLASS, CHILD, new CorrectMealParticipationRequest(TODAY, false));
+        var result = service.correctMealParticipation(
+                teacher, CLASS, CHILD, new CorrectMealParticipationRequest(TODAY, false));
 
         assertThat(result.changed()).isEqualTo(1);
         assertThat(present.getStatus()).isEqualTo(AttendanceStatus.PRESENT);

@@ -127,10 +127,11 @@ public class AttendanceController {
             @PathVariable Long childId,
             @Valid @RequestBody CorrectMealParticipationRequest request,
             CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|correctMealParticipation|userId=" + currentUser.userId() + "|classId=" + classId
-                + "|childId=" + childId;
+        String logPrefix = LOG_PREFIX + "|correctMealParticipation|userId=" + currentUser.userId() + "|classId="
+                + classId + "|childId=" + childId;
         log.info("{}|START", logPrefix);
-        SaveAttendanceResponse saved = attendanceService.correctMealParticipation(currentUser, classId, childId, request);
+        SaveAttendanceResponse saved =
+                attendanceService.correctMealParticipation(currentUser, classId, childId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Correct meal participation success", saved);
     }
