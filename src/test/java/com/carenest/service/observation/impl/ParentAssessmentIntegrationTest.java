@@ -290,6 +290,7 @@ class ParentAssessmentIntegrationTest {
                                 new SemesterAssessmentDtos.Child(classmate, "Bình", List.of(), null)),
                         false,
                         false,
+                        "CONFIRMED",
                         NOW,
                         "teacher",
                         null)),

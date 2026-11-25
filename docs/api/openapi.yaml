@@ -27811,6 +27811,8 @@ components:
           format: int64
         className:
           type: string
+        confirmBlockedReason:
+          type: string
         confirmedAt:
           type: string
           format: date-time
