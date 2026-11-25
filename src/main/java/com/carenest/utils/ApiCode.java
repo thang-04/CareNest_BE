@@ -694,6 +694,7 @@ public enum ApiCode {
     STOCK_DISPOSAL_QUANTITY_EXCEEDED(6134, HttpStatus.BAD_REQUEST, "Số lượng xuất của lô {0} vượt tồn của lô ({1})"),
     STOCK_DISPOSAL_SUPPLIER_REQUIRED(6135, HttpStatus.BAD_REQUEST, "Chọn nhà cung cấp nhận hàng trả"),
     STOCK_DISPOSAL_REASON_TOO_SHORT(6136, HttpStatus.BAD_REQUEST, "Lý do xuất kho cần từ 3 ký tự"),
+    STOCK_FOOD_NOT_OF_SUPPLIER(6137, HttpStatus.BAD_REQUEST, "Thực phẩm {0} không thuộc nhà cung cấp của phiếu nhập"),
     INSPECTION_APPROVAL_STATE_INVALID(
             6121, HttpStatus.CONFLICT, "Yêu cầu không còn ở trạng thái này nên không xử lý được"),
     INSPECTION_APPROVAL_DENIED(
