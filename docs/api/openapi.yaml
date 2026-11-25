@@ -3825,6 +3825,12 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -4176,6 +4182,25 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/{childId}/school-years:
+    get:
+      operationId: getChildSchoolYears
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListChildSchoolYearResponse"
+          description: OK
+      tags:
+      - child-school-year-controller
   /api/children/{childId}/weekly-comments:
     get:
       operationId: listForParent
@@ -4183,6 +4208,12 @@ paths:
       - in: path
         name: childId
         required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
         schema:
           type: integer
           format: int64
@@ -13022,6 +13053,28 @@ components:
         rate:
           type: integer
           format: int32
+    ChildSchoolYearResponse:
+      type: object
+      properties:
+        className:
+          type: string
+        endDate:
+          type: string
+          format: date
+        name:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - PLANNED
+          - ACTIVE
+          - CLOSED
     ChildTotal:
       type: object
       properties:
@@ -24338,6 +24391,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ChildProfileChangeResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListChildSchoolYearResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildSchoolYearResponse"
         desc:
           type: string
         errorCode:
