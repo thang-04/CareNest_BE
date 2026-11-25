@@ -306,6 +306,8 @@ POST /classes/{x}/attendance/children/{x}/arrived · src/services/attendance/api
 POST /daily-health-entries · src/services/daily-health/api/dailyHealthApi.js [daily-health: api] → src/main/java/com/carenest/controller/attendance/DailyHealthController.java#addEntry
 POST /daily-health-entries/{x}/parent-notifications · src/services/daily-health/api/dailyHealthApi.js [daily-health: api] → (BE chưa có — pending)
 POST /education-plans/ai/activities · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestActivities
+POST /education-plans/ai/branch-names · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestBranchNames
+POST /education-plans/ai/branch-names/rewrite · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#rewriteBranchName
 POST /education-plans/ai/class-docs/day/{x}/edit · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#editDay
 POST /education-plans/ai/class-docs/day/{x}/review · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#reviewDay
 POST /education-plans/ai/feedback · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#logFeedback
