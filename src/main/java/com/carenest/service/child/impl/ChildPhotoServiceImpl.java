@@ -241,7 +241,7 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
         boolean profilePermission =
                 actor.hasPermission(Permission.CHILD_PROFILE_VIEW) || actor.hasPermission(Permission.CHILD_ENROLL);
         boolean campusScope = profilePermission && campusAccess.canReadAllCampuses(actor);
-        if (!classroomScope && !campusScope) throw GlobalException.of(ApiCode.FILE_NOT_FOUND);
+        if (!classroomScope && !campusScope) throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
         ChildViewResponse view = intakeService.getChildView(childId);
         return view;
     }
