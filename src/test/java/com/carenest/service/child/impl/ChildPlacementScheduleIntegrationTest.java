@@ -383,19 +383,36 @@ class ChildPlacementScheduleIntegrationTest {
     }
 
     @Test
-    @DisplayName("Mục 2: hủy lịch vào lớp đầu tiên ⇒ ngày bắt đầu về trống, xếp lớp lại ghi ngày mới")
-    void cancellingFirstPlacementClearsStartDate() {
-        long binh = child("Trần Bình Hủy Lịch", "PENDING_PLACEMENT", campusA, null, null);
+    @DisplayName("Mục 2 (user chốt 2026-11-25): ngày bắt đầu khi tiếp nhận = ngày vào lớp đầu tiên, hủy lịch vào lớp đó"
+            + " ⇒ giữ ngày bắt đầu")
+    void cancellingFirstPlacementKeepsIntakeStartDate() {
+        long binh = child("Trần Bình Hủy Lịch", "PENDING_PLACEMENT", campusA, MONDAY, null);
         recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY));
         entityManager.flush();
 
         recordService.cancelScheduledPlacement(principal, binh);
         entityManager.flush();
-        assertThat(startDateOf(binh)).isNull();
+
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+        assertThat(jdbc.queryForObject("SELECT status FROM children WHERE id = ?", String.class, binh))
+                .isEqualTo("PENDING_PLACEMENT");
+    }
+
+    @Test
+    @DisplayName("Mục 2 (user chốt 2026-11-25): ngày bắt đầu ghi từ lớp đầu tiên rồi hủy lịch ⇒ giữ ngày đó, xếp lại"
+            + " không đổi")
+    void cancellingFirstPlacementKeepsFilledStartDate() {
+        long binh = child("Trần Bình Hủy Lịch Trống", "PENDING_PLACEMENT", campusA, null, null);
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY));
+        entityManager.flush();
+
+        recordService.cancelScheduledPlacement(principal, binh);
+        entityManager.flush();
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
 
         recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY.plusDays(2)));
         entityManager.flush();
-        assertThat(startDateOf(binh)).isEqualTo(MONDAY.plusDays(2));
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
     }
 
     @Test

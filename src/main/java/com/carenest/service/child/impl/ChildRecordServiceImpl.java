@@ -533,9 +533,6 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                     actor.userId(),
                     clock.instant(),
                     today);
-            boolean clearStart = current.isEmpty()
-                    && upcoming.getValidFrom().equals(child.getStartDate())
-                    && neverAttended(childId, today);
             if (current.isPresent()) {
                 // Trẻ ở lại lớp hiện tại, lớp không còn ngày kết thúc
                 Enrollment stay = current.get();
@@ -548,12 +545,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                         child.getFullName() + " ở lại lớp, không chuyển lớp nữa.",
                         childId);
             } else {
-                // Chưa học lớp nào ⇒ về Chờ xếp lớp ở điểm trường của lớp bị hủy
+                // Chưa học lớp nào ⇒ về Chờ xếp lớp ở điểm trường của lớp bị hủy; giữ ngày bắt đầu đi học (tiếp nhận
+                // luôn ghi, user chốt 2026-11-25)
                 child.awaitPlacement(campusId);
-                if (clearStart) {
-                    // Mục 2: hủy lịch vào lớp đầu tiên ⇒ chưa có ngày vào lớp, lần xếp lớp sau ghi lại
-                    child.startOn(null);
-                }
                 childRepository.save(child);
             }
             ChildViewResponse view = childIntakeService.getChildView(childId);
