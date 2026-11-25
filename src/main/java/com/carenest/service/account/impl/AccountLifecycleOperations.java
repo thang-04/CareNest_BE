@@ -255,6 +255,7 @@ class AccountLifecycleOperations {
             throw toGlobalException(ex);
         }
         authState.revokeAccountAuth(account.getId());
+        authState.markPasswordChanged(account.getId());
         try {
             identityProviderClient.logoutUser(account.getKeycloakUserId());
         } catch (IdentityProviderException ex) {
@@ -293,6 +294,7 @@ class AccountLifecycleOperations {
             throw ex;
         }
         authState.revokeAccountAuth(account.getId());
+        authState.markPasswordChanged(account.getId());
         try {
             identityProviderClient.logoutUser(keycloakUserId);
         } catch (IdentityProviderException ex) {

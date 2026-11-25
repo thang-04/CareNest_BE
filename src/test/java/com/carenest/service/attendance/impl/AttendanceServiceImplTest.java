@@ -85,7 +85,6 @@ class AttendanceServiceImplTest {
                 mock(AccountService.class),
                 events,
                 mock(LeaveRequestRepository.class),
-                List.of(),
                 guardians,
                 mock(NotificationService.class),
                 mock(com.carenest.repository.attendance.PickupRecordRepository.class),

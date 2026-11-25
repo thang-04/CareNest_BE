@@ -229,7 +229,7 @@ Hiện trạng: toàn bộ dữ liệu giả (lưu ý 5). Cột "Endpoint khi n�
 | `permission_grants`, `permission_change_log` | dòng role seed; GRANT + REVOKE cá nhân; log tương ứng | phân quyền |
 | `children` | ACTIVE, ≥5 PENDING_PLACEMENT/cơ sở, ≥3 LEFT | danh sách, xếp lớp, tiếp nhận |
 | `child_guardians` | chưa kích hoạt (`user_id NULL`), đã liên kết; PH nhiều con; 1–3 PH/trẻ | TK phụ huynh, App PH |
-| `child_health_declarations`, `child_allergies` | REPORTED / NONE_REPORTED / NOT_PROVIDED; `tb_contact_state=REPORTED`; dị ứng 2 mức | khai báo, suất thay thế |
+| `child_health_declarations`, `child_allergies` | REPORTED / NONE_REPORTED / NOT_PROVIDED; `tb_contact_state=REPORTED`; dị ứng 2 mức | khai báo, cảnh báo dị ứng (không có suất thay thế, NUT-23) |
 | `class_placements` | PROMOTE/STAY/LEAVE/GRADUATE một phần trẻ năm PLANNED | xếp lớp năm mới, lớp năm mới |
 | `attendance_records` | mọi ngày học từ đầu năm tới N (PRESENT/EXCUSED/UNEXCUSED); **T một phần lớp** | điểm danh, tổng hợp, trang chủ |
 | `attendance_day_unlocks` | 1 hiệu lực, 1 thu hồi, 1 hết hạn | mở lại điểm danh, sửa ngày cũ |

@@ -121,6 +121,23 @@ class CampusServiceImplTest {
     }
 
     @Test
+    void duplicatedShortNameIsConflictOnCreateAndUpdate() {
+        given(campusRepository.existsShortName("Cơ sở mới", 0L)).willReturn(true);
+        given(campusRepository.findById(10L)).willReturn(Optional.of(campus(10L, "CS-A", true)));
+        given(campusRepository.existsShortName("Cơ sở mới", 10L)).willReturn(true);
+
+        assertThatThrownBy(() -> service.createCampus(PRINCIPAL, request("CS-N", "Cơ sở mới", false)))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CAMPUS_SHORT_NAME_EXISTS));
+        assertThatThrownBy(() -> service.updateCampus(PRINCIPAL, 10L, request("CS-A", "Cơ sở mới", true)))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CAMPUS_SHORT_NAME_EXISTS));
+        verify(campusRepository, never()).save(any());
+    }
+
+    @Test
     void vicePrincipalCannotCreate() {
         expectError(() -> service.createCampus(VICE_PRINCIPAL, request("CS-C", "Cơ sở C", false)), ApiCode.FORBIDDEN);
         verify(campusRepository, never()).save(any());

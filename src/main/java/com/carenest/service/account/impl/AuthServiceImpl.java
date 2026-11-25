@@ -409,6 +409,13 @@ public class AuthServiceImpl implements AuthService {
                 log.info("{}|END", logPrefix);
                 return;
             }
+            // Chặn ngay access token của đúng phiên này (phiên App/trình duyệt khác không ảnh hưởng)
+            try {
+                keycloak.sessionOf(session.refreshToken())
+                        .ifPresent(ref -> state.endWebSession(ref.keycloakUserId(), ref.sessionId()));
+            } catch (RuntimeException ex) {
+                log.error("{}|endWebSession|type={}", logPrefix, ex.getClass().getSimpleName());
+            }
             keycloak.logout(session.refreshToken());
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -597,6 +604,17 @@ public class AuthServiceImpl implements AuthService {
             var claim = state.claimPassword(hash, owner, now);
             if (claim.status() != AuthStateStore.Status.CLAIMED) throw notFound();
             try {
+                if (claim.data().userId() != null) {
+                    accounts.findById(claim.data().userId())
+                            .ifPresent(account ->
+                                    PasswordRules.rejectUsername(request.newPassword(), account.getUsername()));
+                }
+            } catch (GlobalException ex) {
+                // Token còn dùng lại được để nhập mật khẩu khác
+                state.finishPassword(hash, owner, clock.instant(), false);
+                throw ex;
+            }
+            try {
                 keycloak.changePassword(
                         claim.data().providerCipher() == null
                                 ? null
@@ -604,8 +622,10 @@ public class AuthServiceImpl implements AuthService {
                         request.newPassword(),
                         request.confirmPassword());
                 state.finishPassword(hash, owner, clock.instant(), true);
-                if (claim.data().userId() != null)
+                if (claim.data().userId() != null) {
                     state.revokeAccountAuth(claim.data().userId());
+                    markPasswordChanged(claim.data().userId());
+                }
             } catch (AuthGatewayClient.PasswordRejected ex) {
                 state.finishPassword(hash, owner, clock.instant(), false);
                 throw GlobalException.of(ApiCode.PASSWORD_POLICY_VIOLATION);
@@ -634,6 +654,7 @@ public class AuthServiceImpl implements AuthService {
             ensureEnabled();
             if (current == null || request == null || !request.newPassword().equals(request.confirmPassword()))
                 throw malformed();
+            PasswordRules.rejectUsername(request.newPassword(), current.username());
             AuthGatewayClient.Tokens verified = null;
             try {
                 verified = keycloak.login(current.username(), request.currentPassword());
@@ -646,6 +667,7 @@ public class AuthServiceImpl implements AuthService {
                 String proof = keycloak.verifiedCapability(assertion);
                 keycloak.changePassword(proof, request.newPassword(), request.confirmPassword());
                 state.revokeAccountAuth(current.userId());
+                markPasswordChanged(current.userId());
             } catch (AuthGatewayClient.InvalidCredentials | AuthGatewayClient.FirstLoginRequired ex) {
                 throw invalidCredentials();
             } catch (AuthGatewayClient.AccountDisabled ex) {
@@ -670,6 +692,19 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    // Keycloak đã đổi mật khẩu: ghi mốc lỗi thì token cũ chỉ sống tới hết hạn như trước, không báo lỗi cho người dùng
+    private void markPasswordChanged(Long userId) {
+        try {
+            state.markPasswordChanged(userId);
+        } catch (RuntimeException ex) {
+            log.error(
+                    "{}|markPasswordChanged|userId={}|type={}",
+                    LOG_PREFIX,
+                    userId,
+                    ex.getClass().getSimpleName());
+        }
+    }
+
     private void sendOtpQuietly(String subject, String code) {
         try {
             keycloak.sendOtp(subject, code);
@@ -682,8 +717,9 @@ public class AuthServiceImpl implements AuthService {
         return jwtDecoder.decode(raw);
     }
 
+    // Mã yêu cầu sai dạng cũng là "không tồn tại" (404), không phải phiên đăng nhập hỏng
     private static String validOpaque(String token) {
-        if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) throw invalidSession();
+        if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) throw notFound();
         return token;
     }
 

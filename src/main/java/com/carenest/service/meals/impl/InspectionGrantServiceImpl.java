@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -48,6 +49,7 @@ public class InspectionGrantServiceImpl implements InspectionGrantService {
 
     private final InspectionDayGrantRepository grantRepository;
     private final InspectionSheetRepository sheetRepository;
+    private final InspectionSkeleton skeleton;
     private final FoodSampleRepository campusLookup;
     private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
@@ -73,6 +75,10 @@ public class InspectionGrantServiceImpl implements InspectionGrantService {
                 throw GlobalException.of(ApiCode.INSPECTION_APPROVAL_NOT_NEEDED);
             }
             String reason = requireText(request == null ? null : request.reason());
+            // Mẫu không có dòng nguồn và chưa lưu dòng nào thì không có gì để mở ghi
+            if (!hasRows(campusId, date, tab)) {
+                throw GlobalException.of(ApiCode.INSPECTION_NO_ROWS);
+            }
             sheetRepository.lockCampus(campusId);
             freeSlot(campusId, date, tab, now);
             InspectionDayGrant grant;
@@ -186,10 +192,22 @@ public class InspectionGrantServiceImpl implements InspectionGrantService {
         }
     }
 
+    /** Mẫu có dòng khi nguồn hiện tại có dòng hoặc biên bản đã lưu (hay đã ký) có dòng. */
+    private boolean hasRows(Long campusId, LocalDate date, InspectionTab tab) {
+        if (!skeleton.rows(tab, campusId, date).isEmpty()) {
+            return true;
+        }
+        return sheetRepository
+                .findByCampusIdAndSheetDateAndTab(campusId, date, tab)
+                .map(sheet -> sheet.isSigned() ? sheet.getSnapshot() : sheet.getSheetRows())
+                .map(rows -> !rows.isEmpty())
+                .orElse(false);
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<InspectionDayResponse.TabApproval> dayApprovals(
-            CurrentUser currentUser, Long campusId, LocalDate date) {
+            CurrentUser currentUser, Long campusId, LocalDate date, Set<InspectionTab> tabsWithRows) {
         String logPrefix = LOG_PREFIX + "|dayApprovals|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
@@ -210,7 +228,9 @@ public class InspectionGrantServiceImpl implements InspectionGrantService {
                 boolean usable = grant != null && grant.isUsable(now);
                 boolean locked = past && !usable;
                 InspectionGrantStatus status = grant == null ? null : shownStatus(grant, usable);
-                boolean canRequest = locked && editor && status != InspectionGrantStatus.PENDING;
+                // Mẫu không có dòng nào thì không có gì để ghi, không cho gửi yêu cầu mở
+                boolean canRequest =
+                        locked && editor && tabsWithRows.contains(tab) && status != InspectionGrantStatus.PENDING;
                 approvals.add(new InspectionDayResponse.TabApproval(
                         tab,
                         locked,
