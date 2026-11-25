@@ -8,6 +8,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.IdentityProviderClient;
 import com.carenest.integration.keycloak.IdentityProviderException;
 import com.carenest.repository.account.UserAccountRepository;
+import com.carenest.service.account.AuthStateStore;
 import com.carenest.service.account.ParentActivationService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.PhoneNumbers;
@@ -27,6 +28,7 @@ public class ParentActivationServiceImpl implements ParentActivationService {
     private final UserAccountRepository userAccountRepository;
     private final ParentActivationCodes activationCodes;
     private final IdentityProviderClient identityProviderClient;
+    private final AuthStateStore authState;
 
     // Không @Transactional: kiểm mã (có đếm lần sai) và đánh dấu đã dùng là hai transaction riêng quanh lời gọi
     // Keycloak
@@ -60,6 +62,7 @@ public class ParentActivationServiceImpl implements ParentActivationService {
                 throw AccountLifecycleOperations.toGlobalException(ex);
             }
             activationCodes.markActivated(account.getId());
+            authState.markPasswordChanged(account.getId());
             log.info("{}|userId={}|END", logPrefix, account.getId());
             return new ParentActivationResponse(account.getUsername());
         } catch (RuntimeException ex) {

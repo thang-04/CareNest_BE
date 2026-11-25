@@ -18794,6 +18794,9 @@ components:
           type: string
         fullName:
           type: string
+        passwordChangedAt:
+          type: string
+          format: date-time
         permissions:
           type: array
           items:

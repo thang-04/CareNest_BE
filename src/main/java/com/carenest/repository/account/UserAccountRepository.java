@@ -40,6 +40,11 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
     int updateUsername(
             @Param("id") Long id, @Param("oldUsername") String oldUsername, @Param("newUsername") String newUsername);
 
+    /** Mốc đổi mật khẩu (cột không updatable trên entity); không clear context để entity caller đang giữ vẫn dùng được. */
+    @Modifying(flushAutomatically = true)
+    @Query(value = "UPDATE user_accounts SET password_changed_at = :at WHERE id = :id", nativeQuery = true)
+    int markPasswordChanged(@Param("id") Long id, @Param("at") java.time.Instant at);
+
     java.util.List<UserAccount> findByEmailIgnoreCase(String email);
 
     // CCCD phụ huynh là khóa nhận diện (AUTH-18, UNIQUE ở V63)

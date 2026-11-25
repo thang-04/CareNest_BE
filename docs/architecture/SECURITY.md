@@ -48,7 +48,7 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 ### Vòng đời token và phiên
 
 - Access token 5 phút; SSO session idle 30 phút, tối đa 10 giờ; refresh token xoay vòng (`revokeRefreshToken`, max reuse 0); khóa tạm sau 5 lần sai mật khẩu (giá trị realm import dev; production chờ chốt).
-- Refresh/logout là việc của client với Keycloak (`docs/contracts/AUTH_CONTRACT.md`). Logout không thu hồi access token đã cấp — còn dùng tối đa 5 phút.
+- Refresh/logout là việc của client với Keycloak (`docs/contracts/AUTH_CONTRACT.md`). Logout Web chặn ngay access token của phiên đó (`sid` vào `revoked_web_sessions`, lý do ENDED ⇒ 401 1002); đổi/đặt lại mật khẩu chặn mọi token có `iat` trước `user_accounts.password_changed_at` (đọc cùng dòng tài khoản mỗi request đã đọc, không thêm query). Bộ nhớ thu hồi `sid` chỉ nạp khi khởi động ⇒ giả định API 1 instance; chạy nhiều instance phải đổi cách chia sẻ.
 - Khóa tài khoản (`PATCH /accounts/{userId}/status` `INACTIVE`): CareNest chặn ngay ở request kế tiếp (kể cả token còn hạn), Keycloak disable user + hủy session. Admin không tự khóa mình (AUTH-09).
 
 ### Trade-off đã chấp nhận

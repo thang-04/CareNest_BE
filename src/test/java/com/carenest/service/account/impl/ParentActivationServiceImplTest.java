@@ -17,6 +17,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.IdentityProviderClient;
 import com.carenest.integration.keycloak.IdentityProviderException;
 import com.carenest.repository.account.UserAccountRepository;
+import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.carenest.utils.enums.UserStatus;
@@ -32,7 +33,9 @@ class ParentActivationServiceImplTest {
     private final UserAccountRepository accounts = mock(UserAccountRepository.class);
     private final ParentActivationCodes codes = mock(ParentActivationCodes.class);
     private final IdentityProviderClient identity = mock(IdentityProviderClient.class);
-    private final ParentActivationServiceImpl service = new ParentActivationServiceImpl(accounts, codes, identity);
+    private final AuthStateStore authState = mock(AuthStateStore.class);
+    private final ParentActivationServiceImpl service =
+            new ParentActivationServiceImpl(accounts, codes, identity, authState);
     private final UserAccount parent = mock(UserAccount.class);
 
     @BeforeEach
@@ -52,9 +55,10 @@ class ParentActivationServiceImplTest {
         var response = service.activate(REQUEST);
 
         assertThat(response.username()).isEqualTo("0912345678");
-        var order = inOrder(identity, codes);
+        var order = inOrder(identity, codes, authState);
         order.verify(identity).setPassword("kc-7", "Pass-word-1");
         order.verify(codes).markActivated(7L);
+        order.verify(authState).markPasswordChanged(7L);
     }
 
     @Test
@@ -136,6 +140,7 @@ class ParentActivationServiceImplTest {
 
         assertError(ApiCode.PASSWORD_POLICY_VIOLATION);
         verify(codes, never()).markActivated(7L);
+        verifyNoInteractions(authState);
     }
 
     private void assertError(ApiCode code) {

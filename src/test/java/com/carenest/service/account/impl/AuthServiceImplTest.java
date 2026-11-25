@@ -338,6 +338,32 @@ class AuthServiceImplTest {
         verify(state)
                 .finishPassword(
                         org.mockito.ArgumentMatchers.eq(hash), any(), any(), org.mockito.ArgumentMatchers.eq(true));
+        verify(state, never()).markPasswordChanged(any());
+    }
+
+    @Test
+    @DisplayName("Đặt lại mật khẩu thành công ⇒ ghi mốc đổi mật khẩu để token cũ hết hiệu lực")
+    void successfulPasswordResetMarksPasswordChanged() {
+        String token = crypto.randomToken();
+        String hash = crypto.hash(token);
+        var challenge = new AuthStateStore.PasswordTokenState(
+                hash,
+                91L,
+                "kc-user-1",
+                null,
+                crypto.seal("provider-proof", hash + ":provider"),
+                PasswordTokenPurpose.RESET,
+                clock.instant().plusSeconds(300),
+                clock.instant());
+        given(state.claimPassword(org.mockito.ArgumentMatchers.eq(hash), any(), any()))
+                .willReturn(new AuthStateStore.Claim<>(AuthStateStore.Status.CLAIMED, challenge));
+
+        service.setPassword(new AuthRequests.Reset(token, "New-password-123!", "New-password-123!"));
+
+        var order = org.mockito.Mockito.inOrder(keycloak, state);
+        order.verify(keycloak).changePassword("provider-proof", "New-password-123!", "New-password-123!");
+        order.verify(state).revokeAccountAuth(91L);
+        order.verify(state).markPasswordChanged(91L);
     }
 
     @Test
@@ -834,9 +860,38 @@ class AuthServiceImplTest {
     @DisplayName("AUTH-07: logout thu hồi refresh token ở Keycloak; cookie hỏng không lỗi")
     void logoutRevokesProviderTokenAndIgnoresBrokenCookie() {
         service.logout(sessionCookie(clock.instant(), true, "old-refresh"));
+        verify(keycloak).sessionOf("old-refresh");
         verify(keycloak).logout("old-refresh");
+        verify(state, never()).endWebSession(any(), any());
         service.logout("not-a-cookie");
         service.logout(null);
         verifyNoMoreInteractions(keycloak);
+    }
+
+    @Test
+    @DisplayName("Đăng xuất chặn ngay access token của đúng phiên đó trước khi hủy phiên Keycloak")
+    void logoutEndsTheWebSessionBeforeProviderLogout() {
+        given(keycloak.sessionOf("old-refresh"))
+                .willReturn(Optional.of(new AuthGatewayClient.SessionRef("kc-user-1", "sid-1")));
+
+        service.logout(sessionCookie(clock.instant(), true, "old-refresh"));
+
+        var order = org.mockito.Mockito.inOrder(state, keycloak);
+        order.verify(state).endWebSession("kc-user-1", "sid-1");
+        order.verify(keycloak).logout("old-refresh");
+    }
+
+    @Test
+    @DisplayName("Ghi thu hồi phiên lỗi vẫn đăng xuất ở Keycloak")
+    void logoutStillRevokesProviderSessionWhenRecordingFails() {
+        given(keycloak.sessionOf("old-refresh"))
+                .willReturn(Optional.of(new AuthGatewayClient.SessionRef("kc-user-1", "sid-1")));
+        org.mockito.Mockito.doThrow(new IllegalStateException("db down"))
+                .when(state)
+                .endWebSession("kc-user-1", "sid-1");
+
+        service.logout(sessionCookie(clock.instant(), true, "old-refresh"));
+
+        verify(keycloak).logout("old-refresh");
     }
 }

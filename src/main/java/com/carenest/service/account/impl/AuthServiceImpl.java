@@ -409,6 +409,13 @@ public class AuthServiceImpl implements AuthService {
                 log.info("{}|END", logPrefix);
                 return;
             }
+            // Chặn ngay access token của đúng phiên này (phiên App/trình duyệt khác không ảnh hưởng)
+            try {
+                keycloak.sessionOf(session.refreshToken())
+                        .ifPresent(ref -> state.endWebSession(ref.keycloakUserId(), ref.sessionId()));
+            } catch (RuntimeException ex) {
+                log.error("{}|endWebSession|type={}", logPrefix, ex.getClass().getSimpleName());
+            }
             keycloak.logout(session.refreshToken());
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -615,8 +622,10 @@ public class AuthServiceImpl implements AuthService {
                         request.newPassword(),
                         request.confirmPassword());
                 state.finishPassword(hash, owner, clock.instant(), true);
-                if (claim.data().userId() != null)
+                if (claim.data().userId() != null) {
                     state.revokeAccountAuth(claim.data().userId());
+                    markPasswordChanged(claim.data().userId());
+                }
             } catch (AuthGatewayClient.PasswordRejected ex) {
                 state.finishPassword(hash, owner, clock.instant(), false);
                 throw GlobalException.of(ApiCode.PASSWORD_POLICY_VIOLATION);
@@ -658,6 +667,7 @@ public class AuthServiceImpl implements AuthService {
                 String proof = keycloak.verifiedCapability(assertion);
                 keycloak.changePassword(proof, request.newPassword(), request.confirmPassword());
                 state.revokeAccountAuth(current.userId());
+                markPasswordChanged(current.userId());
             } catch (AuthGatewayClient.InvalidCredentials | AuthGatewayClient.FirstLoginRequired ex) {
                 throw invalidCredentials();
             } catch (AuthGatewayClient.AccountDisabled ex) {
@@ -679,6 +689,19 @@ public class AuthServiceImpl implements AuthService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    // Keycloak đã đổi mật khẩu: ghi mốc lỗi thì token cũ chỉ sống tới hết hạn như trước, không báo lỗi cho người dùng
+    private void markPasswordChanged(Long userId) {
+        try {
+            state.markPasswordChanged(userId);
+        } catch (RuntimeException ex) {
+            log.error(
+                    "{}|markPasswordChanged|userId={}|type={}",
+                    LOG_PREFIX,
+                    userId,
+                    ex.getClass().getSimpleName());
         }
     }
 

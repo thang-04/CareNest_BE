@@ -49,10 +49,29 @@ class WebSessionRevocationsTest {
     @DisplayName("AUTH-28: khởi động lại API thì nạp lại phiên bị thu hồi còn hiệu lực từ DB")
     void reloadsActiveRevocationsOnStartup() {
         given(repository.findByExpiresAtAfter(clock.now))
-                .willReturn(
-                        List.of(new RevokedWebSession("old-sid", "kc-user", clock.now, clock.now.plusSeconds(300))));
+                .willReturn(List.of(
+                        new RevokedWebSession("old-sid", "kc-user", clock.now, clock.now.plusSeconds(300), "REPLACED"),
+                        new RevokedWebSession("ended-sid", "kc-user", clock.now, clock.now.plusSeconds(300), "ENDED")));
         revocations.loadActive();
         assertThat(revocations.isRevoked("old-sid")).isTrue();
+        assertThat(revocations.validate(jwt("old-sid")).getErrors())
+                .anyMatch(error -> WebSessionRevocations.ERROR_CODE.equals(error.getErrorCode()));
+        assertThat(revocations.validate(jwt("ended-sid")).getErrors())
+                .anyMatch(error -> WebSessionRevocations.ENDED_ERROR_CODE.equals(error.getErrorCode()));
+    }
+
+    @Test
+    @DisplayName("Đăng xuất: token còn hạn của đúng phiên đó bị từ chối với lý do ENDED (không phải bị thay thế)")
+    void endedSessionIsRejectedAsSignedOut() {
+        revocations.end("kc-user", "ended-sid");
+
+        assertThat(revocations.validate(jwt("ended-sid")).getErrors())
+                .anyMatch(error -> WebSessionRevocations.ENDED_ERROR_CODE.equals(error.getErrorCode()))
+                .noneMatch(error -> WebSessionRevocations.ERROR_CODE.equals(error.getErrorCode()));
+        assertThat(revocations.validate(jwt("other-sid")).hasErrors()).isFalse();
+        verify(repository)
+                .save(org.mockito.ArgumentMatchers.argThat(
+                        row -> "ENDED".equals(row.getReason()) && "ended-sid".equals(row.getSessionId())));
     }
 
     private Jwt jwt(String sid) {
