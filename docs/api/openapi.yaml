@@ -4934,7 +4934,7 @@ paths:
       - edu-class-doc-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources:
     get:
-      operationId: list
+      operationId: list_1
       parameters:
       - in: path
         name: docKey
@@ -6316,7 +6316,7 @@ paths:
       - edu-year-plan-controller
   /api/education-plans/resources:
     get:
-      operationId: list_1
+      operationId: list
       parameters:
       - in: query
         name: q
