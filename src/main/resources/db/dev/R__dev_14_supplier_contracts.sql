@@ -91,10 +91,15 @@ JOIN (VALUES (6, 'FRESH', 'APPROVED', 'Quên ghi biên bản nhận hàng tươi
              (8, 'SAMPLE', 'PENDING', 'Chưa soát sổ lưu mẫu của ngày do nghỉ ốm', NULL),
              (9, 'SERVE', 'REVOKED', 'Bổ sung ghi chép chia ăn', 'Thu hồi vì đã có bản ghi tay đủ thông tin')
      ) AS v (rn, tab, status, reason, note) ON v.rn = g.rn
-JOIN staff_assignments vp ON vp.campus_id = g.campus_id AND vp.staff_role = 'VICE_PRINCIPAL'
-     AND (vp.valid_to IS NULL OR vp.valid_to >= CURRENT_DATE)
+-- Mỗi cơ sở một PHT, toàn trường một hiệu trưởng (lấy người có phân công sớm nhất) để không nhân dòng
+JOIN LATERAL (SELECT a.user_id FROM staff_assignments a
+              WHERE a.campus_id = g.campus_id AND a.staff_role = 'VICE_PRINCIPAL'
+                AND (a.valid_to IS NULL OR a.valid_to >= CURRENT_DATE)
+              ORDER BY a.id LIMIT 1) vp ON TRUE
 JOIN user_accounts vpu ON vpu.id = vp.user_id
-JOIN staff_assignments pr ON pr.staff_role = 'PRINCIPAL' AND (pr.valid_to IS NULL OR pr.valid_to >= CURRENT_DATE)
+JOIN LATERAL (SELECT a.user_id FROM staff_assignments a
+              WHERE a.staff_role = 'PRINCIPAL' AND (a.valid_to IS NULL OR a.valid_to >= CURRENT_DATE)
+              ORDER BY a.id LIMIT 1) pr ON TRUE
 JOIN user_accounts pru ON pru.id = pr.user_id
 WHERE NOT EXISTS (SELECT 1 FROM inspection_day_grants x
                   WHERE x.campus_id = g.campus_id AND x.sheet_date = g.day AND x.tab = v.tab);
