@@ -21,6 +21,13 @@ public final class UserAccountSpecifications {
                 roles == null ? null : root.get("primaryRole").in(roles);
     }
 
+    /** Loại một primary_role nhưng giữ tài khoản chưa có primary_role (dữ liệu cũ) — không dùng IN để khỏi mất chúng. */
+    public static Specification<UserAccount> primaryRoleNot(CareNestRole role) {
+        return (root, query, cb) -> role == null
+                ? null
+                : cb.or(cb.isNull(root.get("primaryRole")), cb.notEqual(root.get("primaryRole"), role));
+    }
+
     public static Specification<UserAccount> hasStatus(UserStatus status) {
         return (root, query, cb) -> status == null ? null : cb.equal(root.get("status"), status);
     }

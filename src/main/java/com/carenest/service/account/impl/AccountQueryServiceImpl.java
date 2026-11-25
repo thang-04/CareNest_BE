@@ -70,6 +70,7 @@ public class AccountQueryServiceImpl implements AccountQueryService {
             if (admin || staffAccessPolicy.managesWholeSchool(actor)) {
                 userIds = campusId == null ? null : campusStaffIds(Set.of(campusId), today);
                 // AUTH-17: HT chỉ xem PHT/GV/bếp — đúng các tài khoản HT mở chi tiết được; Admin xem mọi tài khoản
+                // nhân sự, không thấy phụ huynh (lọc bên dưới)
                 roles = admin ? null : SCHOOL_MANAGED_ROLES;
             } else {
                 // AUTH-08: PHT chỉ thấy GV/bếp đang được phân công hoặc có cơ sở công tác (AUTH-15) trong campus mình
@@ -84,6 +85,8 @@ public class AccountQueryServiceImpl implements AccountQueryService {
             Specification<UserAccount> spec = Specification.allOf(
                     UserAccountSpecifications.idIn(userIds),
                     UserAccountSpecifications.roleIn(roles),
+                    // AUTH-06/P-16: Admin quản trị kỹ thuật không chạm tài khoản phụ huynh gắn trẻ (ma trận Q-04)
+                    UserAccountSpecifications.primaryRoleNot(admin ? CareNestRole.PARENT : null),
                     UserAccountSpecifications.hasRole(role),
                     UserAccountSpecifications.hasStatus(status),
                     UserAccountSpecifications.matches(keyword));

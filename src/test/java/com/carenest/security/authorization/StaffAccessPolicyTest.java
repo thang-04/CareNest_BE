@@ -110,6 +110,15 @@ class StaffAccessPolicyTest {
     }
 
     @Test
+    @DisplayName("AUTH-06/P-16: Admin quản tài khoản nhân sự (cả HT) nhưng không chạm tài khoản phụ huynh")
+    void adminManagesStaffButNotParents() {
+        assertThat(policy.canManageAccount(ADMIN, 70L, CareNestRole.PRINCIPAL)).isTrue();
+        assertThat(policy.canManageAccount(ADMIN, 71L, CareNestRole.TEACHER)).isTrue();
+        assertThat(policy.canManageAccount(ADMIN, 72L, CareNestRole.PARENT)).isFalse();
+        assertDenied(() -> policy.checkCanManageAccount(ADMIN, 72L, CareNestRole.PARENT));
+    }
+
+    @Test
     @DisplayName("AUTH-15: PHT quản lý GV có cơ sở công tác ở campus mình kể cả khi GV chưa có lớp")
     void vicePrincipalManagesTeacherByWorkCampus() {
         given(assignments.findTeacherWorkCampusId(42L)).willReturn(Optional.of(CAMPUS_A));
