@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 435 endpoint.
+Tổng: 436 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -157,6 +157,7 @@ PUT /children/{childId}/health-declaration · src/main/java/com/carenest/control
 POST /children/{childId}/health/measurements · src/main/java/com/carenest/controller/health/HealthMeasurementController.java#createMeasurement
 PUT /children/{childId}/health/measurements/{measurementId} · src/main/java/com/carenest/controller/health/HealthMeasurementController.java#updateMeasurement
 GET /children/{childId}/health/published · src/main/java/com/carenest/controller/health/HealthMeasurementController.java#getPublishedHealth
+GET /children/{childId}/health/published/exams/{resultId} · src/main/java/com/carenest/controller/health/HealthMeasurementController.java#getPublishedExam
 GET /children/{childId}/health/trend-analysis · src/main/java/com/carenest/controller/health/HealthTrendController.java#latestTrend
 POST /children/{childId}/health/trend-analysis · src/main/java/com/carenest/controller/health/HealthTrendController.java#analyzeTrend
 POST /children/{childId}/health/trend-analysis/{interpretationId}/approve · src/main/java/com/carenest/controller/health/HealthTrendController.java#approveTrend

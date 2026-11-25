@@ -3834,6 +3834,31 @@ paths:
           description: OK
       tags:
       - health-measurement-controller
+  /api/children/{childId}/health/published/exams/{resultId}:
+    get:
+      operationId: getPublishedExam
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: resultId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentHealthExamResponse"
+          description: OK
+      tags:
+      - health-measurement-controller
   /api/children/{childId}/health/trend-analysis:
     get:
       operationId: latestTrend
@@ -21209,6 +21234,67 @@ components:
           type: boolean
         text:
           type: string
+    ParentHealthExamResponse:
+      type: object
+      properties:
+        ageMonths:
+          type: integer
+          format: int32
+        campaignName:
+          type: string
+        childId:
+          type: integer
+          format: int64
+        clinical:
+          type: object
+          additionalProperties:
+            type: string
+        conclusion:
+          $ref: "#/components/schemas/HealthExamConclusion"
+        conclusionCategory:
+          type: string
+          enum:
+          - NORMAL
+          - ISSUE
+          - REFERRAL
+          - TB_RISK
+          - FOLLOWING_NO_NEW
+          - FOLLOWING_NEW
+        date:
+          type: string
+          format: date
+        development:
+          $ref: "#/components/schemas/HealthExamDevelopment"
+        examiner:
+          type: string
+        followUpLevel:
+          type: string
+          enum:
+          - UNAVAILABLE
+          - NONE
+          - WATCH
+          - CLOSE_WATCH
+          - KNOWN_STABLE
+        headCircumferenceCm:
+          type: number
+        heightCm:
+          type: number
+        history:
+          $ref: "#/components/schemas/HealthExamHistory"
+        immunization:
+          $ref: "#/components/schemas/HealthExamImmunization"
+        nutrition:
+          $ref: "#/components/schemas/HealthExamNutrition"
+        publishedAt:
+          type: string
+          format: date-time
+        resultId:
+          type: integer
+          format: int64
+        vitals:
+          $ref: "#/components/schemas/HealthExamVitals"
+        weightKg:
+          type: number
     ParentPasswordResponse:
       type: object
       properties:
@@ -25485,6 +25571,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentEvaluationsResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentHealthExamResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentHealthExamResponse"
         desc:
           type: string
         errorCode:
