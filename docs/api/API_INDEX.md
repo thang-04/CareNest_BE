@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 430 endpoint.
+Tổng: 435 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -160,14 +160,17 @@ GET /children/{childId}/health/published · src/main/java/com/carenest/controlle
 GET /children/{childId}/health/trend-analysis · src/main/java/com/carenest/controller/health/HealthTrendController.java#latestTrend
 POST /children/{childId}/health/trend-analysis · src/main/java/com/carenest/controller/health/HealthTrendController.java#analyzeTrend
 POST /children/{childId}/health/trend-analysis/{interpretationId}/approve · src/main/java/com/carenest/controller/health/HealthTrendController.java#approveTrend
+GET /children/{childId}/leave-options · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#leaveOptions
 GET /children/{childId}/photo · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhoto
 GET /children/{childId}/photo/url · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhotoUrl
 POST /children/{childId}/placement · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
+DELETE /children/{childId}/placement/scheduled · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#cancelScheduledPlacement
 GET /children/{childId}/profile · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getProfile
 POST /children/{childId}/profile-change-requests · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#submitProfileChange
 GET /children/{childId}/profile-change-requests/latest · src/main/java/com/carenest/controller/account/ChildProfileChangeRequestController.java#getLatestProfileChanges
 POST /children/{childId}/readmit · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#readmit
 GET /children/{childId}/rewards · src/main/java/com/carenest/controller/observation/ParentAssessmentController.java#getRewards
+DELETE /children/{childId}/scheduled-leave · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#cancelScheduledLeave
 GET /children/{childId}/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#listForParent
 POST /children/{childId}/withdraw · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
 GET /children/duplicate-check · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#checkDuplicate
@@ -331,6 +334,8 @@ GET /nutrition/foods · src/main/java/com/carenest/controller/meals/NutritionFoo
 POST /nutrition/foods · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#createFood
 GET /nutrition/foods/{foodId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getFood
 PUT /nutrition/foods/{foodId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#updateFood
+GET /nutrition/foods/{foodId}/dishes · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getFoodDishes
+GET /nutrition/foods/{foodId}/history · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getFoodHistory
 GET /nutrition/foods/{foodId}/prices · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getFoodPrices
 POST /nutrition/foods/{foodId}/prices · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#adjustFoodPrice
 DELETE /nutrition/foods/{foodId}/prices/{priceId} · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#deleteFoodPrice

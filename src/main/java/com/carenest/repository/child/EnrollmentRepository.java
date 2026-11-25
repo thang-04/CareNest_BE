@@ -45,10 +45,31 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     @Query("select e from Enrollment e where e.childId = :childId and (e.validTo is null or e.validTo >= :date)")
     List<Enrollment> findOpenByChildId(@Param("childId") Long childId, @Param("date") LocalDate date);
 
+    /** Lớp chưa bắt đầu (ngày bắt đầu đi học hoặc lịch chuyển lớp sau :date) của các trẻ (G94-180/CHD-14). */
+    @Query("select e from Enrollment e where e.childId in :childIds and e.validFrom > :date order by e.validFrom, e.id")
+    List<Enrollment> findStartingAfter(@Param("childIds") Collection<Long> childIds, @Param("date") LocalDate date);
+
+    /**
+     * Số trẻ còn ở lớp từ ngày :date trở đi (đang học tới ngày đó hoặc sẽ vào sau), trừ trẻ đang xếp và trẻ có lịch nghỉ
+     * học từ :date trở về trước (từ ngày nghỉ trẻ không giữ chỗ): sĩ số khi xếp / chuyển lớp từ một ngày (G94-180/CHD-14,
+     * CHD-03).
+     */
+    @Query("select count(e) from Enrollment e where e.classroomId = :classroomId"
+            + " and (e.validTo is null or e.validTo >= :date) and e.childId <> :excludeChildId"
+            + " and not exists (select c.id from Child c where c.id = e.childId and c.scheduledLeaveOn <= :date)")
+    long countOccupyingFrom(
+            @Param("classroomId") Long classroomId,
+            @Param("date") LocalDate date,
+            @Param("excludeChildId") Long excludeChildId);
+
     /** Enrollment gần nhất của trẻ (kể cả đã đóng): điểm trường của trẻ đã nghỉ học là điểm trường lớp cuối. */
     Optional<Enrollment> findFirstByChildIdOrderByValidFromDescIdDesc(Long childId);
 
     Optional<Enrollment> findFirstByChildIdOrderByValidFromAscIdAsc(Long childId);
+
+    /** Lớp đầu tiên của trẻ từ ngày :from (mở lại hồ sơ): lần học trước không tính (G94-180/CHD-14). */
+    Optional<Enrollment> findFirstByChildIdAndValidFromGreaterThanEqualOrderByValidFromAscIdAsc(
+            Long childId, LocalDate from);
 
     @Query("""
             select e from Enrollment e

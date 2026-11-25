@@ -3,6 +3,7 @@ package com.carenest.service.meals.impl;
 import com.carenest.dto.meals.DryIntakeRequest;
 import com.carenest.dto.meals.StockReceiptRequest;
 import com.carenest.dto.meals.StockReceiptResponse;
+import com.carenest.dto.meals.SupplierFoodResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.StockLot;
 import com.carenest.entity.meals.StockMovement;
@@ -19,6 +20,7 @@ import com.carenest.repository.meals.StockReceiptRepository;
 import com.carenest.repository.meals.SupplierRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.meals.StockReceiptService;
 import com.carenest.utils.ApiCode;
@@ -33,7 +35,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -56,6 +60,7 @@ public class StockReceiptServiceImpl implements StockReceiptService {
     private final StockMovementRepository movementRepository;
     private final FoodRepository foodRepository;
     private final SupplierRepository supplierRepository;
+    private final FoodPriceService foodPriceService;
     private final StockLedgerService stockLedgerService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final StockMapper mapper;
@@ -168,6 +173,17 @@ public class StockReceiptServiceImpl implements StockReceiptService {
             if (!LocalDate.now(clock).equals(receipt.getReceivedDate())) {
                 throw GlobalException.of(ApiCode.STOCK_RECEIPT_STALE_DRAFT, receipt.getReceivedDate());
             }
+            // Phiếu nháp cũ có thể chứa thực phẩm không còn thuộc nhà cung cấp: kiểm lại trước khi vào kho
+            Map<Long, Food> foods =
+                    foodRepository
+                            .findAllById(receipt.getLines().stream()
+                                    .map(StockReceiptLine::getFoodId)
+                                    .toList())
+                            .stream()
+                            .collect(Collectors.toMap(Food::getId, Function.identity()));
+            checkFoodsOfSupplier(receipt.getSupplierId(), receipt.getReceivedDate(), receipt.getLines(), foods);
+            // Kiểm lại dưới khóa điểm trường: phiếu khác có thể đã xác nhận cùng số lô từ lúc lưu nháp
+            checkLotNosFree(receipt.getCampusId(), receipt.getLines(), foods);
             confirmInto(receipt, currentUser.userId());
             StockReceiptResponse response = toResponse(currentUser, receipt);
             log.info("{}|END", logPrefix);
@@ -267,6 +283,8 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                 }
             }
             lotRepository.lockCampus(campusId);
+            // Dòng không đạt không thành lô nên không kiểm số lô
+            checkLotNosFree(campusId, passed, foods);
             StockReceipt receipt = StockReceipt.intake(campusId, forecastId, rejected, currentUser.userId());
             String note = request.note() == null ? "" : request.note().trim();
             receipt.changeDraft(request.supplierId(), date, note, passed, currentUser.userId());
@@ -371,8 +389,63 @@ public class StockReceiptServiceImpl implements StockReceiptService {
         List<StockReceiptLine> lines = request.lines().stream()
                 .map(line -> toLine(line, foods.get(line.foodId()), request.receivedDate()))
                 .toList();
+        checkFoodsOfSupplier(request.supplierId(), request.receivedDate(), lines, foods);
+        checkLotNosFree(receipt.getCampusId(), lines, foods);
         String note = request.note() == null ? "" : request.note().trim();
         receipt.changeDraft(request.supplierId(), request.receivedDate(), note, lines, userId);
+    }
+
+    // Mỗi dòng phiếu thành một lô nên số lô phải phân biệt được lô: không trùng trong phiếu và không trùng lô đã vào
+    // kho
+    // của điểm trường (cùng thực phẩm, không phân biệt hoa thường). Lô của phiếu đã hủy không tính.
+    private void checkLotNosFree(Long campusId, Collection<StockReceiptLine> lines, Map<Long, Food> foods) {
+        if (lines.isEmpty()) {
+            return;
+        }
+        Set<String> seen = new HashSet<>();
+        for (StockReceiptLine line : lines) {
+            if (!seen.add(lotKey(line.getFoodId(), line.getLotNo()))) {
+                throw GlobalException.of(
+                        ApiCode.STOCK_LOT_NO_DUPLICATED_IN_RECEIPT, line.getLotNo(), foodName(foods, line.getFoodId()));
+            }
+        }
+        Set<Long> foodIds = lines.stream().map(StockReceiptLine::getFoodId).collect(Collectors.toSet());
+        Set<String> lotNos = lines.stream()
+                .map(line -> line.getLotNo().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        for (StockLotRepository.LotKey existing : lotRepository.findConfirmedLotKeys(campusId, foodIds, lotNos)) {
+            if (seen.contains(lotKey(existing.getFoodId(), existing.getLotNo()))) {
+                throw GlobalException.of(
+                        ApiCode.STOCK_LOT_NO_EXISTS, existing.getLotNo(), foodName(foods, existing.getFoodId()));
+            }
+        }
+    }
+
+    private static String lotKey(Long foodId, String lotNo) {
+        return foodId + "|" + lotNo.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String foodName(Map<Long, Food> foods, Long foodId) {
+        Food food = foods.get(foodId);
+        return food == null ? String.valueOf(foodId) : food.getName();
+    }
+
+    // Thực phẩm của phiếu phải thuộc nhà cung cấp (giá hợp đồng còn hiệu lực tại ngày nhập)
+    private void checkFoodsOfSupplier(
+            Long supplierId, LocalDate date, Collection<StockReceiptLine> lines, Map<Long, Food> foods) {
+        if (lines.isEmpty()) {
+            return;
+        }
+        Set<Long> allowed = foodPriceService.getSupplierFoods(supplierId, date).stream()
+                .map(SupplierFoodResponse::foodId)
+                .collect(Collectors.toSet());
+        for (StockReceiptLine line : lines) {
+            if (!allowed.contains(line.getFoodId())) {
+                Food food = foods.get(line.getFoodId());
+                String name = food == null ? String.valueOf(line.getFoodId()) : food.getName();
+                throw GlobalException.of(ApiCode.STOCK_FOOD_NOT_OF_SUPPLIER, name);
+            }
+        }
     }
 
     private static StockReceiptLine toLine(
