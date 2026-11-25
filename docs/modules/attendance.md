@@ -39,6 +39,17 @@ P-19 (ngày nghỉ tự khóa điểm danh), P-20 (trẻ có đơn nghỉ vẫn 
 - ATT-02 (01/11): bữa ăn suy từ `status` (`AttendanceServiceImpl.mealsFor`: có mặt ⇒ mọi bữa nhóm tuổi của lớp) cả khi lưu, tổng hợp suất, tổng hợp điểm danh và trả `record.meals`; trẻ không báo ăn (CHD-13) không bao giờ có bữa, không thay thế (BE bỏ qua `meals` gửi lên, cờ lấy từ `ChildService.findChildIdsWithoutMeals`); field `meals` trong `SaveAttendanceRequest` deprecated, giá trị bị bỏ qua (giữ để client cũ không vỡ). Bản ghi cũ có `meals` lệch vẫn được đọc theo `status`.
 - ATT-09 (01/11): GV gửi `EXCUSED` cho trẻ chưa có bản ghi `EXCUSED` ⇒ 400 `4018` `ATTENDANCE_EXCUSED_NOT_ALLOWED`; gửi lại `EXCUSED` đang có (sau này do đơn nghỉ đặt) được chấp nhận để lưu cả sheet không vỡ.
 
+- Tổng hợp điểm danh (Cần chốt 24/11/2026): khoảng luôn cắt trong năm học của lớp; `semester=1|2` thay cho from/to (ngày học kỳ của năm, chưa hết học kỳ thì tới hôm nay; năm chưa cấu hình học kỳ ⇒ `2026`). Bản ghi chỉ tính trong thời gian trẻ ở lớp (theo enrollment, không theo `classroom_id` lưu trên bản ghi). `ChildTotal.transferredInOn` + `previousClasses[{classId,className,from,to,present,excused,absent}]`: số liệu chỉ xem ở lớp cũ cùng năm.
+- Đơn nghỉ gửi trước khi chuyển lớp: sổ báo ăn, "Đã đến", lưu điểm danh xét lớp theo enrollment ngày đó; bản ghi được chuyển sang lớp mới khi GV lớp mới ghi. `LeaveRequestResponse.days[{date,classId,className}]`.
+- Người dạy thay đang trong đợt chỉ xem đúng ngày dạy thay (`canViewDay`/`canViewRange`), không xem cả lớp.
+- API phụ huynh (ATT-15, AUTH-04, chỉ role PARENT, `ParentAttendanceController`):
+  - `POST /leave-requests/preview` body `{childId, fromDate, toDate, reason?, part?, eats?}` ⇒ `{part, offMeals[], keptMeals[], eatsApplies, appliedDates[], skippedDates[]}`; cùng kiểm tra và mã lỗi như `POST /leave-requests` (4019, 4020, 4021, 4022, 4025, 4026, 4028, 4031); không lưu.
+  - `LeaveRequestResponse` thêm `offMeals[]` (bữa của buổi nghỉ; cả ngày = mọi bữa), `teacherSeenAt`, `teacherSeenByName` (V178: GV của lớp mở `GET /leave-requests` hoặc `GET /classes/{id}/attendance` ngày của đơn; ghi một lần).
+  - `GET /children/{childId}/attendance/today` ⇒ `{date, status, absentPart, arrivedAt, classId, className}`.
+  - `GET /children/{childId}/attendance?from&to` ⇒ `{childId, from, to, days[{date, status, absentPart, arrivedAt, mealsEaten[], cancelledMeals[], pickedUpByName, classId, className}], totals{schoolDays, present, excused, absent}}`. `status`: PRESENT / ABSENT_EXCUSED / ABSENT / NOT_RECORDED / NO_SCHOOL / NOT_ENROLLED. `pickedUpByName` luôn null (chưa có hàm đọc đón trẻ cho phụ huynh ở `PickupService`).
+  - `GET /children/{childId}/daily-health/parent?from&to` ⇒ `[{date, temperature, symptoms[], note, recordedByName, classId, className}]`; API sức khỏe của nhân viên không mở cho phụ huynh.
+  - Lỗi: `4108` PARENT_CHILD_FORBIDDEN (403), `4109` PARENT_RANGE_INVALID (400, tối đa 62 ngày, một năm học).
+
 ## Related issues
 Chưa có. Rủi ro dự kiến: `docs/knowledge/CROSS_MODULE_ISSUES.md` CMR-01.
 

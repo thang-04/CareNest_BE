@@ -23,7 +23,8 @@ public interface ChildEvaluationService {
 
     EvaluationRow confirm(CurrentUser currentUser, Long id, String content);
 
-    EvaluationRow redraft(CurrentUser currentUser, Long id);
+    /** ai = true: xin AI viết nháp (OBS-34); AI tắt / lỗi / không đạt kiểm thì viết theo mẫu câu (AI-03). */
+    EvaluationRow redraft(CurrentUser currentUser, Long id, boolean ai);
 
     /** Đánh giá cuối năm trẻ lớp 5–6 tuổi, trước khi xác nhận. */
     EvaluationRow markProgram(CurrentUser currentUser, Long id, Boolean completed);

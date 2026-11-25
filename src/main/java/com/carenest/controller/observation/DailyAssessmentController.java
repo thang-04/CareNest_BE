@@ -4,8 +4,10 @@ import com.carenest.dto.observation.DailySheetResponse;
 import com.carenest.dto.observation.SaveDailyGeneralRequest;
 import com.carenest.dto.observation.SaveDailyResponse;
 import com.carenest.dto.observation.SaveDailySkillsRequest;
+import com.carenest.dto.observation.TransferredAssessmentHistoryResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.DailyAssessmentService;
+import com.carenest.service.observation.TransferredAssessmentHistoryService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
@@ -30,6 +32,33 @@ public class DailyAssessmentController {
     private static final String LOG_PREFIX = "[DailyAssessmentController]";
 
     private final DailyAssessmentService dailyAssessmentService;
+    private final TransferredAssessmentHistoryService transferredAssessmentHistoryService;
+
+    /** OBS-35: lịch sử ở lớp cũ của trẻ chuyển đến, chỉ xem. */
+    @GetMapping("/classes/{classId}/transferred-assessment-history")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
+    public ResponseEntity<ResponseJson<TransferredAssessmentHistoryResponse>> getTransferredHistory(
+            @PathVariable Long classId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getTransferredHistory|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        var history = transferredAssessmentHistoryService.findHistory(currentUser, classId, from, to);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get transferred assessment history success", history);
+    }
+
+    @GetMapping("/assessment/daily/classes")
+    @PreAuthorize("@permissionGuard.hasAny('ASSESSMENT_VIEW', 'ASSESSMENT_UNLOCK')")
+    public ResponseEntity<ResponseJson<java.util.List<com.carenest.dto.attendance.AttendanceClassResponse>>>
+            listClasses(@RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        var classes = dailyAssessmentService.listClasses(currentUser, schoolYearId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get assessment classes success", classes);
+    }
 
     @GetMapping("/classes/{classId}/daily-assessment")
     @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")

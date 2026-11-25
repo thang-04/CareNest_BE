@@ -7,10 +7,12 @@ import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
+import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.security.CurrentUser;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -23,10 +25,26 @@ import java.util.Optional;
 public interface ChildRecordService {
 
     /**
-     * CHD-03: trẻ Đã nghỉ từ {@code leftAt}, đóng lớp đang học, lịch sử WITHDRAWN, báo giáo viên lớp; không xóa dữ liệu.
-     * Phụ huynh mất quyền xem trẻ ngay; tài khoản chỉ là phụ huynh không còn con đang học bị khóa (CHD-04).
+     * CHD-03 (user chốt 2026-11-25): {@code leftAt} là ngày bất kỳ từ hôm nay tới hết năm học đang hoạt động; hôm nay chỉ
+     * khi trẻ chưa có dữ liệu trong ngày. Hôm nay ⇒ Đã nghỉ ngay: lớp đang học kết thúc ngày trước đó, lịch sử WITHDRAWN,
+     * báo giáo viên lớp, khóa tài khoản chỉ là phụ huynh không còn con đang học (CHD-04); không xóa dữ liệu. Sau hôm nay ⇒
+     * lịch nghỉ: trẻ vẫn Đang học, lớp không đổi, lịch sử LEAVE_SCHEDULED, báo giáo viên, bảng xếp lớp năm sau ghi Nghỉ
+     * học; 00:05 ngày nghỉ {@link #applyDueScheduledLeaves} mới cho nghỉ. Trẻ đã có lịch nghỉ ⇒ lỗi ô {@code leftAt}.
      */
     ChildViewResponse withdraw(CurrentUser actor, Long childId, WithdrawChildRequest request);
+
+    /**
+     * Ngày được chọn khi cho nghỉ học ({@code GET /children/{id}/leave-options}, G94-180/CHD-03): cùng phạm vi, cùng
+     * luật ngày và câu lỗi với {@link #withdraw}; trẻ đã nghỉ 409. Không ghi gì.
+     */
+    LeaveOptionsResponse leaveOptions(CurrentUser actor, Long childId);
+
+    /**
+     * Áp các lịch nghỉ học đã tới ngày ({@code scheduled_leave_on ≤ today}, G94-180/CHD-03, CHD-04): như cho nghỉ hôm nay
+     * với ngày, lý do, người đặt lịch đã lưu; xóa lịch, lịch sử WITHDRAWN, khóa phụ huynh sau commit. Mỗi trẻ một
+     * transaction riêng: lỗi ở một trẻ chỉ log, không làm hỏng trẻ khác; lịch đã áp không áp lại. Trả id trẻ đã áp.
+     */
+    List<Long> applyDueScheduledLeaves(LocalDate today);
 
     /**
      * Kiểm Sửa hồ sơ (mục 4.2 plan tiếp nhận): phạm vi, trẻ chưa nghỉ, lỗi theo ô (400), ngày sinh không sau ngày tiếp
@@ -83,6 +101,19 @@ public interface ChildRecordService {
      * 409. Ghi lịch sử xếp lớp, báo GV lớp mới.
      */
     ChildViewResponse place(CurrentUser actor, Long childId, PlaceChildRequest request);
+
+    /**
+     * Hủy lớp chưa bắt đầu của trẻ ({@code DELETE /children/{id}/placement/scheduled}, G94-180/CHD-14): lịch chuyển ⇒ trẻ
+     * ở lại lớp hiện tại; trẻ chưa học lớp nào ⇒ về Chờ xếp lớp. Không có lịch ⇒ 400 ô {@code classId}; trẻ đã nghỉ 409.
+     */
+    ChildViewResponse cancelScheduledPlacement(CurrentUser actor, Long childId);
+
+    /**
+     * G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ học chưa tới ngày ⇒ trẻ giữ trạng thái Đang học, xóa lịch,
+     * xóa quyết định Nghỉ học ở bảng xếp lớp năm sắp tới, ghi lịch sử LEAVE_CANCELLED, báo GV. Trẻ không có lịch ⇒ 409
+     * {@code CHILD_NO_SCHEDULED_LEAVE}.
+     */
+    ChildViewResponse cancelScheduledLeave(CurrentUser actor, Long childId);
 
     /** Lớp ở hồ sơ trẻ: đang học, trẻ đã nghỉ là lớp cuối; chờ xếp lớp ⇒ null. Người gọi đã kiểm phạm vi. */
     ChildClassResponse findClass(Long childId);

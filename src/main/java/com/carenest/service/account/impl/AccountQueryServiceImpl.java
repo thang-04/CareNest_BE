@@ -136,4 +136,16 @@ public class AccountQueryServiceImpl implements AccountQueryService {
         userIds.addAll(staffAssignmentService.findTeacherIdsByWorkCampus(campusIds));
         return userIds;
     }
+
+    @Override
+    public Map<Long, String> getDisplayNames(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, String> names = new java.util.HashMap<>();
+        userAccountRepository
+                .findAllById(userIds)
+                .forEach(account -> names.put(account.getId(), account.getFullName()));
+        return names;
+    }
 }

@@ -34,7 +34,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | attendance | AttendanceReopen (classroom, date, reason, by) | CLASS | PHT mở lại sau giờ chốt (ATT-08) |
 | attendance | Pickup (childId, date, pickedUpBy, guardianId?, time, earlyLeave, reason) | CHILD | Xác nhận trả trẻ (ATT-10, PCK-02, PCK-04); lưu trên AttendanceRecord hay bảng riêng: quyết định khi thiết kế bảng |
 | health / attendance | Kiểm tra đầu ngày (childId, date, temperature, symptoms) | CLASS | Nhập cùng màn điểm danh (HLT-07); module lưu chờ thiết kế bảng |
-| nutrition | Food, NutrientValue (source, sourceVersion) | SCHOOL | Không do AI tạo; nguồn Viện Dinh dưỡng (NUT-18) |
+| nutrition | Food, NutrientValue (source) | SCHOOL | Không do AI tạo; nguồn Viện Dinh dưỡng (NUT-18) |
 | nutrition | Dish, Recipe (gam/trẻ theo nhóm tuổi), ingredient type Fresh/Stored | SCHOOL | NUT-18 |
 | nutrition | MealPlan (tuần trong bộ 4 tuần, ageGroup nhà trẻ/mẫu giáo, status, source) | SCHOOL | Chung hai cơ sở (NUT-13); DRAFT → PUBLISHED, công bố cả tuần, công bố là duyệt (NUT-08) |
 | nutrition | MealCount (campus, date, meal, classroom lines, status, confirmedBy) | CAMPUS | chờ xác nhận → CONFIRMED (không sửa ngầm; đổi ⇒ xác nhận lại) |

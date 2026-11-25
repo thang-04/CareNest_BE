@@ -80,12 +80,22 @@ class ClassCommentServiceTest {
                             inv.<java.time.LocalDate>getArgument(0).getDayOfWeek();
                     return d != java.time.DayOfWeek.SATURDAY && d != java.time.DayOfWeek.SUNDAY;
                 });
-        var rules =
-                new ObservationDayRules(clock, unlocks, classes, staff, classPolicy, campusPolicy, accounts, calendar);
+        var rules = new ObservationDayRules(
+                clock,
+                unlocks,
+                classes,
+                staff,
+                classPolicy,
+                campusPolicy,
+                accounts,
+                calendar,
+                mock(com.carenest.service.organization.TeacherReadAccessService.class),
+                enrollments);
         service = new DailyAssessmentServiceImpl(
                 rules,
                 observations,
                 results,
+                mock(com.carenest.service.attendance.ChildClassHistoryService.class),
                 enrollments,
                 attendance,
                 health,
@@ -97,7 +107,8 @@ class ClassCommentServiceTest {
         when(classes.findClassroomInfo(anyLong()))
                 .thenAnswer(i -> Optional.of(i.<Long>getArgument(0) == 10L ? classroom : other));
         when(classes.findYearClassrooms(any())).thenAnswer(i -> List.of(classroom, other));
-        when(staff.hasActiveMainTeacherAssignment(eq(1L), eq(10L), eq(TODAY))).thenReturn(true);
+        // Phân công dạy chính từ đầu năm: phủ cả ngày được mở lại trước hôm nay
+        when(staff.hasActiveMainTeacherAssignment(eq(1L), eq(10L), any())).thenReturn(true);
         when(classPolicy.canReadClassroom(teacher, 10L)).thenReturn(true);
         when(campusPolicy.canViewCampus(eq(principal), anyLong())).thenReturn(true);
         when(campusPolicy.canViewCampus(vp, 100L)).thenReturn(true);

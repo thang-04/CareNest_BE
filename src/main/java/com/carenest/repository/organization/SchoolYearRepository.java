@@ -82,7 +82,7 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
             value =
                     "insert into school_year_campuses (school_year_id, campus_id, code, name, short_name, address, phone,"
                             + " is_main, status) select :yearId, c.id, m.code, m.name, m.short_name, m.address,"
-                            + " m.phone, c.is_main, m.status from school_year_campus_members m"
+                            + " m.phone, m.is_main, m.status from school_year_campus_members m"
                             + " join campuses c on c.id = m.campus_id where m.school_year_id = :yearId",
             nativeQuery = true)
     void snapshotCampuses(@Param("yearId") Long yearId);

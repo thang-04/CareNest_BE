@@ -52,6 +52,20 @@ class MealPlanEvaluationSupport {
     private final FoodPriceService foodPriceService;
 
     /** Nhóm tuổi có lớp trong năm học hiện hành; chưa có lớp nào thì kiểm mọi nhóm tuổi. */
+    List<AgeGroupInfo> planningGroups() {
+        Set<Long> disabled = configRepository.findDisabledNutritionGroupIds();
+        return evaluatedGroups().stream()
+                .filter(g -> !disabled.contains(g.id()))
+                .toList();
+    }
+
+    Collection<AgeGroupDetailResponse> planningAgeGroups() {
+        Set<Long> disabled = configRepository.findDisabledNutritionGroupIds();
+        return ageGroupService.getAgeGroups().stream()
+                .filter(g -> !disabled.contains(g.id()))
+                .toList();
+    }
+
     List<AgeGroupInfo> evaluatedGroups() {
         Set<Long> withClasses = classroomService.findActiveYearClassrooms().stream()
                 .map(ClassroomInfoResponse::ageGroupId)

@@ -27,6 +27,8 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
     private final Clock clock;
 
     private static final String MEAL_INVALID = "Báo ăn ghi Có hoặc Không";
+    private static final String ZEROS_NOTE =
+            "Đã thêm số 0 đầu cho SĐT/CCCD (Excel bỏ mất). Kiểm tra lại trước khi nhập.";
 
     private record Column(String key, String label, boolean required) {}
 
@@ -100,6 +102,7 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                         raw.put(
                                 keys.get(c),
                                 c < table.get(i).size() ? table.get(i).get(c).trim() : "");
+                boolean zerosAdded = restoreZeros(raw);
                 EnrollChildRequest payload = payload(raw);
                 var validation = EnrollmentFormValidator.validate(payload, LocalDate.now(clock));
                 List<String> errors = new ArrayList<>();
@@ -123,6 +126,7 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                 // lại
                 // hồ sơ cũ (lúc lưu cũng chỉ chặn trẻ chưa nghỉ)
                 List<String> notes = new ArrayList<>();
+                if (zerosAdded) notes.add(ZEROS_NOTE);
                 // CHD-13: trẻ không báo ăn thì bỏ qua dị ứng và chế độ ăn trong file
                 if (Boolean.FALSE.equals(mealFlag(raw.get("mealRegistered")))
                         && (!raw.getOrDefault("allergies", "").isBlank()
@@ -162,8 +166,14 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
             Map<String, String> phones = new HashMap<>();
             for (EnrollChildRequest row : request.rows()) {
                 if (row == null) throw invalid("file", "Dòng dữ liệu không hợp lệ");
-                EnrollChildRequest scoped =
-                        new EnrollChildRequest(row.child(), row.declaration(), null, request.campusId());
+                // CHD-11: chuyển năm đích + ngày vào học; năm sau chưa tới ngày chuẩn bị ⇒ 2412 cả lô
+                EnrollChildRequest scoped = new EnrollChildRequest(
+                        row.child(),
+                        row.declaration(),
+                        null,
+                        request.campusId(),
+                        request.schoolYearId(),
+                        request.startDate());
                 EnrollmentDraft draft = childIntakeService.prepareEnrollment(actor, scoped);
                 List<String> errors = new ArrayList<>();
                 batchCheck(scoped, children, ids, phones, errors);
@@ -291,6 +301,30 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
             case "nguoigiamho" -> "GUARDIAN";
             default -> value;
         };
+    }
+
+    // CHD-01: Excel bỏ số 0 đầu của SĐT/CCCD lưu dạng số; bù lại trên giá trị thô, trả true nếu có đổi
+    private static boolean restoreZeros(Map<String, String> raw) {
+        boolean changed = false;
+        for (String key : List.of(
+                "phone",
+                "phone2",
+                "phone3",
+                "guardianIdNumber",
+                "guardianIdNumber2",
+                "guardianIdNumber3",
+                "idNumber",
+                "accountRecipientIdNumber")) {
+            String value = raw.get(key);
+            if (value == null) continue;
+            String compact = value.replaceAll("\\s", "");
+            var fixed = key.startsWith("phone") ? ExcelZeroFix.phone(compact) : ExcelZeroFix.citizenId(compact);
+            if (fixed.isPresent()) {
+                raw.put(key, fixed.get());
+                changed = true;
+            }
+        }
+        return changed;
     }
 
     private static EnrollChildRequest payload(Map<String, String> raw) {

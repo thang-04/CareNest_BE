@@ -112,6 +112,7 @@ class ChildPhotoControllerTest {
                 null,
                 List.of(),
                 List.of(),
+                null,
                 null);
     }
 }

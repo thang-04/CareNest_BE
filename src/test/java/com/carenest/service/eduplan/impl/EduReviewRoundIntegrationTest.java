@@ -118,6 +118,17 @@ class EduReviewRoundIntegrationTest {
         jdbc.update("UPDATE edu_settings SET workflow_policy = workflow_policy || "
                 + "'{\"schoolYear\":{\"creators\":[\"VICE_PRINCIPAL\"],\"reviewers\":[\"PRINCIPAL\"]}}'::jsonb");
         leader = user("leader-" + suffix, CareNestRole.TEACHER);
+        // EDU-108: vài test cho Tổ trưởng soạn kế hoạch năm học; tab Phân quyền cấp kèm mã soạn khi HT chọn vậy
+        var leaderCodes = new java.util.HashSet<>(leader.permissions());
+        leaderCodes.add(com.carenest.utils.enums.Permission.EDU_SCHOOL_YEAR_PLAN_EDIT);
+        leader = new CurrentUser(
+                leader.userId(),
+                leader.keycloakUserId(),
+                leader.username(),
+                leader.fullName(),
+                leader.email(),
+                leader.roles(),
+                leaderCodes);
         insertAssignment(leader.userId(), "AGE_GROUP_TEAM_LEADER", null, ageGroup3, null);
 
         vicePrincipal = user("vp-" + suffix, CareNestRole.VICE_PRINCIPAL);
@@ -729,7 +740,14 @@ class EduReviewRoundIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(roles));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(roles),
+                com.carenest.security.TestPermissions.eduDefaultsOf(roles));
     }
 
     private void insertAssignment(Long userId, String staffRole, Long campusId, Long ageGroupId, Long classroomId) {

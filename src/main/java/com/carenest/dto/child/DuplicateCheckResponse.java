@@ -5,7 +5,7 @@ import java.time.LocalDate;
 
 /**
  * Hồ sơ trùng khi tiếp nhận (CHD-04). {@code sameCampus} false ⇒ hồ sơ ở điểm trường người hỏi không quản lý: chỉ báo
- * có trùng, các trường còn lại null (không lộ hồ sơ).
+ * có trùng, các trường còn lại null (không lộ hồ sơ). {@code campusId} = điểm trường hiện tại của trẻ (lớp cuối, không có lớp thì điểm trường tiếp nhận).
  */
 public record DuplicateCheckResponse(
         DuplicateChildKind kind,
@@ -14,9 +14,10 @@ public record DuplicateCheckResponse(
         String code,
         String fullName,
         LocalDate leftAt,
-        Boolean canReadmit) {
+        Boolean canReadmit,
+        Long campusId) {
 
     public static DuplicateCheckResponse otherCampus(DuplicateChildKind kind) {
-        return new DuplicateCheckResponse(kind, false, null, null, null, null, null);
+        return new DuplicateCheckResponse(kind, false, null, null, null, null, null, null);
     }
 }

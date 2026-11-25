@@ -96,13 +96,131 @@ class PermissionServiceImplTest {
                 new PermissionMapper(),
                 new TransactionTemplate(mock(PlatformTransactionManager.class)),
                 teamLeaderAssignmentChecker,
+                eduPlanAccessPolicy,
+                workflowSync,
+                java.time.Clock.systemUTC(),
                 campusService);
+    }
+
+    @Mock
+    private com.carenest.security.authorization.EduPlanAccessPolicy eduPlanAccessPolicy;
+
+    @Mock
+    private com.carenest.service.account.RoleMatrixWorkflowSync workflowSync;
+
+    private static final com.carenest.dto.account.EduWorkflowIssuesResponse NO_ISSUES =
+            new com.carenest.dto.account.EduWorkflowIssuesResponse(List.of());
+
+    private static com.carenest.dto.account.BulkUpdateRolePermissionsRequest bulk(
+            com.carenest.dto.account.BulkUpdateRolePermissionsRequest.RoleItem... items) {
+        return new com.carenest.dto.account.BulkUpdateRolePermissionsRequest("EDU-110 thử", List.of(items));
+    }
+
+    private static com.carenest.dto.account.BulkUpdateRolePermissionsRequest.RoleItem item(
+            CareNestRole role, Permission... permissions) {
+        return new com.carenest.dto.account.BulkUpdateRolePermissionsRequest.RoleItem(role, List.of(permissions));
+    }
+
+    @Test
+    @DisplayName("EDU-110 BR2.1: HT chỉ cấu hình được 8 mã soạn/duyệt, mã khác ⇒ 1118")
+    void principalOnlyEduCodes() {
+        assertThatThrownBy(() -> permissionService.updateRolePermissionsBulk(
+                        principal, bulk(item(CareNestRole.PRINCIPAL, Permission.CHILD_ENROLL))))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.PERMISSION_NOT_CONFIGURABLE_FOR_ROLE);
+        assertThatThrownBy(() -> permissionService.updateRolePermissionsBulk(
+                        principal, bulk(item(CareNestRole.TEACHER, Permission.EDU_THEME_PLAN_APPROVE))))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.PERMISSION_NOT_CONFIGURABLE_FOR_ROLE);
+        verifyNoInteractions(rolePermissionRepository, permissionChangeLogRepository, workflowSync);
+    }
+
+    @Test
+    @DisplayName("EDU-110 BR2.4: một vai trò lặp trong lần lưu ⇒ 400")
+    void duplicateRoleRejected() {
+        assertThatThrownBy(() -> permissionService.updateRolePermissionsBulk(
+                        principal, bulk(item(CareNestRole.TEACHER), item(CareNestRole.TEACHER))))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+        verifyNoInteractions(rolePermissionRepository, workflowSync);
+    }
+
+    @Test
+    @DisplayName("EDU-110 BR2.2: đổi mã EDU khi không phải HT hiệu lực ⇒ 7201, không ghi")
+    void eduChangeNeedsActivePrincipal() {
+        given(eduPlanAccessPolicy.canConfigureWorkflow(principal)).willReturn(false);
+        assertThatThrownBy(() -> permissionService.updateRolePermissionsBulk(
+                        principal, bulk(item(CareNestRole.TEAM_LEADER, Permission.EDU_THEME_PLAN_APPROVE))))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.EDU_CONFIG_FORBIDDEN);
+        verify(rolePermissionRepository, never()).saveAll(any());
+        verifyNoInteractions(workflowSync, permissionChangeLogRepository);
+    }
+
+    @Test
+    @DisplayName("EDU-110 BR1.x: ma trận sau khi áp vi phạm ⇒ 7202 kèm issues, không ghi gì")
+    void ruleViolationReturnsIssues() {
+        var issues = new com.carenest.dto.account.EduWorkflowIssuesResponse(List.of(
+                new com.carenest.dto.account.EduWorkflowIssuesResponse.Issue("THEME_PLAN", "NO_REVIEWER", List.of())));
+        given(eduPlanAccessPolicy.canConfigureWorkflow(principal)).willReturn(true);
+        given(workflowSync.validate(any())).willReturn(issues);
+        assertThatThrownBy(() -> permissionService.updateRolePermissionsBulk(
+                        principal, bulk(item(CareNestRole.TEAM_LEADER, Permission.EDU_THEME_PLAN_APPROVE))))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    assertThat(ex).extracting("apiCode").isEqualTo(ApiCode.SIGNERS_INVALID);
+                    assertThat(ex).extracting("data").isEqualTo(issues);
+                });
+        verify(workflowSync).lockWorkflowSettings();
+        verify(workflowSync, never()).apply(any(), any(), any());
+        verify(rolePermissionRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("EDU-110 WF1: lưu nhiều vai trò hợp lệ ghi ô tick + lịch sử từng vai trò rồi suy chuỗi")
+    void validBulkWritesRowsAndAppliesPolicy() {
+        given(eduPlanAccessPolicy.canConfigureWorkflow(principal)).willReturn(true);
+        given(workflowSync.validate(any())).willReturn(NO_ISSUES);
+        given(rolePermissionRepository.findByRole(any())).willReturn(List.of());
+
+        permissionService.updateRolePermissionsBulk(
+                principal,
+                bulk(
+                        item(CareNestRole.PRINCIPAL, Permission.EDU_THEME_PLAN_APPROVE),
+                        item(CareNestRole.TEAM_LEADER, Permission.EDU_THEME_PLAN_APPROVE)));
+
+        verify(rolePermissionRepository, org.mockito.Mockito.times(2)).saveAll(any());
+        verify(permissionChangeLogRepository, org.mockito.Mockito.times(2)).saveAll(any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.Map<CareNestRole, java.util.Set<Permission>>> matrix =
+                ArgumentCaptor.forClass(java.util.Map.class);
+        verify(workflowSync).apply(matrix.capture(), eq(PRINCIPAL_ID), any());
+        assertThat(matrix.getValue().get(CareNestRole.TEAM_LEADER)).containsExactly(Permission.EDU_THEME_PLAN_APPROVE);
+    }
+
+    @Test
+    @DisplayName("EDU-110: đổi mã ngoài EDU không cần quyền cấu hình chuỗi và không đụng policy")
+    void nonEduChangeSkipsWorkflow() {
+        permissionService.updateRolePermissionsBulk(principal, bulk(item(CareNestRole.TEACHER)));
+        verifyNoInteractions(workflowSync, eduPlanAccessPolicy);
+    }
+
+    @Test
+    @DisplayName("EDU-110 BR5.1: ngoại lệ theo người cho mã soạn/duyệt ⇒ 1120")
+    void eduOverrideRejected() {
+        givenTarget(TEACHER_ID, "TEACHER");
+        var request = new UpdatePermissionOverridesRequest(
+                List.of(new OverrideItem(Permission.EDU_THEME_PLAN_EDIT, PermissionEffect.GRANT, null)), "thử");
+        assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, TEACHER_ID, request))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.PERMISSIONS_NOT_OVERRIDABLE);
+        verify(userPermissionOverrideRepository, never()).saveAll(any());
     }
 
     @Test
     @DisplayName("AUTH-11: không sửa được ma trận của role cố định")
     void fixedRoleMatrixCannotBeChanged() {
-        for (CareNestRole fixedRole : List.of(CareNestRole.PRINCIPAL, CareNestRole.PARENT, CareNestRole.ADMIN)) {
+        for (CareNestRole fixedRole : List.of(CareNestRole.PARENT, CareNestRole.ADMIN)) {
             assertThatThrownBy(() -> permissionService.updateRolePermissions(
                             principal, fixedRole, new UpdateRolePermissionsRequest(List.of(), "thử")))
                     .isInstanceOf(GlobalException.class)
