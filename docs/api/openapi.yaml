@@ -15620,6 +15620,8 @@ components:
     DryStock:
       type: object
       properties:
+        canSync:
+          type: boolean
         foodCount:
           type: integer
           format: int32

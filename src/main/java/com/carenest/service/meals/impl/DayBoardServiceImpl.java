@@ -17,6 +17,7 @@ import com.carenest.service.meals.FreshGoodsService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.organization.CampusService;
 import com.carenest.utils.enums.InspectionTab;
+import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -71,7 +72,7 @@ public class DayBoardServiceImpl implements DayBoardService {
             boolean published = week.map(MealPlanWeek::isPublished).orElse(false);
             List<DayBoardResponse.CampusBoard> boards = campusService.getCampuses(currentUser, null).stream()
                     .filter(c -> campusId == null || c.id().equals(campusId))
-                    .map(c -> board(c, date, menu, published))
+                    .map(c -> board(currentUser, c, date, menu, published))
                     .toList();
             DayBoardResponse response = new DayBoardResponse(date, boards);
             log.info("{}|END", logPrefix);
@@ -83,7 +84,11 @@ public class DayBoardServiceImpl implements DayBoardService {
     }
 
     private DayBoardResponse.CampusBoard board(
-            CampusResponse campus, LocalDate date, DayBoardResponse.WeekMenu menu, boolean published) {
+            CurrentUser currentUser,
+            CampusResponse campus,
+            LocalDate date,
+            DayBoardResponse.WeekMenu menu,
+            boolean published) {
         List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campus.id(), date).stream()
                 .sorted(Comparator.comparing(MealCount::getSession))
                 .toList();
@@ -94,7 +99,7 @@ public class DayBoardServiceImpl implements DayBoardService {
                 campus.name(),
                 menu,
                 mealCounts,
-                dryStock(campus.id(), date, menu.dayOff(), published, mealCounts.status()),
+                dryStock(currentUser, campus.id(), date, menu.dayOff(), published, mealCounts.status()),
                 freshGoodsService.getReceiptStatus(campus.id(), date),
                 samples.status(),
                 samples.pendingCount(),
@@ -128,7 +133,12 @@ public class DayBoardServiceImpl implements DayBoardService {
     }
 
     private DayBoardResponse.DryStock dryStock(
-            Long campusId, LocalDate date, boolean dayOff, boolean published, String countStatus) {
+            CurrentUser currentUser,
+            Long campusId,
+            LocalDate date,
+            boolean dayOff,
+            boolean published,
+            String countStatus) {
         int openShortfalls = demandRepository
                 .findByCampusIdAndShortfallQtyGreaterThanOrderByMealDateAscFoodIdAsc(campusId, BigDecimal.ZERO)
                 .size();
@@ -168,7 +178,10 @@ public class DayBoardServiceImpl implements DayBoardService {
                 openShortfalls,
                 upcoming.size(),
                 upcoming.isEmpty() ? null : upcoming.getFirst().shortFrom(),
-                writeGuard.signed(campusId, date, InspectionTab.DRY));
+                writeGuard.signed(campusId, date, InspectionTab.DRY),
+                // Cùng điều kiện với StockLedgerService.resyncDay (AUTH-20)
+                campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, campusId)
+                        || campusAccessPolicy.canEditCampus(currentUser, Permission.MEAL_COUNT_CONFIRM, campusId));
     }
 
     private static boolean isDayOff(LocalDate date, Optional<MealPlanWeek> week) {
