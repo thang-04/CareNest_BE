@@ -359,6 +359,7 @@ public enum ApiCode {
     PREP_YEAR_NOT_OPEN(2412, HttpStatus.CONFLICT, "Năm học {0} chưa tới ngày mở chuẩn bị ({1})"),
     NO_ACTIVE_YEAR_TO_MOVE_FROM(2410, HttpStatus.CONFLICT, "Không có năm học đang hoạt động để chuyển trẻ"),
     PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
+    PLACEMENT_NOT_OPEN(2417, HttpStatus.CONFLICT, "Xếp lớp năm học mới mở từ {0} (kết thúc học kỳ II năm học {1})"),
     PLACEMENT_CHILD_ALREADY_ENROLLED(
             2413, HttpStatus.CONFLICT, "{0} đang có lớp, không vào lớp năm học mới theo đăng ký tiếp nhận được"),
     PLACEMENT_ADMISSION_WRONG_CAMPUS(2415, HttpStatus.BAD_REQUEST, "Lớp {0} không thuộc điểm trường đăng ký của {1}"),
@@ -443,9 +444,24 @@ public enum ApiCode {
     LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
     // ATT-12, ATT-13 (Cần chốt 18/11/2026): nghỉ nửa buổi
     LEAVE_HALF_DAY_SINGLE_DAY(4031, HttpStatus.BAD_REQUEST, "Nghỉ buổi sáng hoặc buổi chiều chỉ chọn cho một ngày"),
+    LEAVE_AFTERNOON_NOTICE_CLOSED(
+            4032,
+            HttpStatus.CONFLICT,
+            "Đã tới giờ bắt đầu buổi chiều ({0}), không gửi hoặc hủy báo nghỉ chiều hôm nay"),
+    LEAVE_OUTSIDE_SCHOOL_YEAR(4034, HttpStatus.BAD_REQUEST, "Đơn nghỉ phải nằm trong năm học ({0} – {1})"),
+    LEAVE_CHILD_ABSENT_TODAY(4033, HttpStatus.CONFLICT, "Trẻ đã được điểm danh vắng hôm nay, không cần báo nghỉ chiều"),
+    LEAVE_CHILD_LEAVING(4035, HttpStatus.CONFLICT, "Trẻ nghỉ học từ {0}, không gửi đơn nghỉ cho các ngày từ ngày này"),
     CUTOFF_LATEST_ARRIVAL_INVALID(4030, HttpStatus.BAD_REQUEST, "Giờ đến muộn nhất buổi chiều phải sau giờ chốt {0}"),
     ATTENDANCE_ARRIVAL_NOT_ALLOWED(
-            4033, HttpStatus.CONFLICT, "Chỉ ghi Đã đến cho trẻ nghỉ buổi sáng chưa đến, từ giờ chốt tới {0}"),
+            4036, HttpStatus.CONFLICT, "Chỉ ghi Đã đến cho trẻ vắng buổi sáng chưa đến, từ {0} đến trước {1}"),
+    ATTENDANCE_FULL_DAY_FIX_NOT_ALLOWED(
+            4037,
+            HttpStatus.CONFLICT,
+            "Chỉ sửa có mặt cả ngày cho trẻ bị ghi vắng sáng không phép rồi đến chiều, khi ngày đã được mở lại"),
+    ATTENDANCE_PART_REQUIRES_UNLOCK(
+            4038,
+            HttpStatus.BAD_REQUEST,
+            "Chọn Cả ngày / Chỉ sáng / Chỉ chiều chỉ khi ngày đã được mở lại và trẻ Có mặt"),
     ATTENDANCE_EXCUSED_NOT_ALLOWED(
             4018,
             HttpStatus.BAD_REQUEST,

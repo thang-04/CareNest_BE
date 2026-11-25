@@ -98,6 +98,18 @@ class AttendanceDayRules {
                 .orElse(AttendanceCutoff.DEFAULT_LATEST_ARRIVAL);
     }
 
+    /** ATT-05b: giờ bắt đầu buổi chiều theo lịch sinh hoạt ngày. */
+    LocalTime afternoonStart(Long schoolYearId, LocalDate date) {
+        return attendanceCutoffService
+                .findAfternoonStart(schoolYearId, date)
+                .orElse(AttendanceCutoff.DEFAULT_AFTERNOON_START);
+    }
+
+    /** Hôm nay đã tới giờ time chưa (giờ trường). */
+    boolean reachedToday(LocalTime time) {
+        return !LocalTime.now(clock).isBefore(time);
+    }
+
     /** ATT-06: ngày đã qua, hoặc hôm nay từ giờ chốt trở đi. */
     boolean isBaseLocked(LocalDate date, LocalTime cutoff) {
         return isLockedAt(date, cutoff, clock.instant());

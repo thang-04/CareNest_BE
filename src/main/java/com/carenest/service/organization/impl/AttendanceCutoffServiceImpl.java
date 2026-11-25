@@ -235,6 +235,24 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<LocalTime> findAfternoonStart(Long schoolYearId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findAfternoonStart|schoolYearId=" + schoolYearId + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<LocalTime> time = attendanceCutoffRepository
+                    .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
+                            schoolYearId, date)
+                    .map(AttendanceCutoff::getAfternoonStart);
+            log.info("{}|END", logPrefix);
+            return time;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<LocalTime> findLatestAfternoonArrival(Long schoolYearId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findLatestAfternoonArrival|schoolYearId=" + schoolYearId + "|date=" + date;
         log.info("{}|START", logPrefix);

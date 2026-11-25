@@ -4336,6 +4336,68 @@ paths:
           description: OK
       tags:
       - attendance-controller
+  /api/classes/{classId}/attendance/children/{childId}/full-day-present:
+    post:
+      operationId: correctFullDayPresent
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/classes/{classId}/attendance/children/{childId}/meal-participation:
+    post:
+      operationId: correctMealParticipation
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CorrectMealParticipationRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
   /api/classes/{classId}/attendance/summary:
     get:
       operationId: getClassSummary
@@ -13267,6 +13329,8 @@ components:
           $ref: "#/components/schemas/Placement"
         programCompleted:
           type: boolean
+        yearEndConfirmed:
+          type: boolean
     ChildPlacementResponse:
       type: object
       properties:
@@ -13671,6 +13735,9 @@ components:
     ClassAttendanceResponse:
       type: object
       properties:
+        afternoonStart:
+          type: string
+          format: time-local
         campusId:
           type: integer
           format: int64
@@ -14903,6 +14970,17 @@ components:
             - FLU
             - TIRED
             - OTHER
+    CorrectMealParticipationRequest:
+      type: object
+      required:
+      - date
+      - participates
+      properties:
+        date:
+          type: string
+          format: date
+        participates:
+          type: boolean
     DayInfoResponse:
       type: object
       properties:
@@ -21706,6 +21784,8 @@ components:
           enum:
           - MORNING
           - AFTERNOON
+        absentPartUnexcused:
+          type: boolean
         arrivedAt:
           type: string
           format: date-time
@@ -22071,6 +22151,8 @@ components:
           enum:
           - MORNING
           - AFTERNOON
+        absentPartUnexcused:
+          type: boolean
         arrivedAt:
           type: string
           format: date-time
@@ -22670,6 +22752,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NewAdmission"
+        placementOpenFrom:
+          type: string
+          format: date
         sourceYear:
           $ref: "#/components/schemas/YearBrief"
         targets:
