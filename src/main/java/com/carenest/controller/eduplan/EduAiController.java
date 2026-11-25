@@ -68,17 +68,6 @@ public class EduAiController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Edit day plan by request success", result);
     }
 
-    @PostMapping("/class-docs/day/{docKey}/review")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
-    public ResponseEntity<ResponseJson<EduAiResponse.DayReview>> reviewDay(
-            @PathVariable String docKey, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|reviewDay|userId=" + currentUser.userId() + "|docKey=" + docKey;
-        log.info("{}|START", logPrefix);
-        EduAiResponse.DayReview result = eduAiService.reviewDay(currentUser, docKey);
-        log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Review day plan success", result);
-    }
-
     /** EDU-103: quyền thật (tick được ở bản đang soạn của kế hoạch tổ) kiểm ở service. */
     @PostMapping("/team-plans/{planId}/theme-content-map")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")

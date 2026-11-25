@@ -559,31 +559,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public EduClassDoc requireDayReviewAccess(CurrentUser currentUser, String docKey) {
-        String logPrefix = LOG_PREFIX + "|requireDayReviewAccess|userId=" + currentUser.userId();
-        log.info("{}|START", logPrefix);
-        try {
-            EduClassDoc day = requireDayAccess(currentUser, docKey, false);
-            ClassroomInfoResponse cls = requireClass(day.getClassroomId());
-            // EDU-96: tóm tắt AI chỉ cho người soạn và người đang có lượt duyệt kế hoạch giáo dục ngày chứa ngày đó
-            boolean reviewer = dossierOf(day)
-                    .map(root -> toNode(currentUser, root)
-                            .path("permissions")
-                            .path("canApprove")
-                            .asBoolean(false))
-                    .orElse(false);
-            if (!isClassDocAuthor(currentUser, cls, EduClassDoc.DOSSIER) && !reviewer)
-                throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP);
-            log.info("{}|END", logPrefix);
-            return day;
-        } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
-            throw ex;
-        }
-    }
-
-    @Override
     public EduClassDocStatus dayStatus(EduClassDoc day) {
         if (day.getStatus() == EduClassDocStatus.REVIEW) return EduClassDocStatus.REVIEW;
         return dossierOf(day).map(EduClassDoc::getStatus).orElse(day.getStatus());

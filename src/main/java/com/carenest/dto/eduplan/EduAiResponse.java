@@ -23,11 +23,6 @@ public final class EduAiResponse {
 
     public record CellChange(String path, String label, String before, String after) {}
 
-    /** Tóm tắt cho người duyệt: chỉ gợi ý, không lưu vào hồ sơ. */
-    public record DayReview(List<String> summary, List<ReviewNote> notes) {}
-
-    public record ReviewNote(String path, String label, String text) {}
-
     /** EDU-103: cặp chủ đề–nội dung AI gợi ý (đã lọc chống bịa); lĩnh vực lỗi/quá hạn nằm ở failedDomains. */
     @Schema(name = "EduAiThemeContentMapResponse")
     public record ThemeContentMap(List<ThemeContentMatch> matches, List<FailedDomain> failedDomains) {}

@@ -4701,24 +4701,6 @@ paths:
           description: OK
       tags:
       - edu-ai-controller
-  /api/education-plans/ai/class-docs/day/{docKey}/review:
-    post:
-      operationId: reviewDay
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonDayReview"
-          description: OK
-      tags:
-      - edu-ai-controller
   /api/education-plans/ai/feedback:
     post:
       operationId: logFeedback
@@ -15007,17 +14989,6 @@ components:
         servings:
           type: integer
           format: int32
-    DayReview:
-      type: object
-      properties:
-        notes:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReviewNote"
-        summary:
-          type: array
-          items:
-            type: string
     DayRow:
       type: object
       properties:
@@ -24162,19 +24133,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonDayReview:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/DayReview"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonDayUnlockResponse:
       type: object
       properties:
@@ -26963,15 +26921,6 @@ components:
         sourcePlanId:
           type: integer
           format: int64
-    ReviewNote:
-      type: object
-      properties:
-        label:
-          type: string
-        path:
-          type: string
-        text:
-          type: string
     ReviewResolutionRequest:
       type: object
       properties:
