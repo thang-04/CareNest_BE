@@ -10851,19 +10851,19 @@ components:
           format: int64
         animalLipidGMax:
           type: number
-          maximum: 9999
+          maximum: 555
           minimum: 0
         animalLipidGMin:
           type: number
-          maximum: 9999
+          maximum: 555
           minimum: 0
         animalProteinGMax:
           type: number
-          maximum: 9999
+          maximum: 1250
           minimum: 0
         animalProteinGMin:
           type: number
-          maximum: 9999
+          maximum: 1250
           minimum: 0
         appliedGlucidPct:
           type: number
@@ -10894,11 +10894,11 @@ components:
           format: date
         glucidGMax:
           type: number
-          maximum: 9999
+          maximum: 1250
           minimum: 0
         glucidGMin:
           type: number
-          maximum: 9999
+          maximum: 1250
           minimum: 0
         glucidPctMax:
           type: number
@@ -10963,19 +10963,19 @@ components:
           minimum: 0
         plantLipidGMax:
           type: number
-          maximum: 9999
+          maximum: 555
           minimum: 0
         plantLipidGMin:
           type: number
-          maximum: 9999
+          maximum: 555
           minimum: 0
         plantProteinGMax:
           type: number
-          maximum: 9999
+          maximum: 1250
           minimum: 0
         plantProteinGMin:
           type: number
-          maximum: 9999
+          maximum: 1250
           minimum: 0
         proteinPctMax:
           type: number

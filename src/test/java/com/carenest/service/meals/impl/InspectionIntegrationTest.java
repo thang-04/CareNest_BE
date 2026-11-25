@@ -180,6 +180,26 @@ class InspectionIntegrationTest {
     }
 
     @Test
+    @DisplayName("M1 tươi: kiểm nhận lần 2 không có dòng thì giữ hàng thực nhận ở lần 1")
+    void freshSkeletonKeepsRoundOneWhenRoundTwoEmpty() {
+        long pork = food("THIT", "Thịt", "FRESH");
+        long round1 = insertId("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at,"
+                + " supplier_id) VALUES (" + campus + ", '" + MONDAY + "', 1, " + approver.userId() + ", '" + NOW
+                + "', " + supplier() + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result)"
+                        + " VALUES (?, ?, 2000, 2000, 'ENOUGH')",
+                round1,
+                pork);
+        jdbc.update("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at)" + " VALUES ("
+                + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW + "')");
+
+        assertThat(sheet(approver, InspectionTab.FRESH).rows())
+                .singleElement()
+                .satisfies(row -> assertThat(row).containsEntry("key", "food:" + pork));
+    }
+
+    @Test
     @DisplayName("M1 khô: dựng từ lô đã trừ kho cho bữa ăn của ngày kèm nhà cung cấp, ngày nhập, hạn dùng")
     void drySkeletonFromIssuedLots() {
         long receipt = insertId("INSERT INTO stock_receipts (campus_id, supplier_id, received_date, status)"
