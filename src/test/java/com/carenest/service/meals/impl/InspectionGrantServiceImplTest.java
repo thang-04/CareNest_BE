@@ -7,12 +7,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.carenest.dto.meals.InspectionApprovalDecisionRequest;
 import com.carenest.dto.meals.InspectionApprovalRequest;
 import com.carenest.dto.meals.InspectionApprovalResponse;
 import com.carenest.dto.meals.InspectionDayResponse;
 import com.carenest.entity.meals.InspectionDayGrant;
+import com.carenest.entity.meals.InspectionSheet;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.meals.FoodSampleRepository;
 import com.carenest.repository.meals.InspectionDayGrantRepository;
@@ -33,7 +36,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +58,7 @@ class InspectionGrantServiceImplTest {
     private static final Instant NOW = Instant.parse("2026-11-24T01:00:00Z");
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 24);
     private static final LocalDate PAST = LocalDate.of(2026, 11, 20);
+    private static final Set<InspectionTab> ALL_TABS = EnumSet.allOf(InspectionTab.class);
     private static final Long CAMPUS = 1L;
     private static final InspectionTab TAB = InspectionTab.SAMPLE;
     private static final CurrentUser PHT = TestPermissions.userWithDefaults(7L, CareNestRole.VICE_PRINCIPAL);
@@ -68,13 +76,23 @@ class InspectionGrantServiceImplTest {
     @Mock
     private CampusAccessPolicy campusAccessPolicy;
 
+    @Mock
+    private InspectionSkeleton skeleton;
+
     private final List<InspectionDayGrant> rows = new ArrayList<>();
     private InspectionGrantServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new InspectionGrantServiceImpl(
-                grantRepository, sheetRepository, campusLookup, campusAccessPolicy, Clock.fixed(NOW, ZoneOffset.UTC));
+                grantRepository,
+                sheetRepository,
+                skeleton,
+                campusLookup,
+                campusAccessPolicy,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+        // Mặc định mọi mẫu có một dòng nguồn; test riêng cho mẫu rỗng
+        lenient().when(skeleton.rows(any(), anyLong(), any())).thenReturn(List.of(Map.of("key", "row:1")));
         lenient().when(campusLookup.campusExists(CAMPUS)).thenReturn(true);
         lenient()
                 .when(campusAccessPolicy.canEditCampus(any(), eq(Permission.FOOD_SAFETY_APPROVE), eq(CAMPUS)))
@@ -289,11 +307,11 @@ class InspectionGrantServiceImplTest {
         InspectionApprovalResponse request = approved();
         Clock later = Clock.fixed(NOW.plus(49, ChronoUnit.HOURS), ZoneOffset.UTC);
         InspectionGrantServiceImpl afterExpiry = new InspectionGrantServiceImpl(
-                grantRepository, sheetRepository, campusLookup, campusAccessPolicy, later);
+                grantRepository, sheetRepository, skeleton, campusLookup, campusAccessPolicy, later);
 
         assertThatThrownBy(() -> afterExpiry.requireOpenDay(CAMPUS, PAST, TAB))
                 .satisfies(ex -> assertApiCode(ex, ApiCode.INSPECTION_APPROVAL_REQUIRED));
-        assertThat(afterExpiry.dayApprovals(PHT, CAMPUS, PAST).stream()
+        assertThat(afterExpiry.dayApprovals(PHT, CAMPUS, PAST, ALL_TABS).stream()
                         .filter(a -> a.tab() == TAB)
                         .findFirst()
                         .orElseThrow()
@@ -328,7 +346,7 @@ class InspectionGrantServiceImplTest {
         assertThatCode(() -> service.requireOpenDay(CAMPUS, TODAY.plusDays(1), TAB))
                 .doesNotThrowAnyException();
         assertThatCode(() -> service.consume(CAMPUS, TODAY, TAB)).doesNotThrowAnyException();
-        assertThat(service.dayApprovals(PHT, CAMPUS, TODAY))
+        assertThat(service.dayApprovals(PHT, CAMPUS, TODAY, ALL_TABS))
                 .allSatisfy(a -> assertThat(a.locked()).isFalse());
     }
 
@@ -338,7 +356,7 @@ class InspectionGrantServiceImplTest {
         pending();
         service.request(HT, CAMPUS, PAST, InspectionTab.FRESH, reason("HT kiểm lại hàng tươi"));
 
-        List<InspectionDayResponse.TabApproval> forPht = service.dayApprovals(PHT, CAMPUS, PAST);
+        List<InspectionDayResponse.TabApproval> forPht = service.dayApprovals(PHT, CAMPUS, PAST, ALL_TABS);
         InspectionDayResponse.TabApproval sample =
                 forPht.stream().filter(a -> a.tab() == TAB).findFirst().orElseThrow();
         InspectionDayResponse.TabApproval fresh = forPht.stream()
@@ -361,7 +379,53 @@ class InspectionGrantServiceImplTest {
         assertThat(dry.locked()).isTrue();
         assertThat(dry.status()).isNull();
         assertThat(dry.canRequest()).isTrue();
-        assertThat(service.dayApprovals(HT, CAMPUS, PAST).get(0).selfOpen()).isTrue();
+        assertThat(service.dayApprovals(HT, CAMPUS, PAST, ALL_TABS).get(0).selfOpen())
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("Mẫu không có dòng nguồn và chưa lưu dòng nào thì BE từ chối yêu cầu mở, kể cả HT tự mở")
+    void requestOnEmptyTabIsRejected() {
+        when(skeleton.rows(eq(TAB), eq(CAMPUS), eq(PAST))).thenReturn(List.of());
+        when(sheetRepository.findByCampusIdAndSheetDateAndTab(CAMPUS, PAST, TAB))
+                .thenReturn(Optional.empty());
+
+        for (CurrentUser requester : List.of(PHT, HT)) {
+            assertThatThrownBy(() -> service.request(requester, CAMPUS, PAST, TAB, reason("Quên ghi mẫu hôm qua")))
+                    .satisfies(ex -> assertApiCode(ex, ApiCode.INSPECTION_NO_ROWS));
+        }
+        assertThat(rows).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Nguồn đã hết nhưng biên bản đã lưu còn dòng thì vẫn gửi được yêu cầu mở")
+    void requestAllowedWhenSavedSheetHasRows() {
+        when(skeleton.rows(eq(TAB), eq(CAMPUS), eq(PAST))).thenReturn(List.of());
+        InspectionSheet saved = mock(InspectionSheet.class);
+        when(saved.isSigned()).thenReturn(false);
+        when(saved.getSheetRows()).thenReturn(List.of(Map.of("key", "sample:1")));
+        when(sheetRepository.findByCampusIdAndSheetDateAndTab(CAMPUS, PAST, TAB))
+                .thenReturn(Optional.of(saved));
+
+        assertThat(service.request(PHT, CAMPUS, PAST, TAB, reason("Quên ghi mẫu hôm qua"))
+                        .status())
+                .isEqualTo(InspectionGrantStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("Mẫu không có dòng nào thì không cho gửi yêu cầu mở, kể cả HT tự mở")
+    void noRowsMeansNoRequest() {
+        Set<InspectionTab> onlyFresh = EnumSet.of(InspectionTab.FRESH);
+
+        for (CurrentUser viewer : List.of(PHT, HT)) {
+            List<InspectionDayResponse.TabApproval> approvals = service.dayApprovals(viewer, CAMPUS, PAST, onlyFresh);
+            assertThat(approvals)
+                    .filteredOn(a -> a.tab() == InspectionTab.FRESH)
+                    .allSatisfy(a -> assertThat(a.canRequest()).isTrue());
+            assertThat(approvals)
+                    .filteredOn(a -> a.tab() != InspectionTab.FRESH)
+                    .allSatisfy(a -> assertThat(a.canRequest()).isFalse());
+        }
     }
 
     @Test

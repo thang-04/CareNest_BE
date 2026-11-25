@@ -685,7 +685,7 @@ public enum ApiCode {
             HttpStatus.CONFLICT,
             "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
     MENU_AI_DRAFT_KIND_INVALID(6114, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
-    // INS-05: mở ghi biên bản kiểm thực ngày cũ cần HT duyệt (6116–6123)
+    // INS-05: mở ghi biên bản kiểm thực ngày cũ cần HT duyệt (6116–6124)
     INSPECTION_APPROVAL_REQUIRED(
             6116,
             HttpStatus.CONFLICT,
@@ -719,6 +719,8 @@ public enum ApiCode {
             6122, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được duyệt, từ chối hoặc thu hồi yêu cầu mở"),
     INSPECTION_APPROVAL_REASON_REQUIRED(
             6123, HttpStatus.UNPROCESSABLE_ENTITY, "Nhập lý do hoặc ghi chú, ít nhất 3 ký tự"),
+    INSPECTION_NO_ROWS(
+            6124, HttpStatus.UNPROCESSABLE_ENTITY, "Mẫu này chưa có dòng nào để kiểm thực nên chưa cần mở để sửa"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
