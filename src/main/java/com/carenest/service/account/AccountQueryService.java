@@ -14,4 +14,7 @@ public interface AccountQueryService {
             CurrentUser actor, CareNestRole role, UserStatus status, Long campusId, String keyword, int page, int size);
 
     AccountDetailResponse getAccountDetail(CurrentUser actor, Long userId);
+
+    /** Họ tên hiển thị theo mã tài khoản, dùng ghi người thực hiện trong lịch sử; id không có thì bỏ qua. */
+    java.util.Map<Long, String> getDisplayNames(java.util.Collection<Long> userIds);
 }
