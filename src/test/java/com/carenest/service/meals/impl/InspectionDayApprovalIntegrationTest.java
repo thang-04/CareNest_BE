@@ -85,6 +85,11 @@ class InspectionDayApprovalIntegrationTest {
         pht = user(phtId, CareNestRole.VICE_PRINCIPAL);
         principal = user(principalId, CareNestRole.PRINCIPAL);
         pastDay = LocalDate.now(clock).minusDays(3);
+        // Mẫu lưu mẫu của ngày cũ có một dòng nguồn: chỉ mẫu có dòng mới gửi được yêu cầu mở
+        jdbc.update(
+                "INSERT INTO food_samples (campus_id, sample_date, session, sampled_at) VALUES (?, ?, 'LUNCH', now())",
+                campus,
+                pastDay);
     }
 
     private long account(String name) {
@@ -238,13 +243,13 @@ class InspectionDayApprovalIntegrationTest {
     @DisplayName("Gửi hai yêu cầu cùng một phạm vi: chỉ một dòng đang mở, lần hai nhận mã đã có yêu cầu chờ duyệt")
     void duplicateRequestsKeepOneOpenRow() {
         grantService.request(
-                pht, campus, pastDay, InspectionTab.DRY, new InspectionApprovalRequest("Sửa kho khô", null));
+                pht, campus, pastDay, InspectionTab.SAMPLE, new InspectionApprovalRequest("Sửa sổ lưu mẫu", null));
 
         assertThatThrownBy(() -> grantService.request(
-                        pht, campus, pastDay, InspectionTab.DRY, new InspectionApprovalRequest("Gửi lần hai", null)))
+                        pht, campus, pastDay, InspectionTab.SAMPLE, new InspectionApprovalRequest("Gửi lần hai", null)))
                 .satisfies(ex -> assertCode(ex, ApiCode.INSPECTION_APPROVAL_PENDING));
         assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM inspection_day_grants WHERE campus_id = ? AND tab = 'DRY'",
+                        "SELECT count(*) FROM inspection_day_grants WHERE campus_id = ? AND tab = 'SAMPLE'",
                         Integer.class,
                         campus))
                 .isEqualTo(1);

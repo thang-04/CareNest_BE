@@ -41,6 +41,7 @@ public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
      * {@code upcomingShortFoodCount}, {@code upcomingShortFrom}: số thực phẩm khô sắp thiếu từ hôm nay tới hết tuần sau
      * theo sĩ số dự kiến và ngày bắt đầu thiếu sớm nhất (NUT-11, P-38); đủ kho ⇒ 0 và null.
      * {@code m1DrySigned}: biên bản M1 kho khô của ngày đã ký ⇒ ẩn nút đồng bộ kho (bấm Sửa lại biên bản trước).
+     * {@code canSync}: người xem được đồng bộ kho điểm trường này (nhập kho hoặc xác nhận suất, AUTH-20).
      */
     public record DryStock(
             String status,
@@ -49,5 +50,6 @@ public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
             int openShortfallCount,
             int upcomingShortFoodCount,
             LocalDate upcomingShortFrom,
-            boolean m1DrySigned) {}
+            boolean m1DrySigned,
+            boolean canSync) {}
 }
