@@ -306,10 +306,6 @@ public class EduPlanAccessPolicy {
                 case TEACHER -> false;
             };
         }
-
-        public boolean canAuthor(Long classId) {
-            return roles.contains(EduWorkflowPolicy.Role.TEACHER) && homeroomClasses.contains(classId);
-        }
     }
 
     /** Tổ trưởng chỉ tính phân công của năm học schoolYearId (null = năm đang hoạt động). */
