@@ -124,3 +124,8 @@ Plan `docs/plans/completed/2026-11-25-test-log-round-2.md` (G94-180/CHD-03, user
 - Sĩ số (`EnrollmentRepository.countOccupyingFrom`, dùng ở xếp / chuyển lớp, tiếp nhận và danh sách lớp xếp được): trẻ có `scheduled_leave_on` ≤ ngày vào lớp không tính.
 - Xếp / chuyển lớp (`POST /children/{id}/placement`): trẻ có lịch nghỉ mà ngày vào lớp mới ≥ ngày nghỉ ⇒ lỗi ô `effectiveDate` "Trẻ nghỉ học từ dd/MM/yyyy. Hủy lịch nghỉ trước khi xếp lớp từ ngày này".
 - Test: `ChildRecordServiceImplTest`, `ChildRecordIntegrationTest`, `ScheduledLeaveJobIntegrationTest`, `WithdrawNewYearBoardIntegrationTest`, `ChildEnrollmentControllerTest`.
+
+## Năm học của trẻ cho App phụ huynh — 25/11/2026
+
+- `GET /children/{childId}/school-years` (TBD-4, `ChildSchoolYearController` → `ChildSchoolYearService`, `hasRole('PARENT')`): các năm trẻ có học lớp, mới trước, `{ schoolYearId, name, startDate, endDate, status, className }`. Chỉ phụ huynh liên kết (AUTH-04, khác ⇒ 403 `4108`). Lớp theo năm = lớp vào sau cùng trong năm (enrollment), rồi lớp xếp năm mới (`class_placements` PROMOTE/STAY), rồi lớp của `planned_admissions` PENDING/PLACED. Năm PLANNED chỉ hiện từ ngày mở chuẩn bị (CFG-YR-05); không có lớp đích (ra trường, nghỉ) ⇒ không có năm đó.
+- `requireChildYear` (dùng ở module khác để lọc dữ liệu phụ huynh theo năm): năm không thấy được ⇒ 404 `SCHOOL_YEAR_NOT_FOUND` (2001). Test: `ChildSchoolYearIntegrationTest`.
