@@ -388,6 +388,24 @@ class ChildPlacementScheduleIntegrationTest {
         assertThat(startDateOf(binh)).isEqualTo(MONDAY);
     }
 
+    @Test
+    @DisplayName("Mục 2: trẻ tiếp nhận lại đã từng học ở lần trước ⇒ thay lịch vào lớp đầu tiên của lần này không đổi"
+            + " ngày bắt đầu (đã từng đi học)")
+    void replacingFirstPlacementOfReadmittedChildKeepsStartDate() {
+        long binh = child("Trần Bình Học Lại", "PENDING_PLACEMENT", campusA, null, null);
+        // Lần học trước: lớp A1 từ đầu năm tới 30/09, rồi nghỉ và mở lại hồ sơ
+        enroll(binh, classA1, "2026-09-01");
+        jdbc.update("UPDATE enrollments SET valid_to = '2026-09-30' WHERE child_id = ?", binh);
+        recordService.place(principal, binh, new PlaceChildRequest(classA2, null, MONDAY));
+        entityManager.flush();
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY.plusDays(1)));
+        entityManager.flush();
+
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+    }
+
     private LocalDate startDateOf(long childId) {
         return jdbc.queryForObject("SELECT start_date FROM children WHERE id = ?", LocalDate.class, childId);
     }

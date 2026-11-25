@@ -68,6 +68,9 @@ class ScheduledLeaveJobIntegrationTest {
     private ScheduledLeaveJob scheduledLeaveJob;
 
     @Autowired
+    private com.carenest.service.child.ChildIntakeService intakeService;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     private CurrentUser principal;
@@ -204,24 +207,105 @@ class ScheduledLeaveJobIntegrationTest {
                 + " scheduled_leave_on, scheduled_leave_reason, scheduled_leave_by) VALUES ('SL0099', 'Trẻ giả hỏng',"
                 + " '2022-03-01', 'MALE', 'ACTIVE', '" + leaveDay.plusDays(2) + "', '" + leaveDay + "', 'Hỏng', "
                 + principal.userId() + ") RETURNING id");
-        Pupil pupil = pupilWithSoleParent(4);
+        try {
+            Pupil pupil = pupilWithSoleParent(4);
+            scheduleLeave(pupil, monday, leaveDay);
+
+            clock.set(leaveDay, LocalTime.of(0, 5));
+            assertThat(recordService.applyDueScheduledLeaves(leaveDay))
+                    .contains(pupil.id())
+                    .doesNotContain(broken);
+
+            assertThat(childState(pupil.id())).isEqualTo("LEFT|" + leaveDay + "||Chuyển trường");
+            assertLockedBySystem(pupil);
+            assertThat(childState(broken)).isEqualTo("ACTIVE||" + leaveDay + "|Hỏng");
+            assertThat(count("SELECT count(*) FROM child_history WHERE child_id = ?", broken))
+                    .isZero();
+        } finally {
+            // Dọn lịch hỏng (kể cả khi assert lỗi) để job ở test khác không gặp lại
+            jdbc.update(
+                    "UPDATE children SET scheduled_leave_on = NULL, scheduled_leave_reason = NULL,"
+                            + " scheduled_leave_by = NULL WHERE id = ?",
+                    broken);
+        }
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03, CHD-11: trẻ đã đăng ký năm sau ⇒ đặt lịch nghỉ vẫn giữ đăng ký (và ghi Nghỉ học ở"
+            + " bảng năm sau); tới ngày nghỉ job hủy đăng ký")
+    void plannedAdmissionKeptAtSchedulingAndCancelledAtApply() {
+        LocalDate monday = LocalDate.of(2027, 3, 1);
+        LocalDate leaveDay = monday.plusDays(9);
+        long plannedYear = ensurePlannedYear();
+        Pupil pupil = pupilWithSoleParent(6);
+        long admission = insertId("INSERT INTO planned_admissions (child_id, school_year_id, campus_id, start_date)"
+                + " VALUES (" + pupil.id() + ", " + plannedYear
+                + ", (SELECT id FROM campuses WHERE code = 'SL-A'), '2027-09-05') RETURNING id");
+
         scheduleLeave(pupil, monday, leaveDay);
 
-        clock.set(leaveDay, LocalTime.of(0, 5));
-        assertThat(recordService.applyDueScheduledLeaves(leaveDay))
-                .contains(pupil.id())
-                .doesNotContain(broken);
+        assertThat(admissionStatus(admission)).isEqualTo("PENDING");
+        assertThat(count(
+                        "SELECT count(*) FROM class_placements WHERE child_id = ? AND school_year_id = ?"
+                                + " AND action = 'LEAVE'",
+                        pupil.id(),
+                        plannedYear))
+                .isEqualTo(1);
 
+        clock.set(leaveDay, LocalTime.of(0, 5));
+        assertThat(recordService.applyDueScheduledLeaves(leaveDay)).contains(pupil.id());
+
+        assertThat(admissionStatus(admission)).isEqualTo("CANCELLED");
         assertThat(childState(pupil.id())).isEqualTo("LEFT|" + leaveDay + "||Chuyển trường");
-        assertLockedBySystem(pupil);
-        assertThat(childState(broken)).isEqualTo("ACTIVE||" + leaveDay + "|Hỏng");
-        assertThat(count("SELECT count(*) FROM child_history WHERE child_id = ?", broken))
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ ⇒ trẻ vẫn Đang học, cột lịch null, dòng Nghỉ học"
+            + " ở bảng năm sau bị xóa, lịch sử LEAVE_SCHEDULED rồi LEAVE_CANCELLED, tài khoản phụ huynh còn mở; job"
+            + " ngày hẹn không còn gì để áp; hủy lần 2 lỗi; hồ sơ trả về scheduledLeaveOn")
+    void cancelScheduledLeaveRestoresChild() {
+        LocalDate monday = LocalDate.of(2027, 3, 15);
+        LocalDate leaveDay = monday.plusDays(9);
+        long plannedYear = ensurePlannedYear();
+        Pupil pupil = pupilWithSoleParent(7);
+        scheduleLeave(pupil, monday, leaveDay);
+        var scheduledView = intakeService.getChildView(pupil.id());
+        assertThat(scheduledView.status()).isEqualTo(com.carenest.utils.enums.ChildStatus.ACTIVE);
+        assertThat(scheduledView.scheduledLeaveOn()).isEqualTo(leaveDay);
+        assertThat(scheduledView.scheduledLeaveReason()).isEqualTo("Chuyển trường");
+
+        var view = recordService.cancelScheduledLeave(principal, pupil.id());
+
+        assertThat(view.status()).isEqualTo(com.carenest.utils.enums.ChildStatus.ACTIVE);
+        assertThat(view.scheduledLeaveOn()).isNull();
+        assertThat(view.scheduledLeaveReason()).isNull();
+        assertThat(childState(pupil.id())).isEqualTo("ACTIVE|||");
+        assertThat(count(
+                        "SELECT count(*) FROM class_placements WHERE child_id = ? AND school_year_id = ?",
+                        pupil.id(),
+                        plannedYear))
                 .isZero();
-        // Dọn lịch hỏng để job ở test khác không gặp lại
-        jdbc.update(
-                "UPDATE children SET scheduled_leave_on = NULL, scheduled_leave_reason = NULL,"
-                        + " scheduled_leave_by = NULL WHERE id = ?",
-                broken);
+        assertThat(count(
+                        "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_SCHEDULED'",
+                        pupil.id()))
+                .isEqualTo(1);
+        assertThat(count(
+                        "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_CANCELLED'"
+                                + " AND user_id = ?",
+                        pupil.id(),
+                        principal.userId()))
+                .isEqualTo(1);
+        assertThat(accountStatus(pupil.parentId())).isEqualTo("ACTIVE");
+
+        clock.set(leaveDay, LocalTime.of(0, 5));
+        assertThat(recordService.applyDueScheduledLeaves(leaveDay)).doesNotContain(pupil.id());
+        assertThat(childState(pupil.id())).isEqualTo("ACTIVE|||");
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> recordService.cancelScheduledLeave(principal, pupil.id()))
+                .isInstanceOfSatisfying(
+                        com.carenest.exception.GlobalException.class,
+                        ex -> assertThat(ex.getApiCode())
+                                .isEqualTo(com.carenest.utils.ApiCode.CHILD_NO_SCHEDULED_LEAVE));
     }
 
     private record Pupil(long id, long parentId, String keycloakId) {}
@@ -330,6 +414,21 @@ class ScheduledLeaveJobIntegrationTest {
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principalId);
+    }
+
+    // Năm học sắp tới (PLANNED) của test này, tạo một lần: scheduleLeave ghi Nghỉ học vào bảng xếp lớp của năm này
+    private long ensurePlannedYear() {
+        Long existing = jdbc.query(
+                "SELECT id FROM school_years WHERE status = 'PLANNED' AND name = '2027-2028'",
+                rs -> rs.next() ? rs.getLong(1) : null);
+        return existing != null
+                ? existing
+                : insertId("INSERT INTO school_years (name, start_date, end_date, status)"
+                        + " VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+    }
+
+    private String admissionStatus(long admissionId) {
+        return jdbc.queryForObject("SELECT status FROM planned_admissions WHERE id = ?", String.class, admissionId);
     }
 
     private String accountStatus(long userId) {
