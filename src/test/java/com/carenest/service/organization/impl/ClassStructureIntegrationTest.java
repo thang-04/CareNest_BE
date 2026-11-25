@@ -598,7 +598,25 @@ class ClassStructureIntegrationTest {
 
         jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", oldYear);
         entityManager.clear();
+        // Năm đã kết thúc và GV chưa có lớp được xem ⇒ vẫn từ chối (chỉ năm ACTIVE trả rỗng)
         assertThatThrownBy(() -> classService.getSchoolStructure(teacher, oldYear, null))
+                .isInstanceOf(GlobalException.class);
+    }
+
+    @Test
+    @DisplayName("GV chưa có lớp nào ở năm ACTIVE: cấu trúc trả lớp rỗng, không phải lỗi quyền (2101)")
+    void teacherWithoutActiveClassGetsEmptyStructure() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-noact', 'noact.it', 'GV không lớp') RETURNING id");
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-noact", "noact.it", "GV", null, Set.of(CareNestRole.TEACHER), Set.of());
+        assertThat(classService.getSchoolStructure(teacher, year, null).classes())
+                .isEmpty();
+        long parentId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-noactp', 'noactp.it', 'PH') RETURNING id");
+        CurrentUser parent =
+                new CurrentUser(parentId, "kc-noactp", "noactp.it", "PH", null, Set.of(CareNestRole.PARENT), Set.of());
+        assertThatThrownBy(() -> classService.getSchoolStructure(parent, year, null))
                 .isInstanceOf(GlobalException.class);
     }
 

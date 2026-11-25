@@ -32,6 +32,7 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 public class SemesterAssessmentServiceImpl implements SemesterAssessmentService {
     private static final String LOG_PREFIX = "[SemesterAssessmentServiceImpl]";
+    private static final String CONFIRMED = "CONFIRMED";
     private final ObservationDayRules rules;
     private final SemesterAssessmentRepository repository;
     private final ThemeEvaluationRepository themes;
@@ -166,6 +167,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                     b.rows(),
                     false,
                     false,
+                    CONFIRMED,
                     saved.getConfirmedAt(),
                     signer,
                     signersOn(classId, b.endDate()));
@@ -242,7 +244,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 false,
                 null,
                 null,
+                null,
                 null);
+        String blocked = confirmBlockedReason(user, cls, semester, response, end);
         return new Response(
                 classId,
                 cls.name(),
@@ -256,14 +260,28 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 columns,
                 rows,
                 edit,
-                edit
-                        && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
-                        && rules.isHomeroom(user, cls)
-                        && !rules.today().isBefore(end)
-                        && !incomplete(response),
+                blocked == null,
+                blocked,
                 null,
                 null,
                 signersOn(classId, end));
+    }
+
+    // Lý do nút Xác nhận khóa, theo đúng thứ tự kiểm của write(); null = bấm được
+    private String confirmBlockedReason(
+            CurrentUser user, ClassroomInfoResponse cls, int semester, Response board, LocalDate end) {
+        if (!user.hasPermission(Permission.ASSESSMENT_CONFIRM) || !rules.canRecordPeriod(user, cls))
+            return "NO_PERMISSION";
+        if (!rules.isHomeroom(user, cls)) return "NOT_HOMEROOM";
+        if (cls.yearStatus() != SchoolYearStatus.ACTIVE) return "YEAR_NOT_ACTIVE";
+        boolean locked = evaluationDeadlineService.periodsOf(cls).stream()
+                .anyMatch(p -> p.kind() == EvaluationLockKind.SEMESTER
+                        && String.valueOf(semester).equals(p.periodKey())
+                        && !p.writable());
+        if (locked) return "DEADLINE_LOCKED";
+        if (rules.today().isBefore(end)) return "NOT_ENDED";
+        if (incomplete(board)) return "INCOMPLETE";
+        return null;
     }
 
     // Tên tại ngày cuối học kỳ (học kỳ chưa kết thúc: hôm nay)

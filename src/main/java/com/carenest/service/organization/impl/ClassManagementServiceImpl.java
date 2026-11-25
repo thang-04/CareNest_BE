@@ -397,7 +397,10 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             return classes;
         }
         Set<Long> classIds = teacherClassIds(currentUser, classes, year);
+        // GV chưa có lớp ở năm đang chạy: trả danh sách rỗng (không phải lỗi quyền); năm khác giữ từ chối (CFG-YR-05)
         if (classIds.isEmpty()) {
+            if (currentUser.hasRole(CareNestRole.TEACHER) && year.getStatus() == SchoolYearStatus.ACTIVE)
+                return List.of();
             throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
         }
         return classes.stream().filter(c -> classIds.contains(c.getId())).toList();

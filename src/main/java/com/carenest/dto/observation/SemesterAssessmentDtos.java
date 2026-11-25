@@ -48,6 +48,9 @@ public final class SemesterAssessmentDtos {
             List<Child> rows,
             boolean canEdit,
             boolean canConfirm,
+            // Lý do chưa xác nhận được: NO_PERMISSION, NOT_HOMEROOM, YEAR_NOT_ACTIVE, DEADLINE_LOCKED, NOT_ENDED,
+            // INCOMPLETE, CONFIRMED; null khi bấm được
+            String confirmBlockedReason,
             Instant confirmedAt,
             String confirmedByName,
             // Họ tên in ở chỗ ký: GV chủ nhiệm, tổ trưởng chuyên môn, PHT (như bản in cuối chủ đề)
