@@ -1,6 +1,7 @@
 package com.carenest.controller.eduplan;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -58,6 +59,9 @@ class EduYearPlanControllerTest {
     @MockitoBean
     private EduGoalFileService eduGoalFileService;
 
+    @MockitoBean
+    private com.carenest.service.eduplan.EduPreviousYearTickService eduPreviousYearTickService;
+
     @Test
     @DisplayName("EDU-46: gửi file bảng mục tiêu (multipart) trả bản xem trước")
     void goalFilePreviewReturnsPreview() throws Exception {
@@ -109,14 +113,20 @@ class EduYearPlanControllerTest {
                         .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
-        verify(eduYearPlanService, never()).getYearPlans(any(), any(), any(), any(), any(), any());
+        verify(eduYearPlanService, never()).getYearPlans(any(), any(), any(), any(), any(), any(), anyBoolean());
     }
 
     @Test
     void listReturnsPageEnvelope() throws Exception {
         CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
         given(eduYearPlanService.getYearPlans(
-                        eq(teacher), eq(1L), eq(null), eq(null), any(), eq(com.carenest.utils.enums.EduPlanLevel.TEAM)))
+                        eq(teacher),
+                        eq(1L),
+                        eq(null),
+                        eq(null),
+                        any(),
+                        eq(com.carenest.utils.enums.EduPlanLevel.TEAM),
+                        eq(false)))
                 .willReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
 
         mockMvc.perform(get(GOALS)
@@ -128,6 +138,48 @@ class EduYearPlanControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.items").isArray());
+    }
+
+    @Test
+    void overdueReadsUseSeparateScope() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(eduYearPlanService.getOverdueYearPlans(
+                        eq(principal),
+                        eq(42L),
+                        eq(null),
+                        eq(null),
+                        any(),
+                        eq(com.carenest.utils.enums.EduPlanLevel.TEAM)))
+                .willReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
+        mockMvc.perform(get(GOALS)
+                        .param("schoolYearId", "42")
+                        .param("view", "OVERDUE")
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isArray());
+        mockMvc.perform(get(GOALS + "/17")
+                        .param("schoolYearId", "42")
+                        .param("view", "OVERDUE")
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk());
+        verify(eduYearPlanService).getOverdueYearPlan(principal, 17L, 42L);
+        verify(eduYearPlanService, never()).getYearPlan(any(), any());
+    }
+
+    @Test
+    void reviewQueueBindsOptionalSchoolYearId() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(eduYearPlanService.getReviewQueue(principal, 42L)).willReturn(List.of());
+        given(eduYearPlanService.getReviewQueue(principal, null)).willReturn(List.of());
+
+        mockMvc.perform(get(GOALS + "/review-queue").param("schoolYearId", "42").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+        mockMvc.perform(get(GOALS + "/review-queue").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk());
+
+        verify(eduYearPlanService).getReviewQueue(principal, 42L);
+        verify(eduYearPlanService).getReviewQueue(principal, null);
     }
 
     @Test
@@ -249,6 +301,36 @@ class EduYearPlanControllerTest {
                         .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isOk());
         verify(eduYearPlanService).issueYearPlan(eq(teacher), eq(5L), eq(null), any());
+    }
+
+    @Test
+    @DisplayName("EDU-110 BR6.2: HT ban hành thẳng qua /principal-publish; vai trò khác bị chặn ở lớp quyền")
+    void principalPublishRoute() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(eduYearPlanService.publishByPrincipal(eq(principal), eq(5L), eq(null), any()))
+                .willReturn(detail(EduPlanStatus.APPROVED));
+
+        mockMvc.perform(post(GOALS + "/5/principal-publish")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .header("X-Plan-Revision", "0")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+
+        given(eduYearPlanService.publishByPrincipal(eq(principal), eq(6L), eq(null), any()))
+                .willThrow(GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, "ban hành"));
+        mockMvc.perform(post(GOALS + "/6/principal-publish")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .header("X-Plan-Revision", "0")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000003"))
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.NOT_YOUR_REVIEW_STEP.getErrorCode()));
+
+        authenticateAs(CareNestRole.VICE_PRINCIPAL);
+        mockMvc.perform(post(GOALS + "/5/principal-publish")
+                        .with(token(CareNestRole.VICE_PRINCIPAL))
+                        .header("X-Plan-Revision", "0")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000004"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

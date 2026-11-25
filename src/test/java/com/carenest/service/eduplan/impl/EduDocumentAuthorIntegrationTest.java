@@ -380,7 +380,14 @@ class EduDocumentAuthorIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(roles));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(roles),
+                com.carenest.security.TestPermissions.eduDefaultsOf(roles));
     }
 
     private void insertAssignment(Long userId, String staffRole, Long campusId, Long ageGroupId, Long classroomId) {

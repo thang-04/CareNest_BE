@@ -64,6 +64,10 @@ class PermissionControllerTest {
                 get("/api/permissions"),
                 get("/api/role-permissions"),
                 get("/api/role-permissions/TEACHER"),
+                get("/api/role-permissions/edu-workflow-issues"),
+                put("/api/role-permissions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"x\",\"roles\":[{\"role\":\"TEACHER\",\"permissions\":[]}]}"),
                 put("/api/role-permissions/TEACHER")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(UPDATE_TEACHER_JSON),
@@ -98,6 +102,67 @@ class PermissionControllerTest {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.role").value("TEACHER"))
                 .andExpect(jsonPath("$.data.permissions[0]").value("CHILD_PROFILE_VIEW"));
+    }
+
+    @Test
+    @DisplayName("EDU-110: PUT /role-permissions lưu hàng loạt; thiếu lý do hoặc roles rỗng ⇒ 400")
+    void bulkSaveRoute() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(permissionService.updateRolePermissionsBulk(eq(principal), any()))
+                .willReturn(List.of(new RolePermissionResponse(
+                        CareNestRole.PRINCIPAL,
+                        true,
+                        List.copyOf(Permission.EDU_WORKFLOW),
+                        List.of(Permission.EDU_THEME_PLAN_APPROVE))));
+
+        mockMvc.perform(withRole(
+                        put("/api/role-permissions")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"reason\":\"EDU-110\",\"roles\":[{\"role\":\"PRINCIPAL\","
+                                        + "\"permissions\":[\"EDU_THEME_PLAN_APPROVE\"]}]}"),
+                        CareNestRole.PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].role").value("PRINCIPAL"));
+        mockMvc.perform(withRole(
+                        put("/api/role-permissions")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"roles\":[]}"),
+                        CareNestRole.PRINCIPAL))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("EDU-110: 7202 trả issues trong data")
+    void bulkSaveViolationReturnsIssues() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(permissionService.updateRolePermissionsBulk(eq(principal), any()))
+                .willThrow(com.carenest.exception.GlobalException.withData(
+                        com.carenest.utils.ApiCode.SIGNERS_INVALID,
+                        new com.carenest.dto.account.EduWorkflowIssuesResponse(
+                                List.of(new com.carenest.dto.account.EduWorkflowIssuesResponse.Issue(
+                                        "THEME_PLAN", "NO_REVIEWER", List.of())))));
+
+        mockMvc.perform(withRole(
+                        put("/api/role-permissions")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"reason\":\"x\",\"roles\":[{\"role\":\"TEAM_LEADER\",\"permissions\":[]}]}"),
+                        CareNestRole.PRINCIPAL))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value(7202))
+                .andExpect(jsonPath("$.data.issues[0].rule").value("NO_REVIEWER"));
+    }
+
+    @Test
+    @DisplayName("EDU-110: /role-permissions/edu-workflow-issues không nhầm với {role}")
+    void issuesRouteIsNotRole() throws Exception {
+        authenticateAs(CareNestRole.PRINCIPAL);
+        given(permissionService.getEduWorkflowIssues())
+                .willReturn(new com.carenest.dto.account.EduWorkflowIssuesResponse(List.of()));
+
+        mockMvc.perform(withRole(get("/api/role-permissions/edu-workflow-issues"), CareNestRole.PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.issues").isEmpty());
     }
 
     @Test

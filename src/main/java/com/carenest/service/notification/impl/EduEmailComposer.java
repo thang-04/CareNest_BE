@@ -49,6 +49,7 @@ final class EduEmailComposer {
             case EDU_RETURNED -> "Hồ sơ bị trả lại";
             case EDU_DEADLINE_EXTENDED -> "Hồ sơ đã được mở hạn";
             case EDU_DEADLINE_NEAR -> "Hồ sơ gần đến hạn";
+            case EDU_OVERDUE_DIGEST -> "Kế hoạch quá hạn cần xử lý";
             default -> "Thông báo kế hoạch giáo dục";
         };
     }

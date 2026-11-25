@@ -14,6 +14,8 @@ public interface InspectionSheetRepository extends JpaRepository<InspectionSheet
 
     List<InspectionSheet> findByCampusIdAndSheetDate(Long campusId, LocalDate sheetDate);
 
+    List<InspectionSheet> findByCampusIdAndSheetDateBetween(Long campusId, LocalDate from, LocalDate to);
+
     Optional<InspectionSheet> findByCampusIdAndSheetDateAndTab(Long campusId, LocalDate sheetDate, InspectionTab tab);
 
     boolean existsByCampusIdAndSheetDateAndTabAndStatus(

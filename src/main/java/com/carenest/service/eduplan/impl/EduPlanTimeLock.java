@@ -3,7 +3,6 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.entity.eduplan.EduPlanEvent;
-import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.repository.eduplan.EduPlanEventRepository;
 import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.repository.eduplan.EduSettingsRepository;
@@ -28,6 +27,7 @@ import org.springframework.stereotype.Component;
 class EduPlanTimeLock {
     static final String ACTION_UNLOCK = "unlock";
     static final String ACTION_RETURN = "RETURN";
+    static final String ACTION_REOPEN_REVIEW = "REOPEN_REVIEW_DEADLINE";
 
     private final SchoolStructureService schoolStructureService;
     private final EduPlanEventRepository eventRepository;
@@ -74,46 +74,17 @@ class EduPlanTimeLock {
                 .sorted(Comparator.comparing(EduPlanEvent::getOccurredAt))
                 .toList();
         LocalDate unlockedTo = events.stream()
-                .filter(e -> ACTION_UNLOCK.equals(e.getAction()) && e.getDeadline() != null)
+                // EDU-109 (9): một hạn hiệu lực = lần HT mở gần nhất, mở khóa gửi hay mở hạn duyệt
+                .filter(e -> (ACTION_UNLOCK.equals(e.getAction()) || ACTION_REOPEN_REVIEW.equals(e.getAction()))
+                        && e.getDeadline() != null)
                 .reduce((a, b) -> b)
                 .map(EduPlanEvent::getDeadline)
                 .orElse(null);
-        // Trả lại sau hạn: người soạn được gửi lại thêm N ngày, một lần cho cả chuỗi phiên bản (Tiền 18/11/2026)
-        LocalDate grace = EduDeadline.graceTo(
-                start,
-                events.stream()
-                        .filter(e -> ACTION_RETURN.equals(e.getAction())
-                                || ACTION_UNLOCK.equals(e.getAction()) && e.getDeadline() != null)
-                        .map(e -> new EduDeadline.Event(
-                                LocalDate.ofInstant(e.getOccurredAt(), clock.getZone()),
-                                ACTION_RETURN.equals(e.getAction()),
-                                e.getDeadline()))
-                        .toList(),
-                graceDays());
         LocalDate issued = plan.getIssuedAt() == null ? null : LocalDate.ofInstant(plan.getIssuedAt(), clock.getZone());
-        return EduDeadline.of(
-                start, unlockedTo, grace, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued, null);
-    }
-
-    private int graceDays() {
-        if (settingsRepository == null) return 2;
-        return settingsRepository
-                .findById(EduSettings.SINGLETON_ID)
-                .map(EduSettings::getLateReturnGraceDays)
-                .map(Short::intValue)
-                .orElse(2);
+        return EduDeadline.of(start, unlockedTo, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued);
     }
 
     /** Spec 005 FR-021: chuỗi phiên bản đã có bản ban hành ⇒ không mở khóa nữa. */
-    boolean released(EduPlan plan) {
-        return plan.publicStatus() == EduPlanStatus.APPROVED
-                || planRepository
-                        .findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
-                                plan.getPlanLevel(), plan.getSchoolYearId(), plan.getAgeGroupId())
-                        .stream()
-                        .anyMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED);
-    }
-
     boolean locked(EduPlan plan) {
         if (!enabled) return false;
         LocalDate effective = info(plan).effective();

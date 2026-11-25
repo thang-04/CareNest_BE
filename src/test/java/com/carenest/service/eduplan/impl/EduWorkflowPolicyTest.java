@@ -19,6 +19,18 @@ class EduWorkflowPolicyTest {
             new RolePolicy(List.of(Role.TEACHER), List.of(Role.TEAM_LEADER, Role.VICE_PRINCIPAL));
 
     @Test
+    @DisplayName("EDU-110 BR1.5/BR6.3: chuỗi rỗng chỉ khi HT soạn; đánh giá không tự ban hành")
+    void emptyChainOnlyForPrincipalCreator() {
+        RolePolicy empty = new RolePolicy(List.of(Role.PRINCIPAL), List.of());
+        assertThat(empty.reviewers()).isEmpty();
+        assertThatThrownBy(() -> new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+        var eval = evaluator.evaluate(empty, 1, List.of(), Set.of(), Map.of());
+        assertThat(eval.complete()).isFalse();
+        assertThat(eval.waitingRole()).isNull();
+    }
+
+    @Test
     @DisplayName("EDU-54: nhóm soạn và duyệt không rỗng, không trùng hoặc giao nhau")
     void rejectsInvalidRoleSets() {
         assertThatThrownBy(() -> new RolePolicy(List.of(Role.TEACHER, Role.TEAM_LEADER), List.of(Role.PRINCIPAL)))
