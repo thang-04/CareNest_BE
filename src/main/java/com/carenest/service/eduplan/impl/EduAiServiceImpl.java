@@ -17,7 +17,7 @@ import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
 import com.carenest.service.eduplan.EduCurriculumService;
 import com.carenest.service.eduplan.EduYearPlanService;
-import com.carenest.service.eduplan.rag.EduRagRetriever;
+import com.carenest.service.eduplan.impl.rag.EduRagRetriever;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AiErrorReason;
 import com.carenest.utils.enums.AiTask;

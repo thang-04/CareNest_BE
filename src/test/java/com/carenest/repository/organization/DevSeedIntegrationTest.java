@@ -51,6 +51,8 @@ class DevSeedIntegrationTest {
             "notification_email_deliveries",
             // EduDomainBootstrap fills this table at application startup, outside Flyway.
             "edu_plan_defaults",
+            // EduRagSeedLoader nạp kho RAG từ classpath lúc khởi động, ngoài Flyway.
+            "edu_rag_chunks",
             "user_signatures",
             "meal_photos",
             "inspection_sheets",

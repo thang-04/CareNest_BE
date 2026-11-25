@@ -4,7 +4,7 @@ import com.carenest.dto.eduplan.EduAiRequest;
 import com.carenest.dto.eduplan.EduAiResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduAiService;
-import com.carenest.service.eduplan.rag.EduRagRetriever;
+import com.carenest.service.eduplan.impl.rag.EduRagRetriever;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
