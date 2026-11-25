@@ -172,6 +172,29 @@ class DryStockIntegrationTest {
     }
 
     @Test
+    @DisplayName("G94-457: thực phẩm phải thuộc nhà cung cấp của phiếu khi lưu nháp, sửa và xác nhận")
+    void rejectsFoodNotOfSupplier() {
+        long other = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC khác', '0900000002') RETURNING id");
+        StockReceiptRequest wrongSupplier =
+                new StockReceiptRequest(campus, other, RECEIVED, "", List.of(line(rice, "L1", "2026-12-01", "1000")));
+        expectCode(() -> receiptService.createReceipt(principal, wrongSupplier), ApiCode.STOCK_FOOD_NOT_OF_SUPPLIER);
+
+        StockReceiptResponse draft =
+                receiptService.createReceipt(principal, request(line(rice, "L1", "2026-12-01", "1000")));
+        expectCode(
+                () -> receiptService.updateReceipt(principal, draft.id(), wrongSupplier),
+                ApiCode.STOCK_FOOD_NOT_OF_SUPPLIER);
+
+        // Giá hợp đồng chuyển sang NCC khác sau khi lập nháp: xác nhận phải chặn
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, supplier_id, price, effective_from, reason)"
+                        + " VALUES (?, ?, 21000, DATE '2001-01-01', 'Doi NCC')",
+                rice,
+                other);
+        expectCode(() -> receiptService.confirmReceipt(principal, draft.id()), ApiCode.STOCK_FOOD_NOT_OF_SUPPLIER);
+    }
+
+    @Test
     @DisplayName("NUT-11: xác nhận phiếu ⇒ mỗi dòng một lô + bút toán nhập; tồn sắp hạn dùng tăng dần; phiếu khóa sửa")
     void confirmCreatesLotsAndReceiptMovements() {
         StockReceiptResponse draft = receiptService.createReceipt(
@@ -412,8 +435,8 @@ class DryStockIntegrationTest {
                         + storage
                         + "', 'PLANT') RETURNING id");
         jdbc.update(
-                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
-                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                "INSERT INTO food_prices (food_id, supplier_id, price, effective_from, reason)" + " SELECT id, "
+                        + supplier + ", unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
                 foodId);
         return foodId;
     }
