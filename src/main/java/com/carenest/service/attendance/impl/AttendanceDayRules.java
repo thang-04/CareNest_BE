@@ -54,6 +54,10 @@ class AttendanceDayRules {
     private final SchoolYearService schoolYearService;
     private final TeacherReadAccessService teacherReadAccessService;
 
+    java.time.ZoneId zone() {
+        return clock.getZone();
+    }
+
     LocalDate today() {
         return LocalDate.now(clock);
     }

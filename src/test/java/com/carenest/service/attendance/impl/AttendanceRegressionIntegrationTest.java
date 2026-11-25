@@ -330,6 +330,76 @@ class AttendanceRegressionIntegrationTest {
                 .isEqualTo(searchOne);
     }
 
+    @Test
+    void resavingAttendanceKeepsHalfDayOfEarlyPickup() {
+        // PCK-04: giao trước mốc tính đủ ngày (mặc định 15:30) ⇒ 0,5 ngày; GV lưu lại điểm danh không làm mất dấu
+        service.saveClassAttendance(
+                teacherA,
+                classA,
+                new com.carenest.dto.attendance.SaveAttendanceRequest(
+                        TODAY,
+                        java.util.List.of(
+                                new com.carenest.dto.attendance.SaveAttendanceRequest.Entry(
+                                        child1, com.carenest.utils.enums.AttendanceStatus.PRESENT, java.util.Map.of()),
+                                new com.carenest.dto.attendance.SaveAttendanceRequest.Entry(
+                                        child2,
+                                        com.carenest.utils.enums.AttendanceStatus.PRESENT,
+                                        java.util.Map.of()))));
+        pickup(child1, "2026-10-21T07:45:00Z"); // 14:45 giờ trường
+        pickup(child2, "2026-10-21T08:45:00Z"); // 15:45 giờ trường
+        jdbc.update(
+                "UPDATE attendance_records SET absent_part = 'AFTERNOON' WHERE child_id = ? AND date = ?",
+                child1,
+                TODAY);
+        String mealsBefore = jdbc.queryForObject(
+                "SELECT meals FROM attendance_records WHERE child_id = ? AND date = ?", String.class, child1, TODAY);
+        entityManager.clear();
+
+        service.saveClassAttendance(
+                teacherA,
+                classA,
+                new com.carenest.dto.attendance.SaveAttendanceRequest(
+                        TODAY,
+                        java.util.List.of(
+                                new com.carenest.dto.attendance.SaveAttendanceRequest.Entry(
+                                        child1, com.carenest.utils.enums.AttendanceStatus.PRESENT, java.util.Map.of()),
+                                new com.carenest.dto.attendance.SaveAttendanceRequest.Entry(
+                                        child2,
+                                        com.carenest.utils.enums.AttendanceStatus.PRESENT,
+                                        java.util.Map.of()))));
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT absent_part FROM attendance_records WHERE child_id = ? AND date = ?",
+                        String.class,
+                        child1,
+                        TODAY))
+                .isEqualTo("AFTERNOON");
+        assertThat(jdbc.queryForObject(
+                        "SELECT meals FROM attendance_records WHERE child_id = ? AND date = ?",
+                        String.class,
+                        child1,
+                        TODAY))
+                .isEqualTo(mealsBefore);
+        assertThat(jdbc.queryForObject(
+                        "SELECT absent_part FROM attendance_records WHERE child_id = ? AND date = ?",
+                        String.class,
+                        child2,
+                        TODAY))
+                .isNull();
+    }
+
+    private void pickup(long childId, String handedOverAt) {
+        jdbc.update(
+                "INSERT INTO pickup_records (child_id, classroom_id, campus_id, date, outcome, verification,"
+                        + " handed_over_at, recorded_by, recorded_at) SELECT ?, id, campus_id, ?, 'HANDED_OVER',"
+                        + " 'PHONE_CONFIRMED', ?::timestamptz, ?, now() FROM classrooms WHERE id = ?",
+                childId,
+                TODAY,
+                handedOverAt,
+                teacherA.userId(),
+                classA);
+    }
+
     private long statements(Supplier<?> call) {
         entityManager.flush();
         entityManager.clear();

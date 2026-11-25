@@ -96,6 +96,8 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final List<MealSubstituteLookup> mealSubstituteLookups;
     private final GuardianChildLinkService guardianChildLinkService;
     private final NotificationService notificationService;
+    private final com.carenest.repository.attendance.PickupRecordRepository pickupRecordRepository;
+    private final com.carenest.service.organization.AttendanceCutoffService attendanceCutoffService;
 
     @Override
     @Transactional(readOnly = true)
@@ -369,10 +371,16 @@ public class AttendanceServiceImpl implements AttendanceService {
             }
             Instant at = rules.now();
             Long unlockId = info.unlock() == null ? null : info.unlock().id();
+            // PCK-04: trẻ không có đơn, đã giao trước mốc tính đủ ngày ⇒ giữ 0,5 ngày khi lưu lại (bữa không đổi)
+            Set<Long> pickedUpEarly = pickedUpBeforeFullDay(cls, date, seen);
             int changed = 0;
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 List<MealSession> meals = mealsByChild.get(entry.childId());
-                DayPart absentPart = absentParts.get(entry.childId());
+                DayPart absentPart = absentParts.containsKey(entry.childId())
+                        ? absentParts.get(entry.childId())
+                        : entry.status() == AttendanceStatus.PRESENT && pickedUpEarly.contains(entry.childId())
+                                ? DayPart.AFTERNOON
+                                : null;
                 AttendanceRecord record = existing.get(entry.childId());
                 String action;
                 if (record == null) {
@@ -754,6 +762,22 @@ public class AttendanceServiceImpl implements AttendanceService {
      * ATT-02: Có mặt mặc định ăn đủ bữa, GV được tắt; trẻ vắng không có suất. CHD-13: trẻ không báo ăn luôn không có
      * bữa. ATT-13: trẻ nghỉ nửa buổi chỉ có bữa của buổi còn lại, mặc định theo công tắc ăn của đơn.
      */
+    private Set<Long> pickedUpBeforeFullDay(ClassroomInfoResponse cls, LocalDate date, Collection<Long> childIds) {
+        if (childIds.isEmpty()) {
+            return Set.of();
+        }
+        java.time.LocalTime fullDayFrom = attendanceCutoffService
+                .findFullDayPickupFrom(cls.schoolYearId(), date)
+                .orElse(com.carenest.entity.organization.AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM);
+        return pickupRecordRepository.findByChildIdInAndDateOrderByRecordedAtAscIdAsc(childIds, date).stream()
+                .filter(p -> p.getOutcome() == com.carenest.utils.enums.PickupOutcome.HANDED_OVER
+                        && p.getHandedOverAt() != null
+                        && java.time.LocalTime.ofInstant(p.getHandedOverAt(), rules.zone())
+                                .isBefore(fullDayFrom))
+                .map(com.carenest.entity.attendance.PickupRecord::getChildId)
+                .collect(Collectors.toSet());
+    }
+
     private static List<MealSession> mealsOf(
             SaveAttendanceRequest.Entry entry,
             List<MealSession> classSessions,
