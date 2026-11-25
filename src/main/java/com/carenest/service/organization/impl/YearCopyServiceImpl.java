@@ -327,12 +327,20 @@ public class YearCopyServiceImpl implements YearCopyService {
             attendanceCutoffService.saveCutoff(
                     currentUser,
                     target.getId(),
-                    // Cần chốt 19/11/2026: chép cả giờ đến muộn nhất buổi chiều
+                    // Chép đầy đủ giờ chốt và lịch sinh hoạt để năm mới không rơi về mặc định.
                     new CutoffRequest(
                             time,
                             from,
                             "Sao chép từ năm học " + source.getName(),
-                            history.getFirst().getLatestAfternoonArrival()));
+                            history.getFirst().getLatestAfternoonArrival(),
+                            history.getFirst().getDropoffOpenFrom(),
+                            history.getFirst().getMorningStart(),
+                            history.getFirst().getMorningEnd(),
+                            history.getFirst().getAfternoonStart(),
+                            history.getFirst().getPickupStart(),
+                            history.getFirst().getFullDayPickupFrom(),
+                            history.getFirst().getPickupEnd(),
+                            history.getFirst().getAfternoonEnd()));
             return time;
         } catch (GlobalException ex) {
             skipped.add(new YearCopyResponse.Skipped(YearCopyPart.CUTOFF, source.getName(), ex.getMessage()));

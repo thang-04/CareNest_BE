@@ -12,8 +12,11 @@ import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
+import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.PickupRecord;
+import com.carenest.entity.organization.AttendanceCutoff;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
@@ -25,11 +28,13 @@ import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.notification.NotificationService;
+import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.DayPart;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
@@ -71,6 +76,8 @@ public class PickupServiceImpl implements PickupService {
     private final AttendanceDayRules rules;
     private final PickupRecordRepository pickupRepository;
     private final AttendanceRecordRepository attendanceRepository;
+    private final AttendanceRecordHistoryRepository attendanceHistoryRepository;
+    private final AttendanceCutoffService attendanceCutoffService;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
     private final StaffAssignmentService staffAssignmentService;
@@ -217,6 +224,8 @@ public class PickupServiceImpl implements PickupService {
                     .recordedAt(now)
                     .build());
             if (handedOver) {
+                markHalfDayWhenPickedUpBeforeFullDayThreshold(
+                        attendance, cls, request.handoverTime(), currentUser, now);
                 record.markNotified(notifyParents(record));
             }
             PickupRecordResponse view =
@@ -226,6 +235,25 @@ public class PickupServiceImpl implements PickupService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    /** PCK-04: đã có mặt buổi sáng nhưng trả trước mốc giữa chiều chỉ tính 0,5 ngày; không đổi suất ăn đã ghi. */
+    private void markHalfDayWhenPickedUpBeforeFullDayThreshold(
+            AttendanceRecord attendance,
+            ClassroomInfoResponse cls,
+            LocalTime handoverTime,
+            CurrentUser currentUser,
+            Instant now) {
+        LocalTime fullDayFrom = attendanceCutoffService
+                .findFullDayPickupFrom(cls.schoolYearId(), rules.today())
+                .orElse(AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM);
+        if (attendance.getAbsentPart() == null && handoverTime.isBefore(fullDayFrom)) {
+            attendance.update(attendance.getStatus(), attendance.getMeals(), currentUser.userId(), now);
+            attendance.markAbsentPart(DayPart.AFTERNOON);
+            attendanceRepository.save(attendance);
+            attendanceHistoryRepository.save(
+                    AttendanceRecordHistory.of(attendance, AttendanceRecordHistory.UPDATED, null));
         }
     }
 

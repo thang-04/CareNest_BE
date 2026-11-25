@@ -186,7 +186,15 @@ class YearCopyServiceImplTest {
                                 LocalTime.of(8, 30),
                                 target.getStartDate(),
                                 "Sao chép từ năm học 2026-2027",
-                                AttendanceCutoff.DEFAULT_LATEST_ARRIVAL));
+                                AttendanceCutoff.DEFAULT_LATEST_ARRIVAL,
+                                AttendanceCutoff.DEFAULT_DROPOFF_OPEN_FROM,
+                                AttendanceCutoff.DEFAULT_MORNING_START,
+                                AttendanceCutoff.DEFAULT_MORNING_END,
+                                AttendanceCutoff.DEFAULT_AFTERNOON_START,
+                                AttendanceCutoff.DEFAULT_PICKUP_START,
+                                AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM,
+                                AttendanceCutoff.DEFAULT_PICKUP_END,
+                                AttendanceCutoff.DEFAULT_AFTERNOON_END));
         verify(schoolYearService)
                 .updateSemester(
                         PRINCIPAL,
