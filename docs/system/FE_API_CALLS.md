@@ -6,7 +6,7 @@ File sinh tự động, không sửa tay. Sinh lại: `node scripts/check-api-co
 - Path đã chuẩn hóa tham số thành `{x}`. `[module: api|demo]` theo `src/config/integrationModules.js`.
 - Lời gọi có đường dẫn không phải chuỗi literal (vd. ghép từ biến) không nằm trong bảng.
 
-Tổng: 444 lời gọi.
+Tổng: 445 lời gọi.
 
 ```text
 DELETE /accounts/me/photo · src/services/account/api/accountPhotoApi.js [account: api] → src/main/java/com/carenest/controller/account/AccountPhotoController.java#deleteMyPhoto
@@ -146,7 +146,6 @@ GET /kitchen/foods · src/services/kitchen/api/kitchenApi.js [kitchen: demo] →
 GET /kitchen/fresh-receipts · src/services/kitchen/api/kitchenApi.js [kitchen: demo] → (BE chưa có)
 GET /kitchen/published-menus · src/services/kitchen/api/kitchenApi.js [kitchen: demo] → (BE chưa có)
 GET /kitchen/stock-issues · src/services/kitchen/api/kitchenApi.js [kitchen: demo] → (BE chưa có)
-GET /kitchen/stock-lots · src/services/kitchen/api/kitchenApi.js [kitchen: demo] → (BE chưa có)
 GET /kitchen/stock-receipts · src/services/kitchen/api/kitchenApi.js [kitchen: demo] → (BE chưa có)
 GET /kitchen/stock-receipts/{x} · src/services/kitchen/api/kitchenApi.js [kitchen: demo] → (BE chưa có)
 GET /kitchen/suppliers · src/services/kitchen/api/kitchenApi.js [kitchen: demo] → (BE chưa có)
@@ -372,6 +371,8 @@ POST /nutrition/stock/days/{x}/sync · src/services/dayBoardApi.js [day-board: a
 POST /nutrition/stock/receipts · src/services/dryStockApi.js [dry-stock: api] → src/main/java/com/carenest/controller/meals/StockController.java#createReceipt
 POST /nutrition/stock/receipts/{x}/cancel · src/services/dryStockApi.js [dry-stock: api] → src/main/java/com/carenest/controller/meals/StockController.java#cancelReceipt
 POST /nutrition/stock/receipts/{x}/confirm · src/services/dryStockApi.js [dry-stock: api] → src/main/java/com/carenest/controller/meals/StockController.java#confirmReceipt
+POST /nutrition/stock/returns · src/services/dryStockApi.js [dry-stock: api] → src/main/java/com/carenest/controller/meals/StockController.java#createReturn
+POST /nutrition/stock/write-offs · src/services/dryStockApi.js [dry-stock: api] → src/main/java/com/carenest/controller/meals/StockController.java#createWriteOff
 POST /nutrition/suppliers · src/services/nutritionCatalogApi.js [nutrition-catalog: api] → src/main/java/com/carenest/controller/meals/SupplierController.java#createSupplier
 POST /nutrition/suppliers/{x}/apply-contract · src/services/nutritionCatalogApi.js [nutrition-catalog: api] → src/main/java/com/carenest/controller/meals/SupplierController.java#applyContract
 POST /parent-accounts/{x}/temporary-password · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/GuardianController.java#resetParentPassword
