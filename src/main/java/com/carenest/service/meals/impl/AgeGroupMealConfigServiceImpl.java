@@ -279,6 +279,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             throw GlobalException.of(ApiCode.MEAL_SERVICE_FEE_INVALID);
         }
         checkDailyKcalAboveMax(request);
+        checkGramsWithinEnergy(request);
         checkAppliedStructure(request);
         config.changeInfo(
                 request.effectiveFrom(),
@@ -389,6 +390,57 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                     List.of(new FieldErrorResponse(
                             "dailyKcalNeed",
                             "Nhu cầu năng lượng cả ngày phải lớn hơn năng lượng tối đa ("
+                                    + kcalMax.stripTrailingZeros().toPlainString() + " kcal).")));
+        }
+    }
+
+    private static final BigDecimal KCAL_PER_G_PROTEIN = BigDecimal.valueOf(4);
+    private static final BigDecimal KCAL_PER_G_LIPID = BigDecimal.valueOf(9);
+    private static final BigDecimal KCAL_PER_G_GLUCID = BigDecimal.valueOf(4);
+
+    /**
+     * NUT-24: gam tối đa của một chất (đạm, béo, bột đường) quy ra kcal không được vượt năng lượng tối đa của nhóm tuổi,
+     * để không nhập được số vô lý (vd. 300 g đạm) làm mọi ngày bị chấm thiếu và chặn công bố.
+     */
+    private static void checkGramsWithinEnergy(AgeGroupMealConfigRequest request) {
+        BigDecimal kcalMax = request.kcalMax();
+        if (kcalMax == null) {
+            return;
+        }
+        checkMacroEnergy(
+                "Đạm",
+                "animalProteinGMax",
+                KCAL_PER_G_PROTEIN,
+                kcalMax,
+                request.animalProteinGMax(),
+                request.plantProteinGMax());
+        checkMacroEnergy(
+                "Béo",
+                "animalLipidGMax",
+                KCAL_PER_G_LIPID,
+                kcalMax,
+                request.animalLipidGMax(),
+                request.plantLipidGMax());
+        checkMacroEnergy("Bột đường", "glucidGMax", KCAL_PER_G_GLUCID, kcalMax, request.glucidGMax());
+    }
+
+    private static void checkMacroEnergy(
+            String label, String field, BigDecimal kcalPerGram, BigDecimal kcalMax, BigDecimal... maxGrams) {
+        BigDecimal grams = BigDecimal.ZERO;
+        for (BigDecimal part : maxGrams) {
+            if (part != null) {
+                grams = grams.add(part);
+            }
+        }
+        BigDecimal kcal = grams.multiply(kcalPerGram);
+        if (kcal.compareTo(kcalMax) > 0) {
+            throw GlobalException.withFieldErrors(
+                    ApiCode.INVALID_REQUEST_DATA,
+                    List.of(new FieldErrorResponse(
+                            field,
+                            label + " tối đa " + grams.stripTrailingZeros().toPlainString() + " g quy ra "
+                                    + kcal.stripTrailingZeros().toPlainString()
+                                    + " kcal, vượt năng lượng tối đa ("
                                     + kcalMax.stripTrailingZeros().toPlainString() + " kcal).")));
         }
     }

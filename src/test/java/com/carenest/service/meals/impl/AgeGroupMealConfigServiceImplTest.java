@@ -228,6 +228,53 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     @Test
+    @DisplayName("Gam tối đa của đạm, béo hoặc bột đường quy ra kcal vượt năng lượng tối đa thì từ chối, báo tại ô gam")
+    void rejectsGramsAboveEnergy() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        BigDecimal kcalMax = new BigDecimal("726");
+        List<AgeGroupMealConfigRequest> requests = List.of(
+                gramsRequest(kcalMax, new BigDecimal("200"), new BigDecimal("100"), null, null, null),
+                gramsRequest(kcalMax, null, null, new BigDecimal("50"), new BigDecimal("40"), null),
+                gramsRequest(kcalMax, null, null, null, null, new BigDecimal("200")));
+        List<String> fields = List.of("animalProteinGMax", "animalLipidGMax", "glucidGMax");
+
+        for (int i = 0; i < requests.size(); i++) {
+            AgeGroupMealConfigRequest request = requests.get(i);
+            String field = fields.get(i);
+            assertThatThrownBy(() -> service.createConfig(VICE_PRINCIPAL, request))
+                    .isInstanceOf(GlobalException.class)
+                    .satisfies(ex -> {
+                        GlobalException ge = (GlobalException) ex;
+                        assertThat(ge.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                        assertThat(ge.getFieldErrors()).singleElement().satisfies(fe -> {
+                            assertThat(fe.field()).isEqualTo(field);
+                            assertThat(fe.message()).contains("vượt năng lượng tối đa (726 kcal)");
+                        });
+                    });
+        }
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Gam hợp lý so với năng lượng tối đa, hoặc chưa nhập năng lượng, thì lưu được")
+    void acceptsGramsWithinEnergyOrWithoutKcal() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        service.createConfig(
+                VICE_PRINCIPAL,
+                gramsRequest(
+                        new BigDecimal("726"),
+                        new BigDecimal("15"),
+                        new BigDecimal("10"),
+                        new BigDecimal("12"),
+                        new BigDecimal("8"),
+                        new BigDecimal("90")));
+        service.createConfig(
+                VICE_PRINCIPAL, gramsRequest(null, new BigDecimal("300"), null, null, null, new BigDecimal("500")));
+    }
+
+    @Test
     @DisplayName("Nhu cầu năng lượng cả ngày lớn hơn kcal tối đa, hoặc thiếu một trong hai, thì lưu được")
     void acceptsDailyKcalAboveMaxOrMissing() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
@@ -409,6 +456,67 @@ class AgeGroupMealConfigServiceImplTest {
                 null,
                 ironMin,
                 ironMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    private static AgeGroupMealConfigRequest gramsRequest(
+            BigDecimal kcalMax,
+            BigDecimal animalProteinGMax,
+            BigDecimal plantProteinGMax,
+            BigDecimal animalLipidGMax,
+            BigDecimal plantLipidGMax,
+            BigDecimal glucidGMax) {
+        return new AgeGroupMealConfigRequest(
+                AGE_GROUP,
+                TODAY.plusDays(1),
+                new BigDecimal("30000"),
+                null,
+                null,
+                kcalMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                animalProteinGMax,
+                null,
+                plantProteinGMax,
+                null,
+                animalLipidGMax,
+                null,
+                plantLipidGMax,
+                null,
+                glucidGMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,
