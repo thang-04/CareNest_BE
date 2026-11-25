@@ -1,4 +1,4 @@
-package com.carenest.service.eduplan.rag;
+package com.carenest.service.eduplan.impl.rag;
 
 import com.carenest.entity.eduplan.EduRagChunk;
 import com.carenest.integration.ai.EmbeddingClient;

@@ -345,7 +345,7 @@ Lịch sử duyệt (EDU-73/99): dùng cùng thẻ đóng/mở với các phần
 ## RAG soạn kế hoạch giáo dục — bước (a): nạp kho + tìm thử (G94-467, Tiền duyệt thiết kế 25/11/2026)
 
 - Bảng `edu_rag_chunks` (V194): mẩu tham khảo `mt` (YCCĐ), `activity`, `lesson`; nguồn SEED (tài liệu trường), WEB (giáo án web, nhãn tham khảo), ISSUED (kế hoạch đã ban hành — chưa nạp ở bước a).
-- `service/eduplan/rag/EduRagSeedLoader`: khi khởi động, nguồn nào chưa có trong bảng thì nạp từ `src/main/resources/edu/rag/*.jsonl` (chỉ lưu chữ + hash, không gọi AI), rồi chạy `EduRagIndexer` ở luồng nền.
+- `service/eduplan/impl/rag/EduRagSeedLoader`: khi khởi động, nguồn nào chưa có trong bảng thì nạp từ `src/main/resources/edu/rag/*.jsonl` (chỉ lưu chữ + hash, không gọi AI), rồi chạy `EduRagIndexer` ở luồng nền.
 - `EduRagIndexer`: embed lười theo lô 50 bằng `EmbeddingClient` (env `AI_EMBEDDING_MODEL=gemini-embedding-001`, `AI_EMBEDDING_DIMENSIONS=768`, `AI_EMBEDDING_API_KEY`); mẩu chưa có vector, khác model hoặc hash lệch thì embed lại; AI tắt/lỗi ⇒ bỏ qua, lần sau làm tiếp. Chưa dùng taskType RETRIEVAL_* của Gemini.
 - `EduRagRetriever.retrieve(query, types, k, minSim)`: embed câu hỏi, lấy 20 mẩu gần nhất (cosine pgvector), điểm = sim × 0,8 nếu WEB, cộng 0,05 khi khớp độ tuổi/mã trong câu hỏi, bỏ dưới 0,5, trả top k. Không lọc cứng theo tuổi/chủ đề/lĩnh vực. Không có vector hoặc AI tắt ⇒ tìm từ khóa (từ đơn + cặp từ) trên `content`.
 - API thử: `GET /education-plans/ai/rag/search?q=&type=mt|activity|lesson&k=` (HT, PHT, GV); type lạ ⇒ 400, k kẹp 1..20.

@@ -43,7 +43,7 @@ class EduAiControllerTest {
     private EduAiService ai;
 
     @MockitoBean
-    private com.carenest.service.eduplan.rag.EduRagRetriever rag;
+    private com.carenest.service.eduplan.impl.rag.EduRagRetriever rag;
 
     @Test
     void activitySuggestionFollowsThemePlanEditCodeNotRole() throws Exception {

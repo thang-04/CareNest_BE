@@ -1,4 +1,4 @@
-package com.carenest.service.eduplan.rag;
+package com.carenest.service.eduplan.impl.rag;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;

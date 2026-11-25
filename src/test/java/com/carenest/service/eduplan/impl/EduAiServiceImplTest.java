@@ -41,8 +41,8 @@ class EduAiServiceImplTest {
     private final EduYearPlanService plans = mock(EduYearPlanService.class);
     private final com.carenest.service.eduplan.EduCurriculumService curriculum =
             mock(com.carenest.service.eduplan.EduCurriculumService.class);
-    private final com.carenest.service.eduplan.rag.EduRagRetriever rag =
-            mock(com.carenest.service.eduplan.rag.EduRagRetriever.class);
+    private final com.carenest.service.eduplan.impl.rag.EduRagRetriever rag =
+            mock(com.carenest.service.eduplan.impl.rag.EduRagRetriever.class);
     private final CurrentUser user = mock(CurrentUser.class);
     private EduAiServiceImpl service;
 
@@ -57,10 +57,10 @@ class EduAiServiceImplTest {
         when(ai.complete(any())).thenReturn(new AiRawResult(json, "test", "test", "edu/test", null, null, 0));
     }
 
-    private static com.carenest.service.eduplan.rag.EduRagRetriever.Hit hit(String id, String content, String url) {
+    private static com.carenest.service.eduplan.impl.rag.EduRagRetriever.Hit hit(String id, String content, String url) {
         var meta = new ObjectMapper().createObjectNode();
         if (url != null) meta.put("url", url);
-        return new com.carenest.service.eduplan.rag.EduRagRetriever.Hit(id, "lesson", "WEB", content, 0.8, meta);
+        return new com.carenest.service.eduplan.impl.rag.EduRagRetriever.Hit(id, "lesson", "WEB", content, 0.8, meta);
     }
 
     @Test
