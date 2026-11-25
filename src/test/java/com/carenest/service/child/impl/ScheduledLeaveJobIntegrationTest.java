@@ -1,20 +1,24 @@
 package com.carenest.service.child.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.carenest.dto.child.WithdrawChildRequest;
+import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.IdentityProviderClient;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.support.MovableClock;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -306,6 +310,72 @@ class ScheduledLeaveJobIntegrationTest {
                         com.carenest.exception.GlobalException.class,
                         ex -> assertThat(ex.getApiCode())
                                 .isEqualTo(com.carenest.utils.ApiCode.CHILD_NO_SCHEDULED_LEAVE));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: lịch nghỉ thứ 3, 00:02 thứ 3 job chưa chạy ⇒ hủy lịch áp lịch ngay như job rồi 409"
+            + " \"Đã tới ngày nghỉ…\"; cho nghỉ, leave-options báo trẻ đã nghỉ; job 00:05 không áp lần 2")
+    void cancelBeforeJobAppliesDueLeave() {
+        LocalDate monday = LocalDate.of(2027, 4, 5);
+        LocalDate tuesday = monday.plusDays(1);
+        Pupil pupil = pupilWithSoleParent(8);
+        scheduleLeave(pupil, monday, tuesday);
+
+        clock.set(tuesday, LocalTime.of(0, 2));
+        assertThatThrownBy(() -> recordService.cancelScheduledLeave(principal, pupil.id()))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_LEAVE_ALREADY_DUE);
+                    assertThat(ex.getMessage()).isEqualTo("Đã tới ngày nghỉ: trẻ đã nghỉ học từ 06/04/2027");
+                });
+
+        assertThat(childState(pupil.id())).isEqualTo("LEFT|" + tuesday + "||Chuyển trường");
+        assertThat(validTo(pupil.id(), classroom)).isEqualTo(monday);
+        assertLockedBySystem(pupil);
+        assertThat(count(
+                        "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_CANCELLED'",
+                        pupil.id()))
+                .isZero();
+        assertThatThrownBy(() -> recordService.withdraw(
+                        principal,
+                        pupil.id(),
+                        new WithdrawChildRequest(tuesday.plusDays(1).toString(), "Khác")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+        assertThatThrownBy(() -> recordService.leaveOptions(principal, pupil.id()))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+
+        clock.set(tuesday, LocalTime.of(0, 5));
+        assertThat(recordService.applyDueScheduledLeaves(tuesday)).doesNotContain(pupil.id());
+        assertThat(count("SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'WITHDRAWN'", pupil.id()))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: lịch nghỉ thứ 3, job chưa chạy ⇒ cho nghỉ học và mở hộp chọn ngày (leave-options, chỉ"
+            + " đọc) đều áp lịch ngay rồi 409 CHILD_ALREADY_LEFT")
+    void withdrawAndLeaveOptionsBeforeJobApplyDueLeave() {
+        LocalDate monday = LocalDate.of(2027, 4, 12);
+        LocalDate tuesday = monday.plusDays(1);
+        Pupil first = pupilWithSoleParent(9);
+        scheduleLeave(first, monday, tuesday);
+        Pupil second = pupilWithSoleParent(5);
+        scheduleLeave(second, monday, tuesday);
+
+        clock.set(tuesday, LocalTime.of(0, 2));
+        assertThatThrownBy(() -> recordService.withdraw(
+                        principal, first.id(), new WithdrawChildRequest(tuesday.toString(), "Khác")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+        assertThatThrownBy(() -> recordService.leaveOptions(principal, second.id()))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+
+        for (Pupil pupil : List.of(first, second)) {
+            assertThat(childState(pupil.id())).isEqualTo("LEFT|" + tuesday + "||Chuyển trường");
+            assertThat(validTo(pupil.id(), classroom)).isEqualTo(monday);
+            assertLockedBySystem(pupil);
+        }
     }
 
     private record Pupil(long id, long parentId, String keycloakId) {}

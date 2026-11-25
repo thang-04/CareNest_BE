@@ -652,16 +652,68 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: hủy lịch khi không có lịch, hoặc lịch đã tới ngày (≤ hôm nay) ⇒ 409"
-            + " CHILD_NO_SCHEDULED_LEAVE, không ghi gì")
-    void cancelScheduledLeaveWithoutFutureScheduleConflicts() {
+    @DisplayName("G94-180/CHD-03: hủy lịch khi không có lịch ⇒ 409 CHILD_NO_SCHEDULED_LEAVE, không ghi gì")
+    void cancelScheduledLeaveWithoutScheduleConflicts() {
         assertCancelRejected(ApiCode.CHILD_NO_SCHEDULED_LEAVE);
-        child.scheduleLeave(TODAY, "Chuyển nhà", 5L);
-        assertCancelRejected(ApiCode.CHILD_NO_SCHEDULED_LEAVE);
-        assertThat(child.getScheduledLeaveOn()).isEqualTo(TODAY);
         verify(childRepository, never()).save(any());
         verify(historyRepository, never()).save(any());
         verify(notificationService, never()).notifyUsers(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: lịch nghỉ hôm nay mà job 00:05 chưa áp ⇒ hủy lịch áp lịch như job (Đã nghỉ, lịch sử"
+            + " WITHDRAWN của người đặt lịch, phát sự kiện khóa) rồi 409 \"Đã tới ngày nghỉ…\"")
+    void cancelDueScheduledLeaveAppliesItFirst() {
+        child.scheduleLeave(TODAY, "Chuyển nhà", 5L);
+        given(childRepository.findLockedById(CHILD_ID)).willReturn(Optional.of(child));
+
+        assertThatThrownBy(() -> service.cancelScheduledLeave(PRINCIPAL, CHILD_ID))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_LEAVE_ALREADY_DUE);
+                    assertThat(ex.getMessage()).isEqualTo("Đã tới ngày nghỉ: trẻ đã nghỉ học từ 10/11/2026");
+                });
+
+        assertDueLeaveApplied();
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: lịch nghỉ hôm nay mà job chưa áp ⇒ cho nghỉ học áp lịch rồi 409 CHILD_ALREADY_LEFT")
+    void withdrawAppliesDueScheduledLeaveFirst() {
+        child.scheduleLeave(TODAY, "Chuyển nhà", 5L);
+        given(childRepository.findLockedById(CHILD_ID)).willReturn(Optional.of(child));
+
+        assertThatThrownBy(() -> service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest("2026-11-12", "x")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+
+        assertDueLeaveApplied();
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: lịch nghỉ hôm nay mà job chưa áp ⇒ leave-options áp lịch rồi 409 CHILD_ALREADY_LEFT")
+    void leaveOptionsApplyDueScheduledLeaveFirst() {
+        child.scheduleLeave(TODAY, "Chuyển nhà", 5L);
+        given(childRepository.findLockedById(CHILD_ID)).willReturn(Optional.of(child));
+
+        assertThatThrownBy(() -> service.leaveOptions(PRINCIPAL, CHILD_ID))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+
+        assertDueLeaveApplied();
+    }
+
+    // Lịch nghỉ hôm nay đã áp như job: Đã nghỉ từ hôm nay, lớp tới hôm qua, lịch sử WITHDRAWN của người đặt lịch, sự
+    // kiện
+    private void assertDueLeaveApplied() {
+        assertThat(child.getStatus()).isEqualTo(ChildStatus.LEFT);
+        assertThat(child.getLeftOn()).isEqualTo(TODAY);
+        assertThat(child.getScheduledLeaveOn()).isNull();
+        assertThat(enrollment.getValidTo()).isEqualTo(TODAY.minusDays(1));
+        ArgumentCaptor<ChildHistory> history = ArgumentCaptor.forClass(ChildHistory.class);
+        verify(historyRepository).save(history.capture());
+        assertThat(history.getValue().getAction()).isEqualTo(ChildHistoryAction.WITHDRAWN);
+        assertThat(history.getValue().getUserId()).isEqualTo(5L);
+        verify(events).publishEvent(new YearTransitionService.ChildrenLeftSchoolEvent(List.of(CHILD_ID), TODAY));
     }
 
     @Test
