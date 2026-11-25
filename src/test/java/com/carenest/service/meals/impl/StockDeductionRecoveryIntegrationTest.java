@@ -146,6 +146,7 @@ class StockDeductionRecoveryIntegrationTest {
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principal.userId());
         long supplier = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC F', '0900000003') RETURNING id");
+        jdbc.update("UPDATE food_prices SET supplier_id = ?", supplier);
         var receipt = receiptService.createReceipt(
                 principal,
                 new StockReceiptRequest(

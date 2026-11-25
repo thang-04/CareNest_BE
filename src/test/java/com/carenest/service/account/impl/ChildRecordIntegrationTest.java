@@ -238,7 +238,7 @@ class ChildRecordIntegrationTest {
     @Test
     @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): đã điểm danh hôm nay, nghỉ từ ngày mai ⇒ lịch nghỉ: trẻ vẫn"
             + " Đang học, lớp không đổi (còn trong lớp ngày mai tới khi job áp), lịch sử LEAVE_SCHEDULED, báo GV, chưa"
-            + " phát sự kiện khóa tài khoản phụ huynh (CHECK V188 qua)")
+            + " phát sự kiện khóa tài khoản phụ huynh (CHECK V189 qua)")
     void withdrawFromLaterDayKeepsChildStudying() {
         long onlyChild = child("Lê Bé Một");
         enroll(onlyChild);

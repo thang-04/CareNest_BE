@@ -35,7 +35,7 @@ public class HealthCheckCampaign {
     @Column(name = "campus_id", nullable = false)
     private Long campusId;
 
-    // G94-180/HLT-08: năm đang hoạt động lúc tạo (V183); null ⇒ tính theo ngày bắt đầu (HealthCheckRules.yearOf)
+    // G94-180/HLT-08: năm đang hoạt động lúc tạo (V184); null ⇒ tính theo ngày bắt đầu (HealthCheckRules.yearOf)
     @Column(name = "school_year_id")
     private Long schoolYearId;
 

@@ -101,8 +101,8 @@ class StockDisposalIntegrationTest {
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('GAO', 'Gạo',"
                         + " 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', 0, 'DRY', 'PLANT') RETURNING id");
         jdbc.update(
-                "INSERT INTO food_prices (food_id, price, effective_from, reason) VALUES (?, 20000, DATE '2000-01-01',"
-                        + " 'Giá ban đầu')",
+                "INSERT INTO food_prices (food_id, supplier_id, price, effective_from, reason) VALUES (?, " + supplierA
+                        + ", 20000, DATE '2000-01-01'," + " 'Giá ban đầu')",
                 rice);
         principal = user("principal", CareNestRole.PRINCIPAL);
         jdbc.update(

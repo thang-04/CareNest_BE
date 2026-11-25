@@ -1,4 +1,4 @@
--- Mục 2 (25/11/2026): seed dev chạy sau migration có số V nên điền lại ngày bắt đầu đi học = ngày vào lớp đầu tiên (như V187).
+-- Mục 2 (25/11/2026): seed dev chạy sau migration có số V nên điền lại ngày bắt đầu đi học = ngày vào lớp đầu tiên (như V188).
 UPDATE children c
 SET start_date = (SELECT MIN(e.valid_from)
                   FROM enrollments e
