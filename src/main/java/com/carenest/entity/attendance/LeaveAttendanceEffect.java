@@ -43,7 +43,8 @@ public class LeaveAttendanceEffect {
     @Column(name = "before_status", length = 20)
     private AttendanceStatus beforeStatus;
 
-    @Convert(converter = MealSessionListConverter.class)
+    // Đơn tạo mới bản ghi: không có trạng thái trước ⇒ NULL (CHECK ck_leave_attendance_effect_snapshot), không phải ""
+    @Convert(converter = BeforeMealsConverter.class)
     @Column(name = "before_meals", length = 40)
     private List<MealSession> beforeMeals;
 
@@ -88,5 +89,19 @@ public class LeaveAttendanceEffect {
         effect.beforeRecordedAt = beforeRecordedAt;
         effect.afterRecordedAt = after.getRecordedAt();
         return effect;
+    }
+
+    @jakarta.persistence.Converter
+    public static class BeforeMealsConverter extends MealSessionListConverter {
+
+        @Override
+        public String convertToDatabaseColumn(List<MealSession> sessions) {
+            return sessions == null ? null : super.convertToDatabaseColumn(sessions);
+        }
+
+        @Override
+        public List<MealSession> convertToEntityAttribute(String value) {
+            return value == null ? null : super.convertToEntityAttribute(value);
+        }
     }
 }

@@ -414,6 +414,11 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                             .collect(Collectors.toMap(LeaveAttendanceEffect::getAttendanceRecordId, effect -> effect));
             for (LocalDate d = first; !d.isAfter(end); d = d.plusDays(1)) {
                 LocalDate day = d;
+                // Đơn gửi trước V190 không có dòng leave_attendance_effects: hoàn tác như cách cũ
+                if (effects.isEmpty()) {
+                    revertLegacy(leave, day, currentUser.userId(), at);
+                    continue;
+                }
                 recordRepository
                         .findByChildIdInAndDate(List.of(leave.getChildId()), day)
                         .forEach(record -> {
@@ -693,8 +698,15 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     }
 
     private void revertEffect(LeaveAttendanceEffect effect, AttendanceRecord record, Long userId, Instant at) {
-        // Nếu giáo viên/PHT đã cập nhật sau hiệu ứng của đơn, giữ dữ liệu mới và không hoàn tác mù.
+        // Nếu giáo viên/PHT đã cập nhật sau hiệu ứng của đơn, giữ trạng thái/bữa họ ghi, chỉ bỏ dấu nửa buổi của đơn
         if (!record.getRecordedAt().equals(effect.getAfterRecordedAt())) {
+            if (record.getAbsentPart() != effect.getBeforeAbsentPart()) {
+                record.markAbsentPart(effect.getBeforeAbsentPart());
+                historyRepository.save(AttendanceRecordHistory.of(record, AttendanceRecordHistory.UPDATED, null));
+                eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(
+                        record.getDate(), record.getCampusId(), record.getClassroomId()));
+            }
+            leaveAttendanceEffectRepository.delete(effect);
             return;
         }
         if (effect.isRecordCreated()) {
@@ -713,6 +725,34 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         }
         eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(
                 record.getDate(), record.getCampusId(), record.getClassroomId()));
+    }
+
+    /** Hoàn tác đơn cũ chưa có snapshot hiệu ứng (trước V190), giữ nguyên cách làm trước đó. */
+    private void revertLegacy(LeaveRequest leave, LocalDate day, Long userId, Instant at) {
+        // Nghỉ chiều: buổi sáng do GV ghi nên chỉ bỏ dấu nghỉ chiều (ATT-12)
+        recordRepository.findByChildIdInAndDate(List.of(leave.getChildId()), day).stream()
+                .filter(r -> r.getAbsentPart() == DayPart.AFTERNOON)
+                .findFirst()
+                .ifPresent(r -> {
+                    r.markAbsentPart(null);
+                    historyRepository.save(AttendanceRecordHistory.of(r, AttendanceRecordHistory.UPDATED, null));
+                    eventPublisher.publishEvent(
+                            new AttendanceService.AttendanceChangedEvent(day, r.getCampusId(), r.getClassroomId()));
+                });
+        recordRepository.findByChildIdInAndDate(List.of(leave.getChildId()), day).stream()
+                .filter(r -> r.getStatus() == AttendanceStatus.EXCUSED
+                        && r.getAbsentPart() != DayPart.AFTERNOON
+                        // nghỉ sáng: GV có thể đã đổi công tắc ăn xế trước giờ chốt
+                        && (r.getAbsentPart() == DayPart.MORNING
+                                || r.getRecordedBy().equals(leave.getCreatedBy())))
+                .findFirst()
+                .ifPresent(r -> {
+                    historyRepository.save(AttendanceRecordHistory.cancelled(r, userId, at));
+                    historyRepository.flush();
+                    recordRepository.delete(r);
+                    eventPublisher.publishEvent(
+                            new AttendanceService.AttendanceChangedEvent(day, r.getCampusId(), r.getClassroomId()));
+                });
     }
 
     private void restoreTeacherRecordedAfternoon(AttendanceRecord record, Long childId, Long userId, Instant at) {

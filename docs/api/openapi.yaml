@@ -14033,10 +14033,10 @@ components:
         effectiveFrom:
           type: string
           format: date
-        latestAfternoonArrival:
+        fullDayPickupFrom:
           type: string
           format: time-local
-        fullDayPickupFrom:
+        latestAfternoonArrival:
           type: string
           format: time-local
         morningEnd:
@@ -14045,16 +14045,16 @@ components:
         morningStart:
           type: string
           format: time-local
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
         pickupEnd:
           type: string
           format: time-local
         pickupStart:
           type: string
           format: time-local
-        note:
-          type: string
-          maxLength: 500
-          minLength: 0
         time:
           type: string
           format: time-local
@@ -15519,22 +15519,22 @@ components:
         afternoonStart:
           type: string
           format: time-local
-        dropoffOpenFrom:
-          type: string
-          format: time-local
         at:
           type: string
           format: date-time
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
+        fullDayPickupFrom:
+          type: string
+          format: time-local
         id:
           type: integer
           format: int64
         latestAfternoonArrival:
-          type: string
-          format: time-local
-        fullDayPickupFrom:
           type: string
           format: time-local
         morningEnd:
@@ -15543,14 +15543,14 @@ components:
         morningStart:
           type: string
           format: time-local
+        note:
+          type: string
         pickupEnd:
           type: string
           format: time-local
         pickupStart:
           type: string
           format: time-local
-        note:
-          type: string
         previousTime:
           type: string
           format: time-local
@@ -19185,6 +19185,8 @@ components:
             - MORNING
             - LUNCH
             - AFTERNOON
+        noticeOnly:
+          type: boolean
         offMeals:
           type: array
           items:
@@ -19264,6 +19266,8 @@ components:
         id:
           type: integer
           format: int64
+        noticeOnly:
+          type: boolean
         offMeals:
           type: array
           items:
@@ -27152,14 +27156,14 @@ components:
         effectiveFrom:
           type: string
           format: date
+        fullDayPickupFrom:
+          type: string
+          format: time-local
         history:
           type: array
           items:
             $ref: "#/components/schemas/Entry"
         latestAfternoonArrival:
-          type: string
-          format: time-local
-        fullDayPickupFrom:
           type: string
           format: time-local
         morningEnd:
@@ -27168,14 +27172,14 @@ components:
         morningStart:
           type: string
           format: time-local
+        note:
+          type: string
         pickupEnd:
           type: string
           format: time-local
         pickupStart:
           type: string
           format: time-local
-        note:
-          type: string
         schoolYear:
           type: integer
           format: int64
