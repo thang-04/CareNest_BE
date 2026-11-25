@@ -5,22 +5,31 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.carenest.dto.eduplan.EduAiRequest;
+import com.carenest.dto.eduplan.EduAiResponse;
 import com.carenest.dto.eduplan.EduConfigResponse;
+import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.ai.AiClientException;
 import com.carenest.integration.ai.AiGateway;
 import com.carenest.integration.ai.AiRawResult;
+import com.carenest.integration.ai.AiRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
+import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AiErrorReason;
+import com.carenest.utils.enums.AiTask;
+import com.carenest.utils.enums.EduPlanLevel;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
@@ -29,18 +38,108 @@ class EduAiServiceImplTest {
     private final AiGateway ai = mock(AiGateway.class);
     private final EduConfigService config = mock(EduConfigService.class);
     private final EduClassDocService docs = mock(EduClassDocService.class);
+    private final EduYearPlanService plans = mock(EduYearPlanService.class);
+    private final com.carenest.service.eduplan.EduCurriculumService curriculum =
+            mock(com.carenest.service.eduplan.EduCurriculumService.class);
+    private final com.carenest.service.eduplan.impl.rag.EduRagRetriever rag =
+            mock(com.carenest.service.eduplan.impl.rag.EduRagRetriever.class);
     private final CurrentUser user = mock(CurrentUser.class);
     private EduAiServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new EduAiServiceImpl(ai, new ObjectMapper(), config, docs);
+        service = new EduAiServiceImpl(ai, new ObjectMapper(), config, docs, plans, curriculum, rag);
         when(ai.isAvailable(any())).thenReturn(true);
         when(user.userId()).thenReturn(7L);
     }
 
     private void aiReturns(String json) {
         when(ai.complete(any())).thenReturn(new AiRawResult(json, "test", "test", "edu/test", null, null, 0));
+    }
+
+    private static com.carenest.service.eduplan.impl.rag.EduRagRetriever.Hit hit(
+            String id, String content, String url) {
+        var meta = new ObjectMapper().createObjectNode();
+        if (url != null) meta.put("url", url);
+        return new com.carenest.service.eduplan.impl.rag.EduRagRetriever.Hit(id, "lesson", "WEB", content, 0.8, meta);
+    }
+
+    @Test
+    void activitiesUseRagReferencesAndDropInventedFrom() {
+        // EDU-113 (RAG bước b): tham khảo vào prompt; "from" lạ ⇒ bỏ gợi ý; from đúng ⇒ trả ref có tiêu đề + link
+        EduConfigResponse cfg = mock(EduConfigResponse.class);
+        when(cfg.weekRows())
+                .thenReturn(List.of(new EduConfigResponse.WeekRow("hoc", "Hoạt động học", false, false, null)));
+        when(config.getEduConfig()).thenReturn(cfg);
+        when(rag.retrieve(
+                        any(), any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyDouble()))
+                .thenReturn(List.of(hit("WEB-1", "Đề tài: Bật xa\nI. Mục đích", "https://x/1")));
+        when(ai.complete(any())).thenAnswer(inv -> {
+            AiRequest req = inv.getArgument(0);
+            assertThat(req.userPrompt()).contains("[WEB-1] Đề tài: Bật xa");
+            return new AiRawResult(
+                    "{\"items\":[{\"goalId\":\"1\",\"slot\":\"hoc\",\"name\":\"Bật xa\",\"from\":\"WEB-1\"},"
+                            + "{\"goalId\":\"2\",\"slot\":\"hoc\",\"name\":\"Bịa\",\"from\":\"WEB-9\"}]}",
+                    "t",
+                    "t",
+                    "t",
+                    null,
+                    null,
+                    0);
+        });
+        var out = service.suggestActivities(
+                user,
+                new EduAiRequest.Activities(
+                        "Gia đình",
+                        List.of(
+                                new EduAiRequest.Goal("1", 1, "MT1", List.of()),
+                                new EduAiRequest.Goal("2", 2, "MT2", null))));
+        assertThat(out).hasSize(1);
+        assertThat(out.getFirst().ref().id()).isEqualTo("WEB-1");
+        assertThat(out.getFirst().ref().title()).isEqualTo("Đề tài: Bật xa");
+        assertThat(out.getFirst().ref().url()).isEqualTo("https://x/1");
+    }
+
+    @Test
+    void lessonStepsStillWorkWhenRagFails() {
+        // AI-03: RAG lỗi ⇒ không có tham khảo, AI vẫn soạn
+        when(rag.retrieve(
+                        any(), any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyDouble()))
+                .thenThrow(new IllegalStateException("down"));
+        aiReturns("{\"a\":{\"teacher\":\"Cô hỏi\",\"child\":\"Trẻ đáp\"},\"b\":{},\"c\":{}}");
+        var out =
+                service.suggestLessonSteps(user, new EduAiRequest.LessonSteps("Thể dục", List.of("Bật xa"), List.of()));
+        assertThat(out.a().teacher()).isEqualTo("Cô hỏi");
+        assertThat(out.refs()).isEmpty();
+    }
+
+    @Test
+    void lessonStepsFollowRequestedStepsOfActivity() {
+        // Tiền 25/11/2026: gợi ý theo từng hoạt động; có tên bước ⇒ prompt liệt kê bước, trả rows đúng thứ tự
+        when(ai.complete(any())).thenAnswer(inv -> {
+            AiRequest req = inv.getArgument(0);
+            assertThat(req.userPrompt()).contains("Hoạt động ngoài trời").contains("2) Trò chơi vận động");
+            return new AiRawResult(
+                    "{\"rows\":[{\"teacher\":\"Cô dẫn trẻ ra sân\",\"child\":\"Trẻ quan sát\"},"
+                            + "{\"teacher\":\"Cô giới thiệu trò chơi\",\"child\":\"Trẻ chơi\"}]}",
+                    "t",
+                    "t",
+                    "t",
+                    null,
+                    null,
+                    0);
+        });
+        var out = service.suggestLessonSteps(
+                user,
+                new EduAiRequest.LessonSteps(
+                        "",
+                        List.of("Quan sát cây"),
+                        List.of(),
+                        "Hoạt động ngoài trời",
+                        List.of("Hoạt động có mục đích", "Trò chơi vận động")));
+        assertThat(out.rows())
+                .extracting(EduAiResponse.Step::teacher)
+                .containsExactly("Cô dẫn trẻ ra sân", "Cô giới thiệu trò chơi");
     }
 
     @Test
@@ -63,30 +162,6 @@ class EduAiServiceImplTest {
                                 new EduAiRequest.Goal("2", 2, "MT2", null))));
         assertThat(out).hasSize(1);
         assertThat(out.getFirst().goalId()).isEqualTo("1");
-    }
-
-    @Test
-    void branchNamesKeepOnlyRequestedWeeksAndUniqueNames() {
-        aiReturns("""
-                ```json
-                {"suggestions":[{"weekStart":"2026-09-07","name":"Bé vui đến trường"},
-                {"weekStart":"2026-09-14","name":"bé vui đến trường"},
-                {"weekStart":"2027-01-01","name":"Tuần lạ"}]}
-                ```""");
-        var out = service.suggestBranchNames(
-                user,
-                new EduAiRequest.BranchNames(
-                        1L,
-                        1L,
-                        List.of(new EduAiRequest.Theme(
-                                "t1",
-                                "Trường mầm non",
-                                null,
-                                List.of(
-                                        new EduAiRequest.Week("2026-09-07", 1),
-                                        new EduAiRequest.Week("2026-09-14", 2)))),
-                        List.of()));
-        assertThat(out.suggestions()).extracting("weekStart").containsExactly("2026-09-07");
     }
 
     @Test
@@ -118,5 +193,286 @@ class EduAiServiceImplTest {
         assertThatThrownBy(() -> service.ask("t", "p")).extracting("apiCode").isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
         when(ai.complete(any())).thenThrow(new AiClientException(AiErrorReason.TIMEOUT, "slow", null));
         assertThatThrownBy(() -> service.ask("t", "p")).extracting("apiCode").isEqualTo(ApiCode.AI_TIMEOUT);
+    }
+
+    // EDU-103: kế hoạch tổ dựng tay — 2 lĩnh vực (nội dung 11, 12 | 21), 2 chủ đề (lễ hội, tên nhánh)
+    private YearPlanDetailResponse teamPlan(boolean canAssign) {
+        YearPlanDetailResponse plan = mock(YearPlanDetailResponse.class);
+        when(plan.planLevel()).thenReturn(EduPlanLevel.TEAM);
+        when(plan.canAssignContents()).thenReturn(canAssign);
+        when(plan.themes())
+                .thenReturn(List.of(
+                        new YearPlanDetailResponse.Theme(
+                                1L, "Trường mầm non", "TMN", null, null, "Tết Trung thu", null),
+                        new YearPlanDetailResponse.Theme(2L, "Gia đình", "GĐ", null, null, null, null)));
+        when(plan.branchTemplates())
+                .thenReturn(
+                        List.of(new YearPlanDetailResponse.BranchTemplate(5L, 2L, 5L, null, "Nhà của bé", null, null)));
+        when(plan.domains())
+                .thenReturn(List.of(
+                        domain(
+                                100L,
+                                "Phát triển thể chất",
+                                new YearPlanDetailResponse.Content(11L, "Đi theo đường hẹp", List.of()),
+                                new YearPlanDetailResponse.Content(12L, "Bé làm đèn ông sao", List.of()),
+                                new YearPlanDetailResponse.Content(13L, "  ", List.of())),
+                        domain(
+                                200L,
+                                "Phát triển ngôn ngữ",
+                                new YearPlanDetailResponse.Content(21L, "Thơ: Bé và mẹ", List.of()))));
+        when(plans.getYearPlan(user, 9L)).thenReturn(plan);
+        return plan;
+    }
+
+    private static YearPlanDetailResponse.Domain domain(
+            Long id, String name, YearPlanDetailResponse.Content... contents) {
+        return new YearPlanDetailResponse.Domain(
+                id,
+                name,
+                name,
+                List.of(new YearPlanDetailResponse.Row(
+                        id + 1, "goal", "MT", (short) 1, List.of(contents), null, null, null, null, null, null, null)));
+    }
+
+    private void aiReturnsByDomain(String physical, String language) {
+        when(ai.complete(any())).thenAnswer(inv -> {
+            AiRequest req = inv.getArgument(0);
+            assertThat(req.task()).isEqualTo(AiTask.EDU_MATCH);
+            String body = req.userPrompt().contains("Phát triển thể chất") ? physical : language;
+            if (body == null) throw new AiClientException(AiErrorReason.TIMEOUT, "slow", null);
+            return new AiRawResult(body, "test", "test", "edu/test", 10, 5, 0);
+        });
+    }
+
+    private YearPlanDetailResponse annual(boolean allowed) {
+        var p = mock(YearPlanDetailResponse.class);
+        when(p.planLevel()).thenReturn(EduPlanLevel.SCHOOL_YEAR);
+        when(p.canEditCurriculum()).thenReturn(allowed);
+        when(p.ageGroupId()).thenReturn(5L);
+        var empty = new YearPlanDetailResponse.Row(
+                10L,
+                "goal",
+                "Trẻ hát đúng giai điệu",
+                (short) 1,
+                List.of(new YearPlanDetailResponse.Content(1L, " ", List.of())),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        var custom = new YearPlanDetailResponse.Row(
+                11L, "goal", "Trẻ đọc thơ rõ lời", (short) 2, List.of(), null, null, null, null, null, null, null);
+        var full = new YearPlanDetailResponse.Row(
+                12L,
+                "goal",
+                "Trẻ hát",
+                (short) 3,
+                List.of(new YearPlanDetailResponse.Content(2L, "Đã có", List.of())),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        when(p.domains())
+                .thenReturn(
+                        List.of(new YearPlanDetailResponse.Domain(100L, "Âm nhạc", "", List.of(empty, custom, full))));
+        when(plans.getYearPlan(user, 9L)).thenReturn(p);
+        when(curriculum.getContents(5L))
+                .thenReturn(List.of(
+                        catalog(20L, 100L, "Hát đúng giai điệu"),
+                        catalog(21L, 100L, "Đọc thơ, ca dao"),
+                        catalog(22L, 200L, "Khác lĩnh vực")));
+        return p;
+    }
+
+    private static com.carenest.dto.eduplan.CurriculumContentResponse catalog(long id, long domain, String text) {
+        return new com.carenest.dto.eduplan.CurriculumContentResponse(
+                id, 1L, domain, "", null, "", "", "", "", text, "C", 1);
+    }
+
+    @Test
+    void annualKeepsOnlyEmptyGoalsAndUsesCatalogText() {
+        annual(true);
+        aiReturns("""
+                {"matches":[{"goalId":10,"curriculumContentId":20,"from":"hát đúng","text":"CHỮ BỊA"},
+                {"goalId":11,"curriculumContentId":21,"from":"đọc thơ"},
+                {"goalId":12,"curriculumContentId":20,"from":"hát"},
+                {"goalId":10,"curriculumContentId":22,"from":"hát"},
+                {"goalId":99,"curriculumContentId":20,"from":"hát"},
+                {"goalId":10,"curriculumContentId":20,"from":"hát"},
+                {"goalId":11,"curriculumContentId":20,"from":"không nằm trong mục tiêu"}]}
+                """);
+        var out = service.matchGoalContents(user, 9L);
+        assertThat(out.matches()).hasSize(2);
+        assertThat(out.matches()).extracting("text").containsExactly("Hát đúng giai điệu", "Đọc thơ, ca dao");
+        org.mockito.ArgumentCaptor<AiRequest> request = org.mockito.ArgumentCaptor.forClass(AiRequest.class);
+        verify(ai).complete(request.capture());
+        assertThat(request.getValue().task()).isEqualTo(AiTask.EDU_MATCH);
+        assertThat(request.getValue().userPrompt()).doesNotContain("Đã có", "Khác lĩnh vực");
+    }
+
+    @Test
+    void annualDeniedBeforeCatalogAndAiForWrongLevelOrNoEdit() {
+        var p = annual(false);
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
+        when(p.canEditCurriculum()).thenReturn(true);
+        when(p.planLevel()).thenReturn(EduPlanLevel.TEAM);
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
+        verify(curriculum, never()).getContents(any());
+        verify(ai, never()).complete(any());
+    }
+
+    @Test
+    void annualNoCandidatesReturnsEmptyWithoutAi() {
+        annual(true);
+        when(curriculum.getContents(5L)).thenReturn(List.of());
+        assertThat(service.matchGoalContents(user, 9L).matches()).isEmpty();
+        verify(ai, never()).complete(any());
+    }
+
+    @Test
+    void annualAiOffTimeoutAndBrokenJsonRetainExistingErrors() {
+        annual(true);
+        when(ai.isAvailable(AiTask.EDU_MATCH)).thenReturn(false);
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
+        when(ai.isAvailable(AiTask.EDU_MATCH)).thenReturn(true);
+        aiReturns("not json");
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
+        when(ai.complete(any())).thenThrow(new AiClientException(AiErrorReason.TIMEOUT, "slow", null));
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.AI_TIMEOUT);
+    }
+
+    @Test
+    void annualPartialFailureStillReturnsOtherDomain() {
+        var p = annual(true);
+        var other = new YearPlanDetailResponse.Row(
+                30L, "goal", "Trẻ đếm số", (short) 5, List.of(), null, null, null, null, null, null, null);
+        var first = p.domains().getFirst();
+        when(p.domains())
+                .thenReturn(List.of(first, new YearPlanDetailResponse.Domain(200L, "Toán", "", List.of(other))));
+        when(ai.complete(any())).thenAnswer(inv -> {
+            AiRequest r = inv.getArgument(0);
+            if (r.userPrompt().contains("Toán")) throw new AiClientException(AiErrorReason.TIMEOUT, "slow", null);
+            return new AiRawResult(
+                    "{\"matches\":[{\"goalId\":10,\"curriculumContentId\":20,\"from\":\"hát\"}]}",
+                    "t",
+                    "t",
+                    "t",
+                    0,
+                    0,
+                    0);
+        });
+        var out = service.matchGoalContents(user, 9L);
+        assertThat(out.matches()).hasSize(1);
+        assertThat(out.failedDomains()).extracting("domainId").containsExactly(200L);
+    }
+
+    private EduAiRequest.ThemeContentMap asks() {
+        return new EduAiRequest.ThemeContentMap(
+                List.of(new EduAiRequest.ThemeRequest(1L, "đèn ông sao, đi dạo sân trường")));
+    }
+
+    @Test
+    @DisplayName("EDU-103: trả cặp hợp lệ của mọi lĩnh vực, bỏ cặp trùng")
+    void themeMapReturnsValidMatchesWithoutDuplicates() {
+        teamPlan(true);
+        aiReturnsByDomain("""
+                {"matches":[{"contentId":12,"themeId":1,"from":"Đèn ông sao"},
+                {"contentId":12,"themeId":1,"from":"Tết Trung thu"}]}""", """
+                {"matches":[{"contentId":"21","themeId":"2","from":"Nhà của bé"}]}""");
+        var out = service.matchThemeContents(user, 9L, asks());
+        assertThat(out.failedDomains()).isEmpty();
+        assertThat(out.matches())
+                .extracting("themeId", "contentId", "from")
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(1L, 12L, "Đèn ông sao"),
+                        org.assertj.core.groups.Tuple.tuple(2L, 21L, "Nhà của bé"));
+    }
+
+    @Test
+    @DisplayName("EDU-103: bỏ contentId của lĩnh vực khác, nội dung trống và themeId lạ")
+    void themeMapDropsForeignContentAndUnknownTheme() {
+        teamPlan(true);
+        aiReturnsByDomain("""
+                {"matches":[{"contentId":21,"themeId":1,"from":"đèn ông sao"},
+                {"contentId":13,"themeId":1,"from":"đèn ông sao"},
+                {"contentId":11,"themeId":99,"from":"đèn ông sao"},
+                {"contentId":11,"themeId":1,"from":"đi dạo sân trường"}]}""", """
+                {"matches":[]}""");
+        var out = service.matchThemeContents(user, 9L, asks());
+        assertThat(out.matches()).extracting("contentId").containsExactly(11L);
+    }
+
+    @Test
+    @DisplayName("EDU-103: bỏ dòng có from không nằm trong chữ của đúng chủ đề")
+    void themeMapDropsUngroundedFrom() {
+        teamPlan(true);
+        aiReturnsByDomain("""
+                {"matches":[{"contentId":11,"themeId":2,"from":"đi dạo sân trường"},
+                {"contentId":12,"themeId":1,"from":"lồng đèn kéo quân"},
+                {"contentId":11,"themeId":1,"from":""}]}""", """
+                {"matches":[{"contentId":21,"themeId":2,"from":"Gia đình"}]}""");
+        var out = service.matchThemeContents(user, 9L, asks());
+        assertThat(out.matches()).extracting("contentId").containsExactly(21L);
+    }
+
+    @Test
+    @DisplayName("EDU-103: không tick được nội dung ⇒ lỗi quyền, không gọi AI")
+    void themeMapDeniedWithoutAssignRight() {
+        teamPlan(false);
+        assertThatThrownBy(() -> service.matchThemeContents(user, 9L, asks()))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
+        verify(ai, never()).complete(any());
+    }
+
+    @Test
+    @DisplayName("EDU-103: một lĩnh vực lỗi ⇒ lĩnh vực khác vẫn trả, lĩnh vực lỗi nằm trong failedDomains")
+    void themeMapReportsFailedDomain() {
+        teamPlan(true);
+        aiReturnsByDomain(null, """
+                {"matches":[{"contentId":21,"themeId":2,"from":"Nhà của bé"}]}""");
+        var out = service.matchThemeContents(user, 9L, asks());
+        assertThat(out.matches()).extracting("contentId").containsExactly(21L);
+        assertThat(out.failedDomains()).extracting("domainId").containsExactly(100L);
+    }
+
+    @Test
+    @DisplayName("EDU-103: AI tắt ⇒ 8001; mọi lĩnh vực quá hạn ⇒ 8002")
+    void themeMapAiOffOrAllTimedOut() {
+        teamPlan(true);
+        when(ai.isAvailable(AiTask.EDU_MATCH)).thenReturn(false);
+        assertThatThrownBy(() -> service.matchThemeContents(user, 9L, asks()))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.AI_SERVICE_UNAVAILABLE);
+        verify(ai, never()).complete(any());
+        when(ai.isAvailable(AiTask.EDU_MATCH)).thenReturn(true);
+        aiReturnsByDomain(null, null);
+        assertThatThrownBy(() -> service.matchThemeContents(user, 9L, asks()))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.AI_TIMEOUT);
+    }
+
+    @org.junit.jupiter.api.Test
+    void lessonStepAcceptsBulletArrayOrPlainText() {
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        var step = EduAiServiceImpl.step(
+                mapper.readTree("{\"teacher\":[\"Cô giới thiệu\",\"- Cô làm mẫu\"],\"child\":\"- Trẻ quan sát\"}"));
+        assertThat(step.teacher()).isEqualTo("- Cô giới thiệu\n- Cô làm mẫu");
+        assertThat(step.child()).isEqualTo("- Trẻ quan sát");
     }
 }

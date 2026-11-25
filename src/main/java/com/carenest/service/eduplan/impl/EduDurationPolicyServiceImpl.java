@@ -9,7 +9,6 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.eduplan.EduDurationPolicyService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import java.time.Clock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,8 +34,7 @@ public class EduDurationPolicyServiceImpl implements EduDurationPolicyService {
         String logPrefix = LOG_PREFIX + "|getDurationPolicy|userId=" + user.userId();
         log.info("{}|START", logPrefix);
         try {
-            if (!accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW))
-                throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
+            if (!accessPolicy.canView(user)) throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
             EduSettings settings = settingsRepository
                     .findById(EduSettings.SINGLETON_ID)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));

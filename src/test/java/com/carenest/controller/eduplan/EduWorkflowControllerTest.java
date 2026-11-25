@@ -11,13 +11,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
 import com.carenest.dto.eduplan.EduWorkflowPolicyResponse;
-import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.service.eduplan.EduWorkflowService;
-import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.Instant;
 import java.util.List;
@@ -35,7 +33,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
- * Controller & Security contract test cho GET/PUT /education-plans/workflow-policy (EDU-54).
+ * Controller & Security contract test cho GET /education-plans/workflow-policy (EDU-54). Lưu policy chuyển sang PUT
+ * /permissions/edu-workflow (EDU-108).
  */
 @WebMvcTest(EduWorkflowController.class)
 @Import({WebMvcConfig.class, SecurityConfig.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
@@ -119,169 +118,16 @@ class EduWorkflowControllerTest {
     }
 
     @Test
-    @DisplayName("PUT workflow-policy: Hiệu trưởng có phân công cập nhật thành công trả 200 và revision mới")
-    void updateWorkflowPolicy_asPrincipal_successReturns200() throws Exception {
+    @DisplayName("EDU-108: PUT workflow-policy đã bỏ, Hiệu trưởng gọi không lưu được")
+    void updateWorkflowPolicy_removed() throws Exception {
         authenticateAs(CareNestRole.PRINCIPAL);
-        String requestJson = """
-                {
-                  "revision": 1,
-                  "policies": {
-                    "year": {"creators": ["TEAM_LEADER"], "reviewers": ["VICE_PRINCIPAL"]},
-                    "branch": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]},
-                    "theme": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]}
-                  }
-                }
-                """;
-        EduWorkflowPolicyResponse response =
-                new EduWorkflowPolicyResponse(2L, SAMPLE_POLICIES, true, Instant.parse("2026-11-06T01:00:00Z"));
-        given(workflowService.savePolicy(any(), any())).willReturn(response);
-
         mockMvc.perform(put(POLICY_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
+                        .content("{\"revision\":1,\"policies\":{}}")
                         .with(token(CareNestRole.PRINCIPAL)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.revision").value(2));
-    }
-
-    @Test
-    @DisplayName("PUT workflow-policy: Phó Hiệu trưởng bị 403 Forbidden")
-    void updateWorkflowPolicy_asVicePrincipal_returns403() throws Exception {
-        authenticateAs(CareNestRole.VICE_PRINCIPAL);
-        String requestJson = """
-                {
-                  "revision": 1,
-                  "policies": {
-                    "year": {"creators": ["TEAM_LEADER"], "reviewers": ["VICE_PRINCIPAL"]},
-                    "branch": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]},
-                    "theme": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]}
-                  }
-                }
-                """;
-        mockMvc.perform(put(POLICY_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
-                        .with(token(CareNestRole.VICE_PRINCIPAL)))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("PUT workflow-policy: Giáo viên bị 403 Forbidden")
-    void updateWorkflowPolicy_asTeacher_returns403() throws Exception {
-        authenticateAs(CareNestRole.TEACHER);
-        String requestJson = """
-                {
-                  "revision": 1,
-                  "policies": {
-                    "year": {"creators": ["TEAM_LEADER"], "reviewers": ["VICE_PRINCIPAL"]},
-                    "branch": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]},
-                    "theme": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]}
-                  }
-                }
-                """;
-        mockMvc.perform(put(POLICY_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
-                        .with(token(CareNestRole.TEACHER)))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    @DisplayName("PUT workflow-policy: Hiệu trưởng hết hạn phân công bị 403 EDU_CONFIG_FORBIDDEN (7201)")
-    void updateWorkflowPolicy_asPrincipalWithoutActiveAssignment_returns403() throws Exception {
-        authenticateAs(CareNestRole.PRINCIPAL);
-        String requestJson = """
-                {
-                  "revision": 1,
-                  "policies": {
-                    "year": {"creators": ["TEAM_LEADER"], "reviewers": ["VICE_PRINCIPAL"]},
-                    "branch": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]},
-                    "theme": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]}
-                  }
-                }
-                """;
-        given(workflowService.savePolicy(any(), any())).willThrow(GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN));
-
-        mockMvc.perform(put(POLICY_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
-                        .with(token(CareNestRole.PRINCIPAL)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value(7201));
-    }
-
-    @Test
-    @DisplayName("PUT workflow-policy: Stale revision bị 409 CONCURRENT_UPDATE (9012)")
-    void updateWorkflowPolicy_whenStaleRevision_returns409ConcurrentUpdate() throws Exception {
-        authenticateAs(CareNestRole.PRINCIPAL);
-        String requestJson = """
-                {
-                  "revision": 1,
-                  "policies": {
-                    "year": {"creators": ["TEAM_LEADER"], "reviewers": ["VICE_PRINCIPAL"]},
-                    "branch": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]},
-                    "theme": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]}
-                  }
-                }
-                """;
-        given(workflowService.savePolicy(any(), any())).willThrow(GlobalException.of(ApiCode.CONCURRENT_UPDATE));
-
-        mockMvc.perform(put(POLICY_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
-                        .with(token(CareNestRole.PRINCIPAL)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errorCode").value(9012));
-    }
-
-    @Test
-    @DisplayName("PUT workflow-policy: Sai key hoặc vai trò không hợp lệ bị 400 SIGNERS_INVALID (7202)")
-    void updateWorkflowPolicy_whenInvalidPolicy_returns400SignersInvalid() throws Exception {
-        authenticateAs(CareNestRole.PRINCIPAL);
-        String requestJson = """
-                {
-                  "revision": 1,
-                  "policies": {
-                    "week": {"creators": ["TEACHER"], "reviewers": ["VICE_PRINCIPAL"]}
-                  }
-                }
-                """;
-        given(workflowService.savePolicy(any(), any())).willThrow(GlobalException.of(ApiCode.SIGNERS_INVALID));
-
-        mockMvc.perform(put(POLICY_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
-                        .with(token(CareNestRole.PRINCIPAL)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errorCode").value(7202));
-    }
-
-    @Test
-    @DisplayName("PUT workflow-policy: No-op request giữ nguyên revision trả 200")
-    void updateWorkflowPolicy_whenNoOp_returns200WithSameRevision() throws Exception {
-        authenticateAs(CareNestRole.PRINCIPAL);
-        String requestJson = """
-                {
-                  "revision": 1,
-                  "policies": {
-                    "year": {"creators": ["TEAM_LEADER"], "reviewers": ["VICE_PRINCIPAL"]},
-                    "branch": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]},
-                    "theme": {"creators": ["TEACHER"], "reviewers": ["TEAM_LEADER", "VICE_PRINCIPAL"]}
-                  }
-                }
-                """;
-        EduWorkflowPolicyResponse response =
-                new EduWorkflowPolicyResponse(1L, SAMPLE_POLICIES, true, Instant.parse("2026-11-06T00:00:00Z"));
-        given(workflowService.savePolicy(any(), any())).willReturn(response);
-
-        mockMvc.perform(put(POLICY_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestJson)
-                        .with(token(CareNestRole.PRINCIPAL)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.revision").value(1));
+                .andExpect(result -> org.assertj.core.api.Assertions.assertThat(
+                                result.getResponse().getStatus())
+                        .isGreaterThanOrEqualTo(400));
     }
 
     private void authenticateAs(CareNestRole role) {

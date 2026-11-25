@@ -37,13 +37,17 @@ public final class EffectivePermissionResolver {
             Optional<Permission> permission = Permission.fromCode(row.getPermissionCode());
             if (roles.contains(row.getRole())
                     && permission.isPresent()
+                    && permission.get().inRoleMatrix()
                     && permission.get().isConfigurableFor(row.getRole())) {
                 configured.add(permission.get());
             }
         }
         for (UserPermissionOverride override : overrides) {
             Optional<Permission> permission = Permission.fromCode(override.getPermissionCode());
-            if (permission.isEmpty() || !isConfigurableForAny(permission.get(), roles)) {
+            // EDU-110 (BR5.1): 8 mã soạn/duyệt không có ngoại lệ theo người; dòng cũ bị bỏ qua
+            if (permission.isEmpty()
+                    || !permission.get().overridable()
+                    || !isConfigurableForAny(permission.get(), roles)) {
                 continue;
             }
             if (override.getEffect() == PermissionEffect.GRANT) {
@@ -51,6 +55,13 @@ public final class EffectivePermissionResolver {
             } else {
                 configured.remove(permission.get());
             }
+        }
+        // Tiền 24/11/2026: PHT bị REVOKE "Phụ trách chuyên môn" (PHT dinh dưỡng) chỉ xem kế hoạch giáo dục đã ban hành
+        // PHT mặc định chuyên môn (EDU-108: mặc định bật) nên mã có sẵn, không cần dòng ma trận
+        configured.remove(Permission.EDU_ACADEMIC_DUTY);
+        if (roles.contains(CareNestRole.VICE_PRINCIPAL)) {
+            if (academicDutyRevoked(overrides)) configured.removeAll(Permission.EDU_ACADEMIC_ONLY);
+            else configured.add(Permission.EDU_ACADEMIC_DUTY);
         }
 
         fixed.addAll(configured);
@@ -105,6 +116,12 @@ public final class EffectivePermissionResolver {
         EnumSet<CareNestRole> roles = EnumSet.of(CareNestRole.TEAM_LEADER);
         roles.addAll(loginRoles);
         return Collections.unmodifiableSet(roles);
+    }
+
+    private static boolean academicDutyRevoked(Collection<UserPermissionOverride> overrides) {
+        return overrides.stream()
+                .anyMatch(o -> Permission.EDU_ACADEMIC_DUTY.name().equals(o.getPermissionCode())
+                        && o.getEffect() == PermissionEffect.REVOKE);
     }
 
     public static boolean isConfigurableForAny(Permission permission, Set<CareNestRole> roles) {

@@ -35,6 +35,8 @@ public enum NotificationType {
     EDU_RETURNED,
     EDU_DEADLINE_EXTENDED,
     EDU_DEADLINE_NEAR,
+    /** EDU-109: báo Hiệu trưởng danh sách kế hoạch quá hạn mỗi ngày. */
+    EDU_OVERDUE_DIGEST,
     /** Thông báo của trường do BGH gửi (PAR-05, spec 019). */
     SCHOOL_ANNOUNCEMENT,
     /** Sức khỏe trong ngày có biểu hiện, báo phụ huynh ngay (HLT-14). */
@@ -79,7 +81,8 @@ public enum NotificationType {
                     EDU_RELEASED,
                     EDU_RETURNED,
                     EDU_DEADLINE_EXTENDED,
-                    EDU_DEADLINE_NEAR -> "Kế hoạch giáo dục";
+                    EDU_DEADLINE_NEAR,
+                    EDU_OVERDUE_DIGEST -> "Kế hoạch giáo dục";
             case CHILD_PICKED_UP -> "Đón trẻ";
             case DAILY_HEALTH_NOTED -> "Sức khỏe trong ngày";
             case CHILD_TB_CONTACT,
