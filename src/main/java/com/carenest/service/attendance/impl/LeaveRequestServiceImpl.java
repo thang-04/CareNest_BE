@@ -120,13 +120,20 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     markHalfDay(saved, classOf.get(d), d, Boolean.TRUE.equals(eats) && mealRegistered, at);
                 }
             }
-            notifyTeachers(request.childId(), classOf, applied, from, to, part);
+            // Đơn chỉ gồm ngày đã qua giờ chốt vẫn báo GV lớp của ngày bị bỏ qua đầu tiên
+            ClassroomInfoResponse notifyClass = applied.isEmpty()
+                    ? activeClassOf(request.childId(), skipped.getFirst())
+                    : classOf.get(applied.getFirst());
+            List<LocalDate> notifyDays = applied.isEmpty() ? List.of(skipped.getFirst()) : applied;
+            Map<LocalDate, ClassroomInfoResponse> notifyClassOf =
+                    applied.isEmpty() ? Map.of(skipped.getFirst(), notifyClass) : classOf;
+            notifyTeachers(request.childId(), notifyClassOf, notifyDays, from, to, part);
             LeaveRequestResponse response = toResponse(
                     saved,
-                    classOf.get(applied.getFirst()),
+                    notifyClass,
                     applied,
                     skipped,
-                    childNames(saved, classOf.get(applied.getFirst())),
+                    childNames(saved, notifyClass),
                     days,
                     accountService.findFullNames(Set.of(saved.getCreatedBy())),
                     null);
@@ -201,12 +208,16 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 classOf.put(d, cls);
             }
         }
-        if (applied.isEmpty()) {
+        // ATT-05b (chốt 22/11/2026): chỉ còn ngày đã qua giờ chốt ⇒ vẫn lưu đơn dạng thông báo, không đổi
+        // điểm danh/suất, báo GV; chỉ khoảng không có ngày học nào thì chặn
+        if (applied.isEmpty() && skipped.isEmpty()) {
             throw GlobalException.of(ApiCode.LEAVE_NO_SCHOOL_DAY);
         }
+        // Kiểm trùng chỉ trên ngày có hiệu lực của cả hai đơn (bỏ ngày đã qua giờ chốt lúc tạo đơn, ATT-05b)
         for (LeaveRequest other : leaveRequestRepository.findOverlapping(List.of(childId), from, to)) {
+            Set<LocalDate> otherDays = effectiveDaysOf(other);
             for (LocalDate day : applied) {
-                if (!day.isBefore(other.getFromDate()) && !day.isAfter(other.effectiveTo())) {
+                if (otherDays.contains(day)) {
                     throw GlobalException.of(ApiCode.LEAVE_OVERLAP, day.format(DD_MM_YYYY));
                 }
             }
@@ -230,7 +241,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     request.part(),
                     request.eats(),
                     false);
-            ClassroomInfoResponse cls = plan.classOf().get(plan.applied().getFirst());
+            // Đơn chỉ gồm ngày đã qua giờ chốt: bữa theo lớp của ngày bị bỏ qua đầu tiên
+            ClassroomInfoResponse cls = plan.applied().isEmpty()
+                    ? activeClassOf(request.childId(), plan.skipped().getFirst())
+                    : plan.classOf().get(plan.applied().getFirst());
             List<MealSession> kept = eatsMeals(plan.part(), cls);
             LeavePreviewResponse preview = new LeavePreviewResponse(
                     plan.part(),
@@ -492,6 +506,26 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             classOn(childId, d).ifPresent(c -> ids.add(c.id()));
         }
         ids.forEach(classroomService::lockForUpdate);
+    }
+
+    /** ATT-05b: ngày "có hiệu lực" của đơn = ngày học trong khoảng, trừ ngày đã qua giờ chốt lúc tạo đơn. */
+    private Set<LocalDate> effectiveDaysOf(LeaveRequest other) {
+        if (other.effectiveTo().isBefore(other.getFromDate())) {
+            return Set.of();
+        }
+        Set<LocalDate> days = new LinkedHashSet<>();
+        for (LocalDate d = other.getFromDate(); !d.isAfter(other.effectiveTo()); d = d.plusDays(1)) {
+            if (!rules.isSchoolDay(d)) {
+                continue;
+            }
+            Optional<ClassroomInfoResponse> cls = classOn(other.getChildId(), d);
+            if (cls.isPresent()
+                    && rules.isLockedAt(d, rules.cutoff(cls.get().schoolYearId(), d), other.getCreatedAt())) {
+                continue;
+            }
+            days.add(d);
+        }
+        return days;
     }
 
     private void checkGuardian(CurrentUser user, Long childId) {
