@@ -1,6 +1,7 @@
 package com.carenest.service.meals.impl;
 
 import com.carenest.config.NutritionConversionProperties;
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.meals.AgeGroupMealConfigRequest;
 import com.carenest.dto.meals.AgeGroupMealConfigResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
@@ -277,6 +278,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         if (serviceFee.compareTo(request.mealPrice()) > 0) {
             throw GlobalException.of(ApiCode.MEAL_SERVICE_FEE_INVALID);
         }
+        checkDailyKcalAboveMax(request);
         checkAppliedStructure(request);
         config.changeInfo(
                 request.effectiveFrom(),
@@ -374,6 +376,20 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             throw GlobalException.of(
                     ApiCode.APPLIED_STRUCTURE_INVALID,
                     label + " " + value.stripTrailingZeros().toPlainString() + "% nằm ngoài khoảng cho phép");
+        }
+    }
+
+    /** Nhu cầu năng lượng cả ngày phải lớn hơn năng lượng tối đa (chỉ so kcal, không so các tỷ lệ %). */
+    private static void checkDailyKcalAboveMax(AgeGroupMealConfigRequest request) {
+        BigDecimal need = request.dailyKcalNeed();
+        BigDecimal kcalMax = request.kcalMax();
+        if (need != null && kcalMax != null && need.compareTo(kcalMax) <= 0) {
+            throw GlobalException.withFieldErrors(
+                    ApiCode.INVALID_REQUEST_DATA,
+                    List.of(new FieldErrorResponse(
+                            "dailyKcalNeed",
+                            "Nhu cầu năng lượng cả ngày phải lớn hơn năng lượng tối đa ("
+                                    + kcalMax.stripTrailingZeros().toPlainString() + " kcal).")));
         }
     }
 
