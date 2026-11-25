@@ -78,3 +78,5 @@ Chưa có.
 ## Nhắc điểm danh — OBS-30, Tiền điều chỉnh 17/11/2026
 
 AssessmentReminderServiceImpl.remindAttendanceCutoff chạy mỗi 5 phút từ 08:00–23:55 thứ Hai–Sáu, chỉ gửi khi ngày học, năm đang hoạt động, chưa baseLocked và thời điểm trong [08:00, giờ khóa cấu hình). Không còn giới hạn 30 phút trước khóa hoặc trần 12h. Chỉ lớp chưa điểm danh, gửi GV chính và dạy thay theo ngày. Link dedupe gồm lớp/ngày/khung 5 phút: chạy lại trong cùng slot không nhân tin, slot sau có thể nhắc lại tới khi điểm danh/khóa. Các lịch đánh giá/mở lại/nhắc BGH giữ nguyên.
+
+- 25/11/2026 (TBD-4): `GET /children/{childId}/weekly-comments?schoolYearId=` tùy chọn — chỉ nhận xét đã gửi của năm đó (`weekly_comments.school_year_id`); năm trẻ không học ⇒ 404 2001; không tham số ⇒ như cũ. Test `WeeklyCommentIntegrationTest#parentSeesCommentsOfOneYear`.

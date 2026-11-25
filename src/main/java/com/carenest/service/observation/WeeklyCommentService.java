@@ -32,7 +32,8 @@ public interface WeeklyCommentService {
     /** Gửi 1 trẻ hoặc cả lớp; báo từng phụ huynh đã liên kết với trẻ. */
     WeeklyCommentBoardResponse send(CurrentUser currentUser, WeeklyCommentSendRequest request);
 
-    List<ParentWeeklyCommentResponse> listForParent(CurrentUser currentUser, Long childId);
+    /** {@code schoolYearId} null ⇒ mọi năm; có ⇒ chỉ nhận xét năm trẻ có học (không học ⇒ 2001). */
+    List<ParentWeeklyCommentResponse> listForParent(CurrentUser currentUser, Long childId, Long schoolYearId);
 
     /** Sáng ngày học cuối của tuần: tạo nháp theo mẫu câu cho trẻ chưa có nhận xét ở mọi lớp năm đang hoạt động. */
     void createOpenWeekDrafts();

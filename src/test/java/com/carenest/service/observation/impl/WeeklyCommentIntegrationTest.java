@@ -129,6 +129,8 @@ class WeeklyCommentIntegrationTest {
     private long classA;
     private long classB;
     private long oldClass;
+    private long activeYearId;
+    private long closedYearId;
     private long child1;
     private long child2;
     private long child3;
@@ -139,9 +141,9 @@ class WeeklyCommentIntegrationTest {
         long campusA = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-A', 'A', TRUE) RETURNING id");
         long campusB = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-B', 'B', FALSE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        long closedYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+        long closedYear = closedYearId = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
-        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+        long year = activeYearId = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         classA = classroom(campusA, year, "Lớp A", ag3);
         classB = classroom(campusB, year, "Lớp B", ag3);
@@ -456,10 +458,10 @@ class WeeklyCommentIntegrationTest {
     @DisplayName("AUTH-04: phụ huynh đã liên kết xem bản đã gửi; phụ huynh khác bị chặn; bản nháp không hiện")
     void parentSeesOnlySentCommentsOfLinkedChild() {
         service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Nháp chưa gửi."));
-        assertThat(service.listForParent(parent1, child1)).isEmpty();
+        assertThat(service.listForParent(parent1, child1, null)).isEmpty();
 
         service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt."));
-        List<ParentWeeklyCommentResponse> list = service.listForParent(parent1, child1);
+        List<ParentWeeklyCommentResponse> list = service.listForParent(parent1, child1, null);
         assertThat(list).singleElement().satisfies(c -> {
             assertThat(c.content()).isEqualTo("Con học tốt.");
             assertThat(c.weekStart()).isEqualTo(WEEK);
@@ -468,8 +470,24 @@ class WeeklyCommentIntegrationTest {
             assertThat(c.className()).isEqualTo("Lớp A");
             assertThat(c.teacherName()).isEqualTo("teachera");
         });
-        expectCode(() -> service.listForParent(parentOther, child1), ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
-        expectCode(() -> service.listForParent(teacherA, child1), ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
+        expectCode(() -> service.listForParent(parentOther, child1, null), ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
+        expectCode(() -> service.listForParent(teacherA, child1, null), ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("PAR-03, AUTH-03: lọc theo năm học ⇒ chỉ nhận xét của năm đó; năm trẻ không học ⇒ 2001")
+    void parentSeesCommentsOfOneYear() {
+        service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt."));
+
+        assertThat(service.listForParent(parent1, child1, activeYearId)).hasSize(1);
+        expectCode(() -> service.listForParent(parent1, child1, closedYearId), ApiCode.SCHOOL_YEAR_NOT_FOUND);
+
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) "
+                        + "VALUES (?, ?, '2025-09-01', '2026-05-31')",
+                child1,
+                oldClass);
+        assertThat(service.listForParent(parent1, child1, closedYearId)).isEmpty();
     }
 
     private static WeeklyCommentChildRow row(WeeklyCommentBoardResponse board, long childId) {
@@ -590,7 +608,7 @@ class WeeklyCommentIntegrationTest {
                         String.class,
                         parent1.userId()))
                 .contains("26/10 – 29/10/2026");
-        assertThat(service.listForParent(parent1, child1)).singleElement().satisfies(c -> {
+        assertThat(service.listForParent(parent1, child1, null)).singleElement().satisfies(c -> {
             assertThat(c.weekFrom()).isEqualTo(WEEK);
             assertThat(c.weekEnd()).isEqualTo(WEEK.plusDays(3));
             assertThat(c.weekLabel()).isEqualTo("Tuần 9");
@@ -607,7 +625,7 @@ class WeeklyCommentIntegrationTest {
                 child1);
         assertThat(an.status()).isEqualTo("DRAFT");
         assertThat(an.reopened()).isTrue();
-        assertThat(service.listForParent(parent1, child1)).isEmpty();
+        assertThat(service.listForParent(parent1, child1, null)).isEmpty();
         assertThat(jdbc.queryForObject(
                         "SELECT previous_content FROM weekly_comment_revisions r JOIN weekly_comments c"
                                 + " ON c.id = r.weekly_comment_id WHERE c.child_id = ?",
@@ -616,7 +634,7 @@ class WeeklyCommentIntegrationTest {
                 .isEqualTo("Con học tốt.");
 
         service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, null));
-        assertThat(service.listForParent(parent1, child1))
+        assertThat(service.listForParent(parent1, child1, null))
                 .singleElement()
                 .satisfies(c -> assertThat(c.content()).isEqualTo("Con học tốt, ngoan."));
         List<String> bodies = jdbc.queryForList(
@@ -694,7 +712,7 @@ class WeeklyCommentIntegrationTest {
         assertThat(board.week().unlockedUntil()).isEqualTo(until);
         assertThat(board.canEdit()).isTrue();
         service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt, kể chuyện hay."));
-        assertThat(service.listForParent(parent1, child1))
+        assertThat(service.listForParent(parent1, child1, null))
                 .singleElement()
                 .satisfies(c -> assertThat(c.content()).isEqualTo("Con học tốt, kể chuyện hay."));
 

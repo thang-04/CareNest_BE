@@ -153,10 +153,10 @@ public class WeeklyCommentController {
     @GetMapping("/children/{childId}/weekly-comments")
     @PreAuthorize("hasRole('PARENT')")
     public ResponseEntity<ResponseJson<List<ParentWeeklyCommentResponse>>> listForParent(
-            @PathVariable Long childId, CurrentUser currentUser) {
+            @PathVariable Long childId, @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|listForParent|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
-        List<ParentWeeklyCommentResponse> response = weeklyCommentService.listForParent(currentUser, childId);
+        List<ParentWeeklyCommentResponse> response = weeklyCommentService.listForParent(currentUser, childId, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get weekly comments of child success", response);
     }

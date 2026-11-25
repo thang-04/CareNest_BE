@@ -29,6 +29,7 @@ import com.carenest.repository.observation.WeeklyCommentRevisionRepository;
 import com.carenest.repository.observation.WeeklyCommentUnlockRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
+import com.carenest.service.child.ChildSchoolYearService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
@@ -90,6 +91,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final EnrollmentService enrollmentService;
     private final GuardianChildLinkService guardianChildLinkService;
+    private final ChildSchoolYearService childSchoolYearService;
     private final NotificationService notificationService;
     private final AccountService accountService;
     private final ClassroomService classroomService;
@@ -328,7 +330,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ParentWeeklyCommentResponse> listForParent(CurrentUser currentUser, Long childId) {
+    public List<ParentWeeklyCommentResponse> listForParent(
+            CurrentUser currentUser, Long childId, Long schoolYearId) {
         String logPrefix = LOG_PREFIX + "|listForParent|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
@@ -337,8 +340,15 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                     || !guardianChildLinkService.isGuardianOf(currentUser.userId(), childId)) {
                 throw GlobalException.of(ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
             }
-            List<WeeklyComment> sent =
-                    commentRepository.findByChildIdAndStatusOrderByWeekStartDesc(childId, WeeklyCommentStatus.SENT);
+            // Bộ chọn năm App phụ huynh: năm trẻ không học ⇒ như không có năm đó
+            if (schoolYearId != null && childSchoolYearService.findChildYear(childId, schoolYearId).isEmpty()) {
+                throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
+            }
+            List<WeeklyComment> sent = commentRepository
+                    .findByChildIdAndStatusOrderByWeekStartDesc(childId, WeeklyCommentStatus.SENT)
+                    .stream()
+                    .filter(c -> schoolYearId == null || schoolYearId.equals(c.getSchoolYearId()))
+                    .toList();
             Map<Long, String> teachers = accountService.findFullNames(
                     sent.stream().map(WeeklyComment::getSentBy).distinct().toList());
             Map<Long, ClassroomInfoResponse> classes = new HashMap<>();
