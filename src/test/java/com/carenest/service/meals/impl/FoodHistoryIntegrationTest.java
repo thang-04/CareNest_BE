@@ -106,15 +106,13 @@ class FoodHistoryIntegrationTest {
 
         foodService.updateFood(manager, rice, request("Gạo tẻ", "18000", null, null, null));
 
-        assertThat(foodService.getFoodHistory(rice))
-                .singleElement()
-                .satisfies(h -> {
-                    assertThat(h.field()).isEqualTo("Tên thực phẩm");
-                    assertThat(h.oldValue()).isEqualTo("Gạo");
-                    assertThat(h.newValue()).isEqualTo("Gạo tẻ");
-                    assertThat(h.userId()).isEqualTo(manager.userId());
-                    assertThat(h.at()).isNotNull();
-                });
+        assertThat(foodService.getFoodHistory(rice)).singleElement().satisfies(h -> {
+            assertThat(h.field()).isEqualTo("Tên thực phẩm");
+            assertThat(h.oldValue()).isEqualTo("Gạo");
+            assertThat(h.newValue()).isEqualTo("Gạo tẻ");
+            assertThat(h.userId()).isEqualTo(manager.userId());
+            assertThat(h.at()).isNotNull();
+        });
     }
 
     @Test
@@ -125,7 +123,8 @@ class FoodHistoryIntegrationTest {
 
         assertThat(foodPriceService.getPrices(rice)).hasSize(2);
         assertThat(foodPriceService.book(List.of(rice)).price(rice, today)).isEqualByComparingTo("18000");
-        assertThat(foodPriceService.book(List.of(rice)).price(rice, today.plusDays(3))).isEqualByComparingTo("19000");
+        assertThat(foodPriceService.book(List.of(rice)).price(rice, today.plusDays(3)))
+                .isEqualByComparingTo("19000");
         List<FoodHistoryResponse> history = foodService.getFoodHistory(rice);
         assertThat(history)
                 .extracting(FoodHistoryResponse::field, FoodHistoryResponse::oldValue, FoodHistoryResponse::newValue)
@@ -162,12 +161,10 @@ class FoodHistoryIntegrationTest {
         }
 
         assertThat(ageGroups).hasSize(2);
-        assertThat(foodService.getFoodDishes(rice))
-                .singleElement()
-                .satisfies(d -> {
-                    assertThat(d.dishId()).isEqualTo(dish);
-                    assertThat(d.name()).isEqualTo("Cơm");
-                });
+        assertThat(foodService.getFoodDishes(rice)).singleElement().satisfies(d -> {
+            assertThat(d.dishId()).isEqualTo(dish);
+            assertThat(d.name()).isEqualTo("Cơm");
+        });
     }
 
     private FoodRequest request(String name, String price, Long supplierId, LocalDate effectiveFrom, String reason) {

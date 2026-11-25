@@ -62,7 +62,9 @@ class DevSeedIntegrationTest {
             "edu_resource_attachments",
             // Nháp gợi ý thực đơn do người dùng tạo lúc chạy; vector món do embedding API sinh lười (AI tắt ⇒ rỗng)
             "menu_ai_drafts",
-            "dish_embeddings");
+            "dish_embeddings",
+            // Lịch sử thực phẩm chỉ sinh khi có người sửa thực phẩm lúc chạy
+            "food_history");
 
     @Container
     @ServiceConnection

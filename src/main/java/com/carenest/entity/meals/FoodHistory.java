@@ -49,7 +49,13 @@ public class FoodHistory {
     private String newValue;
 
     public static FoodHistory of(
-            Long foodId, Long userId, Instant changedAt, String action, String field, String oldValue, String newValue) {
+            Long foodId,
+            Long userId,
+            Instant changedAt,
+            String action,
+            String field,
+            String oldValue,
+            String newValue) {
         FoodHistory history = new FoodHistory();
         history.foodId = foodId;
         history.userId = userId;

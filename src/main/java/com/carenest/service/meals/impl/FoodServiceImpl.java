@@ -119,10 +119,11 @@ public class FoodServiceImpl implements FoodService {
         log.info("{}|START", logPrefix);
         try {
             findFood(foodId);
-            List<FoodDishUsageResponse> response = dishRepository.findDistinctByIngredientsFoodIdOrderByNameAsc(foodId).stream()
-                    .map(dish -> new FoodDishUsageResponse(
-                            dish.getId(), dish.getCode(), dish.getName(), dish.getDishType()))
-                    .toList();
+            List<FoodDishUsageResponse> response =
+                    dishRepository.findDistinctByIngredientsFoodIdOrderByNameAsc(foodId).stream()
+                            .map(dish -> new FoodDishUsageResponse(
+                                    dish.getId(), dish.getCode(), dish.getName(), dish.getDishType()))
+                            .toList();
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {

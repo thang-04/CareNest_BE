@@ -16,7 +16,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,7 +43,8 @@ public class FoodHistoryServiceImpl implements FoodHistoryService {
         String logPrefix = LOG_PREFIX + "|recordCreated|foodId=" + foodId;
         log.info("{}|START", logPrefix);
         try {
-            historyRepository.save(FoodHistory.of(foodId, userId, clock.instant(), FoodHistory.CREATED, null, null, null));
+            historyRepository.save(
+                    FoodHistory.of(foodId, userId, clock.instant(), FoodHistory.CREATED, null, null, null));
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -79,7 +79,13 @@ public class FoodHistoryServiceImpl implements FoodHistoryService {
         try {
             if (from != to) {
                 historyRepository.save(FoodHistory.of(
-                        foodId, userId, clock.instant(), FoodHistory.STATUS_CHANGED, FIELD_STATUS, from.name(), to.name()));
+                        foodId,
+                        userId,
+                        clock.instant(),
+                        FoodHistory.STATUS_CHANGED,
+                        FIELD_STATUS,
+                        from.name(),
+                        to.name()));
             }
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -95,8 +101,9 @@ public class FoodHistoryServiceImpl implements FoodHistoryService {
         log.info("{}|START", logPrefix);
         try {
             List<FoodHistoryResponse> response = new ArrayList<>();
-            historyRepository.findByFoodIdOrderByChangedAtAscIdAsc(foodId).forEach(row -> response.add(
-                    new FoodHistoryResponse(
+            historyRepository
+                    .findByFoodIdOrderByChangedAtAscIdAsc(foodId)
+                    .forEach(row -> response.add(new FoodHistoryResponse(
                             row.getId(),
                             row.getUserId(),
                             row.getChangedAt(),
@@ -137,7 +144,11 @@ public class FoodHistoryServiceImpl implements FoodHistoryService {
             }
             if (!Objects.equals(row.getSupplierId(), prev.getSupplierId())) {
                 changes.add(priceEvent(
-                        row, FIELD_SUPPLIER, suppliers.get(prev.getSupplierId()), suppliers.get(row.getSupplierId()), note));
+                        row,
+                        FIELD_SUPPLIER,
+                        suppliers.get(prev.getSupplierId()),
+                        suppliers.get(row.getSupplierId()),
+                        note));
             }
         }
         return changes;
