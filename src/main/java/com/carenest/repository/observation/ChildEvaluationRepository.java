@@ -19,6 +19,9 @@ public interface ChildEvaluationRepository extends JpaRepository<ChildEvaluation
     List<ChildEvaluation> findBySchoolYearIdAndPeriodTypeAndStatusAndChildIdIn(
             Long schoolYearId, EvaluationPeriodType periodType, EvaluationStatus status, Collection<Long> childIds);
 
+    List<ChildEvaluation> findByChildIdAndSchoolYearIdAndStatusAndPeriodTypeIn(
+            Long childId, Long schoolYearId, EvaluationStatus status, Collection<EvaluationPeriodType> periodTypes);
+
     boolean existsBySchoolYearIdAndPeriodType(Long schoolYearId, EvaluationPeriodType periodType);
 
     boolean existsBySchoolYearIdAndPeriodTypeAndPeriodStartBetween(

@@ -336,6 +336,89 @@ class EvaluationDeadlineIntegrationTest {
     }
 
     @Test
+    @DisplayName("OBS-30: nhắc đánh giá 20:00 không đếm trẻ có mặt nhưng đã chuyển sang lớp khác hôm nay")
+    void dailyReminderIgnoresPresentChildWhoLeftTheClass() {
+        long classB = jdbc.queryForObject("SELECT id FROM classrooms WHERE name = 'Lớp B'", Long.class);
+        long mover =
+                insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ("
+                        + "'ED' || substr(md5(random()::text), 1, 12), 'Cường', '2023-01-01', 'MALE', 'ACTIVE', '2026-09-01')"
+                        + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01', "
+                        + "'2026-11-01'), (?, ?, '2026-11-02', NULL)",
+                mover,
+                classA,
+                mover,
+                classB);
+        jdbc.update(
+                "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, recorded_by, recorded_at) "
+                        + "SELECT ?, id, campus_id, ?, 'PRESENT', ?, now() FROM classrooms WHERE id = ?",
+                mover,
+                LocalDate.of(2026, 11, 2),
+                principal.userId(),
+                classA);
+        CLOCK.set(at(LocalDate.of(2026, 11, 2), 20));
+        reminderService.remindDailyAssessment();
+        assertThat(titles(teacherA)).doesNotContain("Chưa xong đánh giá hôm nay");
+    }
+
+    @Test
+    @DisplayName("Cần chốt 14/11/2026: GV dạy chính không ghi ngày mở lại trước ngày mình nhận lớp")
+    void mainTeacherCannotRecordDayBeforeAssignmentStarted() {
+        var newcomer = user("newcomer", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-10-20', FALSE)",
+                newcomer.userId(),
+                classA);
+        var cls = classroomService.findClassroomInfo(classA).orElseThrow();
+        assertThat(rules.canRecordDay(newcomer, cls, LocalDate.of(2026, 10, 15)))
+                .isFalse();
+        assertThat(rules.canRecordDay(newcomer, cls, LocalDate.of(2026, 10, 21)))
+                .isTrue();
+        assertThat(rules.canRecordDay(teacherA, cls, LocalDate.of(2026, 10, 15)))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName(
+            "Cần chốt 24/11/2026: tiến độ, quá hạn kỳ học kỳ theo Đánh giá học kỳ của lớp, không theo nhận xét cá nhân")
+    void semesterProgressFollowsClassSemesterAssessment() {
+        // Nhận xét học kỳ cá nhân cũ đã xác nhận không còn tính
+        jdbc.update(
+                "INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id, period_type, "
+                        + "period_start, period_end, status, final_content, confirmed_by, confirmed_at, created_at, "
+                        + "updated_at) SELECT ?, id, campus_id, school_year_id, 'SEMESTER', '2026-09-01', '2026-10-23', "
+                        + "'CONFIRMED', 'Đã xác nhận', ?, now(), now(), now() FROM classrooms WHERE id = ?",
+                child1,
+                teacherA.userId(),
+                classA);
+        CLOCK.set(at(LocalDate.of(2026, 11, 2), 7));
+        var cls = classroomService.findClassroomInfo(classA).orElseThrow();
+        var semester1 = service.periodsOf(cls).stream()
+                .filter(p ->
+                        p.kind() == com.carenest.utils.enums.EvaluationLockKind.SEMESTER && "1".equals(p.periodKey()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(service.progress(cls, semester1)).containsExactly(0, 1);
+        assertThat(service.overdueOf(List.of(cls)))
+                .extracting(OverdueClassItem::kind, OverdueClassItem::periodKey)
+                .contains(org.assertj.core.groups.Tuple.tuple("SEMESTER", "1"));
+
+        jdbc.update(
+                "INSERT INTO semester_assessments (classroom_id, campus_id, school_year_id, semester_no, period_start,"
+                        + " period_end, result_snapshot, confirmed_by, confirmed_at) SELECT id, campus_id,"
+                        + " school_year_id, 1, '2026-09-01', '2026-10-23', '{}', ?, now() FROM classrooms WHERE id = ?",
+                teacherA.userId(),
+                classA);
+
+        assertThat(service.progress(cls, semester1)).containsExactly(1, 1);
+        assertThat(service.overdueOf(List.of(cls)))
+                .extracting(OverdueClassItem::kind, OverdueClassItem::periodKey)
+                .doesNotContain(org.assertj.core.groups.Tuple.tuple("SEMESTER", "1"));
+    }
+
+    @Test
     @DisplayName("Cần chốt 18/11/2026: hạn cuối năm sau ngày kết thúc năm vẫn nhắc GV, BGH tới khi HT đóng năm")
     void remindsYearEndAfterYearEndUntilClosed() {
         // HK II kết thúc 28/05, năm kết thúc 31/05 ⇒ hạn cuối năm 04/06/2027

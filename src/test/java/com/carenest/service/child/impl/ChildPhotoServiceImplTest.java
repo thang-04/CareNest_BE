@@ -282,7 +282,8 @@ class ChildPhotoServiceImplTest {
                 null,
                 List.of(guardian),
                 List.of(),
-                "/children/1/photo");
+                "/children/1/photo",
+                null);
     }
 
     private static ChildGuardian guardian(Long id, Long childId, int position) {

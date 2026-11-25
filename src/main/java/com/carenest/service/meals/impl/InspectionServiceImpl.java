@@ -17,6 +17,7 @@ import com.carenest.repository.meals.InspectionSheetRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.account.UserSignatureService;
+import com.carenest.service.meals.InspectionGrantService;
 import com.carenest.service.meals.InspectionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ImageFiles;
@@ -59,6 +60,7 @@ public class InspectionServiceImpl implements InspectionService {
     private final CampusAccessPolicy campusAccessPolicy;
     private final UserSignatureService userSignatureService;
     private final FileStorage imageStorage;
+    private final InspectionGrantService grantService;
     private final Clock clock;
 
     @Override
@@ -76,8 +78,12 @@ public class InspectionServiceImpl implements InspectionService {
             for (InspectionTab tab : InspectionTab.values()) {
                 sheets.add(view(tab, saved.get(tab), campusId, day));
             }
-            InspectionDayResponse response =
-                    new InspectionDayResponse(campusId, day, canEdit(currentUser, campusId), sheets);
+            InspectionDayResponse response = new InspectionDayResponse(
+                    campusId,
+                    day,
+                    canEdit(currentUser, campusId),
+                    sheets,
+                    grantService.dayApprovals(currentUser, campusId, day));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -96,6 +102,8 @@ public class InspectionServiceImpl implements InspectionService {
             Instant now = clock.instant();
             requireWritable(currentUser, campusId, date);
             InspectionSheet sheet = lockedSheet(campusId, date, tab);
+            // INS-05: ngày đã qua phải có quyền mở của HT (kiểm sau khi giữ khóa điểm trường)
+            grantService.requireOpenDay(campusId, date, tab);
             if (sheet != null && sheet.isSigned()) {
                 throw GlobalException.of(ApiCode.INSPECTION_SIGNED);
             }
@@ -127,6 +135,7 @@ public class InspectionServiceImpl implements InspectionService {
             Instant now = clock.instant();
             requireWritable(currentUser, campusId, date);
             InspectionSheet sheet = lockedSheet(campusId, date, tab);
+            grantService.requireOpenDay(campusId, date, tab);
             if (sheet == null || sheet.getSheetRows().isEmpty()) {
                 throw GlobalException.of(ApiCode.INSPECTION_NOT_SAVED);
             }
@@ -174,6 +183,8 @@ public class InspectionServiceImpl implements InspectionService {
                         InspectionEvent.SIGNED, currentUser.userId(), currentUser.fullName(), now, null, imageKey);
                 sheet.sign(signature, event, rows, now);
                 sheetRepository.saveAndFlush(sheet);
+                // INS-05: ký xong đóng quyền mở của ngày cũ, sửa lại lần sau cần yêu cầu mới
+                grantService.consume(campusId, date, tab);
             } catch (RuntimeException ex) {
                 imageStorage.removeQuietly(FileCategory.INSPECTION_SIGNATURE, imageKey);
                 throw ex;
@@ -198,7 +209,7 @@ public class InspectionServiceImpl implements InspectionService {
         log.info("{}|START", logPrefix);
         try {
             Instant now = clock.instant();
-            // Sửa lại mọi ngày được (INS-04), kể cả ngày đã qua; chỉ ngày chưa tới mới chưa có biên bản để sửa
+            // INS-04: sửa lại cần lý do; ngày đã qua còn cần quyền mở của HT (INS-05, kiểm sau khi giữ khóa)
             requireEdit(currentUser, campusId);
             requireCampus(campusId);
             String reason = request == null || request.reason() == null
@@ -208,6 +219,7 @@ public class InspectionServiceImpl implements InspectionService {
                 throw GlobalException.of(ApiCode.INSPECTION_REASON_REQUIRED);
             }
             InspectionSheet sheet = lockedSheet(campusId, date, tab);
+            grantService.requireOpenDay(campusId, date, tab);
             if (sheet == null || !sheet.isSigned()) {
                 throw GlobalException.of(ApiCode.INSPECTION_NOT_SIGNED);
             }

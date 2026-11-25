@@ -50,6 +50,21 @@ public record EnrollmentDraft(
                 startDate);
     }
 
+    /** Năm đang học: ngày bắt đầu đi học (G94-180/CHD-14), không đăng ký năm sau ({@code schoolYearId} giữ null). */
+    public EnrollmentDraft withStartDate(LocalDate chosenStartDate) {
+        return new EnrollmentDraft(
+                fullName,
+                dateOfBirth,
+                gender,
+                guardians,
+                profile,
+                declaration,
+                classroomId,
+                campusId,
+                schoolYearId,
+                chosenStartDate);
+    }
+
     public EnrollmentDraft withAdmission(Long targetSchoolYearId, LocalDate targetStartDate) {
         return new EnrollmentDraft(
                 fullName,

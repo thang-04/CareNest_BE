@@ -2,6 +2,8 @@ package com.carenest.controller.meals;
 
 import com.carenest.dto.meals.AllergenResponse;
 import com.carenest.dto.meals.CatalogStatusRequest;
+import com.carenest.dto.meals.FoodDishUsageResponse;
+import com.carenest.dto.meals.FoodHistoryResponse;
 import com.carenest.dto.meals.FoodImportRequest;
 import com.carenest.dto.meals.FoodImportResponse;
 import com.carenest.dto.meals.FoodPriceRequest;
@@ -82,6 +84,28 @@ public class NutritionFoodController {
         FoodResponse food = foodService.getFood(foodId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get food success", food);
+    }
+
+    @GetMapping("/foods/{foodId}/dishes")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<FoodDishUsageResponse>>> getFoodDishes(
+            @PathVariable Long foodId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getFoodDishes|userId=" + currentUser.userId() + "|foodId=" + foodId;
+        log.info("{}|START", logPrefix);
+        List<FoodDishUsageResponse> dishes = foodService.getFoodDishes(foodId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get food dishes success", dishes);
+    }
+
+    @GetMapping("/foods/{foodId}/history")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<FoodHistoryResponse>>> getFoodHistory(
+            @PathVariable Long foodId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getFoodHistory|userId=" + currentUser.userId() + "|foodId=" + foodId;
+        log.info("{}|START", logPrefix);
+        List<FoodHistoryResponse> history = foodService.getFoodHistory(foodId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get food history success", history);
     }
 
     @PostMapping("/foods")

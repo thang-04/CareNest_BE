@@ -109,11 +109,13 @@ public class AttendanceController {
             @PathVariable Long classId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            // Chọn học kỳ (1 | 2) thay cho from/to: lấy ngày học kỳ của năm học lớp
+            @RequestParam(required = false) Integer semester,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getClassSummary|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         AttendanceSummaryResponse.ClassSummary summary =
-                attendanceService.getClassSummary(currentUser, classId, from, to);
+                attendanceService.getClassSummary(currentUser, classId, from, to, semester);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class attendance summary success", summary);
     }
@@ -126,11 +128,12 @@ public class AttendanceController {
             @RequestParam(required = false) Long ageGroupId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Integer semester,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getSummary|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         AttendanceSummaryResponse.MultiSummary summary =
-                attendanceService.getSummary(currentUser, campusId, schoolYearId, ageGroupId, from, to);
+                attendanceService.getSummary(currentUser, campusId, schoolYearId, ageGroupId, from, to, semester);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get attendance summary success", summary);
     }

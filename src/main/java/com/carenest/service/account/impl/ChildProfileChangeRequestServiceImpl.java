@@ -100,7 +100,7 @@ public class ChildProfileChangeRequestServiceImpl implements ChildProfileChangeR
             GuardianChildSummary child = summaries(List.of(childId)).get(childId);
             Set<Long> approvers = approverIds(child == null ? null : child.campusId());
             approvers.remove(actor.userId());
-            String what = kind == ProfileChangeKind.PROFILE ? "sửa hồ sơ" : "sửa khai báo sức khỏe";
+            String what = kind == ProfileChangeKind.PROFILE ? "sửa hồ sơ" : "sửa khai báo ăn và sức khỏe";
             notificationService.notifyUsers(
                     approvers,
                     NotificationType.CHILD_PROFILE_CHANGE_REQUESTED,

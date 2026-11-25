@@ -342,7 +342,7 @@ public class DishServiceImpl implements DishService {
     }
 
     /**
-     * NUT-06, NUT-18: dinh dưỡng một suất = Σ lượng ăn được × giá trị/100 (NUT-26: cả 8 vi chất). Giá một suất tính lượng mua, cộng hệ số thải bỏ
+     * NUT-06, NUT-18: dinh dưỡng một suất = Σ lượng ăn được × giá trị/100 (NUT-26: cả 9 vi chất). Giá một suất tính lượng mua, cộng hệ số thải bỏ
      * (NUT-07): lượng × (1 + thải bỏ%) × giá đơn vị mua / số đơn vị trong một đơn vị mua.
      */
     private static DishDetailResponse.AgeGroupNutrition nutritionOf(
@@ -409,7 +409,8 @@ public class DishServiceImpl implements DishService {
                 microOf(micro, unknown, Micronutrient.VITAMIN_B1),
                 microOf(micro, unknown, Micronutrient.VITAMIN_B2),
                 microOf(micro, unknown, Micronutrient.VITAMIN_PP),
-                microOf(micro, unknown, Micronutrient.VITAMIN_C));
+                microOf(micro, unknown, Micronutrient.VITAMIN_C),
+                microOf(micro, unknown, Micronutrient.ZINC));
     }
 
     private static BigDecimal microOf(

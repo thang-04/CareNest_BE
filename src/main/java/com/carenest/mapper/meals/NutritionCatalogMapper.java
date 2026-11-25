@@ -8,6 +8,7 @@ import com.carenest.entity.meals.AgeGroupMealConfig;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.Supplier;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
+import com.carenest.utils.NutritionConversion;
 import com.carenest.utils.enums.Allergen;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -47,8 +48,8 @@ public class NutritionCatalogMapper {
                 food.getVitaminB2(),
                 food.getVitaminPp(),
                 food.getVitaminC(),
+                food.getZinc(),
                 food.getNutrientSource(),
-                food.getNutrientSourceVersion(),
                 food.getWastePct(),
                 food.getStorage(),
                 food.getOrigin(),
@@ -60,7 +61,8 @@ public class NutritionCatalogMapper {
                 price.contractStatus());
     }
 
-    public AgeGroupMealConfigResponse toResponse(AgeGroupMealConfig config, LocalDate today) {
+    public AgeGroupMealConfigResponse toResponse(
+            AgeGroupMealConfig config, LocalDate today, NutritionConversion conversion) {
         return new AgeGroupMealConfigResponse(
                 config.getId(),
                 config.getAgeGroupId(),
@@ -108,6 +110,17 @@ public class NutritionCatalogMapper {
                 config.getVitaminPpMax(),
                 config.getVitaminCMin(),
                 config.getVitaminCMax(),
+                config.getZincMin(),
+                config.getZincMax(),
+                config.getAppliedProteinPct(),
+                config.getAppliedLipidPct(),
+                config.getAppliedGlucidPct(),
+                conversion.toResponse(
+                        config.getKcalMin(),
+                        config.getKcalMax(),
+                        config.getAppliedProteinPct(),
+                        config.getAppliedLipidPct(),
+                        config.getAppliedGlucidPct()),
                 config.getNormBasis(),
                 config.getEffectiveFrom().isAfter(today));
     }

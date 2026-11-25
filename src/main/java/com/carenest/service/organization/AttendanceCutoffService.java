@@ -12,6 +12,9 @@ public interface AttendanceCutoffService {
 
     CutoffResponse getCutoff(Long schoolYearId);
 
+    /** Giờ chốt của năm cho người xem; năm chưa tới ngày mở chuẩn bị chỉ HT thấy (CFG-YR-05). */
+    CutoffResponse getCutoff(CurrentUser currentUser, Long schoolYearId);
+
     CutoffResponse saveCutoff(CurrentUser currentUser, Long schoolYearId, CutoffRequest request);
 
     Optional<LocalTime> findCutoffTime(Long schoolYearId, LocalDate date);

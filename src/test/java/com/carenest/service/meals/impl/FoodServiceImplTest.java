@@ -15,8 +15,10 @@ import com.carenest.dto.meals.FoodResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
+import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.FoodHistoryService;
 import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.utils.ApiCode;
@@ -48,10 +50,14 @@ class FoodServiceImplTest {
 
     private final FoodRepository foodRepository = mock(FoodRepository.class);
     private final FoodPriceService foodPriceService = mock(FoodPriceService.class);
+    private final FoodHistoryService historyService = mock(FoodHistoryService.class);
+    private final DishRepository dishRepository = mock(DishRepository.class);
     private final FoodServiceImpl service = new FoodServiceImpl(
             foodRepository,
             new NutritionCatalogMapper(),
             foodPriceService,
+            historyService,
+            dishRepository,
             Clock.fixed(Instant.parse("2026-11-18T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")));
 
     @BeforeEach
@@ -94,13 +100,15 @@ class FoodServiceImplTest {
                 valid.vitaminB2(),
                 valid.vitaminPp(),
                 valid.vitaminC(),
+                valid.zinc(),
                 valid.nutrientSource(),
-                null,
                 valid.wastePct(),
                 valid.storage(),
                 null,
                 null,
                 List.of(),
+                null,
+                null,
                 null);
 
         assertThatThrownBy(() -> service.createFood(VICE_PRINCIPAL, noOrigin))
@@ -207,7 +215,7 @@ class FoodServiceImplTest {
     }
 
     @Test
-    @DisplayName("NUT-26: tạo thực phẩm lưu đủ 8 vi chất; vi chất để trống lưu null, không chặn")
+    @DisplayName("NUT-26: tạo thực phẩm lưu đủ 9 vi chất; vi chất để trống lưu null, không chặn")
     void createPersistsMicronutrients() {
         given(foodRepository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
         FoodRequest request = new FoodRequest(
@@ -230,13 +238,15 @@ class FoodServiceImplTest {
                 new BigDecimal("0.02"),
                 new BigDecimal("0.4"),
                 null,
+                new BigDecimal("1.5"),
                 "Viện Dinh dưỡng 2017",
-                null,
                 BigDecimal.ZERO,
                 FoodStorage.FRESH,
                 FoodOrigin.PLANT,
                 null,
                 List.of(),
+                null,
+                null,
                 null);
 
         FoodResponse created = service.createFood(VICE_PRINCIPAL, request);
@@ -249,6 +259,7 @@ class FoodServiceImplTest {
         assertThat(created.vitaminB2()).isEqualByComparingTo("0.02");
         assertThat(created.vitaminPp()).isEqualByComparingTo("0.4");
         assertThat(created.vitaminC()).isNull();
+        assertThat(created.zinc()).isEqualByComparingTo("1.5");
     }
 
     @Test
@@ -273,10 +284,17 @@ class FoodServiceImplTest {
                         BigDecimal.valueOf(7.9),
                         BigDecimal.ONE,
                         BigDecimal.valueOf(76.2),
-                        "Viện Dinh dưỡng 2017",
-                        null),
+                        "Viện Dinh dưỡng 2017"),
                 new Food.Micronutrients(
-                        new BigDecimal("30"), null, new BigDecimal("1.3"), null, null, null, null, new BigDecimal("5")),
+                        new BigDecimal("30"),
+                        null,
+                        new BigDecimal("1.3"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        new BigDecimal("5"),
+                        null),
                 Set.of(),
                 3L);
         given(foodRepository.findById(7L)).willReturn(Optional.of(existing));
@@ -287,6 +305,7 @@ class FoodServiceImplTest {
         assertThat(updated.calcium()).isEqualByComparingTo("32");
         assertThat(updated.iron()).isNull();
         assertThat(updated.vitaminC()).isNull();
+        assertThat(updated.zinc()).isNull();
     }
 
     @Test
@@ -334,14 +353,16 @@ class FoodServiceImplTest {
                 request.vitaminB2(),
                 request.vitaminPp(),
                 request.vitaminC(),
+                request.zinc(),
                 request.nutrientSource(),
-                request.nutrientSourceVersion(),
                 request.wastePct(),
                 request.storage(),
                 request.origin(),
                 request.note(),
                 request.allergenIds(),
-                request.supplierId());
+                request.supplierId(),
+                request.effectiveFrom(),
+                request.priceReason());
     }
 
     private static Food namedFood(String name, Long id) {
@@ -364,15 +385,15 @@ class FoodServiceImplTest {
                         BigDecimal.valueOf(7.9),
                         BigDecimal.ONE,
                         BigDecimal.valueOf(76.2),
-                        "Viện Dinh dưỡng 2017",
-                        null),
-                new Food.Micronutrients(null, null, null, null, null, null, null, null),
+                        "Viện Dinh dưỡng 2017"),
+                new Food.Micronutrients(null, null, null, null, null, null, null, null, null),
                 Set.of(),
                 3L);
         ReflectionTestUtils.setField(food, "id", id);
         return food;
     }
 
+    // Chỉ canxi và vitamin C có số liệu, 7 vi chất còn lại để trống
     private static FoodRequest food(String code, String nutrientSource, BigDecimal calcium, BigDecimal vitaminC) {
         return new FoodRequest(
                 code,
@@ -394,13 +415,15 @@ class FoodServiceImplTest {
                 null,
                 null,
                 vitaminC,
-                nutrientSource,
                 null,
+                nutrientSource,
                 BigDecimal.ZERO,
                 FoodStorage.DRY,
                 FoodOrigin.PLANT,
                 null,
                 List.of(),
+                null,
+                null,
                 null);
     }
 }

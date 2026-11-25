@@ -105,6 +105,9 @@ class ThemeEvaluationIntegrationTest {
     @Autowired
     private com.carenest.service.observation.SemesterAssessmentService semesters;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private com.carenest.service.eduplan.EduPlanCalendarQueryService calendar;
+
     private CurrentUser teacher;
     private CurrentUser otherTeacher;
     private CurrentUser principal;
@@ -125,6 +128,12 @@ class ThemeEvaluationIntegrationTest {
         long ag2 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-2'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name,"
+                        + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
+                        + " SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, ''"
+                        + " FROM age_groups",
+                year);
         classA = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
                 + ", " + year + ", 'MG A', " + ag3 + ") RETURNING id");
         classB = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
@@ -249,6 +258,17 @@ class ThemeEvaluationIntegrationTest {
         assertThat(row(service.get(teacher, classA, 9201L), kid2).cells())
                 .extracting(c -> c.met())
                 .containsExactly(true, false);
+    }
+
+    @Test
+    @DisplayName("Trẻ chuyển vào giữa chủ đề: mục tiêu đã dạy trước ngày vào lớp để trống, không tính Chưa đạt")
+    void goalsBeforeChildJoinedClassAreNotApplicable() {
+        jdbc.update("UPDATE enrollments SET valid_from='2026-09-20' WHERE child_id=? AND classroom_id=?", kid2, classA);
+        entityManager.clear();
+
+        assertThat(row(service.get(teacher, classA, 9201L), kid2).cells())
+                .extracting(c -> c.met())
+                .containsExactly(null, false);
     }
 
     @Test
@@ -424,6 +444,52 @@ class ThemeEvaluationIntegrationTest {
     }
 
     @Test
+    @DisplayName("OBS-25: lớp mới giữ mục tiêu có kết quả ở lớp cũ trong cùng học kỳ")
+    void semesterRetainsGoalsFromPreviousClassEvenWhenNewClassHasNoSuchTheme() {
+        jdbc.update(
+                "UPDATE school_years SET semester1_start='2026-09-01', semester1_end='2026-10-15'"
+                        + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        long kid = child("Trẻ chuyển lớp học kỳ");
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to)"
+                        + " VALUES (?, ?, '2026-09-01', '2026-09-30'), (?, ?, '2026-10-01', NULL)",
+                kid,
+                classB,
+                kid,
+                classA);
+        result(kid, classB, "2026-09-20", "old-class-goal", String.valueOf(goal2), "");
+        org.mockito.Mockito.doReturn(List.of()).when(calendar).findApprovedThemes(classA);
+        var child = semesters.get(teacher, classA, 1).rows().stream()
+                .filter(c -> c.childId().equals(kid))
+                .findFirst()
+                .orElseThrow();
+        assertThat(child.domains().getFirst().goals()).anySatisfy(g -> {
+            assertThat(g.goalId()).isEqualTo(goal2);
+            assertThat(g.met()).isTrue();
+            // Kết quả lấy ở lớp cũ ghi kèm tên lớp đó
+            assertThat(g.sourceClassName()).isEqualTo("MG B");
+        });
+        service.confirm(otherTeacher, new ThemeEvaluationRequest(classB, 9201L, null, List.of()));
+        // Bản kế hoạch mới bỏ MT2: kết quả đã chốt ở lớp cũ vẫn phải hiện trên học kỳ.
+        jdbc.update("INSERT INTO edu_team_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
+                + " version_no, source_plan_id, legacy_team_without_source) OVERRIDING SYSTEM VALUE"
+                + " SELECT 9004, 'KH-T4', school_year_id, age_group_id, title, 'APPROVED', owner_id, 4, 9002,"
+                + " legacy_team_without_source FROM edu_team_plans WHERE id=9002");
+        jdbc.update("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no, lineage_id)"
+                + " VALUES (9004, 9100, 1, 'MT còn trong kế hoạch', 1, " + oldGoal1 + ")");
+        var afterPlanChange = semesters.get(teacher, classA, 1).rows().stream()
+                .filter(c -> c.childId().equals(kid))
+                .findFirst()
+                .orElseThrow();
+        assertThat(afterPlanChange.domains().getFirst().goals()).anySatisfy(g -> {
+            assertThat(g.goalId()).isEqualTo(goal2);
+            assertThat(g.text()).isEqualTo("Trẻ biết tên trường");
+            assertThat(g.met()).isTrue();
+        });
+    }
+
+    @Test
     @DisplayName("OBS-25: MT học kỳ lấy từ kết quả cuối các chủ đề kết thúc trong kỳ, >=50% chủ đề Đạt")
     void semesterGoalUsesThemeResultsEndingInSemester() {
         jdbc.update(
@@ -524,6 +590,22 @@ class ThemeEvaluationIntegrationTest {
                 teacher.userId(),
                 kid1,
                 campaign2,
+                classA,
+                teacher.userId());
+        // OBS-28, HLT-11: phiếu khám nháp (chưa công bố) ngày gần hơn không được lấy lên phiếu cuối năm
+        jdbc.update(
+                "UPDATE health_check_campaigns SET closed_at = now(), closed_by = ? WHERE id = ?",
+                teacher.userId(),
+                campaign2);
+        long examCampaign = insertId("INSERT INTO health_check_campaigns (kind, campus_id, name, start_date, end_date,"
+                + " examiner, created_by) SELECT 'EXAM', c.campus_id, 'Khám', '2026-10-01', '2026-10-30', 'BS', "
+                + teacher.userId() + " FROM classrooms c WHERE c.id = " + classA + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, height_cm, weight_kg,"
+                        + " measured_by, exam, exam_status) VALUES (?, ?, ?, '2026-10-15', 99.0, 16.9, ?, '{}'::jsonb,"
+                        + " 'DRAFT')",
+                kid1,
+                examCampaign,
                 classA,
                 teacher.userId());
 
@@ -639,8 +721,24 @@ class ThemeEvaluationIntegrationTest {
 
         // Xác nhận đánh giá cuối năm: chốt cả phiếu; kết quả ngày đổi sau đó không đổi phiếu
         evaluationService.confirm(teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động.");
+        YearEndSheetResponse presentationAtConfirmation = sheetService.get(principal, yearEval);
+        jdbc.update(
+                "UPDATE user_accounts SET full_name='Tên đã đổi' WHERE id IN (?, ?)",
+                teacher.userId(),
+                principal.userId());
+        jdbc.update(
+                "UPDATE school_year_age_group_members SET name=name || ' đổi sau xác nhận'"
+                        + " WHERE school_year_id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        jdbc.update("UPDATE health_measurements SET weight_kg=20 WHERE child_id=?", kid1);
+        entityManager.flush();
+        entityManager.clear();
         result(kid1, classA, "2026-10-20", "k8", "", String.valueOf(goal2));
         YearEndSheetResponse frozen = sheetService.get(principal, yearEval);
+        assertThat(frozen.ageGroupName()).isEqualTo(presentationAtConfirmation.ageGroupName());
+        assertThat(frozen.teachers()).isEqualTo(presentationAtConfirmation.teachers());
+        assertThat(frozen.principal()).isEqualTo(presentationAtConfirmation.principal());
+        assertThat(frozen.measurement()).isEqualTo(presentationAtConfirmation.measurement());
         assertThat(frozen.canEdit()).isFalse();
         assertThat(frozen.domains().getFirst().goals())
                 .extracting(SheetGoal::met)
@@ -916,6 +1014,66 @@ class ThemeEvaluationIntegrationTest {
                 classA);
         assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
                 .isEqualTo("vp-t");
+    }
+
+    @Test
+    void transferredChildCanFinishOldGoalsButCannotAddUnlearnedGoals() {
+        jdbc.update("UPDATE enrollments SET valid_to='2026-10-15' WHERE child_id=?", kid1);
+        jdbc.update(
+                "INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,'2026-10-16')", kid1, classB);
+        var before = service.get(teacher, classA, 9201L);
+        assertThat(row(before, kid1).historyStatus()).isEqualTo("TRANSFERRED");
+        assertThat(row(before, kid1).historical()).isTrue();
+        assertThat(row(before, kid1).cells().getFirst().canEdit()).isTrue();
+        service.save(
+                teacher, new ThemeEvaluationRequest(classA, 9201L, "", List.of(new CellInput(kid1, oldGoal1, false))));
+        assertThat(row(service.get(teacher, classA, 9201L), kid1)
+                        .cells()
+                        .getFirst()
+                        .met())
+                .isFalse();
+        long unlearned = jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE text='MT chủ đề sau'", Long.class);
+        tick(9304, unlearned, 9201);
+        var unlearnedCell = row(service.get(teacher, classA, 9201L), kid1).cells().stream()
+                .filter(c -> c.goalId().equals(unlearned))
+                .findFirst()
+                .orElseThrow();
+        assertThat(unlearnedCell.canEdit()).isFalse();
+        expectCode(
+                () -> service.save(
+                        teacher,
+                        new ThemeEvaluationRequest(classA, 9201L, "", List.of(new CellInput(kid1, unlearned, true)))),
+                ApiCode.THEME_EVALUATION_CELL_INVALID);
+        service.save(
+                teacher,
+                new ThemeEvaluationRequest(
+                        classA, 9201L, "Ghi chú lớp", List.of(new CellInput(kid2, oldGoal1, false))));
+        jdbc.update("UPDATE enrollments SET valid_to='2026-10-15' WHERE child_id=?", kid2);
+        jdbc.update(
+                "UPDATE children SET status='LEFT',left_reason='Kiểm thử nghỉ học',left_on='2026-10-16' WHERE id=?",
+                kid2);
+        assertThat(row(service.get(teacher, classA, 9201L), kid2).historyStatus())
+                .isEqualTo("LEFT_SCHOOL");
+        assertThat(row(service.get(teacher, classA, 9201L), kid2).cells())
+                .allMatch(c -> !Boolean.TRUE.equals(c.canEdit()));
+        expectCode(
+                () -> service.save(
+                        teacher,
+                        new ThemeEvaluationRequest(classA, 9201L, "", List.of(new CellInput(kid2, oldGoal1, true)))),
+                ApiCode.THEME_EVALUATION_CELL_INVALID);
+    }
+
+    @Test
+    void confirmedThemeRefreshesOnlyDepartureLabels() {
+        service.confirm(teacher, new ThemeEvaluationRequest(classA, 9201L, "", List.of()));
+        var before = row(service.get(teacher, classA, 9201L), kid1);
+        jdbc.update("UPDATE enrollments SET valid_to='2026-10-15' WHERE child_id=?", kid1);
+        jdbc.update(
+                "INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,'2026-10-16')", kid1, classB);
+        var after = row(service.get(teacher, classA, 9201L), kid1);
+        assertThat(after.historyStatus()).isEqualTo("TRANSFERRED");
+        assertThat(after.cells()).isEqualTo(before.cells());
+        assertThat(after.rate()).isEqualTo(before.rate());
     }
 
     private static ChildRow row(ThemeEvaluationResponse view, long childId) {

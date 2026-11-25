@@ -1,0 +1,101 @@
+﻿case,metric,in_prompt,expected_independent,match
+01-thang-day-du,"present_days",21,21,KHỚP
+01-thang-day-du,"observed_days",20,20,KHỚP
+01-thang-day-du,"flag_count",5,5,KHỚP
+01-thang-day-du,"lunch_an_het",16,16,KHỚP
+01-thang-day-du,"goal_dat:MT3 – Trẻ nhảy bật xa",6,6,KHỚP
+01-thang-day-du,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",4,4,KHỚP
+01-thang-day-du,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",11,11,KHỚP
+01-thang-day-du,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",3,3,KHỚP
+01-thang-day-du,"goal_dat:MT9 – Trẻ nhận biết màu sắc",8,8,KHỚP
+01-thang-day-du,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",4,4,KHỚP
+02-thang-it-du-lieu,"present_days",4,4,KHỚP
+02-thang-it-du-lieu,"observed_days",2,2,KHỚP
+02-thang-it-du-lieu,"flag_count",0,0,KHỚP
+02-thang-it-du-lieu,"lunch_an_het",1,1,KHỚP
+02-thang-it-du-lieu,"goal_dat:MT3 – Trẻ nhảy bật xa",0,0,KHỚP
+02-thang-it-du-lieu,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",1,1,KHỚP
+02-thang-it-du-lieu,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",1,1,KHỚP
+02-thang-it-du-lieu,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",0,0,KHỚP
+02-thang-it-du-lieu,"goal_dat:MT9 – Trẻ nhận biết màu sắc",2,2,KHỚP
+02-thang-it-du-lieu,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",0,0,KHỚP
+03-thang-nghi-nhieu,"present_days",2,2,KHỚP
+03-thang-nghi-nhieu,"observed_days",2,2,KHỚP
+03-thang-nghi-nhieu,"flag_count",0,0,KHỚP
+03-thang-nghi-nhieu,"lunch_an_het",1,1,KHỚP
+03-thang-nghi-nhieu,"goal_dat:MT3 – Trẻ nhảy bật xa",1,1,KHỚP
+03-thang-nghi-nhieu,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",0,0,KHỚP
+03-thang-nghi-nhieu,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",2,2,KHỚP
+03-thang-nghi-nhieu,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",0,0,KHỚP
+03-thang-nghi-nhieu,"goal_dat:MT9 – Trẻ nhận biết màu sắc",2,2,KHỚP
+03-thang-nghi-nhieu,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",0,0,KHỚP
+04-thang-khong-co-du-lieu,"present_days",0,0,KHỚP
+04-thang-khong-co-du-lieu,"observed_days",0,0,KHỚP
+04-thang-khong-co-du-lieu,"flag_count",0,0,KHỚP
+04-thang-khong-co-du-lieu,"lunch_an_het",0,0,KHỚP
+04-thang-khong-co-du-lieu,"goal_dat:MT3 – Trẻ nhảy bật xa",0,0,KHỚP
+04-thang-khong-co-du-lieu,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",0,0,KHỚP
+04-thang-khong-co-du-lieu,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",0,0,KHỚP
+04-thang-khong-co-du-lieu,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",0,0,KHỚP
+04-thang-khong-co-du-lieu,"goal_dat:MT9 – Trẻ nhận biết màu sắc",0,0,KHỚP
+04-thang-khong-co-du-lieu,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",0,0,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"present_days",20,20,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"observed_days",16,16,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"flag_count",8,8,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"lunch_an_het",11,11,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"goal_dat:MT3 – Trẻ nhảy bật xa",7,7,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",2,2,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",7,7,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",3,3,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"goal_dat:MT9 – Trẻ nhận biết màu sắc",10,10,KHỚP
+05-nhan-xet-co-ten-sinh-nhat-sdt,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",3,3,KHỚP
+06-nhan-xet-co-ten-ban-khac,"present_days",20,20,KHỚP
+06-nhan-xet-co-ten-ban-khac,"observed_days",20,20,KHỚP
+06-nhan-xet-co-ten-ban-khac,"flag_count",7,7,KHỚP
+06-nhan-xet-co-ten-ban-khac,"lunch_an_het",16,16,KHỚP
+06-nhan-xet-co-ten-ban-khac,"goal_dat:MT3 – Trẻ nhảy bật xa",6,6,KHỚP
+06-nhan-xet-co-ten-ban-khac,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",3,3,KHỚP
+06-nhan-xet-co-ten-ban-khac,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",12,12,KHỚP
+06-nhan-xet-co-ten-ban-khac,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",1,1,KHỚP
+06-nhan-xet-co-ten-ban-khac,"goal_dat:MT9 – Trẻ nhận biết màu sắc",7,7,KHỚP
+06-nhan-xet-co-ten-ban-khac,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",4,4,KHỚP
+07-chen-lenh,"present_days",20,20,KHỚP
+07-chen-lenh,"observed_days",20,20,KHỚP
+07-chen-lenh,"flag_count",6,6,KHỚP
+07-chen-lenh,"lunch_an_het",15,15,KHỚP
+07-chen-lenh,"goal_dat:MT3 – Trẻ nhảy bật xa",16,16,KHỚP
+07-chen-lenh,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",0,0,KHỚP
+07-chen-lenh,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",10,10,KHỚP
+07-chen-lenh,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",2,2,KHỚP
+07-chen-lenh,"goal_dat:MT9 – Trẻ nhận biết màu sắc",10,10,KHỚP
+07-chen-lenh,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",2,2,KHỚP
+08-nhan-xet-co-tu-chan-doan,"present_days",20,20,KHỚP
+08-nhan-xet-co-tu-chan-doan,"observed_days",18,18,KHỚP
+08-nhan-xet-co-tu-chan-doan,"flag_count",5,5,KHỚP
+08-nhan-xet-co-tu-chan-doan,"lunch_an_het",15,15,KHỚP
+08-nhan-xet-co-tu-chan-doan,"goal_dat:MT3 – Trẻ nhảy bật xa",10,10,KHỚP
+08-nhan-xet-co-tu-chan-doan,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",3,3,KHỚP
+08-nhan-xet-co-tu-chan-doan,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",8,8,KHỚP
+08-nhan-xet-co-tu-chan-doan,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",3,3,KHỚP
+08-nhan-xet-co-tu-chan-doan,"goal_dat:MT9 – Trẻ nhận biết màu sắc",9,9,KHỚP
+08-nhan-xet-co-tu-chan-doan,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",2,2,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"present_days",83,83,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"observed_days",73,73,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"flag_count",24,24,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"lunch_an_het",60,60,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"goal_dat:MT3 – Trẻ nhảy bật xa",36,36,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",8,8,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",36,36,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",6,6,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"goal_dat:MT9 – Trẻ nhận biết màu sắc",28,28,KHỚP
+09-hoc-ky-co-nhan-xet-thang,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",14,14,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"present_days",188,188,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"observed_days",162,162,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"flag_count",49,49,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"lunch_an_het",126,126,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"goal_dat:MT3 – Trẻ nhảy bật xa",68,68,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"goal_chua_dat:MT3 – Trẻ nhảy bật xa",34,34,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"goal_dat:MT7 – Trẻ kể chuyện theo tranh",69,69,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"goal_chua_dat:MT7 – Trẻ kể chuyện theo tranh",27,27,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"goal_dat:MT9 – Trẻ nhận biết màu sắc",77,77,KHỚP
+10-cuoi-nam-nhieu-nhan-xet,"goal_chua_dat:MT9 – Trẻ nhận biết màu sắc",21,21,KHỚP

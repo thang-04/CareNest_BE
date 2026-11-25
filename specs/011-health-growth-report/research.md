@@ -11,6 +11,11 @@
 - LMS: z = ((x/M)^L − 1)/(L·S). W/A dùng giới hạn đuôi của WHO ngoài ±3SD như BMI (chỉ số theo cân nặng); H/A có L = 1 ⇒ z = (x/M − 1)/S, không giới hạn đuôi (cách WHO tính chiều dài/chiều cao).
 - Z làm tròn 2 chữ số rồi so ngưỡng; tuổi tháng tròn tại ngày đo (như HLT-18). Trẻ < 24 tháng coi là đo nằm (hệ thống không ghi cách đo).
 
+## Vòng đầu theo tuổi (thêm 22/11/2026)
+- Nguồn: https://www.who.int/tools/child-growth-standards/standards/head-circumference-for-age, bảng z-score Excel theo tháng `hcfa-boys-0-5-zscores.xlsx`, `hcfa-girls-0-5-zscores.xlsx` (WHO Child Growth Standards 2006, 0–60 tháng), tải 22/11/2026.
+- Kết quả `src/main/resources/health/who-head-circumference-for-age.csv` (L = 1 mọi tháng). Kiểm: −2SD, +2SD tính từ L, M, S làm tròn 1 chữ số khớp cột SD2neg, SD2 của WHO ở cả 122 dòng.
+- Phiếu khám dùng −2SD..+2SD làm khoảng tham khảo (`WhoHeadCircumferenceForAge`); BE giả FE: `src/services/children/mock/whoHeadCircumferenceForAge.js` sinh từ CSV.
+
 ## Phương án đã loại
 - Bảng báo cáo lưu sẵn theo tháng: lệch khi sửa số đo, thêm migration.
 - Đếm trẻ theo enrollment ngày cuối tháng: lệch với danh sách lớp của đợt/kỳ (vắng, nháp).

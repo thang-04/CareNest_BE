@@ -137,6 +137,26 @@ class ChildProfileChangeRequestServiceImplTest {
     }
 
     @Test
+    @DisplayName("CHD-11: GV gửi sửa khai báo ⇒ thông báo ghi \"đề nghị sửa khai báo ăn và sức khỏe\"")
+    void declarationRequestNotificationUsesMealAndHealthName() {
+        given(assignmentService.findPrincipalIds(TODAY)).willReturn(Set.of(9L));
+        var declaration = new com.carenest.dto.child.HealthDeclarationRequest(null, "Phụ huynh báo dị ứng");
+
+        service.submit(
+                TEACHER,
+                CHILD_ID,
+                new ChildProfileChangeCreateRequest(ProfileChangeKind.HEALTH_DECLARATION, null, declaration));
+
+        verify(notificationService)
+                .notifyUsers(
+                        eq(Set.of(9L)),
+                        eq(NotificationType.CHILD_PROFILE_CHANGE_REQUESTED),
+                        any(),
+                        org.mockito.ArgumentMatchers.contains("đề nghị sửa khai báo ăn và sức khỏe của"),
+                        eq(CHILD_ID));
+    }
+
+    @Test
     @DisplayName("CHD-11: HT/PHT không gửi yêu cầu (sửa trực tiếp) ⇒ 403")
     void leaderCannotSubmit() {
         expectCode(

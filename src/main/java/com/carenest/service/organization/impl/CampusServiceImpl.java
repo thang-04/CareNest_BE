@@ -32,6 +32,7 @@ import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,13 +88,15 @@ public class CampusServiceImpl implements CampusService {
             Long yearId = resolveSchoolYearId(schoolYearId);
             Map<Long, Long> classCounts =
                     yearId == null ? Map.of() : toMap(campusRepository.countClassesByCampus(yearId));
-            Map<Long, Long> childCounts =
-                    yearId == null ? Map.of() : toMap(campusRepository.countChildrenByCampus(yearId, today));
+            Map<Long, Long> childCounts = yearId == null
+                    ? Map.of()
+                    : toMap(campusRepository.countChildrenByCampus(yearId, countDate(yearId, today)));
             Map<Long, List<StaffBriefResponse>> vicePrincipals = campusStaff(today, StaffRole.VICE_PRINCIPAL);
             Map<Long, SchoolYearRepository.CampusSnapshot> snapshot = campusSnapshot(yearId);
             // V151: chỉ điểm trường thuộc năm đang xem.
             Set<Long> yearCampuses = yearCampusIds(yearId);
             Map<Long, CampusRepository.YearCampusInfo> yearInfo = yearInfo(yearId, snapshot);
+            Long yearMainId = yearId == null ? null : yearMainId(yearId);
             List<CampusResponse> response = campuses.stream()
                     .filter(c -> yearCampuses == null || yearCampuses.contains(c.getId()))
                     // Năm đã kết thúc: chỉ điểm trường có lúc kết thúc năm, thông tin như bản chụp
@@ -107,7 +110,9 @@ public class CampusServiceImpl implements CampusService {
                                                     vicePrincipals.getOrDefault(c.getId(), List.of())),
                                             yearInfo),
                                     snapshot)
-                            .withDeleteBlockedReason(deleteBlockedReason(c, yearId)))
+                            .withDeleteBlockedReason(deleteBlockedReason(c, yearId, yearMainId)))
+                    // Điểm trường chính của năm đang xem đứng đầu
+                    .sorted(Comparator.comparing((CampusResponse r) -> !r.isMain()))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -130,6 +135,8 @@ public class CampusServiceImpl implements CampusService {
             if (yearId != null && !yearCampusIds(yearId).contains(campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
             }
+            // CFG-YR-02: năm đã qua ngày kết thúc ⇒ trẻ, GV tính tại ngày kết thúc năm
+            LocalDate countDate = yearId == null ? today : countDate(yearId, today);
             List<Classroom> yearClasses = yearId == null
                     ? List.of()
                     : classroomRepository.findAllByCampusIdAndSchoolYearIdOrderByNameAsc(campusId, yearId);
@@ -137,7 +144,7 @@ public class CampusServiceImpl implements CampusService {
                     ? Map.of()
                     : classroomRepository
                             .countActiveChildren(
-                                    yearClasses.stream().map(Classroom::getId).toList(), today)
+                                    yearClasses.stream().map(Classroom::getId).toList(), countDate)
                             .stream()
                             .collect(Collectors.toMap(
                                     ClassroomRepository.ClassroomCount::getClassroomId,
@@ -147,7 +154,7 @@ public class CampusServiceImpl implements CampusService {
                     ? Map.of()
                     : staffAssignmentRepository
                             .findCurrentTeachers(
-                                    yearClasses.stream().map(Classroom::getId).toList(), today)
+                                    yearClasses.stream().map(Classroom::getId).toList(), countDate)
                             .stream()
                             .filter(StaffAssignment::isHomeroom)
                             .collect(Collectors.toMap(
@@ -171,7 +178,7 @@ public class CampusServiceImpl implements CampusService {
             List<CampusDetailResponse.KitchenRoom> kitchenRooms = kitchenRooms(yearId, campusId);
             long childCount = yearId == null
                     ? 0
-                    : toMap(campusRepository.countChildrenByCampus(yearId, today))
+                    : toMap(campusRepository.countChildrenByCampus(yearId, countDate))
                             .getOrDefault(campusId, 0L);
             List<StaffBriefResponse> vicePrincipals =
                     campusStaff(today, StaffRole.VICE_PRINCIPAL).getOrDefault(campusId, List.of());
@@ -179,7 +186,7 @@ public class CampusServiceImpl implements CampusService {
                     campusStaff(today, StaffRole.KITCHEN_STAFF).getOrDefault(campusId, List.of());
             List<StaffBriefResponse> teachers = yearId == null
                     ? List.of()
-                    : campusRepository.findActiveClassroomStaff(campusId, yearId, today).stream()
+                    : campusRepository.findActiveClassroomStaff(campusId, yearId, countDate).stream()
                             .filter(s -> StaffRole.TEACHER.name().equals(s.getStaffRole()))
                             .map(s -> new StaffBriefResponse(s.getUserId(), s.getFullName()))
                             .distinct()
@@ -219,17 +226,20 @@ public class CampusServiceImpl implements CampusService {
             if (campusRepository.existsByNameIgnoreCase(data.name())) {
                 throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
             }
-            Campus campus = Campus.create(data.code(), data.name(), data.shortName(), data.address(), data.phone());
-            // Trường có đúng một điểm trường chính; điểm trường đầu tiên luôn là điểm chính
-            boolean hasMain = campusRepository.findFirstByMainTrue().isPresent();
-            if (Boolean.TRUE.equals(data.isMain()) || !hasMain) {
-                unsetCurrentMain();
-                campus.markMain(true);
+            if (campusRepository.existsShortName(data.shortName(), 0L)) {
+                throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
             }
+            Campus campus = Campus.create(data.code(), data.name(), data.shortName(), data.address(), data.phone());
+            // Mỗi năm có đúng một điểm trường chính (V180); điểm trường đầu tiên của năm luôn là điểm chính
+            boolean hasMain =
+                    yearId == null ? campusRepository.findFirstByMainTrue().isPresent() : yearMainId(yearId) != null;
             campus = campusRepository.save(campus);
             // Cần chốt 22/10/2026: thêm ở năm nào chỉ năm đó có; năm tạo sau chép từ năm này
             if (yearId != null) {
                 campusRepository.addToYear(yearId, campus.getId());
+            }
+            if (Boolean.TRUE.equals(data.isMain()) || !hasMain) {
+                markMain(campus, yearId);
             }
             log.info("{}|campusId={}|END", logPrefix, campus.getId());
             return campusMapper.toResponse(campus, 0, 0, List.of());
@@ -255,7 +265,19 @@ public class CampusServiceImpl implements CampusService {
             if (schoolYearId != null && !inYear) {
                 throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
             }
-            // Cần chốt 22/10/2026: sửa ở năm nào chỉ năm đó đổi; mã, tên không trùng trong cùng năm
+            // Mã, tên và tên ngắn là định danh toàn trường, kể cả điểm trường đang ngừng hoạt động.
+            // Không cho trùng trong bản thiết lập năm học, vì khi kích hoạt lại sẽ không thể phân biệt.
+            if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
+                throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
+            }
+            if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
+                throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
+            }
+            if (campusRepository.existsShortName(data.shortName(), campusId)) {
+                throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+            }
+            // Cần chốt 22/10/2026: sửa ở năm nào chỉ năm đó đổi. Các snapshot trong cùng
+            // năm cũng phải khác nhau, vì đây là dữ liệu người dùng nhìn thấy ở năm đó.
             if (inYear) {
                 if (campusRepository.existsCodeInYear(yearId, campusId, data.code())) {
                     throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
@@ -263,10 +285,14 @@ public class CampusServiceImpl implements CampusService {
                 if (campusRepository.existsNameInYear(yearId, campusId, data.name())) {
                     throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
                 }
+                if (campusRepository.existsShortNameInYear(yearId, campusId, data.shortName())) {
+                    throw GlobalException.of(ApiCode.CAMPUS_SHORT_NAME_EXISTS);
+                }
                 campusRepository.updateYearInfo(
                         yearId, campusId, data.code(), data.name(), data.shortName(), data.address(), data.phone());
             }
-            if (campus.isMain() && Boolean.FALSE.equals(data.isMain())) {
+            boolean main = inYear ? campusId.equals(yearMainId(yearId)) : campus.isMain();
+            if (main && Boolean.FALSE.equals(data.isMain())) {
                 throw GlobalException.of(ApiCode.MAIN_CAMPUS_REQUIRED);
             }
             // Thông tin chung (module khác đọc) theo năm đang hoạt động; sửa ở năm sắp diễn ra không đổi năm này
@@ -276,17 +302,11 @@ public class CampusServiceImpl implements CampusService {
                             .map(y -> y.getStatus() == SchoolYearStatus.ACTIVE)
                             .orElse(true);
             if (!inYear || activeYear) {
-                if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
-                    throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
-                }
-                if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
-                    throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
-                }
                 campus.changeInfo(data.code(), data.name(), data.shortName(), data.address(), data.phone());
             }
-            if (Boolean.TRUE.equals(data.isMain()) && !campus.isMain()) {
-                unsetCurrentMain();
-                campus.markMain(true);
+            // Đổi điểm chính ở năm nào chỉ năm đó đổi; bảng chung theo năm đang hoạt động
+            if (Boolean.TRUE.equals(data.isMain()) && !main) {
+                markMain(campus, inYear ? yearId : null);
             }
             campusRepository.flush();
             CampusResponse response = withYearInfo(toResponseWithStats(campus), yearInfo(yearId, null));
@@ -306,10 +326,10 @@ public class CampusServiceImpl implements CampusService {
         try {
             checkPrincipal(currentUser);
             Campus campus = findCampus(campusId);
-            if (campus.isMain()) {
+            Long yearId = openYearId(schoolYearId);
+            if (campus.isMain() || (yearId != null && campusId.equals(yearMainId(yearId)))) {
                 throw GlobalException.of(ApiCode.MAIN_CAMPUS_NOT_DELETABLE);
             }
-            Long yearId = openYearId(schoolYearId);
             if (schoolYearId != null
                     && (yearId == null || !yearCampusIds(yearId).contains(campusId))) {
                 throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
@@ -369,7 +389,7 @@ public class CampusServiceImpl implements CampusService {
                     : CampusStatus.ACTIVE.name().equals(current);
             // Cần chốt 19/11/2026: ngừng / hoạt động lại theo năm; chặn như cũ nhưng xét lớp, PHT của năm đó
             if (status == CampusStatus.INACTIVE && activeNow) {
-                if (campus.isMain()) {
+                if (campusId.equals(yearMainId(yearId))) {
                     throw GlobalException.of(ApiCode.MAIN_CAMPUS_NOT_DEACTIVATABLE);
                 }
                 if (campusRepository.countClassesInYear(campusId, yearId) > 0) {
@@ -503,6 +523,14 @@ public class CampusServiceImpl implements CampusService {
                 r.vicePrincipals());
     }
 
+    private LocalDate countDate(Long yearId, LocalDate today) {
+        return schoolYearRepository
+                .findById(yearId)
+                .map(SchoolYear::getEndDate)
+                .filter(end -> end.isBefore(today))
+                .orElse(today);
+    }
+
     private Long resolveSchoolYearId(Long schoolYearId) {
         if (schoolYearId != null) {
             if (!schoolYearRepository.existsById(schoolYearId)) {
@@ -554,8 +582,8 @@ public class CampusServiceImpl implements CampusService {
     }
 
     /** Lý do chưa xóa được điểm trường khỏi năm đang xem (để web giải thích); null = xóa được. */
-    private String deleteBlockedReason(Campus campus, Long yearId) {
-        if (campus.isMain()) {
+    private String deleteBlockedReason(Campus campus, Long yearId, Long yearMainId) {
+        if (campus.isMain() || campus.getId().equals(yearMainId)) {
             return "Điểm trường chính, không xóa được";
         }
         return yearId != null && usedInOtherYears(campus.getId(), yearId)
@@ -586,7 +614,10 @@ public class CampusServiceImpl implements CampusService {
                 i.getShortName(),
                 i.getAddress(),
                 i.getPhone(),
-                r.isMain(),
+                // V180: điểm trường chính theo năm; năm chưa đặt ⇒ theo bảng chung
+                info.values().stream().anyMatch(x -> Boolean.TRUE.equals(x.getMain()))
+                        ? Boolean.TRUE.equals(i.getMain())
+                        : r.isMain(),
                 // V154: trạng thái theo năm
                 i.getStatus() == null ? r.status() : CampusStatus.valueOf(i.getStatus()),
                 r.classCount(),
@@ -694,6 +725,32 @@ public class CampusServiceImpl implements CampusService {
                 campusStaff(today, StaffRole.VICE_PRINCIPAL).getOrDefault(campus.getId(), List.of()));
     }
 
+    // Điểm trường chính của năm (V180); năm chưa đặt ⇒ theo bảng chung
+    private Long yearMainId(Long yearId) {
+        return campusRepository
+                .findYearMainCampusId(yearId)
+                .or(() -> campusRepository.findFirstByMainTrue().map(Campus::getId))
+                .orElse(null);
+    }
+
+    // Đặt điểm trường chính của năm; năm đang hoạt động (hoặc không theo năm, hoặc trường chưa có điểm chính) thì cả
+    // bảng chung, module khác đọc campuses.is_main
+    private void markMain(Campus campus, Long yearId) {
+        if (yearId != null) {
+            campusRepository.clearYearMain(yearId, campus.getId());
+            campusRepository.markYearMain(yearId, campus.getId());
+        }
+        boolean activeYear = yearId == null
+                || schoolYearRepository
+                        .findById(yearId)
+                        .map(y -> y.getStatus() == SchoolYearStatus.ACTIVE)
+                        .orElse(false);
+        if (activeYear || campusRepository.findFirstByMainTrue().isEmpty()) {
+            unsetCurrentMain();
+            campus.markMain(true);
+        }
+    }
+
     private void unsetCurrentMain() {
         campusRepository.findFirstByMainTrue().ifPresent(main -> {
             main.markMain(false);
@@ -716,11 +773,15 @@ public class CampusServiceImpl implements CampusService {
                 ? null
                 : request.phone().replaceAll("[\\s.\\-]", "").replaceFirst("^\\+?84", "0");
         return new CampusRequest(
-                request.code().trim(),
+                normalizeCode(request.code()),
                 DisplayNames.normalize(request.name()),
-                request.shortName().trim(),
+                DisplayNames.normalize(request.shortName()),
                 request.address().trim(),
                 phone,
                 request.isMain());
+    }
+
+    private static String normalizeCode(String code) {
+        return DisplayNames.normalize(code).replace(" ", "");
     }
 }

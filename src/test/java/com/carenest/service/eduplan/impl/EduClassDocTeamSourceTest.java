@@ -20,7 +20,6 @@ import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
@@ -73,6 +72,30 @@ class EduClassDocTeamSourceTest {
             new ClassroomInfoResponse(1L, "Lớp mẫu", 2L, 3L, null, null, null, 4L, List.of(), null, null);
 
     @Test
+    void summariesCarryThemeNameAndNumberByStartDate() {
+        var late = mock(com.carenest.entity.eduplan.EduTheme.class);
+        var early = mock(com.carenest.entity.eduplan.EduTheme.class);
+        var undated = mock(com.carenest.entity.eduplan.EduTheme.class);
+        when(late.getId()).thenReturn(31L);
+        when(late.getName()).thenReturn("Tết");
+        when(late.getStartDate()).thenReturn(LocalDate.of(2027, 1, 4));
+        when(late.getEndDate()).thenReturn(LocalDate.of(2027, 1, 29));
+        when(early.getStartDate()).thenReturn(LocalDate.of(2026, 9, 7));
+        when(early.getEndDate()).thenReturn(LocalDate.of(2026, 10, 2));
+        when(undated.getStartDate()).thenReturn(null);
+        when(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(20L)).thenReturn(List.of(undated, late, early));
+        var mapper = new tools.jackson.databind.ObjectMapper();
+        var theme = mapper.createObjectNode().put("yearPlanId", "20").put("themeId", "31");
+        var branch = mapper.createObjectNode().put("yearPlanId", "20");
+
+        service.putThemeNames(List.of(theme, branch));
+
+        assertThat(theme.path("themeName").asString()).isEqualTo("Tết");
+        assertThat(theme.path("themeNo").asInt()).isEqualTo(2);
+        assertThat(branch.has("themeName")).isFalse();
+    }
+
+    @Test
     void classDraftCannotReorderSourceThemesEvenWhenDatesAreUnchanged() {
         var first = mock(com.carenest.entity.eduplan.EduTheme.class);
         var second = mock(com.carenest.entity.eduplan.EduTheme.class);
@@ -95,7 +118,7 @@ class EduClassDocTeamSourceTest {
     void calendarPreviewRejectsApprovedAnnualAsClassSource() {
         var user = new CurrentUser(10L, "sample", "sample", "Ví dụ", "", Set.of(CareNestRole.TEACHER));
         EduPlan annual = plan(EduPlanLevel.SCHOOL_YEAR);
-        when(accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW)).thenReturn(true);
+        when(accessPolicy.canView(user)).thenReturn(true);
         when(classroomService.findClassroomInfo(1L)).thenReturn(Optional.of(classroom));
         // Quyền ghi hồ sơ lớp hiện chỉ theo GV chủ nhiệm đang hiệu lực
         when(clock.getZone()).thenReturn(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
@@ -103,6 +126,7 @@ class EduClassDocTeamSourceTest {
         when(staffAssignmentService.findHomeroomTeacherIds(eq(List.of(1L)), any()))
                 .thenReturn(java.util.Map.of(1L, 10L));
         when(yearPlanRepository.findById(20L)).thenReturn(Optional.of(annual));
+        teacherAuthorsBranch();
 
         assertThatThrownBy(() ->
                         service.previewClassCalendar(user, new ClassCalendarPreviewRequest(1L, 20L, -1L, null, null)))
@@ -188,12 +212,21 @@ class EduClassDocTeamSourceTest {
         when(clock.instant()).thenReturn(Instant.parse("2026-11-09T00:00:00Z"));
         when(staffAssignmentService.findHomeroomTeacherIds(eq(List.of(1L)), any()))
                 .thenReturn(java.util.Map.of(1L, 11L));
+        teacherAuthorsBranch();
 
-        assertThatThrownBy(() ->
-                        ReflectionTestUtils.invokeMethod(service, "requireClassDocAuthor", nonHomeroom, classroom))
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                        service, "requireClassDocAuthor", nonHomeroom, classroom, EduClassDoc.BRANCH))
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.CLASS_DOC_TEACHER_ONLY);
+    }
+
+    // EDU-110 (11): người soạn hồ sơ lớp theo policy; GV soạn ⇒ giữ luật GV chủ nhiệm của lớp
+    private void teacherAuthorsBranch() {
+        when(eduWorkflowService.loadPolicy(EduClassDoc.BRANCH))
+                .thenReturn(new EduWorkflowPolicy.RolePolicy(
+                        List.of(EduWorkflowPolicy.Role.TEACHER),
+                        List.of(EduWorkflowPolicy.Role.TEAM_LEADER, EduWorkflowPolicy.Role.VICE_PRINCIPAL)));
     }
 
     private static EduPlan plan(EduPlanLevel level) {
