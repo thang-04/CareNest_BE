@@ -148,7 +148,8 @@ class ChildSchoolYearIntegrationTest {
 
         List<ChildSchoolYearResponse> years = service.getChildSchoolYears(parent, child);
 
-        assertThat(years).extracting(ChildSchoolYearResponse::schoolYearId)
+        assertThat(years)
+                .extracting(ChildSchoolYearResponse::schoolYearId)
                 .containsExactly(plannedYear, activeYear, oldYear);
         assertThat(years.get(0).className()).isEqualTo("Chồi 1");
         assertThat(years.get(0).status()).isEqualTo(SchoolYearStatus.PLANNED);
@@ -204,7 +205,8 @@ class ChildSchoolYearIntegrationTest {
 
     private static CurrentUser user(long id) {
         Set<Permission> permissions = TestPermissions.defaultsOf(CareNestRole.PARENT);
-        return new CurrentUser(id, "kc-" + id, "user" + id, "User " + id, null, Set.of(CareNestRole.PARENT), permissions);
+        return new CurrentUser(
+                id, "kc-" + id, "user" + id, "User " + id, null, Set.of(CareNestRole.PARENT), permissions);
     }
 
     private long insertId(String sql) {

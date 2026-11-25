@@ -35,7 +35,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -180,6 +182,8 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                             .stream()
                             .collect(Collectors.toMap(Food::getId, Function.identity()));
             checkFoodsOfSupplier(receipt.getSupplierId(), receipt.getReceivedDate(), receipt.getLines(), foods);
+            // Kiểm lại dưới khóa điểm trường: phiếu khác có thể đã xác nhận cùng số lô từ lúc lưu nháp
+            checkLotNosFree(receipt.getCampusId(), receipt.getLines(), foods);
             confirmInto(receipt, currentUser.userId());
             StockReceiptResponse response = toResponse(currentUser, receipt);
             log.info("{}|END", logPrefix);
@@ -279,6 +283,8 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                 }
             }
             lotRepository.lockCampus(campusId);
+            // Dòng không đạt không thành lô nên không kiểm số lô
+            checkLotNosFree(campusId, passed, foods);
             StockReceipt receipt = StockReceipt.intake(campusId, forecastId, rejected, currentUser.userId());
             String note = request.note() == null ? "" : request.note().trim();
             receipt.changeDraft(request.supplierId(), date, note, passed, currentUser.userId());
@@ -384,8 +390,44 @@ public class StockReceiptServiceImpl implements StockReceiptService {
                 .map(line -> toLine(line, foods.get(line.foodId()), request.receivedDate()))
                 .toList();
         checkFoodsOfSupplier(request.supplierId(), request.receivedDate(), lines, foods);
+        checkLotNosFree(receipt.getCampusId(), lines, foods);
         String note = request.note() == null ? "" : request.note().trim();
         receipt.changeDraft(request.supplierId(), request.receivedDate(), note, lines, userId);
+    }
+
+    // Mỗi dòng phiếu thành một lô nên số lô phải phân biệt được lô: không trùng trong phiếu và không trùng lô đã vào
+    // kho
+    // của điểm trường (cùng thực phẩm, không phân biệt hoa thường). Lô của phiếu đã hủy không tính.
+    private void checkLotNosFree(Long campusId, Collection<StockReceiptLine> lines, Map<Long, Food> foods) {
+        if (lines.isEmpty()) {
+            return;
+        }
+        Set<String> seen = new HashSet<>();
+        for (StockReceiptLine line : lines) {
+            if (!seen.add(lotKey(line.getFoodId(), line.getLotNo()))) {
+                throw GlobalException.of(
+                        ApiCode.STOCK_LOT_NO_DUPLICATED_IN_RECEIPT, line.getLotNo(), foodName(foods, line.getFoodId()));
+            }
+        }
+        Set<Long> foodIds = lines.stream().map(StockReceiptLine::getFoodId).collect(Collectors.toSet());
+        Set<String> lotNos = lines.stream()
+                .map(line -> line.getLotNo().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        for (StockLotRepository.LotKey existing : lotRepository.findConfirmedLotKeys(campusId, foodIds, lotNos)) {
+            if (seen.contains(lotKey(existing.getFoodId(), existing.getLotNo()))) {
+                throw GlobalException.of(
+                        ApiCode.STOCK_LOT_NO_EXISTS, existing.getLotNo(), foodName(foods, existing.getFoodId()));
+            }
+        }
+    }
+
+    private static String lotKey(Long foodId, String lotNo) {
+        return foodId + "|" + lotNo.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String foodName(Map<Long, Food> foods, Long foodId) {
+        Food food = foods.get(foodId);
+        return food == null ? String.valueOf(foodId) : food.getName();
     }
 
     // Thực phẩm của phiếu phải thuộc nhà cung cấp (giá hợp đồng còn hiệu lực tại ngày nhập)

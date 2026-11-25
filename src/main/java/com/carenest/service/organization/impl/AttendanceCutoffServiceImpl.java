@@ -1,5 +1,6 @@
 package com.carenest.service.organization.impl;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.CutoffRequest;
 import com.carenest.dto.organization.CutoffResponse;
 import com.carenest.entity.organization.AttendanceCutoff;
@@ -99,14 +100,66 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     : history.isEmpty()
                             ? AttendanceCutoff.DEFAULT_LATEST_ARRIVAL
                             : history.getFirst().getLatestAfternoonArrival();
-            // ATT-13: giờ đến muộn nhất buổi chiều phải sau giờ chốt
-            if (!latestArrival.isAfter(time)) {
-                throw GlobalException.of(ApiCode.CUTOFF_LATEST_ARRIVAL_INVALID, time);
+            AttendanceCutoff latest = history.isEmpty() ? null : history.getFirst();
+            LocalTime dropoffOpenFrom = scheduleValue(
+                    request.dropoffOpenFrom(),
+                    latest == null ? null : latest.getDropoffOpenFrom(),
+                    AttendanceCutoff.DEFAULT_DROPOFF_OPEN_FROM);
+            LocalTime morningStart = scheduleValue(
+                    request.morningStart(),
+                    latest == null ? null : latest.getMorningStart(),
+                    AttendanceCutoff.DEFAULT_MORNING_START);
+            LocalTime morningEnd = scheduleValue(
+                    request.morningEnd(),
+                    latest == null ? null : latest.getMorningEnd(),
+                    AttendanceCutoff.DEFAULT_MORNING_END);
+            LocalTime afternoonStart = scheduleValue(
+                    request.afternoonStart(),
+                    latest == null ? null : latest.getAfternoonStart(),
+                    AttendanceCutoff.DEFAULT_AFTERNOON_START);
+            LocalTime pickupStart = scheduleValue(
+                    request.pickupStart(),
+                    latest == null ? null : latest.getPickupStart(),
+                    AttendanceCutoff.DEFAULT_PICKUP_START);
+            LocalTime fullDayPickupFrom = scheduleValue(
+                    request.fullDayPickupFrom(),
+                    latest == null ? null : latest.getFullDayPickupFrom(),
+                    AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM);
+            LocalTime pickupEnd = scheduleValue(
+                    request.pickupEnd(),
+                    latest == null ? null : latest.getPickupEnd(),
+                    AttendanceCutoff.DEFAULT_PICKUP_END);
+            LocalTime afternoonEnd = scheduleValue(
+                    request.afternoonEnd(),
+                    latest == null ? null : latest.getAfternoonEnd(),
+                    AttendanceCutoff.DEFAULT_AFTERNOON_END);
+            // PCK-04, ATT-06, ATT-13 (phương án A): mỗi giờ sai thứ tự báo lỗi ở đúng ô
+            List<FieldErrorResponse> violations = DailyScheduleRules.violations(new DailyScheduleRules.Schedule(
+                    time,
+                    latestArrival,
+                    dropoffOpenFrom,
+                    morningStart,
+                    morningEnd,
+                    afternoonStart,
+                    fullDayPickupFrom,
+                    pickupStart,
+                    pickupEnd,
+                    afternoonEnd));
+            if (!violations.isEmpty()) {
+                throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, violations);
             }
             if (!history.isEmpty()
                     && history.getFirst().getCutoffTime().equals(time)
                     && history.getFirst().getEffectiveFrom().equals(request.effectiveFrom())
-                    && history.getFirst().getLatestAfternoonArrival().equals(latestArrival)) {
+                    && history.getFirst().getLatestAfternoonArrival().equals(latestArrival)
+                    && history.getFirst().getDropoffOpenFrom().equals(dropoffOpenFrom)
+                    && history.getFirst().getMorningStart().equals(morningStart)
+                    && history.getFirst().getMorningEnd().equals(morningEnd)
+                    && history.getFirst().getAfternoonStart().equals(afternoonStart)
+                    && history.getFirst().getPickupStart().equals(pickupStart)
+                    && history.getFirst().getFullDayPickupFrom().equals(fullDayPickupFrom)
+                    && history.getFirst().getPickupEnd().equals(pickupEnd)
+                    && history.getFirst().getAfternoonEnd().equals(afternoonEnd)) {
                 throw GlobalException.of(ApiCode.CUTOFF_UNCHANGED);
             }
             // Đổi giờ chốt lùi ngày làm đổi lại đơn nghỉ đã tính theo giờ chốt cũ (ATT-04): lần đặt sau chỉ áp dụng từ
@@ -120,7 +173,16 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                             request.effectiveFrom(),
                             request.note() == null ? "" : request.note().trim(),
                             currentUser.userId())
-                    .withLatestArrival(latestArrival));
+                    .withLatestArrival(latestArrival)
+                    .withDailySchedule(
+                            dropoffOpenFrom,
+                            morningStart,
+                            morningEnd,
+                            afternoonStart,
+                            pickupStart,
+                            fullDayPickupFrom,
+                            pickupEnd,
+                            afternoonEnd));
             // OBS-31: báo PHT, GV, bếp đang phân công khi đổi giờ chốt (lần đặt đầu của năm không báo)
             if (!history.isEmpty()) {
                 notifyCutoffChanged(year, time, request.effectiveFrom());
@@ -144,9 +206,11 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
         notificationService.notifyUsers(
                 staff,
                 NotificationType.CUTOFF_CHANGED,
-                "Đổi giờ chốt điểm danh",
-                "Giờ chốt điểm danh và báo ăn năm học " + year.getName() + " đổi thành " + time + " từ ngày "
-                        + DateTimeFormatter.ofPattern("dd/MM/yyyy").format(from) + ".",
+                "Cập nhật giờ điểm danh và báo ăn",
+                "Cấu hình giờ chốt điểm danh, báo ăn và lịch sinh hoạt năm học " + year.getName()
+                        + " được cập nhật từ ngày "
+                        + DateTimeFormatter.ofPattern("dd/MM/yyyy").format(from)
+                        + ". Giờ chốt là " + time + ".",
                 "/attendance",
                 false);
     }
@@ -187,6 +251,24 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LocalTime> findFullDayPickupFrom(Long schoolYearId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findFullDayPickupFrom|schoolYearId=" + schoolYearId + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<LocalTime> time = attendanceCutoffRepository
+                    .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
+                            schoolYearId, date)
+                    .map(AttendanceCutoff::getFullDayPickupFrom);
+            log.info("{}|END", logPrefix);
+            return time;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private CutoffResponse toResponse(SchoolYear year) {
         List<AttendanceCutoff> rows = attendanceCutoffRepository.findAllBySchoolYearIdOrderByIdDesc(year.getId());
         Set<Long> userIds = rows.stream()
@@ -211,7 +293,15 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     row.getCreatedBy(),
                     row.getCreatedBy() == null ? null : names.get(row.getCreatedBy()),
                     row.getCreatedAt(),
-                    row.getLatestAfternoonArrival()));
+                    row.getLatestAfternoonArrival(),
+                    row.getDropoffOpenFrom(),
+                    row.getMorningStart(),
+                    row.getMorningEnd(),
+                    row.getAfternoonStart(),
+                    row.getPickupStart(),
+                    row.getFullDayPickupFrom(),
+                    row.getPickupEnd(),
+                    row.getAfternoonEnd()));
         }
         LocalTime todayTime = attendanceCutoffRepository
                 .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
@@ -230,7 +320,15 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     latest.userName(),
                     latest.at(),
                     history,
-                    latest.latestAfternoonArrival());
+                    latest.latestAfternoonArrival(),
+                    latest.dropoffOpenFrom(),
+                    latest.morningStart(),
+                    latest.morningEnd(),
+                    latest.afternoonStart(),
+                    latest.pickupStart(),
+                    latest.fullDayPickupFrom(),
+                    latest.pickupEnd(),
+                    latest.afternoonEnd());
         }
         return new CutoffResponse(
                 new CutoffResponse.Year(
@@ -243,5 +341,10 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
         return schoolYearRepository
                 .findById(schoolYearId)
                 .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+    }
+
+    private static LocalTime scheduleValue(LocalTime requested, LocalTime previous, LocalTime fallback) {
+        LocalTime value = requested != null ? requested : previous == null ? fallback : previous;
+        return value.withSecond(0).withNano(0);
     }
 }

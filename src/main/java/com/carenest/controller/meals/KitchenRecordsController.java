@@ -6,12 +6,14 @@ import com.carenest.dto.meals.FoodSampleRequest;
 import com.carenest.dto.meals.FoodSampleResponse;
 import com.carenest.dto.meals.KitchenDayResponse;
 import com.carenest.dto.meals.MealPhotoResponse;
+import com.carenest.dto.meals.MealPhotoWeekResponse;
 import com.carenest.dto.meals.MealPhotoWindowResponse;
 import com.carenest.dto.meals.MealPhotoWindowsRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.FoodSampleService;
 import com.carenest.service.meals.KitchenDayService;
 import com.carenest.service.meals.MealPhotoService;
+import com.carenest.service.meals.MealPhotoWeekService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import com.carenest.utils.enums.MealSession;
@@ -53,6 +55,7 @@ public class KitchenRecordsController {
     private final KitchenDayService kitchenDayService;
     private final FoodSampleService foodSampleService;
     private final MealPhotoService mealPhotoService;
+    private final MealPhotoWeekService mealPhotoWeekService;
 
     @GetMapping("/kitchen/day")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'KITCHEN_STAFF')")
@@ -183,6 +186,19 @@ public class KitchenRecordsController {
         List<MealPhotoResponse> photos = mealPhotoService.getPhotos(currentUser, campusId, date);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get meal photos success", photos);
+    }
+
+    @GetMapping("/meal-photos/week")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<MealPhotoWeekResponse>> getPhotoWeek(
+            @RequestParam(required = false) Long campusId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getPhotoWeek|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        MealPhotoWeekResponse week = mealPhotoWeekService.getWeek(currentUser, campusId, weekStart);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get meal photo week success", week);
     }
 
     @GetMapping("/meal-photos/{photoId}/url")

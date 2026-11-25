@@ -77,7 +77,9 @@ class AttendanceServiceImplTest {
                 mock(LeaveRequestRepository.class),
                 List.of(),
                 guardians,
-                mock(NotificationService.class));
+                mock(NotificationService.class),
+                mock(com.carenest.repository.attendance.PickupRecordRepository.class),
+                new EarlyPickupRule(mock(com.carenest.service.organization.AttendanceCutoffService.class)));
         when(classrooms.findClassroomInfo(CLASS))
                 .thenReturn(Optional.of(new ClassroomInfoResponse(
                         CLASS,

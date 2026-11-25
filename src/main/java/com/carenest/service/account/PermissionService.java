@@ -24,6 +24,19 @@ public interface PermissionService {
     RolePermissionResponse updateRolePermissions(
             CurrentUser actor, CareNestRole role, UpdateRolePermissionsRequest request);
 
+    /** EDU-110 WF1: lưu nhiều vai trò trong một giao dịch, tự suy chuỗi soạn/duyệt; trả ma trận như GET. */
+    List<RolePermissionResponse> updateRolePermissionsBulk(
+            CurrentUser actor, com.carenest.dto.account.BulkUpdateRolePermissionsRequest request);
+
+    /** EDU-110 BR4.3: vi phạm luật soạn/duyệt của ô tick hiện tại. */
+    com.carenest.dto.account.EduWorkflowIssuesResponse getEduWorkflowIssues();
+
+    /**
+     * EDU-110 WF2 (BR4.1–4.2): chuyển chuỗi đang chạy sang ô tick 8 mã EDU một lần, ghi lịch sử lý do
+     * {@code EDU-110 chuyển cấu hình} (actor = HT hiệu lực). Trả mô tả kết quả để log; ném lỗi ⇒ hoàn tác.
+     */
+    String migrateEduRoleMatrix(java.time.Instant now);
+
     UserPermissionOverridesResponse getPermissionOverrides(Long userId);
 
     UserPermissionOverridesResponse updatePermissionOverrides(

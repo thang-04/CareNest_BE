@@ -330,8 +330,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ParentWeeklyCommentResponse> listForParent(
-            CurrentUser currentUser, Long childId, Long schoolYearId) {
+    public List<ParentWeeklyCommentResponse> listForParent(CurrentUser currentUser, Long childId, Long schoolYearId) {
         String logPrefix = LOG_PREFIX + "|listForParent|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
@@ -341,14 +340,18 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 throw GlobalException.of(ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
             }
             // Bộ chọn năm App phụ huynh: năm trẻ không học ⇒ như không có năm đó
-            if (schoolYearId != null && childSchoolYearService.findChildYear(childId, schoolYearId).isEmpty()) {
+            if (schoolYearId != null
+                    && childSchoolYearService
+                            .findChildYear(childId, schoolYearId)
+                            .isEmpty()) {
                 throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
             }
-            List<WeeklyComment> sent = commentRepository
-                    .findByChildIdAndStatusOrderByWeekStartDesc(childId, WeeklyCommentStatus.SENT)
-                    .stream()
-                    .filter(c -> schoolYearId == null || schoolYearId.equals(c.getSchoolYearId()))
-                    .toList();
+            List<WeeklyComment> sent =
+                    commentRepository
+                            .findByChildIdAndStatusOrderByWeekStartDesc(childId, WeeklyCommentStatus.SENT)
+                            .stream()
+                            .filter(c -> schoolYearId == null || schoolYearId.equals(c.getSchoolYearId()))
+                            .toList();
             Map<Long, String> teachers = accountService.findFullNames(
                     sent.stream().map(WeeklyComment::getSentBy).distinct().toList());
             Map<Long, ClassroomInfoResponse> classes = new HashMap<>();

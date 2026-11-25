@@ -332,14 +332,12 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
             HealthRecords.Snapshot s = records.load(List.of(childId));
             // HLT-11: phiếu khám công bố khi kết luận; nháp và số đo kỳ cân đo không có phiếu
             HealthMeasurement m = s.results(childId).stream()
-                    .filter(r -> r.getId().equals(resultId)
-                            && r.isExam()
-                            && r.getExamStatus() == HealthExamStatus.CONCLUDED)
+                    .filter(r ->
+                            r.getId().equals(resultId) && r.isExam() && r.getExamStatus() == HealthExamStatus.CONCLUDED)
                     .findFirst()
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND));
-            HealthMeasurementResponse view =
-                    records.views(s, List.of(m), child.dateOfBirth(), child.gender(), false)
-                            .getFirst();
+            HealthMeasurementResponse view = records.views(s, List.of(m), child.dateOfBirth(), child.gender(), false)
+                    .getFirst();
             HealthExamForm exam = s.exam(m);
             HealthCheckCampaign campaign = s.campaign(m.getCampaignId());
             // Không trả phần hành chính (số định danh, địa chỉ, người đi cùng) cho phụ huynh

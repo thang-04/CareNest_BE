@@ -51,11 +51,11 @@ class DevSeedIntegrationTest {
             "notification_email_deliveries",
             // EduDomainBootstrap fills this table at application startup, outside Flyway.
             "edu_plan_defaults",
+            // EduRagSeedLoader nạp kho RAG từ classpath lúc khởi động, ngoài Flyway.
+            "edu_rag_chunks",
             "user_signatures",
             "meal_photos",
             "inspection_sheets",
-            // INS-05: yêu cầu mở ghi ngày cũ phát sinh lúc chạy, gắn với biên bản kiểm thực (không seed)
-            "inspection_day_grants",
             "health_follow_ups",
             "health_follow_up_events",
             "health_follow_up_images",
@@ -63,8 +63,9 @@ class DevSeedIntegrationTest {
             // Nháp gợi ý thực đơn do người dùng tạo lúc chạy; vector món do embedding API sinh lười (AI tắt ⇒ rỗng)
             "menu_ai_drafts",
             "dish_embeddings",
-            // Lịch sử thực phẩm chỉ sinh khi có người sửa thực phẩm lúc chạy
-            "food_history");
+            // Hiệu ứng của đơn nghỉ ghi lúc chạy khi đơn áp vào điểm danh (V196); đơn seed không có dòng nên hủy theo
+            // cách cũ (revertLegacy)
+            "leave_attendance_effects");
 
     @Container
     @ServiceConnection
@@ -133,6 +134,27 @@ class DevSeedIntegrationTest {
         after.remove("flyway_schema_history");
         before.remove("flyway_schema_history");
         assertThat(after).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("Seed yêu cầu mở ghi biên bản không nhân dòng khi có nhiều PHT/hiệu trưởng còn hiệu lực")
+    void inspectionGrantsSeedSurvivesDuplicateActiveAssignments() {
+        String assignments = SCHEMA + ".staff_assignments";
+        jdbc.update("delete from " + SCHEMA + ".inspection_day_grants");
+        jdbc.update("insert into " + assignments + " (user_id, staff_role, campus_id, valid_from) "
+                + "select user_id, staff_role, campus_id, valid_from from " + assignments
+                + " where staff_role in ('VICE_PRINCIPAL', 'PRINCIPAL') and valid_to is null");
+        try {
+            jdbc.update("update " + SCHEMA
+                    + ".flyway_schema_history set checksum = 0 where script like '%R__dev_14_supplier_contracts%'");
+            flyway().migrate();
+
+            assertThat(count("inspection_day_grants")).isPositive();
+        } finally {
+            jdbc.update("delete from " + assignments + " where id in (select id from (select id, row_number() over "
+                    + "(partition by user_id, staff_role, campus_id order by id) rn from " + assignments
+                    + " where staff_role in ('VICE_PRINCIPAL', 'PRINCIPAL')) t where rn > 1)");
+        }
     }
 
     @Test

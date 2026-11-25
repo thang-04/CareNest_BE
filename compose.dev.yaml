@@ -104,6 +104,11 @@ services:
       CARENEST_EMAIL_FROM: ${CARENEST_EMAIL_FROM:-}
       CARENEST_EMAIL_FROM_NAME: ${CARENEST_EMAIL_FROM_NAME:-CareNest}
       CARENEST_WEB_BASE_URL: ${CARENEST_WEB_BASE_URL:-https://dev.carenest.edu.vn}
+      # Trợ lý AI; khóa trống ⇒ AI tắt (AI-03). application.yml đọc CARENEST_AI_* trước, AI_* làm dự phòng
+      CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      CARENEST_AI_API_KEY: ${CARENEST_AI_API_KEY:-}
+      CARENEST_AI_MODEL: ${CARENEST_AI_MODEL:-gemini-2.5-flash}
+      CARENEST_AI_ENABLED: ${CARENEST_AI_ENABLED:-true}
       # AI (ADR-0007): tên biến khớp application.yml carenest.ai; AI_ENABLED=false hoặc thiếu model/key ⇒ phương án không AI (AI-03)
       AI_ENABLED: ${AI_ENABLED:-false}
       AI_MENU_WEEKLY_DEADLINE: ${AI_MENU_WEEKLY_DEADLINE:-30s}

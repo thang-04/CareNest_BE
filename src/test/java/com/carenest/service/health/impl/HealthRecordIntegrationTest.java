@@ -234,16 +234,13 @@ class HealthRecordIntegrationTest {
     void parentSeesConcludedExamForm() {
         long examCampaign = campaign(HealthCheckKind.EXAM, "Khám đầu năm (giả)", "2026-09-10", "2026-09-30");
         long concluded = examResult(examCampaign, "2026-09-15", "98.0", "15.0");
-        jdbc.update(
-                "UPDATE health_measurements SET exam = ?::jsonb WHERE id = ?",
-                """
+        jdbc.update("UPDATE health_measurements SET exam = ?::jsonb WHERE id = ?", """
                 {"admin": {"childIdNumber": "000000000001"},
                  "vitals": {"temperatureC": 37.2, "temperatureStatus": "NORMAL"},
                  "development": {"mental": "YES", "motor": "YES", "autismRisk": ""},
                  "clinical": {"skinColor": "NORMAL"},
                  "conclusion": {"normal": true, "tbRisk": false, "healthIssue": false, "doctorName": "BS. Giả", "parentOpinion": "Gia đình đồng ý (giả)"}}
-                """,
-                concluded);
+                """, concluded);
         long draft = jdbc.queryForObject(
                 "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, note, measured_by, exam,"
                         + " exam_status, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, '{}'::jsonb, 'DRAFT',"
@@ -254,7 +251,8 @@ class HealthRecordIntegrationTest {
                 classA,
                 LocalDate.parse("2026-10-15"),
                 teacherId);
-        long roundMeasurement = measure(round("Cân đo (giả)", "2026-09-10", "2026-09-20"), "2026-09-16", "98.1", "15.0");
+        long roundMeasurement =
+                measure(round("Cân đo (giả)", "2026-09-10", "2026-09-20"), "2026-09-16", "98.1", "15.0");
 
         ParentHealthExamResponse exam = measurementService.getPublishedExam(parent, child, concluded);
         assertThat(exam.resultId()).isEqualTo(concluded);
@@ -318,7 +316,8 @@ class HealthRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("PAR-03, AUTH-03: lọc theo năm học ⇒ chỉ kết quả trong năm, mục mới nhất của năm; năm trẻ không học 2001")
+    @DisplayName(
+            "PAR-03, AUTH-03: lọc theo năm học ⇒ chỉ kết quả trong năm, mục mới nhất của năm; năm trẻ không học 2001")
     void parentSeesPublishedOfOneYear() {
         long oldYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");

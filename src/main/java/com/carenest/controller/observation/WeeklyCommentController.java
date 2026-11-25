@@ -156,7 +156,8 @@ public class WeeklyCommentController {
             @PathVariable Long childId, @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|listForParent|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
-        List<ParentWeeklyCommentResponse> response = weeklyCommentService.listForParent(currentUser, childId, schoolYearId);
+        List<ParentWeeklyCommentResponse> response =
+                weeklyCommentService.listForParent(currentUser, childId, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get weekly comments of child success", response);
     }

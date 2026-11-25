@@ -17,11 +17,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -42,7 +42,8 @@ public class HealthMeasurementController {
             @PathVariable Long childId, @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getPublishedHealth|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
-        PublishedHealthResponse health = healthMeasurementService.getPublishedHealth(currentUser, childId, schoolYearId);
+        PublishedHealthResponse health =
+                healthMeasurementService.getPublishedHealth(currentUser, childId, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get published health success", health);
     }

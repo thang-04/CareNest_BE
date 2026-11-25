@@ -55,6 +55,10 @@ public class LeaveRequest {
     @Column(nullable = false)
     private Boolean eats;
 
+    /** Báo nghỉ chiều gửi sau giờ chốt: chỉ thông báo, không thay đổi điểm danh hoặc suất ăn. */
+    @Column(name = "notice_only", nullable = false)
+    private boolean noticeOnly;
+
     @Column(name = "cancelled_from")
     private LocalDate cancelledFrom;
 
@@ -86,6 +90,11 @@ public class LeaveRequest {
     public LeaveRequest withPart(LeavePart part, Boolean eats) {
         this.part = part == null ? LeavePart.FULL_DAY : part;
         this.eats = eats;
+        return this;
+    }
+
+    public LeaveRequest asNoticeOnly() {
+        noticeOnly = true;
         return this;
     }
 

@@ -51,8 +51,7 @@ public class ChildSchoolYearServiceImpl implements ChildSchoolYearService {
     @Override
     @Transactional(readOnly = true)
     public List<ChildSchoolYearResponse> getChildSchoolYears(CurrentUser currentUser, Long childId) {
-        String logPrefix =
-                LOG_PREFIX + "|getChildSchoolYears|userId=" + currentUser.userId() + "|childId=" + childId;
+        String logPrefix = LOG_PREFIX + "|getChildSchoolYears|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
             checkParent(currentUser, childId);
@@ -74,8 +73,8 @@ public class ChildSchoolYearServiceImpl implements ChildSchoolYearService {
         try {
             checkParent(currentUser, childId);
             // Năm trẻ không học hoặc không được thấy ⇒ như không có năm đó (giống GET năm học)
-            ChildSchoolYearResponse year = yearOf(childId, schoolYearId)
-                    .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+            ChildSchoolYearResponse year =
+                    yearOf(childId, schoolYearId).orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
             log.info("{}|END", logPrefix);
             return year;
         } catch (RuntimeException ex) {

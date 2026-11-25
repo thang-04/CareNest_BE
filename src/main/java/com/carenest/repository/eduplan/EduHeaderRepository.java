@@ -57,6 +57,11 @@ public interface EduHeaderRepository<T extends EduPlan> extends JpaRepository<T,
                    or (p.status = com.carenest.utils.enums.EduPlanStatus.APPROVED
                        and p.ageGroupId in :approvedAgeGroupIds))
               and (:keyword is null or lower(p.title) like :keyword or lower(p.code) like :keyword)
+              and (:currentOnly = false or p.status <> com.carenest.utils.enums.EduPlanStatus.APPROVED
+                   or not exists (select q.id from #{#entityName} q
+                       where q.status = com.carenest.utils.enums.EduPlanStatus.APPROVED
+                         and q.schoolYearId = p.schoolYearId and q.ageGroupId = p.ageGroupId
+                         and q.versionNo > p.versionNo and (q.disabled = false or q.disabled is null)))
             """)
     Page<T> search(
             @Param("schoolYearId") Long schoolYearId,
@@ -66,5 +71,6 @@ public interface EduHeaderRepository<T extends EduPlan> extends JpaRepository<T,
             @Param("approvedAgeGroupIds") Collection<Long> approvedAgeGroupIds,
             @Param("reviewAgeGroupIds") Collection<Long> reviewAgeGroupIds,
             @Param("keyword") String keyword,
+            @Param("currentOnly") boolean currentOnly,
             Pageable pageable);
 }
