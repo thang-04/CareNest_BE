@@ -439,7 +439,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             boolean startFollowsFirstClass = fromClassroomId == null
                     && upcoming.isPresent()
                     && upcoming.get().getValidFrom().equals(child.getStartDate())
-                    && neverAttended(childId, today);
+                    && neverAttended(child, today);
             // Chuyển / xếp lại khi đã có lớp chưa bắt đầu ⇒ thay lịch cũ (G94-180/CHD-14); chỉ đổi ngày cùng lớp thì
             // không báo hủy
             upcoming.ifPresent(old -> placementRules.cancelUpcoming(
@@ -493,14 +493,16 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     }
 
     /**
-     * Chưa từng học ngày nào: lớp đầu tiên của trẻ (kể cả lần học trước khi mở lại hồ sơ) bắt đầu sau hôm nay. Lớp chưa
-     * bắt đầu bị hủy / thay không làm đổi kết quả, nên gọi trước hay sau {@code cancelUpcoming} đều được.
+     * Chưa học ngày nào trong lần tiếp nhận này: lớp đầu tiên của trẻ bắt đầu sau hôm nay. Trẻ mở lại hồ sơ chỉ xét lớp từ
+     * ngày mở lại (lần học trước không tính). Lớp chưa bắt đầu bị hủy / thay không làm đổi kết quả, nên gọi trước hay sau
+     * {@code cancelUpcoming} đều được.
      */
-    private boolean neverAttended(Long childId, LocalDate today) {
-        return enrollmentRepository
-                .findFirstByChildIdOrderByValidFromAscIdAsc(childId)
-                .map(first -> first.getValidFrom().isAfter(today))
-                .orElse(true);
+    private boolean neverAttended(Child child, LocalDate today) {
+        Optional<Enrollment> first = child.getReadmittedOn() == null
+                ? enrollmentRepository.findFirstByChildIdOrderByValidFromAscIdAsc(child.getId())
+                : enrollmentRepository.findFirstByChildIdAndValidFromGreaterThanEqualOrderByValidFromAscIdAsc(
+                        child.getId(), child.getReadmittedOn());
+        return first.map(enrollment -> enrollment.getValidFrom().isAfter(today)).orElse(true);
     }
 
     @Override

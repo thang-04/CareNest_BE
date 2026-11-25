@@ -432,11 +432,11 @@ class ChildPlacementScheduleIntegrationTest {
     }
 
     @Test
-    @DisplayName("Mục 2: trẻ tiếp nhận lại đã từng học ở lần trước ⇒ thay lịch vào lớp đầu tiên của lần này không đổi"
-            + " ngày bắt đầu (đã từng đi học)")
-    void replacingFirstPlacementOfReadmittedChildKeepsStartDate() {
+    @DisplayName("Mục 2: trẻ chờ xếp lớp đã từng học (không có ngày mở lại hồ sơ) ⇒ thay lịch vào lớp không đổi ngày"
+            + " bắt đầu (đã từng đi học)")
+    void replacingPlacementOfChildWhoAttendedKeepsStartDate() {
         long binh = child("Trần Bình Học Lại", "PENDING_PLACEMENT", campusA, null, null);
-        // Lần học trước: lớp A1 từ đầu năm tới 30/09, rồi nghỉ và mở lại hồ sơ
+        // Từng học lớp A1 từ đầu năm tới 30/09
         enroll(binh, classA1, "2026-09-01");
         jdbc.update("UPDATE enrollments SET valid_to = '2026-09-30' WHERE child_id = ?", binh);
         recordService.place(principal, binh, new PlaceChildRequest(classA2, null, MONDAY));
@@ -447,6 +447,24 @@ class ChildPlacementScheduleIntegrationTest {
         entityManager.flush();
 
         assertThat(startDateOf(binh)).isEqualTo(MONDAY);
+    }
+
+    @Test
+    @DisplayName("Mục 2: trẻ mở lại hồ sơ chưa học ngày nào từ ngày mở lại ⇒ thay lịch vào lớp đầu tiên của lần này kéo"
+            + " ngày bắt đầu theo (lần học trước không tính)")
+    void replacingFirstPlacementAfterReadmissionMovesStartDate() {
+        long binh = child("Trần Bình Mở Lại", "PENDING_PLACEMENT", campusA, MONDAY, null);
+        // Lần học trước: lớp A1 từ đầu năm tới 30/09, nghỉ rồi mở lại hồ sơ ngày 15/10 với ngày bắt đầu thứ 2
+        enroll(binh, classA1, "2026-09-01");
+        jdbc.update("UPDATE enrollments SET valid_to = '2026-09-30' WHERE child_id = ?", binh);
+        jdbc.update("UPDATE children SET readmitted_on = '2026-10-15' WHERE id = ?", binh);
+        recordService.place(principal, binh, new PlaceChildRequest(classA2, null, MONDAY));
+        entityManager.flush();
+
+        recordService.place(principal, binh, new PlaceChildRequest(classA1, null, MONDAY.plusDays(1)));
+        entityManager.flush();
+
+        assertThat(startDateOf(binh)).isEqualTo(MONDAY.plusDays(1));
     }
 
     private LocalDate startDateOf(long childId) {

@@ -67,6 +67,10 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
     Optional<Enrollment> findFirstByChildIdOrderByValidFromAscIdAsc(Long childId);
 
+    /** Lớp đầu tiên của trẻ từ ngày :from (mở lại hồ sơ): lần học trước không tính (G94-180/CHD-14). */
+    Optional<Enrollment> findFirstByChildIdAndValidFromGreaterThanEqualOrderByValidFromAscIdAsc(
+            Long childId, LocalDate from);
+
     @Query("""
             select e from Enrollment e
             where e.childId in :childIds
