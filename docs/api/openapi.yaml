@@ -4950,46 +4950,6 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-    post:
-      operationId: upload
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      - in: header
-        name: Idempotency-Key
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                activityKey:
-                  type: string
-                activityLabel:
-                  type: string
-                file:
-                  type: string
-                  format: binary
-              required:
-              - activityKey
-              - activityLabel
-              - file
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
-          description: OK
-      tags:
-      - learning-resource-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources/attach:
     post:
       operationId: attach
@@ -5137,31 +5097,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonString"
-          description: OK
-      tags:
-      - learning-resource-controller
-  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/content:
-    get:
-      operationId: content
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                type: string
-                format: binary
           description: OK
       tags:
       - learning-resource-controller
