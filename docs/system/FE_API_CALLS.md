@@ -6,7 +6,7 @@ File sinh tự động, không sửa tay. Sinh lại: `node scripts/check-api-co
 - Path đã chuẩn hóa tham số thành `{x}`. `[module: api|demo]` theo `src/config/integrationModules.js`.
 - Lời gọi có đường dẫn không phải chuỗi literal (vd. ghép từ biến) không nằm trong bảng.
 
-Tổng: 443 lời gọi.
+Tổng: 444 lời gọi.
 
 ```text
 DELETE /accounts/me/photo · src/services/account/api/accountPhotoApi.js [account: api] → src/main/java/com/carenest/controller/account/AccountPhotoController.java#deleteMyPhoto
@@ -18,6 +18,7 @@ DELETE /announcements/{x} · src/services/announcement/api/announcementApi.js [a
 DELETE /campuses/{x} · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/CampusController.java#deleteCampus
 DELETE /children/{x}/guardians/{x} · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/GuardianController.java#removeGuardian
 DELETE /children/{x}/placement/scheduled · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#cancelScheduledPlacement
+DELETE /children/{x}/scheduled-leave · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#cancelScheduledLeave
 DELETE /classes/{x} · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/ClassController.java#deleteClass
 DELETE /education-plans/lessons/{x} · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → (BE chưa có — pending)
 DELETE /education-plans/themes/{x} · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → (BE chưa có — pending)
