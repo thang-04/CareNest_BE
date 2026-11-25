@@ -1,6 +1,6 @@
 package com.carenest.dto.child;
 
-/** Lớp nhận trẻ khi tiếp nhận / xếp lớp: lớp đang hoạt động của năm học đang hoạt động (CHD-10). capacity null = không giới hạn. */
+/** Lớp nhận trẻ khi tiếp nhận / xếp lớp: lớp đang hoạt động của năm học đang hoạt động (CHD-10). capacity null = không giới hạn; occupiedCount = sĩ số kiểm khi xếp lớp (đang học + hẹn vào từ ngày chọn). */
 public record PlacementClassResponse(
         Long id,
         String name,
@@ -9,4 +9,5 @@ public record PlacementClassResponse(
         Long schoolYearId,
         Integer capacity,
         long enrolledCount,
-        Long homeroomTeacherId) {}
+        Long homeroomTeacherId,
+        long occupiedCount) {}

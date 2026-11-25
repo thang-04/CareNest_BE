@@ -120,7 +120,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     markHalfDay(saved, classOf.get(d), d, Boolean.TRUE.equals(eats) && mealRegistered, at);
                 }
             }
-            notifyTeachers(request.childId(), classOf.get(applied.getFirst()), from, to, part);
+            notifyTeachers(request.childId(), classOf, applied, from, to, part);
             LeaveRequestResponse response = toResponse(
                     saved,
                     classOf.get(applied.getFirst()),
@@ -247,13 +247,21 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         }
     }
 
-    /** ATT-05: đơn nghỉ mới ⇒ báo GV lớp (HT tắt được — PAR-09). */
-    private void notifyTeachers(Long childId, ClassroomInfoResponse cls, LocalDate from, LocalDate to, LeavePart part) {
+    /** ATT-05: đơn nghỉ mới ⇒ báo đúng GV dạy từng ngày, gồm người dạy thay đang hiệu lực. */
+    private void notifyTeachers(
+            Long childId,
+            Map<LocalDate, ClassroomInfoResponse> classOf,
+            List<LocalDate> days,
+            LocalDate from,
+            LocalDate to,
+            LeavePart part) {
         Set<Long> teachers = new LinkedHashSet<>();
-        staffAssignmentService
-                .findCurrentTeacherIds(List.of(cls.id()), rules.today())
-                .values()
-                .forEach(teachers::addAll);
+        for (LocalDate day : days) {
+            ClassroomInfoResponse cls = classOf.get(day);
+            if (cls != null) {
+                teachers.addAll(teacherIds(cls, day));
+            }
+        }
         if (teachers.isEmpty()) {
             return;
         }
@@ -305,16 +313,25 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     }
 
     // OBS-31: báo GV lớp khi phụ huynh gửi hoặc hủy đơn nghỉ
-    private void notifyTeachers(ClassroomInfoResponse cls, Long childId, String title, String body) {
+    private void notifyTeachers(ClassroomInfoResponse cls, LocalDate date, Long childId, String title, String body) {
         if (cls == null) {
             return;
         }
-        List<Long> teachers = staffAssignmentService
-                .findCurrentTeacherIds(List.of(cls.id()), rules.today())
-                .getOrDefault(cls.id(), List.of());
+        Set<Long> teachers = teacherIds(cls, date);
         if (!teachers.isEmpty()) {
             notificationService.notifyUsers(teachers, NotificationType.LEAVE_REQUEST_CHANGED, title, body, childId);
         }
+    }
+
+    private Set<Long> teacherIds(ClassroomInfoResponse cls, LocalDate date) {
+        Set<Long> teachers = new LinkedHashSet<>();
+        List<Long> classIds = List.of(cls.id());
+        teachers.addAll(
+                staffAssignmentService.findCurrentMainTeacherIds(classIds, date).getOrDefault(cls.id(), List.of()));
+        teachers.addAll(staffAssignmentService
+                .findSubstituteTeacherIdsOn(classIds, date)
+                .getOrDefault(cls.id(), List.of()));
+        return teachers;
     }
 
     @Override
@@ -376,6 +393,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             leaveRequestRepository.flush();
             notifyTeachers(
                     classOnOrNull(leave.getChildId(), first),
+                    first,
                     leave.getChildId(),
                     "Phụ huynh hủy đơn nghỉ",
                     "Phụ huynh hủy đơn nghỉ từ ngày " + first.format(DD_MM_YYYY) + ", cô điểm danh lại các ngày này.");

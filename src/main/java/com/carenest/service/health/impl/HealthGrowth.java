@@ -16,7 +16,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -32,15 +36,23 @@ final class HealthGrowth {
     private static final BigDecimal Z_HIGH = new BigDecimal("2");
     private static final BigDecimal BMI_Z_JUMP = BigDecimal.ONE;
     private static final long STALL_DAYS = 90;
+    // HLT-08 (user chốt 2026-11-24): ngày có cả phiếu khám và số đo kỳ cân đo ⇒ lấy phiếu khám, rồi lần đo id lớn hơn
+    private static final Comparator<HealthMeasurementResponse> SAME_DAY_PREFERENCE = Comparator.comparing(
+                    (HealthMeasurementResponse m) -> m.examStatus() != null)
+            .thenComparing(HealthMeasurementResponse::id);
 
     private HealthGrowth() {}
 
-    /** Điểm biểu đồ, cũ nhất trước; bỏ lần đo thiếu tuổi hoặc thiếu cả chiều cao lẫn cân nặng. */
+    /** Điểm biểu đồ, cũ nhất trước, mỗi ngày một điểm; bỏ lần đo thiếu tuổi hoặc thiếu cả chiều cao lẫn cân nặng. */
     static List<GrowthPoint> points(List<HealthMeasurementResponse> published, Gender gender) {
-        return published.stream()
+        Map<LocalDate, HealthMeasurementResponse> byDay = published.stream()
                 .filter(m -> m.ageMonths() != null && (m.heightCm() != null || m.weightKg() != null))
-                .sorted(Comparator.comparing(HealthMeasurementResponse::date)
-                        .thenComparing(HealthMeasurementResponse::id))
+                .collect(Collectors.toMap(
+                        HealthMeasurementResponse::date,
+                        Function.identity(),
+                        BinaryOperator.maxBy(SAME_DAY_PREFERENCE),
+                        TreeMap::new));
+        return byDay.values().stream()
                 .map(m -> {
                     WhoWeightForAge.Result weight = WhoWeightForAge.classify(gender, m.ageMonths(), m.weightKg());
                     WhoHeightForAge.Result height = WhoHeightForAge.classify(gender, m.ageMonths(), m.heightCm());

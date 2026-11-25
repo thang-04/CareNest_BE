@@ -507,15 +507,16 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
             // BGH xem lớp ở điểm trường trong phạm vi: đã gửi bao nhiêu, quá hạn chưa gửi đủ để nhắc
-            List<WeeklyCommentClassSummary> result = new ArrayList<>();
+            List<ClassroomInfoResponse> classes = new ArrayList<>();
             for (ClassroomInfoResponse cls : classroomService.findActiveYearClassrooms()) {
                 if (cls.yearStatus() != SchoolYearStatus.ACTIVE
                         || (campusId != null && !campusId.equals(cls.campusId()))
                         || !rules.canView(currentUser, cls)) {
                     continue;
                 }
-                summaryOf(cls, weekStart).ifPresent(result::add);
+                classes.add(cls);
             }
+            List<WeeklyCommentClassSummary> result = overviewSummaries(classes, weekStart);
             log.info("{}|count={}|END", logPrefix, result.size());
             return result;
         } catch (RuntimeException ex) {
@@ -548,6 +549,68 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         return java.util.Optional.of(new WeeklyCommentClassSummary(
                 cls.id(), cls.name(), cls.campusId(), range, roster.size(), sent, overdue));
     }
+
+    /** Tổng quan BGH đọc sĩ số và nhận xét theo lô; màn từng lớp vẫn dùng summaryOf để giữ cùng quy tắc. */
+    private List<WeeklyCommentClassSummary> overviewSummaries(
+            List<ClassroomInfoResponse> classes, LocalDate weekStart) {
+        Map<OverviewRange, List<OverviewClass>> groups = new java.util.LinkedHashMap<>();
+        for (ClassroomInfoResponse cls : classes) {
+            try {
+                LocalDate week = weekOf(cls, weekStart);
+                WeekOption range = weekRange(cls, week);
+                LocalDate currentAt = min(rules.today(), cls.yearEnd());
+                groups.computeIfAbsent(
+                                new OverviewRange(week, range.from(), min(range.to(), rules.today()), currentAt),
+                                ignored -> new ArrayList<>())
+                        .add(new OverviewClass(cls, range));
+            } catch (GlobalException ignored) {
+                // Lớp không có tuần hợp lệ trong kỳ được bỏ như summaryOf cũ.
+            }
+        }
+        Map<Long, WeeklyCommentClassSummary> summaries = new HashMap<>();
+        for (Map.Entry<OverviewRange, List<OverviewClass>> entry : groups.entrySet()) {
+            OverviewRange range = entry.getKey();
+            List<OverviewClass> group = entry.getValue();
+            List<Long> classIds = group.stream().map(item -> item.cls().id()).toList();
+            Map<Long, Set<Long>> inWeek = range.to().isBefore(range.from())
+                    ? Map.of()
+                    : enrollmentService.findChildIdsInClassroomsDuring(classIds, range.from(), range.to());
+            Map<Long, Set<Long>> current = enrollmentService.findChildIdsInClassrooms(classIds, range.currentAt());
+            Map<Long, Map<Long, WeeklyComment>> comments =
+                    commentRepository.findByClassroomIdInAndWeekStart(classIds, range.week()).stream()
+                            .collect(Collectors.groupingBy(
+                                    WeeklyComment::getClassroomId,
+                                    Collectors.toMap(
+                                            WeeklyComment::getChildId, Function.identity(), (left, right) -> right)));
+            for (OverviewClass item : group) {
+                Set<Long> roster =
+                        new java.util.HashSet<>(inWeek.getOrDefault(item.cls().id(), Set.of()));
+                roster.retainAll(current.getOrDefault(item.cls().id(), Set.of()));
+                int sent = (int) comments.getOrDefault(item.cls().id(), Map.of()).values().stream()
+                        .filter(comment -> roster.contains(comment.getChildId()) && comment.isSent())
+                        .count();
+                boolean overdue = item.range().locked() && item.range().unlockedUntil() == null && sent < roster.size();
+                summaries.put(
+                        item.cls().id(),
+                        new WeeklyCommentClassSummary(
+                                item.cls().id(),
+                                item.cls().name(),
+                                item.cls().campusId(),
+                                item.range(),
+                                roster.size(),
+                                sent,
+                                overdue));
+            }
+        }
+        return classes.stream()
+                .map(cls -> summaries.get(cls.id()))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private record OverviewClass(ClassroomInfoResponse cls, WeekOption range) {}
+
+    private record OverviewRange(LocalDate week, LocalDate from, LocalDate to, LocalDate currentAt) {}
 
     private List<WeeklyCommentUnlockResponse> unlockViews(
             List<WeeklyCommentUnlock> unlocks, Map<Long, ClassroomInfoResponse> known, Instant now) {
