@@ -30,9 +30,7 @@ public interface AttendanceService {
             int present,
             int absent,
             int missing,
-            Map<MealSession, Integer> meals,
-            // Trẻ có mặt có khai dị ứng trong hồ sơ: suất thay thế (nằm trong meals, Cần chốt 04/11/2026)
-            Map<MealSession, Integer> substitutes) {}
+            Map<MealSession, Integer> meals) {}
 
     /** schoolYearId = năm chọn ở header; null = năm đang hoạt động. */
     List<AttendanceClassResponse> getClasses(CurrentUser currentUser, Long schoolYearId);
