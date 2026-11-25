@@ -135,6 +135,27 @@ class DevSeedIntegrationTest {
     }
 
     @Test
+    @DisplayName("Seed yêu cầu mở ghi biên bản không nhân dòng khi có nhiều PHT/hiệu trưởng còn hiệu lực")
+    void inspectionGrantsSeedSurvivesDuplicateActiveAssignments() {
+        String assignments = SCHEMA + ".staff_assignments";
+        jdbc.update("delete from " + SCHEMA + ".inspection_day_grants");
+        jdbc.update("insert into " + assignments + " (user_id, staff_role, campus_id, valid_from) "
+                + "select user_id, staff_role, campus_id, valid_from from " + assignments
+                + " where staff_role in ('VICE_PRINCIPAL', 'PRINCIPAL') and valid_to is null");
+        try {
+            jdbc.update("update " + SCHEMA
+                    + ".flyway_schema_history set checksum = 0 where script like '%R__dev_14_supplier_contracts%'");
+            flyway().migrate();
+
+            assertThat(count("inspection_day_grants")).isPositive();
+        } finally {
+            jdbc.update("delete from " + assignments + " where id in (select id from (select id, row_number() over "
+                    + "(partition by user_id, staff_role, campus_id order by id) rn from " + assignments
+                    + " where staff_role in ('VICE_PRINCIPAL', 'PRINCIPAL')) t where rn > 1)");
+        }
+    }
+
+    @Test
     @DisplayName("Chạy lại seed giữ bản đang chờ khác phiên bản mẫu, không tạo lịch sử thiếu chủ sở hữu")
     void rerunWithDifferentOpenYearPlanKeepsExistingPlan() throws IOException {
         String sql = new ClassPathResource("db/dev/R__dev_04_education.sql").getContentAsString(StandardCharsets.UTF_8);

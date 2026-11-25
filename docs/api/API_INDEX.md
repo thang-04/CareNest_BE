@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 435 endpoint.
+Tổng: 436 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -357,6 +357,7 @@ GET /nutrition/meal-photos · src/main/java/com/carenest/controller/meals/Kitche
 POST /nutrition/meal-photos · src/main/java/com/carenest/controller/meals/KitchenRecordsController.java#uploadPhoto
 GET /nutrition/meal-photos/{photoId}/content · src/main/java/com/carenest/controller/meals/KitchenRecordsController.java#getPhotoContent
 GET /nutrition/meal-photos/{photoId}/url · src/main/java/com/carenest/controller/meals/KitchenRecordsController.java#getPhotoUrl
+GET /nutrition/meal-photos/week · src/main/java/com/carenest/controller/meals/KitchenRecordsController.java#getPhotoWeek
 GET /nutrition/meal-plans · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlans
 GET /nutrition/meal-plans/{weekStart} · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlan
 PUT /nutrition/meal-plans/{weekStart} · src/main/java/com/carenest/controller/meals/MealPlanController.java#saveMealPlan
