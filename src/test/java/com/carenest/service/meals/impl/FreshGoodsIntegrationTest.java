@@ -420,6 +420,38 @@ class FreshGoodsIntegrationTest {
     }
 
     @Test
+    @DisplayName("NUT-12: cùng kỳ chỉ bản mới nhất đang dùng, bản cũ đã thay thế; lần 1 đã ghi giữ bản lúc ghi")
+    void newerForecastReplacesOlderButSavedRoundOneKeepsItsForecast() {
+        FreshForecastResponse older =
+                freshService.createForecast(principal, request(MONDAY, FRIDAY, List.of(count(5))));
+        FreshForecastResponse newer =
+                freshService.createForecast(principal, request(MONDAY, FRIDAY, List.of(count(3))));
+
+        assertThat(freshService.getForecasts(principal, campus))
+                .extracting(f -> f.id(), f -> f.version(), f -> f.current())
+                .containsExactly(tuple(newer.id(), 2, true), tuple(older.id(), 1, false));
+
+        freshService.recordCheck(
+                principal,
+                campus,
+                MONDAY,
+                1,
+                check(line(pork, FreshCheckResult.ENOUGH), line(veg, FreshCheckResult.ENOUGH)));
+        FreshForecastResponse latest =
+                freshService.createForecast(principal, request(MONDAY, FRIDAY, List.of(count(8))));
+
+        FreshCheckResponse.FreshCheckRound round1 =
+                freshService.getChecks(principal, campus, MONDAY).rounds().getFirst();
+        assertThat(round1.forecastId()).isEqualTo(newer.id());
+        assertThat(round1.lines())
+                .extracting(l -> l.food().code(), l -> l.expectedQty().intValue())
+                .containsExactlyInAnyOrder(tuple("THIT", 120), tuple("RAU", 187));
+        assertThat(freshService.getForecasts(principal, campus))
+                .extracting(f -> f.id(), f -> f.current())
+                .containsExactly(tuple(latest.id(), true), tuple(newer.id(), false), tuple(older.id(), false));
+    }
+
+    @Test
     @DisplayName(
             "NUT-12: bản dự trù đã làm căn cứ kiểm nhận không xóa được; bản chưa dùng xóa được; danh sách mới nhất trước")
     void deletingForecastUsedByChecksIsBlocked() {
