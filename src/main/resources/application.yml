@@ -231,20 +231,23 @@ carenest:
       retry-delay: 1m
       max-retry-delay: 1h
   edu-plan:
+    # EDU-105: chỉ bật sau khi so sánh ví dụ trên dữ liệu thực có ích
     # EDU-10: khóa "Đang sửa" kế hoạch năm tự nhả sau khoảng này kể từ lần lưu cuối
     edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:90s}
   ai:
     # Tắt mặc định: nghiệp vụ chạy bằng phương án không AI (AI-03). Provider thiếu base URL/model/key bị bỏ khỏi chuỗi.
-    enabled: ${AI_ENABLED:false}
+    # Tên CARENEST_AI_* theo compose VPS/dev; tên AI_* cũ vẫn đọc làm dự phòng
+    enabled: ${CARENEST_AI_ENABLED:${AI_ENABLED:false}}
     providers:
       # Gemini free có thể dùng dữ liệu để train ⇒ chỉ cho task PUBLIC_CATALOG (AI-04, ADR-0007)
       - id: gemini
-        base-url: ${AI_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
-        model: ${AI_GEMINI_MODEL:}
-        api-key: ${AI_GEMINI_API_KEY:}
+        base-url: ${CARENEST_AI_BASE_URL:${AI_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}}
+        model: ${CARENEST_AI_MODEL:${AI_GEMINI_MODEL:gemini-2.5-flash}}
+        api-key: ${CARENEST_AI_API_KEY:${AI_GEMINI_API_KEY:}}
         may-train-on-data: true
         connect-timeout: 3s
-        read-timeout: 30s
+        # Một lần gom nội dung theo lĩnh vực mất ~40s; task khác vẫn bị chặn theo deadline riêng
+        read-timeout: 60s
         reasoning-effort: ${AI_GEMINI_REASONING_EFFORT:}
       - id: groq
         base-url: ${AI_GROQ_BASE_URL:https://api.groq.com/openai/v1}
@@ -288,6 +291,11 @@ carenest:
         data-class: PUBLIC_CATALOG
         deadline: ${AI_EDU_PLAN_DEADLINE:30s}
         max-repair-rounds: 0
+      # Gom nội dung vào chủ đề (EDU-103): mỗi lĩnh vực một lần gọi, chạy song song
+      EDU_MATCH:
+        chain: [gemini, groq]
+        data-class: PUBLIC_CATALOG
+        deadline: ${AI_EDU_MATCH_DEADLINE:60s}
       # Nhận xét tháng / học kỳ / cuối năm: số liệu kỳ và nhận xét tự do của GV (đã lọc tên, ngày sinh) ⇒ dữ liệu dẫn xuất từ trẻ
       PERIOD_COMMENT:
         chain: [groq]

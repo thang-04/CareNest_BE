@@ -205,6 +205,139 @@ class EduWorkflowServiceIntegrationTest {
         assertThat(doc.getPrintSnapshot()).isEqualTo(snapshot);
     }
 
+    @Test
+    @DisplayName("EDU-110 BR6.3: chuỗi mới rỗng (HT soạn) không lỗi; hồ sơ đang chờ giữ bước đã duyệt và trạng thái")
+    void emptyChainKeepsPendingDossier() {
+        var fixture = classFixture(true, true);
+        var doc = classDocRepository.findByDocKey(fixture.themeKey()).orElseThrow();
+        doc.submit(1);
+        var approval = new EduWorkflowPolicy.Approval(
+                fixture.vp().userId(), "PHT", EduWorkflowPolicy.Role.TEAM_LEADER, Instant.now(), "Đồng ý", 1);
+        doc.advanceReview(workflowService.serializeApprovals(java.util.List.of(approval)), Instant.now());
+        classDocRepository.saveAndFlush(doc);
+        long before = workflowService.getPolicyRevision();
+
+        boolean changed = workflowService.applyPolicy(
+                java.util.Map.of(
+                        "theme",
+                        new EduWorkflowPolicy.RolePolicy(
+                                java.util.List.of(EduWorkflowPolicy.Role.PRINCIPAL), java.util.List.of())),
+                fixture.vp().userId(),
+                Instant.now());
+
+        assertThat(changed).isTrue();
+        assertThat(workflowService.getPolicyRevision()).isEqualTo(before + 1);
+        assertThat(workflowService.loadPolicy("theme").reviewers()).isEmpty();
+        entityManager.flush();
+        entityManager.refresh(doc);
+        assertThat(doc.getStatus()).isEqualTo(com.carenest.utils.enums.EduClassDocStatus.REVIEW);
+        assertThat(workflowService.parseApprovals(doc.getApprovals())).containsExactly(approval);
+        // Ghi lại đúng policy ⇒ không đổi gì
+        assertThat(workflowService.applyPolicy(
+                        java.util.Map.of("theme", workflowService.loadPolicy("theme")),
+                        fixture.vp().userId(),
+                        Instant.now()))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("EDU-110 (11): hồ sơ chủ đề có HT soạn ⇒ GV chủ nhiệm bị chặn, HT ban hành thẳng từ Nháp ở lớp bất kỳ")
+    void principalAuthorsAndPublishesDraftDossier() {
+        var fixture = classFixture(true, true);
+        var principal = workflowUser("wf-ht-author", com.carenest.utils.enums.CareNestRole.PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments(user_id,staff_role,valid_from) VALUES (?,'PRINCIPAL','2020-01-01')",
+                principal.userId());
+        jdbc.update(
+                "UPDATE edu_settings SET workflow_policy=jsonb_set(workflow_policy,'{theme}',?::jsonb)",
+                "{\"creators\":[\"PRINCIPAL\"],\"reviewers\":[]}");
+        String dossierKey = "ds_" + fixture.themeKey().substring(3);
+        var doc = classDocRepository.findByDocKey(dossierKey).orElseThrow();
+
+        assertThatThrownBy(() -> classDocs.actOnClassDoc(
+                        fixture.teacher(),
+                        "dossier",
+                        dossierKey,
+                        new com.carenest.dto.eduplan.ClassDocActionRequest("submit", null),
+                        doc.getVersion()))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CLASS_DOC_TEACHER_ONLY);
+        // PHT không phải HT ⇒ không soạn/ban hành
+        assertThatThrownBy(() -> classDocs.actOnClassDoc(
+                        fixture.vp(),
+                        "dossier",
+                        dossierKey,
+                        new com.carenest.dto.eduplan.ClassDocActionRequest("principal_publish", null),
+                        doc.getVersion()))
+                .isInstanceOf(GlobalException.class);
+
+        var issued = classDocs.actOnClassDoc(
+                principal,
+                "dossier",
+                dossierKey,
+                new com.carenest.dto.eduplan.ClassDocActionRequest("principal_publish", null),
+                doc.getVersion());
+        assertThat(issued.path("status").asText()).isEqualTo("APPROVED");
+        var saved = classDocRepository.findByDocKey(dossierKey).orElseThrow();
+        assertThat(saved.getReviewRound()).isEqualTo(1);
+        assertThat(saved.getPrintSnapshot()).contains("PRINCIPAL").contains("wf-ht-author");
+    }
+
+    @Test
+    @DisplayName("EDU-110 BR6.2/(10): hồ sơ đang chờ khi chuỗi thành rỗng ⇒ chỉ HT ban hành thẳng, có lịch sử và ô ký")
+    void principalPublishesPendingDossierWhenChainBecomesEmpty() {
+        var fixture = classFixture(false, true);
+        var principal = workflowUser("wf-ht-pub", com.carenest.utils.enums.CareNestRole.PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments(user_id,staff_role,valid_from) VALUES (?,'PRINCIPAL','2020-01-01')",
+                principal.userId());
+        String dossierKey = "ds_" + fixture.themeKey().substring(3);
+        var doc = classDocRepository.findByDocKey(dossierKey).orElseThrow();
+        var publish = new com.carenest.dto.eduplan.ClassDocActionRequest("principal_publish", "Ban hành");
+        classDocs.actOnClassDoc(
+                fixture.teacher(),
+                "dossier",
+                dossierKey,
+                new com.carenest.dto.eduplan.ClassDocActionRequest("submit", null),
+                doc.getVersion());
+        // Chuỗi còn người duyệt ⇒ HT không ban hành thẳng được
+        assertThatThrownBy(() -> classDocs.actOnClassDoc(principal, "dossier", dossierKey, publish, doc.getVersion()))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.NOT_YOUR_REVIEW_STEP);
+
+        jdbc.update(
+                "UPDATE edu_settings SET workflow_policy=jsonb_set(workflow_policy,'{theme}',?::jsonb)",
+                "{\"creators\":[\"PRINCIPAL\"],\"reviewers\":[]}");
+        entityManager.clear();
+        // Bước duyệt cũ không còn ai chờ; người khác không ban hành thẳng được
+        assertThatThrownBy(() -> classDocs.actOnClassDoc(
+                        fixture.vp(),
+                        "dossier",
+                        dossierKey,
+                        new com.carenest.dto.eduplan.ClassDocActionRequest("approve", null),
+                        doc.getVersion()))
+                .isInstanceOf(GlobalException.class);
+        assertThatThrownBy(
+                        () -> classDocs.actOnClassDoc(fixture.vp(), "dossier", dossierKey, publish, doc.getVersion()))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.NOT_YOUR_REVIEW_STEP);
+
+        var issued = classDocs.actOnClassDoc(principal, "dossier", dossierKey, publish, doc.getVersion());
+        assertThat(issued.path("status").asText()).isEqualTo("APPROVED");
+        var saved = classDocRepository.findByDocKey(dossierKey).orElseThrow();
+        assertThat(workflowService.parseApprovals(saved.getApprovals()))
+                .singleElement()
+                .satisfies(a -> assertThat(a.roleKey()).isEqualTo(EduWorkflowPolicy.Role.PRINCIPAL));
+        assertThat(saved.getPrintSnapshot()).contains("PRINCIPAL").contains("wf-ht-pub");
+        assertThat(saved.getHistory()).contains("principal_publish");
+        // Đã ban hành ⇒ không ban hành lại
+        assertThatThrownBy(() -> classDocs.actOnClassDoc(principal, "dossier", dossierKey, publish, saved.getVersion()))
+                .isInstanceOf(GlobalException.class);
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({
         "false,true,false",
@@ -295,6 +428,99 @@ class EduWorkflowServiceIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .hasFieldOrPropertyWithValue("apiCode", ApiCode.EDUCATION_CALENDAR_INVALID);
         assertThat(branch.getContent()).contains("Nhánh");
+    }
+
+    @Test
+    @DisplayName(
+            "EDU-110 BR6.2/(10): kế hoạch năm học — HT ban hành thẳng bản chờ (chuỗi thành rỗng) và bản Nháp HT soạn")
+    void principalPublishesSchoolYearPlan() {
+        var fixture = classFixture(true, true);
+        var principal = workflowUser("pub-principal", com.carenest.utils.enums.CareNestRole.PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments(user_id,staff_role,valid_from) VALUES (?,'PRINCIPAL','2020-01-01')",
+                principal.userId());
+        long year = jdbc.queryForObject(
+                "INSERT INTO school_years(name,start_date,end_date) VALUES ('PUB-2097-2098','2026-09-01','2027-05-31') RETURNING id",
+                Long.class);
+        long age =
+                jdbc.queryForObject("SELECT age_group_id FROM edu_team_plans WHERE id=?", Long.class, fixture.planId());
+        long domain = jdbc.queryForObject("SELECT id FROM edu_domains ORDER BY sort_order LIMIT 1", Long.class);
+        jdbc.update(
+                "UPDATE edu_settings SET duration_policy='{\"theme\":{\"minWeeks\":1,\"maxWeeks\":4},\"branch\":{\"minWeeks\":1,\"maxWeeks\":2}}'::jsonb");
+        var themes = java.util.stream.IntStream.range(0, 9)
+                .mapToObj(i -> new com.carenest.dto.eduplan.YearPlanRequest.Theme(
+                        "t" + i,
+                        null,
+                        "Chủ đề " + i,
+                        "T" + i,
+                        LocalDate.of(2026, 9, 7).plusWeeks(i),
+                        LocalDate.of(2026, 9, 11).plusWeeks(i),
+                        "",
+                        ""))
+                .toList();
+        var request = new com.carenest.dto.eduplan.YearPlanRequest(
+                year,
+                age,
+                "Kế hoạch năm",
+                "",
+                java.util.List.of(new com.carenest.dto.eduplan.YearPlanRequest.Domain(
+                        domain,
+                        java.util.List.of(
+                                new com.carenest.dto.eduplan.YearPlanRequest.Row(
+                                        null, "group", "Kết quả mong đợi", java.util.List.of()),
+                                new com.carenest.dto.eduplan.YearPlanRequest.Row(
+                                        null,
+                                        "goal",
+                                        "Mục tiêu",
+                                        java.util.List.of(new com.carenest.dto.eduplan.YearPlanRequest.Content(
+                                                null, "Nội dung", java.util.List.of())))))),
+                themes,
+                java.util.List.of(),
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                null,
+                java.util.List.of());
+        var annual = yearPlans.createYearPlan(fixture.vp(), request, editContext(0L));
+        var sent = yearPlans.submitYearPlan(fixture.vp(), annual.id(), null, editContext(annual.revision()));
+        // Chuỗi còn người duyệt ⇒ không ban hành thẳng
+        assertThatThrownBy(
+                        () -> yearPlans.publishByPrincipal(principal, annual.id(), null, editContext(sent.revision())))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.NOT_YOUR_REVIEW_STEP);
+
+        jdbc.update(
+                "UPDATE edu_settings SET workflow_policy=jsonb_set(workflow_policy,'{schoolYear}',?::jsonb)",
+                "{\"creators\":[\"PRINCIPAL\"],\"reviewers\":[]}");
+        entityManager.clear();
+        assertThatThrownBy(() -> yearPlans.issueYearPlan(principal, annual.id(), null, editContext(sent.revision())))
+                .isInstanceOf(GlobalException.class);
+        // PHT không còn là người soạn ⇒ bị từ chối (không xem được hoặc không phải HT)
+        assertThatThrownBy(() ->
+                        yearPlans.publishByPrincipal(fixture.vp(), annual.id(), null, editContext(sent.revision())))
+                .isInstanceOf(GlobalException.class);
+
+        var published = yearPlans.publishByPrincipal(principal, annual.id(), "Ban hành", editContext(sent.revision()));
+        var plan = yearPlanRepository.findById(published.id()).orElseThrow();
+        assertThat(plan.getStatus()).isEqualTo(com.carenest.utils.enums.EduPlanStatus.APPROVED);
+        assertThat(plan.getPublishedBy()).isEqualTo(principal.userId());
+        assertThat(plan.getPrintSnapshot()).contains("PRINCIPAL").contains("pub-principal");
+        assertThat(workflowService.parseApprovals(plan.getApprovals()))
+                .singleElement()
+                .satisfies(a -> assertThat(a.roleKey()).isEqualTo(EduWorkflowPolicy.Role.PRINCIPAL));
+        // Đã ban hành ⇒ không ban hành lại
+        assertThatThrownBy(() ->
+                        yearPlans.publishByPrincipal(principal, annual.id(), null, editContext(published.revision())))
+                .isInstanceOf(GlobalException.class);
+
+        // EDU-110 (11): HT là người soạn ⇒ HT tạo bản mới (Nháp) và ban hành thẳng từ Nháp
+        entityManager.flush();
+        var draft = yearPlans.createVersion(principal, published.id(), editContext(published.revision()));
+        assertThat(yearPlanRepository.findById(draft.id()).orElseThrow().getStatus())
+                .isEqualTo(com.carenest.utils.enums.EduPlanStatus.DRAFT);
+        var draftPublished = yearPlans.publishByPrincipal(principal, draft.id(), null, editContext(draft.revision()));
+        var draftPlan = yearPlanRepository.findById(draftPublished.id()).orElseThrow();
+        assertThat(draftPlan.getStatus()).isEqualTo(com.carenest.utils.enums.EduPlanStatus.APPROVED);
+        assertThat(draftPlan.getPublishedBy()).isEqualTo(principal.userId());
     }
 
     @Test
@@ -775,7 +1001,8 @@ class EduWorkflowServiceIntegrationTest {
 
     private com.carenest.security.CurrentUser workflowUser(String name, com.carenest.utils.enums.CareNestRole role) {
         long id = createAccount(name);
-        return new com.carenest.security.CurrentUser(id, name, name, name, "", Set.of(role));
+        return new com.carenest.security.CurrentUser(
+                id, name, name, name, "", Set.of(role), com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long createAccount(String username) {

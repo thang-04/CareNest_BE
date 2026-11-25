@@ -61,7 +61,6 @@ public record YearPlanDetailResponse(
             boolean timeLocked,
             boolean canUnlock,
             ReviewDeadline reviewDeadline,
-            LocalDate graceTo,
             Long daysLeft) {
         public TimeLock(
                 LocalDate deadline,
@@ -70,7 +69,7 @@ public record YearPlanDetailResponse(
                 boolean timeLocked,
                 boolean canUnlock,
                 ReviewDeadline reviewDeadline) {
-            this(deadline, extendedTo, deadlineState, timeLocked, canUnlock, reviewDeadline, null, null);
+            this(deadline, extendedTo, deadlineState, timeLocked, canUnlock, reviewDeadline, null);
         }
     }
 

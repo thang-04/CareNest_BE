@@ -9,6 +9,7 @@ import com.carenest.dto.meals.FoodSampleRequest;
 import com.carenest.dto.meals.FoodSampleResponse;
 import com.carenest.dto.meals.KitchenDayResponse;
 import com.carenest.dto.meals.MealPhotoResponse;
+import com.carenest.dto.meals.MealPhotoWeekResponse;
 import com.carenest.dto.meals.MealPhotoWindowResponse;
 import com.carenest.dto.meals.MealPhotoWindowsRequest;
 import com.carenest.exception.GlobalException;
@@ -19,6 +20,7 @@ import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.FoodSampleService;
 import com.carenest.service.meals.KitchenDayService;
 import com.carenest.service.meals.MealPhotoService;
+import com.carenest.service.meals.MealPhotoWeekService;
 import com.carenest.support.MovableClock;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -91,6 +93,9 @@ class KitchenRecordsIntegrationTest {
 
     @Autowired
     private MealPhotoService mealPhotoService;
+
+    @Autowired
+    private MealPhotoWeekService mealPhotoWeekService;
 
     @Autowired
     private DayBoardService dayBoardService;
@@ -563,6 +568,73 @@ class KitchenRecordsIntegrationTest {
                                 MealSession.LUNCH, LocalTime.of(10, 0), LocalTime.of(11, 0)));
         assertThat(mealPhotoService.getWindows(kitchen)).hasSize(2);
         assertThat(mealPhotoService.getWindows(vp)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("NUT-16, NUT-21, INS-03: tuần có ảnh ⇒ người đăng, đúng giờ, thực đơn, suất, lưu mẫu, biên bản")
+    void weekOverviewShowsPhotoAndCrossChecks() {
+        mealPhotoService.updateWindows(principal, windows(MealSession.LUNCH, "10:00", "11:00"));
+        addLine(insertCount(MONDAY, "LUNCH", "CONFIRMED"), false, 10);
+        mealPhotoService.uploadPhoto(kitchen, MealSession.LUNCH, jpeg());
+        foodSampleService.createSample(kitchen, sampleRequest(null));
+        signSheet(MONDAY, "PROCESS");
+
+        MealPhotoWeekResponse week = mealPhotoWeekService.getWeek(vp, campus, null);
+
+        assertThat(week.weekStart()).isEqualTo(MONDAY);
+        assertThat(week.days()).hasSize(5);
+        MealPhotoWeekResponse.WeekDay monday = week.days().get(0);
+        MealPhotoWeekResponse.WeekSession lunch = session(monday, MealSession.LUNCH);
+        assertThat(lunch.status()).isEqualTo("POSTED");
+        assertThat(lunch.photo().uploaderName()).isEqualTo("kitchen");
+        assertThat(lunch.photo().onTime()).isTrue();
+        assertThat(lunch.dishes()).containsExactlyInAnyOrder("Cơm", "Thịt rim");
+        assertThat(lunch.servingsNormal()).isEqualTo(10);
+        assertThat(lunch.servingsSubstitute()).isZero();
+        assertThat(lunch.sample()).isNotNull();
+        assertThat(session(monday, MealSession.MORNING).status()).isEqualTo("NOT_EXPECTED");
+        assertThat(monday.inspections()).singleElement().satisfies(i -> {
+            assertThat(i.status().name()).isEqualTo("SIGNED");
+            assertThat(i.signedByName()).isEqualTo("PHT");
+        });
+        // Ngày chưa tới không tính thiếu ảnh
+        MealPhotoWeekResponse.WeekDay tuesday = week.days().get(1);
+        assertThat(tuesday.upcoming()).isTrue();
+        assertThat(session(tuesday, MealSession.LUNCH).status()).isEqualTo("NOT_EXPECTED");
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-16: bữa có thực đơn mà quá hạn đăng ⇒ thiếu ảnh; hôm nay còn khung giờ hoặc chưa cấu hình ⇒ chờ đăng")
+    void weekOverviewMissingAndPending() {
+        mealPhotoService.updateWindows(principal, windows(MealSession.LUNCH, "10:00", "11:00"));
+        CLOCK.set(MONDAY.plusDays(2), LocalTime.of(10, 30));
+
+        MealPhotoWeekResponse inWindow = mealPhotoWeekService.getWeek(vp, campus, MONDAY);
+        assertThat(session(inWindow.days().get(0), MealSession.LUNCH).status()).isEqualTo("MISSING");
+        assertThat(session(inWindow.days().get(2), MealSession.LUNCH).status()).isEqualTo("PENDING");
+
+        CLOCK.set(MONDAY.plusDays(2), LocalTime.of(12, 0));
+        MealPhotoWeekResponse afterWindow = mealPhotoWeekService.getWeek(vp, campus, MONDAY);
+        assertThat(session(afterWindow.days().get(2), MealSession.LUNCH).status())
+                .isEqualTo("MISSING");
+        assertThat(session(afterWindow.days().get(3), MealSession.LUNCH).status())
+                .isEqualTo("NOT_EXPECTED");
+    }
+
+    @Test
+    @DisplayName("NUT-16: weekStart giữa tuần chuẩn hóa về thứ Hai; bếp điểm trường khác bị chặn")
+    void weekStartNormalizedAndScoped() {
+        assertThat(mealPhotoWeekService.getWeek(vp, campus, MONDAY.plusDays(2)).weekStart())
+                .isEqualTo(MONDAY);
+        expectCode(() -> mealPhotoWeekService.getWeek(otherKitchen, campus, MONDAY), ApiCode.KITCHEN_CAMPUS_DENIED);
+    }
+
+    private static MealPhotoWeekResponse.WeekSession session(MealPhotoWeekResponse.WeekDay day, MealSession session) {
+        return day.sessions().stream()
+                .filter(s -> s.session() == session)
+                .findFirst()
+                .orElseThrow();
     }
 
     /** Biên bản đã ký giả (đủ trường chữ ký để entity đọc được). */

@@ -28,7 +28,27 @@ class EduTeamUpdateGenerator {
     private final com.carenest.service.organization.StaffAssignmentService assignments;
     private final com.carenest.service.account.AccountService accounts;
     private final java.time.Clock clock;
-    private final EduPlanTimeLock timeLock;
+
+    /** EDU-72: đối soát bù — năm học ban hành mới nhất mà tổ chưa nhận nguồn thì tạo/cập nhật bản tổ (không tạo trùng). */
+    void reconcileLatestPublications(Instant now) {
+        Map<String, EduPlan> latest = new HashMap<>();
+        for (EduPlan p : plans.findAll()) {
+            if (p.getPlanLevel() != EduPlanLevel.SCHOOL_YEAR
+                    || p.getStatus() != EduPlanStatus.APPROVED
+                    || p.isDisabled()) continue;
+            latest.merge(
+                    p.getSchoolYearId() + ":" + p.getAgeGroupId(),
+                    p,
+                    (a, b) -> a.getVersionNo() >= b.getVersionNo() ? a : b);
+        }
+        for (EduPlan annual : latest.values()) {
+            try {
+                updateAfterPublication(annual, now);
+            } catch (RuntimeException ex) {
+                // Một nhóm tuổi lỗi (vd. thiếu tổ trưởng) không chặn nhóm khác; đã log trong updateAfterPublication
+            }
+        }
+    }
 
     void updateAfterPublication(EduPlan annual, Instant now) {
         String prefix = LOG_PREFIX + "|updateAfterPublication|planId=" + annual.getId();
@@ -79,8 +99,8 @@ class EduTeamUpdateGenerator {
                     .filter(p -> p.getStatus() == EduPlanStatus.APPROVED)
                     .max(Comparator.comparingInt(EduPlan::getVersionNo))
                     .orElse(null));
-            // Spec 004 (Q6): kế hoạch tổ đã khóa theo năm học thì không nhận cập nhật nguồn, tới khi HT mở khóa
-            if (prior != null && timeLock.locked(prior)) return;
+            // EDU-72 (Tiền 25/11/2026): tổ đã khóa theo năm học vẫn nhận bản cập nhật; bản mới quá hạn, HT mở hạn
+            // (EDU-109)
             if (prior == null
                     || prior.getCurriculumSourcePlanId() == null
                     || !sources.contains(prior.getCurriculumSourcePlanId())
