@@ -75,7 +75,6 @@ class AttendanceServiceImplTest {
                 mock(AccountService.class),
                 events,
                 mock(LeaveRequestRepository.class),
-                List.of(),
                 guardians,
                 mock(NotificationService.class));
         when(classrooms.findClassroomInfo(CLASS))

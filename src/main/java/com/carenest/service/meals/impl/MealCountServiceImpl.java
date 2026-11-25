@@ -246,8 +246,8 @@ public class MealCountServiceImpl implements MealCountService {
                         MealCountLine line = count.visibleLine(classId).orElse(null);
                         meals.add(new ClassMealCountResponse.Meal(
                                 session,
-                                line == null ? 0 : line.getNormal(),
-                                line == null ? 0 : line.getSubstitute(),
+                                line == null ? 0 : line.getNormal() + line.getSubstitute(),
+                                0,
                                 count.reviewStatus().name(),
                                 count.hasPending(),
                                 count.getConfirmedAt()));
@@ -259,9 +259,7 @@ public class MealCountServiceImpl implements MealCountService {
                             .findFirst()
                             .orElse(null);
                     int eating = tally == null ? 0 : tally.meals().getOrDefault(session, 0);
-                    int substitute = tally == null ? 0 : tally.substitutes().getOrDefault(session, 0);
-                    meals.add(new ClassMealCountResponse.Meal(
-                            session, eating - substitute, substitute, OPEN, false, null));
+                    meals.add(new ClassMealCountResponse.Meal(session, eating, 0, OPEN, false, null));
                 }
             }
             ClassMealCountResponse response = new ClassMealCountResponse(
@@ -357,16 +355,11 @@ public class MealCountServiceImpl implements MealCountService {
                 requireInspectionUnsigned(count.getCampusId(), count.getDate());
                 checkAttendanceComplete(count.getCampusId(), count.getDate(), year);
                 // NUT-03: không xác nhận số người duyệt chưa thấy (GV sửa điểm danh khi đang mở lại, điều chỉnh khác)
-                if (seenServings != null || seenSubstitute != null) {
-                    List<MealCountResponse.Totals> now = totalsOf(count, viewer, year);
-                    int servings = now.stream()
+                if (seenServings != null) {
+                    int servings = totalsOf(count, viewer, year).stream()
                             .mapToInt(t -> t.normal() + t.substitute())
                             .sum();
-                    int substitute = now.stream()
-                            .mapToInt(MealCountResponse.Totals::substitute)
-                            .sum();
-                    if ((seenServings != null && seenServings != servings)
-                            || (seenSubstitute != null && seenSubstitute != substitute)) {
+                    if (seenServings != servings) {
                         throw GlobalException.of(ApiCode.MEAL_COUNT_CHANGED_SINCE_VIEW);
                     }
                 }
@@ -399,56 +392,8 @@ public class MealCountServiceImpl implements MealCountService {
             if (!viewer.adjusts(request.campusId())) {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
-            mealCountRepository.lockCampusDay(request.campusId(), request.date());
-            List<MealCount> counts =
-                    mealCountRepository.findByCampusIdAndDate(request.campusId(), request.date()).stream()
-                            .filter(c -> request.session() == null || c.getSession() == request.session())
-                            .toList();
-            if (counts.isEmpty()) {
-                throw GlobalException.of(ApiCode.MEAL_COUNT_NOT_FOUND);
-            }
-            Year year = editableYear(counts.getFirst().getSchoolYearId());
-            checkNotPastDay(request.date(), counts.stream().anyMatch(MealCount::hasPending));
-            requireInspectionUnsigned(request.campusId(), request.date());
-            // NUT-02: suất thường chỉ đổi qua điểm danh (mở lại — ATT-08); normal null hoặc bằng số hiện tại = giữ
-            // nguyên
-            if (request.normal() != null
-                    && counts.stream()
-                            .anyMatch(c -> c.currentNormal(request.classId())
-                                    .filter(n -> !n.equals(request.normal()))
-                                    .isPresent())) {
-                throw GlobalException.of(ApiCode.MEAL_COUNT_NORMAL_NOT_EDITABLE);
-            }
-            // Suất thay thế nằm trong số trẻ ăn bữa đó (Cần chốt 04/11/2026), không nhập lớn hơn
-            if (counts.stream()
-                    .anyMatch(c -> c.currentEating(request.classId())
-                            .filter(eating -> request.substitute() > eating)
-                            .isPresent())) {
-                throw GlobalException.of(ApiCode.MEAL_SUBSTITUTE_EXCEEDS_EATING);
-            }
-            Instant at = clock.instant();
-            String note = request.note().trim();
-            int changed = 0;
-            for (MealCount count : counts) {
-                // NUT-03: sổ đã xác nhận không sửa ngầm, số mới chờ xác nhận lại
-                int delta = count.adjustSubstitute(request.classId(), request.substitute());
-                if (delta == 0) {
-                    continue;
-                }
-                historyRepository.save(
-                        MealCountHistory.of(count.getId(), MealCountHistory.ADJUSTED, currentUser.userId(), at)
-                                .forClass(request.classId())
-                                .change(0, delta, note));
-                changed++;
-            }
-            if (changed == 0) {
-                throw GlobalException.of(ApiCode.MEAL_COUNT_UNCHANGED);
-            }
-            mealCountRepository.flush();
-            List<MealCountResponse> response =
-                    counts.stream().map(c -> view(c, viewer, year)).toList();
-            log.info("{}|END", logPrefix);
-            return response;
+            // NUT-02 (25/11/2026): không còn suất thay thế để điều chỉnh, suất thường chỉ đổi qua điểm danh
+            throw GlobalException.of(ApiCode.MEAL_COUNT_UNCHANGED);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -487,8 +432,7 @@ public class MealCountServiceImpl implements MealCountService {
                             tally.present(),
                             tally.absent(),
                             tally.missing(),
-                            tally.meals().getOrDefault(count.getSession(), 0),
-                            tally.substitutes().getOrDefault(count.getSession(), 0));
+                            tally.meals().getOrDefault(count.getSession(), 0));
                     if (changed) {
                         historyRepository.save(
                                 MealCountHistory.of(count.getId(), MealCountHistory.ATTENDANCE_CHANGED, null, at)
@@ -638,8 +582,7 @@ public class MealCountServiceImpl implements MealCountService {
                             t.present(),
                             t.absent(),
                             t.missing(),
-                            t.meals().getOrDefault(session, 0),
-                            t.substitutes().getOrDefault(session, 0)));
+                            t.meals().getOrDefault(session, 0)));
             MealCount saved = mealCountRepository.save(count);
             historyRepository.save(MealCountHistory.of(saved.getId(), MealCountHistory.AGGREGATED, null, at));
             stored.put(key(campusId, session), saved);
@@ -767,8 +710,8 @@ public class MealCountServiceImpl implements MealCountService {
                         t.present(),
                         t.absent(),
                         t.missing(),
-                        t.meals().getOrDefault(session, 0) - t.substitutes().getOrDefault(session, 0),
-                        t.substitutes().getOrDefault(session, 0),
+                        t.meals().getOrDefault(session, 0),
+                        0,
                         null,
                         null,
                         false,
@@ -804,12 +747,12 @@ public class MealCountServiceImpl implements MealCountService {
                 l.getPresent(),
                 l.getAbsent(),
                 l.getMissing(),
-                l.getNormal(),
-                l.getSubstitute(),
-                confirmed == null ? null : confirmed.getNormal(),
-                confirmed == null ? null : confirmed.getSubstitute(),
-                l.isSubstituteAdjusted(),
-                l.isAttendanceChanged());
+                l.getNormal() + l.getSubstitute(),
+                0,
+                confirmed == null ? null : confirmed.getNormal() + confirmed.getSubstitute(),
+                confirmed == null ? null : 0,
+                false,
+                false);
     }
 
     private static Totals totals(List<Line> lines) {
