@@ -11217,6 +11217,10 @@ components:
             - AFTERNOON
         name:
           type: string
+        readRanges:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReadRange"
         teaches:
           type: boolean
     Attention:
@@ -12822,6 +12826,12 @@ components:
     ClassSummary:
       type: object
       properties:
+        actualFrom:
+          type: string
+          format: date
+        actualTo:
+          type: string
+          format: date
         campusId:
           type: integer
           format: int64
@@ -20509,6 +20519,15 @@ components:
         mealRate:
           type: integer
           format: int32
+    ReadRange:
+      type: object
+      properties:
+        end:
+          type: string
+          format: date
+        start:
+          type: string
+          format: date
     ReadmitChildRequest:
       type: object
       properties:
@@ -24801,6 +24820,8 @@ components:
           type: integer
           format: int64
         className:
+          type: string
+        confirmBlockedReason:
           type: string
         confirmedAt:
           type: string

@@ -100,17 +100,26 @@ public class AttendanceServiceImpl implements AttendanceService {
         log.info("{}|START", logPrefix);
         try {
             List<AttendanceClassResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
-                    // Người dạy thay đã hết đợt vẫn thấy lớp để mở ngày được mở lại trong đợt (xem / ghi xét theo ngày)
-                    .filter(c -> rules.canView(currentUser, c) || rules.substitutedInYear(currentUser, c))
-                    .map(c -> new AttendanceClassResponse(
-                            c.id(),
-                            c.name(),
-                            c.campusId(),
-                            c.ageGroupId(),
-                            c.mealSessions(),
-                            rules.canRecordAttendance(currentUser, c) || rules.taughtClosedYear(currentUser, c),
-                            c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendance(currentUser, c),
-                            c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canUnlock(currentUser, c.campusId())))
+                    // AUTH-03: lớp cũ (GV dạy chính/dạy thay hết phân công) vẫn trong danh sách, kèm khoảng đọc
+                    .filter(c -> rules.canView(currentUser, c) || rules.taughtInYear(currentUser, c))
+                    .map(c -> {
+                        boolean canViewNow = rules.canView(currentUser, c);
+                        var ranges = canViewNow
+                                ? List.<AttendanceClassResponse.ReadRange>of()
+                                : rules.taughtRanges(currentUser, c).stream()
+                                        .map(r -> new AttendanceClassResponse.ReadRange(r.start(), r.end()))
+                                        .toList();
+                        return new AttendanceClassResponse(
+                                c.id(),
+                                c.name(),
+                                c.campusId(),
+                                c.ageGroupId(),
+                                c.mealSessions(),
+                                rules.canRecordAttendance(currentUser, c) || rules.taughtClosedYear(currentUser, c),
+                                c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendance(currentUser, c),
+                                c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canUnlock(currentUser, c.campusId()),
+                                ranges);
+                    })
                     .toList();
             log.info("{}|END", logPrefix);
             return classes;
@@ -466,12 +475,20 @@ public class AttendanceServiceImpl implements AttendanceService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = findClass(classId);
+            LocalDate requestedFrom = from;
+            LocalDate requestedTo = to;
             // Tổ trưởng chuyên môn xem tổng hợp (không xem phiếu điểm danh/sức khỏe từng ngày) các lớp nhóm tuổi mình
             if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
-                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+                // AUTH-03: GV xem lại lớp cũ: cắt khoảng yêu cầu về phần giao với đợt dạy, không giao thì 403
+                LocalDate[] clipped = clipToTaughtRanges(currentUser, cls, from, to);
+                if (clipped == null) {
+                    throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+                }
+                from = clipped[0];
+                to = clipped[1];
             }
             checkRange(from, to);
-            ClassSummary summary = summarize(cls, from, to);
+            ClassSummary summary = summarize(cls, requestedFrom, requestedTo, from, to);
             log.info("{}|END", logPrefix);
             return summary;
         } catch (RuntimeException ex) {
@@ -499,7 +516,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
                     .filter(c -> ageGroupId == null || ageGroupId.equals(c.ageGroupId()))
                     .filter(c -> leader ? rules.canView(currentUser, c) : ledGroups.contains(c.ageGroupId()))
-                    .map(c -> summarize(c, from, to))
+                    .map(c -> summarize(c, from, to, from, to))
                     .toList();
             // Cột bữa của tổng hợp nhiều lớp = các bữa có ở ít nhất một lớp
             List<MealSession> sessions = parts.stream()
@@ -739,7 +756,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // Mọi trẻ từng học lớp trong khoảng; mỗi ngày chỉ tính trẻ thuộc lớp ngày đó (OBS-23)
-    private ClassSummary summarize(ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+    // actualFrom/actualTo (khác from/to khi GV cắt về đợt dạy cũ) là khoảng thực tế lấy số
+    private ClassSummary summarize(
+            ClassroomInfoResponse cls, LocalDate requestedFrom, LocalDate requestedTo, LocalDate from, LocalDate to) {
         List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroomDuring(cls.id(), from, to);
         List<Long> childIds = children.stream().map(ClassChildResponse::id).toList();
@@ -830,7 +849,37 @@ public class AttendanceServiceImpl implements AttendanceService {
                 })
                 .toList();
         return new ClassSummary(
-                cls.id(), cls.name(), cls.campusId(), cls.mealSessions(), from, to, children.size(), days, childTotals);
+                cls.id(),
+                cls.name(),
+                cls.campusId(),
+                cls.mealSessions(),
+                requestedFrom,
+                requestedTo,
+                from,
+                to,
+                children.size(),
+                days,
+                childTotals);
+    }
+
+    // AUTH-03: cắt khoảng yêu cầu về phần giao với đợt dạy gần nhất có giao (không gộp các đợt để khỏi lộ ngày giữa
+    // hai đợt); null nếu không giao đợt nào
+    private LocalDate[] clipToTaughtRanges(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            return null;
+        }
+        LocalDate[] clipped = null;
+        for (var range : rules.taughtRanges(user, cls)) {
+            if (range.end().isBefore(from) || range.start().isAfter(to)) {
+                continue;
+            }
+            LocalDate start = range.start().isAfter(from) ? range.start() : from;
+            LocalDate end = range.end().isBefore(to) ? range.end() : to;
+            if (clipped == null || start.isAfter(clipped[0])) {
+                clipped = new LocalDate[] {start, end};
+            }
+        }
+        return clipped;
     }
 
     private static boolean inClass(List<EnrollmentService.ClassStay> stays, Long childId, LocalDate date) {

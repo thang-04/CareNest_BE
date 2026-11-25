@@ -3,6 +3,7 @@ package com.carenest.service.child.impl;
 import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildListFilter;
 import com.carenest.dto.child.ChildListItemResponse;
+import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.ParentAccountRowResponse;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
@@ -14,8 +15,10 @@ import com.carenest.repository.child.ChildHealthDeclarationRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.security.authorization.ClassroomAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildListService;
+import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -29,9 +32,11 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -69,6 +74,8 @@ public class ChildListServiceImpl implements ChildListService {
     private final StaffAccessPolicy staffAccessPolicy;
     private final CampusAccessPolicy campusAccessPolicy;
     private final StaffAssignmentService staffAssignmentService;
+    private final ClassroomAccessPolicy classroomAccessPolicy;
+    private final EnrollmentService enrollmentService;
     private final Clock clock;
 
     @Override
@@ -101,10 +108,12 @@ public class ChildListServiceImpl implements ChildListService {
                             && campusAccessPolicy.canReadAllCampuses(actor)
                     ? new Scope(true, scope.campusIds(), scope.classIds())
                     : scope;
-            if (!readScope.wholeSchool()) {
+            List<StaffAssignmentService.TeacherRange> pastRanges = pastClassRanges(actor, filter, readScope);
+            if (!readScope.wholeSchool() && pastRanges.isEmpty()) {
                 checkFilterScope(filter, readScope.campusIds(), readScope.classIds());
             }
-            List<ChildRepository.ChildListRow> rows = rowsOf(readScope, filter, today);
+            List<ChildRepository.ChildListRow> rows =
+                    pastRanges.isEmpty() ? rowsOf(readScope, filter, today) : pastClassRows(filter, pastRanges);
             int total = rows.size();
             int from = (int) Math.min((long) filter.page() * filter.size(), total);
             int to = Math.min(from + filter.size(), total);
@@ -224,6 +233,39 @@ public class ChildListServiceImpl implements ChildListService {
     }
 
     private record Scope(boolean wholeSchool, Set<Long> campusIds, Set<Long> classIds) {}
+
+    private record PastRow(Long getChildId, Long getClassroomId) implements ChildRepository.ChildListRow {}
+
+    // AUTH-03 (Q4, chốt 22/11/2026): GV lọc lớp từng dạy mà nay không còn phân công ⇒ các đợt đã dạy; rỗng = không áp
+    private List<StaffAssignmentService.TeacherRange> pastClassRanges(
+            CurrentUser actor, ChildListFilter filter, Scope scope) {
+        Long classId = filter.classId();
+        if (classId == null || scope.wholeSchool() || scope.classIds().contains(classId)) {
+            return List.of();
+        }
+        Long campus = classroomService.findCampusId(classId).orElse(null);
+        if (campus != null && scope.campusIds().contains(campus)) {
+            return List.of();
+        }
+        return classroomAccessPolicy.taughtRanges(actor, classId);
+    }
+
+    // Trẻ học lớp trong từng đợt đã dạy (xét riêng từng đợt, không lộ trẻ chỉ học ở khoảng giữa hai đợt)
+    private List<ChildRepository.ChildListRow> pastClassRows(
+            ChildListFilter filter, List<StaffAssignmentService.TeacherRange> ranges) {
+        String needle = searchKey(filter.keyword());
+        Map<Long, ClassChildResponse> children = new LinkedHashMap<>();
+        for (StaffAssignmentService.TeacherRange r : ranges) {
+            enrollmentService
+                    .findChildrenInClassroomDuring(filter.classId(), r.start(), r.end())
+                    .forEach(c -> children.putIfAbsent(c.id(), c));
+        }
+        return children.values().stream()
+                .filter(c -> matches(needle, c.fullName()))
+                .sorted(Comparator.comparing(ClassChildResponse::fullName))
+                .map(c -> (ChildRepository.ChildListRow) new PastRow(c.id(), filter.classId()))
+                .toList();
+    }
 
     /** Như trước: lọc lớp / điểm trường ngoài phạm vi ⇒ 403 (AUTH-08), không trả danh sách rỗng. */
     private void checkFilterScope(ChildListFilter filter, Set<Long> campusIds, Set<Long> classIds) {

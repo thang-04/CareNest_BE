@@ -98,11 +98,17 @@ class ObservationDayRules {
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
-    /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */
+    /**
+     * Xem một ngày của lớp: như canView, thêm GV có phân công (dạy chính hoặc dạy thay) ở lớp chứa đúng ngày đó
+     * (AUTH-03, Cần chốt 15/11/2026).
+     */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return canView(user, cls)
                 || (user.hasRole(CareNestRole.TEACHER)
-                        && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+                        && !date.isAfter(today())
+                        && (cls.yearStart() == null || !date.isBefore(cls.yearStart()))
+                        && (cls.yearEnd() == null || !date.isAfter(cls.yearEnd()))
+                        && staffAssignmentService.existsTeacherInClassBetween(user.userId(), cls.id(), date, date));
     }
 
     /**

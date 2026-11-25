@@ -161,6 +161,40 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public boolean existsTeacherInClassBetween(Long userId, Long classroomId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|existsTeacherInClassBetween|userId=" + userId + "|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean found = staffAssignmentRepository.existsTeacherInClassBetween(userId, classroomId, from, to);
+            log.info("{}|END", logPrefix);
+            return found;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<TeacherRange> findTeacherRanges(Long userId, Long classroomId, LocalDate today) {
+        String logPrefix = LOG_PREFIX + "|findTeacherRanges|userId=" + userId + "|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<TeacherRange> ranges = staffAssignmentRepository.findTeacherAssignments(userId, classroomId).stream()
+                    // Chỉ phần đã diễn ra: ngày cuối (null hoặc sau hôm nay) cắt về hôm nay, đợt chưa bắt đầu bị bỏ
+                    .map(a -> new TeacherRange(
+                            a.getValidFrom(),
+                            a.getValidTo() == null || a.getValidTo().isAfter(today) ? today : a.getValidTo()))
+                    .filter(r -> !r.end().isBefore(r.start()))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return ranges;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public boolean hasActiveMainTeacherAssignment(Long userId, Long classroomId, LocalDate date) {
         String logPrefix =
                 LOG_PREFIX + "|hasActiveMainTeacherAssignment|userId=" + userId + "|classroomId=" + classroomId;

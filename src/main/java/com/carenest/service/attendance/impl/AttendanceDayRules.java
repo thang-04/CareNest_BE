@@ -130,20 +130,40 @@ class AttendanceDayRules {
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
-    /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */
+    /**
+     * Xem một ngày của lớp: như canView, thêm GV có phân công (dạy chính hoặc dạy thay) chứa đúng ngày đó (AUTH-03).
+     */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
-        return canView(user, cls)
-                || (user.hasRole(CareNestRole.TEACHER)
-                        && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+        return canView(user, cls) || (readsAttendance(user) && classroomAccessPolicy.taughtOn(user, cls.id(), date));
     }
 
-    /** Người dạy thay có đợt trong năm của lớp: lớp vẫn có trong danh sách để mở lại đúng ngày mình dạy thay. */
-    boolean substitutedInYear(CurrentUser user, ClassroomInfoResponse cls) {
+    // Đọc lớp cũ (AUTH-03) vẫn cần quyền xem hoặc ghi điểm danh / sức khỏe
+    private static boolean readsAttendance(CurrentUser user) {
+        return user.hasPermission(Permission.ATTENDANCE_VIEW)
+                || user.hasPermission(Permission.ATTENDANCE_RECORD)
+                || user.hasPermission(Permission.DAILY_HEALTH_RECORD);
+    }
+
+    /**
+     * AUTH-03 (Cần chốt 15/11/2026): GV có phân công (dạy chính hoặc dạy thay) giao với năm của lớp: lớp vẫn trong
+     * danh sách để xem lại trong khoảng đã dạy.
+     */
+    boolean taughtInYear(CurrentUser user, ClassroomInfoResponse cls) {
         return user.hasRole(CareNestRole.TEACHER)
+                && readsAttendance(user)
                 && cls.yearStart() != null
                 && cls.yearEnd() != null
-                && staffAssignmentService.hasSubstituteAssignmentBetween(
-                        user.userId(), cls.id(), cls.yearStart(), cls.yearEnd());
+                && !cls.yearStart().isAfter(today())
+                && staffAssignmentService.existsTeacherInClassBetween(
+                        user.userId(),
+                        cls.id(),
+                        cls.yearStart(),
+                        cls.yearEnd().isAfter(today()) ? today() : cls.yearEnd());
+    }
+
+    /** Khoảng đọc của GV tại lớp (AUTH-03); rỗng nếu không phải lớp cũ của người dùng. */
+    List<StaffAssignmentService.TeacherRange> taughtRanges(CurrentUser user, ClassroomInfoResponse cls) {
+        return classroomAccessPolicy.taughtRanges(user, cls.id());
     }
 
     /**

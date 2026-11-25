@@ -34,6 +34,18 @@ public interface StaffAssignmentService {
     /** Người dùng dạy thay lớp vào đúng ngày này. */
     boolean hasSubstituteAssignmentOn(Long userId, Long classroomId, LocalDate date);
 
+    /**
+     * AUTH-03 (Cần chốt 15/11/2026): người dùng có phân công GV (dạy chính hoặc dạy thay) ở lớp giao với khoảng
+     * [from, to]; bỏ phân công gỡ trước khi bắt đầu.
+     */
+    boolean existsTeacherInClassBetween(Long userId, Long classroomId, LocalDate from, LocalDate to);
+
+    /** Khoảng đọc của một GV tại lớp (AUTH-03): các đợt dạy chính/dạy thay, ngày cuối mở cắt về hôm nay. */
+    List<TeacherRange> findTeacherRanges(Long userId, Long classroomId, LocalDate today);
+
+    /** Đợt phân công GV của một lớp (ngày bắt đầu – ngày kết thúc; kết thúc null đã cắt về today). */
+    record TeacherRange(LocalDate start, LocalDate end) {}
+
     /** Có đợt dạy thay lớp giao với khoảng [from, to] (danh sách lớp để người dạy thay mở lại ngày của mình). */
     boolean hasSubstituteAssignmentBetween(Long userId, Long classroomId, LocalDate from, LocalDate to);
 

@@ -76,6 +76,8 @@ class ChildListServiceImplTest {
             policy,
             campusAccessPolicy,
             assignmentService,
+            mock(com.carenest.security.authorization.ClassroomAccessPolicy.class),
+            mock(com.carenest.service.child.EnrollmentService.class),
             CLOCK);
 
     @BeforeEach

@@ -52,6 +52,10 @@ public final class AttendanceSummaryResponse {
             int unexcused,
             int meals) {}
 
+    /**
+     * from/to = khoảng người dùng gửi; actualFrom/actualTo = khoảng thực tế lấy số, khác khoảng gửi khi GV xem lại lớp
+     * cũ (AUTH-03: cắt về phần giao với đợt dạy).
+     */
     public record ClassSummary(
             Long classId,
             String className,
@@ -59,6 +63,8 @@ public final class AttendanceSummaryResponse {
             List<MealSession> mealSessions,
             LocalDate from,
             LocalDate to,
+            LocalDate actualFrom,
+            LocalDate actualTo,
             int size,
             List<DayRow> days,
             List<ChildTotal> children) {}
