@@ -14,6 +14,7 @@ import static com.carenest.service.health.impl.HealthExamCatalog.IMMUNIZATION_IT
 import static com.carenest.service.health.impl.HealthExamCatalog.ISSUE_KIND_OPTIONS;
 import static com.carenest.service.health.impl.HealthExamCatalog.NO;
 import static com.carenest.service.health.impl.HealthExamCatalog.NUTRITION_STATUS_OPTIONS;
+import static com.carenest.service.health.impl.HealthExamCatalog.TEMPERATURE;
 import static com.carenest.service.health.impl.HealthExamCatalog.VITAL_ITEMS;
 import static com.carenest.service.health.impl.HealthExamCatalog.YES;
 import static com.carenest.service.health.impl.HealthExamCatalog.labelOf;
@@ -81,7 +82,8 @@ final class HealthExamDiff {
             out.add(new Entry(
                     "exam.vitals." + item.key(),
                     item.label(),
-                    number(item.value().apply(e.vitals()))));
+                    // Nhiệt độ lưu tới 2 số lẻ (HLT-08), các chỉ số khác 0-1
+                    number(item.value().apply(e.vitals()), item.key().equals(TEMPERATURE) ? 2 : 1)));
             out.add(new Entry(
                     "exam.vitals." + item.statusKey(),
                     item.name() + ": trạng thái",
@@ -205,7 +207,11 @@ final class HealthExamDiff {
 
     // Số như FE hiện (formatNumber vi-VN, tối đa 1 số lẻ): 98,5; 37; 1.200
     private static String number(BigDecimal value) {
-        return value == null ? "" : HealthExamCatalog.formatDecimal(value, 1);
+        return number(value, 1);
+    }
+
+    private static String number(BigDecimal value, int digits) {
+        return value == null ? "" : HealthExamCatalog.formatDecimal(value, digits);
     }
 
     private static String yesNo(String value) {

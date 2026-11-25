@@ -103,3 +103,16 @@ UNION ALL SELECT 'closed_year_record_after_close', (SELECT count(*) FROM child_e
        WHERE y.status = 'CLOSED' AND v.updated_at > y.closed_at)
      + (SELECT count(*) FROM reward_lists l JOIN school_years y ON y.id = l.school_year_id WHERE y.status = 'CLOSED' AND l.updated_at > y.closed_at)
      + (SELECT count(*) FROM class_ratings r JOIN school_years y ON y.id = r.school_year_id WHERE y.status = 'CLOSED' AND r.rated_at > y.closed_at)
+
+-- Tiếp nhận năm sau (V147, CHD-11): đăng ký đang mở gắn trẻ chờ xếp lớp, đăng ký hủy gắn trẻ đã nghỉ
+UNION ALL SELECT 'planned_open_child_not_pending', count(*) FROM planned_admissions a JOIN children ch ON ch.id = a.child_id
+ WHERE a.status IN ('PENDING', 'PLACED') AND ch.status <> 'PENDING_PLACEMENT'
+UNION ALL SELECT 'planned_cancelled_child_not_left', count(*) FROM planned_admissions a JOIN children ch ON ch.id = a.child_id
+ WHERE a.status = 'CANCELLED' AND ch.status <> 'LEFT'
+UNION ALL SELECT 'planned_class_other_year_or_campus', count(*) FROM planned_admissions a LEFT JOIN classrooms c ON c.id = a.classroom_id
+ WHERE (a.status = 'PLACED' AND (c.id IS NULL OR c.school_year_id <> a.school_year_id OR c.campus_id <> a.campus_id))
+    OR (a.status = 'PENDING' AND a.classroom_id IS NOT NULL)
+UNION ALL SELECT 'planned_start_outside_year', count(*) FROM planned_admissions a JOIN school_years y ON y.id = a.school_year_id
+ WHERE a.start_date < y.start_date OR a.start_date > y.end_date
+UNION ALL SELECT 'planned_open_year_not_planned', count(*) FROM planned_admissions a JOIN school_years y ON y.id = a.school_year_id
+ WHERE a.status IN ('PENDING', 'PLACED') AND y.status <> 'PLANNED'

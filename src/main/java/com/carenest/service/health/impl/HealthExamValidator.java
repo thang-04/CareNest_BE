@@ -19,6 +19,7 @@ import static com.carenest.service.health.impl.HealthExamCatalog.IMMUNIZATION_IT
 import static com.carenest.service.health.impl.HealthExamCatalog.NORMAL;
 import static com.carenest.service.health.impl.HealthExamCatalog.NO_YES;
 import static com.carenest.service.health.impl.HealthExamCatalog.NUTRITION_STATUS_OPTIONS;
+import static com.carenest.service.health.impl.HealthExamCatalog.TEMPERATURE;
 import static com.carenest.service.health.impl.HealthExamCatalog.VITAL_ITEMS;
 import static com.carenest.service.health.impl.HealthExamCatalog.YES;
 import static com.carenest.service.health.impl.HealthExamCatalog.find;
@@ -94,7 +95,8 @@ final class HealthExamValidator {
                     item.name().toLowerCase(Locale.ROOT),
                     item.min(),
                     item.max(),
-                    item.unit());
+                    item.unit(),
+                    item.key().equals(TEMPERATURE) ? 2 : 1);
             checkChoice(
                     errors,
                     "exam.vitals." + item.statusKey(),
@@ -328,7 +330,25 @@ final class HealthExamValidator {
         checkLength(errors, "exam.conclusion.specialty", c.specialty(), SPECIALTY);
     }
 
-    // So khoảng trên số đã làm tròn 0,1 như lúc lưu (số trong phiếu đã chuẩn hóa không đổi); quá ±10^9 ⇒ ngoài khoảng
+    /**
+     * Định dạng nhiệt độ theo số người dùng gửi (chưa làm tròn): lớn hơn 0, phần nguyên đúng 2 chữ số, tối đa 2 chữ số
+     * sau dấu phẩy. Trả lỗi ô hoặc null nếu hợp lệ hay chưa nhập.
+     */
+    static FieldErrorResponse temperatureFormatError(BigDecimal raw) {
+        if (raw == null) {
+            return null;
+        }
+        // Chỉ đếm chữ số, không dựng lại số (số mũ rất lớn như 1e999999999 không được tốn bộ nhớ)
+        BigDecimal stripped = raw.stripTrailingZeros();
+        int integerDigits = stripped.precision() - stripped.scale();
+        boolean valid = raw.signum() > 0 && stripped.scale() <= 2 && integerDigits == 2;
+        return valid
+                ? null
+                : new FieldErrorResponse(
+                        "exam.vitals.temperatureC",
+                        "Nhập nhiệt độ gồm 2 chữ số, tối đa 2 chữ số sau dấu phẩy (vd 36,5)");
+    }
+
     private static void checkNumber(
             Map<String, String> errors,
             String key,
@@ -338,13 +358,27 @@ final class HealthExamValidator {
             int min,
             int max,
             String unit) {
+        checkNumber(errors, key, value, required, label, min, max, unit, 1);
+    }
+
+    // So khoảng trên số đã làm tròn như lúc lưu (số trong phiếu đã chuẩn hóa không đổi); quá ±10^9 ⇒ ngoài khoảng
+    private static void checkNumber(
+            Map<String, String> errors,
+            String key,
+            BigDecimal value,
+            boolean required,
+            String label,
+            int min,
+            int max,
+            String unit,
+            int scale) {
         if (value == null) {
             if (required) {
                 errors.putIfAbsent(key, "Nhập " + label);
             }
             return;
         }
-        BigDecimal rounded = HealthExamNormalizer.round(value, 1);
+        BigDecimal rounded = HealthExamNormalizer.round(value, scale);
         if (rounded == null
                 || rounded.compareTo(BigDecimal.valueOf(min)) < 0
                 || rounded.compareTo(BigDecimal.valueOf(max)) > 0) {

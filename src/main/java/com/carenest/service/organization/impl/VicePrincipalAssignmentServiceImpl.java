@@ -92,6 +92,9 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 if (!campus.isActive()) {
                     throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);
                 }
+                if (!campusRepository.findYearCampusIds(year.getId()).contains(campusId)) {
+                    throw GlobalException.of(ApiCode.CAMPUS_NOT_IN_YEAR);
+                }
             }
             LocalDate start = effectiveStart(year);
             List<StaffAssignment> open = staffAssignmentRepository.findOpenVicePrincipalAssignments(userId, start);

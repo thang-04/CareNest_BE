@@ -317,6 +317,23 @@ class HealthGrowthReportIntegrationTest {
         assertThat(a.total().measured()).isEqualTo(10);
     }
 
+    @Test
+    @DisplayName("HLT-20, HLT-08 (2026-11-24): cùng ngày có phiếu khám kết luận và số đo kỳ cân đo ⇒ tính phiếu khám")
+    void sameDayExamIsCountedInsteadOfMeasurement() {
+        long sameDay = child("Bé khám cùng ngày (giả)", "2021-03-10", "MALE", fiveA);
+        // Phiếu khám (bình thường) lưu trước, số đo kỳ cân đo cùng ngày (béo phì) nhập sau nên id lớn hơn
+        examResult(sameDay, exam, fiveA, "2026-09-15", "112.9", "19.5", true);
+        measure(sameDay, round, fiveA, "2026-09-15", "112.9", "24.9");
+
+        HealthGrowthCampus a = reports.getGrowthReport(principal, SEPTEMBER, campusA)
+                .campuses()
+                .getFirst();
+        assertThat(a.classes())
+                .filteredOn(c -> c.className().equals("5 tuổi A"))
+                .singleElement()
+                .satisfies(c -> assertThat(c.counts()).isEqualTo(counts(5, 4, 4, 0, 3, 1, 3, 0, 0, 1, 0)));
+    }
+
     private static HealthGrowthCounts counts(
             int enrolled,
             int measured,
@@ -341,6 +358,33 @@ class HealthGrowthReportIntegrationTest {
                 overweight,
                 obese,
                 unclassified);
+    }
+
+    @Test
+    @DisplayName("HLT-20: báo cáo chia nhà trẻ / mẫu giáo theo nhóm tuổi của năm học của lớp, không theo bảng chung")
+    void reportUsesAgeGroupsOfClassYear() {
+        long year = jdbc.queryForObject("SELECT id FROM school_years WHERE name = '2026-2027'", Long.class);
+        // Năm 2026-2027 có cấu hình riêng (V154): nhóm ag-4 của năm đó là nhà trẻ 24–36 tháng
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name,"
+                        + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
+                        + " SELECT ?, id, CASE WHEN code = 'ag-4' THEN 'Nhóm riêng năm 2026 (giả)' ELSE name END,"
+                        + " short_name, CASE WHEN code = 'ag-4' THEN 24 ELSE age_from_months END,"
+                        + " CASE WHEN code = 'ag-4' THEN 36 ELSE age_to_months END, meal_sessions, max_class_size,"
+                        + " COALESCE(nutrition_note, '') FROM age_groups WHERE code IN ('ag-2', 'ag-4', 'ag-5')",
+                year);
+
+        HealthGrowthCampus a = reports.getGrowthReport(principal, SEPTEMBER, campusA)
+                .campuses()
+                .getFirst();
+
+        assertThat(a.classes())
+                .filteredOn(c -> c.className().equals("4 tuổi A"))
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.level()).isEqualTo(HealthGrowthLevel.NURSERY);
+                    assertThat(c.ageGroupName()).isEqualTo("Nhóm riêng năm 2026 (giả)");
+                });
     }
 
     private String ageGroupName(String code) {

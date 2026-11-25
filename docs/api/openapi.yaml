@@ -3091,6 +3091,18 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: childId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -3899,6 +3911,25 @@ paths:
           description: OK
       tags:
       - health-trend-controller
+  /api/children/{childId}/leave-options:
+    get:
+      operationId: leaveOptions
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLeaveOptionsResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/photo:
     get:
       operationId: getChildPhoto
@@ -3954,6 +3985,25 @@ paths:
             schema:
               $ref: "#/components/schemas/PlaceChildRequest"
         required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
+  /api/children/{childId}/placement/scheduled:
+    delete:
+      operationId: cancelScheduledPlacement
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -4082,6 +4132,25 @@ paths:
           description: OK
       tags:
       - parent-assessment-controller
+  /api/children/{childId}/scheduled-leave:
+    delete:
+      operationId: cancelScheduledLeave
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/weekly-comments:
     get:
       operationId: listForParent
@@ -12435,16 +12504,30 @@ components:
           type: string
         mealRegistered:
           type: boolean
+        nextClass:
+          $ref: "#/components/schemas/ChildNextClassResponse"
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         profile:
           $ref: "#/components/schemas/ChildProfileDetailResponse"
         readmittedAt:
           type: string
           format: date
+        scheduledLeaveOn:
+          type: string
+          format: date
+        scheduledLeaveReason:
+          type: string
         schoolYearId:
           type: integer
           format: int64
+        startDate:
+          type: string
+          format: date
+        startDue:
+          type: boolean
         status:
           type: string
           enum:
@@ -12571,6 +12654,8 @@ components:
           - UPDATED
           - WITHDRAWN
           - READMITTED
+          - LEAVE_SCHEDULED
+          - LEAVE_CANCELLED
         at:
           type: string
           format: date-time
@@ -12640,20 +12725,43 @@ components:
           format: date
         mealRegistered:
           type: boolean
+        nextClass:
+          $ref: "#/components/schemas/ChildNextClassResponse"
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         readmittedAt:
+          type: string
+          format: date
+        scheduledLeaveOn:
           type: string
           format: date
         schoolYearId:
           type: integer
           format: int64
+        startDate:
+          type: string
+          format: date
+        startDue:
+          type: boolean
         status:
           type: string
           enum:
           - ACTIVE
           - PENDING_PLACEMENT
           - LEFT
+    ChildNextClassResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        from:
+          type: string
+          format: date
     ChildPhotoProfileResponse:
       type: object
       properties:
@@ -12692,6 +12800,12 @@ components:
         at:
           type: string
           format: date-time
+        cancelledAt:
+          type: string
+          format: date-time
+        effectiveFrom:
+          type: string
+          format: date
         fromClassId:
           type: integer
           format: int64
@@ -12989,16 +13103,30 @@ components:
           type: string
         mealRegistered:
           type: boolean
+        nextClass:
+          $ref: "#/components/schemas/ChildNextClassResponse"
         photoUrl:
           type: string
+        plannedAdmission:
+          $ref: "#/components/schemas/PlannedAdmissionResponse"
         profile:
           $ref: "#/components/schemas/ChildProfileDetailResponse"
         readmittedAt:
           type: string
           format: date
+        scheduledLeaveOn:
+          type: string
+          format: date
+        scheduledLeaveReason:
+          type: string
         schoolYearId:
           type: integer
           format: int64
+        startDate:
+          type: string
+          format: date
+        startDue:
+          type: boolean
         status:
           type: string
           enum:
@@ -15077,6 +15205,9 @@ components:
     DuplicateCheckResponse:
       type: object
       properties:
+        campusId:
+          type: integer
+          format: int64
         canReadmit:
           type: boolean
         code:
@@ -16948,6 +17079,8 @@ components:
     HealthCheckChild:
       type: object
       properties:
+        absentToday:
+          type: boolean
         bmi:
           type: number
         bmiStatus:
@@ -16959,6 +17092,8 @@ components:
           - OVERWEIGHT_RISK
           - OVERWEIGHT
           - OBESE
+        canEdit:
+          type: boolean
         childId:
           type: integer
           format: int64
@@ -17003,9 +17138,13 @@ components:
           type: string
         heightCm:
           type: number
+        measuredIn:
+          $ref: "#/components/schemas/MeasuredIn"
         measurementId:
           type: integer
           format: int64
+        movedTo:
+          $ref: "#/components/schemas/MovedTo"
         previous:
           $ref: "#/components/schemas/HealthPreviousExam"
         published:
@@ -18445,6 +18584,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EnrollChildRequest"
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
     ImportResult:
       type: object
       properties:
@@ -18958,6 +19103,22 @@ components:
         date:
           type: string
           format: date
+    LeaveOptionsResponse:
+      type: object
+      properties:
+        maxDate:
+          type: string
+          format: date
+        minDate:
+          type: string
+          format: date
+        today:
+          type: string
+          format: date
+        todayAllowed:
+          type: boolean
+        todayBlockedReason:
+          type: string
     LeavePreviewResponse:
       type: object
       properties:
@@ -19568,6 +19729,16 @@ components:
         weekStart:
           type: string
           format: date
+    MeasuredIn:
+      type: object
+      properties:
+        campusName:
+          type: string
+        className:
+          type: string
+        date:
+          type: string
+          format: date
     MedicalHistoryInput:
       type: object
       properties:
@@ -19960,6 +20131,16 @@ components:
         updatedAt:
           type: string
           format: date-time
+    MovedTo:
+      type: object
+      properties:
+        campusName:
+          type: string
+        className:
+          type: string
+        from:
+          type: string
+          format: date
     MultiSummary:
       type: object
       properties:
@@ -21692,6 +21873,9 @@ components:
         classId:
           type: integer
           format: int64
+        effectiveDate:
+          type: string
+          format: date
         reason:
           type: string
     Placement:
@@ -21774,6 +21958,9 @@ components:
           format: int64
         name:
           type: string
+        occupiedCount:
+          type: integer
+          format: int64
         schoolYearId:
           type: integer
           format: int64
@@ -21790,6 +21977,32 @@ components:
         userId:
           type: integer
           format: int64
+    PlannedAdmissionResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - PENDING
+          - PLACED
+          - ACTIVATED
+          - CANCELLED
     PolicyEntry:
       type: object
       properties:
@@ -22267,8 +22480,17 @@ components:
     ReadmitChildRequest:
       type: object
       properties:
+        campusId:
+          type: integer
+          format: int64
         reason:
           type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
     ReceiptLine:
       type: object
       properties:
@@ -23767,6 +23989,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/LearningResourceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonLeaveOptionsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/LeaveOptionsResponse"
         desc:
           type: string
         errorCode:

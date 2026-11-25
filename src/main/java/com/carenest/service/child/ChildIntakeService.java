@@ -2,6 +2,7 @@ package com.carenest.service.child;
 
 import com.carenest.dto.child.ChildGuardianContact;
 import com.carenest.dto.child.ChildMedicalHistory;
+import com.carenest.dto.child.ChildNextClassResponse;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.DuplicateCheckResponse;
 import com.carenest.dto.child.EnrollChildRequest;
@@ -9,11 +10,13 @@ import com.carenest.dto.child.EnrollmentDraft;
 import com.carenest.dto.child.GuardianChildSummary;
 import com.carenest.dto.child.GuardianRecord;
 import com.carenest.dto.child.PlacementClassResponse;
+import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -46,8 +49,16 @@ public interface ChildIntakeService {
     DuplicateCheckResponse checkDuplicate(
             CurrentUser actor, String fullName, String dateOfBirth, List<String> guardianIdNumbers, Long excludeId);
 
-    /** CHD-10: lớp nhận trẻ của năm đang hoạt động hoặc năm sắp tới trong phạm vi. */
-    List<PlacementClassResponse> listPlacementClasses(CurrentUser actor, Long schoolYearId);
+    /**
+     * CHD-10: lớp nhận trẻ của năm đang hoạt động hoặc năm sắp tới trong phạm vi; from null = hôm nay, childId (nếu có)
+     * không tính vào sĩ số kiểm (CHD-14).
+     */
+    List<PlacementClassResponse> listPlacementClasses(
+            CurrentUser actor, Long schoolYearId, LocalDate from, Long childId);
+
+    default List<PlacementClassResponse> listPlacementClasses(CurrentUser actor, Long schoolYearId) {
+        return listPlacementClasses(actor, schoolYearId, null, null);
+    }
 
     default List<PlacementClassResponse> listPlacementClasses(CurrentUser actor) {
         return listPlacementClasses(actor, null);
@@ -70,6 +81,12 @@ public interface ChildIntakeService {
 
     /** Hồ sơ trẻ kèm phụ huynh, tài khoản, lịch sử; người gọi đã kiểm phạm vi. */
     ChildViewResponse getChildView(Long childId);
+
+    /** CHD-11: đăng ký năm sau còn mở (PENDING/PLACED) của các trẻ; trẻ không có đăng ký không có khóa. */
+    Map<Long, PlannedAdmissionResponse> findOpenPlannedAdmissions(Collection<Long> childIds);
+
+    /** G94-180/CHD-14: lớp bắt đầu sau hôm nay (lịch chuyển, lớp chưa bắt đầu) của các trẻ; trẻ không có thì không có khóa. */
+    Map<Long, ChildNextClassResponse> findNextClasses(Collection<Long> childIds);
 
     /** Phụ huynh trên mọi hồ sơ trẻ có SĐT hoặc CCCD trong danh sách (kiểm một người một tài khoản, AUTH-18). */
     List<GuardianRecord> findGuardianRecords(Collection<String> phones, Collection<String> citizenIds);

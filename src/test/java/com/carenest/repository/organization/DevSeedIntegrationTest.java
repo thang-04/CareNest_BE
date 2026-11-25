@@ -189,6 +189,76 @@ class DevSeedIntegrationTest {
                 .isZero();
     }
 
+    @Test
+    @DisplayName("CHD-11: dữ liệu dev có đủ trường hợp tiếp nhận năm sau")
+    void datasetCoversNextYearIntakeCases() {
+        String s = SCHEMA + ".";
+        assertThat(jdbc.queryForObject(
+                        "select count(distinct a.campus_id) from " + s
+                                + "planned_admissions a where a.status = 'PLACED'",
+                        Long.class))
+                .as("đăng ký đã có lớp ở từng điểm trường")
+                .isEqualTo(jdbc.queryForObject("select count(*) from " + s + "campuses", Long.class));
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + s + "planned_admissions a join " + s
+                                + "children ch on ch.id = a.child_id where a.status = 'PENDING' and not ch.meal_registered",
+                        Long.class))
+                .as("đăng ký chưa có lớp, trẻ không báo ăn")
+                .isPositive();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + s + "planned_admissions a join " + s
+                                + "children ch on ch.id = a.child_id where a.status = 'CANCELLED' and ch.status = 'LEFT'",
+                        Long.class))
+                .as("đăng ký đã hủy, trẻ thôi học")
+                .isPositive();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + s + "planned_admissions a join " + s
+                                + "school_years y on y.id = a.school_year_id where a.start_date > y.start_date",
+                        Long.class))
+                .as("đăng ký bắt đầu muộn hơn đầu năm")
+                .isPositive();
+        assertThat(jdbc.queryForObject(
+                        "select count(distinct a.child_id) from " + s + "planned_admissions a"
+                                + " join " + s + "child_guardians g on g.child_id = a.child_id and g.account_recipient"
+                                + " join " + s
+                                + "child_guardians o on o.user_id = g.user_id and o.account_recipient and o.child_id <> a.child_id"
+                                + " join " + s + "children oc on oc.id = o.child_id and oc.status = 'ACTIVE'"
+                                + " join " + s + "enrollments e on e.child_id = oc.id and e.valid_to is null"
+                                + " where a.status in ('PENDING', 'PLACED') and g.user_id is not null",
+                        Long.class))
+                .as("trẻ năm sau dùng chung tài khoản với trẻ đang học")
+                .isPositive();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + s
+                                + "planned_admissions a where a.status in ('PENDING', 'PLACED') and ("
+                                + "not exists (select 1 from " + s + "child_profiles p where p.child_id = a.child_id)"
+                                + " or not exists (select 1 from " + s
+                                + "child_health_declarations d where d.child_id = a.child_id)"
+                                + " or (select count(*) from " + s
+                                + "child_guardians g where g.child_id = a.child_id and g.account_recipient) <> 1)",
+                        Long.class))
+                .as("đăng ký đang mở thiếu hồ sơ, khai báo hoặc người nhận tài khoản")
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("CHD-08: mọi hồ sơ trẻ trong dữ liệu dev đều có tuần thai khi sinh")
+    void everyProfileHasGestationWeeks() {
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + SCHEMA + ".child_profiles where gestation_weeks is null", Long.class))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("Mục 2: mọi trẻ đã có lớp trong dữ liệu dev đều có ngày bắt đầu đi học")
+    void everyEnrolledChildHasStartDate() {
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from " + SCHEMA + ".children c where c.start_date is null"
+                                + " and exists (select 1 from " + SCHEMA + ".enrollments e where e.child_id = c.id)",
+                        Long.class))
+                .isZero();
+    }
+
     private Map<String, Long> rowCounts() {
         Map<String, Long> counts = new LinkedHashMap<>();
         tables().forEach(t -> counts.put(t, count(t)));
