@@ -16387,6 +16387,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        current:
+          type: boolean
         deletable:
           type: boolean
         foodCount:
@@ -16403,6 +16405,9 @@ components:
         periodTo:
           type: string
           format: date
+        version:
+          type: integer
+          format: int32
     Goal:
       type: object
       properties:

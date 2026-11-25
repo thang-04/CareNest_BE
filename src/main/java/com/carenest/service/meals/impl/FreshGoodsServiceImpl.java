@@ -146,7 +146,9 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                             f.getNote(),
                             foodCounts.getOrDefault(f.getId(), 0L).intValue(),
                             f.getCreatedAt(),
-                            !inUse.contains(f.getId())))
+                            !inUse.contains(f.getId()),
+                            forecastVersion(f, forecasts),
+                            isCurrentForecast(f, forecasts)))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -154,6 +156,30 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /** Thứ tự lập (từ 1) trong cùng điểm trường và cùng kỳ; {@code all} đã cùng điểm trường, sắp mới nhất trước. */
+    private static int forecastVersion(FreshForecast forecast, List<FreshForecast> all) {
+        return (int) all.stream()
+                .filter(other -> samePeriod(other, forecast) && !isNewer(other, forecast))
+                .count();
+    }
+
+    /** Bản đang dùng cho kiểm nhận: chưa có bản mới hơn phủ hết kỳ của nó (cùng tiêu chí chọn bản của {@code findCovering}). */
+    private static boolean isCurrentForecast(FreshForecast forecast, List<FreshForecast> all) {
+        return all.stream()
+                .noneMatch(other -> isNewer(other, forecast)
+                        && !other.getPeriodFrom().isAfter(forecast.getPeriodFrom())
+                        && !other.getPeriodTo().isBefore(forecast.getPeriodTo()));
+    }
+
+    private static boolean samePeriod(FreshForecast a, FreshForecast b) {
+        return a.getPeriodFrom().equals(b.getPeriodFrom()) && a.getPeriodTo().equals(b.getPeriodTo());
+    }
+
+    private static boolean isNewer(FreshForecast candidate, FreshForecast than) {
+        int byTime = candidate.getCreatedAt().compareTo(than.getCreatedAt());
+        return byTime > 0 || (byTime == 0 && candidate.getId() > than.getId());
     }
 
     @Override
@@ -661,11 +687,19 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         return order;
     }
 
-    /** Lần 1 (NUT-12): lượng cần nhận = dòng của ngày trong bản dự trù mới lập nhất có kỳ chứa ngày. */
+    /**
+     * Lần 1 (NUT-12): lượng cần nhận = dòng của ngày trong bản dự trù mới lập nhất có kỳ chứa ngày; lần 1 đã ghi thì giữ
+     * đúng bản dự trù lúc ghi, lập bản mới sau đó không làm đổi lượng cần nhận của lần đã ghi.
+     */
     private Expected forecastExpected(Long campusId, LocalDate date) {
-        FreshForecast forecast = forecastRepository.findCovering(campusId, date).stream()
-                .findFirst()
-                .orElse(null);
+        FreshForecast forecast = checkRepository
+                .findByCampusIdAndCheckDateAndRound(campusId, date, (short) ROUND_FORECAST)
+                .map(FreshCheck::getForecastId)
+                .flatMap(forecastRepository::findWithLinesById)
+                .filter(saved -> saved.getCampusId().equals(campusId))
+                .orElseGet(() -> forecastRepository.findCovering(campusId, date).stream()
+                        .findFirst()
+                        .orElse(null));
         if (forecast == null) {
             return Expected.unavailable(FreshCheckSource.FORECAST, NO_FORECAST_REASON);
         }
