@@ -73,6 +73,11 @@ public class CurrentUserService {
             log.warn("[getCurrentUser]|userId={}|reason=inactive", account.getId());
             throw GlobalException.of(ApiCode.ACCOUNT_INACTIVE);
         }
+        // Đổi/đặt lại mật khẩu ⇒ mọi access token cấp trước đó hết hiệu lực ngay (đặt sau kiểm khóa để giữ 1015)
+        if (account.issuedBeforePasswordChange(validatedToken.getIssuedAt())) {
+            log.warn("[getCurrentUser]|userId={}|reason=issuedBeforePasswordChange", account.getId());
+            throw GlobalException.of(ApiCode.UNAUTHENTICATED);
+        }
 
         Set<CareNestRole> permissionRoles = EffectivePermissionResolver.permissionRoles(
                 roles, teamLeaderAssignmentChecker.isActiveTeamLeader(account.getId(), roles));

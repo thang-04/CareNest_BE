@@ -583,6 +583,8 @@ class AccountProvisioningServiceImplTest {
         InOrder order = inOrder(identityProviderClient, authState);
         order.verify(identityProviderClient).resetTemporaryPassword("kc-t", "New-Temp-1");
         order.verify(authState).revokeAccountAuth(42L);
+        // Cấp lại mật khẩu tạm cũng là một lần đổi: token cũ hết hiệu lực, hồ sơ hiện mốc đổi
+        order.verify(authState).markPasswordChanged(42L);
         order.verify(identityProviderClient).logoutUser("kc-t");
     }
 
