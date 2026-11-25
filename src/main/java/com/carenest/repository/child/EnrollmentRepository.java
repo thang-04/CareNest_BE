@@ -50,11 +50,13 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     List<Enrollment> findStartingAfter(@Param("childIds") Collection<Long> childIds, @Param("date") LocalDate date);
 
     /**
-     * Số trẻ còn ở lớp từ ngày :date trở đi (đang học tới ngày đó hoặc sẽ vào sau), trừ trẻ đang xếp: sĩ số khi xếp /
-     * chuyển lớp từ một ngày (G94-180/CHD-14).
+     * Số trẻ còn ở lớp từ ngày :date trở đi (đang học tới ngày đó hoặc sẽ vào sau), trừ trẻ đang xếp và trẻ có lịch nghỉ
+     * học từ :date trở về trước (từ ngày nghỉ trẻ không giữ chỗ): sĩ số khi xếp / chuyển lớp từ một ngày (G94-180/CHD-14,
+     * CHD-03).
      */
     @Query("select count(e) from Enrollment e where e.classroomId = :classroomId"
-            + " and (e.validTo is null or e.validTo >= :date) and e.childId <> :excludeChildId")
+            + " and (e.validTo is null or e.validTo >= :date) and e.childId <> :excludeChildId"
+            + " and not exists (select c.id from Child c where c.id = e.childId and c.scheduledLeaveOn <= :date)")
     long countOccupyingFrom(
             @Param("classroomId") Long classroomId,
             @Param("date") LocalDate date,

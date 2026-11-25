@@ -312,6 +312,32 @@ class ChildPlacementScheduleIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "G94-180/CHD-03, CHD-14: lớp đủ sĩ số, một trẻ có lịch nghỉ từ thứ 3 ⇒ chuyển trẻ khác vào lớp từ thứ 3"
+                    + " được, từ thứ 2 vẫn báo đủ")
+    void scheduledLeaveFreesSeatFromLeaveDate() {
+        long smallClass = classroom(campusA, "Chồi A4", 1);
+        long leaving = child("Lê Sắp Nghỉ", "ACTIVE", null, null, null);
+        enroll(leaving, smallClass, "2026-09-01");
+        LocalDate leaveDay = MONDAY.plusDays(1);
+        jdbc.update(
+                "UPDATE children SET scheduled_leave_on = ?, scheduled_leave_reason = 'Chuyển nhà',"
+                        + " scheduled_leave_by = (SELECT min(id) FROM user_accounts) WHERE id = ?",
+                leaveDay,
+                leaving);
+
+        expectField(
+                () -> recordService.place(principal, an, new PlaceChildRequest(smallClass, "Đổi lớp", MONDAY)),
+                "classId",
+                "Chồi A4 đã đủ 1 trẻ. Chọn lớp khác.");
+
+        recordService.place(principal, an, new PlaceChildRequest(smallClass, "Đổi lớp", leaveDay));
+        entityManager.flush();
+
+        assertThat(validFrom(an, smallClass)).isEqualTo(leaveDay);
+    }
+
+    @Test
     @DisplayName("Mục 2: xếp lớp lần đầu cho trẻ chờ xếp lớp chưa có ngày bắt đầu ⇒ ngày bắt đầu = ngày vào lớp")
     void firstPlacementFillsMissingStartDate() {
         long binh = child("Trần Bình Chưa Ngày", "PENDING_PLACEMENT", campusA, null, null);
