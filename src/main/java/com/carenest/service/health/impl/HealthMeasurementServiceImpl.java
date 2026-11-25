@@ -3,9 +3,11 @@ package com.carenest.service.health.impl;
 import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.health.ChildHealthRecordResponse;
+import com.carenest.dto.health.HealthExamForm;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.dto.health.HealthTrendContent;
+import com.carenest.dto.health.ParentHealthExamResponse;
 import com.carenest.dto.health.PublishedHealthResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.health.HealthCheckCampaign;
@@ -26,6 +28,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckStatus;
+import com.carenest.utils.enums.HealthExamStatus;
 import com.carenest.utils.enums.InterpretationStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -291,6 +294,58 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     s.latestBmi(childId, child.dateOfBirth(), child.gender()),
                     interpretation);
             log.info("{}|results={}|END", logPrefix, results.size());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ParentHealthExamResponse getPublishedExam(CurrentUser currentUser, Long childId, Long resultId) {
+        String logPrefix = LOG_PREFIX + "|getPublishedExam|userId=" + currentUser.userId() + "|childId=" + childId
+                + "|resultId=" + resultId;
+        log.info("{}|START", logPrefix);
+        try {
+            // AUTH-04, CHD-04: cùng phạm vi với Sổ sức khỏe của phụ huynh
+            childAccessPolicy.checkCanReadChild(currentUser, childId);
+            ChildBriefResponse child = brief(childId);
+            HealthRecords.Snapshot s = records.load(List.of(childId));
+            // HLT-11: phiếu khám công bố khi kết luận; nháp và số đo kỳ cân đo không có phiếu
+            HealthMeasurement m = s.results(childId).stream()
+                    .filter(r -> r.getId().equals(resultId)
+                            && r.isExam()
+                            && r.getExamStatus() == HealthExamStatus.CONCLUDED)
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND));
+            HealthMeasurementResponse view =
+                    records.views(s, List.of(m), child.dateOfBirth(), child.gender(), false)
+                            .getFirst();
+            HealthExamForm exam = s.exam(m);
+            HealthCheckCampaign campaign = s.campaign(m.getCampaignId());
+            // Không trả phần hành chính (số định danh, địa chỉ, người đi cùng) cho phụ huynh
+            ParentHealthExamResponse response = new ParentHealthExamResponse(
+                    m.getId(),
+                    childId,
+                    view.campaignName(),
+                    campaign == null ? null : campaign.getExaminer(),
+                    m.getDate(),
+                    view.ageMonths(),
+                    m.getHeightCm(),
+                    m.getWeightKg(),
+                    m.getHeadCircumferenceCm(),
+                    view.followUpLevel(),
+                    view.conclusionCategory(),
+                    exam == null ? null : exam.history(),
+                    exam == null ? null : exam.vitals(),
+                    exam == null ? null : exam.nutrition(),
+                    exam == null ? null : exam.development(),
+                    exam == null ? null : exam.immunization(),
+                    exam == null ? null : exam.clinical(),
+                    exam == null ? null : exam.conclusion(),
+                    m.getPublishedAt());
+            log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());

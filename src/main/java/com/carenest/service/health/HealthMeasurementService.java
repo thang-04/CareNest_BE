@@ -19,6 +19,13 @@ public interface HealthMeasurementService {
      */
     com.carenest.dto.health.PublishedHealthResponse getPublishedHealth(CurrentUser currentUser, Long childId);
 
+    /**
+     * Phiếu khám đã kết luận của trẻ cho phụ huynh (HLT-11, PAR-03): {@code resultId} là id kết quả khám trong
+     * {@link #getPublishedHealth}; phiếu nháp, số đo kỳ cân đo, kết quả của trẻ khác ⇒ HEALTH_EXAM_NOT_FOUND.
+     */
+    com.carenest.dto.health.ParentHealthExamResponse getPublishedExam(
+            CurrentUser currentUser, Long childId, Long resultId);
+
     HealthMeasurementResponse createMeasurement(
             CurrentUser currentUser, Long childId, HealthMeasurementRequest request);
 

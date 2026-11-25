@@ -16,6 +16,7 @@ import com.carenest.dto.child.TbContactInput;
 import com.carenest.dto.health.HealthCheckRequest;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthTrendAnalysisResponse;
+import com.carenest.dto.health.ParentHealthExamResponse;
 import com.carenest.dto.health.PublishedHealthResponse;
 import com.carenest.entity.health.HealthCheckCampaign;
 import com.carenest.exception.GlobalException;
@@ -224,6 +225,57 @@ class HealthRecordIntegrationTest {
         assertThat(count("SELECT count(*) FROM notifications WHERE type = 'CHILD_TB_CONTACT_DATE_CHANGED'"
                         + " AND body LIKE '%phiếu khám ngày 10/11/2026%'"))
                 .isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("HLT-11, PAR-03: phụ huynh xem đủ phiếu khám đã kết luận, không có phần hành chính; nháp, kỳ cân đo"
+            + " ⇒ 404; phụ huynh khác 403")
+    void parentSeesConcludedExamForm() {
+        long examCampaign = campaign(HealthCheckKind.EXAM, "Khám đầu năm (giả)", "2026-09-10", "2026-09-30");
+        long concluded = examResult(examCampaign, "2026-09-15", "98.0", "15.0");
+        jdbc.update(
+                "UPDATE health_measurements SET exam = ?::jsonb WHERE id = ?",
+                """
+                {"admin": {"childIdNumber": "000000000001"},
+                 "vitals": {"temperatureC": 37.2, "temperatureStatus": "NORMAL"},
+                 "development": {"mental": "YES", "motor": "YES", "autismRisk": ""},
+                 "clinical": {"skinColor": "NORMAL"},
+                 "conclusion": {"normal": true, "tbRisk": false, "healthIssue": false, "doctorName": "BS. Giả", "parentOpinion": "Gia đình đồng ý (giả)"}}
+                """,
+                concluded);
+        long draft = jdbc.queryForObject(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, note, measured_by, exam,"
+                        + " exam_status, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, '{}'::jsonb, 'DRAFT',"
+                        + " now(), now()) RETURNING id",
+                Long.class,
+                child,
+                campaign(HealthCheckKind.EXAM, "Khám giữa năm (giả)", "2026-10-10", "2026-10-30"),
+                classA,
+                LocalDate.parse("2026-10-15"),
+                teacherId);
+        long roundMeasurement = measure(round("Cân đo (giả)", "2026-09-10", "2026-09-20"), "2026-09-16", "98.1", "15.0");
+
+        ParentHealthExamResponse exam = measurementService.getPublishedExam(parent, child, concluded);
+        assertThat(exam.resultId()).isEqualTo(concluded);
+        assertThat(exam.campaignName()).isEqualTo("Khám đầu năm (giả)");
+        assertThat(exam.examiner()).isEqualTo("Trường (giả)");
+        assertThat(exam.heightCm()).isEqualByComparingTo("98.0");
+        assertThat(exam.vitals().temperatureC()).isEqualByComparingTo("37.2");
+        assertThat(exam.development().mental()).isEqualTo("YES");
+        assertThat(exam.clinical()).containsEntry("skinColor", "NORMAL");
+        assertThat(exam.conclusion().doctorName()).isEqualTo("BS. Giả");
+        assertThat(exam.conclusion().parentOpinion()).isEqualTo("Gia đình đồng ý (giả)");
+
+        for (long notExam : List.of(draft, roundMeasurement)) {
+            assertThatThrownBy(() -> measurementService.getPublishedExam(parent, child, notExam))
+                    .isInstanceOfSatisfying(
+                            GlobalException.class,
+                            ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.HEALTH_EXAM_NOT_FOUND));
+        }
+        assertThatThrownBy(() -> measurementService.getPublishedExam(otherParent, child, concluded))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.carenest.controller.health;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
+import com.carenest.dto.health.ParentHealthExamResponse;
 import com.carenest.dto.health.PublishedHealthResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthMeasurementService;
@@ -43,6 +44,19 @@ public class HealthMeasurementController {
         PublishedHealthResponse health = healthMeasurementService.getPublishedHealth(currentUser, childId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get published health success", health);
+    }
+
+    // HLT-11, PAR-03: phiếu khám đã kết luận đủ các phần (trừ hành chính) cho Sổ sức khỏe trên App
+    @GetMapping("/published/exams/{resultId}")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
+    public ResponseEntity<ResponseJson<ParentHealthExamResponse>> getPublishedExam(
+            @PathVariable Long childId, @PathVariable Long resultId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getPublishedExam|userId=" + currentUser.userId() + "|childId=" + childId
+                + "|resultId=" + resultId;
+        log.info("{}|START", logPrefix);
+        ParentHealthExamResponse exam = healthMeasurementService.getPublishedExam(currentUser, childId, resultId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get published health exam success", exam);
     }
 
     @GetMapping
