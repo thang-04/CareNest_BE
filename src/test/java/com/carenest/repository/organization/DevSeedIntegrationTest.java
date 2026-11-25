@@ -60,7 +60,10 @@ class DevSeedIntegrationTest {
             "edu_resource_attachments",
             // Nháp gợi ý thực đơn do người dùng tạo lúc chạy; vector món do embedding API sinh lười (AI tắt ⇒ rỗng)
             "menu_ai_drafts",
-            "dish_embeddings");
+            "dish_embeddings",
+            // Hiệu ứng của đơn nghỉ ghi lúc chạy khi đơn áp vào điểm danh (V190); đơn seed không có dòng nên hủy theo
+            // cách cũ (revertLegacy)
+            "leave_attendance_effects");
 
     @Container
     @ServiceConnection
