@@ -9,6 +9,7 @@ import com.carenest.utils.enums.InspectionGrantStatus;
 import com.carenest.utils.enums.InspectionTab;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 /** Mở ghi biên bản kiểm thực ngày cũ cần HT duyệt (INS-05): yêu cầu, quyết định và kiểm khi ghi. */
 public interface InspectionGrantService {
@@ -33,8 +34,12 @@ public interface InspectionGrantService {
     /** Hàng chờ của HT theo trạng thái (mặc định chờ duyệt); điểm trường trống = mọi điểm trường. */
     List<InspectionApprovalResponse> queue(CurrentUser currentUser, Long campusId, InspectionGrantStatus status);
 
-    /** Trạng thái mở ghi từng mẫu của điểm trường–ngày cho {@code GET /inspections/day}. */
-    List<InspectionDayResponse.TabApproval> dayApprovals(CurrentUser currentUser, Long campusId, LocalDate date);
+    /**
+     * Trạng thái mở ghi từng mẫu của điểm trường–ngày cho {@code GET /inspections/day}. Mẫu không có dòng nào
+     * (nguồn trống và chưa lưu dòng) thì không cho gửi yêu cầu mở ({@code tabsWithRows} là các mẫu có dòng).
+     */
+    List<InspectionDayResponse.TabApproval> dayApprovals(
+            CurrentUser currentUser, Long campusId, LocalDate date, Set<InspectionTab> tabsWithRows);
 
     /** Gọi trong giao dịch ghi (đã giữ khóa điểm trường): ngày đã qua mà chưa có quyền mở còn hạn ⇒ từ chối (INS-05). */
     void requireOpenDay(Long campusId, LocalDate date, InspectionTab tab);
