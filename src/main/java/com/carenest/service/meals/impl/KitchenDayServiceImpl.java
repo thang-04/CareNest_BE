@@ -156,8 +156,8 @@ public class KitchenDayServiceImpl implements KitchenDayService {
                         count.getSession(),
                         line.getClassroomId(),
                         names.getOrDefault(line.getClassroomId(), ""),
-                        line.getNormal(),
-                        line.getSubstitute()));
+                        line.getNormal() + line.getSubstitute(),
+                        0));
             }
         }
         return result.stream()

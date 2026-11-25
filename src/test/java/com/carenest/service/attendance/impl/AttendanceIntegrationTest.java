@@ -470,7 +470,6 @@ class AttendanceIntegrationTest {
         AttendanceService.ClassMealTally after = tallyOf(classA);
         assertThat(after.present()).isEqualTo(before.present() + 1);
         assertThat(after.meals()).isEqualTo(before.meals());
-        assertThat(after.substitutes()).isEqualTo(before.substitutes());
 
         var sheet = service.getClassAttendance(teacherA, classA, TODAY).children();
         assertThat(sheet)
@@ -632,7 +631,7 @@ class AttendanceIntegrationTest {
 
     @Test
     void summaryCountsDaysChildrenAndMeals() {
-        // Trẻ có khai dị ứng: lượt ăn tính là suất thay thế (giống Sổ báo ăn)
+        // NUT-02 (25/11/2026): trẻ có khai dị ứng vẫn là suất thường, tổng hợp không có suất thay thế
         jdbc.update(
                 "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
                         + " self_history_state, family_history_state, tb_contact_state, declared_by)"
@@ -650,7 +649,7 @@ class AttendanceIntegrationTest {
         assertThat(today.present()).isEqualTo(1);
         assertThat(today.unexcused()).isEqualTo(1);
         assertThat(today.mealTotal()).isEqualTo(1);
-        assertThat(today.substitute()).isEqualTo(1);
+        assertThat(today.substitute()).isZero();
         assertThat(today.meals()).containsEntry(MealSession.LUNCH, 1);
         assertThat(summary.days().getFirst().missing()).isEqualTo(2);
 

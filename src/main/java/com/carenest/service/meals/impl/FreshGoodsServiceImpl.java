@@ -39,6 +39,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FreshCheckLock;
+import com.carenest.utils.enums.FreshCheckResult;
 import com.carenest.utils.enums.FreshCheckSource;
 import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.MenuBlock;
@@ -364,7 +365,12 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                                                     : book.at(line.foodId(), date)
                                                             .supplierId(),
                                     expected.lines().get(line.foodId()),
-                                    line.receivedQty(),
+                                    // "Đủ" mà để trống số thực nhận ⇒ hiểu là đủ số cần nhận, tránh lưu NULL khó hiểu
+                                    line.receivedQty() != null
+                                            ? line.receivedQty()
+                                            : (line.result() == FreshCheckResult.ENOUGH
+                                                    ? expected.lines().get(line.foodId())
+                                                    : null),
                                     line.result(),
                                     line.note() == null ? "" : line.note().trim()))
                             .toList());

@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -273,9 +274,6 @@ class LeaveRequestIntegrationTest {
         // ATT-05b: hôm nay đã qua giờ chốt ⇒ không đổi điểm danh hôm nay
         assertThat(leave.skippedDates()).containsExactly(TODAY);
         assertThat(leave.appliedDates()).containsExactly(THU);
-        expectError(
-                () -> service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Bổ sung")),
-                ApiCode.LEAVE_NO_SCHOOL_DAY);
         assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
                 .isZero();
         // Ngày bị bỏ qua không mang nhãn đơn nghỉ, nên không khóa điểm danh của GV hôm đó (ATT-05b)
@@ -298,6 +296,54 @@ class LeaveRequestIntegrationTest {
         expectError(
                 () -> service.createLeaveRequest(parent, new CreateLeaveRequest(child1, FRI, THU, "Ốm")),
                 ApiCode.LEAVE_DATE_RANGE_INVALID);
+    }
+
+    @Test
+    @DisplayName(
+            "Sau giờ chốt: kiểm trùng chỉ trên ngày có hiệu lực — trùng báo đúng ngày thứ 5, đơn chỉ hôm nay lưu dạng thông báo")
+    void overlapAfterCutoffReportsEffectiveDayAndNotificationOnlyLeave() {
+        clock.now = AFTER_CUTOFF;
+        LeaveRequestResponse first =
+                service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, THU, "Ốm"));
+        assertThat(first.appliedDates()).containsExactly(THU);
+        assertThat(first.skippedDates()).containsExactly(TODAY);
+
+        // Đơn mới TODAY–THU: ngày có hiệu lực là THU (TODAY đã khóa ở cả hai đơn) ⇒ trùng đúng THU
+        expectError(
+                () -> service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, THU, "Sốt")),
+                ApiCode.LEAVE_OVERLAP);
+        // Đơn mới chỉ TODAY: TODAY không phải ngày hiệu lực của đơn nào ⇒ lưu dạng thông báo, không báo trùng
+        LeaveRequestResponse notice =
+                service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Sốt"));
+        assertThat(notice.appliedDates()).isEmpty();
+        assertThat(notice.skippedDates()).containsExactly(TODAY);
+        assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
+                .isZero();
+        // GV vẫn nhận thông báo cả đơn chỉ báo (OBS-31/ATT-05b)
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM notifications WHERE type = 'LEAVE_REQUEST_CREATED' AND user_id = ?",
+                        Integer.class,
+                        teacherA.userId()))
+                .isEqualTo(2);
+
+        // Đơn nửa buổi cùng nhánh (ATT-12): nghỉ chiều hôm nay sau giờ chốt ⇒ thông báo; trùng xét theo ngày hiệu lực
+        LeaveRequestResponse half = service.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đón sớm", LeavePart.AFTERNOON, true));
+        assertThat(half.appliedDates()).isEmpty();
+        assertThat(half.skippedDates()).containsExactly(TODAY);
+        expectError(
+                () -> service.createLeaveRequest(
+                        parent, new CreateLeaveRequest(child1, THU, THU, "Đón sớm", LeavePart.AFTERNOON, true)),
+                ApiCode.LEAVE_OVERLAP);
+    }
+
+    @Test
+    @DisplayName("Trước giờ chốt: trùng như cũ (đầy đủ ngày trong khoảng)")
+    void overlapBeforeCutoffReportsFirstClashDay() {
+        service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, FRI, "Về quê"));
+        expectError(
+                () -> service.createLeaveRequest(parent, new CreateLeaveRequest(child1, FRI, NEXT_MON, "Ốm")),
+                ApiCode.LEAVE_OVERLAP);
     }
 
     @Test
