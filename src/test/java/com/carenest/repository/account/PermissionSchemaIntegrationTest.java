@@ -78,7 +78,7 @@ class PermissionSchemaIntegrationTest {
     }
 
     @Test
-    @DisplayName("AUTH-11: DB chặn ô ma trận cho role cố định (HT được lưu dòng từ V178, EDU-110)")
+    @DisplayName("AUTH-11: DB chặn ô ma trận cho role cố định (HT được lưu dòng từ V193, EDU-110)")
     void fixedRoleRowIsRejected() {
         assertThatThrownBy(() -> rolePermissionRepository.saveAndFlush(
                         RolePermission.create(CareNestRole.ADMIN, "CHILD_PROFILE_VIEW", null)))
