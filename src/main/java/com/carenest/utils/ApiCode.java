@@ -707,6 +707,10 @@ public enum ApiCode {
     STOCK_DISPOSAL_SUPPLIER_REQUIRED(6135, HttpStatus.BAD_REQUEST, "Chọn nhà cung cấp nhận hàng trả"),
     STOCK_DISPOSAL_REASON_TOO_SHORT(6136, HttpStatus.BAD_REQUEST, "Lý do xuất kho cần từ 3 ký tự"),
     STOCK_FOOD_NOT_OF_SUPPLIER(6137, HttpStatus.BAD_REQUEST, "Thực phẩm {0} không thuộc nhà cung cấp của phiếu nhập"),
+    STOCK_LOT_NO_DUPLICATED_IN_RECEIPT(
+            6138, HttpStatus.BAD_REQUEST, "Số lô {0} của thực phẩm {1} bị trùng trong phiếu nhập, hãy dùng số lô khác"),
+    STOCK_LOT_NO_EXISTS(
+            6139, HttpStatus.CONFLICT, "Số lô {0} của thực phẩm {1} đã có trong kho của điểm trường, hãy dùng số lô khác"),
     INSPECTION_APPROVAL_STATE_INVALID(
             6121, HttpStatus.CONFLICT, "Yêu cầu không còn ở trạng thái này nên không xử lý được"),
     INSPECTION_APPROVAL_DENIED(

@@ -235,6 +235,37 @@ class DryStockIntegrationTest {
     }
 
     @Test
+    @DisplayName("Số lô: không trùng trong phiếu, không trùng lô đã vào kho cùng thực phẩm; phiếu hủy và thực phẩm khác thì được")
+    void lotNoMustBeUniquePerFoodInCampus() {
+        // Trùng ngay trong phiếu, kể cả khác hoa thường
+        expectCode(
+                () -> receiptService.createReceipt(
+                        principal,
+                        request(line(rice, "L1", "2027-01-01", "500"), line(rice, "l1 ", "2027-02-01", "500"))),
+                ApiCode.STOCK_LOT_NO_DUPLICATED_IN_RECEIPT);
+
+        StockReceiptResponse first = confirmReceipt(line(rice, "L-DUP", "2027-01-01", "500"));
+        // Cùng thực phẩm, cùng số lô đã vào kho: báo lỗi ở bước lưu nháp
+        expectCode(
+                () -> receiptService.createReceipt(principal, request(line(rice, "l-dup", "2027-02-01", "300"))),
+                ApiCode.STOCK_LOT_NO_EXISTS);
+        // Số lô khác thì được
+        StockReceiptResponse next = confirmReceipt(line(rice, "L-DUP-2", "2027-02-01", "300"));
+        assertThat(next.status()).isEqualTo(StockReceiptStatus.CONFIRMED);
+
+        // Hai nháp cùng số lô chưa vào kho: nháp đầu xác nhận thì nháp sau bị chặn khi xác nhận
+        StockReceiptResponse draftA = receiptService.createReceipt(principal, request(line(rice, "L-RACE", "2027-01-01", "100")));
+        StockReceiptResponse draftB = receiptService.createReceipt(principal, request(line(rice, "L-RACE", "2027-01-01", "100")));
+        receiptService.confirmReceipt(principal, draftA.id());
+        expectCode(() -> receiptService.confirmReceipt(principal, draftB.id()), ApiCode.STOCK_LOT_NO_EXISTS);
+
+        // Phiếu đã hủy không giữ số lô: nhập lại đúng số lô đó được
+        receiptService.cancelReceipt(principal, first.id(), "Nhập nhầm");
+        assertThat(confirmReceipt(line(rice, "L-DUP", "2027-01-01", "500")).status())
+                .isEqualTo(StockReceiptStatus.CONFIRMED);
+    }
+
+    @Test
     @DisplayName("NUT-11, P-38: suất chốt ⇒ trừ gam × suất ÷ (1 − thải bỏ), lô hết hạn trước, một lần")
     void confirmDeductsFifoOnce() {
         confirmReceipt(line(rice, "L-LATE", "2027-01-01", "1000"), line(rice, "L-SOON", "2026-12-01", "500"));
