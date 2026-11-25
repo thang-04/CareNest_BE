@@ -21,6 +21,9 @@ public interface DishRepository extends JpaRepository<Dish, Long> {
     @EntityGraph(attributePaths = {"ingredients", "ingredients.food"})
     List<Dish> findByIdIn(Collection<Long> ids);
 
+    // Món có dùng thực phẩm, mỗi món một dòng dù có định lượng ở nhiều nhóm tuổi
+    List<Dish> findDistinctByIngredientsFoodIdOrderByNameAsc(Long foodId);
+
     boolean existsByCode(String code);
 
     boolean existsByCodeAndIdNot(String code, Long id);

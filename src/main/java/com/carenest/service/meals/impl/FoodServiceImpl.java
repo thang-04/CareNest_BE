@@ -1,15 +1,20 @@
 package com.carenest.service.meals.impl;
 
 import com.carenest.dto.meals.AllergenResponse;
+import com.carenest.dto.meals.FoodDishUsageResponse;
+import com.carenest.dto.meals.FoodHistoryResponse;
 import com.carenest.dto.meals.FoodImportRequest;
 import com.carenest.dto.meals.FoodImportResponse;
+import com.carenest.dto.meals.FoodPriceRequest;
 import com.carenest.dto.meals.FoodRequest;
 import com.carenest.dto.meals.FoodResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
+import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.FoodHistoryService;
 import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.meals.FoodService;
@@ -46,6 +51,8 @@ public class FoodServiceImpl implements FoodService {
     private final FoodRepository foodRepository;
     private final NutritionCatalogMapper mapper;
     private final FoodPriceService foodPriceService;
+    private final FoodHistoryService historyService;
+    private final DishRepository dishRepository;
     private final Clock clock;
 
     @Override
@@ -106,6 +113,41 @@ public class FoodServiceImpl implements FoodService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<FoodDishUsageResponse> getFoodDishes(Long foodId) {
+        String logPrefix = LOG_PREFIX + "|getFoodDishes|foodId=" + foodId;
+        log.info("{}|START", logPrefix);
+        try {
+            findFood(foodId);
+            List<FoodDishUsageResponse> response = dishRepository.findDistinctByIngredientsFoodIdOrderByNameAsc(foodId).stream()
+                    .map(dish -> new FoodDishUsageResponse(
+                            dish.getId(), dish.getCode(), dish.getName(), dish.getDishType()))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FoodHistoryResponse> getFoodHistory(Long foodId) {
+        String logPrefix = LOG_PREFIX + "|getFoodHistory|foodId=" + foodId;
+        log.info("{}|START", logPrefix);
+        try {
+            findFood(foodId);
+            List<FoodHistoryResponse> response = historyService.getHistory(foodId);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public FoodResponse createFood(CurrentUser currentUser, FoodRequest request) {
         String logPrefix = LOG_PREFIX + "|createFood|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
@@ -128,6 +170,7 @@ public class FoodServiceImpl implements FoodService {
             food = foodRepository.save(food);
             foodPriceService.recordInitialPrice(
                     food.getId(), request.supplierId(), request.unitPrice(), currentUser.userId());
+            historyService.recordCreated(food.getId(), currentUser.userId());
             log.info("{}|foodId={}|END", logPrefix, food.getId());
             return toResponse(food);
         } catch (RuntimeException ex) {
@@ -149,7 +192,7 @@ public class FoodServiceImpl implements FoodService {
             if (foodRepository.existsByCodeAndIdNot(code, foodId)) {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
-            requireSamePrice(food, request);
+            Map<String, String> before = FoodSnapshot.of(food);
             apply(
                     food,
                     request,
@@ -158,6 +201,8 @@ public class FoodServiceImpl implements FoodService {
                     resolveAllergens(request.allergenIds()),
                     currentUser.userId());
             foodRepository.flush();
+            historyService.recordChanges(foodId, currentUser.userId(), before, FoodSnapshot.of(food));
+            adjustPriceIfChanged(currentUser, food, request);
             log.info("{}|END", logPrefix);
             return toResponse(food);
         } catch (RuntimeException ex) {
@@ -173,8 +218,10 @@ public class FoodServiceImpl implements FoodService {
         log.info("{}|START", logPrefix);
         try {
             Food food = findFood(foodId);
+            CatalogStatus from = food.getStatus();
             food.changeStatus(status, currentUser.userId());
             foodRepository.flush();
+            historyService.recordStatusChange(foodId, currentUser.userId(), from, status);
             log.info("{}|END", logPrefix);
             return toResponse(food);
         } catch (RuntimeException ex) {
@@ -286,17 +333,24 @@ public class FoodServiceImpl implements FoodService {
         return foodPriceService.book(ids).at(food.getId(), LocalDate.now(clock));
     }
 
-    // NUT-27: sau khi tạo, giá và NCC chỉ đổi qua điều chỉnh giá để chi phí các ngày đã qua giữ nguyên
-    private void requireSamePrice(Food food, FoodRequest request) {
+    // NUT-27: đổi giá hoặc NCC khi sửa thực phẩm luôn thành một mức giá mới có ngày hiệu lực, không ghi đè mức cũ
+    // nên chi phí các ngày đã qua giữ nguyên; lỗi ngày/lý do làm hỏng cả lần lưu (cùng giao dịch)
+    private void adjustPriceIfChanged(CurrentUser currentUser, Food food, FoodRequest request) {
         FoodPriceBook.PriceAt current = priceToday(food);
         boolean priceChanged = request.unitPrice() != null
                 && current.price() != null
                 && request.unitPrice().compareTo(current.price()) != 0;
         boolean supplierChanged =
                 request.supplierId() != null && !request.supplierId().equals(current.supplierId());
-        if (priceChanged || supplierChanged) {
-            throw GlobalException.of(ApiCode.FOOD_PRICE_CHANGE_VIA_ADJUST);
+        if (!priceChanged && !supplierChanged) {
+            return;
         }
+        LocalDate effectiveFrom = request.effectiveFrom() == null ? LocalDate.now(clock) : request.effectiveFrom();
+        Long supplierId = request.supplierId() == null ? current.supplierId() : request.supplierId();
+        foodPriceService.adjustPrice(
+                currentUser,
+                food.getId(),
+                new FoodPriceRequest(supplierId, request.unitPrice(), effectiveFrom, request.priceReason()));
     }
 
     private Food findFood(Long foodId) {

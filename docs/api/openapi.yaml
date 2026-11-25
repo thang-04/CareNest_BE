@@ -7941,6 +7941,44 @@ paths:
           description: OK
       tags:
       - nutrition-food-controller
+  /api/nutrition/foods/{foodId}/dishes:
+    get:
+      operationId: getFoodDishes
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListFoodDishUsageResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
+  /api/nutrition/foods/{foodId}/history:
+    get:
+      operationId: getFoodHistory
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListFoodHistoryResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
   /api/nutrition/foods/{foodId}/prices:
     get:
       operationId: getFoodPrices
@@ -15709,6 +15747,47 @@ components:
           - RECHECK_NEXT_ROUND
           - TALK_TO_PARENT
           - REMEASURE
+    FoodDishUsageResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        dishId:
+          type: integer
+          format: int64
+        dishType:
+          type: string
+          enum:
+          - CARB
+          - MAIN
+          - SOUP
+          - VEGETABLE
+          - SNACK
+          - DESSERT
+        name:
+          type: string
+    FoodHistoryResponse:
+      type: object
+      properties:
+        action:
+          type: string
+        at:
+          type: string
+          format: date-time
+        field:
+          type: string
+        id:
+          type: integer
+          format: int64
+        newValue:
+          type: string
+        note:
+          type: string
+        oldValue:
+          type: string
+        userId:
+          type: integer
+          format: int64
     FoodImportRequest:
       type: object
       properties:
@@ -15793,6 +15872,9 @@ components:
           type: string
           maxLength: 20
           minLength: 0
+        effectiveFrom:
+          type: string
+          format: date
         foodGroup:
           type: string
           enum:
@@ -15839,6 +15921,10 @@ components:
           type: number
           maximum: 1000000
           minimum: 0
+        priceReason:
+          type: string
+          maxLength: 300
+          minLength: 0
         protein:
           type: number
           minimum: 0
@@ -24091,6 +24177,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EvaluationUnlockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListFoodDishUsageResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodDishUsageResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListFoodHistoryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodHistoryResponse"
         desc:
           type: string
         errorCode:

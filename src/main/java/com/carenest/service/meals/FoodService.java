@@ -1,6 +1,8 @@
 package com.carenest.service.meals;
 
 import com.carenest.dto.meals.AllergenResponse;
+import com.carenest.dto.meals.FoodDishUsageResponse;
+import com.carenest.dto.meals.FoodHistoryResponse;
 import com.carenest.dto.meals.FoodImportRequest;
 import com.carenest.dto.meals.FoodImportResponse;
 import com.carenest.dto.meals.FoodRequest;
@@ -19,6 +21,12 @@ public interface FoodService {
     List<FoodResponse> getFoods(String keyword, FoodGroup foodGroup, FoodStorage storage, CatalogStatus status);
 
     FoodResponse getFood(Long foodId);
+
+    /** Các món dùng thực phẩm, mỗi món một dòng. */
+    List<FoodDishUsageResponse> getFoodDishes(Long foodId);
+
+    /** Lịch sử thay đổi thực phẩm gồm đổi giá và nhà cung cấp, theo thời gian tăng dần. */
+    List<FoodHistoryResponse> getFoodHistory(Long foodId);
 
     FoodResponse createFood(CurrentUser currentUser, FoodRequest request);
 

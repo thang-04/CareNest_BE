@@ -350,6 +350,8 @@ class NutritionCatalogIntegrationTest {
                 origin,
                 null,
                 allergenIds,
+                null,
+                null,
                 null);
     }
 }
