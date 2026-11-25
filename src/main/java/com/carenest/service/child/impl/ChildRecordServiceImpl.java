@@ -849,6 +849,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             if (leaveOn == null || !leaveOn.isAfter(today)) {
                 throw GlobalException.of(ApiCode.CHILD_NO_SCHEDULED_LEAVE);
             }
+            if (leaveKeptByActivatedYear(actor, childId, leaveOn)) {
+                throw GlobalException.of(ApiCode.CHILD_LEAVE_LOCKED_BY_NEW_YEAR);
+            }
             child.clearScheduledLeave();
             childRepository.save(child);
             unmarkLeavingOnNewYearBoard(childId);
@@ -1063,10 +1066,25 @@ public class ChildRecordServiceImpl implements ChildRecordService {
 
     // CHD-03: ngày nghỉ học luôn thuộc năm đang hoạt động; chưa có năm đang hoạt động ⇒ null
     private LocalDate activeYearEnd(CurrentUser actor) {
+        return activeYear(actor).map(SchoolYearDetailResponse::endDate).orElse(null);
+    }
+
+    private Optional<SchoolYearDetailResponse> activeYear(CurrentUser actor) {
         return schoolYearService.getSchoolYears(actor, SchoolYearStatus.ACTIVE).stream()
-                .findFirst()
-                .map(SchoolYearDetailResponse::endDate)
-                .orElse(null);
+                .findFirst();
+    }
+
+    /**
+     * G94-180/CHD-04: năm mới kích hoạt khi trẻ đã có lịch nghỉ thì kích hoạt coi trẻ là nghỉ (bảng xếp lớp ghi Nghỉ học):
+     * không vào lớp năm mới, phụ huynh bị khóa. Ngày nghỉ trước ngày bắt đầu năm đang hoạt động mà trẻ không có lớp từ
+     * ngày đó ⇒ hủy lịch sẽ để trẻ Đang học mà không có lớp, nên giữ lịch (sau ngày nghỉ dùng Mở lại hồ sơ).
+     */
+    private boolean leaveKeptByActivatedYear(CurrentUser actor, Long childId, LocalDate leaveOn) {
+        LocalDate activeStart =
+                activeYear(actor).map(SchoolYearDetailResponse::startDate).orElse(null);
+        return activeStart != null
+                && leaveOn.isBefore(activeStart)
+                && enrollmentRepository.findOpenByChildId(childId, activeStart).isEmpty();
     }
 
     private boolean hasDailyOperationalData(Long childId, LocalDate date) {

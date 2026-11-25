@@ -1,14 +1,17 @@
 package com.carenest.service.child.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.carenest.dto.child.SavePlacementsRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.dto.child.YearReadinessResponse;
+import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.YearTransitionService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.PlacementAction;
 import jakarta.persistence.EntityManager;
@@ -211,6 +214,40 @@ class WithdrawNewYearBoardIntegrationTest {
         entityManager.flush();
         assertThat(enrollmentService.findActiveClassroomIds(child1, LocalDate.of(2027, 9, 5)))
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03, CHD-04: đặt lịch nghỉ từ ngày mai rồi kích hoạt năm mới hôm nay (trước ngày nghỉ) ⇒"
+            + " hủy lịch bị chặn 409 CHILD_LEAVE_LOCKED_BY_NEW_YEAR, lịch và dòng Nghỉ học giữ nguyên")
+    void cancelAfterActivationBeforeLeaveDayIsRejected() {
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(new SavePlacementsRequest.Item(child2, PlacementAction.PROMOTE, newClass))));
+        recordService.withdraw(principal, child1, new WithdrawChildRequest("2027-08-31", "Chuyển trường"));
+        entityManager.flush();
+        service.activateSchoolYear(principal, newYear, "2027-2028");
+        entityManager.flush();
+
+        assertThatThrownBy(() -> recordService.cancelScheduledLeave(principal, child1))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_LEAVE_LOCKED_BY_NEW_YEAR);
+                    assertThat(ex.getMessage())
+                            .isEqualTo("Năm học mới đã kích hoạt khi trẻ có lịch nghỉ nên trẻ không có lớp năm mới."
+                                    + " Không hủy được lịch nghỉ; sau ngày nghỉ dùng \"Mở lại hồ sơ\" để nhận lại trẻ");
+                });
+
+        entityManager.flush();
+        assertThat(jdbc.queryForObject(
+                        "SELECT status || '|' || scheduled_leave_on FROM children WHERE id = ?", String.class, child1))
+                .isEqualTo("ACTIVE|2027-08-31");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_CANCELLED'",
+                        Integer.class,
+                        child1))
+                .isZero();
+        assertThat(placementOf(child1)).isEqualTo("LEAVE:" + oldClass + ":-");
     }
 
     // Quyết định xếp lớp năm mới của trẻ: hành động:lớp nguồn:lớp đích ("-" khi không có lớp đích)

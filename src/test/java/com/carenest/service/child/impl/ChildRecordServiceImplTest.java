@@ -678,6 +678,45 @@ class ChildRecordServiceImplTest {
         assertCancelRejected(ApiCode.CHILD_ALREADY_LEFT);
     }
 
+    @Test
+    @DisplayName(
+            "G94-180/CHD-03, CHD-04: năm mới đã kích hoạt trước ngày nghỉ (ngày nghỉ trước ngày bắt đầu năm đang hoạt"
+                    + " động), trẻ không có lớp năm đó ⇒ 409 CHILD_LEAVE_LOCKED_BY_NEW_YEAR, lịch giữ nguyên, không ghi gì")
+    void cancelLeaveScheduledBeforeActivatedYearIsRejected() {
+        LocalDate leaveOn = TODAY.plusWeeks(3);
+        LocalDate newYearStart = leaveOn.plusDays(5);
+        child.scheduleLeave(leaveOn, "Chuyển nhà", 5L);
+        given(schoolYearService.getSchoolYears(any(), eq(SchoolYearStatus.ACTIVE)))
+                .willReturn(
+                        List.of(schoolYear(41L, newYearStart, newYearStart.plusMonths(9), SchoolYearStatus.ACTIVE)));
+
+        assertCancelRejected(ApiCode.CHILD_LEAVE_LOCKED_BY_NEW_YEAR);
+
+        assertThat(child.getScheduledLeaveOn()).isEqualTo(leaveOn);
+        verify(childRepository, never()).save(any());
+        verify(historyRepository, never()).save(any());
+        verify(notificationService, never()).notifyUsers(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: lịch nghỉ đặt sau khi kích hoạt cho ngày trước ngày bắt đầu năm mới, trẻ có lớp năm"
+            + " mới ⇒ vẫn hủy được")
+    void cancelLeaveOfChildWithNewYearClassIsAllowed() {
+        LocalDate leaveOn = TODAY.plusWeeks(3);
+        LocalDate newYearStart = leaveOn.plusDays(5);
+        child.scheduleLeave(leaveOn, "Chuyển nhà", 5L);
+        given(schoolYearService.getSchoolYears(any(), eq(SchoolYearStatus.ACTIVE)))
+                .willReturn(
+                        List.of(schoolYear(41L, newYearStart, newYearStart.plusMonths(9), SchoolYearStatus.ACTIVE)));
+        given(enrollmentRepository.findOpenByChildId(CHILD_ID, newYearStart))
+                .willReturn(List.of(Enrollment.start(CHILD_ID, 60L, newYearStart)));
+
+        service.cancelScheduledLeave(PRINCIPAL, CHILD_ID);
+
+        assertThat(child.getScheduledLeaveOn()).isNull();
+        verify(childRepository).save(child);
+    }
+
     private void assertCancelRejected(ApiCode code) {
         assertThatThrownBy(() -> service.cancelScheduledLeave(PRINCIPAL, CHILD_ID))
                 .isInstanceOfSatisfying(

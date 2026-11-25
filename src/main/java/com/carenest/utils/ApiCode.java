@@ -401,6 +401,12 @@ public enum ApiCode {
             3016, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt yêu cầu sửa hồ sơ của trẻ này"),
     // G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ khi trẻ không có lịch, hoặc lịch đã tới ngày
     CHILD_NO_SCHEDULED_LEAVE(3017, HttpStatus.CONFLICT, "Trẻ không có lịch nghỉ học chưa tới ngày"),
+    // G94-180/CHD-04: năm mới kích hoạt trước ngày nghỉ đã coi trẻ là nghỉ (không lớp năm mới, khóa phụ huynh)
+    CHILD_LEAVE_LOCKED_BY_NEW_YEAR(
+            3018,
+            HttpStatus.CONFLICT,
+            "Năm học mới đã kích hoạt khi trẻ có lịch nghỉ nên trẻ không có lớp năm mới. Không hủy được lịch nghỉ; sau"
+                    + " ngày nghỉ dùng \"Mở lại hồ sơ\" để nhận lại trẻ"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
