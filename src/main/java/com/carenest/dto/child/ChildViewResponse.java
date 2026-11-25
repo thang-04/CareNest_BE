@@ -10,6 +10,8 @@ import java.util.List;
  * có lớp ⇒ theo lớp, chưa có ⇒ điểm trường tiếp nhận. Phụ huynh kèm tài khoản (chỉ người tiếp nhận HT/PHT gọi được).
  * G94-180/CHD-14: chưa có lớp nào bắt đầu thì {@code classId} là lớp sẽ vào; {@code nextClass} = lớp bắt đầu sau hôm
  * nay (lịch chuyển hoặc lớp chưa bắt đầu); {@code startDue} = chờ xếp lớp và đã tới ngày bắt đầu đi học.
+ * G94-180/CHD-03 (user chốt 2026-11-25): {@code scheduledLeaveOn}, {@code scheduledLeaveReason} = lịch nghỉ học chưa tới
+ * ngày (trẻ vẫn Đang học), null khi không có lịch.
  */
 public record ChildViewResponse(
         Long id,
@@ -37,7 +39,9 @@ public record ChildViewResponse(
         PlannedAdmissionResponse plannedAdmission,
         LocalDate startDate,
         boolean startDue,
-        ChildNextClassResponse nextClass) {
+        ChildNextClassResponse nextClass,
+        LocalDate scheduledLeaveOn,
+        String scheduledLeaveReason) {
 
     /** Hồ sơ không kèm ngày bắt đầu đi học / lớp sắp vào (test, nơi dựng sẵn dữ liệu cũ). */
     public ChildViewResponse(
@@ -90,6 +94,8 @@ public record ChildViewResponse(
                 plannedAdmission,
                 null,
                 false,
+                null,
+                null,
                 null);
     }
 
@@ -133,6 +139,8 @@ public record ChildViewResponse(
                 plannedAdmission,
                 startDate,
                 startDue,
-                nextClass);
+                nextClass,
+                scheduledLeaveOn,
+                scheduledLeaveReason);
     }
 }

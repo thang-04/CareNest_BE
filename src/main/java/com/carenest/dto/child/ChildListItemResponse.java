@@ -10,7 +10,8 @@ import java.util.List;
  * Lớp, điểm trường, nhóm tuổi, năm học theo lớp hiển thị (lớp cuối trong năm học đang lọc; không lọc năm ⇒ lớp đang học
  * hoặc lớp cuối của trẻ đã nghỉ). {@code guardians} bỏ CCCD, email (AUTH-03: màn danh sách không cần).
  * {@code canManage}: người xem quản lý được tài khoản phụ huynh của trẻ (AUTH-19). G94-180/CHD-14: {@code startDate},
- * {@code startDue}, {@code nextClass} như ChildView (lớp hiển thị ưu tiên lớp đã bắt đầu).
+ * {@code startDue}, {@code nextClass} như ChildView (lớp hiển thị ưu tiên lớp đã bắt đầu); {@code scheduledLeaveOn} =
+ * ngày của lịch nghỉ học chưa tới ngày (null khi không có).
  *
  * <p>{@code classroomId} (= {@code classId}) và {@code guardianCount} (số tài khoản phụ huynh đã liên kết) giữ cho màn
  * Tài khoản phụ huynh của Web đang đọc.
@@ -41,4 +42,5 @@ public record ChildListItemResponse(
         PlannedAdmissionResponse plannedAdmission,
         LocalDate startDate,
         boolean startDue,
-        ChildNextClassResponse nextClass) {}
+        ChildNextClassResponse nextClass,
+        LocalDate scheduledLeaveOn) {}

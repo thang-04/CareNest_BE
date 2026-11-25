@@ -307,7 +307,8 @@ public class ChildListServiceImpl implements ChildListService {
                             admissions.get(child.getId()),
                             child.getStartDate(),
                             child.isStartDue(today),
-                            nextClasses.get(child.getId()));
+                            nextClasses.get(child.getId()),
+                            child.getScheduledLeaveOn());
                 })
                 .toList();
     }

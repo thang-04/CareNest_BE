@@ -543,7 +543,9 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     findOpenPlannedAdmissions(List.of(childId)).get(childId),
                     child.getStartDate(),
                     child.isStartDue(today),
-                    nextClass);
+                    nextClass,
+                    child.getScheduledLeaveOn(),
+                    child.getScheduledLeaveReason());
             log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {

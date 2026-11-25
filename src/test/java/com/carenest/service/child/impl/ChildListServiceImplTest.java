@@ -191,6 +191,7 @@ class ChildListServiceImplTest {
                         any()))
                 .willReturn(List.of(first, second));
         Child pending = child(102L, ChildStatus.PENDING_PLACEMENT, 10L);
+        pending.scheduleLeave(LocalDate.of(2026, 12, 1), "Chuyển nhà", 5L);
         given(childRepository.findAllById(List.of(102L))).willReturn(List.of(pending));
         given(guardianViews.of(List.of(102L)))
                 .willReturn(Map.of(
@@ -222,6 +223,8 @@ class ChildListServiceImplTest {
             assertThat(item.hasDeclaration()).isTrue();
             assertThat(item.canManage()).isTrue();
             assertThat(item.guardianCount()).isEqualTo(1L);
+            // G94-180/CHD-03 (user chốt 2026-11-25): dòng danh sách mang ngày của lịch nghỉ chưa tới ngày
+            assertThat(item.scheduledLeaveOn()).isEqualTo(LocalDate.of(2026, 12, 1));
             assertThat(item.guardians()).singleElement().satisfies(g -> {
                 assertThat(g.idNumber()).isNull();
                 assertThat(g.email()).isNull();
