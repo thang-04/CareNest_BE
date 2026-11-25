@@ -128,6 +128,18 @@ class YearConfigPerYearIntegrationTest {
     }
 
     @Test
+    @DisplayName("Không thêm nhóm tuổi mới vào năm học đang hoạt động")
+    void activeYearRejectsNewAgeGroup() {
+        AgeGroupRequest request =
+                new AgeGroupRequest("Nhóm giữa năm", "Giữa năm", 73, 84, List.of(MealSession.LUNCH), 20, null);
+
+        assertThatThrownBy(() -> ageGroupService.createAgeGroup(principal, request, active))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.AGE_GROUP_CREATE_YEAR_NOT_PLANNED);
+    }
+
+    @Test
     @DisplayName("Sửa nhóm tuổi ở năm sắp diễn ra: năm đang hoạt động và bảng chung không đổi; kích hoạt thì áp")
     void ageGroupInfoIsPerYear() {
         String before = jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, group);
@@ -135,14 +147,24 @@ class YearConfigPerYearIntegrationTest {
                 principal,
                 group,
                 new AgeGroupRequest(
-                        "Mẫu giáo bé mới", "MG bé", 36, 48, List.of(MealSession.LUNCH), 28, "Ghi chú năm sau"),
+                        "Tên gửi từ client bị bỏ qua",
+                        "Tên tắt gửi từ client bị bỏ qua",
+                        0,
+                        1,
+                        List.of(MealSession.LUNCH),
+                        24,
+                        "Ghi chú năm sau"),
                 planned);
 
-        assertThat(updated.maxClassSize()).isEqualTo(28);
+        assertThat(updated.maxClassSize()).isEqualTo(24);
         assertThat(ageGroupService.getYearAgeGroups(planned))
                 .filteredOn(g -> g.id().equals(group))
-                .extracting(AgeGroupDetailResponse::name, AgeGroupDetailResponse::ageToMonths)
-                .containsExactly(org.assertj.core.groups.Tuple.tuple("Mẫu giáo bé mới", 48));
+                .extracting(
+                        AgeGroupDetailResponse::name,
+                        AgeGroupDetailResponse::ageFromMonths,
+                        AgeGroupDetailResponse::ageToMonths,
+                        AgeGroupDetailResponse::maxClassSize)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("Mẫu giáo 3–4 tuổi", 36, 48, 24));
         assertThat(ageGroupService.getYearAgeGroups(active))
                 .filteredOn(g -> g.id().equals(group))
                 .extracting(AgeGroupDetailResponse::name)
@@ -150,10 +172,12 @@ class YearConfigPerYearIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, group))
                 .isEqualTo(before);
 
-        // Kích hoạt năm mới: bảng chung nhận thông tin của năm đó
+        // Kích hoạt năm mới: bảng chung nhận cấu hình vận hành của năm đó, nhưng tên/khoảng tuổi vẫn theo chuẩn Bộ.
         ageGroupRepository.applyYearInfo(planned);
         assertThat(jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, group))
-                .isEqualTo("Mẫu giáo bé mới");
+                .isEqualTo("Mẫu giáo 3–4 tuổi");
+        assertThat(jdbc.queryForObject("SELECT max_class_size FROM age_groups WHERE id = ?", Integer.class, group))
+                .isEqualTo(24);
     }
 
     @Test
@@ -162,15 +186,15 @@ class YearConfigPerYearIntegrationTest {
         ageGroupService.updateAgeGroup(
                 principal,
                 group,
-                new AgeGroupRequest("Mẫu giáo bé", "MG bé", 36, 48, List.of(MealSession.LUNCH), 26, ""),
+                new AgeGroupRequest("Mẫu giáo bé", "MG bé", 36, 48, List.of(MealSession.LUNCH), 24, ""),
                 active);
 
         assertThat(jdbc.queryForObject("SELECT max_class_size FROM age_groups WHERE id = ?", Integer.class, group))
-                .isEqualTo(26);
+                .isEqualTo(24);
         assertThat(ageGroupService.getYearAgeGroups(planned))
                 .filteredOn(g -> g.id().equals(group))
                 .extracting(AgeGroupDetailResponse::maxClassSize)
-                .doesNotContain(26);
+                .doesNotContain(24);
     }
 
     @Test
@@ -250,6 +274,25 @@ class YearConfigPerYearIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.ROOM_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("Phòng cùng mã và tên ở năm khác dùng lại phòng vật lý, không bị unique toàn cục chặn")
+    void roomCanBeReusedInAnotherYear() {
+        RoomRequest request = new RoomRequest(campusA, "P401", "Phòng Lá", RoomType.CLASS, 25, null, "");
+        RoomResponse activeRoom = roomService.createRoom(principal, request, active);
+
+        RoomResponse plannedRoom = roomService.createRoom(principal, request, planned);
+
+        assertThat(plannedRoom.id()).isEqualTo(activeRoom.id());
+        assertThat(rooms(active)).extracting(RoomResponse::id).contains(activeRoom.id());
+        assertThat(rooms(planned)).extracting(RoomResponse::id).contains(activeRoom.id());
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM rooms WHERE campus_id = ? AND lower(code) = lower(?)",
+                        Long.class,
+                        campusA,
+                        request.room()))
+                .isEqualTo(1L);
     }
 
     @Test

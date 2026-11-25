@@ -45,6 +45,11 @@ P-18 (học kỳ, trông hè), P-19 (ngày nghỉ tự khóa điểm danh). Đã
 - Kết thúc phân công bằng `valid_to`, không xóa dòng (giữ lịch sử ai từng có quyền).
 - Campus assignment phải lọc theo `staff_role`: bếp và HP cùng campus là hai phạm vi khác nhau.
 - Ghi dữ liệu gắn năm/lớp/ngày: gọi `SchoolYearService#checkYearOpen` / `checkClassYearOpen` / `checkDateYearOpen` (CFG-YR-01), không tự viết lại kiểm tra năm đã kết thúc.
+- CFG-YR-05 (Cần chốt 18/11/2026): năm `PLANNED` chưa tới ngày mở chuẩn bị chỉ HT thấy. Đọc/ghi theo năm (cấu trúc lớp, phân công GV/tổ trưởng, ngày nghỉ, khóa học kỳ, nhóm tuổi theo năm, giờ chốt, xếp lớp) gọi `SchoolConfigAccess#checkYearVisible` (module khác: `SchoolYearService#checkYearVisible`) ⇒ `SCHOOL_YEAR_NOT_FOUND` như `GET /school-years/{id}`.
+- Năm đã qua ngày kết thúc (đã đóng hoặc chưa): sĩ số, GV của lớp và số trẻ theo điểm trường tính tại ngày kết thúc năm, không theo hôm nay. GV từng dạy lớp năm đã đóng xem (chỉ xem) cấu trúc lớp đó (AUTH-03).
+- Năm chưa đóng nhưng đã qua ngày kết thúc: không phân công GV / tổ trưởng mới (`ASSIGNMENT_YEAR_ENDED`, 2224).
+- Điểm trường chính theo năm (V180 `school_year_campus_members.is_main`); `campuses.is_main` = năm đang hoạt động, đồng bộ khi sửa năm đó và khi kích hoạt năm. Năm chưa có cờ ⇒ đọc theo bảng chung.
+- `/age-groups` không kèm `schoolYearId` (client cũ): thêm chỉ vào năm sắp diễn ra (không có ⇒ `AGE_GROUP_CREATE_YEAR_NOT_PLANNED`); sửa theo năm đang hoạt động, không thì năm sắp diễn ra chứa nhóm — không sửa thẳng bảng chung.
 
 ## Related issues
 Chưa có.

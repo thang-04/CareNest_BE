@@ -51,9 +51,14 @@ public final class EvaluationDtos {
             Instant confirmedAt,
             Integer flagCount,
             List<EventRow> history,
+            String historyStatus,
             boolean aiEnabled) {}
 
-    public record ChildRef(Long id, String fullName, LocalDate dateOfBirth) {}
+    public record ChildRef(Long id, String fullName, LocalDate dateOfBirth, String historyStatus) {
+        public ChildRef(Long id, String fullName, LocalDate dateOfBirth) {
+            this(id, fullName, dateOfBirth, null);
+        }
+    }
 
     /**
      * teaches: người xem là GV lớp (thấy bản nháp); canEdit: GV đang phụ trách lớp của năm đang hoạt động; canConfirm:
@@ -87,6 +92,7 @@ public final class EvaluationDtos {
 
     public record DayHealth(List<HealthSymptom> signs, String note) {}
 
+    /** recordedBy*: người lưu gần nhất phần chung hoặc kiến thức kỹ năng của ngày (OBS-35); null với dữ liệu cũ. */
     public record EvaluationDay(
             LocalDate date,
             DayHealth health,
@@ -100,7 +106,10 @@ public final class EvaluationDtos {
             List<GoalRef> notMet,
             String comment,
             Long classId,
-            String className) {}
+            String className,
+            Long recordedById,
+            String recordedByName,
+            Instant recordedAt) {}
 
     public record SummaryInfo(StructuredSummary structured, int presentDays, int assessedDays, int assessmentCount) {}
 
@@ -151,7 +160,8 @@ public final class EvaluationDtos {
             String className,
             Long campusId,
             boolean current,
-            boolean teaches) {}
+            boolean teaches,
+            String historyStatus) {}
 
     public record DateRange(LocalDate start, LocalDate end) {}
 

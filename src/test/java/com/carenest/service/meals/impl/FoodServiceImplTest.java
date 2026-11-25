@@ -15,8 +15,10 @@ import com.carenest.dto.meals.FoodResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
+import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.FoodHistoryService;
 import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.utils.ApiCode;
@@ -46,10 +48,14 @@ class FoodServiceImplTest {
 
     private final FoodRepository foodRepository = mock(FoodRepository.class);
     private final FoodPriceService foodPriceService = mock(FoodPriceService.class);
+    private final FoodHistoryService historyService = mock(FoodHistoryService.class);
+    private final DishRepository dishRepository = mock(DishRepository.class);
     private final FoodServiceImpl service = new FoodServiceImpl(
             foodRepository,
             new NutritionCatalogMapper(),
             foodPriceService,
+            historyService,
+            dishRepository,
             Clock.fixed(Instant.parse("2026-11-18T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh")));
 
     @BeforeEach
@@ -99,6 +105,8 @@ class FoodServiceImplTest {
                 null,
                 null,
                 List.of(),
+                null,
+                null,
                 null);
 
         assertThatThrownBy(() -> service.createFood(VICE_PRINCIPAL, noOrigin))
@@ -184,6 +192,8 @@ class FoodServiceImplTest {
                 FoodOrigin.PLANT,
                 null,
                 List.of(),
+                null,
+                null,
                 null);
 
         FoodResponse created = service.createFood(VICE_PRINCIPAL, request);
@@ -292,6 +302,8 @@ class FoodServiceImplTest {
                 FoodOrigin.PLANT,
                 null,
                 List.of(),
+                null,
+                null,
                 null);
     }
 }

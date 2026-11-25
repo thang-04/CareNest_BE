@@ -1,5 +1,6 @@
 package com.carenest.service.observation.impl;
 
+import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.observation.EvaluationDeadlineDtos.EvaluationPeriod;
 import com.carenest.dto.observation.EvaluationDeadlineDtos.EvaluationUnlockRequest;
 import com.carenest.dto.observation.EvaluationDeadlineDtos.EvaluationUnlockResponse;
@@ -13,6 +14,7 @@ import com.carenest.entity.observation.ThemeEvaluation;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.observation.ChildEvaluationRepository;
 import com.carenest.repository.observation.EvaluationUnlockRepository;
+import com.carenest.repository.observation.SemesterAssessmentRepository;
 import com.carenest.repository.observation.ThemeEvaluationRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
@@ -39,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +65,7 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
     private final EvaluationUnlockRepository unlockRepository;
     private final ChildEvaluationRepository childEvaluationRepository;
     private final ThemeEvaluationRepository themeEvaluationRepository;
+    private final SemesterAssessmentRepository semesterAssessmentRepository;
     private final EduPlanCalendarQueryService calendarQueryService;
     private final SchoolYearService schoolYearService;
     private final ClassroomService classroomService;
@@ -93,6 +97,11 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
     @Override
     @Transactional(readOnly = true)
     public List<EvaluationPeriod> periodsOf(ClassroomInfoResponse cls) {
+        return periodsOf(cls, unlockRepository.findAllByOrderByUnlockedAtDescIdDesc());
+    }
+
+    // allUnlocks: đọc một lần cho nhiều lớp (danh sách quá hạn), không đọc lại bảng mở khóa theo từng lớp
+    private List<EvaluationPeriod> periodsOf(ClassroomInfoResponse cls, List<EvaluationUnlock> allUnlocks) {
         SchoolYearDetailResponse year =
                 schoolYearService.findSchoolYearDetail(cls.schoolYearId()).orElse(null);
         if (year == null) {
@@ -100,7 +109,7 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
         }
         Map<String, Instant> unlocked = new HashMap<>();
         Instant now = rules.now();
-        unlockRepository.findAllByOrderByUnlockedAtDescIdDesc().stream()
+        allUnlocks.stream()
                 .filter(u -> cls.id().equals(u.getClassroomId()) && u.isActiveAt(now))
                 .forEach(u -> unlocked.merge(
                         u.getKind() + ":" + u.getPeriodKey(), u.getValidUntil(), (a, b) -> a.isAfter(b) ? a : b));
@@ -212,7 +221,7 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
                 .findSchoolYearDetail(cls.schoolYearId())
                 .map(SchoolYearDetailResponse::semester1End)
                 .orElse(null);
-        return s1End != null && periodEnd != null && !periodEnd.isAfter(s1End) ? SEMESTER_1 : SEMESTER_2;
+        return semesterKeyOf(s1End, periodEnd);
     }
 
     @Override
@@ -455,8 +464,10 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
     @Transactional(readOnly = true)
     public List<OverdueClassItem> overdueOf(List<ClassroomInfoResponse> classes) {
         List<OverdueClassItem> result = new ArrayList<>();
+        List<EvaluationUnlock> unlocks =
+                classes.isEmpty() ? List.of() : unlockRepository.findAllByOrderByUnlockedAtDescIdDesc();
         for (ClassroomInfoResponse cls : classes) {
-            for (EvaluationPeriod p : periodsOf(cls)) {
+            for (EvaluationPeriod p : periodsOf(cls, unlocks)) {
                 if (!p.locked() || p.unlockedUntil() != null) {
                     continue;
                 }
@@ -488,20 +499,37 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
                     .orElse(false);
             return new int[] {confirmed ? 1 : 0, 1};
         }
-        EvaluationPeriodType type =
-                p.kind() == EvaluationLockKind.YEAR ? EvaluationPeriodType.YEAR : EvaluationPeriodType.SEMESTER;
-        LocalDate from = cls.yearStart();
-        int total = enrollmentService
-                .findChildrenInClassroomDuring(cls.id(), from, p.openFrom())
-                .size();
+        // Cần chốt 24/11/2026: kỳ học kỳ chỉ còn Đánh giá học kỳ theo lĩnh vực của lớp (bỏ nhận xét học kỳ cá nhân)
+        if (p.kind() == EvaluationLockKind.SEMESTER) {
+            boolean confirmed = semesterAssessmentRepository
+                    .findByClassroomIdAndSemester(cls.id(), Integer.parseInt(p.periodKey()))
+                    .map(a -> a.getConfirmedAt() != null)
+                    .orElse(false);
+            return new int[] {confirmed ? 1 : 0, 1};
+        }
+        EvaluationPeriodType type = EvaluationPeriodType.YEAR;
+        LocalDate today = rules.today();
+        LocalDate at = today.isAfter(cls.yearEnd()) ? cls.yearEnd() : today;
+        // Cùng danh sách trẻ như khi tạo nháp cuối năm: trẻ đang học lớp
+        List<ClassChildResponse> roster = enrollmentService.findChildrenInClassroom(cls.id(), at);
+        Set<Long> childIds =
+                roster.stream().map(ClassChildResponse::id).collect(Collectors.toCollection(java.util.HashSet::new));
+        // Trẻ đã chuyển lớp / nghỉ học không còn ai xác nhận ở lớp này: không tính, để kỳ có thể hoàn tất
+        Map<Long, Long> active =
+                childIds.isEmpty() ? Map.of() : enrollmentService.findActiveClassroomIdByChildIds(childIds, at);
+        childIds.removeIf(id -> !cls.id().equals(active.get(id)));
+        int total = childIds.size();
         Map<Long, Boolean> confirmedByChild =
                 childEvaluationRepository.findByClassroomIdInAndPeriodType(List.of(cls.id()), type).stream()
-                        .filter(e -> type == EvaluationPeriodType.YEAR
-                                || p.periodKey().equals(semesterKey(cls, e.getPeriodEnd())))
+                        .filter(e -> childIds.contains(e.getChildId()))
                         .collect(Collectors.toMap(
                                 ChildEvaluation::getChildId, ChildEvaluation::isConfirmed, (a, b) -> a || b));
         int done = (int)
                 confirmedByChild.values().stream().filter(Boolean::booleanValue).count();
         return new int[] {done, total};
+    }
+
+    private static String semesterKeyOf(LocalDate s1End, LocalDate periodEnd) {
+        return s1End != null && periodEnd != null && !periodEnd.isAfter(s1End) ? SEMESTER_1 : SEMESTER_2;
     }
 }

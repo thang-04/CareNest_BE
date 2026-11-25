@@ -118,7 +118,10 @@ public class HealthExamServiceImpl implements HealthExamService {
             }
             // Ngày khám hệ thống ghi ở lần lưu đầu, nháp hay kết luận đều giữ (HLT-08, user chốt 2026-11-04)
             LocalDate date = m != null ? m.getDate() : rules.referenceDate(campaign);
-            HealthExamReference reference = HealthExamReview.reference(child.dateOfBirth(), date);
+            if (m == null) {
+                rules.checkPresent(childId, date);
+            }
+            HealthExamReference reference = HealthExamReview.reference(child.dateOfBirth(), child.gender(), date);
             HealthConclusionMode mode = conclusionMode(s, m);
             if (request.conclude() && request.conclusionMode() != null && request.conclusionMode() != mode) {
                 throw GlobalException.of(ApiCode.HEALTH_EXAM_MODE_CHANGED);
@@ -152,12 +155,20 @@ public class HealthExamServiceImpl implements HealthExamService {
                                     child.dateOfBirth(),
                                     child.guardians().size()))
                             : draftErrors(height, weight, head));
-            // Mỗi trẻ một lần đo một ngày (cả nháp, ràng buộc DB); chỉ phiếu mới có thể trùng vì ngày không đổi
+            // Kiểm định dạng nhiệt độ trên số gửi lên (chưa làm tròn), cả nháp lẫn kết luận.
+            // Lỗi định dạng thay lỗi khoảng của cùng ô.
+            FieldErrorResponse temperatureError = HealthExamValidator.temperatureFormatError(
+                    request.exam() == null || request.exam().vitals() == null
+                            ? null
+                            : request.exam().vitals().temperatureC());
+            if (temperatureError != null) {
+                errors.removeIf(e -> e.field().equals(temperatureError.field()));
+                errors.add(0, temperatureError);
+            }
+            // HLT-08: mỗi ngày một phiếu khám (cả nháp); ngày đã có số đo kỳ cân đo vẫn lưu, chỉ phiếu mới có thể trùng
             Long currentId = m == null ? null : m.getId();
-            if (measurementRepository
-                    .findByChildIdAndDate(childId, date)
-                    .filter(other -> !other.getId().equals(currentId))
-                    .isPresent()) {
+            if (measurementRepository.findByChildIdAndDate(childId, date).stream()
+                    .anyMatch(other -> other.isExam() && !other.getId().equals(currentId))) {
                 // Người nhập không chọn được ngày khác: báo HT/PHT xử lý
                 errors.add(new FieldErrorResponse(
                         "date",
@@ -197,18 +208,11 @@ public class HealthExamServiceImpl implements HealthExamService {
             boolean historyChanged = !concluded || !Objects.equals(before.history(), exam.history());
             boolean isNew = m == null;
             if (isNew) {
-                m = HealthMeasurement.newExam(childId, campaignId, currentUser.userId(), now);
+                // HLT-09: phiếu ở lại lớp lúc khám, GV lớp mới lưu tiếp không chuyển phiếu sang lớp mới
+                m = HealthMeasurement.newExam(childId, campaignId, target.cls().id(), currentUser.userId(), now);
             }
             m.saveExam(
-                    target.cls().id(),
-                    date,
-                    height,
-                    weight,
-                    head,
-                    records.writeExam(exam),
-                    request.conclude(),
-                    currentUser.userId(),
-                    now);
+                    date, height, weight, head, records.writeExam(exam), request.conclude(), currentUser.userId(), now);
             if (isNew) {
                 measurementRepository.save(m);
             }
@@ -243,8 +247,8 @@ public class HealthExamServiceImpl implements HealthExamService {
             HealthMeasurement m = examOf(s, childId, campaignId);
             // Gợi ý theo tuổi tại ngày khám đã ghi; phiếu chưa lưu theo ngày sẽ ghi khi lưu
             LocalDate date = m != null ? m.getDate() : rules.referenceDate(target.campaign());
-            HealthExamReference reference =
-                    HealthExamReview.reference(target.child().dateOfBirth(), date);
+            HealthExamReference reference = HealthExamReview.reference(
+                    target.child().dateOfBirth(), target.child().gender(), date);
             HealthExamForm exam =
                     HealthExamNormalizer.normalize(request.exam(), conclusionMode(s, m), reference, false);
             HealthExamReviewResponse response = new HealthExamReviewResponse(HealthExamReview.points(exam, reference));
@@ -312,7 +316,7 @@ public class HealthExamServiceImpl implements HealthExamService {
             measurement = records.views(s, List.of(m), child.dateOfBirth(), child.gender(), true)
                     .getFirst();
         } else {
-            draft = new HealthExamResponse.HealthExamDraft(refDate, null, null, null, prefill(child, declared));
+            draft = prefill(child, declared, s, refDate);
         }
         return new HealthExamResponse(
                 conclusionMode(s, m),
@@ -332,7 +336,7 @@ public class HealthExamServiceImpl implements HealthExamService {
                                 .toList()),
                 measurement,
                 draft,
-                HealthExamReview.reference(child.dateOfBirth(), refDate),
+                HealthExamReview.reference(child.dateOfBirth(), child.gender(), refDate),
                 s.previous(childId, m == null ? null : m.getId(), refDate),
                 measurementRepository.findDoctorNames(c.getId()).stream()
                         .filter(n -> n != null && !n.isBlank())
@@ -342,8 +346,15 @@ public class HealthExamServiceImpl implements HealthExamService {
                 status != HealthCheckStatus.IN_PROGRESS);
     }
 
-    /** Phiếu mới: mẫu trống, người đi cùng mặc định là phụ huynh đầu tiên, hành chính và tiền sử điền sẵn. */
-    private static HealthExamForm prefill(ChildViewResponse child, Optional<ChildMedicalHistory> declared) {
+    /**
+     * Phiếu mới: mẫu trống, người đi cùng mặc định là phụ huynh đầu tiên, hành chính và tiền sử điền sẵn; chiều cao, cân
+     * nặng lấy từ số đo kỳ cân đo cùng ngày khám (HLT-08, user chốt 2026-11-24).
+     */
+    private static HealthExamResponse.HealthExamDraft prefill(
+            ChildViewResponse child, Optional<ChildMedicalHistory> declared, HealthRecords.Snapshot s, LocalDate date) {
+        Optional<HealthMeasurement> sameDay = s.measurements(child.id()).stream()
+                .filter(x -> !x.isExam() && x.getDate().equals(date))
+                .findFirst();
         HealthExamForm template = HealthExamCatalog.template();
         boolean hasGuardian = !child.guardians().isEmpty();
         HealthExamForm.HealthExamAdmin a = template.admin();
@@ -358,7 +369,12 @@ public class HealthExamServiceImpl implements HealthExamService {
                 a.address(),
                 hasGuardian ? YES : "",
                 new HealthExamForm.HealthExamCompanion(hasGuardian ? 0 : null, "", "", "", ""));
-        return withHistory(withProfile(withParts(template, null, admin, null), null, child), declared);
+        return new HealthExamResponse.HealthExamDraft(
+                date,
+                sameDay.map(HealthMeasurement::getHeightCm).orElse(null),
+                sameDay.map(HealthMeasurement::getWeightKg).orElse(null),
+                null,
+                withHistory(withProfile(withParts(template, null, admin, null), null, child), declared));
     }
 
     /**

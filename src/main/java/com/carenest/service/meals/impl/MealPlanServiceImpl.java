@@ -454,7 +454,12 @@ public class MealPlanServiceImpl implements MealPlanService {
         try {
             LocalDate date = request.date() == null ? LocalDate.now(clock) : request.date();
             if (request.ageGroupId() == null) {
+                // Cùng danh sách nhóm tuổi với ô chọn nhóm (có lớp năm học hiện hành, chưa tắt định mức)
+                Set<Long> selectable = evaluationSupport.planningGroups().stream()
+                        .map(AgeGroupInfo::id)
+                        .collect(Collectors.toSet());
                 List<MenuStatisticsResponse> groups = ageGroupService.getAgeGroups().stream()
+                        .filter(group -> selectable.contains(group.id()))
                         .map(group -> {
                             MenuBlock block = MenuBlock.ofAgeGroup(group.ageToMonths());
                             List<MenuStatisticsRequest.Item> groupItems = request.items().stream()
@@ -479,16 +484,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                         groups.stream().map(MenuStatisticsResponse::freshCost).reduce(BigDecimal.ZERO, BigDecimal::add);
                 BigDecimal dryCost =
                         groups.stream().map(MenuStatisticsResponse::dryCost).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal mealPrice = groups.stream()
-                        .map(MenuStatisticsResponse::mealPrice)
-                        .filter(Objects::nonNull)
-                        .max(BigDecimal::compareTo)
-                        .orElse(null);
-                BigDecimal foodBudget = groups.stream()
-                        .map(MenuStatisticsResponse::foodBudget)
-                        .filter(Objects::nonNull)
-                        .max(BigDecimal::compareTo)
-                        .orElse(null);
+                // Giá suất và ngân sách mỗi nhóm một mức: không gộp thành số toàn trường (user chốt 25/11)
                 String childrenSource = groups.stream()
                                         .map(MenuStatisticsResponse::childrenSource)
                                         .distinct()
@@ -512,9 +508,9 @@ public class MealPlanServiceImpl implements MealPlanService {
                         children == 0
                                 ? BigDecimal.ZERO
                                 : totalCost.divide(BigDecimal.valueOf(children), 0, RoundingMode.HALF_UP),
-                        mealPrice,
                         null,
-                        foodBudget,
+                        null,
+                        null,
                         null,
                         groups);
                 log.info("{}|END", logPrefix);

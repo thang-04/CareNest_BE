@@ -16,9 +16,21 @@ public final class SemesterAssessmentDtos {
 
     // metActivities / assessedActivities giữ tên cũ (không đổi contract): nay là số chủ đề Đạt / chủ đề có kết quả
     // (OBS-25)
+    // sourceClassName: kết quả lấy từ bảng chủ đề của lớp cũ (trẻ chuyển lớp cùng năm), null = lớp hiện tại
     @Schema(name = "SemesterAssessmentGoal")
     public record Goal(
-            Long goalId, Short goalNo, String text, Boolean met, int metActivities, int assessedActivities) {}
+            Long goalId,
+            Short goalNo,
+            String text,
+            Boolean met,
+            int metActivities,
+            int assessedActivities,
+            String sourceClassName) {
+
+        public Goal(Long goalId, Short goalNo, String text, Boolean met, int metActivities, int assessedActivities) {
+            this(goalId, goalNo, text, met, metActivities, assessedActivities, null);
+        }
+    }
 
     @Schema(name = "SemesterAssessmentDomain")
     public record Domain(
@@ -31,7 +43,7 @@ public final class SemesterAssessmentDtos {
             Boolean met) {}
 
     @Schema(name = "SemesterAssessmentChild")
-    public record Child(Long childId, String fullName, List<Domain> domains) {}
+    public record Child(Long childId, String fullName, List<Domain> domains, String historyStatus) {}
 
     @Schema(name = "SemesterAssessmentResponse")
     public record Response(

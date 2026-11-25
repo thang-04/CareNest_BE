@@ -101,9 +101,10 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
     @Query(
             value =
                     "insert into school_year_campus_members (school_year_id, campus_id, code, name, short_name, address,"
-                            + " phone, status) select :targetYearId, m.campus_id, coalesce(m.code, c.code),"
+                            + " phone, status, is_main) select :targetYearId, m.campus_id, coalesce(m.code, c.code),"
                             + " coalesce(m.name, c.name), coalesce(m.short_name, c.short_name),"
-                            + " coalesce(m.address, c.address), coalesce(m.phone, c.phone), coalesce(m.status, c.status)"
+                            + " coalesce(m.address, c.address), coalesce(m.phone, c.phone), coalesce(m.status, c.status),"
+                            + " m.is_main"
                             + " from school_year_campus_members m join campuses c on c.id = m.campus_id"
                             + " where m.school_year_id = :sourceYearId on conflict do nothing",
             nativeQuery = true)
@@ -113,15 +114,15 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
     @Query(
             value =
                     "insert into school_year_campus_members (school_year_id, campus_id, code, name, short_name, address,"
-                            + " phone, status) select :yearId, c.id, c.code, c.name, c.short_name, c.address, c.phone,"
-                            + " c.status from campuses c on conflict do nothing",
+                            + " phone, status, is_main) select :yearId, c.id, c.code, c.name, c.short_name, c.address,"
+                            + " c.phone, c.status, c.is_main from campuses c on conflict do nothing",
             nativeQuery = true)
     void addAllToYear(@Param("yearId") Long yearId);
 
     /** Thông tin điểm trường riêng của năm (V152, V154 bảo đảm các cột bắt buộc không null). */
     @Query(
-            value = "select campus_id as campusId, code, name, short_name as shortName, address, phone, status"
-                    + " from school_year_campus_members where school_year_id = :yearId",
+            value = "select campus_id as campusId, code, name, short_name as shortName, address, phone, status,"
+                    + " is_main as main from school_year_campus_members where school_year_id = :yearId",
             nativeQuery = true)
     List<YearCampusInfo> findYearCampusInfo(@Param("yearId") Long yearId);
 
@@ -139,7 +140,48 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
         String getPhone();
 
         String getStatus();
+
+        Boolean getMain();
     }
+
+    /** Điểm trường chính của năm (V180); rỗng khi năm chưa có. */
+    @Query(
+            value = "select campus_id from school_year_campus_members where school_year_id = :yearId and is_main",
+            nativeQuery = true)
+    Optional<Long> findYearMainCampusId(@Param("yearId") Long yearId);
+
+    // Hai câu riêng: bỏ điểm chính cũ trước rồi mới đặt điểm mới (chỉ mục unique kiểm từng dòng)
+    @Modifying
+    @Query(
+            value = "update school_year_campus_members set is_main = false"
+                    + " where school_year_id = :yearId and is_main and campus_id <> :campusId",
+            nativeQuery = true)
+    int clearYearMain(@Param("yearId") Long yearId, @Param("campusId") Long campusId);
+
+    @Modifying
+    @Query(
+            value = "update school_year_campus_members set is_main = true"
+                    + " where school_year_id = :yearId and campus_id = :campusId",
+            nativeQuery = true)
+    int markYearMain(@Param("yearId") Long yearId, @Param("campusId") Long campusId);
+
+    /** Kích hoạt năm: bỏ cờ chính ở bảng chung của điểm trường không phải điểm chính năm mới (bước 1/2). */
+    @Modifying
+    @Query(
+            value = "update campuses c set is_main = false, updated_at = now() where c.is_main"
+                    + " and exists (select 1 from school_year_campus_members m"
+                    + " where m.school_year_id = :yearId and m.is_main and m.campus_id <> c.id)",
+            nativeQuery = true)
+    int clearMainOutsideYear(@Param("yearId") Long yearId);
+
+    /** Kích hoạt năm: bảng chung nhận điểm trường chính của năm mới (bước 2/2). */
+    @Modifying
+    @Query(
+            value = "update campuses c set is_main = true, updated_at = now() where not c.is_main"
+                    + " and exists (select 1 from school_year_campus_members m"
+                    + " where m.school_year_id = :yearId and m.is_main and m.campus_id = c.id)",
+            nativeQuery = true)
+    int applyYearMain(@Param("yearId") Long yearId);
 
     /** Điểm trường có mặt và đang hoạt động trong đúng năm học. */
     @Query(
@@ -209,6 +251,23 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
             nativeQuery = true)
     boolean existsNameInYear(
             @Param("yearId") Long yearId, @Param("campusId") Long campusId, @Param("name") String name);
+
+    // Cần chốt 24/11/2026: tên ngắn không trùng như mã, tên; so sánh sau khi bỏ khoảng trắng thừa, không phân biệt hoa
+    // thường (:shortName đã chuẩn hóa)
+    @Query(
+            value = "select count(*) > 0 from school_year_campus_members m"
+                    + " where m.school_year_id = :yearId and m.campus_id <> :campusId"
+                    + " and lower(regexp_replace(trim(m.short_name), '\\s+', ' ', 'g')) = lower(:shortName)",
+            nativeQuery = true)
+    boolean existsShortNameInYear(
+            @Param("yearId") Long yearId, @Param("campusId") Long campusId, @Param("shortName") String shortName);
+
+    /** Tên ngắn trùng trong danh mục chung, trừ điểm trường excludeId (tạo mới truyền 0). */
+    @Query(
+            value = "select count(*) > 0 from campuses c where c.id <> :excludeId"
+                    + " and lower(regexp_replace(trim(c.short_name), '\\s+', ' ', 'g')) = lower(:shortName)",
+            nativeQuery = true)
+    boolean existsShortName(@Param("shortName") String shortName, @Param("excludeId") Long excludeId);
 
     @Modifying
     @Query(

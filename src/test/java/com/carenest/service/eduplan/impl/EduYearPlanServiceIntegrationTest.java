@@ -433,7 +433,7 @@ class EduYearPlanServiceIntegrationTest {
                         List.of(theme("t-1", null))),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
 
-        assertThat(created.code()).isEqualTo("KHN-KHNH-2627-MGB");
+        assertThat(created.code()).isEqualTo("KHN-KHNH-2627-MG3");
         assertThat(created.status()).isEqualTo(EduPlanStatus.DRAFT);
         YearPlanDetailResponse.Domain physical = domain(created, domainPhysical);
         YearPlanDetailResponse.Domain language = domain(created, domainLanguage);

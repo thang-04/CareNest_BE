@@ -20,6 +20,7 @@ public record StockMovementResponse(
         LocalDate mealDate,
         LocalDate correctionFor,
         Long receiptId,
+        Long disposalId,
         String reason,
         Long createdBy,
         Instant createdAt) {}

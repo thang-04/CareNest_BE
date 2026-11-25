@@ -22,4 +22,18 @@ public record AgeGroupRequest(
         @Max(value = 60, message = "Sĩ số tối đa / lớp từ 1 đến 60")
         Integer maxClassSize,
 
-        @Size(max = 500) String nutritionNote) {}
+        @Size(max = 500) String nutritionNote,
+        Long standardAgeGroupId) {
+
+    /** Giữ tương thích các lời gọi nội bộ cũ; API cấu hình theo năm bắt buộc truyền standardAgeGroupId. */
+    public AgeGroupRequest(
+            String name,
+            String shortName,
+            Integer ageFromMonths,
+            Integer ageToMonths,
+            List<MealSession> mealSessions,
+            Integer maxClassSize,
+            String nutritionNote) {
+        this(name, shortName, ageFromMonths, ageToMonths, mealSessions, maxClassSize, nutritionNote, null);
+    }
+}

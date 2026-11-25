@@ -10,6 +10,7 @@ import com.carenest.dto.child.EnrollChildRequest;
 import com.carenest.dto.child.GuardianCheckRequest;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
+import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.ParentAccountLookupResponse;
 import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.PlacementClassResponse;
@@ -25,13 +26,16 @@ import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -121,12 +125,14 @@ public class ChildEnrollmentController {
     @GetMapping("/placement-classes")
     @PreAuthorize("@permissionGuard.hasAny('CHILD_ENROLL', 'CHILD_PLACEMENT')")
     public ResponseEntity<ResponseJson<List<PlacementClassResponse>>> listPlacementClasses(
-            @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+            @RequestParam(required = false) Long schoolYearId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) Long childId,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|listPlacementClasses|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        List<PlacementClassResponse> classes = schoolYearId == null
-                ? childIntakeService.listPlacementClasses(currentUser)
-                : childIntakeService.listPlacementClasses(currentUser, schoolYearId);
+        List<PlacementClassResponse> classes =
+                childIntakeService.listPlacementClasses(currentUser, schoolYearId, from, childId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "List placement classes success", classes);
     }
@@ -196,6 +202,30 @@ public class ChildEnrollmentController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw child success", child);
     }
 
+    // G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ học chưa tới ngày, quyền như withdraw
+    @DeleteMapping("/{childId}/scheduled-leave")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<ChildViewResponse>> cancelScheduledLeave(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|cancelScheduledLeave|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse child = childRecordService.cancelScheduledLeave(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Cancel scheduled leave success", child);
+    }
+
+    // G94-180/CHD-03 (user chốt 2026-11-25): hộp Cho nghỉ học hỏi hôm nay có chọn được không và khoảng ngày chọn được
+    @GetMapping("/{childId}/leave-options")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<LeaveOptionsResponse>> leaveOptions(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|leaveOptions|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        LeaveOptionsResponse options = childRecordService.leaveOptions(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get leave options success", options);
+    }
+
     @PostMapping("/{childId}/placement")
     @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
     public ResponseEntity<ResponseJson<ChildViewResponse>> placeChild(
@@ -205,6 +235,18 @@ public class ChildEnrollmentController {
         ChildViewResponse child = childRecordService.place(currentUser, childId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Place child success", child);
+    }
+
+    @DeleteMapping("/{childId}/placement/scheduled")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<ChildViewResponse>> cancelScheduledPlacement(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|cancelScheduledPlacement|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse child = childRecordService.cancelScheduledPlacement(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Cancel scheduled placement success", child);
     }
 
     @PutMapping("/{childId}/health-declaration")

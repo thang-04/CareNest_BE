@@ -31,14 +31,38 @@ public final class LeaveRequestDtos {
         }
     }
 
+    /** Xem trước đơn nghỉ (không lưu): như CreateLeaveRequest, lý do không bắt buộc. */
+    public record PreviewLeaveRequest(
+            @NotNull Long childId,
+            @NotNull LocalDate fromDate,
+            @NotNull LocalDate toDate,
+            @Size(max = 500) String reason,
+            LeavePart part,
+            Boolean eats) {}
+
+    /**
+     * ATT-12, ATT-05b: offMeals = bữa của buổi nghỉ (cả ngày: mọi bữa), keptMeals = bữa của buổi còn học, theo nhóm tuổi
+     * của lớp ngày đầu được áp dụng; eatsApplies = false ⇒ không hỏi "Bé tham gia ăn" (gửi eats = null); skippedDates =
+     * ngày đã qua giờ chốt.
+     */
+    public record LeavePreviewResponse(
+            LeavePart part,
+            List<MealSession> offMeals,
+            List<MealSession> keptMeals,
+            boolean eatsApplies,
+            List<LocalDate> appliedDates,
+            List<LocalDate> skippedDates) {}
+
     /**
      * status: ACTIVE / CANCELLED (hủy hết). effectiveTo: ngày cuối còn hiệu lực. appliedDates: ngày đã ghi Vắng có phép;
-     * skippedDates: ngày đã qua giờ chốt khi gửi nên không đổi điểm danh (ATT-05b).
+     * skippedDates: ngày đã qua giờ chốt khi gửi nên không đổi điểm danh (ATT-05b). offMeals: bữa của buổi nghỉ;
+     * teacherSeenAt / teacherSeenByName: lần đầu GV lớp mở đơn (null = chưa xem).
      */
     public record LeaveRequestResponse(
             Long id,
             Long childId,
             String childName,
+            String historyStatus,
             Long classId,
             String className,
             Long campusId,
@@ -56,7 +80,14 @@ public final class LeaveRequestDtos {
             LeavePart part,
             Boolean eats,
             Long ageGroupId,
-            List<MealSession> eatsMeals) {}
+            List<MealSession> eatsMeals,
+            List<LeaveDay> days,
+            List<MealSession> offMeals,
+            Instant teacherSeenAt,
+            String teacherSeenByName) {}
+
+    /** Một ngày học của đơn gắn với lớp trẻ học ngày đó (trẻ chuyển lớp sau khi gửi đơn, Cần chốt 24/11/2026). */
+    public record LeaveDay(LocalDate date, Long classId, String className) {}
 
     /** Nhãn "Phụ huynh báo nghỉ" ở dòng trẻ của màn điểm danh. */
     /** eats null = không áp dụng (cả ngày, hoặc buổi còn học không có bữa); eatsMeals: các bữa của buổi còn học. */
