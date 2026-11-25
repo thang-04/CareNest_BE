@@ -15897,6 +15897,10 @@ components:
           - DESSERT
         name:
           type: string
+        portions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Portion"
     FoodHistoryResponse:
       type: object
       properties:
@@ -15919,6 +15923,8 @@ components:
         userId:
           type: integer
           format: int64
+        userName:
+          type: string
     FoodImportRequest:
       type: object
       properties:
@@ -22008,6 +22014,14 @@ components:
           type: array
           items:
             type: string
+    Portion:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        gramsPerChild:
+          type: number
     PrepChild:
       type: object
       properties:

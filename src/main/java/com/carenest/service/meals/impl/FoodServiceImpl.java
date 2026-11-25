@@ -122,7 +122,16 @@ public class FoodServiceImpl implements FoodService {
             List<FoodDishUsageResponse> response =
                     dishRepository.findDistinctByIngredientsFoodIdOrderByNameAsc(foodId).stream()
                             .map(dish -> new FoodDishUsageResponse(
-                                    dish.getId(), dish.getCode(), dish.getName(), dish.getDishType()))
+                                    dish.getId(),
+                                    dish.getCode(),
+                                    dish.getName(),
+                                    dish.getDishType(),
+                                    dish.getIngredients().stream()
+                                            .filter(i ->
+                                                    foodId.equals(i.getFood().getId()))
+                                            .map(i -> new FoodDishUsageResponse.Portion(
+                                                    i.getAgeGroupId(), i.getGramsPerChild()))
+                                            .toList()))
                             .toList();
             log.info("{}|END", logPrefix);
             return response;

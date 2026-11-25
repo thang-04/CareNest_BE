@@ -7,4 +7,12 @@ import java.time.Instant;
  * PRICE_ADJUSTED) kèm ghi chú ngày hiệu lực và lý do.
  */
 public record FoodHistoryResponse(
-        Long id, Long userId, Instant at, String action, String field, String oldValue, String newValue, String note) {}
+        Long id,
+        Long userId,
+        String userName,
+        Instant at,
+        String action,
+        String field,
+        String oldValue,
+        String newValue,
+        String note) {}

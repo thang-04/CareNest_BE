@@ -111,6 +111,7 @@ class FoodHistoryIntegrationTest {
             assertThat(h.oldValue()).isEqualTo("Gạo");
             assertThat(h.newValue()).isEqualTo("Gạo tẻ");
             assertThat(h.userId()).isEqualTo(manager.userId());
+            assertThat(h.userName()).isEqualTo("h");
             assertThat(h.at()).isNotNull();
         });
     }
@@ -164,6 +165,9 @@ class FoodHistoryIntegrationTest {
         assertThat(foodService.getFoodDishes(rice)).singleElement().satisfies(d -> {
             assertThat(d.dishId()).isEqualTo(dish);
             assertThat(d.name()).isEqualTo("Cơm");
+            assertThat(d.portions()).hasSize(2);
+            assertThat(d.portions())
+                    .allSatisfy(p -> assertThat(p.gramsPerChild()).isEqualByComparingTo("60"));
         });
     }
 

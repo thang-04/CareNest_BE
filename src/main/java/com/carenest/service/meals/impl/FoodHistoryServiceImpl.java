@@ -7,6 +7,7 @@ import com.carenest.entity.meals.Supplier;
 import com.carenest.repository.meals.FoodHistoryRepository;
 import com.carenest.repository.meals.FoodPriceRepository;
 import com.carenest.repository.meals.SupplierRepository;
+import com.carenest.service.account.AccountQueryService;
 import com.carenest.service.meals.FoodHistoryService;
 import com.carenest.utils.enums.CatalogStatus;
 import java.time.Clock;
@@ -36,6 +37,7 @@ public class FoodHistoryServiceImpl implements FoodHistoryService {
     private final FoodHistoryRepository historyRepository;
     private final FoodPriceRepository priceRepository;
     private final SupplierRepository supplierRepository;
+    private final AccountQueryService accountQueryService;
     private final Clock clock;
 
     @Override
@@ -106,6 +108,7 @@ public class FoodHistoryServiceImpl implements FoodHistoryService {
                     .forEach(row -> response.add(new FoodHistoryResponse(
                             row.getId(),
                             row.getUserId(),
+                            null,
                             row.getChangedAt(),
                             row.getAction(),
                             row.getField(),
@@ -114,8 +117,24 @@ public class FoodHistoryServiceImpl implements FoodHistoryService {
                             null)));
             response.addAll(priceChanges(foodId));
             response.sort(Comparator.comparing(FoodHistoryResponse::at));
+            Map<Long, String> names = accountQueryService.getDisplayNames(response.stream()
+                    .map(FoodHistoryResponse::userId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet()));
+            List<FoodHistoryResponse> named = response.stream()
+                    .map(h -> new FoodHistoryResponse(
+                            h.id(),
+                            h.userId(),
+                            names.get(h.userId()),
+                            h.at(),
+                            h.action(),
+                            h.field(),
+                            h.oldValue(),
+                            h.newValue(),
+                            h.note()))
+                    .toList();
             log.info("{}|END", logPrefix);
-            return response;
+            return named;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -160,6 +179,6 @@ public class FoodHistoryServiceImpl implements FoodHistoryService {
 
     private static FoodHistoryResponse priceEvent(FoodPrice row, String field, String old, String now, String note) {
         return new FoodHistoryResponse(
-                null, row.getCreatedBy(), row.getCreatedAt(), FoodHistory.PRICE_ADJUSTED, field, old, now, note);
+                null, row.getCreatedBy(), null, row.getCreatedAt(), FoodHistory.PRICE_ADJUSTED, field, old, now, note);
     }
 }
