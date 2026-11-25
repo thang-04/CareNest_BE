@@ -93,7 +93,7 @@ Không có. Các mốc giờ là dữ liệu HT cấu hình, không hard-code th
 
 ### 2026-11-25 — Phases 1–3 (implemented, awaiting integration DB)
 - User đã duyệt triển khai trong hội thoại ngày 25/11/2026.
-- Đã thêm `noticeOnly`, snapshot hiệu ứng của đơn, nhãn FE, migration V195 (đổi từ V183 rồi V190 khi merge dev và nhánh G94-467 25/11); đơn báo nghỉ chiều sau giờ chốt chỉ là thông báo và hủy chỉ hủy thông báo.
-- Đã thêm lịch sinh hoạt theo năm học, migration V196 (đổi từ V184 rồi V191 khi merge dev và nhánh G94-467 25/11), API/OpenAPI/FE validation, và mốc tính đủ ngày khi trả trẻ.
-- Đã mở rộng V196 thành tám mốc vận hành: mở đón trẻ, sáng bắt đầu/kết thúc, chiều bắt đầu/kết thúc, trả trẻ bắt đầu/kết thúc và mốc tính đủ ngày; giờ chốt/báo ăn và giờ đến muộn vẫn độc lập.
+- Đã thêm `noticeOnly`, snapshot hiệu ứng của đơn, nhãn FE, migration V196 (đổi từ V183, V190, V195 khi merge dev 25/11); đơn báo nghỉ chiều sau giờ chốt chỉ là thông báo và hủy chỉ hủy thông báo.
+- Đã thêm lịch sinh hoạt theo năm học, migration V197 (đổi từ V184, V191, V196 khi merge dev 25/11), API/OpenAPI/FE validation, và mốc tính đủ ngày khi trả trẻ.
+- Đã mở rộng V197 thành tám mốc vận hành: mở đón trẻ, sáng bắt đầu/kết thúc, chiều bắt đầu/kết thúc, trả trẻ bắt đầu/kết thúc và mốc tính đủ ngày; giờ chốt/báo ăn và giờ đến muộn vẫn độc lập.
 - `PickupServiceImplTest` và compile/Spotless BE đã qua; test tích hợp `LeaveRequestIntegrationTest` bị Testcontainers skip do máy không có Docker. FE lint/build/API contract và test `attendance-half-day` đã qua.
