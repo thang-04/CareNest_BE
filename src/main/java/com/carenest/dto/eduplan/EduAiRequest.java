@@ -13,12 +13,6 @@ import java.util.List;
 public final class EduAiRequest {
     private EduAiRequest() {}
 
-    public record BranchNames(
-            Long classId,
-            Long ageGroupId,
-            @NotNull @Size(min = 1, max = 40) List<@Valid Theme> themes,
-            List<@Size(max = 200) String> taken) {}
-
     public record Theme(
             String id,
             @NotBlank @Size(max = 200) String name,
@@ -27,16 +21,21 @@ public final class EduAiRequest {
 
     public record Week(@NotBlank String start, Integer no) {}
 
-    public record RewriteBranchName(
-            Long classId,
-            @NotBlank @Size(max = 200) String name,
-            @Size(max = 200) String themeName,
-            Integer attempt) {}
-
+    /**
+     * activity: tên hoạt động của giáo án ngày (vd. "Hoạt động ngoài trời"); steps: tên các bước của mục đó — có steps thì AI
+     * trả đúng từng bước (rows), không thì theo khung a/b/c của hoạt động học.
+     */
     public record LessonSteps(
             @Size(max = 200) String subject,
             @Size(max = 10) List<@Size(max = 500) String> topics,
-            @Size(max = 30) List<@Size(max = 500) String> goals) {}
+            @Size(max = 30) List<@Size(max = 500) String> goals,
+            @Size(max = 200) String activity,
+            @Size(max = 10) List<@Size(max = 200) String> steps) {
+
+        public LessonSteps(String subject, List<String> topics, List<String> goals) {
+            this(subject, topics, goals, null, null);
+        }
+    }
 
     public record Activities(
             @Size(max = 200) String themeName,

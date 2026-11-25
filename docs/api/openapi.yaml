@@ -4348,42 +4348,6 @@ paths:
           description: OK
       tags:
       - edu-ai-controller
-  /api/education-plans/ai/branch-names:
-    post:
-      operationId: suggestBranchNames
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/BranchNames"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonBranchNames"
-          description: OK
-      tags:
-      - edu-ai-controller
-  /api/education-plans/ai/branch-names/rewrite:
-    post:
-      operationId: rewriteBranchName
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RewriteBranchName"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonBranchName"
-          description: OK
-      tags:
-      - edu-ai-controller
   /api/education-plans/ai/class-docs/day/{docKey}/edit:
     post:
       operationId: editDay
@@ -4462,6 +4426,35 @@ paths:
           description: OK
       tags:
       - edu-ai-controller
+  /api/education-plans/ai/rag/search:
+    get:
+      operationId: searchRag
+      parameters:
+      - in: query
+        name: q
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: k
+        required: false
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListEduAiRagHitResponse"
+          description: OK
+      tags:
+      - edu-ai-controller
   /api/education-plans/ai/team-plans/{planId}/theme-content-map:
     post:
       operationId: matchThemeContents
@@ -4525,6 +4518,12 @@ paths:
           enum:
           - MAIN
           - REVIEW
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content: {}
@@ -5064,6 +5063,12 @@ paths:
           type: integer
           format: int32
           default: 5
+      - in: query
+        name: currentOnly
+        required: false
+        schema:
+          type: boolean
+          default: false
       responses:
         "200":
           content: {}
@@ -11975,34 +11980,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Warning"
-    BranchName:
-      type: object
-      properties:
-        name:
-          type: string
-    BranchNames:
-      type: object
-      properties:
-        ageGroupId:
-          type: integer
-          format: int64
-        classId:
-          type: integer
-          format: int64
-        taken:
-          type: array
-          items:
-            type: string
-            maxLength: 200
-            minLength: 0
-        themes:
-          type: array
-          items:
-            $ref: "#/components/schemas/Theme"
-          maxItems: 40
-          minItems: 1
-      required:
-      - themes
     BranchSchedule:
       type: object
       properties:
@@ -15097,6 +15074,31 @@ components:
           type: integer
           format: int64
         text:
+          type: string
+    EduAiRagHitResponse:
+      type: object
+      properties:
+        content:
+          type: string
+        id:
+          type: string
+        meta:
+          $ref: "#/components/schemas/EduAiRagMetaResponse"
+        sim:
+          type: number
+          format: double
+        source:
+          type: string
+        type:
+          type: string
+    EduAiRagMetaResponse:
+      type: object
+      properties:
+        age:
+          type: string
+        theme:
+          type: string
+        url:
           type: string
     EduAiThemeContentMapRequest:
       type: object
@@ -18787,6 +18789,10 @@ components:
     LessonSteps:
       type: object
       properties:
+        activity:
+          type: string
+          maxLength: 200
+          minLength: 0
         goals:
           type: array
           items:
@@ -18794,6 +18800,14 @@ components:
             maxLength: 500
             minLength: 0
           maxItems: 30
+          minItems: 0
+        steps:
+          type: array
+          items:
+            type: string
+            maxLength: 200
+            minLength: 0
+          maxItems: 10
           minItems: 0
         subject:
           type: string
@@ -22164,32 +22178,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonBranchName:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/BranchName"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonBranchNames:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/BranchNames"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonCampusDetailResponse:
       type: object
       properties:
@@ -23493,6 +23481,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DishDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListEduAiRagHitResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EduAiRagHitResponse"
         desc:
           type: string
         errorCode:
@@ -25415,25 +25418,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RewardItemRequest"
-    RewriteBranchName:
-      type: object
-      properties:
-        attempt:
-          type: integer
-          format: int32
-        classId:
-          type: integer
-          format: int64
-        name:
-          type: string
-          maxLength: 200
-          minLength: 0
-        themeName:
-          type: string
-          maxLength: 200
-          minLength: 0
-      required:
-      - name
     RoleItem:
       type: object
       properties:
@@ -27040,28 +27024,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Leader"
-    Theme:
-      type: object
-      properties:
-        festivals:
-          type: string
-          maxLength: 500
-          minLength: 0
-        id:
-          type: string
-        name:
-          type: string
-          maxLength: 200
-          minLength: 0
-        weeks:
-          type: array
-          items:
-            $ref: "#/components/schemas/Week"
-          maxItems: 10
-          minItems: 1
-      required:
-      - name
-      - weeks
     ThemeEvaluationRequest:
       type: object
       properties:
@@ -27767,17 +27729,6 @@ components:
         row:
           type: integer
           format: int32
-    Week:
-      type: object
-      properties:
-        "no":
-          type: integer
-          format: int32
-        start:
-          type: string
-          minLength: 1
-      required:
-      - start
     WeekData:
       type: object
       properties:

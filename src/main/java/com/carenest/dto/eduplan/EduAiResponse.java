@@ -7,17 +7,16 @@ import java.util.List;
 public final class EduAiResponse {
     private EduAiResponse() {}
 
-    public record BranchNames(List<BranchSuggestion> suggestions) {}
+    /** refs: mẩu RAG đã dùng làm tham khảo (bước c); rỗng khi không có kho hoặc AI embedding tắt. */
+    public record LessonSteps(Step a, Step b, Step c, List<RagRef> refs, List<Step> rows) {}
 
-    public record BranchSuggestion(String weekStart, String name, String reason) {}
-
-    public record BranchName(String name) {}
-
-    public record LessonSteps(Step a, Step b, Step c) {}
+    /** Mẩu tham khảo RAG mà AI dùng: id trong kho, tiêu đề ngắn, link nguồn (giáo án web). */
+    public record RagRef(String id, String title, String url) {}
 
     public record Step(String teacher, String child) {}
 
-    public record Activity(String goalId, String slot, String name) {}
+    /** ref: mẩu RAG AI ghi "from" (bước b, EDU-113); null khi AI không dựa vào mẩu nào. */
+    public record Activity(String goalId, String slot, String name, RagRef ref) {}
 
     /** path: đường dẫn ô trong nội dung giáo án ngày (vd. days.0.sections.hoc.aims). */
     public record DayEdit(List<CellChange> changes) {}
@@ -45,4 +44,11 @@ public final class EduAiResponse {
 
     @Schema(name = "EduAiGoalContentMatchResponse")
     public record GoalContentMatch(Long goalId, Long curriculumContentId, String text, String from) {}
+
+    /** Đoạn tham khảo RAG (thử tìm kiếm): sim là điểm đã xếp hạng (WEB ×0,8, cộng thưởng khớp tuổi/mã). */
+    @Schema(name = "EduAiRagHitResponse")
+    public record RagHit(String id, String type, String source, String content, double sim, RagMeta meta) {}
+
+    @Schema(name = "EduAiRagMetaResponse")
+    public record RagMeta(String url, String theme, String age) {}
 }

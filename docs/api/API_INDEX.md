@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 430 endpoint.
+Tổng: 429 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -192,12 +192,11 @@ GET /classrooms · src/main/java/com/carenest/controller/organization/SchoolStru
 POST /daily-health-entries · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#addEntry
 GET /daily-health/overview · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getOverview
 POST /education-plans/ai/activities · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestActivities
-POST /education-plans/ai/branch-names · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestBranchNames
-POST /education-plans/ai/branch-names/rewrite · src/main/java/com/carenest/controller/eduplan/EduAiController.java#rewriteBranchName
 POST /education-plans/ai/class-docs/day/{docKey}/edit · src/main/java/com/carenest/controller/eduplan/EduAiController.java#editDay
 POST /education-plans/ai/class-docs/day/{docKey}/review · src/main/java/com/carenest/controller/eduplan/EduAiController.java#reviewDay
 POST /education-plans/ai/feedback · src/main/java/com/carenest/controller/eduplan/EduAiController.java#logFeedback
 POST /education-plans/ai/lesson-steps · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestLessonSteps
+GET /education-plans/ai/rag/search · src/main/java/com/carenest/controller/eduplan/EduAiController.java#searchRag
 POST /education-plans/ai/team-plans/{planId}/theme-content-map · src/main/java/com/carenest/controller/eduplan/EduAiController.java#matchThemeContents
 POST /education-plans/ai/year-plans/{planId}/goal-content-map · src/main/java/com/carenest/controller/eduplan/EduAiController.java#matchGoalContents
 GET /education-plans/class-docs · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocs

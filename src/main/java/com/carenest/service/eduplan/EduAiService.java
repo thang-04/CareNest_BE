@@ -8,10 +8,6 @@ import java.util.List;
 /** AI hỗ trợ soạn và duyệt kế hoạch giáo dục (EDU-95, EDU-96): chỉ trả nháp, không ghi DB. */
 public interface EduAiService {
 
-    EduAiResponse.BranchNames suggestBranchNames(CurrentUser currentUser, EduAiRequest.BranchNames request);
-
-    EduAiResponse.BranchName rewriteBranchName(CurrentUser currentUser, EduAiRequest.RewriteBranchName request);
-
     EduAiResponse.LessonSteps suggestLessonSteps(CurrentUser currentUser, EduAiRequest.LessonSteps request);
 
     List<EduAiResponse.Activity> suggestActivities(CurrentUser currentUser, EduAiRequest.Activities request);

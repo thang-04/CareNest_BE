@@ -232,7 +232,6 @@ carenest:
       max-retry-delay: 1h
   edu-plan:
     # EDU-105: chỉ bật sau khi so sánh ví dụ trên dữ liệu thực có ích
-    ai-examples-enabled: ${CARENEST_EDU_AI_EXAMPLES_ENABLED:false}
     # EDU-10: khóa "Đang sửa" kế hoạch năm tự nhả sau khoảng này kể từ lần lưu cuối
     edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:90s}
   ai:
