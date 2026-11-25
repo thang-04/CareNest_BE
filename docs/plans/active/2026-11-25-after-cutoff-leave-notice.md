@@ -55,7 +55,7 @@ Không có. Các mốc giờ là dữ liệu HT cấu hình, không hard-code th
 ## Phases
 
 ### Phase 1 — Dữ liệu và service đơn nghỉ
-- Files: C `V183__leave_notice_and_attendance_effects.sql` · C `LeaveAttendanceEffect` · M `LeaveRequestServiceImpl`, DTO, repository, tests.
+- Files: C `V190__leave_notice_and_attendance_effects.sql` · C `LeaveAttendanceEffect` · M `LeaveRequestServiceImpl`, DTO, repository, tests.
 - Steps: lưu `noticeOnly`; lưu snapshot trước/sau của bản ghi bị đơn thay đổi; thêm báo nghỉ chiều hôm nay sau giờ chốt; hủy đúng hiệu ứng thuộc đơn.
 - Tests: AC-1..3 → `LeaveRequestIntegrationTest`.
 - Exit: targeted Maven tests pass, Spotless pass.
@@ -93,7 +93,7 @@ Không có. Các mốc giờ là dữ liệu HT cấu hình, không hard-code th
 
 ### 2026-11-25 — Phases 1–3 (implemented, awaiting integration DB)
 - User đã duyệt triển khai trong hội thoại ngày 25/11/2026.
-- Đã thêm `noticeOnly`, snapshot hiệu ứng của đơn, nhãn FE, migration V183; đơn báo nghỉ chiều sau giờ chốt chỉ là thông báo và hủy chỉ hủy thông báo.
-- Đã thêm lịch sinh hoạt theo năm học, migration V184, API/OpenAPI/FE validation, và mốc tính đủ ngày khi trả trẻ.
-- Đã mở rộng V184 thành tám mốc vận hành: mở đón trẻ, sáng bắt đầu/kết thúc, chiều bắt đầu/kết thúc, trả trẻ bắt đầu/kết thúc và mốc tính đủ ngày; giờ chốt/báo ăn và giờ đến muộn vẫn độc lập.
+- Đã thêm `noticeOnly`, snapshot hiệu ứng của đơn, nhãn FE, migration V190 (đổi từ V183 khi merge dev 25/11); đơn báo nghỉ chiều sau giờ chốt chỉ là thông báo và hủy chỉ hủy thông báo.
+- Đã thêm lịch sinh hoạt theo năm học, migration V191 (đổi từ V184 khi merge dev 25/11), API/OpenAPI/FE validation, và mốc tính đủ ngày khi trả trẻ.
+- Đã mở rộng V191 thành tám mốc vận hành: mở đón trẻ, sáng bắt đầu/kết thúc, chiều bắt đầu/kết thúc, trả trẻ bắt đầu/kết thúc và mốc tính đủ ngày; giờ chốt/báo ăn và giờ đến muộn vẫn độc lập.
 - `PickupServiceImplTest` và compile/Spotless BE đã qua; test tích hợp `LeaveRequestIntegrationTest` bị Testcontainers skip do máy không có Docker. FE lint/build/API contract và test `attendance-half-day` đã qua.
