@@ -265,7 +265,7 @@ class InspectionServiceImplTest {
     @Test
     @DisplayName("INS-05: xem ngày trả trạng thái mở ghi từng mẫu từ BE")
     void dayCarriesApprovals() {
-        when(grantService.dayApprovals(PHT, CAMPUS, DAY))
+        when(grantService.dayApprovals(eq(PHT), eq(CAMPUS), eq(DAY), any()))
                 .thenReturn(List.of(new InspectionDayResponse.TabApproval(
                         InspectionTab.FRESH, true, null, null, null, null, null, null, true, false)));
 
