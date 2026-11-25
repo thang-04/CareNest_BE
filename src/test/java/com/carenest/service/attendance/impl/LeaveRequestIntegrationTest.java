@@ -301,6 +301,55 @@ class LeaveRequestIntegrationTest {
     }
 
     @Test
+    void afterCutoffAfternoonLeaveIsNoticeOnlyAndCanBeCancelledWithoutChangingAttendance() {
+        clock.now = AFTER_CUTOFF;
+
+        LeaveRequestResponse leave = service.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đón sớm", LeavePart.AFTERNOON, true));
+
+        assertThat(leave.noticeOnly()).isTrue();
+        assertThat(leave.appliedDates()).isEmpty();
+        assertThat(leave.skippedDates()).containsExactly(TODAY);
+        assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
+                .isZero();
+        ClassAttendanceResponse.ChildRow row =
+                rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1);
+        assertThat(row.leave().noticeOnly()).isTrue();
+        assertThat(row.record()).isNull();
+
+        LeaveRequestResponse cancelled = service.cancelLeaveRequest(parent, leave.id());
+        assertThat(cancelled.status()).isEqualTo("CANCELLED");
+        assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
+                .isZero();
+    }
+
+    @Test
+    void cancellingAfternoonLeaveRestoresTheAttendanceRecordBeforeTheLeave() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY, List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, Map.of()))));
+        LeaveRequestResponse leave = service.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đón sớm", LeavePart.AFTERNOON, true));
+        ClassAttendanceResponse.RecordView duringLeave = rowOf(
+                        attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                .record();
+        assertThat(duringLeave.absentPart()).isEqualTo(DayPart.AFTERNOON);
+        assertThat(duringLeave.meals().get(MealSession.AFTERNOON)).isFalse();
+
+        service.cancelLeaveRequest(parent, leave.id());
+
+        ClassAttendanceResponse.RecordView restored = rowOf(
+                        attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                .record();
+        assertThat(restored.status()).isEqualTo(AttendanceStatus.PRESENT);
+        assertThat(restored.absentPart()).isNull();
+        assertThat(restored.meals().get(MealSession.LUNCH)).isTrue();
+        assertThat(restored.meals().get(MealSession.AFTERNOON)).isTrue();
+    }
+
+    @Test
     void overlappingLeaveIsRejected() {
         service.createLeaveRequest(parent, new CreateLeaveRequest(child1, THU, FRI, "Về quê"));
 

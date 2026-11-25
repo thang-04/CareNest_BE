@@ -14,9 +14,21 @@ public record CutoffRequest(
         @NotNull @JsonFormat(pattern = "HH:mm") LocalTime time,
         @NotNull LocalDate effectiveFrom,
         @Size(max = 500) String note,
-        @JsonFormat(pattern = "HH:mm") LocalTime latestAfternoonArrival) {
+        @JsonFormat(pattern = "HH:mm") LocalTime latestAfternoonArrival,
+        @JsonFormat(pattern = "HH:mm") LocalTime dropoffOpenFrom,
+        @JsonFormat(pattern = "HH:mm") LocalTime morningStart,
+        @JsonFormat(pattern = "HH:mm") LocalTime morningEnd,
+        @JsonFormat(pattern = "HH:mm") LocalTime afternoonStart,
+        @JsonFormat(pattern = "HH:mm") LocalTime pickupStart,
+        @JsonFormat(pattern = "HH:mm") LocalTime fullDayPickupFrom,
+        @JsonFormat(pattern = "HH:mm") LocalTime pickupEnd,
+        @JsonFormat(pattern = "HH:mm") LocalTime afternoonEnd) {
 
     public CutoffRequest(LocalTime time, LocalDate effectiveFrom, String note) {
-        this(time, effectiveFrom, note, null);
+        this(time, effectiveFrom, note, null, null, null, null, null, null, null, null, null);
+    }
+
+    public CutoffRequest(LocalTime time, LocalDate effectiveFrom, String note, LocalTime latestAfternoonArrival) {
+        this(time, effectiveFrom, note, latestAfternoonArrival, null, null, null, null, null, null, null, null);
     }
 }

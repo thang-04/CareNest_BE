@@ -13855,10 +13855,34 @@ components:
     CutoffRequest:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
         latestAfternoonArrival:
+          type: string
+          format: time-local
+        fullDayPickupFrom:
+          type: string
+          format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
           type: string
           format: time-local
         note:
@@ -15320,6 +15344,15 @@ components:
     Entry:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         at:
           type: string
           format: date-time
@@ -15330,6 +15363,21 @@ components:
           type: integer
           format: int64
         latestAfternoonArrival:
+          type: string
+          format: time-local
+        fullDayPickupFrom:
+          type: string
+          format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
           type: string
           format: time-local
         note:
@@ -26722,6 +26770,15 @@ components:
     Setting:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
@@ -26730,6 +26787,21 @@ components:
           items:
             $ref: "#/components/schemas/Entry"
         latestAfternoonArrival:
+          type: string
+          format: time-local
+        fullDayPickupFrom:
+          type: string
+          format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
           type: string
           format: time-local
         note:

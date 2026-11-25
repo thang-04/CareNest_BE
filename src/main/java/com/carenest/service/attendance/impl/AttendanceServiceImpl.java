@@ -326,7 +326,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             Map<Long, DayPart> absentParts = new HashMap<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 LeaveTag tag = tags.get(entry.childId());
-                if (tag == null) {
+                if (tag == null || tag.noticeOnly()) {
                     continue;
                 }
                 AttendanceRecord current = existing.get(entry.childId());
@@ -355,6 +355,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 LeaveTag tag = tags.get(entry.childId());
+                if (tag != null && tag.noticeOnly()) {
+                    tag = null;
+                }
                 mealsByChild.put(
                         entry.childId(),
                         mealsOf(
@@ -718,7 +721,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalTime cutoff = rules.cutoff(cls.schoolYearId(), date);
         return leaveRequestRepository.findOverlapping(childIds, date, date).stream()
                 .filter(r -> r.coversDate(date))
-                .filter(r -> !rules.isLockedAt(date, cutoff, r.getCreatedAt()))
+                .filter(r -> r.isNoticeOnly() || !rules.isLockedAt(date, cutoff, r.getCreatedAt()))
                 .collect(Collectors.toMap(
                         LeaveRequest::getChildId,
                         r -> new LeaveTag(
@@ -728,7 +731,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                                 r.getReason(),
                                 r.getPart(),
                                 r.getEats(),
-                                LeaveRequestServiceImpl.eatsMeals(r.getPart(), cls)),
+                                LeaveRequestServiceImpl.eatsMeals(r.getPart(), cls),
+                                r.isNoticeOnly()),
                         (a, b) -> a));
     }
 

@@ -6,7 +6,7 @@ Feature: `attendance` (trong `controller/`, `service/`, `repository/`, ... — `
 Nguồn dữ liệu có mặt của trẻ theo ngày (số suất suy từ đây — ATT-02); mở lại điểm danh sau giờ chốt; đơn xin nghỉ; đón trẻ = xác nhận trả trẻ (người đón, giờ đón — PCK-01..04, ATT-10).
 
 ## Owns
-AttendanceRecord (Có mặt/Vắng, vắng có phép theo đơn — ATT-09), ghi nhận đón trẻ (`pickup_records`: cách xác minh, người đón, giờ trả, nội dung cuộc gọi khi gọi phụ huynh — PCK-02, PCK-04), lần mở lại điểm danh (lý do, nhật ký — ATT-08), LeaveRequest. Không còn MealParticipation nhập riêng (ATT-02). Nhiệt độ/biểu hiện đầu ngày nhập cùng màn điểm danh (HLT-07); lưu ở attendance hay health: quyết định khi thiết kế bảng.
+AttendanceRecord (Có mặt/Vắng, vắng có phép theo đơn — ATT-09), ghi nhận đón trẻ (`pickup_records`: cách xác minh, người đón, giờ trả, nội dung cuộc gọi khi gọi phụ huynh — PCK-02, PCK-04), lần mở lại điểm danh (lý do, nhật ký — ATT-08), LeaveRequest. `attendance_cutoffs` lưu lịch sinh hoạt có hiệu lực theo năm học: mở đón trẻ; bắt đầu/kết thúc sáng; bắt đầu/kết thúc chiều; bắt đầu/kết thúc khung trả trẻ; mốc trả trẻ tính đủ ngày. Giờ chốt và giờ đến muộn nhất buổi chiều là cấu hình riêng trên cùng lịch sử; trả trẻ không tự sửa số suất đã ghi. Không còn MealParticipation nhập riêng (ATT-02). Nhiệt độ/biểu hiện đầu ngày nhập cùng màn điểm danh (HLT-07); lưu ở attendance hay health: quyết định khi thiết kế bảng.
 
 ## KHÔNG owns
 MealCount, MealPlan, định lượng (nutrition). Attendance **không biết** nutrition tồn tại.
