@@ -29,7 +29,11 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
             + " and (:semesterNo is null or d.semesterNo = :semesterNo) and (:themeId is null or d.themeId = :themeId)";
 
     // EDU-112 (4): "chỉ bản đang hiệu lực" loại hồ sơ thuộc kế hoạch tổ đã bị phiên bản mới thay thế
-    String SUMMARY_PAGE_WHERE = SUMMARY_WHERE + " and (:allPlans = true or d.yearPlanId not in :excludedPlanIds)";
+    String SUMMARY_PAGE_WHERE = SUMMARY_WHERE + " and (:allPlans = true or d.yearPlanId not in :excludedPlanIds)"
+            // Người không soạn lớp chỉ thấy hồ sơ đã ban hành hoặc đã từng ban hành (không thấy khung chưa ban hành)
+            + " and (:allDocs = true or d.classroomId in :authorClassIds"
+            + " or d.status = com.carenest.utils.enums.EduClassDocStatus.APPROVED"
+            + " or exists (select r.id from EduClassDocRelease r where r.classDocId = d.id))";
 
     @Query(
             value = "select d from EduClassDoc d where " + SUMMARY_PAGE_WHERE,
@@ -44,6 +48,8 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
             @Param("themeId") Long themeId,
             @Param("allPlans") boolean allPlans,
             @Param("excludedPlanIds") Collection<Long> excludedPlanIds,
+            @Param("allDocs") boolean allDocs,
+            @Param("authorClassIds") Collection<Long> authorClassIds,
             org.springframework.data.domain.Pageable pageable);
 
     @Query("select d from EduClassDoc d where " + SUMMARY_WHERE + " order by d.id asc")

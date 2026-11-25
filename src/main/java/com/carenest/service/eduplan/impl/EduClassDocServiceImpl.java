@@ -820,6 +820,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         themeId,
                         !filter.currentOnly(),
                         supersededTeamPlanIds(classIds),
+                        reviewView,
+                        authorClassIds(currentUser, schoolYearId, classIds),
                         org.springframework.data.domain.PageRequest.of(
                                 page, size, org.springframework.data.domain.Sort.by("id")));
                 total = found.getTotalElements();
@@ -1882,6 +1884,13 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     // EDU-26/62: chỉ tổ ban hành mới thay nguồn lớp; năm ban hành hoặc tổ nháp không khóa hồ sơ cũ.
+    // EDU-73: lớp người xem được soạn (thấy mọi trạng thái); rỗng thì trả id giả để truy vấn "in" hợp lệ
+    private List<Long> authorClassIds(CurrentUser user, Long schoolYearId, List<Long> classIds) {
+        var scope = accessPolicy.classScopeSnapshot(user, schoolYearId);
+        List<Long> ids = classIds.stream().filter(scope::canAuthor).toList();
+        return ids.isEmpty() ? List.of(-1L) : ids;
+    }
+
     /** EDU-112 (4): kế hoạch tổ (của các lớp) đã có bản ban hành mới hơn; rỗng thì trả id giả để truy vấn "not in" hợp lệ. */
     private List<Long> supersededTeamPlanIds(java.util.Collection<Long> classIds) {
         Set<Long> ids = classDocRepository.findDistinctYearPlanIds(classIds).stream()
