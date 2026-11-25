@@ -67,14 +67,7 @@ class MealCountAttendanceYearTest {
                         null)));
         when(attendance.tallyMeals(DAY, CAMPUS, CLASS_YEAR))
                 .thenReturn(List.of(new ClassMealTally(
-                        CLASS,
-                        "Lớp A",
-                        CAMPUS,
-                        List.of(MealSession.LUNCH),
-                        1,
-                        0,
-                        0,
-                        Map.of(MealSession.LUNCH, 1))));
+                        CLASS, "Lớp A", CAMPUS, List.of(MealSession.LUNCH), 1, 0, 0, Map.of(MealSession.LUNCH, 1))));
         MealCountServiceImpl service = new MealCountServiceImpl(
                 counts,
                 mock(MealCountHistoryRepository.class),

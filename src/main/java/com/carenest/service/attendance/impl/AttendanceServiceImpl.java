@@ -884,16 +884,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 }
             }
             days.add(new DayRow(
-                    date,
-                    counts[0],
-                    counts[1],
-                    counts[2],
-                    counts[3],
-                    counts[4],
-                    0,
-                    meals,
-                    counts[6],
-                    counts[7]));
+                    date, counts[0], counts[1], counts[2], counts[3], counts[4], 0, meals, counts[6], counts[7]));
         }
         var history = childClassHistoryService.statuses(
                 cls.id(), childIds, rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());

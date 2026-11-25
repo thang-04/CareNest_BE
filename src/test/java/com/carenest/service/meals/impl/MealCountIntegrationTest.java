@@ -429,7 +429,8 @@ class MealCountIntegrationTest {
     }
 
     @Test
-    @DisplayName("NUT-02: không còn điều chỉnh suất thay thế; người ngoài điểm trường vẫn bị từ chối (Cần chốt 25/11/2026)")
+    @DisplayName(
+            "NUT-02: không còn điều chỉnh suất thay thế; người ngoài điểm trường vẫn bị từ chối (Cần chốt 25/11/2026)")
     void adjustmentsNoLongerChangeServings() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
         clock.now = AFTER_CUTOFF;
@@ -449,7 +450,8 @@ class MealCountIntegrationTest {
     }
 
     @Test
-    @DisplayName("NUT-02: đổi điểm danh sau khi xác nhận ⇒ số mới chờ xác nhận lại, mọi trẻ ăn là suất thường, lịch sử ghi đủ")
+    @DisplayName(
+            "NUT-02: đổi điểm danh sau khi xác nhận ⇒ số mới chờ xác nhận lại, mọi trẻ ăn là suất thường, lịch sử ghi đủ")
     void attendanceChangeAfterConfirmNeedsReconfirmation() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         clock.now = AFTER_CUTOFF;
