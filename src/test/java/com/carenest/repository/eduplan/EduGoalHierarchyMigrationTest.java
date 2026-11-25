@@ -71,7 +71,8 @@ class EduGoalHierarchyMigrationTest {
         long theme = id(
                 "INSERT INTO edu_themes(year_plan_id,sort_order,name,abbr) VALUES (?,0,'Demo','D') RETURNING id", plan);
         jdbc.update("INSERT INTO edu_content_theme_ticks(content_id,theme_id) VALUES (?,?)", content, theme);
-        long curriculum = id("SELECT id FROM edu_curriculum_goals ORDER BY id LIMIT 1");
+        // Mục tiêu Bộ cùng nhóm tuổi của kế hoạch: V195 gỡ liên kết lệch khoảng tháng
+        long curriculum = id("SELECT id FROM edu_curriculum_goals WHERE age_group_id=? ORDER BY id LIMIT 1", age);
         jdbc.update("UPDATE edu_goal_rows SET curriculum_goal_id=? WHERE id=107", curriculum);
     }
 

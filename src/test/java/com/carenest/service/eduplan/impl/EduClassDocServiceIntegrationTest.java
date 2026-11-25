@@ -2050,7 +2050,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-111 (8): bản ban hành cũ chưa lưu lịch nhánh không lấy lịch hiện hành, chỉ giữ tên nhánh lúc ban hành")
+    @DisplayName(
+            "EDU-111 (8): bản ban hành cũ chưa lưu lịch nhánh không lấy lịch hiện hành, chỉ giữ tên nhánh lúc ban hành")
     void legacyReleaseWithoutCalendarKeepsOnlyReleasedNames() {
         approveBranch();
         jdbc.update(

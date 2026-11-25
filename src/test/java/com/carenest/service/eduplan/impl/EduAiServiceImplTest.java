@@ -57,7 +57,8 @@ class EduAiServiceImplTest {
         when(ai.complete(any())).thenReturn(new AiRawResult(json, "test", "test", "edu/test", null, null, 0));
     }
 
-    private static com.carenest.service.eduplan.impl.rag.EduRagRetriever.Hit hit(String id, String content, String url) {
+    private static com.carenest.service.eduplan.impl.rag.EduRagRetriever.Hit hit(
+            String id, String content, String url) {
         var meta = new ObjectMapper().createObjectNode();
         if (url != null) meta.put("url", url);
         return new com.carenest.service.eduplan.impl.rag.EduRagRetriever.Hit(id, "lesson", "WEB", content, 0.8, meta);
