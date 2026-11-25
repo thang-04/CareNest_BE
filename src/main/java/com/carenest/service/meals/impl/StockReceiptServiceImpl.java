@@ -2,6 +2,7 @@ package com.carenest.service.meals.impl;
 
 import com.carenest.dto.meals.DryIntakeRequest;
 import com.carenest.dto.meals.StockReceiptRequest;
+import com.carenest.dto.meals.SupplierFoodResponse;
 import com.carenest.dto.meals.StockReceiptResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.StockLot;
@@ -19,6 +20,7 @@ import com.carenest.repository.meals.StockReceiptRepository;
 import com.carenest.repository.meals.SupplierRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.meals.StockReceiptService;
 import com.carenest.utils.ApiCode;
@@ -56,6 +58,7 @@ public class StockReceiptServiceImpl implements StockReceiptService {
     private final StockMovementRepository movementRepository;
     private final FoodRepository foodRepository;
     private final SupplierRepository supplierRepository;
+    private final FoodPriceService foodPriceService;
     private final StockLedgerService stockLedgerService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final StockMapper mapper;
@@ -168,6 +171,12 @@ public class StockReceiptServiceImpl implements StockReceiptService {
             if (!LocalDate.now(clock).equals(receipt.getReceivedDate())) {
                 throw GlobalException.of(ApiCode.STOCK_RECEIPT_STALE_DRAFT, receipt.getReceivedDate());
             }
+            // Phiếu nháp cũ có thể chứa thực phẩm không còn thuộc nhà cung cấp: kiểm lại trước khi vào kho
+            Map<Long, Food> foods = foodRepository
+                    .findAllById(receipt.getLines().stream().map(StockReceiptLine::getFoodId).toList())
+                    .stream()
+                    .collect(Collectors.toMap(Food::getId, Function.identity()));
+            checkFoodsOfSupplier(receipt.getSupplierId(), receipt.getReceivedDate(), receipt.getLines(), foods);
             confirmInto(receipt, currentUser.userId());
             StockReceiptResponse response = toResponse(currentUser, receipt);
             log.info("{}|END", logPrefix);
@@ -371,8 +380,27 @@ public class StockReceiptServiceImpl implements StockReceiptService {
         List<StockReceiptLine> lines = request.lines().stream()
                 .map(line -> toLine(line, foods.get(line.foodId()), request.receivedDate()))
                 .toList();
+        checkFoodsOfSupplier(request.supplierId(), request.receivedDate(), lines, foods);
         String note = request.note() == null ? "" : request.note().trim();
         receipt.changeDraft(request.supplierId(), request.receivedDate(), note, lines, userId);
+    }
+
+    // Thực phẩm của phiếu phải thuộc nhà cung cấp (giá hợp đồng còn hiệu lực tại ngày nhập)
+    private void checkFoodsOfSupplier(
+            Long supplierId, LocalDate date, Collection<StockReceiptLine> lines, Map<Long, Food> foods) {
+        if (lines.isEmpty()) {
+            return;
+        }
+        Set<Long> allowed = foodPriceService.getSupplierFoods(supplierId, date).stream()
+                .map(SupplierFoodResponse::foodId)
+                .collect(Collectors.toSet());
+        for (StockReceiptLine line : lines) {
+            if (!allowed.contains(line.getFoodId())) {
+                Food food = foods.get(line.getFoodId());
+                String name = food == null ? String.valueOf(line.getFoodId()) : food.getName();
+                throw GlobalException.of(ApiCode.STOCK_FOOD_NOT_OF_SUPPLIER, name);
+            }
+        }
     }
 
     private static StockReceiptLine toLine(
