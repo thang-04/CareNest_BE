@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.carenest.config.NutritionConversionProperties;
@@ -195,6 +196,63 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     @Test
+    @DisplayName("Nhu cầu năng lượng cả ngày không lớn hơn kcal tối đa thì từ chối, báo tại ô dailyKcalNeed")
+    void rejectsDailyKcalNotAboveMax() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+
+        for (String need : List.of("698", "750")) {
+            assertThatThrownBy(() -> service.createConfig(
+                            VICE_PRINCIPAL,
+                            dailyRequest(
+                                    TODAY.plusDays(1),
+                                    new BigDecimal("700"),
+                                    new BigDecimal("750"),
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    null,
+                                    new BigDecimal(need))))
+                    .isInstanceOf(GlobalException.class)
+                    .satisfies(ex -> {
+                        GlobalException ge = (GlobalException) ex;
+                        assertThat(ge.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                        assertThat(ge.getFieldErrors()).singleElement().satisfies(fe -> {
+                            assertThat(fe.field()).isEqualTo("dailyKcalNeed");
+                            assertThat(fe.message())
+                                    .isEqualTo("Nhu cầu năng lượng cả ngày phải lớn hơn năng lượng tối đa (750 kcal).");
+                        });
+                    });
+        }
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Nhu cầu năng lượng cả ngày lớn hơn kcal tối đa, hoặc thiếu một trong hai, thì lưu được")
+    void acceptsDailyKcalAboveMaxOrMissing() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        service.createConfig(
+                VICE_PRINCIPAL,
+                dailyRequest(
+                        TODAY.plusDays(1),
+                        new BigDecimal("700"),
+                        new BigDecimal("750"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new BigDecimal("751")));
+        service.createConfig(
+                VICE_PRINCIPAL,
+                dailyRequest(TODAY.plusDays(2), null, null, null, null, null, null, null, new BigDecimal("698")));
+
+        verify(repository, times(2)).save(any());
+    }
+
+    @Test
     @DisplayName("NUT-26: vi chất có min lớn hơn max thì từ chối, báo tên vi chất")
     void rejectsInvertedMicronutrientRange() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
@@ -301,6 +359,19 @@ class AgeGroupMealConfigServiceImplTest {
             BigDecimal ironMin,
             BigDecimal ironMax,
             BigDecimal serviceFee) {
+        return dailyRequest(from, kcalMin, kcalMax, lunchPctMin, afternoonPctMin, ironMin, ironMax, serviceFee, null);
+    }
+
+    private static AgeGroupMealConfigRequest dailyRequest(
+            LocalDate from,
+            BigDecimal kcalMin,
+            BigDecimal kcalMax,
+            BigDecimal lunchPctMin,
+            BigDecimal afternoonPctMin,
+            BigDecimal ironMin,
+            BigDecimal ironMax,
+            BigDecimal serviceFee,
+            BigDecimal dailyKcalNeed) {
         return new AgeGroupMealConfigRequest(
                 AGE_GROUP,
                 from,
@@ -330,7 +401,7 @@ class AgeGroupMealConfigServiceImplTest {
                 null,
                 afternoonPctMin,
                 null,
-                null,
+                dailyKcalNeed,
                 // vi chất theo thứ tự canxi, photpho, sắt, A, B1, B2, PP, C (mỗi cặp min, max)
                 null,
                 null,
