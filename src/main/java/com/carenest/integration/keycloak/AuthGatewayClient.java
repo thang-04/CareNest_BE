@@ -31,6 +31,11 @@ public interface AuthGatewayClient {
     /** Phiên của refresh token bị từ chối có phiên Web mới hơn (từ {@code loginAt}) thay thế không; lỗi tra cứu ⇒ false. */
     boolean replacedByNewerWebSession(String rejectedRefreshToken, java.time.Instant loginAt);
 
+    /** Đọc {@code sub}/{@code sid} của refresh token gateway (do server niêm phong); không đọc được ⇒ rỗng. */
+    java.util.Optional<SessionRef> sessionOf(String refreshToken);
+
+    record SessionRef(String keycloakUserId, String sessionId) {}
+
     String verifiedCapability(String assertion);
 
     void changePassword(String capability, String newPassword, String confirmation);

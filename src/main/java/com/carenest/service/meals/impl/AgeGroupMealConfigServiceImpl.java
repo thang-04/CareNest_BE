@@ -15,6 +15,8 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.NutritionConversion;
 import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -69,6 +71,10 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
 
     private static final String LOG_PREFIX = "[AgeGroupMealConfigServiceImpl]";
     private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
+    // kcal/g của đạm, bột đường và béo (NUT-24): kiểm định mức gam có hợp với năng lượng theo cơ cấu P:L:G
+    private static final BigDecimal PROTEIN_KCAL_PER_G = BigDecimal.valueOf(4);
+    private static final BigDecimal LIPID_KCAL_PER_G = BigDecimal.valueOf(9);
+    private static final BigDecimal GLUCID_KCAL_PER_G = BigDecimal.valueOf(4);
 
     private final AgeGroupMealConfigRepository configRepository;
     private final AgeGroupService ageGroupService;
@@ -271,6 +277,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         checkRange("vitamin B2", request.vitaminB2Min(), request.vitaminB2Max());
         checkRange("vitamin PP", request.vitaminPpMin(), request.vitaminPpMax());
         checkRange("vitamin C", request.vitaminCMin(), request.vitaminCMax());
+        checkGramsWithinEnergy(request);
         checkRange("kẽm", request.zincMin(), request.zincMax());
         checkSessionShares(request);
         BigDecimal serviceFee = request.serviceFee() == null ? BigDecimal.ZERO : request.serviceFee();
@@ -347,6 +354,52 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                     ApiCode.MEAL_SESSION_KCAL_PCT_INVALID,
                     minTotal.stripTrailingZeros().toPlainString());
         }
+    }
+
+    // Định mức gam tối thiểu không được vượt mức cho phép theo năng lượng và cơ cấu P:L:G
+    // đã nhập cùng bản (NUT-24): (đạm ĐV min + đạm TV min) × 4 kcal ≤ năng lượng max × tỷ lệ đạm max,
+    // (béo ĐV min + béo TV min) × 9 kcal ≤ năng lượng max × tỷ lệ béo max,
+    // bột đường (g) min × 4 kcal ≤ năng lượng max × tỷ lệ bột đường max. Thiếu số nào thì bỏ qua hạng đó.
+    private static void checkGramsWithinEnergy(AgeGroupMealConfigRequest request) {
+        checkGramsPair(
+                "đạm",
+                add(request.animalProteinGMin(), request.plantProteinGMin()),
+                PROTEIN_KCAL_PER_G,
+                request.kcalMax(),
+                request.proteinPctMax());
+        checkGramsPair(
+                "béo",
+                add(request.animalLipidGMin(), request.plantLipidGMin()),
+                LIPID_KCAL_PER_G,
+                request.kcalMax(),
+                request.lipidPctMax());
+        checkGramsPair("bột đường", request.glucidGMin(), GLUCID_KCAL_PER_G, request.kcalMax(), request.glucidPctMax());
+    }
+
+    private static void checkGramsPair(
+            String label, BigDecimal gramsMin, BigDecimal kcalPerGram, BigDecimal kcalMax, BigDecimal pctMax) {
+        if (gramsMin == null || kcalMax == null || pctMax == null) {
+            return;
+        }
+        // Mức năng lượng cho phép của chất đó = năng lượng tối đa × tỷ lệ tối đa, đổi ra gram
+        BigDecimal allowedGrams = kcalMax.multiply(pctMax, new MathContext(6))
+                .divide(ONE_HUNDRED, 6, RoundingMode.HALF_UP)
+                .divide(kcalPerGram, 6, RoundingMode.HALF_UP);
+        BigDecimal gramsAllowedCap = allowedGrams.setScale(0, RoundingMode.CEILING);
+        if (gramsMin.compareTo(gramsAllowedCap) > 0) {
+            throw GlobalException.of(
+                    ApiCode.MEAL_CONFIG_GRAMS_EXCEED_ENERGY,
+                    label,
+                    gramsMin.stripTrailingZeros().toPlainString(),
+                    gramsAllowedCap.toPlainString());
+        }
+    }
+
+    private static BigDecimal add(BigDecimal a, BigDecimal b) {
+        if (a == null && b == null) {
+            return null;
+        }
+        return (a == null ? BigDecimal.ZERO : a).add(b == null ? BigDecimal.ZERO : b);
     }
 
     // NUT-28: cơ cấu áp dụng nhập đủ ba chất, tổng 100%, mỗi chất nằm trong khoảng min–max của chính chất đó (nếu đã

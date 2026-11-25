@@ -48,7 +48,7 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 ### Vòng đời token và phiên
 
 - Access token 5 phút; SSO session idle 30 phút, tối đa 10 giờ; refresh token xoay vòng (`revokeRefreshToken`, max reuse 0); khóa tạm sau 5 lần sai mật khẩu (giá trị realm import dev; production chờ chốt).
-- Refresh/logout là việc của client với Keycloak (`docs/contracts/AUTH_CONTRACT.md`). Logout không thu hồi access token đã cấp — còn dùng tối đa 5 phút.
+- Refresh/logout là việc của client với Keycloak (`docs/contracts/AUTH_CONTRACT.md`). Logout Web chặn ngay access token của phiên đó (`sid` vào `revoked_web_sessions`, lý do ENDED ⇒ 401 1002); đổi/đặt lại mật khẩu chặn mọi token có `iat` trước `user_accounts.password_changed_at` (đọc cùng dòng tài khoản mỗi request đã đọc, không thêm query). Bộ nhớ thu hồi `sid` chỉ nạp khi khởi động ⇒ giả định API 1 instance; chạy nhiều instance phải đổi cách chia sẻ.
 - Khóa tài khoản (`PATCH /accounts/{userId}/status` `INACTIVE`): CareNest chặn ngay ở request kế tiếp (kể cả token còn hạn), Keycloak disable user + hủy session. Admin không tự khóa mình (AUTH-09).
 
 ### Trade-off đã chấp nhận
@@ -79,7 +79,7 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 | `ChildAccessPolicy.canViewChild` / `canReadChild` | PARENT + liên kết với trẻ; hoặc TEACHER/VP/PRINCIPAL có `canViewClassroom` / `canReadClassroom` (lớp trẻ đang học hôm nay) | Bếp, Admin (không bypass), trẻ không có enrollment hiện tại |
 
 `canView*` = phạm vi được thao tác: mọi đường ghi dùng nhóm này. `canRead*` rộng hơn (PHT xem mọi cơ sở), chỉ cho endpoint đọc; danh sách đọc của BGH lọc bằng `canReadAllCampuses` (campus, phòng, lớp, phân công GV, xếp lớp, điểm danh, sức khỏe, số suất), không tự lọc theo phân công PHT; module quên chuyển sang `canRead*` thì chỉ thiếu xem, không mở quyền ghi.
-| `StaffAccessPolicy` (AUTH-15..17) | Tạo: Admin → PRINCIPAL; HT có phân công PRINCIPAL → PHT/GV/bếp; PHT → bếp kèm phân công campus mình, GV khai campus mình (chưa tạo phân công, xếp lớp sau). Quản lý (khóa/mở, mật khẩu tạm, chi tiết): Admin mọi tài khoản; HT → PHT/GV/bếp; PHT → GV/bếp đang phân công trong campus mình. Phân công: HT → PHT/GV/bếp; PHT → GV/bếp campus mình | Thao tác HT/Admin (trừ Admin), chính mình, tài khoản `primary_role` null (trừ Admin) |
+| `StaffAccessPolicy` (AUTH-15..17) | Tạo: Admin → PRINCIPAL; HT có phân công PRINCIPAL → PHT/GV/bếp; PHT → bếp kèm phân công campus mình, GV khai campus mình (chưa tạo phân công, xếp lớp sau). Quản lý (khóa/mở, mật khẩu tạm, chi tiết) và danh sách: Admin mọi tài khoản trừ PARENT (lọc `primary_role IS NULL OR <> 'PARENT'`, AUTH-06/P-16); HT → PHT/GV/bếp; PHT → GV/bếp đang phân công trong campus mình. Phân công: HT → PHT/GV/bếp; PHT → GV/bếp campus mình | Thao tác HT/Admin (trừ Admin), chính mình, tài khoản `primary_role` null (trừ Admin) |
 
 - Mỗi policy có `canXxx` (boolean) và `checkCanXxx` (ném `GlobalException(FORBIDDEN, ...)`, log warn kèm id — không log dữ liệu cá nhân).
 - **403 thay vì 404:** service gọi `checkCanXxx` **trước** khi load resource ⇒ id không tồn tại và id ngoài scope cùng trả 403 cùng `desc` (không lộ id để dò). Chỉ người có scope mới có thể nhận 404.

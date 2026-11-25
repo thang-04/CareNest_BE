@@ -223,7 +223,7 @@ public class CampusServiceImpl implements CampusService {
             if (campusRepository.existsByCodeIgnoreCase(data.code())) {
                 throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
             }
-            if (campusRepository.existsByNameIgnoreCase(data.name())) {
+            if (campusRepository.existsByNameFolded(data.name())) {
                 throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
             }
             if (campusRepository.existsShortName(data.shortName(), 0L)) {
@@ -270,7 +270,7 @@ public class CampusServiceImpl implements CampusService {
             if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
             }
-            if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
+            if (campusRepository.existsByNameFoldedAndIdNot(data.name(), campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
             }
             if (campusRepository.existsShortName(data.shortName(), campusId)) {

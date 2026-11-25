@@ -620,6 +620,23 @@ class ClassStructureIntegrationTest {
                 + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
     }
 
+    @Test
+    @DisplayName("GV chưa có lớp nào ở năm ACTIVE: cấu trúc trả lớp rỗng, không phải lỗi quyền (2101)")
+    void teacherWithoutActiveClassGetsEmptyStructure() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-noact', 'noact.it', 'GV không lớp') RETURNING id");
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-noact", "noact.it", "GV", null, Set.of(CareNestRole.TEACHER), Set.of());
+        assertThat(classService.getSchoolStructure(teacher, year, null).classes())
+                .isEmpty();
+        long parentId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-noactp', 'noactp.it', 'PH') RETURNING id");
+        CurrentUser parent =
+                new CurrentUser(parentId, "kc-noactp", "noactp.it", "PH", null, Set.of(CareNestRole.PARENT), Set.of());
+        assertThatThrownBy(() -> classService.getSchoolStructure(parent, year, null))
+                .isInstanceOf(GlobalException.class);
+    }
+
     private RoomResponse createRoom(long campusId, String code, int capacity) {
         return createRoomAs(principal, campusId, code, capacity);
     }

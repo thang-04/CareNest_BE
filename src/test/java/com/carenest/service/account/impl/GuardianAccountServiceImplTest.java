@@ -399,6 +399,7 @@ class GuardianAccountServiceImplTest {
         verify(selected).checkParentScope(VICE, 60L);
         verify(identity).resetTemporaryPassword("kc-60", "Gen3rated7k");
         verify(authState).revokeAccountAuth(60L);
+        verify(authState).markPasswordChanged(60L);
         verify(identity).logoutUser("kc-60");
         assertThat(response.temporaryPassword()).isEqualTo("Gen3rated7k");
     }

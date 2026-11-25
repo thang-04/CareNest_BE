@@ -184,6 +184,17 @@ class StockDeductionRecoveryIntegrationTest {
         DayBoardResponse.DryStock dryStock = dryStock(principal, campus);
         assertThat(dryStock.status()).isNotEqualTo("NOTHING_TO_DEDUCT").isEqualTo("NOT_SYNCED");
         assertThat(dryStock.foodCount()).isEqualTo(1);
+        // Nút Đồng bộ kho theo quyền: HT và PHT của điểm trường được, PHT điểm trường khác thì không (AUTH-20)
+        assertThat(dryStock.canSync()).isTrue();
+        assertThat(dryStock(vp, campus).canSync()).isTrue();
+        long otherCampus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-Y', 'Y') RETURNING id");
+        CurrentUser otherVp = user("vp-other", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
+                otherVp.userId(),
+                otherCampus);
+        assertThat(dryStock(otherVp, campus).canSync()).isFalse();
 
         // Đồng bộ lại (PHT xác nhận suất có quyền): trừ đúng một lần, gọi thêm không trừ lặp
         stockLedgerService.resyncDay(vp, campus, TODAY);
