@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -284,7 +285,13 @@ class HealthRecords {
 
         /** Cảnh báo hiện tại theo bác sĩ: lần khám gần nhất có kết luận (HLT-10, HLT-19); null khi chưa có. */
         ChildHealthRecordResponse.HealthLatestExam latestExam(Long childId) {
+            return latestExam(childId, m -> true);
+        }
+
+        /** Như {@link #latestExam(Long)} chỉ trong các kết quả {@code in} nhận (vd. trong một năm học). */
+        ChildHealthRecordResponse.HealthLatestExam latestExam(Long childId, Predicate<HealthMeasurement> in) {
             return results(childId).stream()
+                    .filter(in)
                     .filter(m -> outcome(m).level() != HealthFollowUpLevel.UNAVAILABLE)
                     .findFirst()
                     .map(m -> {
@@ -304,7 +311,13 @@ class HealthRecords {
 
         /** Cảnh báo hiện tại theo BMI: lần đo gần nhất của kỳ cân đo có mức BMI (HLT-18, HLT-19); null khi chưa có. */
         ChildHealthRecordResponse.HealthLatestBmi latestBmi(Long childId, LocalDate dateOfBirth, Gender gender) {
-            for (HealthMeasurement m : results(childId)) {
+            return latestBmi(childId, dateOfBirth, gender, m -> true);
+        }
+
+        /** Như {@link #latestBmi(Long, LocalDate, Gender)} chỉ trong các kết quả {@code in} nhận. */
+        ChildHealthRecordResponse.HealthLatestBmi latestBmi(
+                Long childId, LocalDate dateOfBirth, Gender gender, Predicate<HealthMeasurement> in) {
+            for (HealthMeasurement m : results(childId).stream().filter(in).toList()) {
                 WhoBmiForAge.Result r = bmiOf(m, dateOfBirth, gender);
                 if (r != null) {
                     HealthCheckCampaign c = campaign(m.getCampaignId());

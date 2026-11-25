@@ -61,7 +61,7 @@ class HealthRecordControllerTest {
     @DisplayName("PAR-03: phụ huynh gọi kết quả đã công bố ⇒ 200 (phạm vi con kiểm ở service)")
     void parentReadsPublishedHealth() throws Exception {
         CurrentUser parent = authenticate(CareNestRole.PARENT);
-        given(healthMeasurementService.getPublishedHealth(parent, 5L))
+        given(healthMeasurementService.getPublishedHealth(parent, 5L, null))
                 .willReturn(new PublishedHealthResponse(5L, List.of(), List.of(), null, null, null));
 
         mockMvc.perform(get("/api/children/{childId}/health/published", 5).with(token(CareNestRole.PARENT)))

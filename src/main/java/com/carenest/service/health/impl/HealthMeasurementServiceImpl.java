@@ -1,6 +1,7 @@
 package com.carenest.service.health.impl;
 
 import com.carenest.dto.child.ChildBriefResponse;
+import com.carenest.dto.child.ChildSchoolYearResponse;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthExamForm;
@@ -21,6 +22,7 @@ import com.carenest.repository.health.HealthMeasurementEditRepository;
 import com.carenest.repository.health.HealthMeasurementRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
+import com.carenest.service.child.ChildSchoolYearService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.health.HealthMeasurementService;
@@ -39,6 +41,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,6 +65,7 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
     private final HealthCheckCampaignRepository campaignRepository;
     private final ChildAccessPolicy childAccessPolicy;
     private final ChildService childService;
+    private final ChildSchoolYearService childSchoolYearService;
     private final EnrollmentService enrollmentService;
     private final ClassroomService classroomService;
     private final HealthNotifier healthNotifier;
@@ -250,16 +254,19 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
 
     @Override
     @Transactional(readOnly = true)
-    public PublishedHealthResponse getPublishedHealth(CurrentUser currentUser, Long childId) {
+    public PublishedHealthResponse getPublishedHealth(CurrentUser currentUser, Long childId, Long schoolYearId) {
         String logPrefix = LOG_PREFIX + "|getPublishedHealth|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
             // AUTH-04, CHD-04: phụ huynh chỉ trẻ có liên kết và chưa nghỉ học; nhân sự theo phạm vi lớp
             childAccessPolicy.checkCanReadChild(currentUser, childId);
+            Predicate<HealthMeasurement> inYear = inYear(childId, schoolYearId);
             ChildBriefResponse child = brief(childId);
             HealthRecords.Snapshot s = records.load(List.of(childId));
+            List<HealthMeasurement> yearResults =
+                    s.results(childId).stream().filter(inYear).toList();
             List<HealthMeasurementResponse> published =
-                    records.views(s, s.results(childId), child.dateOfBirth(), child.gender(), false);
+                    records.views(s, yearResults, child.dateOfBirth(), child.gender(), false);
             List<PublishedHealthResponse.PublishedHealthResult> results = published.stream()
                     .map(m -> new PublishedHealthResponse.PublishedHealthResult(
                             m.id(),
@@ -290,8 +297,8 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     childId,
                     results,
                     growth,
-                    s.latestExam(childId),
-                    s.latestBmi(childId, child.dateOfBirth(), child.gender()),
+                    s.latestExam(childId, inYear),
+                    s.latestBmi(childId, child.dateOfBirth(), child.gender(), inYear),
                     interpretation);
             log.info("{}|results={}|END", logPrefix, results.size());
             return response;
@@ -299,6 +306,17 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // Bộ chọn năm App phụ huynh: kết quả có ngày trong năm trẻ học; năm trẻ không học ⇒ như không có năm đó
+    private Predicate<HealthMeasurement> inYear(Long childId, Long schoolYearId) {
+        if (schoolYearId == null) {
+            return m -> true;
+        }
+        ChildSchoolYearResponse year = childSchoolYearService
+                .findChildYear(childId, schoolYearId)
+                .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+        return m -> !m.getDate().isBefore(year.startDate()) && !m.getDate().isAfter(year.endDate());
     }
 
     @Override

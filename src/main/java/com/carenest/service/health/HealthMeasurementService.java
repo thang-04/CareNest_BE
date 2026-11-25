@@ -15,9 +15,11 @@ public interface HealthMeasurementService {
 
     /**
      * Phần phụ huynh xem (PAR-01, PAR-03): kết quả đã công bố, biểu đồ tăng trưởng, giải thích đã duyệt. Phụ huynh có
-     * liên kết với trẻ chưa nghỉ; nhân sự trong phạm vi xem trước được.
+     * liên kết với trẻ chưa nghỉ; nhân sự trong phạm vi xem trước được. {@code schoolYearId} null ⇒ mọi năm; có ⇒ chỉ
+     * kết quả trong năm trẻ có học (không học ⇒ 2001).
      */
-    com.carenest.dto.health.PublishedHealthResponse getPublishedHealth(CurrentUser currentUser, Long childId);
+    com.carenest.dto.health.PublishedHealthResponse getPublishedHealth(
+            CurrentUser currentUser, Long childId, Long schoolYearId);
 
     /**
      * Phiếu khám đã kết luận của trẻ cho phụ huynh (HLT-11, PAR-03): {@code resultId} là id kết quả khám trong

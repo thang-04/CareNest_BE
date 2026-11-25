@@ -76,3 +76,5 @@ Chưa có.
 
 ## Đọc thêm khi
 Đụng AI ⇒ card ai-assistance. Đụng hiển thị phụ huynh ⇒ ADR-0010.
+
+- 25/11/2026 (TBD-4): `GET /children/{childId}/health/published?schoolYearId=` tùy chọn — chỉ kết quả có ngày trong năm trẻ có học (`ChildSchoolYearService.findChildYear`), biểu đồ, `latestExam`, `latestBmi` tính trên các kết quả đó; năm trẻ không học ⇒ 404 2001; không tham số ⇒ như cũ. Test `HealthRecordIntegrationTest#parentSeesPublishedOfOneYear`.

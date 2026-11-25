@@ -124,6 +124,7 @@ class HealthRecordIntegrationTest {
     private long campus;
     private long classA;
     private long child;
+    private long activeYear;
 
     @BeforeEach
     void setUp() {
@@ -135,7 +136,7 @@ class HealthRecordIntegrationTest {
         campus = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('HR-" + SEQ.incrementAndGet()
                 + "', 'Cơ sở HR', TRUE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+        long year = activeYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         long room = insertId("INSERT INTO rooms (campus_id, code, name, room_type, capacity) VALUES (" + campus
                 + ", 'HR" + SEQ.incrementAndGet() + "', 'Phòng HR', 'CLASS', 30) RETURNING id");
@@ -304,16 +305,58 @@ class HealthRecordIntegrationTest {
                             child, type))
                     .isEqualTo(1);
         }
-        PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child);
+        PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child, null);
         assertThat(view.results()).hasSize(2);
         assertThat(view.growth())
                 .hasSize(2)
                 .allSatisfy(p -> assertThat(p.weightForAgeZ()).isNotNull());
         assertThat(view.interpretation()).isNull();
-        assertThatThrownBy(() -> measurementService.getPublishedHealth(otherParent, child))
+        assertThatThrownBy(() -> measurementService.getPublishedHealth(otherParent, child, null))
                 .isInstanceOfSatisfying(
                         GlobalException.class,
                         ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+    }
+
+    @Test
+    @DisplayName("PAR-03, AUTH-03: lọc theo năm học ⇒ chỉ kết quả trong năm, mục mới nhất của năm; năm trẻ không học 2001")
+    void parentSeesPublishedOfOneYear() {
+        long oldYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
+        long otherYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2024-2025', '2024-09-01', '2025-05-31', 'CLOSED') RETURNING id");
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long oldRoom = insertId("INSERT INTO rooms (campus_id, code, name, room_type, capacity) VALUES (" + campus
+                + ", 'HRO" + SEQ.incrementAndGet() + "', 'Phòng HR cũ', 'CLASS', 30) RETURNING id");
+        long oldClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, room_id,"
+                + " capacity) VALUES (" + campus + ", " + oldYear + ", 'Lớp HR cũ', " + ag3 + ", " + oldRoom
+                + ", 25) RETURNING id");
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) "
+                        + "VALUES (?, ?, '2025-09-01', '2026-05-31')",
+                child,
+                oldClass);
+        long oldId = measure(round("Cân đo tháng 3 (giả)", "2026-03-10", "2026-03-20"), "2026-03-15", "95.0", "14.0");
+        long newId = measure(round("Cân đo tháng 9 (giả)", "2026-09-10", "2026-09-20"), "2026-09-15", "98.0", "15.0");
+
+        PublishedHealthResponse current = measurementService.getPublishedHealth(parent, child, activeYear);
+        assertThat(current.results())
+                .extracting(PublishedHealthResponse.PublishedHealthResult::id)
+                .containsExactly(newId);
+        assertThat(current.growth()).hasSize(1);
+        assertThat(current.latestBmi().measurementId()).isEqualTo(newId);
+
+        PublishedHealthResponse old = measurementService.getPublishedHealth(parent, child, oldYear);
+        assertThat(old.results())
+                .extracting(PublishedHealthResponse.PublishedHealthResult::id)
+                .containsExactly(oldId);
+        assertThat(old.latestBmi().measurementId()).isEqualTo(oldId);
+
+        assertThat(measurementService.getPublishedHealth(parent, child, null).results())
+                .hasSize(2);
+        assertThatThrownBy(() -> measurementService.getPublishedHealth(parent, child, otherYear))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.SCHOOL_YEAR_NOT_FOUND));
     }
 
     @Test
@@ -329,7 +372,7 @@ class HealthRecordIntegrationTest {
         long roundId =
                 measure(round("Cân đo tháng 11 (giả)", "2026-11-04", "2026-11-09"), "2026-11-04", "99.0", "15.1");
 
-        PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child);
+        PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child, null);
         // Sổ sức khỏe vẫn giữ cả hai kết quả
         assertThat(view.results())
                 .extracting(PublishedHealthResponse.PublishedHealthResult::id)
@@ -386,7 +429,7 @@ class HealthRecordIntegrationTest {
         // HLT-21 (V138): khoảng phân tích lưu kèm bản giải thích
         assertThat(count("SELECT count(*) FROM health_interpretations WHERE child_id = ? AND period = 'ALL'", child))
                 .isEqualTo(1);
-        assertThat(measurementService.getPublishedHealth(parent, child).interpretation())
+        assertThat(measurementService.getPublishedHealth(parent, child, null).interpretation())
                 .isNull();
 
         // HLT-21: chỉ GV đang phân công lớp hiện tại của trẻ được duyệt
@@ -405,7 +448,7 @@ class HealthRecordIntegrationTest {
                         child,
                         "HEALTH_TREND_APPROVED"))
                 .isEqualTo(1);
-        PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child);
+        PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child, null);
         assertThat(view.interpretation()).isNotNull();
         assertThat(view.interpretation().summary()).isEqualTo("Tổng quan: Chiều cao, cân nặng tăng đều.");
         assertThat(view.interpretation().content().overview()).isEqualTo("Chiều cao, cân nặng tăng đều.");
@@ -419,7 +462,7 @@ class HealthRecordIntegrationTest {
 
         // HLT-21: có số đo mới công bố ⇒ bản đã duyệt cũ đánh dấu stale, phụ huynh vẫn thấy (Q6 = A)
         measure(round("Cân đo tháng 10 (giả)", "2026-10-01", "2026-10-10"), "2026-10-05", "98.8", "15.3");
-        PublishedHealthResponse later = measurementService.getPublishedHealth(parent, child);
+        PublishedHealthResponse later = measurementService.getPublishedHealth(parent, child, null);
         assertThat(later.interpretation()).isNotNull();
         assertThat(later.interpretation().stale()).isTrue();
         assertThat(trendService.latest(teacher, child).stale()).isTrue();
