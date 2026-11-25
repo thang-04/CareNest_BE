@@ -8467,6 +8467,31 @@ paths:
           description: Created
       tags:
       - kitchen-records-controller
+  /api/nutrition/meal-photos/week:
+    get:
+      operationId: getPhotoWeek
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: weekStart
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealPhotoWeekResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
   /api/nutrition/meal-photos/{photoId}/content:
     get:
       operationId: getPhotoContent
@@ -19592,6 +19617,19 @@ components:
         uploadedBy:
           type: integer
           format: int64
+    MealPhotoWeekResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekDay"
+        weekStart:
+          type: string
+          format: date
     MealPhotoWindowResponse:
       type: object
       properties:
@@ -25179,6 +25217,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonMealPhotoWeekResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MealPhotoWeekResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMealPlanResponse:
       type: object
       properties:
@@ -28816,6 +28867,45 @@ components:
             type: string
         weeklyTicket:
           type: boolean
+    WeekDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        dayOff:
+          type: boolean
+        inspections:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekInspection"
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekSession"
+        upcoming:
+          type: boolean
+    WeekInspection:
+      type: object
+      properties:
+        signedAt:
+          type: string
+          format: date-time
+        signedByName:
+          type: string
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - SIGNED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
     WeekMenu:
       type: object
       properties:
@@ -28860,6 +28950,27 @@ components:
         weekStart:
           type: string
           format: date
+    WeekPhoto:
+      type: object
+      properties:
+        contentType:
+          type: string
+        id:
+          type: integer
+          format: int64
+        onTime:
+          type: boolean
+        sizeBytes:
+          type: integer
+          format: int64
+        uploadedAt:
+          type: string
+          format: date-time
+        uploadedBy:
+          type: integer
+          format: int64
+        uploaderName:
+          type: string
     WeekRow:
       type: object
       properties:
@@ -28882,6 +28993,45 @@ components:
       required:
       - key
       - label
+    WeekSample:
+      type: object
+      properties:
+        disposalStatus:
+          type: string
+          enum:
+          - NONE
+          - RECORDED
+          - APPROVED
+        status:
+          type: string
+          enum:
+          - RECORDED
+          - APPROVED
+    WeekSession:
+      type: object
+      properties:
+        dishes:
+          type: array
+          items:
+            type: string
+        photo:
+          $ref: "#/components/schemas/WeekPhoto"
+        sample:
+          $ref: "#/components/schemas/WeekSample"
+        servingsNormal:
+          type: integer
+          format: int32
+        servingsSubstitute:
+          type: integer
+          format: int32
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        status:
+          type: string
     WeeklyCommentBoardResponse:
       type: object
       properties:
