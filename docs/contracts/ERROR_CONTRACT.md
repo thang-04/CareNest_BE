@@ -93,6 +93,8 @@ Hồ sơ / tiến độ phát triển (30/10/2026): `GET /assessment/children` t
 
 Số giáo viên của lớp (SCH-04, Cần chốt 18/11/2026): mỗi lớp tối đa 3 giáo viên đứng lớp, `CLASS_TOO_MANY_TEACHERS` 2335 "Mỗi lớp tối đa 3 giáo viên đứng lớp"; năm đang học cần ít nhất 2, `CLASS_NEEDS_TWO_TEACHERS` 2328 "Mỗi lớp phải có ít nhất 2 giáo viên đứng lớp", và có GV phụ trách chính (2329), HTTP 400; FE báo đỏ dưới ô giáo viên.
 
+Trùng tên điểm trường (23/11/2026): tạo/sửa điểm trường (chung và theo năm học) so tên đầy đủ không phân biệt hoa thường, coi mọi dấu gạch (`-`, `–`, `—`) và khoảng trắng quanh dấu gạch là một ⇒ trùng trả `CAMPUS_NAME_EXISTS` 2106; tên ngắn trùng (không phân biệt hoa thường) trả `CAMPUS_SHORT_NAME_EXISTS` 2126 "Tên ngắn điểm trường đã tồn tại", HTTP 409.
+
 Phụ trách bếp (Cần chốt 18/11/2026): `ROOM_KITCHEN_MANAGER_INVALID` 2123 "Phụ trách bếp phải là nhân viên bếp, PHT của điểm trường hoặc Hiệu trưởng", HTTP 400, khi lưu phòng loại Bếp (thêm, sửa, nhập Excel) với người phụ trách khác nhân viên bếp / PHT còn phân công ở điểm trường đó / Hiệu trưởng; FE chỉ liệt kê các người này và hiện lỗi đỏ dưới ô Người phụ trách.
 
 GV phụ trách chính (OBS-33, Cần chốt 15/11/2026; chữ "GV phụ trách chính" thay "GV chủ nhiệm" theo Cần chốt 17/11/2026): `SUBMIT_HOMEROOM_ONLY` 7409 "Chỉ GV phụ trách chính được gửi duyệt" (gửi đề xuất khen thưởng) và `CONFIRM_HOMEROOM_ONLY` 7410 "Chỉ GV phụ trách chính được xác nhận đánh giá" (chủ đề, học kỳ, cuối năm), HTTP 403; FE ẩn nút theo cờ `canSubmit` / `canConfirm` và hiện lỗi đỏ ở đầu form khi BE từ chối.
