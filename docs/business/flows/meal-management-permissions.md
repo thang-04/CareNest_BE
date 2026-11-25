@@ -45,7 +45,7 @@ App: **bếp** — Hôm nay, Lưu mẫu, Ảnh bữa. **GV** — điểm danh (b
 | Bản dự trù (Web) | Chọn kỳ, điểm trường, thực đơn; sĩ số dự kiến điền sẵn, sửa; in danh sách đặt hàng | Thực đơn tuần, sĩ số đang học | Bản dự trù | PHT có `STOCK_MANAGE` |
 | Kiểm nhận hàng tươi (Web) | Bảng thực phẩm × (theo dự trù, theo suất, thực nhận, kết quả) | Bản dự trù, nhu cầu theo suất | Kiểm nhận 2 lần | như trên |
 | Kho khô (Web) | Tồn theo lô; phiếu nhập (NCC, lô, hạn, giá); lịch sử nhập/trừ; phần thiếu chờ bổ sung | Phiếu giao NCC | Lô, bút toán | như trên |
-| Duyệt lưu/hủy mẫu, In (Web) | Hàng chờ duyệt; in nhãn mẫu, biểu mẫu từ bản ghi đã duyệt | Bản ghi của bếp | Bản ghi đã duyệt, file in | PHT có `FOOD_SAFETY_APPROVE` |
+| Duyệt lưu/hủy mẫu, In (Web) | Hàng chờ duyệt; in biểu mẫu lưu/hủy từ bản ghi đã duyệt (nhãn mẫu in theo thực đơn, INS-01) | Bản ghi của bếp | Bản ghi đã duyệt, file in | PHT có `FOOD_SAFETY_APPROVE` |
 | Lưu mẫu (App bếp) | Ghi lưu (ngày, bữa, món điền sẵn từ thực đơn ngày); ghi hủy sau ≥24 giờ; xem trạng thái duyệt | Thực đơn ngày | Bản ghi chờ duyệt | Bếp (TK) |
 | Ảnh bữa (App bếp; Web, App PH xem) | Chụp/sửa ảnh mỗi bữa trong khung giờ | Ảnh | Ảnh theo điểm trường × ngày × bữa | Bếp đăng; PHT, HT, PH xem |
 | Danh mục & thiết lập (Web) | Thực phẩm (nguồn dinh dưỡng bắt buộc), món + gam/trẻ theo nhóm tuổi, cấu hình nhóm tuổi có ngày hiệu lực, NCC; HT: khung giờ ảnh | Dữ liệu Viện Dinh dưỡng, chuẩn Bộ | Danh mục dùng chung | PHT có `NUTRITION_MANAGE`; HT |

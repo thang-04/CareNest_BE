@@ -82,7 +82,8 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 ```text
 [S] Bếp ghi lưu mẫu trên App (ngày, bữa, món) → PHT duyệt
 [S] Sau ≥24 giờ bếp hủy mẫu, ghi hủy trên App → PHT duyệt
-[S] Hệ thống tạo nhãn mẫu, biểu mẫu lưu/hủy từ bản ghi đã duyệt → PHT xuất/in
+[S] Hệ thống tạo biểu mẫu lưu/hủy (Mẫu 5) từ bản ghi đã duyệt → PHT xuất/in
+[S] Nhãn mẫu (Mẫu 4): PHT in theo thực đơn đã công bố của ngày, không chờ bản ghi lưu mẫu (INS-01)
 [B] Ký giấy các bên
 ```
 
