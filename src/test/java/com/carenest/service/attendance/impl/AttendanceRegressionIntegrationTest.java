@@ -332,7 +332,7 @@ class AttendanceRegressionIntegrationTest {
 
     @Test
     void resavingAttendanceKeepsHalfDayOfEarlyPickup() {
-        // PCK-04: giao trước mốc tính đủ ngày (mặc định 15:30) ⇒ 0,5 ngày; GV lưu lại điểm danh không làm mất dấu
+        // PCK-04: giao trước mốc tính đủ ngày (mặc định 15:00) ⇒ 0,5 ngày; GV lưu lại điểm danh không làm mất dấu
         service.saveClassAttendance(
                 teacherA,
                 classA,
@@ -346,7 +346,7 @@ class AttendanceRegressionIntegrationTest {
                                         com.carenest.utils.enums.AttendanceStatus.PRESENT,
                                         java.util.Map.of()))));
         pickup(child1, "2026-10-21T07:45:00Z"); // 14:45 giờ trường
-        pickup(child2, "2026-10-21T08:45:00Z"); // 15:45 giờ trường
+        pickup(child2, "2026-10-21T08:00:00Z"); // đúng 15:00 giờ trường ⇒ đủ ngày
         jdbc.update(
                 "UPDATE attendance_records SET absent_part = 'AFTERNOON' WHERE child_id = ? AND date = ?",
                 child1,

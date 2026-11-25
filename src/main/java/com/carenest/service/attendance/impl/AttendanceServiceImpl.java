@@ -97,7 +97,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final GuardianChildLinkService guardianChildLinkService;
     private final NotificationService notificationService;
     private final com.carenest.repository.attendance.PickupRecordRepository pickupRecordRepository;
-    private final com.carenest.service.organization.AttendanceCutoffService attendanceCutoffService;
+    private final EarlyPickupRule earlyPickupRule;
 
     @Override
     @Transactional(readOnly = true)
@@ -766,14 +766,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (childIds.isEmpty()) {
             return Set.of();
         }
-        java.time.LocalTime fullDayFrom = attendanceCutoffService
-                .findFullDayPickupFrom(cls.schoolYearId(), date)
-                .orElse(com.carenest.entity.organization.AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM);
+        java.util.function.Predicate<java.time.LocalTime> early =
+                earlyPickupRule.beforeFullDayOn(cls.schoolYearId(), date);
         return pickupRecordRepository.findByChildIdInAndDateOrderByRecordedAtAscIdAsc(childIds, date).stream()
                 .filter(p -> p.getOutcome() == com.carenest.utils.enums.PickupOutcome.HANDED_OVER
                         && p.getHandedOverAt() != null
-                        && java.time.LocalTime.ofInstant(p.getHandedOverAt(), rules.zone())
-                                .isBefore(fullDayFrom))
+                        && early.test(java.time.LocalTime.ofInstant(p.getHandedOverAt(), rules.zone())))
                 .map(com.carenest.entity.attendance.PickupRecord::getChildId)
                 .collect(Collectors.toSet());
     }

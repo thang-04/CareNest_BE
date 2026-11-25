@@ -110,7 +110,7 @@ class PickupServiceImplTest {
                 pickupRepository,
                 attendanceRepository,
                 attendanceHistoryRepository,
-                attendanceCutoffService,
+                new EarlyPickupRule(attendanceCutoffService),
                 classroomService,
                 enrollmentService,
                 staffAssignmentService,
@@ -226,7 +226,7 @@ class PickupServiceImplTest {
 
         service.recordResult(
                 teacher,
-                new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, LocalTime.of(15, 0), "Mẹ đón"));
+                new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, LocalTime.of(14, 45), "Mẹ đón"));
 
         assertThat(attendance.presentDays()).isEqualTo(0.5);
         assertThat(attendance.getMeals()).containsExactly(com.carenest.utils.enums.MealSession.LUNCH);
@@ -255,7 +255,7 @@ class PickupServiceImplTest {
 
         service.recordResult(
                 teacher,
-                new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, LocalTime.of(15, 30), "Mẹ đón"));
+                new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, LocalTime.of(15, 0), "Mẹ đón"));
 
         assertThat(attendance.presentDays()).isEqualTo(1);
     }

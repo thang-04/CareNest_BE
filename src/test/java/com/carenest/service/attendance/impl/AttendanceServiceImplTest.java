@@ -79,7 +79,7 @@ class AttendanceServiceImplTest {
                 guardians,
                 mock(NotificationService.class),
                 mock(com.carenest.repository.attendance.PickupRecordRepository.class),
-                mock(com.carenest.service.organization.AttendanceCutoffService.class));
+                new EarlyPickupRule(mock(com.carenest.service.organization.AttendanceCutoffService.class)));
         when(classrooms.findClassroomInfo(CLASS))
                 .thenReturn(Optional.of(new ClassroomInfoResponse(
                         CLASS,
