@@ -117,8 +117,10 @@ Hạn, khóa, mở lại đánh giá cuối chủ đề / học kỳ / cuối n�
 | Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3008, 409, không có ô) | CHD-04 |
 | CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
 | Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
-| Sửa hồ sơ / cho nghỉ học / xếp lớp trẻ đã nghỉ | `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/CHD-03, CHD-10 |
-| Hủy lịch nghỉ học (`DELETE /children/{id}/scheduled-leave`) khi trẻ không có lịch hoặc lịch đã tới ngày | `CHILD_NO_SCHEDULED_LEAVE` (3017, 409) | G94-180/CHD-03 (user chốt 2026-11-25) |
+| Sửa hồ sơ / cho nghỉ học / xếp lớp trẻ đã nghỉ; cho nghỉ học, `GET /children/{id}/leave-options` khi lịch nghỉ đã tới ngày mà job chưa áp (áp lịch ngay rồi trả lỗi) | `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/CHD-03, CHD-10 |
+| Hủy lịch nghỉ học (`DELETE /children/{id}/scheduled-leave`) khi trẻ không có lịch | `CHILD_NO_SCHEDULED_LEAVE` (3017, 409) | G94-180/CHD-03 (user chốt 2026-11-25) |
+| Hủy lịch nghỉ học khi năm mới đã kích hoạt trước ngày nghỉ (ngày nghỉ trước ngày bắt đầu năm đang hoạt động) và trẻ không có lớp năm đó: "Năm học mới đã kích hoạt khi trẻ có lịch nghỉ nên trẻ không có lớp năm mới. Không hủy được lịch nghỉ; sau ngày nghỉ dùng "Mở lại hồ sơ" để nhận lại trẻ" | `CHILD_LEAVE_LOCKED_BY_NEW_YEAR` (3018, 409) | G94-180/CHD-03, CHD-04 (2026-11-25) |
+| Hủy lịch nghỉ học khi lịch đã tới ngày mà job chưa áp (00:00–00:05, hoặc lần chạy trước lỗi): áp lịch ngay rồi trả "Đã tới ngày nghỉ: trẻ đã nghỉ học từ dd/MM/yyyy" | `CHILD_LEAVE_ALREADY_DUE` (3019, 409) | G94-180/CHD-03 (2026-11-25) |
 | Xếp / chuyển lớp: thiếu lớp, cùng lớp, chưa khai báo sức khỏe, lớp ngừng hoạt động / khác năm đang hoạt động / ngoài điểm trường được giao / đủ sĩ số (`classId`); đang có lớp mà thiếu lý do, lý do > 300 (`reason`) | `INVALID_REQUEST_DATA` (9001) + ô | CHD-10, G94-180/CHD-02 |
 | Danh sách trẻ: lọc lớp / điểm trường ngoài phạm vi; phụ huynh gọi | `CLASS_ACCESS_DENIED` (2201, 403) / `CAMPUS_ACCESS_DENIED` (2102, 403); `FORBIDDEN` (1101, 403) | AUTH-08, AUTH-04 |
 | Cho nghỉ học: ngày nghỉ, lý do sai (`leftAt`, `reason`); Sửa hồ sơ: form sai, ngày sinh sau ngày tiếp nhận, bỏ phụ huynh đang liên kết tài khoản (`guardians`), đổi cùng lúc CCCD và SĐT, thiếu quyền quản lý tài khoản khi sửa họ tên/email/CCCD phụ huynh có tài khoản | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-03, AUTH-21 |
