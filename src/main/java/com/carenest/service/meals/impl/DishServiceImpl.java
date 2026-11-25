@@ -226,7 +226,8 @@ public class DishServiceImpl implements DishService {
     private void requireUniqueName(String name, Long selfId) {
         String key = CatalogNames.key(name);
         boolean taken = dishRepository.findAllByOrderByNameAsc().stream()
-                .anyMatch(dish -> !Objects.equals(dish.getId(), selfId) && CatalogNames.key(dish.getName()).equals(key));
+                .anyMatch(dish -> !Objects.equals(dish.getId(), selfId)
+                        && CatalogNames.key(dish.getName()).equals(key));
         if (taken) {
             throw GlobalException.of(ApiCode.DISH_NAME_DUPLICATED, name.trim());
         }

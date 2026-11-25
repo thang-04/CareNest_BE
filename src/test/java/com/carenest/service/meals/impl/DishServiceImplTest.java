@@ -17,24 +17,24 @@ import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.MealPlanWeek;
 import com.carenest.entity.meals.MenuTemplateSet;
 import com.carenest.exception.GlobalException;
-import com.carenest.security.CurrentUser;
-import com.carenest.utils.ApiCode;
-import com.carenest.utils.enums.CareNestRole;
-import com.carenest.utils.enums.CatalogStatus;
-import com.carenest.utils.enums.MenuBlock;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.repository.meals.MenuTemplateSetRepository;
+import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.organization.AgeGroupService;
+import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodGroup;
 import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
+import com.carenest.utils.enums.MenuBlock;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -204,8 +204,12 @@ class DishServiceImplTest {
 
         DishDetailResponse dish = service.getDish(DISH_ID);
 
-        assertThat(dish.usedInTemplates()).extracting(DishDetailResponse.TemplateUsage::name).containsExactly("Mẫu mùa đông");
-        assertThat(dish.usedInWeeks()).extracting(DishDetailResponse.WeekUsage::weekStart).containsExactly(LocalDate.of(2026, 11, 30));
+        assertThat(dish.usedInTemplates())
+                .extracting(DishDetailResponse.TemplateUsage::name)
+                .containsExactly("Mẫu mùa đông");
+        assertThat(dish.usedInWeeks())
+                .extracting(DishDetailResponse.WeekUsage::weekStart)
+                .containsExactly(LocalDate.of(2026, 11, 30));
     }
 
     private static Dish namedDish(String name, Long id) {
@@ -216,7 +220,8 @@ class DishServiceImplTest {
     }
 
     private static DishRequest dishRequest(String name) {
-        return new DishRequest(null, name, DishType.CARB, null, List.of(new DishRequest.Ingredient(1L, NURSERY, bd("10"))));
+        return new DishRequest(
+                null, name, DishType.CARB, null, List.of(new DishRequest.Ingredient(1L, NURSERY, bd("10"))));
     }
 
     private void stubDish(DishIngredient... ingredients) {

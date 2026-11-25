@@ -21,10 +21,10 @@ import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodGroup;
 import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
-import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodUnit;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -38,8 +38,8 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class FoodServiceImplTest {
 
@@ -137,7 +137,8 @@ class FoodServiceImplTest {
     }
 
     @Test
-    @DisplayName("NUT-18: tạo thực phẩm trùng tên (bỏ dấu, hoa thường, khoảng trắng) khi danh mục đã có ⇒ 6108, kể cả mục đã ngừng")
+    @DisplayName(
+            "NUT-18: tạo thực phẩm trùng tên (bỏ dấu, hoa thường, khoảng trắng) khi danh mục đã có ⇒ 6108, kể cả mục đã ngừng")
     void createRejectsDuplicatedName() {
         Food existing = namedFood("[QA] Gạo nếp A3", 121L);
         existing.changeStatus(CatalogStatus.INACTIVE, 3L);
@@ -193,7 +194,8 @@ class FoodServiceImplTest {
                         VICE_PRINCIPAL,
                         new FoodImportRequest(List.of(
                                 new FoodImportRequest.Item(null, food("TP001", "Viện Dinh dưỡng 2017")),
-                                new FoodImportRequest.Item(null, withName(food("TP002", "Viện Dinh dưỡng 2017"), "Gạo nếp")))))
+                                new FoodImportRequest.Item(
+                                        null, withName(food("TP002", "Viện Dinh dưỡng 2017"), "Gạo nếp")))))
                 .created();
 
         assertThat(created).isEqualTo(2);

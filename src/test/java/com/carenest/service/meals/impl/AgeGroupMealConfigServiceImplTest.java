@@ -255,12 +255,14 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     @Test
-    @DisplayName("NUT-24: định mức đạm gam tối thiểu vượt mức cho phép theo năng lượng × tỷ lệ max (số liệu VPS) ⇒ 6110")
+    @DisplayName(
+            "NUT-24: định mức đạm gam tối thiểu vượt mức cho phép theo năng lượng × tỷ lệ max (số liệu VPS) ⇒ 6110")
     void rejectsGramsExceedingEnergyBudget() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
 
         // VPS: năng lượng 615–726, đạm 13–20%, đạm động vật 300–400 g ⇒ 300 g × 4 = 1.200 kcal > 726 × 20%
-        assertThatThrownBy(() -> service.createConfig(VICE_PRINCIPAL,
+        assertThatThrownBy(() -> service.createConfig(
+                        VICE_PRINCIPAL,
                         gramsRequest(new BigDecimal("726"), new BigDecimal("20"), new BigDecimal("300"))))
                 .isInstanceOf(GlobalException.class)
                 .satisfies(ex -> {
@@ -271,13 +273,15 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     @Test
-    @DisplayName("NUT-24: định mức gam hợp lý với năng lượng và cơ cấu (đạm ĐV 10 + TV 8, 726 kcal, đạm 20%) thì lưu được")
+    @DisplayName(
+            "NUT-24: định mức gam hợp lý với năng lượng và cơ cấu (đạm ĐV 10 + TV 8, 726 kcal, đạm 20%) thì lưu được")
     void storesGramsWithinEnergyBudget() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
         given(repository.existsByAgeGroupId(AGE_GROUP)).willReturn(false);
         given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
-        AgeGroupMealConfigResponse created = service.createConfig(VICE_PRINCIPAL,
+        AgeGroupMealConfigResponse created = service.createConfig(
+                VICE_PRINCIPAL,
                 gramsRequest(new BigDecimal("726"), new BigDecimal("20"), new BigDecimal("10"), new BigDecimal("8")));
 
         assertThat(created.animalProteinGMin()).isEqualByComparingTo("10");
@@ -299,32 +303,54 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     private static AgeGroupMealConfigRequest gramsRequest(
-            BigDecimal kcalMax,
-            BigDecimal proteinPctMax,
-            BigDecimal animalProteinGMin,
-            BigDecimal plantProteinGMin) {
+            BigDecimal kcalMax, BigDecimal proteinPctMax, BigDecimal animalProteinGMin, BigDecimal plantProteinGMin) {
         return new AgeGroupMealConfigRequest(
-                AGE_GROUP,                                   // ageGroupId
-                TODAY.plusDays(1),                            // effectiveFrom
-                new BigDecimal("30000"),                       // mealPrice
-                null,                                          // serviceFee
-                null,                                          // kcalMin
+                AGE_GROUP, // ageGroupId
+                TODAY.plusDays(1), // effectiveFrom
+                new BigDecimal("30000"), // mealPrice
+                null, // serviceFee
+                null, // kcalMin
                 kcalMax,
-                null,                                          // proteinPctMin
+                null, // proteinPctMin
                 proteinPctMax,
-                null, null,                                   // lipidPct
-                null, null,                                   // glucidPct
-                animalProteinGMin, null,                       // đạm động vật (min, max)
-                plantProteinGMin, null,                        // đạm thực vật
-                null, null,                                    // béo động vật
-                null, null,                                    // béo thực vật
-                null, null,                                    // bột đường (g)
-                null, null, null, null,                        // kcal% bữa sáng / trưa
-                null, null,                                    // kcal% bữa chiều
-                null,                                          // dailyKcalNeed
+                null,
+                null, // lipidPct
+                null,
+                null, // glucidPct
+                animalProteinGMin,
+                null, // đạm động vật (min, max)
+                plantProteinGMin,
+                null, // đạm thực vật
+                null,
+                null, // béo động vật
+                null,
+                null, // béo thực vật
+                null,
+                null, // bột đường (g)
+                null,
+                null,
+                null,
+                null, // kcal% bữa sáng / trưa
+                null,
+                null, // kcal% bữa chiều
+                null, // dailyKcalNeed
                 // vi chất (canxi, photpho, sắt, A, B1, B2, PP, C): 8 cặp (min, max) để trống
-                null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
     }
 

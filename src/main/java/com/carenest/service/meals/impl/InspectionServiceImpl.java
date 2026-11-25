@@ -135,8 +135,8 @@ public class InspectionServiceImpl implements InspectionService {
             }
             // NUT-21/INS-02: sổ M5 soát toàn bộ mẫu của ngày ⇒ phải duyệt hết mẫu chờ của ngày trước khi ký
             if (tab == InspectionTab.SAMPLE) {
-                long pending = campusLookup.countByCampusIdAndSampleDateAndStatus(
-                        campusId, date, FoodSampleStatus.RECORDED);
+                long pending =
+                        campusLookup.countByCampusIdAndSampleDateAndStatus(campusId, date, FoodSampleStatus.RECORDED);
                 if (pending > 0) {
                     throw GlobalException.of(ApiCode.INSPECTION_SAMPLE_PENDING, pending);
                 }

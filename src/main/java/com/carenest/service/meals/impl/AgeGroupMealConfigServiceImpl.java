@@ -325,22 +325,16 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                 LIPID_KCAL_PER_G,
                 request.kcalMax(),
                 request.lipidPctMax());
-        checkGramsPair(
-                "bột đường",
-                request.glucidGMin(),
-                GLUCID_KCAL_PER_G,
-                request.kcalMax(),
-                request.glucidPctMax());
+        checkGramsPair("bột đường", request.glucidGMin(), GLUCID_KCAL_PER_G, request.kcalMax(), request.glucidPctMax());
     }
 
-    private static void checkGramsPair(String label, BigDecimal gramsMin, BigDecimal kcalPerGram,
-            BigDecimal kcalMax, BigDecimal pctMax) {
+    private static void checkGramsPair(
+            String label, BigDecimal gramsMin, BigDecimal kcalPerGram, BigDecimal kcalMax, BigDecimal pctMax) {
         if (gramsMin == null || kcalMax == null || pctMax == null) {
             return;
         }
         // Mức năng lượng cho phép của chất đó = năng lượng tối đa × tỷ lệ tối đa, đổi ra gram
-        BigDecimal allowedGrams = kcalMax
-                .multiply(pctMax, new MathContext(6))
+        BigDecimal allowedGrams = kcalMax.multiply(pctMax, new MathContext(6))
                 .divide(ONE_HUNDRED, 6, RoundingMode.HALF_UP)
                 .divide(kcalPerGram, 6, RoundingMode.HALF_UP);
         BigDecimal gramsAllowedCap = allowedGrams.setScale(0, RoundingMode.CEILING);

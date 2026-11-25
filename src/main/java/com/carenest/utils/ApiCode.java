@@ -633,9 +633,7 @@ public enum ApiCode {
             HttpStatus.UNPROCESSABLE_ENTITY,
             "Còn {0} dòng Không đạt chưa ghi biện pháp xử lý (loại bỏ, trả lại, tiêu hủy...)"),
     INSPECTION_SAMPLE_PENDING(
-            6115,
-            HttpStatus.CONFLICT,
-            "Còn {0} bản lưu mẫu của ngày chưa duyệt, hãy duyệt trước khi ký sổ lưu mẫu"),
+            6115, HttpStatus.CONFLICT, "Còn {0} bản lưu mẫu của ngày chưa duyệt, hãy duyệt trước khi ký sổ lưu mẫu"),
     MEAL_PLAN_NOT_PUBLISHED(6091, HttpStatus.CONFLICT, "Thực đơn tuần chưa công bố, sửa ở bản nháp"),
     MEAL_PLAN_DAY_LOCKED(6092, HttpStatus.CONFLICT, "Ngày {0} đã qua giờ chốt hoặc là ngày nghỉ, không sửa được"),
     MEAL_PLAN_REASON_REQUIRED(6093, HttpStatus.BAD_REQUEST, "Cần nhập lý do sửa thực đơn (10–500 ký tự)"),

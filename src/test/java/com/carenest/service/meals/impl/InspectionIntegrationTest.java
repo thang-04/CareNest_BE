@@ -348,7 +348,11 @@ class InspectionIntegrationTest {
                         null,
                         List.of(new FoodSampleRequest.DishDetailInput(com, "100 g", "Hộp nhựa", "2-8 °C"))));
         inspectionService.save(
-                approver, campus, MONDAY, InspectionTab.SAMPLE, new InspectionSaveRequest(0, Map.of(), List.of(row("sample:" + pending.id()))));
+                approver,
+                campus,
+                MONDAY,
+                InspectionTab.SAMPLE,
+                new InspectionSaveRequest(0, Map.of(), List.of(row("sample:" + pending.id()))));
 
         expectCode(
                 () -> inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null),
@@ -357,8 +361,7 @@ class InspectionIntegrationTest {
         foodSampleService.approveSample(approver, pending.id());
         entityManager.flush();
         entityManager.clear();
-        InspectionSheetResponse signed =
-                inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null);
+        InspectionSheetResponse signed = inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null);
         assertThat(signed.status()).isEqualTo(InspectionStatus.SIGNED);
     }
 

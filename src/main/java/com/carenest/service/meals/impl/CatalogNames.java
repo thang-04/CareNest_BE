@@ -17,7 +17,9 @@ final class CatalogNames {
             return "";
         }
         String lower = name.toLowerCase(Locale.ROOT).replace('đ', 'd');
-        String plain = COMBINING_MARKS.matcher(Normalizer.normalize(lower, Normalizer.Form.NFD)).replaceAll("");
+        String plain = COMBINING_MARKS
+                .matcher(Normalizer.normalize(lower, Normalizer.Form.NFD))
+                .replaceAll("");
         return SPACES.matcher(plain.trim()).replaceAll(" ");
     }
 }

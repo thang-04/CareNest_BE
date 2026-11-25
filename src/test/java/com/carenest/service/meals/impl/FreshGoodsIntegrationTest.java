@@ -359,7 +359,9 @@ class FreshGoodsIntegrationTest {
                         tuple("THIT", FreshCheckResult.SHORT, "Thiếu chút"), tuple("RAU", FreshCheckResult.ENOUGH, ""));
         // Dòng "Đủ" để trống thực nhận ⇒ lưu bằng số cần nhận; dòng có nhập giữ nguyên số đã nhập
         assertThat(recorded.rounds().getFirst().lines())
-                .extracting(l -> l.food().code(), l -> l.receivedQty() == null ? null : l.receivedQty().intValue())
+                .extracting(
+                        l -> l.food().code(),
+                        l -> l.receivedQty() == null ? null : l.receivedQty().intValue())
                 .containsExactlyInAnyOrder(tuple("THIT", 118), tuple("RAU", 187));
         assertThat(recorded.rounds().get(1).recorded()).isFalse();
 

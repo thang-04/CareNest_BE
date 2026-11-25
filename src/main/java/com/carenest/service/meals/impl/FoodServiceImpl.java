@@ -321,7 +321,8 @@ public class FoodServiceImpl implements FoodService {
     private void requireUniqueName(String name, Long selfId) {
         String key = CatalogNames.key(name);
         boolean taken = foodRepository.findAllByOrderByNameAsc().stream()
-                .anyMatch(food -> !Objects.equals(food.getId(), selfId) && CatalogNames.key(food.getName()).equals(key));
+                .anyMatch(food -> !Objects.equals(food.getId(), selfId)
+                        && CatalogNames.key(food.getName()).equals(key));
         if (taken) {
             throw GlobalException.of(ApiCode.FOOD_NAME_DUPLICATED, name.trim());
         }
