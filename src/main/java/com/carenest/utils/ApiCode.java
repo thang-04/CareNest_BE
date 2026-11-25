@@ -411,7 +411,7 @@ public enum ApiCode {
     LEAVE_NOT_GUARDIAN(4026, HttpStatus.FORBIDDEN, "Bạn chỉ báo nghỉ được cho con mình"),
     LEAVE_DATE_RANGE_INVALID(4019, HttpStatus.BAD_REQUEST, "Ngày kết thúc không được trước ngày bắt đầu"),
     LEAVE_DATE_IN_PAST(4020, HttpStatus.BAD_REQUEST, "Không báo nghỉ cho ngày đã qua"),
-    LEAVE_NO_SCHOOL_DAY(4021, HttpStatus.BAD_REQUEST, "Không còn ngày học nào trước giờ chốt trong khoảng đã chọn"),
+    LEAVE_NO_SCHOOL_DAY(4021, HttpStatus.BAD_REQUEST, "Khoảng đã chọn không có ngày học nào"),
     LEAVE_OVERLAP(4022, HttpStatus.CONFLICT, "Đã có đơn nghỉ trùng ngày {0}"),
     LEAVE_NOT_FOUND(4023, HttpStatus.NOT_FOUND, "Không tìm thấy đơn nghỉ"),
     LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
