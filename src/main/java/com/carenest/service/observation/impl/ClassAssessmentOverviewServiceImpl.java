@@ -98,6 +98,8 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         private int emotionDays;
         private int behaviorDays;
         private int participationDays;
+        // Ngày có đánh giá ghi ở lớp (kể cả chưa điểm danh), dùng cho số ngày lớp đã đánh giá
+        private final Set<LocalDate> recordedDates = new HashSet<>();
 
         private ChildStats(ClassChildResponse child) {
             this.child = child;
@@ -315,6 +317,11 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
                 : lessonQueryService.findApprovedDayLessons(cls.id(), from, to);
         Map<DailyActivityResult, ActivityResult> projected =
                 AssessmentResultProjection.project(lessonQueryService, lessons, storedResults);
+        Map<Long, ChildStats> byChild = stats.stream().collect(Collectors.toMap(st -> st.child.id(), st -> st));
+        observations
+                .values()
+                .forEach(o -> byChild.get(o.getChildId()).recordedDates.add(o.getDate()));
+        storedResults.forEach(r -> byChild.get(r.getChildId()).recordedDates.add(r.getDate()));
         Map<String, List<HealthSymptom>> prefill = new HashMap<>();
         dailyHealthService
                 .findLatestDaySigns(ids, from, to)
@@ -414,18 +421,9 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
 
     private ClassRow toRow(
             ClassroomInfoResponse cls, Range range, List<ChildStats> stats, List<ClassCommentResponse> comments) {
+        // Dùng lại dữ liệu statsOf đã đọc, không truy vấn lại theo từng lớp
         Set<LocalDate> assessed = new HashSet<>();
-        if (!stats.isEmpty() && !range.days().isEmpty()) {
-            List<Long> ids = stats.stream().map(s -> s.child.id()).toList();
-            LocalDate from = range.days().getFirst();
-            LocalDate to = range.days().getLast();
-            observationRepository.findByChildIdInAndDateBetween(ids, from, to).stream()
-                    .filter(o -> cls.id().equals(o.getClassroomId()))
-                    .forEach(o -> assessed.add(o.getDate()));
-            resultRepository.findByChildIdInAndDateBetween(ids, from, to).stream()
-                    .filter(r -> cls.id().equals(r.getClassroomId()))
-                    .forEach(r -> assessed.add(r.getDate()));
-        }
+        stats.forEach(s -> assessed.addAll(s.recordedDates));
         Set<LocalDate> reopened = range.days().isEmpty()
                 ? Set.of()
                 : unlockRepository

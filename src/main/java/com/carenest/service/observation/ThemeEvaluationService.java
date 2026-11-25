@@ -1,11 +1,14 @@
 package com.carenest.service.observation;
 
+import com.carenest.dto.observation.ThemeEvaluationDtos.ChildRow;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ClassItem;
+import com.carenest.dto.observation.ThemeEvaluationDtos.GoalColumn;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationRequest;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationResponse;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeItem;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeSigners;
 import com.carenest.security.CurrentUser;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -44,4 +47,22 @@ public interface ThemeEvaluationService {
      * Như trên nhưng chỉ các chủ đề đã xong có ngày kết thúc trong [from, to] (bảng học kỳ, OBS-25 Cần chốt 10/11/2026).
      */
     Map<Long, ThemeGoalResult> childThemeResults(Long classId, Long childId, LocalDate from, LocalDate to);
+
+    /** Kết quả đã chốt của một trẻ ở một chủ đề: dòng của trẻ và các MT lấy từ snapshot lúc xác nhận. */
+    record ConfirmedChildTheme(
+            Long themeId,
+            String themeName,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<GoalColumn> goals,
+            ChildRow row,
+            Long confirmedById,
+            String confirmedByName,
+            Instant confirmedAt) {}
+
+    /**
+     * OBS-35: bảng cuối chủ đề đã xác nhận của lớp classId có dòng của trẻ, chủ đề giao [from, to]; không trả bản nháp,
+     * không kiểm quyền (nơi gọi tự kiểm).
+     */
+    List<ConfirmedChildTheme> confirmedChildThemes(Long classId, Long childId, LocalDate from, LocalDate to);
 }

@@ -1,7 +1,9 @@
 package com.carenest.controller.attendance;
 
 import com.carenest.dto.attendance.LeaveRequestDtos.CreateLeaveRequest;
+import com.carenest.dto.attendance.LeaveRequestDtos.LeavePreviewResponse;
 import com.carenest.dto.attendance.LeaveRequestDtos.LeaveRequestResponse;
+import com.carenest.dto.attendance.LeaveRequestDtos.PreviewLeaveRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.attendance.LeaveRequestService;
 import com.carenest.utils.ApiCode;
@@ -41,6 +43,19 @@ public class LeaveRequestController {
         LeaveRequestResponse leave = leaveRequestService.createLeaveRequest(currentUser, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Create leave request success", leave);
+    }
+
+    /** Xem trước đơn nghỉ trước khi gửi: bữa bị hủy / còn ăn, ngày áp dụng / bỏ qua; không lưu. */
+    @PostMapping("/leave-requests/preview")
+    @PreAuthorize("hasRole('PARENT')")
+    public ResponseEntity<ResponseJson<LeavePreviewResponse>> previewLeaveRequest(
+            @Valid @RequestBody PreviewLeaveRequest request, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|previewLeaveRequest|userId=" + currentUser.userId() + "|childId=" + request.childId();
+        log.info("{}|START", logPrefix);
+        LeavePreviewResponse preview = leaveRequestService.previewLeaveRequest(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Preview leave request success", preview);
     }
 
     @GetMapping("/leave-requests/me")

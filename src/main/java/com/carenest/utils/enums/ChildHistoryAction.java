@@ -5,5 +5,8 @@ public enum ChildHistoryAction {
     ENROLLED,
     UPDATED,
     WITHDRAWN,
-    READMITTED
+    READMITTED,
+    // G94-180/CHD-03: đặt / hủy lịch nghỉ học (ngày nghỉ sau hôm nay)
+    LEAVE_SCHEDULED,
+    LEAVE_CANCELLED
 }

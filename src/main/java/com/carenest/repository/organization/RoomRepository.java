@@ -29,6 +29,13 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     boolean existsName(
             @Param("campusId") Long campusId, @Param("name") String name, @Param("excludeId") Long excludeId);
 
+    @Query("select r from Room r where r.campusId = :campusId"
+            + " and r.status <> com.carenest.utils.enums.RoomStatus.DELETED"
+            + " and (lower(r.code) = lower(:code) or lower(r.name) = lower(:name))"
+            + " order by r.id")
+    List<Room> findReusableByCodeOrName(
+            @Param("campusId") Long campusId, @Param("code") String code, @Param("name") String name);
+
     long countByCampusIdAndStatusNot(Long campusId, RoomStatus status);
 
     // Người phụ trách phòng phải là nhân sự còn phân công ở điểm trường (trực tiếp hoặc qua lớp), hoặc Hiệu trưởng

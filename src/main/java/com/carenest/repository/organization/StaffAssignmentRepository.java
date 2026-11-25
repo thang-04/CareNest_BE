@@ -367,17 +367,6 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
-    // AUTH-03: các đợt phân công GV (dạy chính + dạy thay) của một người ở một lớp, đã bỏ phân công gỡ trước khi
-    // bắt đầu; validTo null = chưa hết (dịch là hôm nay ở tầng dùng)
-    @Query("""
-            select a from StaffAssignment a
-            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER
-              and a.classroomId = :classroomId
-              and (a.validTo is null or a.validTo >= a.validFrom)
-            order by a.validFrom
-            """)
-    List<StaffAssignment> findTeacherAssignments(@Param("userId") Long userId, @Param("classroomId") Long classroomId);
-
     // Có đợt dạy thay lớp :classroomId giao với khoảng [from, to] (bỏ phân công gỡ trước khi bắt đầu)
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a

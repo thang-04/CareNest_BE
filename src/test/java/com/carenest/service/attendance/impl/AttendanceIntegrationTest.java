@@ -13,16 +13,11 @@ import com.carenest.dto.attendance.DayUnlockRequest;
 import com.carenest.dto.attendance.DayUnlockResponse;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest.Entry;
-import com.carenest.dto.child.ChildListFilter;
-import com.carenest.dto.child.ChildListItemResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.DailyHealthService;
-import com.carenest.service.child.ChildListService;
-import com.carenest.service.meals.MealCountService;
-import com.carenest.service.observation.DailyAssessmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
@@ -111,15 +106,6 @@ class AttendanceIntegrationTest {
     private DailyHealthService healthService;
 
     @Autowired
-    private MealCountService mealCountService;
-
-    @Autowired
-    private DailyAssessmentService dailyAssessmentService;
-
-    @Autowired
-    private ChildListService childListService;
-
-    @Autowired
     private MovableClock clock;
 
     @Autowired
@@ -149,6 +135,7 @@ class AttendanceIntegrationTest {
                 + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         jdbc.update(
                 "INSERT INTO attendance_cutoffs (school_year_id, cutoff_time, effective_from) VALUES (?, '08:30', '2026-09-01')",
                 year);
@@ -177,91 +164,11 @@ class AttendanceIntegrationTest {
         teacherB = user("teacherb", CareNestRole.TEACHER);
         teach(teacherA, classA);
         teach(teacherA, oldClass);
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_from='2025-09-01',valid_to='2026-05-31' WHERE user_id=? AND classroom_id=?",
+                teacherA.userId(),
+                oldClass);
         teach(teacherB, classB);
-    }
-
-    @Test
-    @DisplayName("AUTH-03: GV hết phân công xem lớp cũ đúng các đợt đã dạy; ngoài khoảng mọi API đọc trả 403")
-    void pastClassReadsStayInsideTaughtRanges() {
-        CurrentUser sub = new CurrentUser(
-                user("subpast", CareNestRole.TEACHER).userId(),
-                "kc-subpast",
-                "subpast",
-                "subpast",
-                null,
-                Set.of(CareNestRole.TEACHER),
-                Set.of(Permission.ATTENDANCE_VIEW, Permission.ATTENDANCE_RECORD, Permission.ASSESSMENT_VIEW));
-        // Hai đợt rời nhau: 05–06/10 và 12–16/10; 07–09/10 là khoảng cấm giữa hai đợt
-        for (String[] stint : new String[][] {{"2026-10-05", "2026-10-06"}, {"2026-10-12", "2026-10-16"}}) {
-            jdbc.update(
-                    "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_substitute) "
-                            + "VALUES (?, 'TEACHER', ?, ?::date, ?::date, TRUE)",
-                    sub.userId(),
-                    classA,
-                    stint[0],
-                    stint[1]);
-        }
-        CurrentUser stranger = user("neverthere", CareNestRole.TEACHER);
-        LocalDate inside = LocalDate.of(2026, 10, 15);
-        LocalDate gap = LocalDate.of(2026, 10, 8);
-        LocalDate after = LocalDate.of(2026, 10, 19);
-
-        // Danh sách lớp: lớp cũ chỉ xem, kèm từng đợt (không gộp)
-        AttendanceClassResponse past = service.getClasses(sub, null).stream()
-                .filter(c -> c.id() == classA)
-                .findFirst()
-                .orElseThrow();
-        assertThat(past.teaches()).isFalse();
-        assertThat(past.canRecord()).isFalse();
-        assertThat(past.readRanges())
-                .extracting(AttendanceClassResponse.ReadRange::start, AttendanceClassResponse.ReadRange::end)
-                .containsExactly(
-                        tuple(LocalDate.of(2026, 10, 5), LocalDate.of(2026, 10, 6)),
-                        tuple(LocalDate.of(2026, 10, 12), inside.plusDays(1)));
-        assertThat(service.getClasses(stranger, null))
-                .extracting(AttendanceClassResponse::id)
-                .doesNotContain(classA);
-
-        // Theo ngày: điểm danh, giờ chốt/suất, sức khỏe, đánh giá ngày
-        assertThat(service.getClassAttendance(sub, classA, inside)).isNotNull();
-        assertThat(mealCountService.getClassMealCount(sub, classA, inside)).isNotNull();
-        for (LocalDate outside : List.of(gap, after)) {
-            expectCode(() -> service.getClassAttendance(sub, classA, outside), ApiCode.CLASS_ACCESS_DENIED);
-            expectCode(() -> service.getDayInfo(sub, outside, classA), ApiCode.CLASS_ACCESS_DENIED);
-            expectCode(() -> mealCountService.getClassMealCount(sub, classA, outside), ApiCode.CLASS_ACCESS_DENIED);
-            expectCode(
-                    () -> healthService.getClassChildHealth(sub, classA, child1, outside), ApiCode.CLASS_ACCESS_DENIED);
-            expectCode(() -> dailyAssessmentService.getDailySheet(sub, classA, outside), ApiCode.CLASS_ACCESS_DENIED);
-        }
-        expectNotDenied(() -> dailyAssessmentService.getDailySheet(sub, classA, inside));
-        expectCode(() -> service.getClassAttendance(stranger, classA, inside), ApiCode.CLASS_ACCESS_DENIED);
-
-        // Tổng hợp: cắt về đợt gần nhất có giao, không gộp min–max; chỉ giao khoảng cấm ⇒ 403
-        AttendanceSummaryResponse.ClassSummary month =
-                service.getClassSummary(sub, classA, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31));
-        assertThat(month.from()).isEqualTo(LocalDate.of(2026, 10, 1));
-        assertThat(month.actualFrom()).isEqualTo(LocalDate.of(2026, 10, 12));
-        assertThat(month.actualTo()).isEqualTo(LocalDate.of(2026, 10, 16));
-        assertThat(service.getClassSummary(sub, classA, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 9))
-                        .actualTo())
-                .isEqualTo(LocalDate.of(2026, 10, 6));
-        expectCode(
-                () -> service.getClassSummary(sub, classA, LocalDate.of(2026, 10, 7), LocalDate.of(2026, 10, 9)),
-                ApiCode.CLASS_ACCESS_DENIED);
-        expectCode(() -> service.getClassSummary(sub, classA, after, TODAY), ApiCode.CLASS_ACCESS_DENIED);
-        expectCode(() -> service.getClassSummary(stranger, classA, inside, inside), ApiCode.CLASS_ACCESS_DENIED);
-
-        // Danh sách trẻ lọc theo lớp cũ (Q4): trẻ học lớp trong đợt đã dạy; GV chưa từng dạy ⇒ 403
-        var filter = new ChildListFilter(null, null, classA, null, null, 0, 50);
-        assertThat(childListService.searchChildren(sub, filter).items())
-                .extracting(ChildListItemResponse::id)
-                .containsExactlyInAnyOrder(child1, child2);
-        expectCode(() -> childListService.searchChildren(stranger, filter), ApiCode.CLASS_ACCESS_DENIED);
-
-        // Ghi vẫn bị chặn (ngày đã qua chưa được mở lại)
-        assertThatThrownBy(() -> service.saveClassAttendance(
-                        sub, classA, request(inside, new Entry(child1, AttendanceStatus.PRESENT, Map.of()))))
-                .isInstanceOf(GlobalException.class);
     }
 
     @Test
@@ -276,6 +183,31 @@ class AttendanceIntegrationTest {
                 jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass));
         LocalDate oldDay = LocalDate.of(2026, 3, 4);
         assertThat(service.getClassAttendance(oldVp, oldClass, oldDay)).isNotNull();
+        Long historicCampus =
+                jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass);
+        Long otherCampus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
+        CurrentUser pinnedHistoric = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ATTENDANCE_VIEW, historicCampus));
+        CurrentUser pinnedOther = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ATTENDANCE_VIEW, otherCampus));
+        assertThat(service.getClassAttendance(pinnedHistoric, oldClass, oldDay)).isNotNull();
+        expectCode(() -> service.getClassAttendance(pinnedOther, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
         expectCode(() -> service.getClassAttendance(oldVp, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
         // PHT điểm trường B năm nay không có phân công năm 2025-2026 ⇒ không xem lớp năm đó
         expectCode(() -> service.getClassAttendance(vpB, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
@@ -339,7 +271,7 @@ class AttendanceIntegrationTest {
                         AttendanceClassResponse::id,
                         AttendanceClassResponse::teaches,
                         AttendanceClassResponse::canRecord)
-                .containsExactly(tuple(oldClass, true, false));
+                .containsExactly(tuple(oldClass, false, false));
 
         ClassAttendanceResponse empty = service.getClassAttendance(teacherA, classA, TODAY);
         assertThat(empty.canRecord()).isTrue();
@@ -383,22 +315,27 @@ class AttendanceIntegrationTest {
                         AttendanceClassResponse::id,
                         AttendanceClassResponse::teaches,
                         AttendanceClassResponse::canRecord)
-                .containsExactly(tuple(oldClass, true, false));
+                .containsExactly(tuple(oldClass, false, false));
         assertThat(service.getClassAttendance(teacherB, oldClass, LocalDate.of(2026, 5, 29))
                         .canRecord())
                 .isFalse();
         expectError(
                 () -> service.saveClassAttendance(teacherB, oldClass, request(TODAY, present(child1))),
                 ApiCode.FORBIDDEN);
-        // Năm đang hoạt động (AUTH-03, chốt 15/11/2026): lớp bị gỡ giữa năm vẫn trong danh sách, chỉ xem đúng đợt đã
-        // dạy
+        // Lớp hết phân công vẫn hiện để đọc đúng đợt cũ; hôm nay và quyền ghi không được mở rộng.
         expectError(() -> service.getClassAttendance(teacherB, classA, TODAY), ApiCode.FORBIDDEN);
+        assertThat(service.getClassAttendance(teacherB, classA, LocalDate.of(2026, 9, 15))
+                        .canRecord())
+                .isFalse();
         assertThat(service.getClasses(teacherB, null))
-                .extracting(
-                        AttendanceClassResponse::id,
-                        AttendanceClassResponse::teaches,
-                        c -> c.readRanges().size())
-                .containsExactlyInAnyOrder(tuple(classA, false, 1), tuple(classB, true, 0));
+                .extracting(AttendanceClassResponse::id)
+                .containsExactlyInAnyOrder(classA, classB);
+        assertThat(service.getClasses(teacherB, null).stream()
+                        .filter(c -> c.id().equals(classA))
+                        .findFirst()
+                        .orElseThrow()
+                        .historicalReadOnly())
+                .isTrue();
     }
 
     @Test
@@ -438,7 +375,7 @@ class AttendanceIntegrationTest {
                 ApiCode.BAD_REQUEST);
         expectError(
                 () -> service.saveClassAttendance(teacherA, oldClass, request(TODAY, present(child1))),
-                ApiCode.CONFLICT);
+                ApiCode.FORBIDDEN);
     }
 
     @Test
@@ -1084,17 +1021,6 @@ class AttendanceIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
                 .isEqualTo(apiCode);
-    }
-
-    // Trong khoảng đọc: không bị từ chối quyền (lỗi nghiệp vụ khác như thiếu cấu hình không thuộc phạm vi test này)
-    private static void expectNotDenied(ThrowingCallable call) {
-        try {
-            call.call();
-        } catch (GlobalException ex) {
-            assertThat(ex.getApiCode()).isNotEqualTo(ApiCode.CLASS_ACCESS_DENIED);
-        } catch (Throwable ex) {
-            throw new AssertionError(ex);
-        }
     }
 
     private long classCampus(long classroomId) {

@@ -4,6 +4,8 @@ package com.carenest.utils.enums;
 public enum EvaluationAction {
     AI_DRAFTED,
     AI_REDRAFTED,
+    // AI-03: nháp hệ thống tạo từ mẫu câu (không qua AI)
+    TEMPLATE_DRAFTED,
     EDITED,
     CONFIRMED
 }

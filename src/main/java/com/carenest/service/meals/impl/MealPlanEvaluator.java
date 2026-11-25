@@ -277,7 +277,8 @@ final class MealPlanEvaluator {
                     micro.get(Micronutrient.VITAMIN_B1),
                     micro.get(Micronutrient.VITAMIN_B2),
                     micro.get(Micronutrient.VITAMIN_PP),
-                    micro.get(Micronutrient.VITAMIN_C));
+                    micro.get(Micronutrient.VITAMIN_C),
+                    micro.get(Micronutrient.ZINC));
         }
     }
 
@@ -500,7 +501,7 @@ final class MealPlanEvaluator {
                 kcalRange.min(),
                 kcalRange.max(),
                 kcalTarget,
-                kcalTarget == null || kcalTarget.signum() == 0 ? null : percentInt(kcal, kcalTarget),
+                noAttainment(kcalTarget, incomplete, kcal) ? null : percentInt(kcal, kcalTarget),
                 status(core, incomplete, kcal, kcal, kcalRange.min(), kcalRange.max()),
                 false));
         rows.add(energyRow("protein", totals.protein, kcal, kcalTarget, incomplete, core ? norm.proteinPct() : null));
@@ -558,7 +559,7 @@ final class MealPlanEvaluator {
         BigDecimal target = core
                 ? round1(kcalTarget.multiply(mid(min, max)).divide(HUNDRED.multiply(factor), 10, RoundingMode.HALF_UP))
                 : null;
-        Integer attainment = target == null || target.signum() == 0 ? null : percentInt(value, target);
+        Integer attainment = noAttainment(target, incomplete, kcal) ? null : percentInt(value, target);
         return new NormRow(
                 key,
                 value,
@@ -583,9 +584,14 @@ final class MealPlanEvaluator {
                 configured ? range.min() : null,
                 configured ? range.max() : null,
                 target,
-                target == null || target.signum() == 0 ? null : percentInt(value, target),
+                noAttainment(target, incomplete, kcal) ? null : percentInt(value, target),
                 status(configured, incomplete, value, kcal, range.min(), range.max()),
                 true);
+    }
+
+    /** Không tính tỷ lệ đạt khi thiếu định mức, thiếu định lượng món hoặc chưa có số liệu năng lượng (không để ra 0%). */
+    private static boolean noAttainment(BigDecimal target, boolean incomplete, BigDecimal kcal) {
+        return target == null || target.signum() == 0 || incomplete || kcal.signum() == 0;
     }
 
     /**

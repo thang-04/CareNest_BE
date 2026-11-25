@@ -190,7 +190,7 @@ class HealthRecords {
                 outcome.category(),
                 HealthExamOutcome.brief(m, exam),
                 withReview && exam != null
-                        ? HealthExamReview.points(exam, HealthExamReview.reference(dateOfBirth, m.getDate()))
+                        ? HealthExamReview.points(exam, HealthExamReview.reference(dateOfBirth, gender, m.getDate()))
                         : null);
     }
 

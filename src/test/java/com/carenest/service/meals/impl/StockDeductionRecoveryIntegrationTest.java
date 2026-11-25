@@ -100,6 +100,7 @@ class StockDeductionRecoveryIntegrationTest {
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         jdbc.update(
                 "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
                         + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
@@ -145,6 +146,7 @@ class StockDeductionRecoveryIntegrationTest {
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principal.userId());
         long supplier = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC F', '0900000003') RETURNING id");
+        jdbc.update("UPDATE food_prices SET supplier_id = ?", supplier);
         var receipt = receiptService.createReceipt(
                 principal,
                 new StockReceiptRequest(

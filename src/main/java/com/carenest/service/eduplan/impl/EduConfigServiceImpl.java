@@ -95,7 +95,8 @@ public class EduConfigServiceImpl implements EduConfigService {
         log.info("{}|START", logPrefix);
         try {
             // EDU-11/94/97: cấu hình kế hoạch giáo dục chỉ Hiệu trưởng có phân công hiệu lực được thay đổi.
-            if (!accessPolicy.isPrincipal(currentUser)) {
+            // EDU-108: HT cố định; PHT khi được bật EDU_PLAN_CONFIG
+            if (!accessPolicy.canEditConfig(currentUser)) {
                 throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
             }
 
@@ -123,11 +124,6 @@ public class EduConfigServiceImpl implements EduConfigService {
                     objectMapper.writeValueAsString(weekRows),
                     currentUser.userId(),
                     clock.instant());
-            if (request.lateReturnGraceDays() != null)
-                settings.updateLateReturnGraceDays(request.lateReturnGraceDays().shortValue());
-            if (request.lateApprovalGraceDays() != null)
-                settings.updateLateApprovalGraceDays(
-                        request.lateApprovalGraceDays().shortValue());
 
             EduConfigResponse config = toConfig(currentUser);
             log.info("{}|END", logPrefix);
@@ -149,7 +145,7 @@ public class EduConfigServiceImpl implements EduConfigService {
 
         if (currentUser != null) {
             workflow = workflowService.getPolicy(currentUser);
-            canConfigure = accessPolicy.isPrincipal(currentUser);
+            canConfigure = accessPolicy.canEditConfig(currentUser);
             EduWorkflowPolicy.RolePolicy yearPolicy = workflowService.loadPolicy("year");
             yearCreationScopes = schoolStructureService.findAgeGroups().stream()
                     .filter(ag -> accessPolicy.canAuthorYearPlan(currentUser, yearPolicy, ag.id()))
@@ -177,8 +173,6 @@ public class EduConfigServiceImpl implements EduConfigService {
                                         currentUser, workflowService.loadPolicy("schoolYear"), age.id()))
                                 .map(AgeGroupResponse::id)
                                 .toList(),
-                settings.getLateReturnGraceDays(),
-                settings.getLateApprovalGraceDays(),
                 canConfigure,
                 objectMapper.readTree(defaults == null ? "{}" : defaults));
     }

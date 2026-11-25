@@ -3,6 +3,7 @@ package com.carenest.dto.observation;
 import com.carenest.utils.enums.EatingLevel;
 import com.carenest.utils.enums.Emotion;
 import com.carenest.utils.enums.EvaluationAction;
+import com.carenest.utils.enums.EvaluationDraftSource;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.EvaluationStatus;
 import com.carenest.utils.enums.HealthSymptom;
@@ -21,8 +22,11 @@ public final class EvaluationDtos {
 
     private EvaluationDtos() {}
 
-    /** Bản nháp hệ thống tạo; chỉ GV lớp nhận được (PHT / HT nhận null). */
-    public record Draft(String content, Instant generatedAt) {}
+    /**
+     * Bản nháp hệ thống tạo; chỉ GV lớp nhận được (PHT / HT nhận null). source: mẫu câu hay AI viết (OBS-34); GV xin AI
+     * mà nhận source = TEMPLATE nghĩa là AI không dùng được và hệ thống đã viết theo mẫu câu.
+     */
+    public record Draft(String content, Instant generatedAt, EvaluationDraftSource source) {}
 
     public record EventRow(Long id, EvaluationAction action, Long userId, String userName, Instant at) {}
 
@@ -46,9 +50,15 @@ public final class EvaluationDtos {
             String confirmedByName,
             Instant confirmedAt,
             Integer flagCount,
-            List<EventRow> history) {}
+            List<EventRow> history,
+            String historyStatus,
+            boolean aiEnabled) {}
 
-    public record ChildRef(Long id, String fullName, LocalDate dateOfBirth) {}
+    public record ChildRef(Long id, String fullName, LocalDate dateOfBirth, String historyStatus) {
+        public ChildRef(Long id, String fullName, LocalDate dateOfBirth) {
+            this(id, fullName, dateOfBirth, null);
+        }
+    }
 
     /**
      * teaches: người xem là GV lớp (thấy bản nháp); canEdit: GV đang phụ trách lớp của năm đang hoạt động; canConfirm:
@@ -82,6 +92,7 @@ public final class EvaluationDtos {
 
     public record DayHealth(List<HealthSymptom> signs, String note) {}
 
+    /** recordedBy*: người lưu gần nhất phần chung hoặc kiến thức kỹ năng của ngày (OBS-35); null với dữ liệu cũ. */
     public record EvaluationDay(
             LocalDate date,
             DayHealth health,
@@ -95,7 +106,10 @@ public final class EvaluationDtos {
             List<GoalRef> notMet,
             String comment,
             Long classId,
-            String className) {}
+            String className,
+            Long recordedById,
+            String recordedByName,
+            Instant recordedAt) {}
 
     public record SummaryInfo(StructuredSummary structured, int presentDays, int assessedDays, int assessmentCount) {}
 
@@ -130,6 +144,9 @@ public final class EvaluationDtos {
     /** content null / rỗng trả mã lỗi riêng (7340) nên không dùng @NotBlank. */
     public record EvaluationContentRequest(String content) {}
 
+    /** Tạo lại bản nháp: ai = true thì xin AI viết (OBS-34), thiếu body hoặc false thì viết theo mẫu câu như trước. */
+    public record RedraftRequest(Boolean ai) {}
+
     // ---------- Hồ sơ / tiến độ phát triển ----------
 
     /** Trẻ đang học lớp trong phạm vi (GV lớp mình, PHT điểm trường, HT toàn trường). */
@@ -143,7 +160,8 @@ public final class EvaluationDtos {
             String className,
             Long campusId,
             boolean current,
-            boolean teaches) {}
+            boolean teaches,
+            String historyStatus) {}
 
     public record DateRange(LocalDate start, LocalDate end) {}
 

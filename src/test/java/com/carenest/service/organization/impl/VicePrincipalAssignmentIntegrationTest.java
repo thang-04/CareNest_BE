@@ -84,6 +84,16 @@ class VicePrincipalAssignmentIntegrationTest {
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         plannedYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2027-2028', '2027-08-01', '2028-05-31', 'PLANNED') RETURNING id");
+        for (long schoolYearId : List.of(activeYear, plannedYear)) {
+            for (long campusId : List.of(campusA, campusB, campusC)) {
+                jdbc.update(
+                        "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address,"
+                                + " phone, status) SELECT ?, id, code, name, short_name, address, phone, status FROM campuses"
+                                + " WHERE id = ?",
+                        schoolYearId,
+                        campusId);
+            }
+        }
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principalId);
@@ -179,6 +189,18 @@ class VicePrincipalAssignmentIntegrationTest {
         assertCode(
                 () -> service.assign(principal, closedYear, vp2, new VicePrincipalAssignmentRequest(campusA)),
                 ApiCode.SCHOOL_YEAR_CLOSED);
+    }
+
+    @Test
+    void rejectsCampusThatIsNotConfiguredForTheSchoolYear() {
+        jdbc.update(
+                "DELETE FROM school_year_campus_members WHERE school_year_id = ? AND campus_id = ?",
+                activeYear,
+                campusC);
+
+        assertCode(
+                () -> service.assign(principal, activeYear, vp2, new VicePrincipalAssignmentRequest(campusC)),
+                ApiCode.CAMPUS_NOT_IN_YEAR);
     }
 
     @Test

@@ -155,8 +155,23 @@ public class EduPlanRepository {
             Collection<Long> review,
             String keyword,
             Pageable pageable) {
+        return search(level, year, age, statuses, full, approved, review, keyword, false, pageable);
+    }
+
+    /** currentOnly: ẩn bản đã ban hành bị bản ban hành mới hơn thay thế (edu-list-paging, Tiền 25/11/2026). */
+    public Page<EduPlan> search(
+            EduPlanLevel level,
+            Long year,
+            Long age,
+            Collection<EduPlanStatus> statuses,
+            Collection<Long> full,
+            Collection<Long> approved,
+            Collection<Long> review,
+            String keyword,
+            boolean currentOnly,
+            Pageable pageable) {
         return forLevel(level)
-                .search(year, age, statuses, full, approved, review, keyword, pageable)
+                .search(year, age, statuses, full, approved, review, keyword, currentOnly, pageable)
                 .map(p -> (EduPlan) p);
     }
 }

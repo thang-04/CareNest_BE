@@ -239,7 +239,8 @@ public class MealPlanServiceImpl implements MealPlanService {
             MealPlanDay wanted = toDays(
                             weekStart,
                             new MealPlanRequest(List.of(
-                                    new MealPlanRequest.DayInput(date, false, request.note(), request.items()))))
+                                    new MealPlanRequest.DayInput(date, false, request.note(), request.items()))),
+                            false)
                     .stream()
                     .filter(d -> d.getMenuDate().equals(date))
                     .findFirst()
@@ -452,6 +453,69 @@ public class MealPlanServiceImpl implements MealPlanService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate date = request.date() == null ? LocalDate.now(clock) : request.date();
+            if (request.ageGroupId() == null) {
+                // Cùng danh sách nhóm tuổi với ô chọn nhóm (có lớp năm học hiện hành, chưa tắt định mức)
+                Set<Long> selectable = evaluationSupport.planningGroups().stream()
+                        .map(AgeGroupInfo::id)
+                        .collect(Collectors.toSet());
+                List<MenuStatisticsResponse> groups = ageGroupService.getAgeGroups().stream()
+                        .filter(group -> selectable.contains(group.id()))
+                        .map(group -> {
+                            MenuBlock block = MenuBlock.ofAgeGroup(group.ageToMonths());
+                            List<MenuStatisticsRequest.Item> groupItems = request.items().stream()
+                                    .filter(item -> (item.block() == null || item.block() == block)
+                                            && group.mealSessions() != null
+                                            && group.mealSessions().contains(item.session()))
+                                    .toList();
+                            if (groupItems.isEmpty()) return null;
+                            return getMenuStatistics(
+                                    currentUser,
+                                    new MenuStatisticsRequest(group.id(), date, request.campusId(), null, groupItems));
+                        })
+                        .filter(Objects::nonNull)
+                        .filter(group -> !group.dishes().isEmpty())
+                        .toList();
+                int children = groups.stream()
+                        .mapToInt(MenuStatisticsResponse::children)
+                        .sum();
+                BigDecimal totalCost =
+                        groups.stream().map(MenuStatisticsResponse::totalCost).reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal freshCost =
+                        groups.stream().map(MenuStatisticsResponse::freshCost).reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal dryCost =
+                        groups.stream().map(MenuStatisticsResponse::dryCost).reduce(BigDecimal.ZERO, BigDecimal::add);
+                // Giá suất và ngân sách mỗi nhóm một mức: không gộp thành số toàn trường (user chốt 25/11)
+                String childrenSource = groups.stream()
+                                        .map(MenuStatisticsResponse::childrenSource)
+                                        .distinct()
+                                        .count()
+                                == 1
+                        ? groups.getFirst().childrenSource()
+                        : "MIXED";
+                MenuStatisticsResponse response = new MenuStatisticsResponse(
+                        null,
+                        "Tất cả nhóm tuổi",
+                        date,
+                        children,
+                        childrenSource,
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        totalCost,
+                        freshCost,
+                        dryCost,
+                        List.of(),
+                        children == 0
+                                ? BigDecimal.ZERO
+                                : totalCost.divide(BigDecimal.valueOf(children), 0, RoundingMode.HALF_UP),
+                        null,
+                        null,
+                        null,
+                        null,
+                        groups);
+                log.info("{}|END", logPrefix);
+                return response;
+            }
             AgeGroupDetailResponse group = ageGroupService.getAgeGroups().stream()
                     .filter(g -> g.id().equals(request.ageGroupId()))
                     .findFirst()
@@ -467,7 +531,9 @@ public class MealPlanServiceImpl implements MealPlanService {
                     .collect(Collectors.toMap(Dish::getId, Function.identity()));
             // Chỉ bữa nhóm tuổi được phục vụ, mỗi món một lần trong bữa (như lưới kế hoạch tuần)
             List<ItemPlan> items = request.items().stream()
-                    .filter(i -> dishes.containsKey(i.dishId()) && sessions.contains(i.session()))
+                    .filter(i -> dishes.containsKey(i.dishId())
+                            && sessions.contains(i.session())
+                            && (i.block() == null || i.block() == info.block()))
                     .map(i -> new ItemPlan(i.session(), info.block(), i.dishId()))
                     .distinct()
                     .toList();
@@ -518,7 +584,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     evaluation.mealPrice(),
                     evaluation.serviceFee(),
                     evaluation.foodBudget(),
-                    evaluation);
+                    evaluation,
+                    List.of());
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -711,6 +778,10 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private List<MealPlanDay> toDays(LocalDate weekStart, MealPlanRequest request) {
+        return toDays(weekStart, request, true);
+    }
+
+    private List<MealPlanDay> toDays(LocalDate weekStart, MealPlanRequest request, boolean planning) {
         Map<LocalDate, MealPlanRequest.DayInput> byDate = new LinkedHashMap<>();
         for (MealPlanRequest.DayInput day : request.days()) {
             long offset = day.date().toEpochDay() - weekStart.toEpochDay();
@@ -718,8 +789,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_DATE_INVALID, day.date());
             }
         }
-        Map<MenuBlock, Set<MealSession>> served =
-                MealPlanEvaluationSupport.servedSessions(ageGroupService.getAgeGroups());
+        Map<MenuBlock, Set<MealSession>> served = MealPlanEvaluationSupport.servedSessions(
+                planning ? evaluationSupport.planningAgeGroups() : ageGroupService.getAgeGroups());
         Set<Long> dishIds = request.days().stream()
                 .flatMap(d -> d.items().stream())
                 .map(MealPlanRequest.ItemInput::dishId)
@@ -761,7 +832,9 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     private MealPlanResponse toResponse(CurrentUser currentUser, LocalDate weekStart, MealPlanWeek week) {
         // Lưới chỉ hiện khối có nhóm tuổi được kiểm (có lớp năm học hiện hành), cùng nguồn với bảng kiểm
-        List<AgeGroupInfo> groups = evaluationSupport.evaluatedGroups();
+        List<AgeGroupInfo> groups = (week == null || (!week.isPublished() && !isWeekPast(weekStart)))
+                ? evaluationSupport.planningGroups()
+                : evaluationSupport.evaluatedGroups();
         Map<MenuBlock, Set<MealSession>> served = new EnumMap<>(MenuBlock.class);
         groups.forEach(
                 g -> served.computeIfAbsent(g.block(), b -> new TreeSet<>()).addAll(g.sessions()));
@@ -874,7 +947,9 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private MealPlanEvaluator.Result evaluate(LocalDate weekStart, MealPlanWeek week) {
-        List<AgeGroupInfo> groups = evaluationSupport.evaluatedGroups();
+        List<AgeGroupInfo> groups = (week == null || (!week.isPublished() && !isWeekPast(weekStart)))
+                ? evaluationSupport.planningGroups()
+                : evaluationSupport.evaluatedGroups();
         Map<Long, Dish> dishes = dishRepository
                 .findByIdIn(week.getDays().stream()
                         .flatMap(d -> d.getItems().stream())

@@ -8,7 +8,6 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.List;
 import java.util.function.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,24 +42,6 @@ public class ClassroomAccessPolicy {
     public boolean canReadClassroom(CurrentUser user, Long classroomId) {
         return isAssignedTeacher(user, classroomId)
                 || inCampus(classroomId, campusId -> campusAccessPolicy.canReadCampus(user, campusId));
-    }
-
-    /**
-     * AUTH-03 (Cần chốt 15/11/2026): GV đọc được lớp vào ngày D khi có phân công GV (dạy chính hoặc dạy thay) ở lớp
-     * chứa D và D không sau hôm nay; không cần phân công còn hiệu lực.
-     */
-    public boolean taughtOn(CurrentUser user, Long classroomId, LocalDate date) {
-        return user.hasRole(CareNestRole.TEACHER)
-                && !date.isAfter(LocalDate.now(clock))
-                && staffAssignmentService.existsTeacherInClassBetween(user.userId(), classroomId, date, date);
-    }
-
-    /** Khoảng đọc của GV tại lớp (AUTH-03); rỗng nếu chưa từng dạy lớp. */
-    public List<StaffAssignmentService.TeacherRange> taughtRanges(CurrentUser user, Long classroomId) {
-        if (!user.hasRole(CareNestRole.TEACHER)) {
-            return List.of();
-        }
-        return staffAssignmentService.findTeacherRanges(user.userId(), classroomId, LocalDate.now(clock));
     }
 
     public void checkCanReadClassroom(CurrentUser user, Long classroomId) {

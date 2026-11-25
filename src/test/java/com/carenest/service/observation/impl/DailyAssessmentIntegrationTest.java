@@ -2,6 +2,9 @@ package com.carenest.service.observation.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.carenest.dto.attendance.DailyHealthRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
@@ -14,6 +17,7 @@ import com.carenest.dto.observation.SaveDailyGeneralRequest;
 import com.carenest.dto.observation.SaveDailySkillsRequest;
 import com.carenest.dto.observation.SaveDailySkillsRequest.Activity;
 import com.carenest.exception.GlobalException;
+import com.carenest.integration.ai.AiGateway;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.DailyHealthService;
@@ -100,11 +104,17 @@ class DailyAssessmentIntegrationTest {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.carenest.service.observation.EvaluationDeadlineService evaluationDeadlineService;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private AiGateway aiGateway;
+
     @Autowired
     private DailyAssessmentService service;
 
     @Autowired
     private EvaluationSources sources;
+
+    @Autowired
+    private com.carenest.service.observation.TransferredAssessmentHistoryService transferredHistory;
 
     @Autowired
     private com.carenest.service.organization.ClassroomService classrooms;
@@ -156,6 +166,7 @@ class DailyAssessmentIntegrationTest {
                 + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         jdbc.update(
                 "INSERT INTO attendance_cutoffs (school_year_id, cutoff_time, effective_from) VALUES (?, '08:30', '2026-09-01')",
                 year);
@@ -181,6 +192,10 @@ class DailyAssessmentIntegrationTest {
         teacherB = user("teacherb", CareNestRole.TEACHER);
         teach(teacherA, classA);
         teach(teacherA, oldClass);
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_from='2025-09-01',valid_to='2026-05-31' WHERE user_id=? AND classroom_id=?",
+                teacherA.userId(),
+                oldClass);
         teach(teacherB, classB);
 
         // Giáo án tuần 26–30/10 của lớp A đã duyệt: Hoạt động học thứ 3 có MT1, thứ 4 có MT1 + MT2
@@ -207,6 +222,105 @@ class DailyAssessmentIntegrationTest {
                 "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
                         + "created_by, updated_by) SELECT 'd-a', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "
                         + "created_by, updated_by FROM edu_class_docs WHERE id = " + weekDoc);
+    }
+
+    @Test
+    void historicalDailyRowsDistinguishTransferAndLeavingSchool() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(
+                                new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, Map.of()),
+                                new SaveAttendanceRequest.Entry(child2, AttendanceStatus.PRESENT, Map.of()))));
+        jdbc.update("UPDATE enrollments SET valid_to='2026-10-27' WHERE child_id IN (?,?)", child1, child2);
+        jdbc.update(
+                "INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,'2026-10-28')", child1, classB);
+        jdbc.update(
+                "UPDATE children SET status='LEFT',left_reason='Kiểm thử nghỉ học',left_on='2026-10-28' WHERE id=?",
+                child2);
+        jdbc.update("UPDATE attendance_records SET date='2026-10-27' WHERE child_id IN (?,?)", child1, child2);
+        var sheet = service.getDailySheet(teacherA, classA, YESTERDAY);
+        assertThat(sheet.rows())
+                .extracting(DailySheetResponse.Row::historyStatus)
+                .containsExactlyInAnyOrder("TRANSFERRED", "LEFT_SCHOOL");
+        assertThat(attendanceService
+                        .getClassAttendance(teacherA, classA, YESTERDAY)
+                        .children())
+                .extracting(r -> r.child().historyStatus())
+                .containsExactlyInAnyOrder("TRANSFERRED", "LEFT_SCHOOL");
+        assertThat(healthService
+                        .getClassChildHealth(teacherA, classA, child1, YESTERDAY)
+                        .historyStatus())
+                .isEqualTo("TRANSFERRED");
+        assertThat(healthService
+                        .getClassChildHealth(teacherA, classA, child2, YESTERDAY)
+                        .historyStatus())
+                .isEqualTo("LEFT_SCHOOL");
+    }
+
+    @Test
+    @DisplayName("ATT-02a: đánh giá ngày giữ Không ăn theo điểm danh, kể cả request từ tab cũ")
+    void dailyMealsFollowAttendanceParticipation() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(new SaveAttendanceRequest.Entry(
+                                child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, false)))));
+        DailySheetResponse.Row initial =
+                service.getDailySheet(teacherA, classA, TODAY).rows().getFirst();
+        assertThat(initial.skippedMeals()).containsExactly(MealSession.LUNCH, MealSession.AFTERNOON);
+        assertThat(initial.generalRecorded()).isFalse();
+        SaveDailyGeneralRequest request = new SaveDailyGeneralRequest(
+                TODAY,
+                List.of(new SaveDailyGeneralRequest.Entry(
+                        child1,
+                        false,
+                        null,
+                        null,
+                        Map.of(MealSession.LUNCH, EatingLevel.AN_HET),
+                        NapLevel.NGU_TOT,
+                        Emotion.HAPPY,
+                        Participation.BINH_THUONG,
+                        null,
+                        null,
+                        false,
+                        "")));
+        service.saveGeneral(teacherA, classA, request);
+        assertThat(service.getDailySheet(teacherA, classA, TODAY)
+                        .rows()
+                        .getFirst()
+                        .meals())
+                .containsEntry(MealSession.LUNCH, EatingLevel.KHONG_AN);
+        assertThat(jdbc.queryForObject(
+                        "SELECT meals ->> 'LUNCH' FROM daily_observations WHERE child_id = ? AND date = ?",
+                        String.class,
+                        child1,
+                        TODAY))
+                .isEqualTo("KHONG_AN");
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(new SaveAttendanceRequest.Entry(
+                                child1,
+                                AttendanceStatus.PRESENT,
+                                Map.of(MealSession.LUNCH, true, MealSession.AFTERNOON, true)))));
+        assertThat(service.getDailySheet(teacherA, classA, TODAY)
+                        .rows()
+                        .getFirst()
+                        .skippedMeals())
+                .isEmpty();
+        service.saveGeneral(teacherA, classA, request);
+        assertThat(service.getDailySheet(teacherA, classA, TODAY)
+                        .rows()
+                        .getFirst()
+                        .meals())
+                .containsEntry(MealSession.LUNCH, EatingLevel.AN_HET);
     }
 
     @Test
@@ -350,7 +464,10 @@ class DailyAssessmentIntegrationTest {
         assertThat(row.flag()).isTrue();
         // Tham gia cả ngày lưu ở bản ghi ngày, không tạo kết quả theo hoạt động
         assertThat(row.participation()).isEqualTo(Participation.TICH_CUC);
-        assertThat(row.meals()).containsOnlyKeys(MealSession.LUNCH);
+        assertThat(row.meals())
+                .containsEntry(MealSession.LUNCH, EatingLevel.AN_HET)
+                .containsEntry(MealSession.AFTERNOON, EatingLevel.KHONG_AN)
+                .doesNotContainKey(MealSession.MORNING);
         assertThat(row.activities()).singleElement().satisfies(a -> {
             assertThat(a.goalsMet()).containsExactly(goal1);
             // MT2 chưa chấm thì không tự ghi Đạt
@@ -516,6 +633,244 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    void receivingTeacherCanReadPreviousMonthHistoryWhileOldTeacherCannotReadNewClassDays() {
+        attendance(child1, classA, TODAY);
+        service.saveGeneral(teacherA, classA, general(TODAY, child1, "Bé vui vẻ tại lớp cũ"));
+        jdbc.update("UPDATE daily_observations SET date=? WHERE child_id=?", YESTERDAY, child1);
+        jdbc.update("UPDATE attendance_records SET date=? WHERE child_id=?", YESTERDAY, child1);
+        jdbc.update("UPDATE enrollments SET valid_to=? WHERE child_id=? AND classroom_id=?", YESTERDAY, child1, classA);
+        jdbc.update("INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,?)", child1, classB, TODAY);
+        entityManager.clear();
+        attendance(child1, classB, TODAY);
+        service.saveGeneral(teacherB, classB, general(TODAY, child1, "Bé vui vẻ tại lớp mới"));
+        var receiving = evaluations.development(teacherB, child1, YESTERDAY, TODAY);
+        assertThat(receiving.days()).extracting(d -> d.classId()).containsExactlyInAnyOrder(classA, classB);
+        var withoutView = new CurrentUser(
+                teacherB.userId(),
+                teacherB.keycloakUserId(),
+                teacherB.username(),
+                teacherB.fullName(),
+                null,
+                teacherB.roles(),
+                Set.of(Permission.ATTENDANCE_VIEW));
+        expectCode(() -> evaluations.development(withoutView, child1, YESTERDAY, TODAY), ApiCode.CHILD_ACCESS_DENIED);
+        var pastOnly = evaluations.development(teacherB, child1, YESTERDAY, YESTERDAY);
+        assertThat(pastOnly.days()).extracting(d -> d.classId()).containsExactly(classA);
+        var old = evaluations.development(teacherA, child1, YESTERDAY, TODAY);
+        assertThat(old.days()).extracting(d -> d.classId()).containsExactly(classA);
+        assertThat(old.child().historyStatus()).isEqualTo("TRANSFERRED");
+        expectCode(() -> evaluations.development(teacherA, child1, TODAY, TODAY), ApiCode.CHILD_ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("OBS-35: cô lớp mới xem đánh giá ngày, nhận xét tuần đã gửi ở lớp cũ của trẻ chuyển đến, chỉ xem")
+    void receivingTeacherSeesTransferredChildOldDaysAndSentWeeklyCommentsOnly() {
+        attendance(child1, classA, TODAY);
+        attendance(child2, classA, TODAY);
+        service.saveGeneral(teacherA, classA, general(TODAY, child1, "Bé vui ở lớp cũ"));
+        service.saveGeneral(teacherA, classA, general(TODAY, child2, "Bạn cùng lớp cũ"));
+        jdbc.update("UPDATE daily_observations SET date=?", YESTERDAY);
+        jdbc.update("UPDATE attendance_records SET date=?", YESTERDAY);
+        jdbc.update("UPDATE enrollments SET valid_to=? WHERE child_id=? AND classroom_id=?", YESTERDAY, child1, classA);
+        jdbc.update("INSERT INTO enrollments(child_id,classroom_id,valid_from) VALUES (?,?,?)", child1, classB, TODAY);
+        jdbc.update(
+                "INSERT INTO weekly_comments (child_id, classroom_id, campus_id, school_year_id, week_start, content, status, "
+                        + "sent_at, sent_by, created_by, created_at, updated_at) SELECT ?, id, campus_id, school_year_id, "
+                        + "'2026-10-19', 'Tuần trước bé ngoan', 'SENT', now(), ?, ?, now(), now() FROM classrooms WHERE id=?",
+                child1,
+                teacherA.userId(),
+                teacherA.userId(),
+                classA);
+        jdbc.update(
+                "INSERT INTO weekly_comments (child_id, classroom_id, campus_id, school_year_id, week_start, content, status, "
+                        + "created_by, created_at, updated_at) SELECT ?, id, campus_id, school_year_id, '2026-10-26', "
+                        + "'Nháp chưa gửi', 'DRAFT', ?, now(), now() FROM classrooms WHERE id=?",
+                child1,
+                teacherA.userId(),
+                classA);
+        jdbc.update(
+                "INSERT INTO daily_health_entries (request_id, child_id, classroom_id, campus_id, date, temperature, "
+                        + "observation, symptoms, note, recorded_by, recorded_at) SELECT 'h1', ?, id, campus_id, ?, 37.5, "
+                        + "'NOTED', 'COUGH', 'Ho nhẹ', ?, now() FROM classrooms WHERE id=?",
+                child1,
+                YESTERDAY,
+                teacherA.userId(),
+                classA);
+        // Sức khỏe của bạn cùng lớp cũ không lộ sang lớp mới
+        jdbc.update(
+                "INSERT INTO daily_health_entries (request_id, child_id, classroom_id, campus_id, date, observation, "
+                        + "recorded_by, recorded_at) SELECT 'h2', ?, id, campus_id, ?, 'NO_CONCERN', ?, now() "
+                        + "FROM classrooms WHERE id=?",
+                child2,
+                YESTERDAY,
+                teacherA.userId(),
+                classA);
+        String snapshot = "{\"classId\":" + classA + ",\"className\":\"Lớp A\",\"themeId\":901,"
+                + "\"themeName\":\"Gia đình\",\"startDate\":\"2026-10-12\",\"endDate\":\"2026-10-23\","
+                + "\"status\":\"CONFIRMED\",\"goals\":[{\"goalId\":51,\"goalNo\":5,\"text\":\"Kể tên người thân\",\"metChildren\":1,"
+                + "\"assessedChildren\":2}],"
+                + "\"rows\":[{\"childId\":" + child1
+                + ",\"fullName\":\"x\",\"cells\":[{\"goalId\":51,\"met\":true,\"manual\":false}],"
+                + "\"met\":1,\"notMet\":0,\"rate\":100,\"passed\":true},{\"childId\":" + child2
+                + ",\"fullName\":\"y\",\"cells\":[{\"goalId\":51,\"met\":false,\"manual\":false}],\"met\":0,\"notMet\":1}],"
+                + "\"assessedChildren\":2,\"passedChildren\":1,\"notPassedChildren\":1,\"passPercent\":70,"
+                + "\"canEdit\":false,\"canConfirm\":false,\"confirmedByName\":\"teachera\",\"confirmedAt\":\"2026-10-24T03:00:00Z\"}";
+        jdbc.update(
+                "INSERT INTO theme_evaluations (classroom_id, campus_id, school_year_id, theme_id, theme_name, start_date, "
+                        + "end_date, cells, confirmed_by, confirmed_at, updated_at, presentation_snapshot) SELECT id, "
+                        + "campus_id, school_year_id, 901, 'Gia đình', '2026-10-12', '2026-10-23', '[]', ?, now(), now(), "
+                        + "CAST(? AS jsonb) FROM classrooms WHERE id=?",
+                teacherA.userId(),
+                snapshot,
+                classA);
+        // Bảng chủ đề chưa xác nhận (nháp) không trả về
+        jdbc.update(
+                "INSERT INTO theme_evaluations (classroom_id, campus_id, school_year_id, theme_id, theme_name, start_date, "
+                        + "end_date, cells, updated_at) SELECT id, campus_id, school_year_id, 902, 'Nháp', '2026-10-19', "
+                        + "'2026-10-30', '[]', now() FROM classrooms WHERE id=?",
+                classA);
+        entityManager.clear();
+        int observations = jdbc.queryForObject("SELECT count(*) FROM daily_observations", Integer.class);
+
+        var history = transferredHistory.findHistory(teacherB, classB, LocalDate.of(2026, 10, 1), TODAY);
+
+        assertThat(history.children()).extracting(c -> c.childId()).containsExactly(child1);
+        var child = history.children().getFirst();
+        assertThat(child.stays()).singleElement().satisfies(s -> {
+            assertThat(s.classId()).isEqualTo(classA);
+            assertThat(s.className()).isEqualTo("Lớp A");
+            assertThat(s.to()).isEqualTo(YESTERDAY);
+        });
+        assertThat(child.days()).singleElement().satisfies(d -> {
+            assertThat(d.day().date()).isEqualTo(YESTERDAY);
+            assertThat(d.day().classId()).isEqualTo(classA);
+            assertThat(d.day().comment()).isEqualTo("Bé vui ở lớp cũ");
+            assertThat(d.recordedByName()).isEqualTo("teachera");
+        });
+        assertThat(child.weeklyComments()).singleElement().satisfies(c -> {
+            assertThat(c.content()).isEqualTo("Tuần trước bé ngoan");
+            assertThat(c.className()).isEqualTo("Lớp A");
+            assertThat(c.sentByName()).isEqualTo("teachera");
+        });
+        assertThat(child.attendance()).singleElement().satisfies(a -> {
+            assertThat(a.date()).isEqualTo(YESTERDAY);
+            assertThat(a.status()).isEqualTo(com.carenest.utils.enums.AttendanceStatus.PRESENT);
+            assertThat(a.className()).isEqualTo("Lớp A");
+            assertThat(a.recordedById()).isEqualTo(principal.userId());
+            assertThat(a.recordedByName()).isNotBlank();
+        });
+        assertThat(child.health()).singleElement().satisfies(h -> {
+            assertThat(h.date()).isEqualTo(YESTERDAY);
+            assertThat(h.temperature()).isEqualByComparingTo("37.5");
+            assertThat(h.symptoms()).containsExactly(com.carenest.utils.enums.HealthSymptom.COUGH);
+            assertThat(h.className()).isEqualTo("Lớp A");
+            assertThat(h.recordedByName()).isEqualTo("teachera");
+        });
+        assertThat(child.themeResults()).singleElement().satisfies(t -> {
+            assertThat(t.themeName()).isEqualTo("Gia đình");
+            assertThat(t.className()).isEqualTo("Lớp A");
+            assertThat(t.passed()).isTrue();
+            assertThat(t.goals())
+                    .singleElement()
+                    .satisfies(g -> assertThat(g.met()).isTrue());
+            assertThat(t.confirmedById()).isEqualTo(teacherA.userId());
+            assertThat(t.confirmedByName()).isEqualTo("teachera");
+        });
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM daily_observations", Integer.class))
+                .isEqualTo(observations);
+        // Lớp cũ không tự có quyền xem trẻ của lớp mới; khoảng ngày sai bị từ chối
+        expectCode(
+                () -> transferredHistory.findHistory(teacherA, classB, YESTERDAY, TODAY), ApiCode.CLASS_ACCESS_DENIED);
+        expectCode(
+                () -> transferredHistory.findHistory(teacherB, classB, TODAY, YESTERDAY), ApiCode.INVALID_DATE_RANGE);
+        expectCode(
+                () -> transferredHistory.findHistory(teacherB, classB, TODAY.minusDays(62), TODAY),
+                ApiCode.DATE_RANGE_TOO_LONG);
+        // Lớp A không có trẻ chuyển đến
+        assertThat(transferredHistory
+                        .findHistory(teacherA, classA, YESTERDAY, TODAY)
+                        .children())
+                .isEmpty();
+    }
+
+    @Test
+    void assessmentClassListDoesNotRequireAttendancePermissions() {
+        var user = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD));
+        var cls = service.listClasses(user, null).stream()
+                .filter(c -> c.id().equals(classA))
+                .findFirst()
+                .orElseThrow();
+        assertThat(cls.teaches()).isTrue();
+        assertThat(cls.canRecord()).isTrue();
+        assertThat(cls.historicalReadOnly()).isFalse();
+        assertThat(service.listClasses(user, null)).extracting(c -> c.id()).doesNotContain(classB);
+        assertThat(service.getDailySheet(user, classA, TODAY).canRecord()).isTrue();
+    }
+
+    @Test
+    void assessmentOnlyTeacherIsNotMislabeledAsHistoricalAttendanceClass() {
+        var user = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of(Permission.ATTENDANCE_VIEW, Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD));
+        var cls = attendanceService.getClasses(user, null).stream()
+                .filter(c -> c.id().equals(classA))
+                .findFirst()
+                .orElseThrow();
+        assertThat(cls.teaches()).isTrue();
+        assertThat(cls.canRecord()).isFalse();
+        assertThat(cls.historicalReadOnly()).isFalse();
+        assertThat(service.getDailySheet(user, classA, TODAY).canRecord()).isTrue();
+    }
+
+    @Test
+    void formerTeacherReadsOnlyAssignedDaysInActiveAndClosedYears() {
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_to='2026-10-27' WHERE user_id=? AND classroom_id=?",
+                teacherA.userId(),
+                classA);
+        assertThat(service.getDailySheet(teacherA, classA, YESTERDAY).canRecord())
+                .isFalse();
+        expectCode(() -> service.getDailySheet(teacherA, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
+        var historyClass = attendanceService.getClasses(teacherA, null).stream()
+                .filter(c -> c.id().equals(classA))
+                .findFirst()
+                .orElseThrow();
+        assertThat(historyClass.historicalReadOnly()).isTrue();
+        assertThat(historyClass.lastReadableDate()).isEqualTo(YESTERDAY);
+        assertThat(evaluations.developmentChildren(teacherA, null, classA))
+                .extracting(c -> c.id())
+                .contains(child1);
+        assertThat(evaluations
+                        .development(teacherA, child1, YESTERDAY, YESTERDAY)
+                        .child()
+                        .id())
+                .isEqualTo(child1);
+        expectCode(() -> evaluations.development(teacherA, child1, TODAY, TODAY), ApiCode.CHILD_ACCESS_DENIED);
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_from='2026-05-01',valid_to='2026-05-31' WHERE user_id=? AND classroom_id=?",
+                teacherA.userId(),
+                oldClass);
+        entityManager.clear();
+        assertThat(service.getDailySheet(teacherA, oldClass, LocalDate.of(2026, 5, 20))
+                        .yearReadOnly())
+                .isTrue();
+        expectCode(
+                () -> service.getDailySheet(teacherA, oldClass, LocalDate.of(2025, 9, 2)), ApiCode.CLASS_ACCESS_DENIED);
+    }
+
+    @Test
     void closedYearIsReadOnly() {
         LocalDate oldDay = LocalDate.of(2026, 5, 20);
         DailySheetResponse sheet = service.getDailySheet(teacherA, oldClass, oldDay);
@@ -523,11 +878,48 @@ class DailyAssessmentIntegrationTest {
         assertThat(sheet.canRecord()).isFalse();
         expectCode(
                 () -> service.saveGeneral(teacherA, oldClass, general(oldDay, child1, "x")),
-                ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+                ApiCode.CLASS_ACCESS_DENIED);
         expectCode(
                 () -> unlockService.unlockDay(
                         principal, new AssessmentDayUnlockRequest(oldClass, oldDay, NOW.plusSeconds(3600), "Bổ sung")),
                 ApiCode.ASSESSMENT_UNLOCK_YEAR_NOT_ACTIVE);
+    }
+
+    @Test
+    void closedYearHistoricalReadCannotBypassTheGrantedCampus() {
+        CurrentUser oldVp = user("vp.historical", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2025-09-01', '2026-05-31')",
+                oldVp.userId(),
+                campusA);
+        LocalDate oldDay = LocalDate.of(2026, 5, 20);
+        Long otherCampus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
+        CurrentUser pinnedHistoric = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ASSESSMENT_VIEW, campusA));
+        CurrentUser pinnedOther = new CurrentUser(
+                oldVp.userId(),
+                oldVp.keycloakUserId(),
+                oldVp.username(),
+                oldVp.fullName(),
+                oldVp.email(),
+                oldVp.roles(),
+                oldVp.permissions(),
+                oldVp.schoolWidePermissions(),
+                Map.of(Permission.ASSESSMENT_VIEW, otherCampus));
+        assertThat(service.getDailySheet(oldVp, oldClass, oldDay).yearReadOnly())
+                .isTrue();
+        assertThat(service.getDailySheet(pinnedHistoric, oldClass, oldDay).yearReadOnly())
+                .isTrue();
+        expectCode(() -> service.getDailySheet(pinnedOther, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
     }
 
     @Test
@@ -713,38 +1105,6 @@ class DailyAssessmentIntegrationTest {
                 .isEqualTo(nextDoc);
     }
 
-    @Test
-    void monthlyDraftSurvivesTransferWithoutDuplicateOrLostName() {
-        var month = com.carenest.utils.enums.EvaluationPeriodType.MONTH;
-        attendance(child1, classA, LocalDate.of(2026, 9, 15));
-        var old = evaluations
-                .list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1))
-                .getFirst();
-        jdbc.update(
-                "UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ? AND classroom_id = ?",
-                child1,
-                classA);
-        jdbc.update(
-                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-20')",
-                child1,
-                classB);
-        attendance(child1, classB, LocalDate.of(2026, 9, 21));
-        entityManager.clear();
-        var next = evaluations
-                .list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1))
-                .getFirst();
-        assertThat(next.id()).isNotEqualTo(old.id());
-        assertThat(evaluations.list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1)))
-                .hasSize(1);
-        assertThat(evaluations.get(teacherA, old.id()).child().fullName()).isEqualTo("An");
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM child_evaluations WHERE child_id = ? AND period_type = 'MONTH'",
-                        Integer.class,
-                        child1))
-                .isEqualTo(2);
-        expectCode(() -> evaluations.get(teacherB, old.id()), ApiCode.EVALUATION_VIEW_FORBIDDEN);
-    }
-
     @Autowired
     private com.carenest.service.observation.ClassRatingService ratings;
 
@@ -845,42 +1205,86 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
-    void semesterDraftsFollowSemesterDatesOfSchoolYear() {
-        var semester = com.carenest.utils.enums.EvaluationPeriodType.SEMESTER;
-        // Chưa đặt ngày học kỳ ở Cấu hình thời gian ⇒ chưa có đánh giá học kỳ
+    @DisplayName("Cần chốt 24/11/2026: bỏ nhận xét tháng, nhận xét học kỳ cá nhân ⇒ mở danh sách không tạo nháp")
+    void retiredPeriodsCreateNoDrafts() {
         attendance(child1, classA, LocalDate.of(2026, 9, 15));
-        assertThat(evaluations.list(teacherA, semester, null, classA, null)).isEmpty();
-
         jdbc.update("UPDATE school_years SET semester1_start = start_date, semester1_end = '2026-09-30', "
                 + "semester2_start = '2026-10-01', semester2_end = end_date WHERE status = 'ACTIVE'");
-        var september = evaluations
-                .list(
+        entityManager.clear();
+
+        assertThat(evaluations.list(
                         teacherA,
                         com.carenest.utils.enums.EvaluationPeriodType.MONTH,
                         null,
                         classA,
-                        LocalDate.of(2026, 9, 1))
-                .getFirst();
-        evaluations.confirm(teacherA, september.id(), "Nhận xét tháng 9 đã được giáo viên kiểm tra đầy đủ dữ liệu.");
+                        LocalDate.of(2026, 9, 1)))
+                .isEmpty();
+        assertThat(evaluations.list(
+                        teacherA, com.carenest.utils.enums.EvaluationPeriodType.SEMESTER, null, classA, null))
+                .isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM child_evaluations", Integer.class))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName(
+            "Cần chốt 24/11/2026: nhận xét tháng / học kỳ cá nhân cũ vẫn xem được nhưng không sửa, xác nhận, tạo lại")
+    void retiredPeriodRowsStayReadableButNotWritable() {
+        long month = retiredEvaluation("MONTH", "2026-09-01", "2026-09-30");
+        long semester = retiredEvaluation("SEMESTER", "2026-09-01", "2026-09-30");
         entityManager.clear();
-        var rows = evaluations.list(teacherA, semester, null, classA, null);
-        // Học kỳ II chưa kết thúc ⇒ chỉ có bản nháp học kỳ I, cho trẻ có đi học trong kỳ
-        assertThat(rows).singleElement().satisfies(r -> {
-            assertThat(r.childId()).isEqualTo(child1);
-            assertThat(r.periodType()).isEqualTo(semester);
-            assertThat(r.periodEnd()).isEqualTo(LocalDate.of(2026, 9, 30));
-        });
-        var detail = evaluations.get(teacherA, rows.getFirst().id());
-        assertThat(detail.evaluation().aiDraft().content()).contains("học kỳ vừa qua");
-        assertThat(detail.monthlyEvaluations())
-                .singleElement()
-                .satisfies(m -> assertThat(m.id()).isEqualTo(september.id()));
-        assertThat(detail.evaluation().aiDraft().content()).contains("1 đánh giá tháng");
-        evaluations.confirm(teacherA, rows.getFirst().id(), "Nhận xét học kỳ I đã được giáo viên kiểm tra đầy đủ.");
-        assertThat(evaluations.list(teacherA, semester, null, classA, null)).hasSize(1);
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM child_evaluations WHERE period_type = 'SEMESTER'", Integer.class))
-                .isEqualTo(1);
+
+        assertThat(evaluations.list(
+                        teacherA,
+                        com.carenest.utils.enums.EvaluationPeriodType.MONTH,
+                        null,
+                        classA,
+                        LocalDate.of(2026, 9, 1)))
+                .extracting(com.carenest.dto.observation.EvaluationDtos.EvaluationRow::id)
+                .containsExactly(month);
+        assertThat(evaluations.get(teacherA, semester).evaluation().id()).isEqualTo(semester);
+        for (long id : List.of(month, semester)) {
+            expectCode(
+                    () -> evaluations.saveContent(teacherA, id, "Nhận xét đã được giáo viên kiểm tra đầy đủ dữ liệu."),
+                    ApiCode.EVALUATION_PERIOD_RETIRED);
+            expectCode(
+                    () -> evaluations.confirm(teacherA, id, "Nhận xét đã được giáo viên kiểm tra đầy đủ dữ liệu."),
+                    ApiCode.EVALUATION_PERIOD_RETIRED);
+            expectCode(() -> evaluations.redraft(teacherA, id, true), ApiCode.EVALUATION_PERIOD_RETIRED);
+        }
+        verify(aiGateway, never()).complete(any());
+    }
+
+    // Nhận xét tháng / học kỳ cá nhân có từ trước khi bỏ (Cần chốt 24/11/2026)
+    private long retiredEvaluation(String type, String start, String end) {
+        return jdbc.queryForObject(
+                "INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id, period_type,"
+                        + " period_start, period_end, status, draft_content, draft_at, created_at, updated_at)"
+                        + " SELECT ?, c.id, c.campus_id, c.school_year_id, ?, ?::date, ?::date, 'AWAITING_REVIEW',"
+                        + " 'Nháp cũ', now(), now(), now() FROM classrooms c WHERE c.id = ? RETURNING id",
+                Long.class,
+                child1,
+                type,
+                start,
+                end,
+                classA);
+    }
+
+    @Test
+    @DisplayName("AI-03: bản nháp hệ thống tạo từ mẫu câu ghi vết TEMPLATE_DRAFTED, không ghi là AI")
+    void templateDraftIsLoggedAsTemplate() {
+        jdbc.update("UPDATE school_years SET end_date = '2026-10-31', semester1_start = start_date,"
+                + " semester1_end = '2026-09-30', semester2_start = '2026-10-01', semester2_end = '2026-10-27'"
+                + " WHERE status = 'ACTIVE'");
+        entityManager.clear();
+        long id = evaluations
+                .list(teacherA, com.carenest.utils.enums.EvaluationPeriodType.YEAR, null, classA, null)
+                .getFirst()
+                .id();
+
+        assertThat(jdbc.queryForList(
+                        "SELECT action FROM child_evaluation_events WHERE evaluation_id = ?", String.class, id))
+                .containsExactly("TEMPLATE_DRAFTED");
     }
 
     @Test
@@ -986,33 +1390,6 @@ class DailyAssessmentIntegrationTest {
 
     @Autowired
     private com.carenest.service.observation.QualityReportService qualityReports;
-
-    @Test
-    void firstMonthlyListingIncludesChildWhoTransferredBeforeMonthEnd() {
-        attendance(child1, classA, LocalDate.of(2026, 9, 15));
-        jdbc.update(
-                "UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ? AND classroom_id = ?",
-                child1,
-                classA);
-        jdbc.update(
-                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-20')",
-                child1,
-                classB);
-        attendance(child1, classB, LocalDate.of(2026, 9, 21));
-        entityManager.clear();
-        var month = com.carenest.utils.enums.EvaluationPeriodType.MONTH;
-        var old = evaluations.list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1));
-        assertThat(old)
-                .extracting(com.carenest.dto.observation.EvaluationDtos.EvaluationRow::childId)
-                .containsExactly(child1);
-        assertThat(old.getFirst().childName()).isEqualTo("An");
-        assertThat(evaluations.list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1)))
-                .extracting(com.carenest.dto.observation.EvaluationDtos.EvaluationRow::childId)
-                .contains(child1);
-        assertThat(evaluations.list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1)))
-                .hasSize(1);
-        expectCode(() -> evaluations.get(teacherB, old.getFirst().id()), ApiCode.EVALUATION_VIEW_FORBIDDEN);
-    }
 
     @Test
     @DisplayName("OBS-23: hôm nay lớp chưa điểm danh thì chưa tính là ngày phải đi (không hạ bé chăm, chuyên cần)")

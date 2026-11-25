@@ -16,6 +16,56 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
 
     List<EduClassDoc> findAllByClassroomIdAndYearPlanId(Long classroomId, Long yearPlanId);
 
+    /** Thành phần của các hồ sơ trong một trang danh sách (cùng lớp, cùng kế hoạch tổ). */
+    List<EduClassDoc> findAllByClassroomIdInAndYearPlanIdIn(
+            Collection<Long> classroomIds, Collection<Long> yearPlanIds);
+
+    List<EduClassDoc> findAllByClassroomIdInAndYearPlanIdInAndKindIn(
+            Collection<Long> classroomIds, Collection<Long> yearPlanIds, Collection<String> kinds);
+
+    // Danh sách gọn (edu-list-paging, Tiền 25/11/2026): lọc + phân trang ngay ở truy vấn; cờ all* = không lọc trường đó
+    String SUMMARY_WHERE = "d.classroomId in :classIds and (:allKinds = true or d.kind in :kinds)"
+            + " and (:allStatuses = true or d.status in :statuses)"
+            + " and (:semesterNo is null or d.semesterNo = :semesterNo) and (:themeId is null or d.themeId = :themeId)";
+
+    // EDU-112 (4): "chỉ bản đang hiệu lực" loại hồ sơ thuộc kế hoạch tổ đã bị phiên bản mới thay thế
+    String SUMMARY_PAGE_WHERE = SUMMARY_WHERE + " and (:allPlans = true or d.yearPlanId not in :excludedPlanIds)"
+            // Người không soạn lớp chỉ thấy hồ sơ đã ban hành hoặc đã từng ban hành (không thấy khung chưa ban hành)
+            + " and (:allDocs = true or d.classroomId in :authorClassIds"
+            + " or d.status = com.carenest.utils.enums.EduClassDocStatus.APPROVED"
+            + " or exists (select r.id from EduClassDocRelease r where r.classDocId = d.id))";
+
+    @Query(
+            value = "select d from EduClassDoc d where " + SUMMARY_PAGE_WHERE,
+            countQuery = "select count(d) from EduClassDoc d where " + SUMMARY_PAGE_WHERE)
+    org.springframework.data.domain.Page<EduClassDoc> findSummaryPage(
+            @Param("classIds") Collection<Long> classIds,
+            @Param("allKinds") boolean allKinds,
+            @Param("kinds") Collection<String> kinds,
+            @Param("allStatuses") boolean allStatuses,
+            @Param("statuses") Collection<com.carenest.utils.enums.EduClassDocStatus> statuses,
+            @Param("semesterNo") Integer semesterNo,
+            @Param("themeId") Long themeId,
+            @Param("allPlans") boolean allPlans,
+            @Param("excludedPlanIds") Collection<Long> excludedPlanIds,
+            @Param("allDocs") boolean allDocs,
+            @Param("authorClassIds") Collection<Long> authorClassIds,
+            org.springframework.data.domain.Pageable pageable);
+
+    @Query("select d from EduClassDoc d where " + SUMMARY_WHERE + " order by d.id asc")
+    List<EduClassDoc> findSummaryCandidates(
+            @Param("classIds") Collection<Long> classIds,
+            @Param("allKinds") boolean allKinds,
+            @Param("kinds") Collection<String> kinds,
+            @Param("allStatuses") boolean allStatuses,
+            @Param("statuses") Collection<com.carenest.utils.enums.EduClassDocStatus> statuses,
+            @Param("semesterNo") Integer semesterNo,
+            @Param("themeId") Long themeId);
+
+    @Query(
+            "select distinct d.yearPlanId from EduClassDoc d where d.classroomId in :classIds and d.yearPlanId is not null")
+    List<Long> findDistinctYearPlanIds(@Param("classIds") Collection<Long> classIds);
+
     Optional<EduClassDoc> findByDocKey(String docKey);
 
     List<EduClassDoc> findAllByKindInAndStatusIn(

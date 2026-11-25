@@ -23,7 +23,7 @@ public record DishDetailResponse(
             Long foodId, String foodCode, String foodName, FoodUnit unit, Long ageGroupId, BigDecimal gramsPerChild) {}
 
     /**
-     * NUT-24: 6 chỉ số (g, kcal) một suất; protein, lipid là tổng động vật + thực vật. NUT-26: 8 vi chất một suất, null
+     * NUT-24: 6 chỉ số (g, kcal) một suất; protein, lipid là tổng động vật + thực vật. NUT-26: 9 vi chất một suất, null
      * khi có nguyên liệu (lượng &gt; 0) chưa có số liệu vi chất đó.
      */
     public record AgeGroupNutrition(
@@ -44,5 +44,6 @@ public record DishDetailResponse(
             BigDecimal vitaminB1,
             BigDecimal vitaminB2,
             BigDecimal vitaminPp,
-            BigDecimal vitaminC) {}
+            BigDecimal vitaminC,
+            BigDecimal zinc) {}
 }

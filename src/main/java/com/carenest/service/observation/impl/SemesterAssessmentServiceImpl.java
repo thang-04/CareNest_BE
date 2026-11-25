@@ -38,6 +38,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private final ThemeEvaluationRepository themes;
     private final SchoolYearService years;
     private final EnrollmentService enrollment;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final AccountService accounts;
     private final ObjectMapper mapper;
     private final ThemeEvaluationService themeEvaluationService;
@@ -94,7 +95,8 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         var cls = rules.findClass(id);
         // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem (chỉ xem) bảng học kỳ các lớp nhóm tuổi mình
         boolean leadsGroup = user.hasPermission(Permission.ASSESSMENT_VIEW) && rules.leadsClass(user, cls);
-        if (!rules.canView(user, cls) && !leadsGroup) throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
+        if (!rules.canView(user, cls) && !rules.hasReadableHistory(user, cls) && !leadsGroup)
+            throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
         return cls;
     }
 
@@ -139,7 +141,14 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private static boolean incomplete(Response b) {
         return b.rows().isEmpty()
                 || b.domains().isEmpty()
-                || b.rows().stream().anyMatch(c -> c.domains().stream().anyMatch(d -> d.met() == null));
+                || b.rows().stream()
+                        .anyMatch(c ->
+                                c.domains().isEmpty() || c.domains().stream().anyMatch(d -> d.met() == null));
+    }
+
+    private void requireReadPeriod(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+        if (!rules.canViewRange(user, cls, from, to) && !rules.leadsClass(user, cls))
+            throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
     }
 
     private Response build(CurrentUser user, Long classId, int semester, SemesterAssessment given) {
@@ -151,6 +160,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 : repository.findByClassroomIdAndSemester(classId, semester).orElse(null);
         if (saved != null && saved.getConfirmedAt() != null) {
             var b = mapper.readValue(saved.getSnapshot(), Response.class);
+            requireReadPeriod(user, cls, b.startDate(), b.endDate());
             String signer =
                     accounts.findFullNames(List.of(saved.getConfirmedBy())).get(saved.getConfirmedBy());
             return new Response(
@@ -164,7 +174,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                     "CONFIRMED",
                     saved.getNote(),
                     b.domains(),
-                    b.rows(),
+                    labelRows(b.rows(), cls),
                     false,
                     false,
                     CONFIRMED,
@@ -177,6 +187,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         LocalDate end = semester == 1 ? year.semester1End() : year.semester2End();
         if (from == null || end == null)
             throw GlobalException.of(ApiCode.SEMESTER_DATE_REQUIRED, "ngày học kỳ trong Cấu hình thời gian");
+        requireReadPeriod(user, cls, from, end);
         LocalDate to = end.isAfter(rules.today()) ? rules.today() : end;
         Set<Long> selected = new HashSet<>();
         if (cls.ageGroupId() != null)
@@ -188,18 +199,29 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                         && !t.endDate().isAfter(end))
                     themes.findThemeGoals(t.themeId()).forEach(g -> selected.add(g.getLineage()));
             }
-        var goals = cls.ageGroupId() == null
-                ? List.<ThemeEvaluationRepository.YearGoalRow>of()
-                : themes.findYearGoals(cls.schoolYearId(), cls.ageGroupId()).stream()
-                        .filter(g -> selected.contains(g.getLineage()))
-                        .toList();
         var children = to.isBefore(from)
                 ? List.<com.carenest.dto.child.ClassChildResponse>of()
-                : enrollment.findChildrenInClassroomDuring(classId, from, to);
+                // Một trẻ chỉ nằm trên bảng của lớp đang phụ trách tại cuối kỳ/đến hôm nay; dữ liệu lớp cũ vẫn được
+                // childThemeResults tổng hợp theo lịch sử học, tránh xuất hiện đồng thời ở hai lớp sau chuyển lớp.
+                : enrollment.findChildrenInClassroom(classId, to);
         // OBS-25 (Cần chốt 10/11/2026): MT học kỳ lấy từ kết quả cuối các chủ đề đã xong trong kỳ (≥50% chủ đề Đạt)
         Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results = new HashMap<>();
         children.forEach(
                 c -> results.put(c.id(), themeEvaluationService.childThemeResults(classId, c.id(), from, end)));
+        Set<Long> classroomGoals = Set.copyOf(selected);
+        // Giữ mục tiêu đã học ở lớp cũ, kể cả lịch chủ đề lớp mới không gắn mục tiêu đó.
+        results.values().forEach(r -> selected.addAll(r.keySet()));
+        List<ThemeEvaluationRepository.YearGoalRow> goals = new ArrayList<>(
+                cls.ageGroupId() == null
+                        ? List.<ThemeEvaluationRepository.YearGoalRow>of()
+                        : themes.findYearGoals(cls.schoolYearId(), cls.ageGroupId()).stream()
+                                .filter(g -> selected.contains(g.getLineage()))
+                                .toList());
+        Set<Long> historicalOnly = new HashSet<>(selected);
+        goals.forEach(g -> historicalOnly.remove(g.getLineage()));
+        if (cls.ageGroupId() != null && !historicalOnly.isEmpty()) {
+            goals.addAll(themes.findHistoricalYearGoals(cls.schoolYearId(), cls.ageGroupId(), historicalOnly));
+        }
         Map<Long, String> names = new LinkedHashMap<>();
         goals.forEach(g -> names.put(g.getDomainId(), g.getDomainName() == null ? "Mục tiêu khác" : g.getDomainName()));
         List<Domain> columns = names.entrySet().stream()
@@ -211,7 +233,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
             for (var domain : columns) {
                 List<Goal> cells = new ArrayList<>();
                 for (var g : goals)
-                    if (Objects.equals(g.getDomainId(), domain.domainId())) {
+                    if (Objects.equals(g.getDomainId(), domain.domainId())
+                            && (classroomGoals.contains(g.getLineage())
+                                    || results.get(child.id()).containsKey(g.getLineage()))) {
                         var r = results.get(child.id()).get(g.getLineage());
                         cells.add(new Goal(
                                 g.getLineage(),
@@ -219,11 +243,12 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                                 g.getText(),
                                 r == null ? null : r.met(),
                                 r == null ? 0 : r.metThemes(),
-                                r == null ? 0 : r.totalThemes()));
+                                r == null ? 0 : r.totalThemes(),
+                                r == null ? null : r.className()));
                     }
-                domains.add(summarize(domain.domainId(), domain.name(), cells));
+                if (!cells.isEmpty()) domains.add(summarize(domain.domainId(), domain.name(), cells));
             }
-            rows.add(new Child(child.id(), child.fullName(), domains));
+            rows.add(new Child(child.id(), child.fullName(), domains, null));
         }
         boolean edit = rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
@@ -239,7 +264,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 saved == null ? "NONE" : "DRAFT",
                 saved == null ? null : saved.getNote(),
                 columns,
-                rows,
+                labelRows(rows, cls),
                 edit,
                 false,
                 null,
@@ -258,7 +283,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 response.status(),
                 response.note(),
                 columns,
-                rows,
+                labelRows(rows, cls),
                 edit,
                 blocked == null,
                 blocked,
@@ -282,6 +307,15 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         if (rules.today().isBefore(end)) return "NOT_ENDED";
         if (incomplete(board)) return "INCOMPLETE";
         return null;
+    }
+
+    private List<Child> labelRows(List<Child> rows, com.carenest.dto.organization.ClassroomInfoResponse cls) {
+        var at = rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today();
+        var history = childClassHistoryService.statuses(
+                cls.id(), rows.stream().map(Child::childId).toList(), at);
+        return rows.stream()
+                .map(c -> new Child(c.childId(), c.fullName(), c.domains(), history.get(c.childId())))
+                .toList();
     }
 
     // Tên tại ngày cuối học kỳ (học kỳ chưa kết thúc: hôm nay)

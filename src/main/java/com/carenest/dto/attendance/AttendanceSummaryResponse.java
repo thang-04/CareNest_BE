@@ -29,7 +29,8 @@ public final class AttendanceSummaryResponse {
 
     /**
      * attendedDays: ngày có mặt quy đổi, nghỉ nửa buổi tính 0,5 (ATT-14); mealCounts: số ngày trẻ ăn từng bữa;
-     * morningOff / afternoonOff: số ngày nghỉ buổi sáng / buổi chiều.
+     * morningOff / afternoonOff: số ngày nghỉ buổi sáng / buổi chiều; transferredInOn: ngày trẻ chuyển đến lớp trong
+     * khoảng (null nếu không chuyển đến), previousClasses: số liệu chỉ xem ở lớp cũ cùng năm.
      */
     public record ChildTotal(
             ClassAttendanceResponse.ChildBrief child,
@@ -40,7 +41,44 @@ public final class AttendanceSummaryResponse {
             double attendedDays,
             Map<MealSession, Integer> mealCounts,
             int morningOff,
-            int afternoonOff) {}
+            int afternoonOff,
+            String historyStatus,
+            LocalDate transferredInOn,
+            List<PreviousClassTotal> previousClasses) {
+
+        public ChildTotal(
+                ClassAttendanceResponse.ChildBrief child,
+                int present,
+                int excused,
+                int unexcused,
+                int meals,
+                double attendedDays,
+                Map<MealSession, Integer> mealCounts,
+                int morningOff,
+                int afternoonOff,
+                String historyStatus) {
+            this(
+                    child,
+                    present,
+                    excused,
+                    unexcused,
+                    meals,
+                    attendedDays,
+                    mealCounts,
+                    morningOff,
+                    afternoonOff,
+                    historyStatus,
+                    null,
+                    List.of());
+        }
+    }
+
+    /**
+     * Trẻ chuyển đến trong khoảng (Cần chốt 24/11/2026): số liệu ở lớp cũ cùng năm học, chỉ để xem, không cộng vào lớp
+     * này. from..to = phần thời gian trẻ ở lớp cũ trong khoảng tổng hợp.
+     */
+    public record PreviousClassTotal(
+            Long classId, String className, LocalDate from, LocalDate to, int present, int excused, int absent) {}
 
     public record ClassTotal(
             Long classId,
@@ -52,10 +90,6 @@ public final class AttendanceSummaryResponse {
             int unexcused,
             int meals) {}
 
-    /**
-     * from/to = khoảng người dùng gửi; actualFrom/actualTo = khoảng thực tế lấy số, khác khoảng gửi khi GV xem lại lớp
-     * cũ (AUTH-03: cắt về phần giao với đợt dạy).
-     */
     public record ClassSummary(
             Long classId,
             String className,
@@ -63,8 +97,6 @@ public final class AttendanceSummaryResponse {
             List<MealSession> mealSessions,
             LocalDate from,
             LocalDate to,
-            LocalDate actualFrom,
-            LocalDate actualTo,
             int size,
             List<DayRow> days,
             List<ChildTotal> children) {}

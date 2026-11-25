@@ -43,10 +43,22 @@ public class AgeGroupController {
                 LOG_PREFIX + "|getAgeGroups|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         // Có năm học: nhóm tuổi của năm đó; không có: cả danh mục (bếp, kế hoạch dùng mã chung)
-        List<AgeGroupDetailResponse> ageGroups =
-                schoolYearId == null ? ageGroupService.getAgeGroups() : ageGroupService.getYearAgeGroups(schoolYearId);
+        List<AgeGroupDetailResponse> ageGroups = schoolYearId == null
+                ? ageGroupService.getAgeGroups()
+                : ageGroupService.getYearAgeGroups(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get age groups success", ageGroups);
+    }
+
+    @GetMapping("/catalog")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<AgeGroupDetailResponse>>> getStandardAgeGroupCatalog(
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getStandardAgeGroupCatalog|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        List<AgeGroupDetailResponse> ageGroups = ageGroupService.getStandardAgeGroupCatalog();
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get standard age group catalog success", ageGroups);
     }
 
     @PostMapping

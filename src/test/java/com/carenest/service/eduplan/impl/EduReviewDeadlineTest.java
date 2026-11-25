@@ -5,40 +5,36 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
-/** EDU-97: ngày khóa là mốc hạn cộng N ngày lịch, không lẫn với hạn gửi lại. */
+/** EDU-109 (9): khóa duyệt = đúng trạng thái Quá hạn của hạn hiệu lực chung. */
 class EduReviewDeadlineTest {
-    @Test
-    void allowsConfiguredDaysThenLocksOnLockFrom() {
-        LocalDate submitted = LocalDate.of(2026, 12, 10);
+    private static final LocalDate HAN = LocalDate.of(2026, 12, 10);
 
-        assertThat(EduReviewDeadline.of(submitted, 2, null, LocalDate.of(2026, 12, 11))
-                        .locked())
-                .isFalse();
-        EduReviewDeadline.Info locked = EduReviewDeadline.of(submitted, 2, null, LocalDate.of(2026, 12, 12));
-        assertThat(locked.lockFrom()).isEqualTo(LocalDate.of(2026, 12, 12));
-        assertThat(locked.locked()).isTrue();
+    private static EduReviewDeadline.Info at(LocalDate extended, LocalDate today) {
+        return EduReviewDeadline.of(EduDeadline.of(HAN, extended, today, false, null));
     }
 
     @Test
-    void principalReopenUsesManualDeadlineWithoutAddingGraceAgain() {
-        EduReviewDeadline.Info open = EduReviewDeadline.of(
-                LocalDate.of(2026, 12, 10), 2, LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 20));
-        assertThat(open.locked()).isFalse();
-        assertThat(open.lockFrom()).isEqualTo(LocalDate.of(2026, 12, 21));
-        assertThat(EduReviewDeadline.of(
-                                LocalDate.of(2026, 12, 10), 2, LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 21))
-                        .locked())
-                .isTrue();
+    void locksOnDeadlineDay() {
+        assertThat(at(null, HAN.minusDays(1)).locked()).isFalse();
+        assertThat(at(null, HAN).locked()).isTrue();
+        assertThat(at(null, HAN).lockFrom()).isEqualTo(HAN);
     }
 
     @Test
-    void supportsBoundaryConfigurationWithoutChangingTheExclusiveLockRule() {
-        LocalDate cutoff = LocalDate.of(2026, 12, 10);
+    void reopenMovesSharedDeadlineThenLocksAgain() {
+        LocalDate reopen = HAN.plusDays(10);
+        assertThat(at(reopen, reopen.minusDays(1)).locked()).isFalse();
+        assertThat(at(reopen, reopen).locked()).isTrue();
+        assertThat(at(reopen, reopen).lockFrom()).isEqualTo(reopen);
+    }
 
-        assertThat(EduReviewDeadline.of(cutoff, 0, null, cutoff).locked()).isTrue();
-        assertThat(EduReviewDeadline.of(cutoff, 30, null, cutoff.plusDays(29)).locked())
+    @Test
+    void noDeadlineOrIssuedIsNotLocked() {
+        assertThat(EduReviewDeadline.of(EduDeadline.of(null, null, HAN, false, null))
+                        .locked())
                 .isFalse();
-        assertThat(EduReviewDeadline.of(cutoff, 30, null, cutoff.plusDays(30)).locked())
-                .isTrue();
+        assertThat(EduReviewDeadline.of(EduDeadline.of(HAN, null, HAN.plusDays(1), true, HAN))
+                        .locked())
+                .isFalse();
     }
 }

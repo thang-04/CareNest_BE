@@ -374,7 +374,7 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private boolean teaches(CurrentUser user, ClassroomInfoResponse cls) {
-        return user.hasRole(CareNestRole.TEACHER) && (rules.canRecord(user, cls) || rules.taughtClosedYear(user, cls));
+        return user.hasRole(CareNestRole.TEACHER) && rules.canView(user, cls);
     }
 
     private boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
