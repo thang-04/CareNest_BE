@@ -69,6 +69,8 @@ Mã chung không có `errorCode` (`SUCCESSFUL 200`, `CREATED 201`, `BAD_REQUEST`
 
 ADR-0013: `PASSWORD_CHANGE_REQUIRED` (1010, HTTP 428) cho Web gateway: mật khẩu tạm đã xác minh cần đổi lần đầu; `data` chỉ chứa challenge opaque và hạn dùng, không có access/refresh token. FE xử lý 428 bằng màn hình đổi mật khẩu; Mobile PKCE không dùng endpoint này.
 
+Thêm mới 22/11/2026 (G94-442): `PASSWORD_SAME_AS_USERNAME` 1021 (HTTP 400) — mật khẩu mới trùng tên đăng nhập (SĐT); BE kiểm trước khi gọi Keycloak ở đổi/đặt mật khẩu và kích hoạt tài khoản phụ huynh (AUTH_CONTRACT), câu "Mật khẩu mới không được trùng tên đăng nhập (số điện thoại)". FE checklist mật khẩu thêm dòng "Không trùng tên đăng nhập (số điện thoại)".
+
 ## Dùng theo tình huống nghiệp vụ
 
 Học kỳ năm học (Cấu hình thời gian, 30/10/2026; đổi thành 4 ngày cùng ngày): `PUT /school-years/{id}/semester` nhận `semester1Start`, `semester1End`, `semester2Start`, `semester2End`, do Hiệu trưởng chọn. Thiếu ngày nào trả `SEMESTER_DATE_REQUIRED` 2026; ngày nằm ngoài năm học trả `SEMESTER_OUT_OF_YEAR` 2021 (thay `SEMESTER1_END_OUT_OF_RANGE`); học kỳ có ngày bắt đầu sau ngày kết thúc trả `SEMESTER_START_AFTER_END` 2024; HK II bắt đầu không sau ngày kết thúc HK I trả `SEMESTER_OVERLAP` 2025. Tất cả HTTP 400, kiểm tra theo đúng thứ tự trên. Đổi ngày năm học làm học kỳ đã đặt nằm ngoài năm cũng trả 2021. Năm đã kết thúc trả `SCHOOL_YEAR_CLOSED` 2003. FE gắn 2021/2026 vào ô ngày được nêu trong thông báo, 2024 vào ngày bắt đầu của học kỳ đó, 2025 vào `semester2Start`.

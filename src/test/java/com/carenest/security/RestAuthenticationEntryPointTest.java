@@ -27,6 +27,17 @@ class RestAuthenticationEntryPointTest {
     }
 
     @Test
+    @DisplayName("Token của phiên đã đăng xuất trả 401/1002 thường, không báo đăng nhập nơi khác")
+    void signedOutSessionGetsTheGenericCode() throws Exception {
+        var invalid =
+                new JwtValidationException("ended", List.of(new OAuth2Error(WebSessionRevocations.ENDED_ERROR_CODE)));
+        var response = new MockHttpServletResponse();
+        entryPoint.commence(new MockHttpServletRequest(), response, new InvalidBearerTokenException("x", invalid));
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).contains("1002").doesNotContain("1016");
+    }
+
+    @Test
     void otherInvalidTokensKeepTheGenericCode() throws Exception {
         var invalid = new JwtValidationException("expired", List.of(new OAuth2Error("invalid_token")));
         var response = new MockHttpServletResponse();

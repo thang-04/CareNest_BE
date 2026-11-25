@@ -17,6 +17,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.IdentityProviderClient;
 import com.carenest.integration.keycloak.IdentityProviderException;
 import com.carenest.repository.account.UserAccountRepository;
+import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.carenest.utils.enums.UserStatus;
@@ -32,7 +33,9 @@ class ParentActivationServiceImplTest {
     private final UserAccountRepository accounts = mock(UserAccountRepository.class);
     private final ParentActivationCodes codes = mock(ParentActivationCodes.class);
     private final IdentityProviderClient identity = mock(IdentityProviderClient.class);
-    private final ParentActivationServiceImpl service = new ParentActivationServiceImpl(accounts, codes, identity);
+    private final AuthStateStore authState = mock(AuthStateStore.class);
+    private final ParentActivationServiceImpl service =
+            new ParentActivationServiceImpl(accounts, codes, identity, authState);
     private final UserAccount parent = mock(UserAccount.class);
 
     @BeforeEach
@@ -52,9 +55,10 @@ class ParentActivationServiceImplTest {
         var response = service.activate(REQUEST);
 
         assertThat(response.username()).isEqualTo("0912345678");
-        var order = inOrder(identity, codes);
+        var order = inOrder(identity, codes, authState);
         order.verify(identity).setPassword("kc-7", "Pass-word-1");
         order.verify(codes).markActivated(7L);
+        order.verify(authState).markPasswordChanged(7L);
     }
 
     @Test
@@ -90,9 +94,40 @@ class ParentActivationServiceImplTest {
         assertThatThrownBy(() -> service.activate(
                         new ParentActivationRequest("0912345678", "123456", "Pass-word-1", "Pass-word-2")))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.MALFORMED_REQUEST);
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                    assertThat(ex.getFieldErrors()).singleElement().satisfies(error -> {
+                        assertThat(error.field()).isEqualTo("confirmPassword");
+                        assertThat(error.message()).isEqualTo("Mật khẩu nhập lại không khớp");
+                    });
+                });
         verifyNoInteractions(codes, identity);
+    }
+
+    @Test
+    @DisplayName("AUTH-18: mật khẩu trùng SĐT ⇒ 1021, mã chưa bị đánh dấu dùng, không gọi Keycloak")
+    void passwordEqualToUsernameRejected() {
+        given(codes.verify(7L, "123456")).willReturn(true);
+
+        assertThatThrownBy(() -> service.activate(
+                        new ParentActivationRequest("0912345678", "123456", "0912345678", "0912345678")))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.PASSWORD_SAME_AS_USERNAME);
+        verifyNoInteractions(identity);
+        verify(codes, never()).markActivated(7L);
+    }
+
+    @Test
+    @DisplayName("AUTH-18: mã sai thì không lộ việc mật khẩu trùng SĐT")
+    void wrongCodeBeatsUsernameCheck() {
+        given(codes.verify(7L, "123456")).willReturn(false);
+
+        assertThatThrownBy(() -> service.activate(
+                        new ParentActivationRequest("0912345678", "123456", "0912345678", "0912345678")))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.OTP_INVALID_OR_EXPIRED);
     }
 
     @Test
@@ -105,6 +140,7 @@ class ParentActivationServiceImplTest {
 
         assertError(ApiCode.PASSWORD_POLICY_VIOLATION);
         verify(codes, never()).markActivated(7L);
+        verifyNoInteractions(authState);
     }
 
     private void assertError(ApiCode code) {
