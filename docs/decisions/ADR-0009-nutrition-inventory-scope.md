@@ -40,7 +40,7 @@ Bản 01/11 (user chốt 2026-11-01 khi đối chiếu sơ đồ `Business proce
   - Bếp kiểm hàng rồi báo PHT. PHT ghi đủ/thiếu/thừa 2 lần: so thực đơn dự kiến (bản dự trù), rồi so thực đơn chuẩn đã công bố.
   - Không cộng kho.
 - Danh mục NCC dùng chung hai cơ sở: tên, SĐT, địa chỉ, CCCD, người giao hàng.
-- Sổ lưu mẫu (NUT-21): bếp ghi lưu mẫu và hủy mẫu (sau ≥24 giờ) trên App, PHT duyệt từng bản ghi; hệ thống tạo nhãn và biểu mẫu lưu/hủy, PHT xuất/in, ký giấy ngoài hệ thống.
+- Sổ lưu mẫu (NUT-21): bếp ghi lưu mẫu và hủy mẫu (sau ≥24 giờ) trên App, PHT duyệt từng bản ghi; hệ thống tạo biểu mẫu lưu/hủy, PHT xuất/in, ký giấy ngoài hệ thống. Sửa 25/11/2026: nhãn mẫu in theo thực đơn đã công bố, không chờ bản ghi lưu mẫu (INS-01).
 - Ảnh mẫu bữa (NUT-16): theo từng cơ sở, chỉ đăng/sửa trong khung giờ HT cấu hình.
 - Thiếu nguyên liệu: bếp báo PHT qua Zalo/điện thoại, hệ thống không ghi (NUT-22).
 - **Ngoài phạm vi:** gửi đơn cho NCC qua hệ thống, giá hợp đồng, kho chung liên cơ sở, kiểm kê, ghi nhận bàn giao suất, trạng thái nấu.

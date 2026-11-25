@@ -11,7 +11,7 @@ Nguồn: `docs/plans/active/2026-11-10-inspection-records-signatures.md`, ADR-00
 | `fresh_checks`, `fresh_check_lines` | Hàng tươi nhập trong ngày, khối lượng nhận (M1 tươi) |
 | `stock_receipts`, `stock_receipt_lines` | Hàng khô: nhà cung cấp, ngày nhập, hạn dùng (M1 khô) |
 | `suppliers` | Tên, địa chỉ, điện thoại, người giao |
-| `food_samples` (`dish_ids`) | Dòng sổ lưu mẫu (M5), nhãn M4, M3 gộp |
+| `food_samples` (`dish_ids`) | Dòng sổ lưu mẫu (M5), giờ lấy mẫu trên nhãn M4, M3 gộp |
 
 ## Bảng mới
 
