@@ -4132,6 +4132,25 @@ paths:
           description: OK
       tags:
       - parent-assessment-controller
+  /api/children/{childId}/scheduled-leave:
+    delete:
+      operationId: cancelScheduledLeave
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/weekly-comments:
     get:
       operationId: listForParent
@@ -12458,6 +12477,11 @@ components:
         readmittedAt:
           type: string
           format: date
+        scheduledLeaveOn:
+          type: string
+          format: date
+        scheduledLeaveReason:
+          type: string
         schoolYearId:
           type: integer
           format: int64
@@ -12670,6 +12694,9 @@ components:
         plannedAdmission:
           $ref: "#/components/schemas/PlannedAdmissionResponse"
         readmittedAt:
+          type: string
+          format: date
+        scheduledLeaveOn:
           type: string
           format: date
         schoolYearId:
@@ -13049,6 +13076,11 @@ components:
         readmittedAt:
           type: string
           format: date
+        scheduledLeaveOn:
+          type: string
+          format: date
+        scheduledLeaveReason:
+          type: string
         schoolYearId:
           type: integer
           format: int64

@@ -399,6 +399,8 @@ public enum ApiCode {
     CHILD_PROFILE_CHANGE_NOT_PENDING(3015, HttpStatus.CONFLICT, "Yêu cầu sửa hồ sơ trẻ đã được xử lý"),
     CHILD_PROFILE_CHANGE_DECIDE_DENIED(
             3016, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt yêu cầu sửa hồ sơ của trẻ này"),
+    // G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ khi trẻ không có lịch, hoặc lịch đã tới ngày
+    CHILD_NO_SCHEDULED_LEAVE(3017, HttpStatus.CONFLICT, "Trẻ không có lịch nghỉ học chưa tới ngày"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),

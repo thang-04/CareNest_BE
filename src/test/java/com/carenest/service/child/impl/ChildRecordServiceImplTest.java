@@ -530,20 +530,190 @@ class ChildRecordServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: năm học đang hoạt động đã kết thúc ⇒ leave-options trả ngày tối thiểu sau ngày tối đa"
-            + " (không còn ngày chọn được)")
-    void leaveOptionsAfterYearEndHaveNoSelectableDay() {
+    @DisplayName(
+            "G94-180/CHD-03 (user chốt 2026-11-25): nghỉ hè (năm đang hoạt động đã kết thúc hôm qua) ⇒ leave-options"
+                    + " min = max = hôm nay, hôm nay vẫn chọn được; withdraw hôm nay được, ngày sau lỗi vì ngoài năm học")
+    void leaveOptionsAfterYearEndOnlyOfferToday() {
         given(schoolYearService.getSchoolYears(any(), eq(SchoolYearStatus.ACTIVE)))
                 .willReturn(List.of(
                         schoolYear(40L, LocalDate.of(2026, 1, 1), TODAY.minusDays(1), SchoolYearStatus.ACTIVE)));
 
         assertThat(service.leaveOptions(PRINCIPAL, CHILD_ID))
+                .isEqualTo(new com.carenest.dto.child.LeaveOptionsResponse(TODAY, true, null, TODAY, TODAY));
+        expectLeftAtError(TODAY.plusDays(1).toString(), "Ngày nghỉ học phải trong năm học (tới 09/11/2026)");
+        verify(childRepository, never()).save(any());
+
+        service.withdraw(PRINCIPAL, CHILD_ID, new WithdrawChildRequest(TODAY.toString(), "Chuyển nhà"));
+        assertThat(child.getStatus()).isEqualTo(ChildStatus.LEFT);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: nghỉ hè mà hôm nay đã có dữ liệu ⇒ leave-options min = max = hôm nay nhưng"
+            + " todayAllowed = false kèm câu chặn")
+    void leaveOptionsInSummerStillBlockTodayWithData() {
+        given(schoolYearService.getSchoolYears(any(), eq(SchoolYearStatus.ACTIVE)))
+                .willReturn(List.of(
+                        schoolYear(40L, LocalDate.of(2026, 1, 1), TODAY.minusDays(1), SchoolYearStatus.ACTIVE)));
+        given(leaveDataCheck.hasData(CHILD_ID, TODAY)).willReturn(true);
+
+        assertThat(service.leaveOptions(PRINCIPAL, CHILD_ID))
+                .isEqualTo(new com.carenest.dto.child.LeaveOptionsResponse(TODAY, false, SAME_DAY_DATA, TODAY, TODAY));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): chưa có năm học đang hoạt động ⇒ chỉ cho nghỉ từ hôm nay;"
+            + " ngày sau lỗi ô leftAt với câu riêng")
+    void noActiveYearOnlyAllowsLeavingToday() {
+        given(schoolYearService.getSchoolYears(any(), eq(SchoolYearStatus.ACTIVE)))
+                .willReturn(List.of());
+
+        assertThat(service.leaveOptions(PRINCIPAL, CHILD_ID))
+                .isEqualTo(new com.carenest.dto.child.LeaveOptionsResponse(TODAY, true, null, TODAY, TODAY));
+        expectLeftAtError(
+                TODAY.plusDays(1).toString(), "Chỉ cho nghỉ học từ hôm nay khi chưa có năm học đang hoạt động");
+        verify(childRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: trẻ đã có lịch nghỉ ⇒ leave-options không chọn hôm nay, todayBlockedReason là câu"
+            + " trẻ đã có lịch (đè cả dữ liệu trong ngày)")
+    void leaveOptionsOfChildWithScheduleBlockToday() {
+        child.scheduleLeave(LocalDate.of(2026, 11, 20), "Chuyển nhà", PRINCIPAL.userId());
+        given(leaveDataCheck.hasData(CHILD_ID, TODAY)).willReturn(true);
+
+        assertThat(service.leaveOptions(PRINCIPAL, CHILD_ID))
                 .isEqualTo(new com.carenest.dto.child.LeaveOptionsResponse(
                         TODAY,
                         false,
-                        "Ngày nghỉ học phải trong năm học (tới 09/11/2026)",
+                        "Trẻ đã có lịch nghỉ học từ 20/11/2026. Hủy lịch nghỉ trước khi chọn ngày khác",
                         TODAY.plusDays(1),
-                        TODAY.minusDays(1)));
+                        YEAR_END));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: nghỉ hôm nay vừa sai ngày vừa có số đo / phiếu khám ⇒ chỉ báo lỗi ngày (ô leftAt)")
+    void dateErrorWinsOverHealthDataError() {
+        ReflectionTestUtils.setField(child, "enrolledOn", TODAY.plusDays(1));
+        given(leaveDataCheck.hasData(CHILD_ID, TODAY)).willReturn(true);
+
+        expectLeftAtError(TODAY.toString(), "Ngày nghỉ học không được trước ngày tiếp nhận (11/11/2026)");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ ⇒ trẻ vẫn Đang học, lịch bị xóa, dòng Nghỉ học"
+            + " ở bảng năm sau bị xóa (dòng trẻ khác giữ), lịch sử LEAVE_CANCELLED, báo GV")
+    void cancelScheduledLeaveClearsScheduleAndNewYearBoard() {
+        LocalDate later = TODAY.plusWeeks(3);
+        child.scheduleLeave(later, "Chuyển nhà", 5L);
+        given(schoolYearService.findNextPlannedYear()).willReturn(plannedYear(50L));
+        ClassPlacement leave = ClassPlacement.create(50L, CHILD_ID);
+        leave.decide(CLASS_ID, PlacementAction.LEAVE, null, 5L);
+        ClassPlacement other = ClassPlacement.create(50L, 99L);
+        other.decide(CLASS_ID, PlacementAction.LEAVE, null, 5L);
+        given(classPlacementRepository.findAllBySchoolYearId(50L)).willReturn(List.of(other, leave));
+
+        service.cancelScheduledLeave(PRINCIPAL, CHILD_ID);
+
+        assertThat(child.getStatus()).isEqualTo(ChildStatus.ACTIVE);
+        assertThat(child.getScheduledLeaveOn()).isNull();
+        assertThat(child.getScheduledLeaveReason()).isNull();
+        assertThat(child.getScheduledLeaveBy()).isNull();
+        verify(childRepository).save(child);
+        verify(classPlacementRepository).delete(leave);
+        verify(classPlacementRepository, never()).delete(other);
+        ArgumentCaptor<ChildHistory> history = ArgumentCaptor.forClass(ChildHistory.class);
+        verify(historyRepository).save(history.capture());
+        assertThat(history.getValue().getAction()).isEqualTo(ChildHistoryAction.LEAVE_CANCELLED);
+        assertThat(history.getValue().getUserId()).isEqualTo(PRINCIPAL.userId());
+        verify(notificationService)
+                .notifyUsers(
+                        eq(Set.of(7L, 8L)),
+                        eq(NotificationType.CHILD_WITHDRAWN),
+                        any(),
+                        eq("Hủy lịch nghỉ học của Bé An (từ 01/12/2026)."),
+                        eq(CHILD_ID));
+        verify(events, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/CHD-03: hủy lịch nhưng bảng năm sau đã ghi quyết định khác Nghỉ học ⇒ không xóa quyết định đó")
+    void cancelScheduledLeaveKeepsOtherNewYearDecision() {
+        child.scheduleLeave(TODAY.plusWeeks(3), "Chuyển nhà", 5L);
+        given(schoolYearService.findNextPlannedYear()).willReturn(plannedYear(50L));
+        ClassPlacement promoted = ClassPlacement.create(50L, CHILD_ID);
+        promoted.decide(CLASS_ID, PlacementAction.PROMOTE, 60L, 2L);
+        given(classPlacementRepository.findAllBySchoolYearId(50L)).willReturn(List.of(promoted));
+
+        service.cancelScheduledLeave(PRINCIPAL, CHILD_ID);
+
+        verify(classPlacementRepository, never()).delete(any());
+        assertThat(child.getScheduledLeaveOn()).isNull();
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: hủy lịch khi không có lịch, hoặc lịch đã tới ngày (≤ hôm nay) ⇒ 409"
+            + " CHILD_NO_SCHEDULED_LEAVE, không ghi gì")
+    void cancelScheduledLeaveWithoutFutureScheduleConflicts() {
+        assertCancelRejected(ApiCode.CHILD_NO_SCHEDULED_LEAVE);
+        child.scheduleLeave(TODAY, "Chuyển nhà", 5L);
+        assertCancelRejected(ApiCode.CHILD_NO_SCHEDULED_LEAVE);
+        assertThat(child.getScheduledLeaveOn()).isEqualTo(TODAY);
+        verify(childRepository, never()).save(any());
+        verify(historyRepository, never()).save(any());
+        verify(notificationService, never()).notifyUsers(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: hủy lịch của trẻ đã nghỉ ⇒ 409 CHILD_ALREADY_LEFT; PHT ngoài điểm trường ⇒ 403")
+    void cancelScheduledLeaveFollowsWithdrawScope() {
+        CurrentUser vice = TestPermissions.userWithDefaults(3L, CareNestRole.VICE_PRINCIPAL);
+        given(policy.managedCampusIds(vice)).willReturn(Set.of(99L));
+        assertThatThrownBy(() -> service.cancelScheduledLeave(vice, CHILD_ID))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+
+        child.withdraw(LocalDate.of(2026, 10, 1), "Đã nghỉ");
+        assertCancelRejected(ApiCode.CHILD_ALREADY_LEFT);
+    }
+
+    private void assertCancelRejected(ApiCode code) {
+        assertThatThrownBy(() -> service.cancelScheduledLeave(PRINCIPAL, CHILD_ID))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(code));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): đã có lịch nghỉ ⇒ chuyển lớp từ ngày ≥ ngày nghỉ lỗi ô"
+            + " effectiveDate; từ ngày trước ngày nghỉ thì được")
+    void transferFromLeaveDateOnIsRejected() {
+        LocalDate leaveOn = TODAY.plusDays(7);
+        child.scheduleLeave(leaveOn, "Chuyển nhà", 5L);
+        given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
+        ClassroomInfoResponse target = classroom(11L, "Lớp Chồi 2");
+        given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(target));
+        given(schoolYearService.isSchoolDay(any())).willReturn(true);
+
+        for (LocalDate date : List.of(leaveOn, leaveOn.plusDays(3))) {
+            assertThatThrownBy(() -> service.place(
+                            PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, "Đổi lớp", date)))
+                    .isInstanceOfSatisfying(
+                            GlobalException.class,
+                            ex -> assertThat(ex.getFieldErrors())
+                                    .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                                    .containsExactly(tuple(
+                                            "effectiveDate",
+                                            "Trẻ nghỉ học từ 17/11/2026. Hủy lịch nghỉ trước khi xếp lớp từ ngày"
+                                                    + " này")));
+        }
+        verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
+
+        service.place(
+                PRINCIPAL,
+                CHILD_ID,
+                new com.carenest.dto.child.PlaceChildRequest(11L, "Đổi lớp", leaveOn.minusDays(1)));
+        verify(placementRules).startEnrollment(CHILD_ID, target, PRINCIPAL.userId(), leaveOn.minusDays(1));
     }
 
     @Test

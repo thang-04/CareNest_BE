@@ -108,6 +108,13 @@ public interface ChildRecordService {
      */
     ChildViewResponse cancelScheduledPlacement(CurrentUser actor, Long childId);
 
+    /**
+     * G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ học chưa tới ngày ⇒ trẻ giữ trạng thái Đang học, xóa lịch,
+     * xóa quyết định Nghỉ học ở bảng xếp lớp năm sắp tới, ghi lịch sử LEAVE_CANCELLED, báo GV. Trẻ không có lịch ⇒ 409
+     * {@code CHILD_NO_SCHEDULED_LEAVE}.
+     */
+    ChildViewResponse cancelScheduledLeave(CurrentUser actor, Long childId);
+
     /** Lớp ở hồ sơ trẻ: đang học, trẻ đã nghỉ là lớp cuối; chờ xếp lớp ⇒ null. Người gọi đã kiểm phạm vi. */
     ChildClassResponse findClass(Long childId);
 

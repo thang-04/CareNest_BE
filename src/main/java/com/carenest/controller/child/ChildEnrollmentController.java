@@ -202,6 +202,18 @@ public class ChildEnrollmentController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw child success", child);
     }
 
+    // G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ học chưa tới ngày, quyền như withdraw
+    @DeleteMapping("/{childId}/scheduled-leave")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<ChildViewResponse>> cancelScheduledLeave(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|cancelScheduledLeave|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse child = childRecordService.cancelScheduledLeave(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Cancel scheduled leave success", child);
+    }
+
     // G94-180/CHD-03 (user chốt 2026-11-25): hộp Cho nghỉ học hỏi hôm nay có chọn được không và khoảng ngày chọn được
     @GetMapping("/{childId}/leave-options")
     @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")

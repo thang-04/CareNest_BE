@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -265,6 +266,30 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data.minDate").value("2026-11-11"))
                 .andExpect(jsonPath("$.data.maxDate").value("2027-05-31"))
                 .andExpect(jsonPath("$.data.nextSchoolDay").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ học cần quyền CHILD_PLACEMENT ⇒ 200 trả hồ sơ")
+    void placementManagerCancelsScheduledLeave() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
+        given(childRecordService.cancelScheduledLeave(actor, 301L)).willReturn(view(31L));
+
+        mockMvc.perform(delete("/api/children/301/scheduled-leave").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Cancel scheduled leave success"))
+                .andExpect(jsonPath("$.data.id").value(301))
+                .andExpect(jsonPath("$.data.scheduledLeaveOn").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: hủy lịch nghỉ học thiếu quyền CHILD_PLACEMENT ⇒ 403, không gọi service")
+    void cancelScheduledLeaveNeedsPlacementPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(delete("/api/children/301/scheduled-leave").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
     }
 
     @Test
