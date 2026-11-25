@@ -8650,37 +8650,6 @@ paths:
           description: OK
       tags:
       - fresh-goods-controller
-  /api/nutrition/fresh-checks/dry-receipts:
-    post:
-      operationId: recordDryIntake
-      parameters:
-      - in: query
-        name: campusId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      - in: query
-        name: date
-        required: true
-        schema:
-          type: string
-          format: date
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DryIntakeRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonFreshCheckResponse"
-          description: OK
-      tags:
-      - fresh-goods-controller
   /api/nutrition/fresh-forecasts:
     get:
       operationId: getForecasts
@@ -15606,56 +15575,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StockReceiptResponse"
-    DryIntakeLineInput:
-      type: object
-      properties:
-        expiryDate:
-          type: string
-          format: date
-        foodId:
-          type: integer
-          format: int64
-        lotNo:
-          type: string
-          maxLength: 50
-          minLength: 0
-        note:
-          type: string
-          maxLength: 300
-          minLength: 0
-        passed:
-          type: boolean
-        quantity:
-          type: number
-          exclusiveMinimum: 0
-        unitPrice:
-          type: number
-          minimum: 0
-      required:
-      - expiryDate
-      - foodId
-      - lotNo
-      - passed
-      - quantity
-      - unitPrice
-    DryIntakeRequest:
-      type: object
-      properties:
-        lines:
-          type: array
-          items:
-            $ref: "#/components/schemas/DryIntakeLineInput"
-          minItems: 1
-        note:
-          type: string
-          maxLength: 500
-          minLength: 0
-        supplierId:
-          type: integer
-          format: int64
-      required:
-      - lines
-      - supplierId
     DryLine:
       type: object
       properties:

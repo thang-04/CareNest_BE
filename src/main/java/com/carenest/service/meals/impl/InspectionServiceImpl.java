@@ -31,11 +31,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -83,7 +85,14 @@ public class InspectionServiceImpl implements InspectionService {
                     day,
                     canEdit(currentUser, campusId),
                     sheets,
-                    grantService.dayApprovals(currentUser, campusId, day));
+                    grantService.dayApprovals(
+                            currentUser,
+                            campusId,
+                            day,
+                            sheets.stream()
+                                    .filter(sheet -> !sheet.rows().isEmpty())
+                                    .map(InspectionSheetResponse::tab)
+                                    .collect(Collectors.toCollection(() -> EnumSet.noneOf(InspectionTab.class)))));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
