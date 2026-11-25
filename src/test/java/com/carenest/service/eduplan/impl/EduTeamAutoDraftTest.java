@@ -59,9 +59,6 @@ class EduTeamAutoDraftTest {
     @Mock
     Clock clock;
 
-    @Mock
-    EduPlanTimeLock timeLock;
-
     @InjectMocks
     EduTeamUpdateGenerator generator;
 
@@ -86,6 +83,38 @@ class EduTeamAutoDraftTest {
         generator.updateAfterPublication(annual, now);
         verifyNoInteractions(teamService, assignments);
         assertThat(team.getCurriculumSourcePlanId()).isEqualTo(10L);
+    }
+
+    @Test
+    void replacementAnnualAfterSchoolYearStartStillCreatesTeamUpdate() {
+        // EDU-72 (Tiền 25/11/2026): tổ đã ban hành (khóa theo năm học) vẫn nhận bản cập nhật, bản mới quá hạn chờ HT mở
+        // hạn
+        Instant now = Instant.parse("2026-11-25T03:00:00Z");
+        EduPlan annual = annual(now);
+        EduPlan later = annual(now);
+        ReflectionTestUtils.setField(later, "id", 20L);
+        ReflectionTestUtils.setField(later, "versionNo", 2);
+        EduPlan team = EduPlan.createDraft(EduPlanLevel.TEAM, "KHNH-2627-MGL", 1L, 2L, "Tổ", "", 7L, "TT", now);
+        ReflectionTestUtils.setField(team, "id", 30L);
+        team.initializePlanSource(EduPlanLevel.TEAM, annual.getId(), false, annual.getDurationPolicySnapshot());
+        team.issue(8L, now);
+        when(plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(EduPlanLevel.SCHOOL_YEAR, 1L, 2L))
+                .thenReturn(List.of(annual, later));
+        when(plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(EduPlanLevel.TEAM, 1L, 2L))
+                .thenReturn(List.of(team));
+        lenient().when(plans.findById(30L)).thenReturn(Optional.of(team));
+        when(plans.saveAndFlush(any())).thenAnswer(call -> {
+            EduPlan target = call.getArgument(0);
+            ReflectionTestUtils.setField(target, "id", 31L);
+            when(plans.findById(31L)).thenReturn(Optional.of(target));
+            return target;
+        });
+        generator.updateAfterPublication(later, now);
+        var captor = ArgumentCaptor.forClass(EduPlan.class);
+        verify(plans).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(EduPlanStatus.DRAFT);
+        assertThat(captor.getValue().getVersionNo()).isEqualTo(2);
+        verify(teamService).synchronizeSource(any(), eq(later));
     }
 
     private EduPlan annual(Instant now) {

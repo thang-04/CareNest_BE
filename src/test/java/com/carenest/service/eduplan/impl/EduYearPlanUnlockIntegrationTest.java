@@ -9,6 +9,7 @@ import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.eduplan.EduOverdueBoardService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -58,6 +59,9 @@ class EduYearPlanUnlockIntegrationTest {
     private EduYearPlanService service;
 
     @Autowired
+    private EduOverdueBoardService overdueBoard;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @Autowired
@@ -93,18 +97,57 @@ class EduYearPlanUnlockIntegrationTest {
         YearPlanDetailResponse draft = service.createYearPlan(
                 vp, request(year, ageGroup, domain), new YearPlanEditRequest(session, 0L, UUID.randomUUID()));
 
-        assertThat(listed(ht, year, draft.id()).timeLock()).satisfies(lock -> {
+        assertThat(service.getYearPlans(ht, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
+                        .items())
+                .noneMatch(item -> item.id().equals(draft.id()));
+        assertThat(overdue(ht, year, draft.id()).timeLock()).satisfies(lock -> {
             assertThat(lock.timeLocked()).isTrue();
             assertThat(lock.canUnlock()).isTrue();
             assertThat(lock.deadlineState()).isEqualTo(EduDeadline.OVERDUE);
         });
         assertThat(listed(vp, year, draft.id()).timeLock().canUnlock()).isFalse();
+        // edu-list-paging: bảng quá hạn ghép + lọc + phân trang ở BE; số liệu danh sách trả riêng
+        var board = overdueBoard.getOverdueBoard(
+                ht, year, new EduOverdueBoardService.Filter("overdue", null, "ag-3", null, null, null, 0, 5));
+        assertThat(board.overdueCount()).isEqualTo(1);
+        assertThat(board.rows().items()).singleElement().satisfies(row -> {
+            assertThat(row.path("key").asString()).isEqualTo("plan-" + draft.id());
+            assertThat(row.path("kind").asString()).isEqualTo("SCHOOL_YEAR");
+            assertThat(row.path("ageGroupId").asString()).isEqualTo("ag-3");
+            assertThat(row.path("deadlineKind").asString()).isEqualTo("send");
+        });
+        assertThat(overdueBoard
+                        .getOverdueBoard(
+                                ht,
+                                year,
+                                new EduOverdueBoardService.Filter("overdue", null, null, null, "TEAM", null, 0, 5))
+                        .rows()
+                        .items())
+                .isEmpty();
+        assertThat(service.getYearPlanStats(vp, year, EduPlanLevel.SCHOOL_YEAR)).satisfies(stats -> {
+            assertThat(stats.total()).isEqualTo(1);
+            assertThat(stats.issued()).isZero();
+            assertThat(stats.replaced()).isZero();
+            assertThat(stats.ageGroupIdsWithPlan()).containsExactly(ageGroup);
+        });
         assertCode(
                 () -> service.unlockYearPlan(vp, draft.id(), "Lý do", LocalDate.of(2026, 10, 30)), ApiCode.FORBIDDEN);
 
         YearPlanDetailResponse unlocked = service.unlockYearPlan(ht, draft.id(), "Lý do", LocalDate.of(2026, 10, 30));
         assertThat(unlocked.timeLock().extendedTo()).isEqualTo(LocalDate.of(2026, 10, 30));
-        assertThat(listed(ht, year, draft.id()).timeLock().extendedTo()).isEqualTo(LocalDate.of(2026, 10, 30));
+        assertThat(overdue(ht, year, draft.id()).timeLock().extendedTo()).isEqualTo(LocalDate.of(2026, 10, 30));
+        assertThat(service.getOverdueYearPlan(ht, draft.id(), year).history()).singleElement();
+        assertThat(overdueBoard
+                        .getOverdueBoard(
+                                ht,
+                                year,
+                                new EduOverdueBoardService.Filter("extended", null, null, null, null, null, 0, 5))
+                        .rows()
+                        .items())
+                .singleElement()
+                .satisfies(
+                        row -> assertThat(row.path("extension").path("deadline").asString())
+                                .isEqualTo("2026-10-30"));
 
         YearPlanDetailResponse sent = service.submitYearPlan(
                 vp, draft.id(), null, new YearPlanEditRequest(session, unlocked.revision(), UUID.randomUUID()));
@@ -117,6 +160,9 @@ class EduYearPlanUnlockIntegrationTest {
             assertThat(lock.timeLocked()).isTrue();
             assertThat(lock.canUnlock()).isFalse();
         });
+        assertThat(service.getOverdueYearPlans(ht, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
+                        .items())
+                .noneMatch(item -> item.id().equals(draft.id()));
         assertThatThrownBy(() -> service.unlockYearPlan(ht, draft.id(), "Lý do", LocalDate.of(2026, 10, 30)))
                 .isInstanceOfSatisfying(GlobalException.class, ex -> {
                     assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_VALUE);
@@ -127,6 +173,16 @@ class EduYearPlanUnlockIntegrationTest {
     private YearPlanSummaryResponse listed(CurrentUser user, long year, Long planId) {
         return service
                 .getYearPlans(user, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
+                .items()
+                .stream()
+                .filter(p -> p.id().equals(planId))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private YearPlanSummaryResponse overdue(CurrentUser user, long year, Long planId) {
+        return service
+                .getOverdueYearPlans(user, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
                 .items()
                 .stream()
                 .filter(p -> p.id().equals(planId))
@@ -175,7 +231,14 @@ class EduYearPlanUnlockIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(userId, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+        return new CurrentUser(
+                userId,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long id(String sql, Object... args) {

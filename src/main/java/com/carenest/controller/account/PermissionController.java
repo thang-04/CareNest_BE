@@ -1,5 +1,7 @@
 package com.carenest.controller.account;
 
+import com.carenest.dto.account.BulkUpdateRolePermissionsRequest;
+import com.carenest.dto.account.EduWorkflowIssuesResponse;
 import com.carenest.dto.account.PermissionChangeLogResponse;
 import com.carenest.dto.account.PermissionResponse;
 import com.carenest.dto.account.RolePermissionResponse;
@@ -54,6 +56,28 @@ public class PermissionController {
         List<RolePermissionResponse> roles = permissionService.getRolePermissions();
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get role permissions success", roles);
+    }
+
+    // EDU-110: route chữ đặt trước {role}
+    @PutMapping("/role-permissions")
+    @PreAuthorize("@permissionGuard.has('PERMISSION_MANAGE')")
+    public ResponseEntity<ResponseJson<List<RolePermissionResponse>>> updateRolePermissionsBulk(
+            @Valid @RequestBody BulkUpdateRolePermissionsRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|updateRolePermissionsBulk|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        List<RolePermissionResponse> roles = permissionService.updateRolePermissionsBulk(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update role permissions success", roles);
+    }
+
+    @GetMapping("/role-permissions/edu-workflow-issues")
+    @PreAuthorize("@permissionGuard.has('PERMISSION_MANAGE')")
+    public ResponseEntity<ResponseJson<EduWorkflowIssuesResponse>> getEduWorkflowIssues(CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getEduWorkflowIssues|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        EduWorkflowIssuesResponse response = permissionService.getEduWorkflowIssues();
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get education workflow issues success", response);
     }
 
     @GetMapping("/role-permissions/{role}")

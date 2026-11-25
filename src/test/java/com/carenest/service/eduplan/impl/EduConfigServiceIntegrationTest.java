@@ -488,7 +488,14 @@ class EduConfigServiceIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private static com.carenest.entity.eduplan.EduPlan legacyDraft(

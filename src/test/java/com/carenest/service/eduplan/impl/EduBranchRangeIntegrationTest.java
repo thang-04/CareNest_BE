@@ -219,7 +219,14 @@ class EduBranchRangeIntegrationTest {
                 "kc-" + username,
                 username,
                 "User " + username);
-        return new CurrentUser(id, "kc-" + username, username, "User " + username, null, Set.of(role));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "User " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long insertId(String sql, Object... args) {

@@ -44,3 +44,6 @@ __pycache__/
 
 # Local constitution (user request 2026-11-07; do not commit/push)
 /.specify/memory/constitution.md
+
+# AI-DLC workspace (local)
+/aidlc/

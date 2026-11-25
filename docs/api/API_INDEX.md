@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 436 endpoint.
+Tổng: 448 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -205,17 +205,21 @@ GET /classrooms · src/main/java/com/carenest/controller/organization/SchoolStru
 POST /daily-health-entries · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#addEntry
 GET /daily-health/overview · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getOverview
 POST /education-plans/ai/activities · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestActivities
-POST /education-plans/ai/branch-names · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestBranchNames
-POST /education-plans/ai/branch-names/rewrite · src/main/java/com/carenest/controller/eduplan/EduAiController.java#rewriteBranchName
 POST /education-plans/ai/class-docs/day/{docKey}/edit · src/main/java/com/carenest/controller/eduplan/EduAiController.java#editDay
 POST /education-plans/ai/class-docs/day/{docKey}/review · src/main/java/com/carenest/controller/eduplan/EduAiController.java#reviewDay
+POST /education-plans/ai/feedback · src/main/java/com/carenest/controller/eduplan/EduAiController.java#logFeedback
 POST /education-plans/ai/lesson-steps · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestLessonSteps
+GET /education-plans/ai/rag/search · src/main/java/com/carenest/controller/eduplan/EduAiController.java#searchRag
+POST /education-plans/ai/team-plans/{planId}/theme-content-map · src/main/java/com/carenest/controller/eduplan/EduAiController.java#matchThemeContents
+POST /education-plans/ai/year-plans/{planId}/goal-content-map · src/main/java/com/carenest/controller/eduplan/EduAiController.java#matchGoalContents
 GET /education-plans/class-docs · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocs
+GET /education-plans/class-docs/{kind}/{docKey} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDoc
 PUT /education-plans/class-docs/{kind}/{docKey} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#saveClassDoc
 POST /education-plans/class-docs/{kind}/{docKey}/actions · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#actOnClassDoc
 GET /education-plans/class-docs/{kind}/{docKey}/checks · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocChecks
 POST /education-plans/class-docs/branch/calendar-preview · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#previewClassCalendar
 POST /education-plans/class-docs/branch/file-preview · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#previewBranchFile
+GET /education-plans/class-docs/context · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocContext
 GET /education-plans/class-docs/day/{docKey}/learning-resources · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#list
 POST /education-plans/class-docs/day/{docKey}/learning-resources · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#upload
 DELETE /education-plans/class-docs/day/{docKey}/learning-resources/{id} · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#detach
@@ -226,7 +230,11 @@ POST /education-plans/class-docs/day/{docKey}/learning-resources/confirm · src/
 POST /education-plans/class-docs/day/{docKey}/learning-resources/links · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#addLink
 PUT /education-plans/class-docs/day/{docKey}/learning-resources/order · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#reorder
 POST /education-plans/class-docs/day/{docKey}/learning-resources/upload-url · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#uploadUrl
+GET /education-plans/class-docs/overdue · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getOverdueClassDocs
+GET /education-plans/class-docs/overdue-board · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getOverdueBoard
+GET /education-plans/class-docs/overdue/{kind}/{docKey} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getOverdueClassDoc
 GET /education-plans/class-docs/releases/{releaseId} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocRelease
+GET /education-plans/class-docs/summary · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocSummaries
 GET /education-plans/config · src/main/java/com/carenest/controller/eduplan/EduConfigController.java#getEduConfig
 PUT /education-plans/config · src/main/java/com/carenest/controller/eduplan/EduConfigController.java#updateEduConfig
 GET /education-plans/curriculum/contents · src/main/java/com/carenest/controller/eduplan/EduCurriculumController.java#getContents
@@ -243,6 +251,8 @@ GET /education-plans/goals/{planId}/changes · src/main/java/com/carenest/contro
 POST /education-plans/goals/{planId}/editing-heartbeat · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#heartbeat
 POST /education-plans/goals/{planId}/finish-editing · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#finishEditing
 POST /education-plans/goals/{planId}/issue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#issueYearPlan
+GET /education-plans/goals/{planId}/previous-year-ticks · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getPreviousYearTicks
+POST /education-plans/goals/{planId}/principal-publish · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#publishByPrincipal
 POST /education-plans/goals/{planId}/return · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#returnYearPlan
 POST /education-plans/goals/{planId}/review-deadline/reopen · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#reopenReviewDeadline
 POST /education-plans/goals/{planId}/review/{reviewItemId}/resolve · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#resolveReview
@@ -252,13 +262,13 @@ POST /education-plans/goals/{planId}/unlock · src/main/java/com/carenest/contro
 POST /education-plans/goals/{planId}/versions · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#createVersion
 POST /education-plans/goals/file-preview · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#previewGoalFile
 GET /education-plans/goals/review-queue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getReviewQueue
+GET /education-plans/goals/stats · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getYearPlanStats
 GET /education-plans/resources · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#list
 DELETE /education-plans/resources/{id} · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#delete
 PATCH /education-plans/resources/{id} · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#update
 GET /education-plans/resources/{id}/url · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#contentUrl
 GET /education-plans/resources/{id}/usages · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#usages
 GET /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#getWorkflowPolicy
-PUT /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#updateWorkflowPolicy
 GET /health-checks · src/main/java/com/carenest/controller/health/HealthCheckController.java#listHealthChecks
 POST /health-checks · src/main/java/com/carenest/controller/health/HealthCheckController.java#createHealthCheck
 GET /health-checks/{campaignId} · src/main/java/com/carenest/controller/health/HealthCheckController.java#getHealthCheck
@@ -411,8 +421,10 @@ POST /pickups · src/main/java/com/carenest/controller/attendance/PickupControll
 GET /pickups/children/{childId} · src/main/java/com/carenest/controller/attendance/PickupController.java#getChild
 GET /pickups/classes · src/main/java/com/carenest/controller/attendance/PickupController.java#listClasses
 GET /role-permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermissions
+PUT /role-permissions · src/main/java/com/carenest/controller/account/PermissionController.java#updateRolePermissionsBulk
 GET /role-permissions/{role} · src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermission
 PUT /role-permissions/{role} · src/main/java/com/carenest/controller/account/PermissionController.java#updateRolePermissions
+GET /role-permissions/edu-workflow-issues · src/main/java/com/carenest/controller/account/PermissionController.java#getEduWorkflowIssues
 GET /school-structure · src/main/java/com/carenest/controller/organization/ClassController.java#getSchoolStructure
 GET /school-years · src/main/java/com/carenest/controller/organization/SchoolYearController.java#getSchoolYears
 POST /school-years · src/main/java/com/carenest/controller/organization/SchoolYearController.java#createSchoolYear
