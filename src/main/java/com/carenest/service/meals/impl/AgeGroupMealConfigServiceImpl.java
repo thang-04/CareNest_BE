@@ -286,7 +286,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             throw GlobalException.of(ApiCode.MEAL_SERVICE_FEE_INVALID);
         }
         checkDailyKcalAboveMax(request);
-        checkGramsWithinEnergy(request);
+        checkMaxGramsWithinEnergy(request);
         checkAppliedStructure(request);
         config.changeInfo(
                 request.effectiveFrom(),
@@ -455,7 +455,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
      * NUT-24: gam tối đa của một chất (đạm, béo, bột đường) quy ra kcal không được vượt năng lượng tối đa của nhóm tuổi,
      * để không nhập được số vô lý (vd. 300 g đạm) làm mọi ngày bị chấm thiếu và chặn công bố.
      */
-    private static void checkGramsWithinEnergy(AgeGroupMealConfigRequest request) {
+    private static void checkMaxGramsWithinEnergy(AgeGroupMealConfigRequest request) {
         BigDecimal kcalMax = request.kcalMax();
         if (kcalMax == null) {
             return;
