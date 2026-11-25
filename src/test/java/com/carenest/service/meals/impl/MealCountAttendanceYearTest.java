@@ -48,9 +48,9 @@ class MealCountAttendanceYearTest {
         ClassroomService classrooms = mock(ClassroomService.class);
         Instant at = Instant.parse("2026-10-21T01:00:00Z");
         MealCount other = MealCount.aggregate(CAMPUS, OTHER_YEAR, DAY, MealSession.LUNCH, at);
-        other.addLine(CLASS, 0, 0, 0, 0, 0);
+        other.addLine(CLASS, 0, 0, 0, 0);
         MealCount own = MealCount.aggregate(CAMPUS, CLASS_YEAR, DAY, MealSession.LUNCH, at);
-        own.addLine(CLASS, 0, 0, 0, 0, 0);
+        own.addLine(CLASS, 0, 0, 0, 0);
         when(counts.findByCampusIdAndDate(CAMPUS, DAY)).thenReturn(List.of(other, own));
         when(classrooms.findClassroomInfo(CLASS))
                 .thenReturn(Optional.of(new ClassroomInfoResponse(
@@ -74,8 +74,7 @@ class MealCountAttendanceYearTest {
                         1,
                         0,
                         0,
-                        Map.of(MealSession.LUNCH, 1),
-                        Map.of(MealSession.LUNCH, 0))));
+                        Map.of(MealSession.LUNCH, 1))));
         MealCountServiceImpl service = new MealCountServiceImpl(
                 counts,
                 mock(MealCountHistoryRepository.class),

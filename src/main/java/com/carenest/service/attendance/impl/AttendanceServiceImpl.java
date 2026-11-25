@@ -30,7 +30,6 @@ import com.carenest.repository.attendance.LeaveRequestRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
-import com.carenest.service.attendance.MealSubstituteLookup;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
@@ -93,7 +92,6 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
     private final LeaveRequestRepository leaveRequestRepository;
-    private final List<MealSubstituteLookup> mealSubstituteLookups;
     private final GuardianChildLinkService guardianChildLinkService;
     private final NotificationService notificationService;
 
@@ -669,19 +667,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         int present = 0;
         int absent = 0;
         Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
-        Map<MealSession, Integer> substitutes = new EnumMap<>(MealSession.class);
-        cls.mealSessions().forEach(s -> {
-            meals.put(s, 0);
-            substitutes.put(s, 0);
-        });
+        cls.mealSessions().forEach(s -> meals.put(s, 0));
         // Bữa đã ghi là lịch sử thực tế, không loại khi cấu hình nhóm tuổi thay đổi.
-        records.values()
-                .forEach(r -> r.getMeals().forEach(s -> {
-                    meals.putIfAbsent(s, 0);
-                    substitutes.putIfAbsent(s, 0);
-                }));
-        // Trẻ có dị ứng trong hồ sơ ăn suất thay thế (Cần chốt 04/11/2026: map theo hồ sơ, cô chỉ điểm danh)
-        Set<Long> allergic = childService.findChildIdsWithAllergies(records.keySet());
+        records.values().forEach(r -> r.getMeals().forEach(s -> meals.putIfAbsent(s, 0)));
         for (AttendanceRecord r : records.values()) {
             if (r.getStatus().isAbsent()) {
                 absent++;
@@ -689,13 +677,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 present++;
             }
             // ATT-13: trẻ nghỉ sáng vẫn có bữa xế theo công tắc ăn dù chưa đến; trẻ vắng cả ngày không có bữa
-            boolean substitute = allergic.contains(r.getChildId());
-            r.getMeals().stream().filter(meals::containsKey).forEach(s -> {
-                meals.merge(s, 1, Integer::sum);
-                if (substitute) {
-                    substitutes.merge(s, 1, Integer::sum);
-                }
-            });
+            r.getMeals().stream().filter(meals::containsKey).forEach(s -> meals.merge(s, 1, Integer::sum));
         }
         return new ClassMealTally(
                 cls.id(),
@@ -705,8 +687,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 present,
                 absent,
                 childIds.size() - present - absent,
-                meals,
-                substitutes);
+                meals);
     }
 
     // ATT-04: đơn nghỉ còn hiệu lực của trẻ trong ngày (đơn đã hủy từ ngày này trở đi thì không tính);
@@ -863,11 +844,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             perChild.put(ch.id(), new int[7]);
             childMeals.put(ch.id(), new EnumMap<>(MealSession.class));
         });
-        // Trẻ có khai dị ứng trong hồ sơ ăn suất thay thế (giống Sổ báo ăn, Cần chốt 04/11/2026); ngày đã có sổ báo ăn
-        // thì lấy số thay thế của sổ (sau giờ chốt sổ không tự đổi theo hồ sơ, HT/PHT chỉnh tay — Cần chốt 10/11/2026)
         Set<Long> allergic = childService.findChildIdsWithAllergies(childIds);
-        Map<LocalDate, Integer> bookSubstitutes = new HashMap<>();
-        mealSubstituteLookups.forEach(l -> bookSubstitutes.putAll(l.substitutes(cls.campusId(), cls.id(), from, to)));
         List<DayRow> days = new ArrayList<>();
         Set<MealSession> summarySessions = new java.util.TreeSet<>(cls.mealSessions());
         records.values().forEach(r -> summarySessions.addAll(r.getMeals()));
@@ -899,9 +876,6 @@ public class AttendanceServiceImpl implements AttendanceService {
                 List<MealSession> eaten = r.getMeals();
                 if (!eaten.isEmpty()) {
                     counts[4]++;
-                    if (allergic.contains(ch.id())) {
-                        counts[5]++;
-                    }
                     child[3]++;
                     eaten.forEach(s -> {
                         meals.merge(s, 1, Integer::sum);
@@ -909,7 +883,6 @@ public class AttendanceServiceImpl implements AttendanceService {
                     });
                 }
             }
-            int substitute = bookSubstitutes.getOrDefault(date, counts[5]);
             days.add(new DayRow(
                     date,
                     counts[0],
@@ -917,7 +890,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     counts[2],
                     counts[3],
                     counts[4],
-                    substitute,
+                    0,
                     meals,
                     counts[6],
                     counts[7]));

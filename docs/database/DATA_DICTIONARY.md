@@ -722,7 +722,7 @@ Mục đích: số suất từng lớp của một bữa. `pending = true` là s
 | meal_count_id | BIGINT FK meal_counts (ON DELETE CASCADE) | không | | — |
 | classroom_id | BIGINT FK classrooms | không | UNIQUE `(meal_count_id, classroom_id, pending)` | — |
 | present / absent / missing | INTEGER ≥ 0 | không | Sĩ số theo điểm danh lúc tổng hợp | — |
-| normal / substitute | INTEGER ≥ 0 | không | Suất thường / suất thay thế (chưa có dữ liệu dị ứng ⇒ thay thế = 0) | NUT-01 |
+| normal / substitute | INTEGER ≥ 0 | không | Suất thường / suất thay thế (từ 25/11/2026 luôn ghi `substitute` = 0, mọi trẻ ăn nằm trong `normal`; dòng cũ có `substitute` > 0 gộp vào `normal` khi đọc; cột chưa xóa) | NUT-01, NUT-02 |
 
 ## meal_count_history  (module: nutrition, scope: CAMPUS)
 Mục đích: lịch sử sổ báo ăn (chỉ thêm). Migration: V26.
