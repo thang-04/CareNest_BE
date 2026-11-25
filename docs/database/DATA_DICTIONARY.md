@@ -265,7 +265,7 @@ Mục đích: danh sách nhóm tuổi riêng của từng năm học (Cần ch�
 | age_from_months, age_to_months, max_class_size | như `age_groups` | có | Giữ cùng CHECK khoảng tuổi và sĩ số dương như bảng `age_groups` | — |
 
 ## children  (module: child, scope: CHILD)
-Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`, `V146__child_meal_registered.sql`, `V184__child_start_date.sql`, `V187__child_start_date_from_first_class.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
+Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`, `V146__child_meal_registered.sql`, `V184__child_start_date.sql`, `V187__child_start_date_from_first_class.sql`, `V188__child_scheduled_leave.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -278,11 +278,12 @@ Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, 
 | enrolled_on | DATE | không | Ngày tiếp nhận | — |
 | left_on, left_reason | DATE, VARCHAR(300) | có | Ngày, lý do nghỉ học; có đúng khi `LEFT`, mở lại hồ sơ xóa cả hai; `left_on ≥ enrolled_on` | CHD-03 |
 | readmitted_on | DATE | có | Ngày mở lại hồ sơ gần nhất | CHD-03 |
+| scheduled_leave_on, scheduled_leave_reason, scheduled_leave_by | DATE, VARCHAR(300), BIGINT FK user_accounts | có | Lịch nghỉ học chưa tới ngày (V188, user chốt 2026-11-25): trẻ vẫn `ACTIVE` tới ngày đó; job 00:05 (và lần chạy lúc khởi động) đổi trẻ sang `LEFT` rồi xóa cả ba cột; hủy lịch cũng xóa ba cột. Ba cột cùng null hoặc `on` và `reason` cùng có giá trị (`ck_children_scheduled_leave`); `LEFT` thì không còn lịch (`ck_children_scheduled_leave_not_left`); index một phần `idx_children_scheduled_leave_on` cho job | CHD-03, CHD-04 |
 | start_date | DATE | có | Ngày bắt đầu đi học chọn khi tiếp nhận / mở lại hồ sơ (năm sau = ngày bắt đầu đã đăng ký); khác `enrolled_on` (ngày tiếp nhận). null = chưa từng vào lớp; xếp lớp lần đầu ghi ngày vào lớp; V187 điền cho hồ sơ cũ | G94-180/CHD-14 |
 | photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(255), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung tùy chọn khi tiếp nhận; private S3, JPG/PNG/WEBP ≤2 MiB; CHECK metadata hoàn chỉnh, V80. Ảnh ChildGuardian tách ảnh tài khoản và đọc theo id ổn định. | CHD-02, PCK-02 |
 | meal_registered | BOOLEAN | không | Cờ "Báo ăn": trẻ ăn ở trường, mặc định TRUE; FALSE ⇒ không khai dị ứng/chế độ ăn, không có suất ăn (dữ liệu đã có giữ nguyên). Migration V144 | CHD-13 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Ràng buộc: `ck_children_status`, `ck_children_gender`, `ck_children_left`, `ck_children_left_on`; `ck_children_complete` (có giới tính, chờ xếp lớp thì có điểm trường) là **NOT VALID**: áp cho mọi dòng thêm/sửa, không kiểm trẻ có trước V63 (chỉ dữ liệu demo — trẻ đó phải nhập đủ khi sửa hồ sơ). V63 sinh `code`, `status`, `enrolled_on`, `intake_campus_id` cho trẻ có sẵn (plan mục 3.9).
+Ràng buộc: `ck_children_status`, `ck_children_gender`, `ck_children_left`, `ck_children_left_on`, `ck_children_scheduled_leave`, `ck_children_scheduled_leave_not_left`; `ck_children_complete` (có giới tính, chờ xếp lớp thì có điểm trường) là **NOT VALID**: áp cho mọi dòng thêm/sửa, không kiểm trẻ có trước V63 (chỉ dữ liệu demo — trẻ đó phải nhập đủ khi sửa hồ sơ). V63 sinh `code`, `status`, `enrolled_on`, `intake_campus_id` cho trẻ có sẵn (plan mục 3.9).
 FE đọc `campusId` của trẻ = điểm trường theo lớp nếu có lớp, không thì `intake_campus_id`.
 Index: `uk_children_code`, `idx_children_intake_campus_id`, `idx_children_date_of_birth` (kiểm trùng hồ sơ — CHD-04).
 
@@ -810,7 +811,7 @@ Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V63.
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | child_id | BIGINT FK children | không | | — |
-| action | VARCHAR(20) | không | `ENROLLED` / `UPDATED` / `WITHDRAWN` / `READMITTED` | CHD-03 |
+| action | VARCHAR(20) | không | `ENROLLED` / `UPDATED` / `WITHDRAWN` / `READMITTED`; `LEAVE_SCHEDULED` (đặt lịch nghỉ học, note = lý do), `LEAVE_CANCELLED` (hủy lịch, note = "Lịch nghỉ học từ dd/MM/yyyy") (V188, `ck_child_history_action`); lúc job áp lịch ghi `WITHDRAWN` của người đặt lịch | CHD-03 |
 | user_id | BIGINT FK user_accounts | không | Người làm | — |
 | note | VARCHAR(500) | có | Lý do | CHD-03 |
 | changes | JSONB | có | `[{ field, label, from, to }]` từng ô đổi khi Sửa hồ sơ (ghi từ 2026-11-10); số định danh của trẻ, CCCD phụ huynh chỉ 3 số cuối | CHD-05 |

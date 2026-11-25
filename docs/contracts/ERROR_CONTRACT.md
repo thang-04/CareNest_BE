@@ -118,6 +118,7 @@ Hạn, khóa, mở lại đánh giá cuối chủ đề / học kỳ / cuối n�
 | CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
 | Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
 | Sửa hồ sơ / cho nghỉ học / xếp lớp trẻ đã nghỉ | `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/CHD-03, CHD-10 |
+| Hủy lịch nghỉ học (`DELETE /children/{id}/scheduled-leave`) khi trẻ không có lịch hoặc lịch đã tới ngày | `CHILD_NO_SCHEDULED_LEAVE` (3017, 409) | G94-180/CHD-03 (user chốt 2026-11-25) |
 | Xếp / chuyển lớp: thiếu lớp, cùng lớp, chưa khai báo sức khỏe, lớp ngừng hoạt động / khác năm đang hoạt động / ngoài điểm trường được giao / đủ sĩ số (`classId`); đang có lớp mà thiếu lý do, lý do > 300 (`reason`) | `INVALID_REQUEST_DATA` (9001) + ô | CHD-10, G94-180/CHD-02 |
 | Danh sách trẻ: lọc lớp / điểm trường ngoài phạm vi; phụ huynh gọi | `CLASS_ACCESS_DENIED` (2201, 403) / `CAMPUS_ACCESS_DENIED` (2102, 403); `FORBIDDEN` (1101, 403) | AUTH-08, AUTH-04 |
 | Cho nghỉ học: ngày nghỉ, lý do sai (`leftAt`, `reason`); Sửa hồ sơ: form sai, ngày sinh sau ngày tiếp nhận, bỏ phụ huynh đang liên kết tài khoản (`guardians`), đổi cùng lúc CCCD và SĐT, thiếu quyền quản lý tài khoản khi sửa họ tên/email/CCCD phụ huynh có tài khoản | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-03, AUTH-21 |
