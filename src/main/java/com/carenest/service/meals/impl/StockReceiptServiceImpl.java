@@ -395,7 +395,8 @@ public class StockReceiptServiceImpl implements StockReceiptService {
         receipt.changeDraft(request.supplierId(), request.receivedDate(), note, lines, userId);
     }
 
-    // Mỗi dòng phiếu thành một lô nên số lô phải phân biệt được lô: không trùng trong phiếu và không trùng lô đã vào kho
+    // Mỗi dòng phiếu thành một lô nên số lô phải phân biệt được lô: không trùng trong phiếu và không trùng lô đã vào
+    // kho
     // của điểm trường (cùng thực phẩm, không phân biệt hoa thường). Lô của phiếu đã hủy không tính.
     private void checkLotNosFree(Long campusId, Collection<StockReceiptLine> lines, Map<Long, Food> foods) {
         if (lines.isEmpty()) {

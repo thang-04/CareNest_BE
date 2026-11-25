@@ -235,7 +235,8 @@ class DryStockIntegrationTest {
     }
 
     @Test
-    @DisplayName("Số lô: không trùng trong phiếu, không trùng lô đã vào kho cùng thực phẩm; phiếu hủy và thực phẩm khác thì được")
+    @DisplayName(
+            "Số lô: không trùng trong phiếu, không trùng lô đã vào kho cùng thực phẩm; phiếu hủy và thực phẩm khác thì được")
     void lotNoMustBeUniquePerFoodInCampus() {
         // Trùng ngay trong phiếu, kể cả khác hoa thường
         expectCode(
@@ -254,8 +255,10 @@ class DryStockIntegrationTest {
         assertThat(next.status()).isEqualTo(StockReceiptStatus.CONFIRMED);
 
         // Hai nháp cùng số lô chưa vào kho: nháp đầu xác nhận thì nháp sau bị chặn khi xác nhận
-        StockReceiptResponse draftA = receiptService.createReceipt(principal, request(line(rice, "L-RACE", "2027-01-01", "100")));
-        StockReceiptResponse draftB = receiptService.createReceipt(principal, request(line(rice, "L-RACE", "2027-01-01", "100")));
+        StockReceiptResponse draftA =
+                receiptService.createReceipt(principal, request(line(rice, "L-RACE", "2027-01-01", "100")));
+        StockReceiptResponse draftB =
+                receiptService.createReceipt(principal, request(line(rice, "L-RACE", "2027-01-01", "100")));
         receiptService.confirmReceipt(principal, draftA.id());
         expectCode(() -> receiptService.confirmReceipt(principal, draftB.id()), ApiCode.STOCK_LOT_NO_EXISTS);
 
