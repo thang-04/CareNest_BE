@@ -9,4 +9,5 @@ import java.util.List;
 public record MealPlanAmendRequest(
         @Size(max = 300) String note,
         @NotNull @Valid List<MealPlanRequest.ItemInput> items,
-        @Size(max = 500) String reason) {}
+        // Độ dài lý do kiểm ở service để trả đúng mã 6093 (10–500 ký tự)
+        String reason) {}
