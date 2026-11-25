@@ -157,14 +157,16 @@ class InspectionIntegrationTest {
     @DisplayName("M1 tươi: dựng từ kiểm nhận hàng tươi kèm nhà cung cấp, khối lượng theo kg")
     void freshSkeletonFromCheckWithSupplier() {
         long pork = food("THIT", "Thịt", "FRESH");
+        long lineSupplier = supplier();
         long check = insertId("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at,"
                 + " supplier_id) VALUES (" + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW
-                + "', " + supplier() + ") RETURNING id");
+                + "', " + lineSupplier + ") RETURNING id");
         jdbc.update(
-                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result)"
-                        + " VALUES (?, ?, 2000, 2500, 'ENOUGH')",
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result, supplier_id)"
+                        + " VALUES (?, ?, 2000, 2500, 'ENOUGH', ?)",
                 check,
-                pork);
+                pork,
+                lineSupplier);
 
         assertThat(sheet(approver, InspectionTab.FRESH).rows()).singleElement().satisfies(row -> {
             assertThat(row)
@@ -177,6 +179,37 @@ class InspectionIntegrationTest {
                     .containsEntry("supplierContact", "12 Lê Lợi, 0901234567")
                     .containsEntry("deliveryPerson", "Anh Nam");
         });
+    }
+
+    @Test
+    @DisplayName("M1 tươi: dòng chưa ghi NCC lấy NCC của thực phẩm, không lấy NCC cấp phiếu")
+    void freshSkeletonUsesFoodSupplierNotCheckSupplier() {
+        long pork = food("THIT", "Thịt", "FRESH");
+        long veg = food("RAU", "Rau", "FRESH");
+        long checkSupplier = supplier();
+        long vegSupplier = insertId("INSERT INTO suppliers (name, phone, address, delivery_person)"
+                + " VALUES ('Hợp tác xã Rau sạch', '0912345678', '5 Trần Phú', 'Chị Lan') RETURNING id");
+        jdbc.update("UPDATE food_prices SET supplier_id = ? WHERE food_id = ?", vegSupplier, veg);
+        long check = insertId("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at,"
+                + " supplier_id) VALUES (" + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW
+                + "', " + checkSupplier + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result, supplier_id)"
+                        + " VALUES (?, ?, 2000, 2000, 'ENOUGH', ?)",
+                check,
+                pork,
+                checkSupplier);
+        jdbc.update(
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result)"
+                        + " VALUES (?, ?, 1000, 1000, 'ENOUGH')",
+                check,
+                veg);
+
+        assertThat(sheet(approver, InspectionTab.FRESH).rows())
+                .extracting(r -> r.get("name"), r -> r.get("supplierName"))
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Rau", "Hợp tác xã Rau sạch"),
+                        org.assertj.core.groups.Tuple.tuple("Thịt", "Cơ sở Hòa Phát"));
     }
 
     @Test
