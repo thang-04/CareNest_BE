@@ -1,12 +1,10 @@
 package com.carenest.service.meals.impl;
 
-import com.carenest.entity.account.UserSignature;
 import com.carenest.entity.meals.InspectionEvent;
 import com.carenest.entity.meals.InspectionSheet;
 import com.carenest.entity.meals.InspectionSignature;
 import com.carenest.entity.meals.MealPhoto;
 import com.carenest.integration.storage.FileStorage;
-import com.carenest.repository.account.UserSignatureRepository;
 import com.carenest.repository.meals.InspectionSheetRepository;
 import com.carenest.repository.meals.MealPhotoRepository;
 import com.carenest.utils.enums.FileCategory;
@@ -22,7 +20,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.sql.Date;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -56,7 +53,6 @@ class DevBoardingFileSeeder implements ApplicationRunner {
 
     private final JdbcTemplate jdbc;
     private final FileStorage storage;
-    private final UserSignatureRepository signatureRepository;
     private final MealPhotoRepository photoRepository;
     private final InspectionSheetRepository sheetRepository;
     private final InspectionSkeleton skeleton;
@@ -106,11 +102,8 @@ class DevBoardingFileSeeder implements ApplicationRunner {
                         ORDER BY a.id LIMIT 1) AS kitchen_id
                 FROM campuses c ORDER BY c.id
                 """,
-                (rs, i) -> new Staff(
-                        rs.getLong("id"),
-                        (Long) rs.getObject("vp_id"),
-                        rs.getString("vp_name"),
-                        (Long) rs.getObject("kitchen_id")));
+                (rs, i) -> new Staff(rs.getLong("id"), (Long) rs.getObject("vp_id"), rs.getString("vp_name"), (Long)
+                        rs.getObject("kitchen_id")));
     }
 
     /** Ngày học đã qua có sổ báo ăn xác nhận (mới nhất trước) kèm các bữa có suất. */
@@ -134,18 +127,23 @@ class DevBoardingFileSeeder implements ApplicationRunner {
 
     /** Chữ ký mặc định của PHT; chưa có thì vẽ một chữ ký mẫu rồi lưu. Trả nội dung ảnh để ký biên bản. */
     private byte[] ensureSignature(Staff staff) {
-        List<UserSignature> mine = signatureRepository.findMine(staff.vpId());
-        if (!mine.isEmpty()) {
-            UserSignature existing = mine.stream()
-                    .filter(UserSignature::isDefaultSignature)
-                    .findFirst()
-                    .orElse(mine.get(0));
-            return storage.loadBytes(FileCategory.USER_SIGNATURE, existing.getStorageKey());
+        // Bảng chữ ký thuộc module tài khoản: đọc/ghi bằng SQL để không phụ thuộc repository của module khác
+        List<String> keys = jdbc.queryForList(
+                "SELECT storage_key FROM user_signatures WHERE user_id = ? ORDER BY is_default DESC, id LIMIT 1",
+                String.class,
+                staff.vpId());
+        if (!keys.isEmpty()) {
+            return storage.loadBytes(FileCategory.USER_SIGNATURE, keys.get(0));
         }
         byte[] content = drawSignature(staff.vpName());
         FileStorage.StoredFile stored = storage.store(FileCategory.USER_SIGNATURE, staff.vpId(), content);
-        signatureRepository.saveAndFlush(UserSignature.of(
-                staff.vpId(), stored.key(), stored.contentType(), content.length, true, java.time.Instant.now()));
+        jdbc.update(
+                "INSERT INTO user_signatures (user_id, storage_key, content_type, size_bytes, is_default) "
+                        + "VALUES (?, ?, ?, ?, TRUE)",
+                staff.vpId(),
+                stored.key(),
+                stored.contentType(),
+                content.length);
         return content;
     }
 
@@ -178,11 +176,12 @@ class DevBoardingFileSeeder implements ApplicationRunner {
         }
         byte[] content = mealImage(session, day);
         FileStorage.StoredFile stored = storage.store(FileCategory.MEAL, staff.campusId(), content);
-        LocalTime at = switch (session) {
-            case MORNING -> LocalTime.of(9, 20);
-            case LUNCH -> LocalTime.of(10, 50);
-            case AFTERNOON -> LocalTime.of(14, 35);
-        };
+        LocalTime at =
+                switch (session) {
+                    case MORNING -> LocalTime.of(9, 20);
+                    case LUNCH -> LocalTime.of(10, 50);
+                    case AFTERNOON -> LocalTime.of(14, 35);
+                };
         MealPhoto photo = MealPhoto.of(staff.campusId(), day, session);
         photo.replaceFile(
                 stored.key(),
@@ -219,17 +218,30 @@ class DevBoardingFileSeeder implements ApplicationRunner {
         g.fillRoundRect(60, 90, 680, 420, 40, 40);
         g.setColor(new Color(205, 210, 216));
         g.fillRoundRect(80, 110, 640, 380, 30, 30);
-        Color[] foods = switch (session) {
-            case LUNCH -> new Color[] {
-                new Color(250, 248, 240), new Color(150, 78, 40), new Color(96, 150, 70), new Color(214, 170, 60)
-            };
-            case MORNING -> new Color[] {
-                new Color(255, 250, 235), new Color(226, 190, 120), new Color(240, 236, 228), new Color(220, 120, 90)
-            };
-            case AFTERNOON -> new Color[] {
-                new Color(244, 214, 150), new Color(232, 120, 60), new Color(120, 170, 80), new Color(250, 240, 200)
-            };
-        };
+        Color[] foods =
+                switch (session) {
+                    case LUNCH ->
+                        new Color[] {
+                            new Color(250, 248, 240),
+                            new Color(150, 78, 40),
+                            new Color(96, 150, 70),
+                            new Color(214, 170, 60)
+                        };
+                    case MORNING ->
+                        new Color[] {
+                            new Color(255, 250, 235),
+                            new Color(226, 190, 120),
+                            new Color(240, 236, 228),
+                            new Color(220, 120, 90)
+                        };
+                    case AFTERNOON ->
+                        new Color[] {
+                            new Color(244, 214, 150),
+                            new Color(232, 120, 60),
+                            new Color(120, 170, 80),
+                            new Color(250, 240, 200)
+                        };
+                };
         int[][] cells = {{110, 140, 250, 330}, {380, 140, 320, 150}, {380, 310, 150, 150}, {550, 310, 150, 150}};
         for (int i = 0; i < cells.length; i++) {
             g.setColor(foods[(i + variant) % foods.length]);
@@ -237,11 +249,12 @@ class DevBoardingFileSeeder implements ApplicationRunner {
         }
         g.setColor(new Color(60, 60, 60));
         g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 30));
-        String label = switch (session) {
-            case MORNING -> "Bữa phụ sáng";
-            case LUNCH -> "Bữa trưa";
-            case AFTERNOON -> "Bữa chiều";
-        };
+        String label =
+                switch (session) {
+                    case MORNING -> "Bữa phụ sáng";
+                    case LUNCH -> "Bữa trưa";
+                    case AFTERNOON -> "Bữa chiều";
+                };
         g.drawString(label + " (ảnh mẫu dev)", 60, 560);
         g.dispose();
         return encode(image, "jpg");
@@ -276,12 +289,19 @@ class DevBoardingFileSeeder implements ApplicationRunner {
         java.time.Instant now = day.atTime(11, 30).atZone(ZONE).toInstant();
         InspectionSheet sheet = InspectionSheet.draft(staff.campusId(), day, tab, now);
         sheet.saveDraft(Map.of(), saved, staff.vpId(), now);
-        String imageKey = FileStorage.fileName(storage.store(FileCategory.INSPECTION_SIGNATURE, staff.campusId(), signature)
-                .key());
+        String imageKey =
+                FileStorage.fileName(storage.store(FileCategory.INSPECTION_SIGNATURE, staff.campusId(), signature)
+                        .key());
         java.time.Instant signedAt = day.atTime(11, 45).atZone(ZONE).toInstant();
         sheet.sign(
                 new InspectionSignature(
-                        staff.vpId(), staff.vpName(), signedAt, sheet.getDocVersion(), imageKey, "image/png", signature.length),
+                        staff.vpId(),
+                        staff.vpName(),
+                        signedAt,
+                        sheet.getDocVersion(),
+                        imageKey,
+                        "image/png",
+                        signature.length),
                 new InspectionEvent(InspectionEvent.SIGNED, staff.vpId(), staff.vpName(), signedAt, null, imageKey),
                 snapshot,
                 signedAt);

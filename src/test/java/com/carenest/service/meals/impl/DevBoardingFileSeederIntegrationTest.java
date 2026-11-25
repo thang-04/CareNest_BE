@@ -5,7 +5,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.carenest.integration.storage.FileStorage;
-import com.carenest.repository.account.UserSignatureRepository;
 import com.carenest.repository.meals.InspectionSheetRepository;
 import com.carenest.repository.meals.MealPhotoRepository;
 import com.carenest.utils.enums.FileCategory;
@@ -38,9 +37,6 @@ class DevBoardingFileSeederIntegrationTest {
     private JdbcTemplate jdbc;
 
     @Autowired
-    private UserSignatureRepository signatureRepository;
-
-    @Autowired
     private MealPhotoRepository photoRepository;
 
     @Autowired
@@ -60,7 +56,7 @@ class DevBoardingFileSeederIntegrationTest {
             return new FileStorage.StoredFile(key, "image/png", content.length);
         });
         when(storage.loadBytes(any(FileCategory.class), any())).thenReturn(new byte[] {1, 2, 3});
-        seeder = new DevBoardingFileSeeder(jdbc, storage, signatureRepository, photoRepository, sheetRepository, skeleton);
+        seeder = new DevBoardingFileSeeder(jdbc, storage, photoRepository, sheetRepository, skeleton);
     }
 
     @Test
