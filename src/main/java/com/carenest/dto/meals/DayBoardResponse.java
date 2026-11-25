@@ -22,7 +22,8 @@ public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
             DryStock dryStock,
             String freshReceiptStatus,
             String foodSampleStatus,
-            int foodSamplePendingCount) {}
+            int foodSamplePendingCount,
+            boolean m1FreshSigned) {}
 
     /** Thực đơn tuần chứa ngày và tuần sau: NONE, DRAFT, PUBLISHED. */
     public record WeekMenu(

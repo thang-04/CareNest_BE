@@ -28,6 +28,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -169,6 +170,7 @@ public class FoodServiceImpl implements FoodService {
             if (!isBlank(request.code()) && foodRepository.existsByCode(code)) {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
+            requireUniqueName(request.name(), null);
             Food food = Food.create(currentUser.userId());
             apply(
                     food,
@@ -202,6 +204,7 @@ public class FoodServiceImpl implements FoodService {
             if (foodRepository.existsByCodeAndIdNot(code, foodId)) {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
+            requireUniqueName(request.name(), foodId);
             Map<String, String> before = FoodSnapshot.of(food);
             apply(
                     food,
@@ -266,6 +269,12 @@ public class FoodServiceImpl implements FoodService {
             // Kiểm hết các dòng trước khi lưu: một dòng lỗi thì không lưu dòng nào, báo đủ lỗi theo số dòng
             List<String> errors = new ArrayList<>();
             Set<String> seenCodes = new HashSet<>();
+            // NUT-18: tên không trùng trong danh mục (kể cả mục đã ngừng) và không trùng giữa các dòng của lô
+            Map<String, Long> nameOwners = new HashMap<>();
+            for (Food catalogFood : foodRepository.findAllByOrderByNameAsc()) {
+                nameOwners.putIfAbsent(CatalogNames.key(catalogFood.getName()), catalogFood.getId());
+            }
+            Set<String> seenNames = new HashSet<>();
             for (int i = 0; i < items.size(); i++) {
                 FoodImportRequest.Item item = items.get(i);
                 FoodRequest data = item.data();
@@ -279,6 +288,11 @@ public class FoodServiceImpl implements FoodService {
                     if (!seenCodes.add(code) || (owner != null && !owner.equals(item.id()))) {
                         errors.add(row + " trùng mã " + code);
                     }
+                }
+                String nameKey = CatalogNames.key(data.name());
+                Long nameOwner = nameOwners.get(nameKey);
+                if (!seenNames.add(nameKey) || (nameOwner != null && !nameOwner.equals(item.id()))) {
+                    errors.add(row + " trùng tên " + data.name().trim());
                 }
                 if (isBlank(data.nutrientSource())) {
                     errors.add(row + " thiếu nguồn dinh dưỡng");
@@ -365,6 +379,17 @@ public class FoodServiceImpl implements FoodService {
 
     private Food findFood(Long foodId) {
         return foodRepository.findById(foodId).orElseThrow(() -> GlobalException.of(ApiCode.FOOD_NOT_FOUND));
+    }
+
+    // NUT-18: tên duy nhất trong danh mục, so cả mục đã ngừng; selfId = thực phẩm đang sửa (bỏ qua chính nó)
+    private void requireUniqueName(String name, Long selfId) {
+        String key = CatalogNames.key(name);
+        boolean taken = foodRepository.findAllByOrderByNameAsc().stream()
+                .anyMatch(food -> !Objects.equals(food.getId(), selfId)
+                        && CatalogNames.key(food.getName()).equals(key));
+        if (taken) {
+            throw GlobalException.of(ApiCode.FOOD_NAME_DUPLICATED, name.trim());
+        }
     }
 
     // NUT-05: số liệu dinh dưỡng phải ghi rõ nguồn

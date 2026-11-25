@@ -562,6 +562,8 @@ public enum ApiCode {
     NUTRIENT_SOURCE_REQUIRED(6012, HttpStatus.BAD_REQUEST, "Cần ghi nguồn số liệu dinh dưỡng của thực phẩm"),
     ALLERGEN_INVALID(6013, HttpStatus.BAD_REQUEST, "Chất gây dị ứng không hợp lệ"),
     FOOD_IMPORT_INVALID(6014, HttpStatus.BAD_REQUEST, "Dữ liệu nhập chưa lưu vì có lỗi: {0}"),
+    FOOD_NAME_DUPLICATED(6108, HttpStatus.CONFLICT, "Đã có thực phẩm cùng tên: {0}"),
+    DISH_NAME_DUPLICATED(6109, HttpStatus.CONFLICT, "Đã có món cùng tên: {0}"),
     DISH_NOT_FOUND(6015, HttpStatus.NOT_FOUND, "Không tìm thấy món ăn"),
     DISH_CODE_DUPLICATED(6016, HttpStatus.CONFLICT, "Mã món {0} đã tồn tại"),
     DISH_REFERENCE_READ_ONLY(
@@ -574,6 +576,10 @@ public enum ApiCode {
     NUTRITION_NORM_RANGE_INVALID(6023, HttpStatus.BAD_REQUEST, "Chuẩn {0}: giá trị tối thiểu lớn hơn tối đa"),
     MEAL_SESSION_KCAL_PCT_INVALID(
             6049, HttpStatus.BAD_REQUEST, "Tổng tỷ lệ năng lượng tối thiểu của các bữa là {0}%, vượt 100%"),
+    MEAL_CONFIG_GRAMS_EXCEED_ENERGY(
+            6110,
+            HttpStatus.BAD_REQUEST,
+            "Định mức {0} tối thiểu {1} g vượt mức năng lượng cho phép theo cơ cấu (khoảng {2} g). Kiểm lại đơn vị g/trẻ/ngày"),
     MEAL_SERVICE_FEE_INVALID(6107, HttpStatus.BAD_REQUEST, "Phí dịch vụ không được lớn hơn giá suất"),
     APPLIED_STRUCTURE_INVALID(6115, HttpStatus.BAD_REQUEST, "Cơ cấu áp dụng không hợp lệ: {0}"),
     AGE_GROUP_INVALID(6024, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
@@ -659,6 +665,8 @@ public enum ApiCode {
             6090,
             HttpStatus.UNPROCESSABLE_ENTITY,
             "Còn {0} dòng Không đạt chưa ghi biện pháp xử lý (loại bỏ, trả lại, tiêu hủy...)"),
+    INSPECTION_SAMPLE_PENDING(
+            6140, HttpStatus.CONFLICT, "Còn {0} bản lưu mẫu của ngày chưa duyệt, hãy duyệt trước khi ký sổ lưu mẫu"),
     MEAL_PLAN_NOT_PUBLISHED(6091, HttpStatus.CONFLICT, "Thực đơn tuần chưa công bố, sửa ở bản nháp"),
     MEAL_PLAN_DAY_LOCKED(6092, HttpStatus.CONFLICT, "Ngày {0} đã qua giờ chốt hoặc là ngày nghỉ, không sửa được"),
     MEAL_PLAN_REASON_REQUIRED(6093, HttpStatus.BAD_REQUEST, "Cần nhập lý do sửa thực đơn (10–500 ký tự)"),
