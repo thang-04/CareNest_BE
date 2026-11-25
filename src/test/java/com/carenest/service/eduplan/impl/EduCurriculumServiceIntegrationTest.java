@@ -44,9 +44,17 @@ class EduCurriculumServiceIntegrationTest {
         return jdbc.queryForObject("SELECT id FROM age_groups WHERE code = ?", Long.class, code);
     }
 
+    private Long curriculumNurseryGroup() {
+        return jdbc.queryForObject("""
+                INSERT INTO age_groups (code, name, short_name, sort_order, age_from_months, age_to_months)
+                VALUES ('test-nt-24-36', 'Nhà trẻ nguồn chương trình', 'NT nguồn', 10, 24, 36)
+                RETURNING id
+                """, Long.class);
+    }
+
     @Test
     void curriculumMatchesExactMonthsAfterSchoolGroupIsRenamedAndRecreated() {
-        Long originalId = ageGroup("ag-2");
+        Long originalId = curriculumNurseryGroup();
         var originalGoals = service.getGoals(originalId);
         var originalContents = service.getContents(originalId);
         assertThat(originalGoals).isNotEmpty();
@@ -86,11 +94,15 @@ class EduCurriculumServiceIntegrationTest {
     @Test
     @DisplayName("EDU-28: đủ mục tiêu và gợi ý nội dung cho 4 nhóm tuổi")
     void countsPerAgeGroup() {
-        assertThat(service.getGoals(ageGroup("ag-2"))).hasSize(41);
+        Long nursery = curriculumNurseryGroup();
+        assertThat(service.getGoals(nursery)).hasSize(41);
         assertThat(service.getGoals(ageGroup("ag-3"))).hasSize(84);
         assertThat(service.getGoals(ageGroup("ag-4"))).hasSize(99);
         assertThat(service.getGoals(ageGroup("ag-5"))).hasSize(107);
-        assertThat(service.getContents(ageGroup("ag-2"))).hasSize(82);
+        assertThat(service.getContents(nursery)).hasSize(82);
+        // EDU-98 ghép chính xác khoảng tháng: nhóm chuẩn 25–36 không tự ghép nguồn 24–36.
+        assertThat(service.getGoals(ageGroup("ag-2"))).isEmpty();
+        assertThat(service.getContents(ageGroup("ag-2"))).isEmpty();
         assertThat(service.getContents(ageGroup("ag-3"))).hasSize(119);
         assertThat(service.getContents(ageGroup("ag-4"))).hasSize(143);
         assertThat(service.getContents(ageGroup("ag-5"))).hasSize(150);
@@ -120,7 +132,7 @@ class EduCurriculumServiceIntegrationTest {
     @Test
     @DisplayName("EDU-28: nhà trẻ tách mục IV: hát, vẽ, nặn vào Phát triển thẩm mỹ")
     void nurseryAestheticsSplit() {
-        List<CurriculumGoalResponse> goals = service.getGoals(ageGroup("ag-2"));
+        List<CurriculumGoalResponse> goals = service.getGoals(curriculumNurseryGroup());
         assertThat(goals)
                 .filteredOn(g -> g.sectionRef().startsWith("Phần hai › D › IV › 4"))
                 .isNotEmpty()

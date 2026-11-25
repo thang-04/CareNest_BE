@@ -84,9 +84,9 @@ class EduYearPlanSchemaIntegrationTest {
     }
 
     @Test
-    void seedsFourAgeGroupsAndFiveStandardDomains() {
+    void seedsSixAgeGroupsAndFiveStandardDomains() {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM age_groups", Integer.class))
-                .isEqualTo(4);
+                .isEqualTo(6);
         assertThat(domainRepository.findAllByActiveTrueOrderBySortOrderAsc())
                 .extracting(d -> d.getName())
                 .containsExactly(

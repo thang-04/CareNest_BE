@@ -11,7 +11,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Thống kê một ngày thực đơn cho N trẻ của một nhóm tuổi. {@code childrenSource}: CONFIRMED (suất đã xác nhận),
+ * Thống kê một ngày thực đơn cho N trẻ của một nhóm tuổi hoặc tổng toàn trường với {@code groups} theo từng nhóm.
+ * {@code childrenSource}: CONFIRMED (suất đã xác nhận),
  * ENROLLED (sĩ số đang học), INPUT (người xem nhập). Lượng tính theo đơn vị gốc của thực phẩm (g/ml); lượng mua =
  * lượng ăn ÷ (1 − thải bỏ%) (NUT-07, NUT-18). {@code evaluation} cùng dạng bảng kiểm của kế hoạch tuần (NUT-24, NUT-25).
  * {@code dishIngredients}: dòng công thức của từng món (theo bữa) cho MỘT trẻ, cùng công thức với {@code ingredients}
@@ -37,7 +38,8 @@ public record MenuStatisticsResponse(
         BigDecimal mealPrice,
         BigDecimal serviceFee,
         BigDecimal foodBudget,
-        Evaluation evaluation) {
+        Evaluation evaluation,
+        List<MenuStatisticsResponse> groups) {
 
     public record SupplierCost(Long supplierId, String supplierName, ContractStatus contractStatus, BigDecimal cost) {}
 

@@ -166,6 +166,7 @@ final class NotificationRuleCatalog {
             case EDU_RETURNED -> "Kế hoạch giáo dục bị trả lại";
             case EDU_DEADLINE_EXTENDED -> "Gia hạn kế hoạch giáo dục";
             case EDU_DEADLINE_NEAR -> "Kế hoạch giáo dục gần đến hạn";
+            case EDU_OVERDUE_DIGEST -> "Kế hoạch giáo dục quá hạn (báo Hiệu trưởng)";
             case SCHOOL_ANNOUNCEMENT -> "Thông báo của trường";
             default -> type.name();
         };

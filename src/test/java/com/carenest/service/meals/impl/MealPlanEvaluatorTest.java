@@ -295,6 +295,7 @@ class MealPlanEvaluatorTest {
                     Micronutrient.CALCIUM, "30",
                     Micronutrient.PHOSPHORUS, "104",
                     Micronutrient.IRON, "1.3",
+                    Micronutrient.ZINC, "2",
                     Micronutrient.VITAMIN_A, "0",
                     Micronutrient.VITAMIN_B1, "0.10",
                     Micronutrient.VITAMIN_B2, "0.03",
@@ -305,6 +306,7 @@ class MealPlanEvaluatorTest {
             Map.of(
                     Micronutrient.CALCIUM, "7",
                     Micronutrient.IRON, "0.96",
+                    Micronutrient.ZINC, "0",
                     Micronutrient.VITAMIN_A, "2",
                     Micronutrient.VITAMIN_B1, "0.90",
                     Micronutrient.VITAMIN_B2, "0.18",
@@ -320,6 +322,22 @@ class MealPlanEvaluatorTest {
                     "Thịt rim",
                     DishType.MAIN,
                     Map.of(AG3, List.of(new Portion(PORK_MICRO, new BigDecimal("40"))))));
+
+    @Test
+    void zincBelowOptionalNormDoesNotBlockPublicationAndMissingIsNotZero() {
+        Norm norm = withMicro(norm("280", "340"), Map.of(Micronutrient.ZINC, range("2", "3")));
+        var result = MealPlanEvaluator.evaluate(List.of(lunch(MONDAY)), List.of(GROUP), DISHES_MICRO, (g, d) -> norm);
+        var evaluation = result.evaluations().getFirst();
+        assertThat(evaluation.totals().zinc()).isEqualByComparingTo("1.2");
+        assertThat(row(evaluation, "zinc").status()).isEqualTo("LOW");
+        assertThat(evaluation.status()).isEqualTo("OK");
+        assertThat(result.publishable()).isTrue();
+
+        var missing = MealPlanEvaluator.evaluate(List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> norm);
+        assertThat(missing.evaluations().getFirst().totals().zinc()).isNull();
+        assertThat(row(missing.evaluations().getFirst(), "zinc").status()).isEqualTo("INCOMPLETE");
+        assertThat(missing.publishable()).isTrue();
+    }
 
     @Test
     @DisplayName(
@@ -339,6 +357,7 @@ class MealPlanEvaluatorTest {
         Evaluation evaluation = result.evaluations().getFirst();
         assertThat(evaluation.totals().calcium()).isEqualByComparingTo("20.8");
         assertThat(evaluation.totals().iron()).isEqualByComparingTo("1.16");
+        assertThat(evaluation.totals().zinc()).isEqualByComparingTo("1.2");
         assertThat(evaluation.totals().vitaminB1()).isEqualByComparingTo("0.42");
         assertThat(evaluation.totals().phosphorus()).isNull();
         NormRow calcium = row(evaluation, "calcium");
@@ -379,6 +398,7 @@ class MealPlanEvaluatorTest {
                         "vitaminB2",
                         "vitaminPp",
                         "vitaminC");
+        assertThat(row(evaluation, "zinc").value()).isEqualByComparingTo("1.2");
         // Vi chất lệch hoặc thiếu số liệu chỉ báo, không đổi trạng thái ngày, không chặn công bố
         assertThat(evaluation.status()).isEqualTo("OK");
         assertThat(result.issues())

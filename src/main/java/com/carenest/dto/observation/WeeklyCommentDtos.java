@@ -32,6 +32,7 @@ public final class WeeklyCommentDtos {
     /**
      * status: NONE (chưa có), DRAFT, SENT. content null với người chỉ xem khi bản chưa gửi. absentAllWeek: trẻ không có
      * mặt ngày nào trong tuần (không bắt buộc nhận xét). reopened: đã gửi rồi được GV sửa lại, chưa gửi lại.
+     * aiReviewed: false khi là nháp AI cô chưa xem / sửa (chặn "Gửi tất cả").
      */
     public record WeeklyCommentChildRow(
             Long childId,
@@ -44,7 +45,10 @@ public final class WeeklyCommentDtos {
             String sentByName,
             Instant updatedAt,
             boolean reopened,
-            WeekData data) {}
+            WeekData data,
+            boolean historical,
+            String historyStatus,
+            boolean aiReviewed) {}
 
     /**
      * Tuần nhận xét (OBS-29): weekStart = thứ Hai (khóa lưu); from–to = ngày học có giáo án tuần đã duyệt (source
@@ -75,6 +79,12 @@ public final class WeeklyCommentDtos {
             boolean weeklyTicket,
             int lunchFinished,
             int lunchDays) {}
+
+    /** GV mở xem bản nháp của một trẻ (nháp AI chỉ gửi cả lớp được sau khi đã xem hoặc sửa). */
+    public record WeeklyCommentViewRequest(
+            @NotNull Long classId,
+            @NotNull LocalDate weekStart,
+            @NotNull Long childId) {}
 
     /** childId null = cả lớp; overwrite = viết lại cả bản nháp cô đã sửa; ai = xin AI viết (AI tắt thì theo mẫu). */
     public record WeeklyCommentDraftRequest(

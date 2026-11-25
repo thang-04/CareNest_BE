@@ -51,5 +51,11 @@ public record AgeGroupMealConfigResponse(
         BigDecimal vitaminPpMax,
         BigDecimal vitaminCMin,
         BigDecimal vitaminCMax,
+        BigDecimal zincMin,
+        BigDecimal zincMax,
+        BigDecimal appliedProteinPct,
+        BigDecimal appliedLipidPct,
+        BigDecimal appliedGlucidPct,
+        NutritionConversionResponse conversion,
         String normBasis,
         boolean editable) {}

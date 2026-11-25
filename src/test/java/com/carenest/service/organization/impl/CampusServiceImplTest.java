@@ -122,10 +122,9 @@ class CampusServiceImplTest {
 
     @Test
     void duplicatedShortNameIsConflictOnCreateAndUpdate() {
-        given(campusRepository.existsByShortNameIgnoreCase("Cơ sở mới")).willReturn(true);
+        given(campusRepository.existsShortName("Cơ sở mới", 0L)).willReturn(true);
         given(campusRepository.findById(10L)).willReturn(Optional.of(campus(10L, "CS-A", true)));
-        given(campusRepository.existsByShortNameIgnoreCaseAndIdNot("Cơ sở mới", 10L))
-                .willReturn(true);
+        given(campusRepository.existsShortName("Cơ sở mới", 10L)).willReturn(true);
 
         assertThatThrownBy(() -> service.createCampus(PRINCIPAL, request("CS-N", "Cơ sở mới", false)))
                 .isInstanceOfSatisfying(

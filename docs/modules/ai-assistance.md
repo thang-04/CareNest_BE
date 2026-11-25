@@ -8,7 +8,7 @@ Cách ly AI provider khỏi domain; chọn provider theo loại dữ liệu, gi�
 ## Owns
 - `integration/ai/`:
   - Port `AiGateway`: `isAvailable(task)`, `taskConfig(task)`, `complete(AiRequest)` ⇒ `AiRawResult` (nội dung thô, provider, model, prompt version, token, latency).
-  - Dùng enum `utils/enums/AiTask` (`MENU_WEEKLY`, `MENU_DAILY`, `MENU_DAY_FIX`), `utils/enums/AiDataClass` (`PUBLIC_CATALOG`, `CHILD_DERIVED`) — enum dùng chung phải ở `utils/enums` (ArchUnit `sharedEnumsInUtils`).
+  - Dùng enum `utils/enums/AiTask` (`MENU_WEEKLY`, `MENU_DAILY`, `MENU_DAY_FIX`, `HEALTH_TREND`, `WEEKLY_COMMENT`, `PERIOD_COMMENT`), `utils/enums/AiDataClass` (`PUBLIC_CATALOG`, `CHILD_DERIVED`) — enum dùng chung phải ở `utils/enums` (ArchUnit `sharedEnumsInUtils`).
   - `ProviderChainAiGateway`: thử lần lượt provider trong chuỗi của task tới khi có nội dung hoặc hết deadline.
   - `OpenAiCompatibleProvider`: `POST {baseUrl}/chat/completions`, `response_format` JSON, không retry.
   - `AiProperties`, `PromptTemplateLoader` (prompt có version trong `resources/prompts/`), `AiClientException` + `AiErrorReason`.
@@ -24,7 +24,7 @@ AI-01..10, HLT-04, NUT-05. Provider: Gemini API, Groq (AI-09, ADR-0007).
 Plan `docs/plans/completed/2026-11-10-health-record-complete.md`. Phần dưới chỉ mô tả bản cũ; cấu hình hiện hành ở mục "Cấu hình".
 - `AiClient.complete(AiRequest(task, systemPrompt, userPrompt, maxTokens))` ⇒ `AiResult(text, model)`; `isEnabled()`. Lỗi: `AiException` lý do `UNAVAILABLE` (tắt, lỗi gọi, phản hồi rỗng) / `TIMEOUT` — domain đổi thành 8001 / 8002.
 - `OpenAiCompatibleAiClient`: một adapter `POST {base-url}/chat/completions` (Bearer key, temperature 0.2) dùng cho Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`, mặc định) và Groq (`https://api.groq.com/openai/v1`) — AI-09, không thêm SDK. Log chỉ task, model, độ trễ, kết quả (AI-05).
-- Cấu hình `carenest.ai.*` (`AiProperties`): env `CARENEST_AI_BASE_URL`, `CARENEST_AI_API_KEY`, `CARENEST_AI_MODEL` (mặc định `gemini-2.0-flash`), `CARENEST_AI_READ_TIMEOUT` (20s); connect 3s. Không có khóa ⇒ AI tắt, không gọi mạng; nghiệp vụ không AI vẫn chạy (AI-03). Khóa chỉ ở env/secret, không commit; `toString()` che khóa.
+- Cấu hình `carenest.ai.*` (`AiProperties`): env `AI_ENABLED` (mặc định `false`), mỗi provider `AI_GEMINI_*` / `AI_GROQ_*` (`MODEL`, `API_KEY`, `REASONING_EFFORT`, `BASE_URL`), embedding `AI_EMBEDDING_*`; chuỗi provider và hạn chờ theo task ở `carenest.ai.tasks` (`AI_MENU_WEEKLY_DEADLINE`, mặc định 30s). Tắt hoặc thiếu model/key ⇒ không gọi mạng; nghiệp vụ không AI vẫn chạy (AI-03). Khóa chỉ ở env/secret, không commit; `toString()` che khóa. Mọi `compose*.yaml` phải truyền đúng các tên này vào container.
 - Prompt nằm ở domain gọi (vd. `HealthTrendServiceImpl`): domain tự tối giản dữ liệu (AI-04), kiểm output (HLT-04) và lưu nháp `source=AI`, model (AI-01, AI-02).
 
 ## Phụ thuộc
@@ -59,6 +59,10 @@ AI tắt/lỗi/hết deadline ⇒ domain dùng phương án không AI, nghiệp 
 
 ## Dùng ở đâu
 - Thực đơn bán trú (nutrition, ADR-0024): `MenuSuggestionEngine` gọi task `MENU_WEEKLY`, `MENU_DAILY`, `MENU_DAY_FIX`; prompt `prompts/menu/{weekly_v2,repair_v1,daily_v1,dayfix_v2}.txt` (bản v1 giữ cho nháp cũ). Sơ đồ kiến trúc (dữ liệu nạp → SQL lọc cứng + pgvector xếp lại → LLM chỉ chọn bí danh → code tính dinh dưỡng → người duyệt): `docs/quality/ai-menu-quality-criteria.md` mục 0, ảnh `docs/quality/images/ai-menu-architecture.png`. `DishSimilarity` (nutrition) gọi `EmbeddingClient`, lưu/đọc `dish_embeddings`, trả điểm giống cho `MenuCandidateBuilder`. Eval truy xuất vector: `DishSimilarityLiveEvalTest` (`AI_LIVE_EVAL_EMBEDDING=true`, `AI_EMBEDDING_MODEL`, `AI_EMBEDDING_API_KEY`; 40 món giả, 10 câu mong muốn, top-5) ghi `target/ai-eval/embedding-<thời điểm>/{retrieval.md,retrieval.csv}` ⇒ chấm tay cột "Chấm tay", chép vào `docs/quality/ai-eval/<ngày>/`. Eval tay: `MenuAiLiveEvalTest` (`AI_LIVE_EVAL=true`, `AI_LIVE_EVAL_RUNS`, `AI_LIVE_EVAL_PAUSE_MS`), 10 case `src/test/resources/ai-eval/menu-cases.json`, kết quả `target/ai-eval/menu-eval-<thời điểm>/{records.json,lines.csv,days.csv}` ⇒ chép vào `docs/quality/ai-eval/<ngày>/`; cách đọc ở mục 4a cùng file.
+
+- Nhận xét tháng / học kỳ / cuối năm (learning-observation, OBS-34): `ChildEvaluationServiceImpl.redraft(…, ai)` gọi `AiPeriodCommentDraftGenerator` (task `PERIOD_COMMENT`, `CHILD_DERIVED`, chỉ Groq); prompt hiện hành `prompts/observation/period_comment_v2.txt` viết ngắn, tự nhiên cho phụ huynh, không mã MT/chủ đề (v1 giữ cho nháp cũ); `PeriodCommentFactsBuilder` gom số liệu + nhận xét của GV, `ChildTextScrubber` lọc họ tên / ngày sinh / số điện thoại của chính trẻ, `PeriodCommentGuard` chặn số không có trong đầu vào, từ chẩn đoán, mã nội bộ và markup. Mẫu câu khi AI tắt cũng chỉ chọn vài ghi nhận dễ hiểu; số liệu chi tiết vẫn ở phần căn cứ. Nháp lưu ở `child_evaluations` (`draft_source`, `draft_model`, `draft_prompt_version`, V171).
+
+Eval nhận xét kỳ: `PeriodCommentLiveEvalTest` (`AI_LIVE_EVAL=true`, `AI_GROQ_MODEL`, `AI_GROQ_API_KEY`), 10 case giả `src/test/resources/ai-eval/period-comment-cases.json` (ngày thô + số kỳ vọng tính độc lập); kết quả `target/ai-eval/period-comment-<thời điểm>/{days.csv,facts.csv,output.csv,records.json}`; kiểm tự động `PeriodCommentEvalCasesTest`. Mẫu chạy không key: `docs/quality/ai-eval/2026-11-19-period-comment-offline/` (chưa có số model thật).
 
 ## Lịch sử eval nhận xét trẻ (slice đã gỡ)
 - 2026-10-15, Groq `openai/gpt-oss-120b`, `reasoning_effort=low`, prompt `summary/draft_v2`: 5/5 case qua guard, ~1.0–1.5 giây, ~1.5k token/bản; câu chèn lệnh bị bỏ qua. Báo cáo: `docs/quality/ai-summary-evaluation-report.md`.

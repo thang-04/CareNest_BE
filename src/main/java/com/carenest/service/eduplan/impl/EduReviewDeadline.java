@@ -2,17 +2,17 @@ package com.carenest.service.eduplan.impl;
 
 import java.time.LocalDate;
 
-/** EDU-97: hạn xử lý lượt REVIEW tách biệt với hạn gửi và khóa sửa. */
+/**
+ * EDU-109 (9): khóa duyệt dùng đúng phép tính Quá hạn của hồ sơ — một hạn hiệu lực chung cho gửi và duyệt (hạn HT mở
+ * gần nhất, không có thì hạn gốc). Không còn mốc chụp lúc gửi (submissionCutoff).
+ */
 final class EduReviewDeadline {
+    /** lockFrom = hạn hiệu lực; reopenUntil = hạn HT mở gần nhất (null nếu chưa mở). */
     record Info(LocalDate lockFrom, LocalDate reopenUntil, boolean locked) {}
 
     private EduReviewDeadline() {}
 
-    static Info of(LocalDate submittedOn, int graceDays, LocalDate reopenUntil, LocalDate today) {
-        if (submittedOn == null) return new Info(null, reopenUntil, false);
-        if (reopenUntil != null)
-            return new Info(reopenUntil.plusDays(1), reopenUntil, !today.isBefore(reopenUntil.plusDays(1)));
-        LocalDate lockFrom = submittedOn.plusDays(Math.max(0, graceDays));
-        return new Info(lockFrom, null, !today.isBefore(lockFrom));
+    static Info of(EduDeadline.Info deadline) {
+        return new Info(deadline.effective(), deadline.extendedTo(), EduDeadline.OVERDUE.equals(deadline.state()));
     }
 }

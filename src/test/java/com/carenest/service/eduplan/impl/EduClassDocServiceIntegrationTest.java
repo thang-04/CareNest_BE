@@ -101,6 +101,18 @@ class EduClassDocServiceIntegrationTest {
     private long goal1;
     private java.util.function.Predicate<String> pickGoal = ws -> true;
 
+    /** EDU-109 (9): bộ test tắt hạn (lớp tạo sau hạn); test về hạn bật lại. */
+    private void enableDeadlines() {
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                (Object) org.springframework.test.util.AopTestUtils.getTargetObject(service), "deadlineEnabled", true);
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void disableDeadlines() {
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                (Object) org.springframework.test.util.AopTestUtils.getTargetObject(service), "deadlineEnabled", false);
+    }
+
     @BeforeEach
     void setUp() {
         com.carenest.integration.storage.InMemoryS3.install(s3);
@@ -622,6 +634,109 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "edu-list-paging: danh sách gọn không có nội dung soạn, lọc + phân trang; chi tiết theo khóa đủ nội dung")
+    void summaryIsLeanPagedAndDetailIsFull() {
+        String key = "bp_" + classId + "_" + plan.id();
+        ObjectNode content = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        service.saveClassDoc(teacher, "branch", key, content, versionOf(key), rootVersionOf("branch", content));
+        entityManager.clear();
+        var filter = new com.carenest.dto.eduplan.ClassDocSummaryFilter(
+                null, null, java.util.Set.of("branch"), null, null, null, false, 0, 5);
+
+        var page = service.getClassDocSummaries(teacher, schoolYear, false, filter);
+        assertThat(page.size()).isEqualTo(5);
+        assertThat(page.items())
+                .filteredOn(n -> n.path("id").asString().equals(key))
+                .singleElement()
+                .satisfies(n -> {
+                    // G94-445: bản gọn giữ tên nhánh theo tuần (trang toàn trường đếm tuần đã đặt tên)
+                    assertThat(n.has("names")).isTrue();
+                    assertThat(n.has("branches")).isFalse();
+                    assertThat(n.path("permissions").path("canEdit").asBoolean())
+                            .isTrue();
+                });
+        assertThat(page.items()).allMatch(n -> "branch".equals(n.path("kind").asString()));
+        // Trang ngoài phạm vi ⇒ rỗng, tổng số giữ nguyên
+        var beyond = service.getClassDocSummaries(
+                teacher,
+                schoolYear,
+                false,
+                new com.carenest.dto.eduplan.ClassDocSummaryFilter(
+                        null, null, java.util.Set.of("branch"), null, null, null, false, 9, 5));
+        assertThat(beyond.items()).isEmpty();
+        assertThat(beyond.totalElements()).isEqualTo(page.totalElements());
+
+        assertThat(service.getClassDoc(teacher, "branch", key).path("names").has("2026-09-07"))
+                .isTrue();
+        // Cùng luật xem như danh sách: GV lớp khác không đọc được
+        assertApiError(() -> service.getClassDoc(otherTeacher, "branch", key), ApiCode.CLASS_DOC_NOT_FOUND);
+        assertThat(service.getClassDocContext(teacher, schoolYear).classes())
+                .extracting(ClassDocsResponse.ClassItem::id)
+                .containsExactly(String.valueOf(classId));
+    }
+
+    @Test
+    @DisplayName(
+            "edu-list-paging: hàng chờ (myTurn) giữ luật cũ — người trong chuỗi duyệt thấy, người soạn/GV lớp khác không")
+    void reviewQueueSummaryKeepsChainRule() {
+        String key = "bp_" + classId + "_" + plan.id();
+        ObjectNode content = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        service.saveClassDoc(teacher, "branch", key, content, versionOf(key), rootVersionOf("branch", content));
+        act(teacher, "branch", key, submit());
+        entityManager.clear();
+        var queue = new com.carenest.dto.eduplan.ClassDocSummaryFilter(
+                null, null, java.util.Set.of("semester", "dossier"), null, null, null, true, 0, 5);
+
+        long started = System.nanoTime();
+        var leaderPage = service.getClassDocSummaries(leader, schoolYear, true, queue);
+        System.out.println("EDU_SUMMARY_MEASURE ms=" + (System.nanoTime() - started) / 1_000_000);
+        assertThat(leaderPage.items()).singleElement().satisfies(n -> {
+            assertThat(n.path("kind").asString()).isEqualTo("semester");
+            assertThat(n.path("status").asString()).isEqualTo("REVIEW");
+            assertThat(n.path("permissions").path("canApprove").asBoolean()).isTrue();
+        });
+        assertThat(leaderPage.totalElements()).isEqualTo(1);
+        // PHT ở bước sau vẫn thấy (chỉ xem); người soạn và GV lớp khác không có trong hàng chờ
+        assertThat(service.getClassDocSummaries(vicePrincipal, schoolYear, true, queue)
+                        .items())
+                .hasSize(1);
+        assertThat(service.getClassDocSummaries(teacher, schoolYear, true, queue)
+                        .items())
+                .isEmpty();
+        assertThat(service.getClassDocSummaries(otherTeacher, schoolYear, true, queue)
+                        .items())
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("EDU-73 (Tiền 24/11/2026): GV không chủ nhiệm không nhận lịch nhánh đang soạn; GVCN nhận, sửa được")
+    void secondTeacherDoesNotSeeDraftBranchSchedule() {
+        String key = "bp_" + classId + "_" + plan.id();
+        ObjectNode content = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        service.saveClassDoc(teacher, "branch", key, content, versionOf(key), rootVersionOf("branch", content));
+        CurrentUser second = user("second", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-09-01', false)",
+                second.userId(),
+                classId);
+        entityManager.clear();
+
+        // EDU-111 (5): GV không chủ nhiệm xem lịch nhánh hiện tại, chỉ xem
+        assertThat(service.getClassDocs(second, schoolYear).branchPlans())
+                .filteredOn(d -> d.path("id").asString().equals(key))
+                .singleElement()
+                .satisfies(d -> assertThat(d.path("permissions").path("canEdit").asBoolean())
+                        .isFalse());
+        assertThat(service.getClassDocs(teacher, schoolYear).branchPlans())
+                .filteredOn(d -> d.path("id").asString().equals(key))
+                .singleElement()
+                .satisfies(d -> assertThat(d.path("permissions").path("canEdit").asBoolean())
+                        .isTrue());
+    }
+
+    @Test
     @DisplayName("Lịch tuần: bỏ tuần nghỉ trọn tuần, tuần học đánh số liên tục qua các chủ đề")
     void teachingWeeksSkipBreaks() {
         assertThat(service.getClassDocs(teacher, schoolYear).branchPlans()).isEmpty();
@@ -651,6 +766,10 @@ class EduClassDocServiceIntegrationTest {
         jdbc.update("DELETE FROM staff_assignments WHERE staff_role = 'AGE_GROUP_TEAM_LEADER'");
 
         assertThat(service.getClassDocs(vicePrincipal, schoolYear).semesterPackages())
+                .filteredOn(d -> d.path("semesterNo").asInt() == 1)
+                .singleElement()
+                .satisfies(d -> assertThat(d.has("status")).isFalse());
+        assertThat(service.getClassDocsForReview(vicePrincipal, schoolYear).semesterPackages())
                 .filteredOn(d -> d.path("semesterNo").asInt() == 1)
                 .singleElement()
                 .extracting(d -> d.path("status").asString())
@@ -763,7 +882,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    void vicePrincipalCannotApproveClassAtAnotherCampus() {
+    @DisplayName("EDU-108 FR4.1: PHT có mã duyệt duyệt lớp ở điểm trường khác; PHT bị tắt mã thì không")
+    void vicePrincipalApprovesClassAtAnotherCampusOnlyWithApproveCode() {
         long otherCampus = insertId("INSERT INTO campuses(code,name) VALUES ('CS-B','Campus B') RETURNING id");
         long targetClass = insertId(
                 "INSERT INTO classrooms(campus_id,school_year_id,name,age_group_id) VALUES (?,?,'B1',?) RETURNING id",
@@ -778,12 +898,23 @@ class EduClassDocServiceIntegrationTest {
         service.saveClassDoc(targetTeacher, "branch", key, content, -1L, null);
         act(targetTeacher, "branch", key, submit());
         act(leader, "branch", key, approve());
-        assertErrorCode(() -> act(vicePrincipal, "branch", key, approve()), ApiCode.NOT_YOUR_REVIEW_STEP);
-        assertThat(jdbc.queryForObject(
-                        "SELECT status FROM edu_class_docs WHERE doc_key=?",
-                        String.class,
-                        "sp_" + key.substring(3) + "_1"))
+        var codes = new java.util.HashSet<>(vicePrincipal.permissions());
+        codes.remove(com.carenest.utils.enums.Permission.EDU_SEMESTER_PACKAGE_APPROVE);
+        CurrentUser nutritionVp = new CurrentUser(
+                vicePrincipal.userId(),
+                vicePrincipal.keycloakUserId(),
+                vicePrincipal.username(),
+                vicePrincipal.fullName(),
+                null,
+                vicePrincipal.roles(),
+                codes);
+        assertErrorCode(() -> act(nutritionVp, "branch", key, approve()), ApiCode.NOT_YOUR_REVIEW_STEP);
+        String packageKey = "sp_" + key.substring(3) + "_1";
+        assertThat(jdbc.queryForObject("SELECT status FROM edu_class_docs WHERE doc_key=?", String.class, packageKey))
                 .isEqualTo("REVIEW");
+        act(vicePrincipal, "branch", key, approve());
+        assertThat(jdbc.queryForObject("SELECT status FROM edu_class_docs WHERE doc_key=?", String.class, packageKey))
+                .isNotEqualTo("REVIEW");
     }
 
     @Autowired
@@ -1041,7 +1172,8 @@ class EduClassDocServiceIntegrationTest {
                 days -> ((ObjectNode) days.get(0)).putArray("aiSteps").add("hoc.0.teacher"));
         saveDays("2026-09-21", days -> {});
         String ds = "ds_" + classId + "_" + theme1;
-        tools.jackson.databind.JsonNode checks = service.getClassDocChecks(leader, "dossier", ds);
+        assertErrorCode(() -> service.getClassDocChecks(leader, "dossier", ds), ApiCode.EDU_PLAN_NOT_RELEASED);
+        tools.jackson.databind.JsonNode checks = service.getClassDocChecks(teacher, "dossier", ds);
         java.util.Map<String, Boolean> ok = new java.util.HashMap<>();
         checks.path("items")
                 .forEach(i -> ok.put(i.path("key").asString(), i.path("ok").asBoolean()));
@@ -1068,7 +1200,7 @@ class EduClassDocServiceIntegrationTest {
         update = planRepository.saveAndFlush(update);
         workflow.recordAuthor(update.getId(), null, leader.userId(), "CREATOR", now);
         org.springframework.test.util.ReflectionTestUtils.invokeMethod(
-                (Object) org.springframework.test.util.AopTestUtils.getTargetObject(yearPlanService),
+                org.springframework.test.util.AopTestUtils.getTargetObject(yearPlanService),
                 "copyContent",
                 source.getId(),
                 update.getId());
@@ -1362,7 +1494,14 @@ class EduClassDocServiceIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long insertId(String sql, Object... args) {
@@ -1473,7 +1612,7 @@ class EduClassDocServiceIntegrationTest {
     @DisplayName(
             "Spec 005 FR-021: quá hạn khóa gửi kế hoạch giáo dục chủ đề; chỉ HT mở hạn (lý do + hạn mới) rồi gửi được, có thông báo")
     void overdueSemesterPackageNeedsExtension() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String key = "bp_" + classId + "_" + plan.id();
         service.saveClassDoc(
                 teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
@@ -1485,6 +1624,11 @@ class EduClassDocServiceIntegrationTest {
         // FR-003 + spec 005 FR-021: HT thấy gói Nháp quá hạn để mở hạn (không thấy tên nhánh đang soạn); PHT không mở
         // được
         assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
+                .filteredOn(d -> d.path("id").asString().equals(sp))
+                .singleElement()
+                .satisfies(d -> assertThat(d.has("status")).isFalse());
+        assertErrorCode(() -> service.getOverdueClassDocs(vicePrincipal, schoolYear), ApiCode.FORBIDDEN);
+        assertThat(service.getOverdueClassDocs(principal, schoolYear).semesterPackages())
                 .filteredOn(d -> d.path("id").asString().equals(sp))
                 .singleElement()
                 .satisfies(d -> {
@@ -1534,11 +1678,47 @@ class EduClassDocServiceIntegrationTest {
         fillSemesterPackage(teacher, String.valueOf(classId), 1);
         ObjectNode sent = service.actOnClassDoc(teacher, "semester", sp, submit(), versionOf(sp));
         assertThat(sent.path("status").asString()).isEqualTo("REVIEW");
-        assertThat(notificationsOf(leader, "EDU_SUBMITTED", link)).isEqualTo(1);
+        assertThat(notificationsOf(
+                        leader,
+                        "EDU_SUBMITTED",
+                        "/education/theme-plans/" + classId + "?hk=1&plan=" + plan.id() + "&review=1"))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("EDU-109 (9): gửi cũ thiếu submissionCutoff, lớp mở sau hạn vẫn quá hạn và khóa duyệt")
+    void legacySubmitWithoutCutoffStillLocksReviewAfterDeadline() {
+        enableDeadlines();
+        String branchKey = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(
+                teacher,
+                "branch",
+                branchKey,
+                branch(names("2026-09-07", "2026-09-21", "2026-09-28")),
+                versionOf(branchKey),
+                null);
+        String semester = "sp_" + classId + "_" + plan.id() + "_1";
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE edu_class_docs SET status='REVIEW', review_round=1, "
+                        + "history='[{\"action\":\"submit\",\"round\":1,\"at\":\"2026-08-01T03:00:00Z\"}]'::jsonb"
+                        + " WHERE doc_key=?",
+                semester);
+        entityManager.clear();
+        assertThat(service.getOverdueClassDocs(principal, schoolYear).semesterPackages())
+                .filteredOn(doc -> doc.path("id").asString().equals(semester))
+                .singleElement()
+                .satisfies(doc -> {
+                    assertThat(doc.path("reviewDeadline").path("locked").asBoolean())
+                            .isTrue();
+                    assertThat(doc.path("permissions").path("canApprove").asBoolean())
+                            .isFalse();
+                });
     }
 
     @Test
     void principalCanListAndReopenExpiredSemesterReviewOutsideApprovalChain() {
+        enableDeadlines();
         String branchKey = "bp_" + classId + "_" + plan.id();
         service.saveClassDoc(
                 teacher,
@@ -1559,10 +1739,14 @@ class EduClassDocServiceIntegrationTest {
         assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
                 .filteredOn(doc -> doc.path("id").asString().equals(semester))
                 .singleElement()
+                .satisfies(doc -> assertThat(doc.has("status")).isFalse());
+        assertThat(service.getOverdueClassDocs(principal, schoolYear).semesterPackages())
+                .filteredOn(doc -> doc.path("id").asString().equals(semester))
+                .singleElement()
                 .satisfies(doc -> {
                     assertThat(doc.path("reviewDeadline").path("canReopen").asBoolean())
                             .isTrue();
-                    assertThat(doc.path("canExtend").asBoolean()).isFalse();
+                    assertThat(doc.path("canExtend").asBoolean()).isTrue();
                     assertThat(doc.path("permissions").path("canApprove").asBoolean())
                             .isFalse();
                 });
@@ -1572,7 +1756,7 @@ class EduClassDocServiceIntegrationTest {
                 semester,
                 new ClassDocActionRequest("reopen_review_deadline", "Mở lại hạn duyệt", LocalDate.parse("2026-10-28")),
                 versionOf(semester));
-        assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
+        assertThat(service.getOverdueClassDocs(principal, schoolYear).semesterPackages())
                 .filteredOn(doc -> doc.path("id").asString().equals(semester))
                 .singleElement()
                 .satisfies(doc -> {
@@ -1583,6 +1767,15 @@ class EduClassDocServiceIntegrationTest {
                     assertThat(doc.path("permissions").path("canApprove").asBoolean())
                             .isFalse();
                 });
+        assertThat(service.getOverdueClassDoc(principal, schoolYear, "semester", semester)
+                        .path("history")
+                        .size())
+                .isEqualTo(1);
+        assertErrorCode(
+                () -> service.getOverdueClassDoc(vicePrincipal, schoolYear, "semester", semester), ApiCode.FORBIDDEN);
+        assertErrorCode(
+                () -> service.getOverdueClassDoc(principal, schoolYear + 1, "semester", semester),
+                ApiCode.CLASS_DOC_NOT_FOUND);
     }
 
     @Test
@@ -1676,7 +1869,7 @@ class EduClassDocServiceIntegrationTest {
     @DisplayName(
             "Spec 004 Q2, Q5 + spec 005 FR-021: gói đã ban hành qua hạn thì khóa tạo phiên bản/sửa, không mở khóa nữa")
     void releasedPackageLocksAfterSemesterStartUntilUnlocked() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String key = "bp_" + classId + "_" + plan.id();
         service.saveClassDoc(
                 teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
@@ -1717,7 +1910,7 @@ class EduClassDocServiceIntegrationTest {
     @Test
     @DisplayName("Spec 005 khóa cứng: bản đã từng ban hành đang điều chỉnh qua hạn thì Hiệu trưởng không mở hạn")
     void revisedReleasedPackageCannotBeExtendedAfterStart() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String key = "bp_" + classId + "_" + plan.id();
         service.saveClassDoc(
                 teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
@@ -1798,8 +1991,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dự kiến chủ đề nhánh: người chỉ xem trong phạm vi lớp thấy đủ tên nhánh, kể cả học kỳ chưa ban hành")
-    void viewerSeesAllBranchNamesOfClassInScope() {
+    @DisplayName("EDU-73: người chỉ xem lịch nhánh nhận snapshot theo học kỳ, người soạn nhận lịch đang lưu")
+    void viewerSeesOnlyPublishedBranchNamesOfClassInScope() {
         CurrentUser second = user("second", CareNestRole.TEACHER);
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
@@ -1816,18 +2009,101 @@ class EduClassDocServiceIntegrationTest {
                 versionOf(key),
                 null);
 
-        ObjectNode viewed =
-                service.getClassDocs(second, schoolYear).branchPlans().getFirst();
-        assertThat(viewed.path("names").has("2026-09-07")).isTrue();
-        assertThat(viewed.path("names").has("2026-10-05")).isTrue();
-        assertThat(viewed.has("branchUnreleasedSemesters")).isFalse();
-        assertThat(viewed.path("permissions").path("canEdit").asBoolean()).isFalse();
+        // Tiền 24/11/2026: PHT dinh dưỡng (thu hồi "Phụ trách chuyên môn", không còn mã KHGD) vẫn xem bản đã ban hành
+        CurrentUser nutritionVp = new CurrentUser(
+                vicePrincipal.userId(),
+                vicePrincipal.keycloakUserId(),
+                vicePrincipal.username(),
+                vicePrincipal.fullName(),
+                null,
+                vicePrincipal.roles(),
+                vicePrincipal.permissions().stream()
+                        .filter(p -> !com.carenest.utils.enums.Permission.EDU_ACADEMIC_ONLY.contains(p)
+                                && p != com.carenest.utils.enums.Permission.EDU_ACADEMIC_DUTY)
+                        .collect(java.util.stream.Collectors.toSet()));
+        for (CurrentUser viewer : List.of(second, principal, vicePrincipal, nutritionVp, leader)) {
+            ClassDocsResponse docs = service.getClassDocs(viewer, schoolYear);
+            // EDU-111 (5): GV không chủ nhiệm, HT/PHT/Tổ trưởng xem lịch nhánh hiện tại (kể cả nhánh chưa ban hành),
+            // chỉ xem
+            assertThat(docs.branchPlans()).singleElement().satisfies(current -> {
+                assertThat(current.path("names").has("2026-10-05")).isTrue();
+                assertThat(current.path("permissions").path("canEdit").asBoolean())
+                        .isFalse();
+            });
+            assertThat(docs.semesterPackages())
+                    .filteredOn(p -> "APPROVED".equals(p.path("status").asString()))
+                    .singleElement()
+                    .satisfies(published -> {
+                        assertThat(published.path("branchNames").has("2026-09-07"))
+                                .isTrue();
+                        assertThat(published.path("branchNames").has("2026-10-05"))
+                                .isFalse();
+                        assertThat(published.has("canExtend")).isFalse();
+                    });
+        }
+        assertThat(service.getClassDocs(teacher, schoolYear)
+                        .branchPlans()
+                        .getFirst()
+                        .path("names")
+                        .has("2026-10-05"))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName(
+            "EDU-111 (8): bản ban hành cũ chưa lưu lịch nhánh không lấy lịch hiện hành, chỉ giữ tên nhánh lúc ban hành")
+    void legacyReleaseWithoutCalendarKeepsOnlyReleasedNames() {
+        approveBranch();
+        jdbc.update(
+                "UPDATE edu_class_docs SET content = content || "
+                        + "'{\"schemaVersion\":2,\"themeSchedules\":{},\"branches\":{}}'::jsonb, status = 'APPROVED' WHERE kind = 'branch'");
+        jdbc.update(
+                "UPDATE edu_class_doc_releases SET print_snapshot = jsonb_set(print_snapshot, '{members}', "
+                        + "(SELECT jsonb_agg(CASE WHEN m->>'kind' = 'branch' THEN m - 'content' ELSE m END) FROM jsonb_array_elements(print_snapshot->'members') m))");
+        entityManager.clear();
+
+        assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
+                .filteredOn(p -> "APPROVED".equals(p.path("status").asString()))
+                .singleElement()
+                .satisfies(published -> {
+                    assertThat(published.has("effectiveCalendar")).isFalse();
+                    assertThat(published.has("branchNames")).isTrue();
+                });
+    }
+
+    @Test
+    @DisplayName("EDU-109 FR6: có hồ sơ quá hạn ⇒ Hiệu trưởng nhận đúng một báo tổng hợp trong ngày")
+    void overdueDigestIsSentOnceToActivePrincipal() {
+        enableDeadlines();
+        String theme = String.valueOf(jdbc.queryForObject(
+                "SELECT id FROM edu_themes WHERE team_plan_id=? AND start_date='2026-10-26'", Long.class, plan.id()));
+        String themeKey = "tp_" + classId + "_" + theme;
+        service.saveClassDoc(teacher, "theme", themeKey, theme(theme), versionOf(themeKey), null);
+        // Dời ngày bắt đầu chủ đề về trước hôm nay (22/10) ⇒ kế hoạch giáo dục ngày quá hạn
+        jdbc.update("UPDATE edu_themes SET start_date='2026-10-20' WHERE id=?", Long.valueOf(theme));
+        entityManager.clear();
+        String dossierKey = "ds_" + classId + "_" + theme;
+        assertThat(service.getClassDocs(teacher, schoolYear).themeDossiers().stream()
+                        .filter(d -> d.path("id").asString().equals(dossierKey))
+                        .findFirst()
+                        .orElseThrow()
+                        .path("deadlineState")
+                        .asString())
+                .isEqualTo("OVERDUE");
+
+        service.remindNearDeadlines();
+        service.remindNearDeadlines();
+
+        String link = EduClassDocServiceImpl.dailyLink(
+                EduClassDocServiceImpl.OVERDUE_LINK, java.time.LocalDate.of(2026, 10, 22));
+        assertThat(notificationsOf(principal, "EDU_OVERDUE_DIGEST", link)).isEqualTo(1);
+        assertThat(notificationsOf(teacher, "EDU_OVERDUE_DIGEST", link)).isZero();
     }
 
     @Test
     @DisplayName("Spec 003 FR-013: kế hoạch giáo dục ngày vào 'Gần đến hạn' thì nhắc GVCN đúng một lần")
     void nearDeadlineReminderIsSentOnce() {
-        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        enableDeadlines();
         String near = String.valueOf(jdbc.queryForObject(
                 "SELECT id FROM edu_themes WHERE team_plan_id=? AND start_date='2026-10-26'", Long.class, plan.id()));
         String themeKey = "tp_" + classId + "_" + near;
@@ -1840,7 +2116,9 @@ class EduClassDocServiceIntegrationTest {
         assertThat(dossier.path("deadlineState").asString()).isEqualTo("NEAR");
         assertThat(dossier.path("daysLeft").asInt()).isEqualTo(4);
 
-        String link = "/education/class/" + classId + "/themes/" + near;
+        // EDU-109: mỗi ngày một lần ⇒ đường dẫn mang ngày nhắc
+        String link = EduClassDocServiceImpl.dailyLink(
+                "/education/class/" + classId + "/themes/" + near, java.time.LocalDate.of(2026, 10, 22));
         assertThat(service.remindNearDeadlines()).isPositive();
         service.remindNearDeadlines();
         assertThat(notificationsOf(teacher, "EDU_DEADLINE_NEAR", link)).isEqualTo(1);
@@ -1857,6 +2135,9 @@ class EduClassDocServiceIntegrationTest {
         service.remindNearDeadlines();
         assertThat(notificationsOf(otherTeacher, "EDU_DEADLINE_NEAR", link)).isEqualTo(1);
         assertThat(notificationsOf(teacher, "EDU_DEADLINE_NEAR", link)).isEqualTo(1);
+        // Ngày hôm sau nhắc tiếp (đường dẫn ngày mới chưa có thông báo)
+        assertThat(EduClassDocServiceImpl.dailyLink("/x", java.time.LocalDate.of(2026, 10, 23)))
+                .isNotEqualTo(EduClassDocServiceImpl.dailyLink("/x", java.time.LocalDate.of(2026, 10, 22)));
     }
 
     // ===== Spec 006: thẻ hoạt động (EDU-78), kế hoạch tuần theo kế hoạch giáo dục ngày (EDU-79), kiểm đủ MT (EDU-80)

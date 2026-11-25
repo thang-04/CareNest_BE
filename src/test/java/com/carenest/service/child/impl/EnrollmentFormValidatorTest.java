@@ -59,6 +59,20 @@ class EnrollmentFormValidatorTest {
     }
 
     @Test
+    @DisplayName("CHD-06: thiếu cả phần khai báo ⇒ \"Khai báo ăn và sức khỏe còn thiếu\" ở ô dị ứng")
+    void missingDeclarationUsesMealAndHealthName() {
+        EnrollChildRequest noDeclaration = new EnrollChildRequest(
+                new EnrollmentChildInput(
+                        null, null, null, List.of(new GuardianInput(null, null, null, null, null)), null),
+                null,
+                null,
+                null);
+
+        assertThat(errors(EnrollmentFormValidator.validate(noDeclaration, TODAY)))
+                .containsEntry("declaration.allergies", "Khai báo ăn và sức khỏe còn thiếu");
+    }
+
+    @Test
     @DisplayName("C-5: thiếu thông tin ⇒ lỗi theo đường dẫn ô của FE (không tiền tố child.)")
     void missingFieldsUseFrontendPaths() {
         EnrollChildRequest empty = new EnrollChildRequest(
@@ -237,6 +251,15 @@ class EnrollmentFormValidatorTest {
         assertThat(EnrollmentFormValidator.nameKey("  NGUYỄN   Minh  Anh ")).isEqualTo("nguyễn minh anh");
         assertThat(EnrollmentFormValidator.nameKey("Minh Anh"))
                 .isNotEqualTo(EnrollmentFormValidator.nameKey("Minh Ánh"));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-13: tiếp nhận trẻ chưa đủ 3 tháng tuổi ⇒ lỗi ngày sinh; vừa đủ 3 tháng ⇒ nhận")
+    void intakeRequiresThreeMonthsOfAge() {
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-07-30"), okDeclaration()), TODAY)))
+                .containsEntry("dateOfBirth", "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận");
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-07-29"), okDeclaration()), TODAY)))
+                .doesNotContainKey("dateOfBirth");
     }
 
     private static Map<String, String> errors(EnrollmentFormValidator.Result result) {

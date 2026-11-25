@@ -196,7 +196,7 @@ final class HealthExamNormalizer {
     private static HealthExamVitals vitals(HealthExamVitals raw) {
         HealthExamVitals v = raw == null ? new HealthExamVitals(null, null, null, null, null, null) : raw;
         return new HealthExamVitals(
-                round(v.temperatureC(), 1),
+                round(v.temperatureC(), 2),
                 choice("exam.vitals.temperatureStatus", v.temperatureStatus()),
                 round(v.pulse(), 0),
                 choice("exam.vitals.pulseStatus", v.pulseStatus()),

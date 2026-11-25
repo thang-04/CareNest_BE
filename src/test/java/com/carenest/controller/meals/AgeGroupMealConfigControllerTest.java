@@ -84,6 +84,29 @@ class AgeGroupMealConfigControllerTest {
                 .andExpect(jsonPath("$.code").value(200));
     }
 
+    @Test
+    void statusOnlyBatchRequiresPrincipalAndRejectsNullFlag() throws Exception {
+        String body = "{\"items\":[],\"statuses\":[{\"ageGroupId\":4,\"enabled\":false}]}";
+        authenticate(CareNestRole.VICE_PRINCIPAL, Set.of(Permission.NUTRITION_MANAGE));
+        mockMvc.perform(post(CONFIGS + "/batch")
+                        .with(token(CareNestRole.VICE_PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+        var principal = authenticate(CareNestRole.PRINCIPAL, Permission.fixedPermissionsOf(CareNestRole.PRINCIPAL));
+        given(configService.saveConfigs(eq(principal), any(), any())).willReturn(List.of());
+        mockMvc.perform(post(CONFIGS + "/batch")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(CONFIGS + "/batch")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.replace("false", "null")))
+                .andExpect(status().is4xxClientError());
+    }
+
     private CurrentUser authenticate(CareNestRole role, Set<Permission> permissions) {
         CurrentUser user = new CurrentUser(7L, "kc-7", "demo.user", "Demo", null, Set.of(role), permissions);
         given(currentUserService.getCurrentUser()).willReturn(user);

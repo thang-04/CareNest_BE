@@ -11,6 +11,8 @@ import com.carenest.repository.meals.FreshCheckRepository;
 import com.carenest.repository.meals.StockLotRepository;
 import com.carenest.repository.meals.StockMovementRepository;
 import com.carenest.repository.meals.SupplierRepository;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.utils.enums.FoodUnit;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -18,6 +20,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +34,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Khung dòng M1 (kiểm tra trước chế biến, INS-01): thực phẩm tươi từ kiểm nhận hàng tươi trong ngày (lần 2 nếu đã
- * ghi, không thì lần 1) kèm nhà cung cấp theo từng dòng; thực phẩm khô từ các lô đã trừ kho cho bữa ăn của ngày (NUT-11) kèm nhà cung
+ * ghi và có dòng, không thì lần 1) kèm nhà cung cấp theo từng dòng (dòng chưa ghi thì theo bảng giá thực phẩm); thực phẩm khô từ các lô đã trừ kho cho bữa ăn của ngày (NUT-11) kèm nhà cung
  * cấp, ngày nhập, hạn dùng. Khối lượng đổi sang kg / lít như mẫu biểu. Chỉ đọc; ô PHT nhập để trống.
  */
 @Component
@@ -46,28 +49,37 @@ class InspectionIntakeSkeleton {
     private final StockLotRepository lotRepository;
     private final FoodRepository foodRepository;
     private final SupplierRepository supplierRepository;
+    private final FoodPriceService foodPriceService;
     private final Clock clock;
 
     List<Map<String, Object>> fresh(Long campusId, LocalDate date) {
         List<FreshCheck> checks = freshCheckRepository.findByCampusIdAndCheckDate(campusId, date);
-        // Lần 2 là hàng thực nhận theo suất đã chốt: ưu tiên khi đã ghi
+        // Lần 2 là hàng thực nhận theo suất đã chốt: ưu tiên khi đã ghi; lần 2 không có dòng nào thì giữ hàng thực nhận
+        // ở lần 1
         FreshCheck check = checks.stream()
+                .filter(c -> !c.getLines().isEmpty())
                 .max(Comparator.comparingInt(c -> c.getRound() == ROUND_SERVINGS ? 1 : 0))
                 .orElse(null);
-        if (check == null || check.getLines().isEmpty()) {
+        if (check == null) {
             return List.of();
         }
         Map<Long, Food> foods =
                 foods(check.getLines().stream().map(line -> line.getFoodId()).collect(Collectors.toSet()));
-        // NUT-12: NCC theo từng dòng; dòng cũ chưa có thì lấy NCC cấp lần kiểm
-        Map<Long, Supplier> suppliers = supplierRepository
-                .findAllById(Stream.concat(
-                                check.getLines().stream().map(FreshCheckLine::getSupplierId),
-                                Stream.of(check.getSupplierId()))
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(Supplier::getId, Function.identity()));
+        // NUT-12, NUT-27: NCC theo từng dòng; dòng chưa ghi NCC thì lấy NCC của thực phẩm tại ngày kiểm, không dùng NCC
+        // cấp phiếu
+        FoodPriceBook book = foodPriceService.book(foods.keySet());
+        Map<Long, Long> supplierIdByFood = new LinkedHashMap<>();
+        for (FreshCheckLine line : check.getLines()) {
+            Long supplierId = line.getSupplierId() != null
+                    ? line.getSupplierId()
+                    : book.at(line.getFoodId(), date).supplierId();
+            if (supplierId != null) {
+                supplierIdByFood.put(line.getFoodId(), supplierId);
+            }
+        }
+        Map<Long, Supplier> suppliers =
+                supplierRepository.findAllById(new HashSet<>(supplierIdByFood.values())).stream()
+                        .collect(Collectors.toMap(Supplier::getId, Function.identity()));
         String receivedAt = check.getCheckedAt().atZone(clock.getZone()).format(HOUR_MINUTE);
         return check.getLines().stream()
                 .filter(line -> foods.containsKey(line.getFoodId()))
@@ -82,7 +94,7 @@ class InspectionIntakeSkeleton {
                     row.put("unit", unitLabel(food.getUnit()));
                     row.put("quantity", displayQuantity(quantity));
                     row.put("receivedAt", receivedAt);
-                    Long supplierId = line.getSupplierId() != null ? line.getSupplierId() : check.getSupplierId();
+                    Long supplierId = supplierIdByFood.get(line.getFoodId());
                     row.putAll(supplierCells(supplierId == null ? null : suppliers.get(supplierId)));
                     return row;
                 })

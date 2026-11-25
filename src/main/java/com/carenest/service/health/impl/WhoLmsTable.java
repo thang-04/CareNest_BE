@@ -13,17 +13,19 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * Bảng L, M, S của WHO theo tháng tuổi tròn 0–84 cho hai giới tính (CSV {@code sex,month,l,m,s}, dòng {@code #} là ghi
- * chú) và z-score theo phương pháp LMS (HLT-03). Dùng chung cho BMI, cân nặng, chiều cao theo tuổi.
+ * Bảng L, M, S của WHO theo tháng tuổi tròn 0–84 (vòng đầu 0–60) cho hai giới tính (CSV {@code sex,month,l,m,s}, dòng
+ * {@code #} là ghi chú) và z-score theo phương pháp LMS (HLT-03). Dùng chung cho BMI, cân nặng, chiều cao, vòng đầu theo tuổi.
  */
 final class WhoLmsTable {
 
     static final int MAX_MONTHS = 84;
 
     private final Map<Gender, double[][]> rows;
+    private final int maxMonths;
 
-    private WhoLmsTable(Map<Gender, double[][]> rows) {
+    private WhoLmsTable(Map<Gender, double[][]> rows, int maxMonths) {
         this.rows = rows;
+        this.maxMonths = maxMonths;
     }
 
     /** L, M, S của một giới tính tại tháng tuổi. */
@@ -37,7 +39,7 @@ final class WhoLmsTable {
      * theo cân nặng).
      */
     BigDecimal zScore(Gender gender, int ageMonths, double value, boolean restrictedTails) {
-        if (gender == null || !(value > 0) || Double.isInfinite(value) || ageMonths < 0 || ageMonths > MAX_MONTHS) {
+        if (gender == null || !(value > 0) || Double.isInfinite(value) || ageMonths < 0 || ageMonths > maxMonths) {
             return null;
         }
         double[] lms = rows.get(gender)[ageMonths];
@@ -63,8 +65,12 @@ final class WhoLmsTable {
         return m * Math.pow(1 + l * s * z, 1 / l);
     }
 
-    // Bảng phải đủ từng tháng 0–84 cho cả hai giới tính, L khác 0 (công thức LMS dùng L làm số chia)
     static WhoLmsTable load(String resource, String label) {
+        return load(resource, label, MAX_MONTHS);
+    }
+
+    // Bảng phải đủ từng tháng 0–maxMonths cho cả hai giới tính, L khác 0 (công thức LMS dùng L làm số chia)
+    static WhoLmsTable load(String resource, String label, int maxMonths) {
         Map<Gender, double[][]> table = new EnumMap<>(Gender.class);
         try (InputStream in = WhoLmsTable.class.getResourceAsStream(resource)) {
             if (in == null) {
@@ -89,7 +95,10 @@ final class WhoLmsTable {
                 if (l == 0) {
                     throw new IllegalStateException("L bằng 0 ở dòng " + line);
                 }
-                table.computeIfAbsent(Gender.valueOf(cells[0].trim()), g -> new double[MAX_MONTHS + 1][])[month] =
+                if (month < 0 || month > maxMonths) {
+                    throw new IllegalStateException("Bảng " + label + " có tháng ngoài 0–" + maxMonths + ": " + line);
+                }
+                table.computeIfAbsent(Gender.valueOf(cells[0].trim()), g -> new double[maxMonths + 1][])[month] =
                         new double[] {l, Double.parseDouble(cells[3].trim()), Double.parseDouble(cells[4].trim())};
             }
         } catch (IOException ex) {
@@ -97,12 +106,12 @@ final class WhoLmsTable {
         }
         for (Gender gender : Gender.values()) {
             double[][] months = table.get(gender);
-            for (int month = 0; month <= MAX_MONTHS; month++) {
+            for (int month = 0; month <= maxMonths; month++) {
                 if (months == null || months[month] == null) {
                     throw new IllegalStateException("Bảng " + label + " thiếu " + gender + " tháng " + month);
                 }
             }
         }
-        return new WhoLmsTable(table);
+        return new WhoLmsTable(table, maxMonths);
     }
 }

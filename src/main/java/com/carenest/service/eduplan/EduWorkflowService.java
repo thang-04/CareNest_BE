@@ -48,6 +48,12 @@ public interface EduWorkflowService {
     com.carenest.dto.eduplan.EduWorkflowPolicyResponse savePolicy(
             com.carenest.security.CurrentUser currentUser, com.carenest.dto.eduplan.EduWorkflowPolicyRequest request);
 
+    /**
+     * EDU-110: ghi policy (gộp với policy hiện có theo loại) khi khác, tăng revision, đối chiếu hồ sơ chờ. Người gọi
+     * đã kiểm quyền và lấy khóa cài đặt trong cùng giao dịch. Trả true khi có ghi.
+     */
+    boolean applyPolicy(Map<String, EduWorkflowPolicy.RolePolicy> policies, Long actorUserId, Instant now);
+
     boolean hasReviewerPrecedence(
             com.carenest.security.CurrentUser user, String docType, Long ageGroupId, Long classroomId);
 

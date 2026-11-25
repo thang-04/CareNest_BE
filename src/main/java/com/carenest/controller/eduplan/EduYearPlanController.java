@@ -3,6 +3,7 @@ package com.carenest.controller.eduplan;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.GoalFilePreviewResponse;
 import com.carenest.dto.eduplan.PlanActionRequest;
+import com.carenest.dto.eduplan.PreviousYearTicksResponse;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
@@ -10,6 +11,7 @@ import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduGoalFileService;
+import com.carenest.service.eduplan.EduPreviousYearTickService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
@@ -51,6 +53,19 @@ public class EduYearPlanController {
 
     private final EduYearPlanService eduYearPlanService;
     private final EduGoalFileService eduGoalFileService;
+    private final EduPreviousYearTickService eduPreviousYearTickService;
+
+    /** EDU-104: tick kế hoạch tổ đã ban hành năm học liền trước để người soạn kế hoạch tổ lấy lại. */
+    @GetMapping("/{planId}/previous-year-ticks")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<PreviousYearTicksResponse>> getPreviousYearTicks(
+            @PathVariable Long planId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getPreviousYearTicks|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        PreviousYearTicksResponse result = eduPreviousYearTickService.getPreviousYearTicks(currentUser, planId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get previous year ticks success", result);
+    }
 
     /** EDU-46: đọc file bảng mục tiêu (Word/Excel/CSV) thành bản xem trước; không lưu. */
     @PostMapping(value = "/file-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -65,6 +80,11 @@ public class EduYearPlanController {
     }
 
     // Role chỉ là lớp 1; EduYearPlanService kiểm quyền goals.* và phạm vi nhóm tuổi (lớp 2)
+    public enum PlanView {
+        MAIN,
+        OVERDUE
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<PageResponse<YearPlanSummaryResponse>>> getYearPlans(
@@ -73,6 +93,9 @@ public class EduYearPlanController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planLevel,
             @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planType,
+            @RequestParam(defaultValue = "MAIN") PlanView view,
+            // edu-list-paging (Tiền 25/11/2026): ẩn bản đã thay thế ngay ở truy vấn; mặc định giữ hành vi cũ
+            @RequestParam(defaultValue = "false") boolean currentOnly,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size,
             CurrentUser currentUser) {
@@ -84,25 +107,38 @@ public class EduYearPlanController {
         var level = planType != null
                 ? planType
                 : planLevel == null ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel;
-        PageResponse<YearPlanSummaryResponse> plans = eduYearPlanService.getYearPlans(
-                currentUser,
-                schoolYearId,
-                ageGroupId,
-                q,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")),
-                level);
+        var paging = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        PageResponse<YearPlanSummaryResponse> plans = view == PlanView.OVERDUE
+                ? eduYearPlanService.getOverdueYearPlans(currentUser, schoolYearId, ageGroupId, q, paging, level)
+                : eduYearPlanService.getYearPlans(currentUser, schoolYearId, ageGroupId, q, paging, level, currentOnly);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plans success", plans);
+    }
+
+    /** Số liệu thẻ tổng quan của danh sách kế hoạch năm/tổ (edu-list-paging): tổng, đã ban hành, nhóm tuổi đã có. */
+    @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<com.carenest.service.eduplan.EduYearPlanService.YearPlanStats>> getYearPlanStats(
+            @RequestParam(required = false) Long schoolYearId,
+            @RequestParam(required = false) com.carenest.utils.enums.EduPlanLevel planLevel,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getYearPlanStats|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        var stats = eduYearPlanService.getYearPlanStats(
+                currentUser, schoolYearId, planLevel == null ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plan stats success", stats);
     }
 
     /** Kế hoạch năm/tổ đang chờ đúng người gọi duyệt (spec 002 FR-001, FR-007). */
     @GetMapping("/review-queue")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<java.util.List<YearPlanSummaryResponse>>> getReviewQueue(
-            CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId();
+            @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        var plans = eduYearPlanService.getReviewQueue(currentUser);
+        var plans = eduYearPlanService.getReviewQueue(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get review queue success", plans);
     }
@@ -110,10 +146,15 @@ public class EduYearPlanController {
     @GetMapping("/{planId}")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> getYearPlan(
-            @PathVariable Long planId, CurrentUser currentUser) {
+            @PathVariable Long planId,
+            @RequestParam(required = false) Long schoolYearId,
+            @RequestParam(defaultValue = "MAIN") PlanView view,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan = eduYearPlanService.getYearPlan(currentUser, planId);
+        YearPlanDetailResponse plan = view == PlanView.OVERDUE
+                ? eduYearPlanService.getOverdueYearPlan(currentUser, planId, schoolYearId)
+                : eduYearPlanService.getYearPlan(currentUser, planId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plan success", plan);
     }
@@ -217,6 +258,27 @@ public class EduYearPlanController {
                 new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Issue year plan success", plan);
+    }
+
+    // EDU-110 BR6.2: HT soạn, chuỗi duyệt rỗng ⇒ ban hành thẳng
+    @PostMapping("/{planId}/principal-publish")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> publishByPrincipal(
+            @PathVariable Long planId,
+            @Valid @RequestBody(required = false) PlanActionRequest.Note request,
+            CurrentUser currentUser,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("Idempotency-Key") UUID requestId) {
+        String logPrefix = LOG_PREFIX + "|publishByPrincipal|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan = eduYearPlanService.publishByPrincipal(
+                currentUser,
+                planId,
+                request == null ? null : request.note(),
+                new YearPlanEditRequest(sessionId, revision, requestId));
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Publish year plan success", plan);
     }
 
     @PostMapping("/{planId}/return")

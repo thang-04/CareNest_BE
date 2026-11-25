@@ -21,8 +21,6 @@ public record EduConfigResponse(
         boolean canConfigure,
         List<Long> yearCreationScopes,
         List<Long> schoolYearCreationScopes,
-        int lateReturnGraceDays,
-        int lateApprovalGraceDays,
         boolean canConfigureDeadlines,
 
         @Schema(implementation = Map.class, additionalProperties = Schema.AdditionalPropertiesValue.TRUE)
@@ -49,8 +47,6 @@ public record EduConfigResponse(
                 canConfigure,
                 yearCreationScopes,
                 schoolYearCreationScopes,
-                2,
-                2,
                 false,
                 null);
     }

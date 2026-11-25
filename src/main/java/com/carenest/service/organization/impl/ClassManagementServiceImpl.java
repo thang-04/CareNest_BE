@@ -24,6 +24,7 @@ import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.TeacherDirectory;
+import com.carenest.service.organization.TeacherReadAccessService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.DisplayNames;
 import com.carenest.utils.enums.CareNestRole;
@@ -65,6 +66,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     private final SchoolConfigAccess schoolConfigAccess;
     private final SchoolStructureMapper schoolStructureMapper;
     private final YearSnapshotReader yearSnapshotReader;
+    private final TeacherReadAccessService teacherReadAccessService;
 
     @Override
     @Transactional(readOnly = true)
@@ -78,6 +80,8 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                             .findFirstByStatus(SchoolYearStatus.ACTIVE)
                             .orElseThrow(() -> GlobalException.of(ApiCode.NO_ACTIVE_SCHOOL_YEAR))
                     : findYear(schoolYearId);
+            // CFG-YR-05: năm chưa tới ngày mở chuẩn bị chỉ HT thấy
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             List<Classroom> classes = classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId());
             classes = filterVisible(currentUser, classes, year);
             if (campusId != null) {
@@ -421,6 +425,14 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                     .filter(a -> a.getValidTo() == null || !a.getValidTo().isBefore(a.getValidFrom()))
                     .forEach(a -> ids.add(a.getClassroomId()));
         }
+        // AUTH-03: năm đã đóng ⇒ GV xem (chỉ xem) lớp mình từng được phân công trong năm đó
+        if (currentUser.hasRole(CareNestRole.TEACHER) && year.getStatus() == SchoolYearStatus.CLOSED) {
+            classes.stream()
+                    .filter(c -> teacherReadAccessService.latestDay(
+                                    currentUser.userId(), c.getId(), year.getStartDate(), year.getEndDate())
+                            != null)
+                    .forEach(c -> ids.add(c.getId()));
+        }
         return ids;
     }
 
@@ -429,19 +441,29 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             return List.of();
         }
         List<Long> ids = classes.stream().map(Classroom::getId).toList();
-        Map<Long, Long> children = activeChildren(ids);
-        Map<Long, List<StaffAssignment>> teachers =
-                staffAssignmentRepository.findCurrentTeachers(ids, schoolConfigAccess.today()).stream()
-                        .collect(Collectors.groupingBy(StaffAssignment::getClassroomId));
-        Map<Long, Long> planned = plannedChildren(ids);
-        Set<Long> plannedYears =
+        Map<Long, SchoolYear> years =
                 schoolYearRepository
                         .findAllById(
                                 classes.stream().map(Classroom::getSchoolYearId).collect(Collectors.toSet()))
                         .stream()
-                        .filter(y -> y.getStatus() == SchoolYearStatus.PLANNED)
-                        .map(SchoolYear::getId)
-                        .collect(Collectors.toSet());
+                        .collect(Collectors.toMap(SchoolYear::getId, Function.identity()));
+        // CFG-YR-02: năm đã qua ngày kết thúc (đã đóng hoặc chưa) ⇒ sĩ số, GV tính tại ngày kết thúc năm
+        Map<LocalDate, List<Long>> idsByDate = classes.stream()
+                .collect(Collectors.groupingBy(
+                        c -> countDate(years.get(c.getSchoolYearId())),
+                        Collectors.mapping(Classroom::getId, Collectors.toList())));
+        Map<Long, Long> children = new HashMap<>();
+        Map<Long, List<StaffAssignment>> teachers = new HashMap<>();
+        idsByDate.forEach((date, classIds) -> {
+            children.putAll(activeChildren(classIds, date));
+            teachers.putAll(staffAssignmentRepository.findCurrentTeachers(classIds, date).stream()
+                    .collect(Collectors.groupingBy(StaffAssignment::getClassroomId)));
+        });
+        Map<Long, Long> planned = plannedChildren(ids);
+        Set<Long> plannedYears = years.values().stream()
+                .filter(y -> y.getStatus() == SchoolYearStatus.PLANNED)
+                .map(SchoolYear::getId)
+                .collect(Collectors.toSet());
         Set<Long> teacherUserIds = teachers.values().stream()
                 .flatMap(List::stream)
                 .map(StaffAssignment::getUserId)
@@ -531,10 +553,20 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     }
 
     private Map<Long, Long> activeChildren(Collection<Long> classIds) {
-        return classroomRepository.countActiveChildren(classIds, schoolConfigAccess.today()).stream()
+        return activeChildren(classIds, schoolConfigAccess.today());
+    }
+
+    private Map<Long, Long> activeChildren(Collection<Long> classIds, LocalDate date) {
+        return classroomRepository.countActiveChildren(classIds, date).stream()
                 .collect(Collectors.toMap(
                         ClassroomRepository.ClassroomCount::getClassroomId,
                         ClassroomRepository.ClassroomCount::getTotal));
+    }
+
+    // Ngày tính sĩ số / GV của lớp: hôm nay, hoặc ngày kết thúc năm nếu năm đã qua ngày kết thúc
+    private LocalDate countDate(SchoolYear year) {
+        LocalDate today = schoolConfigAccess.today();
+        return year != null && year.getEndDate().isBefore(today) ? year.getEndDate() : today;
     }
 
     private Map<Long, Long> plannedChildren(Collection<Long> classIds) {

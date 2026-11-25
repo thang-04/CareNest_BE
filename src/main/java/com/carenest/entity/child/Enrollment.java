@@ -67,4 +67,9 @@ public class Enrollment {
     public void endOn(LocalDate lastDay) {
         this.validTo = lastDay;
     }
+
+    /** Hủy lịch chuyển lớp (G94-180/CHD-14): trẻ ở lại lớp này, không còn ngày kết thúc. */
+    public void reopen() {
+        this.validTo = null;
+    }
 }

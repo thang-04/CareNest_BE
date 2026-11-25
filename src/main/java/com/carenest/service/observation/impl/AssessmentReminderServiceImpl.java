@@ -137,8 +137,14 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                                 ClassChildDay::classroomId,
                                 Collectors.mapping(ClassChildDay::childId, Collectors.toList())));
                 Map<Long, List<Long>> teachers = dayTeachersOf(classes, today);
+                // Chỉ trẻ còn thuộc lớp hôm nay, như danh sách đánh giá ngày (trẻ chuyển đi không thể đánh giá ở lớp
+                // này)
+                Map<Long, Long> currentClass = rules.currentClassOf(
+                        present.values().stream().flatMap(List::stream).collect(Collectors.toSet()));
                 for (ClassroomInfoResponse cls : classes) {
-                    List<Long> children = present.getOrDefault(cls.id(), List.of());
+                    List<Long> children = present.getOrDefault(cls.id(), List.of()).stream()
+                            .filter(c -> cls.id().equals(currentClass.get(c)))
+                            .toList();
                     if (children.isEmpty()) {
                         continue;
                     }

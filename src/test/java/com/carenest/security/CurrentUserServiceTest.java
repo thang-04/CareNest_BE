@@ -172,11 +172,16 @@ class CurrentUserServiceTest {
     }
 
     @Test
-    @DisplayName("AUTH-11: quyền PRINCIPAL cố định trong code, không đọc ma trận")
-    void shouldGivePrincipalFixedPermissionsWithoutQueryingMatrix() {
+    @DisplayName("AUTH-11 + EDU-110: quyền PRINCIPAL cố định trong code, riêng 8 mã soạn/duyệt EDU đọc từ ma trận")
+    void shouldGivePrincipalFixedPermissionsAndEduCodesFromMatrix() {
         authenticateWithJwt("ROLE_PRINCIPAL");
         given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
                 .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+        given(rolePermissionRepository.findByRoleIn(Set.of(CareNestRole.PRINCIPAL)))
+                .willReturn(List.of(
+                        RolePermission.create(CareNestRole.PRINCIPAL, "EDU_SCHOOL_YEAR_PLAN_APPROVE", null),
+                        // Ô ma trận không cấu hình được cho HT bị bỏ qua
+                        RolePermission.create(CareNestRole.PRINCIPAL, "CHILD_PROFILE_VIEW", null)));
 
         assertThat(currentUserService.getCurrentUser().permissions())
                 .containsExactlyInAnyOrder(
@@ -201,8 +206,9 @@ class CurrentUserServiceTest {
                         Permission.MENU_MANAGE,
                         Permission.STOCK_MANAGE,
                         Permission.FOOD_SAFETY_APPROVE,
+                        Permission.EDU_PLAN_CONFIG,
+                        Permission.EDU_SCHOOL_YEAR_PLAN_APPROVE,
                         Permission.PERMISSION_MANAGE);
-        verifyNoInteractions(rolePermissionRepository, userPermissionOverrideRepository);
     }
 
     @Test

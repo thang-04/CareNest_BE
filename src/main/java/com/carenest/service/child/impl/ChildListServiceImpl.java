@@ -3,7 +3,9 @@ package com.carenest.service.child.impl;
 import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildListFilter;
 import com.carenest.dto.child.ChildListItemResponse;
+import com.carenest.dto.child.ChildNextClassResponse;
 import com.carenest.dto.child.ParentAccountRowResponse;
+import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.child.Child;
@@ -15,6 +17,7 @@ import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
+import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildListService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.ClassroomService;
@@ -66,6 +69,7 @@ public class ChildListServiceImpl implements ChildListService {
     private final GuardianViews guardianViews;
     private final GuardianChildLinkService guardianChildLinkService;
     private final ClassroomService classroomService;
+    private final ChildIntakeService childIntakeService;
     private final StaffAccessPolicy staffAccessPolicy;
     private final CampusAccessPolicy campusAccessPolicy;
     private final StaffAssignmentService staffAssignmentService;
@@ -263,6 +267,11 @@ public class ChildListServiceImpl implements ChildListService {
         Map<Long, List<ChildGuardianResponse>> guardians = guardianViews.of(childIds);
         Map<Long, Long> accountCounts = guardianChildLinkService.countGuardiansByChildIds(childIds);
         boolean managesParents = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
+        // CHD-09, CHD-11: đăng ký năm sau của cả trang, một lần truy vấn
+        Map<Long, PlannedAdmissionResponse> admissions = childIntakeService.findOpenPlannedAdmissions(childIds);
+        // G94-180/CHD-14: lớp sắp vào (lịch chuyển / lớp chưa bắt đầu), nhãn tới ngày đi học
+        Map<Long, ChildNextClassResponse> nextClasses = childIntakeService.findNextClasses(childIds);
+        LocalDate today = LocalDate.now(clock);
 
         return rows.stream()
                 .map(row -> {
@@ -294,7 +303,12 @@ public class ChildListServiceImpl implements ChildListService {
                             canManage,
                             child.getPhotoKey() == null ? null : "/children/" + child.getId() + "/photo",
                             cls == null ? null : cls.id(),
-                            accountCounts.getOrDefault(child.getId(), 0L));
+                            accountCounts.getOrDefault(child.getId(), 0L),
+                            admissions.get(child.getId()),
+                            child.getStartDate(),
+                            child.isStartDue(today),
+                            nextClasses.get(child.getId()),
+                            child.getScheduledLeaveOn());
                 })
                 .toList();
     }

@@ -10,6 +10,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +48,9 @@ class InspectionConcurrencyIntegrationTest {
     @Autowired
     InspectionService inspectionService;
 
+    @Autowired
+    Clock clock;
+
     @Test
     void concurrentFirstSaveKeepsOneSheetAndRejectsTheLoser() throws Exception {
         long campus = id("INSERT INTO campuses (code, name, is_main) VALUES ('INSRACE', 'Race', TRUE) RETURNING id");
@@ -66,7 +70,9 @@ class InspectionConcurrencyIntegrationTest {
                 Set.of(CareNestRole.VICE_PRINCIPAL),
                 Set.of(Permission.FOOD_SAFETY_APPROVE),
                 Set.of());
-        LocalDate day = LocalDate.now().minusDays(1);
+        // INS-05: ngày đã qua cần HT duyệt mở; phép thử này nói về tranh chấp lưu lần đầu nên dùng ngày hôm nay của
+        // đồng hồ BE
+        LocalDate day = LocalDate.now(clock);
         InspectionSaveRequest request =
                 new InspectionSaveRequest(0, Map.of(), List.of(Map.of("key", "sample:1", "qualityNote", "Mẫu đạt")));
 

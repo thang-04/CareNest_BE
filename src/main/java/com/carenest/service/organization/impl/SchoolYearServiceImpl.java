@@ -29,7 +29,6 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
-import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -74,6 +73,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final CampusRepository campusRepository;
     private final RoomRepository roomRepository;
     private final NotificationService notificationService;
+    private final SchoolConfigAccess schoolConfigAccess;
 
     @Override
     @Transactional(readOnly = true)
@@ -82,10 +82,9 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
-            boolean leader = isSchoolLeader(currentUser);
             List<SchoolYear> schoolYears = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
                     .filter(y -> status == null || y.getStatus() == status)
-                    .filter(y -> leaderSees(currentUser, leader, y, today) || isVisibleToStaff(currentUser, y, today))
+                    .filter(y -> schoolConfigAccess.canSeeYear(currentUser, y))
                     .toList();
             Map<Long, Long> classCounts = schoolYears.isEmpty()
                     ? Map.of()
@@ -115,12 +114,8 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         log.info("{}|START", logPrefix);
         try {
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
-            // CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị, khi có phân công năm đó
-            LocalDate today = LocalDate.now(clock);
-            if (!leaderSees(currentUser, isSchoolLeader(currentUser), schoolYear, today)
-                    && !isVisibleToStaff(currentUser, schoolYear, today)) {
-                throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
-            }
+            // CFG-YR-05: năm sắp diễn ra chưa tới ngày mở chuẩn bị chỉ HT thấy
+            schoolConfigAccess.checkYearVisible(currentUser, schoolYear);
             SchoolYearDetailResponse response = toDetail(schoolYear);
             log.info("{}|END", logPrefix);
             return response;
@@ -361,6 +356,9 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             // V154: bảng chung nhận nhóm tuổi, điểm trường, phòng của năm mới (module khác đọc bảng chung)
             ageGroupRepository.applyYearInfo(schoolYear.getId());
             campusRepository.applyYearInfo(schoolYear.getId());
+            // V180: bảng chung nhận điểm trường chính của năm mới
+            campusRepository.clearMainOutsideYear(schoolYear.getId());
+            campusRepository.applyYearMain(schoolYear.getId());
             campusRepository.deactivateOutsideYear(schoolYear.getId());
             roomRepository.applyYearInfo(schoolYear.getId());
             roomRepository.deactivateOutsideYear(schoolYear.getId());
@@ -396,6 +394,21 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             SchoolYearDetailResponse response = toDetail(schoolYear);
             log.info("{}|END", logPrefix);
             return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkYearVisible(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix =
+                LOG_PREFIX + "|checkYearVisible|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            schoolConfigAccess.checkYearVisible(currentUser, findSchoolYear(schoolYearId));
+            log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -554,7 +567,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         String logPrefix = LOG_PREFIX + "|getHolidays|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            findSchoolYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, findSchoolYear(schoolYearId));
             List<SchoolHolidayItem> holidays = holidaysOf(schoolYearId);
             log.info("{}|END", logPrefix);
             return holidays;
@@ -677,6 +690,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         log.info("{}|START", logPrefix);
         try {
             SchoolYear year = findSchoolYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             SemesterLockResponse response = new SemesterLockResponse(
                     semesterUsed(year, year.getSemester1Start(), year.getSemester1End()),
                     semesterUsed(year, year.getSemester2Start(), year.getSemester2End()) || yearEndUsed(year));
@@ -772,37 +786,6 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             }
         }
         return today.isAfter(prep) ? today : prep;
-    }
-
-    // HT, PHT thấy mọi năm (cấu hình, xếp lớp); người khác không thấy năm sắp diễn ra chưa tới ngày mở chuẩn bị.
-    // PHT chỉ khi còn phân công điểm trường (Cần chốt 17/11/2026, khớp danh sách lớp — AUTH-20)
-    // Cần chốt 18/11/2026: HT thấy mọi năm; PHT thấy năm sắp diễn ra từ ngày mở chuẩn bị (như GV, tổ trưởng)
-    private static boolean leaderSees(CurrentUser currentUser, boolean leader, SchoolYear year, LocalDate today) {
-        if (!leader) {
-            return false;
-        }
-        return currentUser.hasRole(CareNestRole.PRINCIPAL)
-                || year.getStatus() != SchoolYearStatus.PLANNED
-                || year.getPrepDate() == null
-                || !today.isBefore(year.getPrepDate());
-    }
-
-    private boolean isSchoolLeader(CurrentUser currentUser) {
-        if (currentUser.hasRole(CareNestRole.PRINCIPAL)) {
-            return true;
-        }
-        return currentUser.hasRole(CareNestRole.VICE_PRINCIPAL)
-                && !staffAssignmentService
-                        .findActiveCampusIds(currentUser.userId(), StaffRole.VICE_PRINCIPAL, LocalDate.now(clock))
-                        .isEmpty();
-    }
-
-    // CFG-YR-05: năm sắp diễn ra chỉ hiện cho GV / Tổ trưởng được phân công năm đó, từ ngày mở chuẩn bị
-    private boolean isVisibleToStaff(CurrentUser currentUser, SchoolYear schoolYear, LocalDate today) {
-        return schoolYear.getStatus() != SchoolYearStatus.PLANNED
-                || (schoolYear.isPreparing(today)
-                        && staffAssignmentService.hasStaffAssignmentInYear(
-                                currentUser.userId(), schoolYear.getId(), today));
     }
 
     // CFG-YR-05: ngày mở chuẩn bị trước ngày bắt đầu, sau ngày kết thúc năm liền trước, không trước hôm nay; trống khi

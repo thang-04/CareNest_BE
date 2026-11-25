@@ -47,6 +47,9 @@ public interface SchoolYearService {
     /** CFG-YR-01: năm học đã kết thúc ⇒ 409 "School year … is closed". Gọi trước khi ghi dữ liệu gắn năm. */
     void checkYearOpen(Long schoolYearId);
 
+    /** CFG-YR-05: năm sắp diễn ra chưa tới ngày mở chuẩn bị chỉ HT thấy; không thấy ⇒ SCHOOL_YEAR_NOT_FOUND. */
+    void checkYearVisible(CurrentUser currentUser, Long schoolYearId);
+
     /** CFG-YR-01 cho dữ liệu theo lớp (đánh giá, xếp lớp…): kiểm năm học của lớp. */
     void checkClassYearOpen(Long classroomId);
 

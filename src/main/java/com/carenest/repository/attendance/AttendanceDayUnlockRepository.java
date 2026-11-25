@@ -13,5 +13,9 @@ public interface AttendanceDayUnlockRepository extends JpaRepository<AttendanceD
     Optional<AttendanceDayUnlock> findFirstByClassroomIdAndDateAndValidUntilAfterOrderByIdDesc(
             Long classroomId, LocalDate date, Instant now);
 
+    /** Lần mở lại còn hạn của các lớp trong khoảng ngày (phụ huynh không thấy số đang sửa dở). */
+    List<AttendanceDayUnlock> findByClassroomIdInAndDateBetweenAndValidUntilAfter(
+            Collection<Long> classroomIds, LocalDate from, LocalDate to, Instant now);
+
     List<AttendanceDayUnlock> findByCampusIdInOrderByUnlockedAtDesc(Collection<Long> campusIds);
 }

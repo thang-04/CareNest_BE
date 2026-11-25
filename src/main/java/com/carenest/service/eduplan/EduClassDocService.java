@@ -31,6 +31,27 @@ public interface EduClassDocService {
     /** Tài liệu, lớp và giáo viên của năm học (null = năm đang hoạt động) trong phạm vi người xem. */
     ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId);
 
+    ClassDocsResponse getClassDocsForReview(CurrentUser currentUser, Long schoolYearId);
+
+    /** Tài liệu (đủ nội dung) của đúng một lớp; classes/staff vẫn đủ phạm vi người xem. Lớp ngoài phạm vi ⇒ rỗng. */
+    ClassDocsResponse getClassDocsOfClass(CurrentUser currentUser, Long schoolYearId, boolean reviewView, Long classId);
+
+    /** Danh sách gọn có phân trang (không nội dung soạn); reviewView = hàng chờ duyệt. Cùng luật xem như getClassDocs. */
+    com.carenest.dto.common.PageResponse<ObjectNode> getClassDocSummaries(
+            CurrentUser currentUser,
+            Long schoolYearId,
+            boolean reviewView,
+            com.carenest.dto.eduplan.ClassDocSummaryFilter filter);
+
+    /** Một tài liệu đầy đủ theo khóa, cùng luật xem và cờ can* như danh sách. */
+    ObjectNode getClassDoc(CurrentUser currentUser, String kind, String docKey);
+
+    com.carenest.dto.eduplan.ClassDocContextResponse getClassDocContext(CurrentUser currentUser, Long schoolYearId);
+
+    ClassDocsResponse getOverdueClassDocs(CurrentUser currentUser, Long schoolYearId);
+
+    ObjectNode getOverdueClassDoc(CurrentUser currentUser, Long schoolYearId, String kind, String docKey);
+
     /** Lưu nội dung (tạo mới nếu chưa có); chỉ giáo viên của lớp, khi tài liệu còn Nháp / Bị trả lại. */
     ObjectNode saveClassDoc(
             CurrentUser currentUser,

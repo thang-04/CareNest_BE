@@ -20,6 +20,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.ClassroomAccessPolicy;
 import com.carenest.service.account.AccountService;
+import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.organization.ClassroomService;
@@ -61,7 +62,9 @@ class HealthCheckServiceImplTest {
             mock(ClassroomService.class),
             schoolStructure,
             mock(EnrollmentService.class),
-            campaigns);
+            campaigns,
+            mock(com.carenest.service.organization.SchoolYearService.class),
+            mock(AttendanceService.class));
     private final HealthCheckServiceImpl service = new HealthCheckServiceImpl(
             rules,
             mock(HealthRecords.class),
