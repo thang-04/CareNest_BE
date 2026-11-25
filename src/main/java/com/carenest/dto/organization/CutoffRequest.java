@@ -8,7 +8,8 @@ import java.time.LocalTime;
 
 /**
  * Giờ chốt dạng HH:mm, áp dụng từ ngày effectiveFrom (trong năm học). latestAfternoonArrival: giờ đến muộn nhất buổi
- * chiều của trẻ nghỉ sáng (ATT-13), phải sau giờ chốt; bỏ trống = giữ giờ đang đặt (mặc định 14:00).
+ * chiều của trẻ nghỉ sáng (ATT-13), sau giờ chốt; bỏ trống = giữ giờ đang đặt (mặc định 14:00). Thứ tự các mốc theo
+ * PCK-04 (phương án A), sai thứ tự trả lỗi theo từng ô.
  */
 public record CutoffRequest(
         @NotNull @JsonFormat(pattern = "HH:mm") LocalTime time,

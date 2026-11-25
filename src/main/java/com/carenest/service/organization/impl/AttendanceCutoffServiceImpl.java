@@ -133,19 +133,21 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     request.afternoonEnd(),
                     latest == null ? null : latest.getAfternoonEnd(),
                     AttendanceCutoff.DEFAULT_AFTERNOON_END);
-            // ATT-13: giờ đến muộn nhất buổi chiều phải sau giờ chốt
-            if (!latestArrival.isAfter(time)) {
-                throw GlobalException.of(ApiCode.CUTOFF_LATEST_ARRIVAL_INVALID, time);
-            }
-            validateDailySchedule(
+            // PCK-04, ATT-06, ATT-13 (phương án A): mỗi giờ sai thứ tự báo lỗi ở đúng ô
+            List<FieldErrorResponse> violations = DailyScheduleRules.violations(new DailyScheduleRules.Schedule(
+                    time,
+                    latestArrival,
                     dropoffOpenFrom,
                     morningStart,
                     morningEnd,
                     afternoonStart,
-                    pickupStart,
                     fullDayPickupFrom,
+                    pickupStart,
                     pickupEnd,
-                    afternoonEnd);
+                    afternoonEnd));
+            if (!violations.isEmpty()) {
+                throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, violations);
+            }
             if (!history.isEmpty()
                     && history.getFirst().getCutoffTime().equals(time)
                     && history.getFirst().getEffectiveFrom().equals(request.effectiveFrom())
@@ -344,30 +346,5 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
     private static LocalTime scheduleValue(LocalTime requested, LocalTime previous, LocalTime fallback) {
         LocalTime value = requested != null ? requested : previous == null ? fallback : previous;
         return value.withSecond(0).withNano(0);
-    }
-
-    private static void validateDailySchedule(
-            LocalTime dropoffOpenFrom,
-            LocalTime morningStart,
-            LocalTime morningEnd,
-            LocalTime afternoonStart,
-            LocalTime pickupStart,
-            LocalTime fullDayPickupFrom,
-            LocalTime pickupEnd,
-            LocalTime afternoonEnd) {
-        if (dropoffOpenFrom.isAfter(morningStart)
-                || !morningStart.isBefore(morningEnd)
-                || !morningEnd.isBefore(afternoonStart)
-                || !afternoonStart.isBefore(pickupStart)
-                || pickupStart.isAfter(fullDayPickupFrom)
-                || !fullDayPickupFrom.isBefore(pickupEnd)
-                || pickupEnd.isAfter(afternoonEnd)) {
-            throw GlobalException.withFieldErrors(
-                    ApiCode.INVALID_REQUEST_DATA,
-                    List.of(
-                            new FieldErrorResponse(
-                                    "fullDayPickupFrom",
-                                    "Thứ tự phải là: mở đón trẻ ≤ bắt đầu sáng < kết thúc sáng < bắt đầu chiều < bắt đầu trả trẻ ≤ mốc tính đủ ngày < kết thúc trả trẻ ≤ kết thúc chiều.")));
-        }
     }
 }

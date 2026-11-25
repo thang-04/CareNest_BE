@@ -1,5 +1,6 @@
 package com.carenest.service.organization.impl;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassTeachersRequest;
 import com.carenest.dto.organization.CopyClassesRequest;
 import com.carenest.dto.organization.CopyClassesResponse;
@@ -343,7 +344,13 @@ public class YearCopyServiceImpl implements YearCopyService {
                             history.getFirst().getAfternoonEnd()));
             return time;
         } catch (GlobalException ex) {
-            skipped.add(new YearCopyResponse.Skipped(YearCopyPart.CUTOFF, source.getName(), ex.getMessage()));
+            // Lịch cũ sai thứ tự phương án A (PCK-04): nêu ô sai thay câu chung "xem các ô báo đỏ"
+            String reason = ex.getFieldErrors().isEmpty()
+                    ? ex.getMessage()
+                    : ex.getFieldErrors().stream()
+                            .map(FieldErrorResponse::message)
+                            .collect(Collectors.joining("; "));
+            skipped.add(new YearCopyResponse.Skipped(YearCopyPart.CUTOFF, source.getName(), reason));
             return null;
         }
     }

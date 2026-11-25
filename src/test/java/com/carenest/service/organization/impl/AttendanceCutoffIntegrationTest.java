@@ -2,7 +2,9 @@ package com.carenest.service.organization.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.CutoffRequest;
 import com.carenest.dto.organization.CutoffResponse;
 import com.carenest.exception.GlobalException;
@@ -128,6 +130,54 @@ class AttendanceCutoffIntegrationTest {
 
         assertThat(response.setting()).isNull();
         assertThat(response.todayTime()).isNull();
+    }
+
+    @Test
+    void defaultScheduleUsesFullDayPickupFromThreePm() {
+        CutoffResponse response = service.saveCutoff(
+                principal, year, new CutoffRequest(LocalTime.of(8, 30), LocalDate.of(2026, 9, 1), null));
+
+        // PCK-04 (phương án A): mặc định mốc tính đủ ngày 15:00, cột V191 cũng mặc định 15:00
+        assertThat(response.setting().fullDayPickupFrom()).isEqualTo(LocalTime.of(15, 0));
+        assertThat(service.findFullDayPickupFrom(year, LocalDate.of(2026, 9, 2)))
+                .contains(LocalTime.of(15, 0));
+        assertThat(jdbc.queryForObject(
+                        "SELECT column_default FROM information_schema.columns WHERE table_name = 'attendance_cutoffs'"
+                                + " AND column_name = 'full_day_pickup_from'",
+                        String.class))
+                .startsWith("'15:00:00'");
+    }
+
+    @Test
+    void scheduleOutOfOrderReturnsErrorOnEachOffendingField() {
+        CutoffRequest request = new CutoffRequest(
+                LocalTime.of(8, 30),
+                LocalDate.of(2026, 9, 1),
+                null,
+                LocalTime.of(8, 0),
+                null,
+                null,
+                null,
+                LocalTime.of(11, 0),
+                LocalTime.of(15, 0),
+                LocalTime.of(15, 30),
+                null,
+                null);
+
+        assertThatThrownBy(() -> service.saveCutoff(principal, year, request))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                    assertThat(((GlobalException) ex).getFieldErrors())
+                            .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                            .containsExactly(
+                                    tuple("afternoonStart", "Bắt đầu chiều phải sau Kết thúc sáng (11:00)"),
+                                    tuple("pickupStart", "Bắt đầu trả trẻ phải bằng hoặc sau Mốc tính đủ ngày (15:30)"),
+                                    tuple(
+                                            "latestAfternoonArrival",
+                                            "Giờ đến muộn nhất buổi chiều phải sau Giờ chốt (08:30)"));
+                });
+        assertThat(service.getCutoff(year).setting()).isNull();
     }
 
     private static void expectError(ThrowingCallable call, ApiCode apiCode) {

@@ -27,7 +27,7 @@ public class AttendanceCutoff {
     public static final LocalTime DEFAULT_MORNING_END = LocalTime.of(11, 0);
     public static final LocalTime DEFAULT_AFTERNOON_START = LocalTime.of(13, 30);
     public static final LocalTime DEFAULT_PICKUP_START = LocalTime.of(15, 0);
-    public static final LocalTime DEFAULT_FULL_DAY_PICKUP_FROM = LocalTime.of(15, 30);
+    public static final LocalTime DEFAULT_FULL_DAY_PICKUP_FROM = LocalTime.of(15, 0);
     public static final LocalTime DEFAULT_PICKUP_END = LocalTime.of(17, 0);
     public static final LocalTime DEFAULT_AFTERNOON_END = LocalTime.of(17, 0);
 
