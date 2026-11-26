@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 456 endpoint.
+Tổng: 458 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -456,6 +456,8 @@ PUT /school-years/{schoolYearId}/semester · src/main/java/com/carenest/controll
 GET /school-years/{schoolYearId}/semester-locks · src/main/java/com/carenest/controller/organization/SchoolYearController.java#getSemesterLocks
 GET /school-years/{schoolYearId}/vice-principal-assignments · src/main/java/com/carenest/controller/organization/VicePrincipalAssignmentController.java#getAssignments
 PUT /school-years/{schoolYearId}/vice-principal-assignments/{userId} · src/main/java/com/carenest/controller/organization/VicePrincipalAssignmentController.java#assign
+GET /school/appearance · src/main/java/com/carenest/controller/organization/SchoolAppearanceController.java#getAppearance
+PUT /school/appearance · src/main/java/com/carenest/controller/organization/SchoolAppearanceController.java#saveAppearance
 GET /signatures/me · src/main/java/com/carenest/controller/account/UserSignatureController.java#listSignatures
 POST /signatures/me · src/main/java/com/carenest/controller/account/UserSignatureController.java#uploadSignature
 DELETE /signatures/me/{signatureId} · src/main/java/com/carenest/controller/account/UserSignatureController.java#deleteSignature
