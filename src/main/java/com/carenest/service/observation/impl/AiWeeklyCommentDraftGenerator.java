@@ -57,8 +57,7 @@ class AiWeeklyCommentDraftGenerator implements WeeklyCommentDraftGenerator {
                 .content();
         String clean = text == null ? "" : text.trim();
         String lower = clean.toLowerCase(Locale.ROOT);
-        if (clean.isEmpty()
-                || DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream().anyMatch(lower::contains)) {
+        if (clean.isEmpty() || DiagnosticTerms.containsAny(clean)) {
             throw new IllegalStateException("ai-unusable");
         }
         return clean;

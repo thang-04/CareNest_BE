@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -98,6 +99,22 @@ public class ChildServiceImpl implements ChildService {
                     childIds.isEmpty() ? Set.of() : Set.copyOf(childRepository.findIdsWithoutMeals(childIds));
             log.info("{}|withoutMeals={}|END", logPrefix, result.size());
             return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LocalDate> findScheduledLeaveOn(Long childId) {
+        String logPrefix = LOG_PREFIX + "|findScheduledLeaveOn|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<LocalDate> scheduledLeaveOn =
+                    childRepository.findById(childId).map(Child::getScheduledLeaveOn);
+            log.info("{}|found={}|END", logPrefix, scheduledLeaveOn.isPresent());
+            return scheduledLeaveOn;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

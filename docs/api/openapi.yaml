@@ -4336,6 +4336,68 @@ paths:
           description: OK
       tags:
       - attendance-controller
+  /api/classes/{classId}/attendance/children/{childId}/full-day-present:
+    post:
+      operationId: correctFullDayPresent
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/classes/{classId}/attendance/children/{childId}/meal-participation:
+    post:
+      operationId: correctMealParticipation
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CorrectMealParticipationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
   /api/classes/{classId}/attendance/summary:
     get:
       operationId: getClassSummary
@@ -13369,6 +13431,8 @@ components:
           $ref: "#/components/schemas/Placement"
         programCompleted:
           type: boolean
+        yearEndConfirmed:
+          type: boolean
     ChildPlacementResponse:
       type: object
       properties:
@@ -13773,6 +13837,9 @@ components:
     ClassAttendanceResponse:
       type: object
       properties:
+        afternoonStart:
+          type: string
+          format: time-local
         campusId:
           type: integer
           format: int64
@@ -14372,6 +14439,16 @@ components:
           type: array
           items:
             type: string
+    CorrectMealParticipationRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        participates:
+          type: boolean
+      required:
+      - date
     Counts:
       type: object
       properties:
@@ -14631,16 +14708,40 @@ components:
     CutoffRequest:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
+        fullDayPickupFrom:
+          type: string
+          format: time-local
         latestAfternoonArrival:
+          type: string
+          format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
           type: string
           format: time-local
         note:
           type: string
           maxLength: 500
           minLength: 0
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
+          type: string
+          format: time-local
         time:
           type: string
           format: time-local
@@ -16498,20 +16599,44 @@ components:
     Entry:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
         at:
           type: string
           format: date-time
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
+        fullDayPickupFrom:
+          type: string
+          format: time-local
         id:
           type: integer
           format: int64
         latestAfternoonArrival:
           type: string
           format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
         note:
           type: string
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
+          type: string
+          format: time-local
         previousTime:
           type: string
           format: time-local
@@ -20180,6 +20305,8 @@ components:
             - MORNING
             - LUNCH
             - AFTERNOON
+        noticeOnly:
+          type: boolean
         offMeals:
           type: array
           items:
@@ -20259,6 +20386,8 @@ components:
         id:
           type: integer
           format: int64
+        noticeOnly:
+          type: boolean
         offMeals:
           type: array
           items:
@@ -22098,6 +22227,8 @@ components:
           enum:
           - MORNING
           - AFTERNOON
+        absentPartUnexcused:
+          type: boolean
         arrivedAt:
           type: string
           format: date-time
@@ -22463,6 +22594,8 @@ components:
           enum:
           - MORNING
           - AFTERNOON
+        absentPartUnexcused:
+          type: boolean
         arrivedAt:
           type: string
           format: date-time
@@ -23062,6 +23195,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NewAdmission"
+        placementOpenFrom:
+          type: string
+          format: date
         sourceYear:
           $ref: "#/components/schemas/YearBrief"
         targets:
@@ -28461,9 +28597,21 @@ components:
     Setting:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
+        fullDayPickupFrom:
+          type: string
+          format: time-local
         history:
           type: array
           items:
@@ -28471,8 +28619,20 @@ components:
         latestAfternoonArrival:
           type: string
           format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
         note:
           type: string
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
+          type: string
+          format: time-local
         schoolYear:
           type: integer
           format: int64

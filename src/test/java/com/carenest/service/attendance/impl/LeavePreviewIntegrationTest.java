@@ -197,9 +197,12 @@ class LeavePreviewIntegrationTest {
         LeavePreviewResponse preview = service.previewLeaveRequest(parent, preview(TODAY, THU, null, null));
         assertThat(preview.skippedDates()).containsExactly(TODAY);
         assertThat(preview.appliedDates()).containsExactly(THU);
-        // Đơn chỉ gồm hôm nay sau giờ chốt vẫn gửi được dạng thông báo (ATT-05b, chốt 22/11/2026)
+        // Đơn chỉ gồm hôm nay sau giờ chốt: chỉ buổi chiều gửi được dạng thông báo (ATT-05b, chốt 25/11/2026)
+        expectCode(
+                () -> service.previewLeaveRequest(parent, preview(TODAY, TODAY, LeavePart.MORNING, true)),
+                ApiCode.LEAVE_NO_SCHOOL_DAY);
         LeavePreviewResponse noticeOnly =
-                service.previewLeaveRequest(parent, preview(TODAY, TODAY, LeavePart.MORNING, true));
+                service.previewLeaveRequest(parent, preview(TODAY, TODAY, LeavePart.AFTERNOON, true));
         assertThat(noticeOnly.appliedDates()).isEmpty();
         assertThat(noticeOnly.skippedDates()).containsExactly(TODAY);
     }

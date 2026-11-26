@@ -162,20 +162,15 @@ class StockDeductionListenerIntegrationTest {
 
         mealCountService.confirm(vp, lunch(vp).id());
 
-        // 1 suất × 60 g; gọi xác nhận lại bữa khác cùng ngày không ghi thêm
+        // 1 suất × 60 g; sau xác nhận không còn đường đổi suất qua điểm danh (ATT-07) nên không có điều chỉnh
         assertThat(movementSum("DEDUCT")).isEqualByComparingTo("-60");
-
-        attendanceService.saveClassAttendance(teacher, classroom, request(present(child1), present(child2)));
-        mealCountService.confirm(vp, lunch(vp).id());
-
-        assertThat(movementSum("DEDUCT")).isEqualByComparingTo("-60");
-        assertThat(movementSum("ADJUST")).isEqualByComparingTo("-60");
+        assertThat(movementSum("ADJUST")).isEqualByComparingTo("0");
         assertThat(jdbc.queryForObject(
                         "SELECT required_qty FROM stock_daily_demands WHERE campus_id = ? AND meal_date = ?",
                         BigDecimal.class,
                         campus,
                         TODAY))
-                .isEqualByComparingTo("120");
+                .isEqualByComparingTo("60");
     }
 
     private BigDecimal movementSum(String type) {

@@ -116,7 +116,8 @@ class MealCountConcurrencyIntegrationTest {
                             "SELECT normal FROM meal_count_lines WHERE meal_count_id=? AND pending ORDER BY classroom_id",
                             Integer.class,
                             countId))
-                    .containsExactly(1, 1);
+                    // ATT-07: sổ đã xác nhận khóa cứng, điểm danh đổi không tạo dòng chờ xác nhận lại
+                    .isEmpty();
         } finally {
             pool.shutdownNow();
         }

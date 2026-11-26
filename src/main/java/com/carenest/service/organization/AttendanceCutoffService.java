@@ -21,4 +21,10 @@ public interface AttendanceCutoffService {
 
     /** ATT-13: giờ đến muộn nhất buổi chiều của trẻ nghỉ sáng áp dụng ngày date. */
     Optional<LocalTime> findLatestAfternoonArrival(Long schoolYearId, LocalDate date);
+
+    /** ATT-05b: giờ bắt đầu buổi chiều; báo nghỉ chiều hôm nay chỉ nhận trước giờ này. */
+    Optional<LocalTime> findAfternoonStart(Long schoolYearId, LocalDate date);
+
+    /** PCK-04: từ mốc này trẻ đã có mặt buổi sáng được tính đủ một ngày khi trả trẻ. */
+    Optional<LocalTime> findFullDayPickupFrom(Long schoolYearId, LocalDate date);
 }
