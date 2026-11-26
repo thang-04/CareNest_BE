@@ -101,6 +101,11 @@ public class SecurityConfig {
                     auth.requestMatchers(PathPatternRequestMatcher.withDefaults()
                                     .matcher(HttpMethod.POST, apiPrefix + "/parent-activation"))
                             .permitAll();
+                    // Màn đăng nhập chọn tranh nền theo cấu hình của trường; chỉ mã tranh và chế độ, không có dữ liệu
+                    // cá nhân
+                    auth.requestMatchers(PathPatternRequestMatcher.withDefaults()
+                                    .matcher(HttpMethod.GET, apiPrefix + "/school/appearance"))
+                            .permitAll();
                     if (authProperties.enabled())
                         auth.requestMatchers(authGet, authPost).permitAll();
                     // AUTH-21: token không còn role nào dùng được trên nền tảng của client ⇒ 403 mọi API
