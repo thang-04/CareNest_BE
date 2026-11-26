@@ -228,6 +228,53 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     @Test
+    @DisplayName("Gam tối đa của đạm, béo hoặc bột đường quy ra kcal vượt năng lượng tối đa thì từ chối, báo tại ô gam")
+    void rejectsGramsAboveEnergy() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        BigDecimal kcalMax = new BigDecimal("726");
+        List<AgeGroupMealConfigRequest> requests = List.of(
+                gramsRequest(kcalMax, new BigDecimal("200"), new BigDecimal("100"), null, null, null),
+                gramsRequest(kcalMax, null, null, new BigDecimal("50"), new BigDecimal("40"), null),
+                gramsRequest(kcalMax, null, null, null, null, new BigDecimal("200")));
+        List<String> fields = List.of("animalProteinGMax", "animalLipidGMax", "glucidGMax");
+
+        for (int i = 0; i < requests.size(); i++) {
+            AgeGroupMealConfigRequest request = requests.get(i);
+            String field = fields.get(i);
+            assertThatThrownBy(() -> service.createConfig(VICE_PRINCIPAL, request))
+                    .isInstanceOf(GlobalException.class)
+                    .satisfies(ex -> {
+                        GlobalException ge = (GlobalException) ex;
+                        assertThat(ge.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                        assertThat(ge.getFieldErrors()).singleElement().satisfies(fe -> {
+                            assertThat(fe.field()).isEqualTo(field);
+                            assertThat(fe.message()).contains("vượt năng lượng tối đa (726 kcal)");
+                        });
+                    });
+        }
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Gam hợp lý so với năng lượng tối đa, hoặc chưa nhập năng lượng, thì lưu được")
+    void acceptsGramsWithinEnergyOrWithoutKcal() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        service.createConfig(
+                VICE_PRINCIPAL,
+                gramsRequest(
+                        new BigDecimal("726"),
+                        new BigDecimal("15"),
+                        new BigDecimal("10"),
+                        new BigDecimal("12"),
+                        new BigDecimal("8"),
+                        new BigDecimal("90")));
+        service.createConfig(
+                VICE_PRINCIPAL, gramsRequest(null, new BigDecimal("300"), null, null, null, new BigDecimal("500")));
+    }
+
+    @Test
     @DisplayName("Nhu cầu năng lượng cả ngày lớn hơn kcal tối đa, hoặc thiếu một trong hai, thì lưu được")
     void acceptsDailyKcalAboveMaxOrMissing() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
@@ -350,6 +397,111 @@ class AgeGroupMealConfigServiceImplTest {
         return feeRequest(from, kcalMin, kcalMax, lunchPctMin, afternoonPctMin, ironMin, ironMax, null);
     }
 
+    @Test
+    @DisplayName(
+            "NUT-24: định mức đạm gam tối thiểu vượt mức cho phép theo năng lượng × tỷ lệ max (số liệu VPS) ⇒ 6110")
+    void rejectsGramsExceedingEnergyBudget() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+
+        // VPS: năng lượng 615–726, đạm 13–20%, đạm động vật 300–400 g ⇒ 300 g × 4 = 1.200 kcal > 726 × 20%
+        assertThatThrownBy(() -> service.createConfig(
+                        VICE_PRINCIPAL,
+                        gramsRequest(new BigDecimal("726"), new BigDecimal("20"), new BigDecimal("300"))))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.MEAL_CONFIG_GRAMS_EXCEED_ENERGY);
+                    assertThat(ex.getMessage()).contains("đạm", "300", "37");
+                });
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-24: định mức gam hợp lý với năng lượng và cơ cấu (đạm ĐV 10 + TV 8, 726 kcal, đạm 20%) thì lưu được")
+    void storesGramsWithinEnergyBudget() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.existsByAgeGroupId(AGE_GROUP)).willReturn(false);
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        AgeGroupMealConfigResponse created = service.createConfig(
+                VICE_PRINCIPAL,
+                gramsRequest(new BigDecimal("726"), new BigDecimal("20"), new BigDecimal("10"), new BigDecimal("8")));
+
+        assertThat(created.animalProteinGMin()).isEqualByComparingTo("10");
+    }
+
+    @Test
+    @DisplayName("NUT-24: chưa nhập năng lượng hoặc tỷ lệ thì không kiểm định mức gam")
+    void skipsGramsCheckWithoutKcalOrPercent() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.existsByAgeGroupId(AGE_GROUP)).willReturn(false);
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        service.createConfig(VICE_PRINCIPAL, gramsRequest(null, null, new BigDecimal("5000")));
+    }
+
+    private static AgeGroupMealConfigRequest gramsRequest(
+            BigDecimal kcalMax, BigDecimal proteinPctMax, BigDecimal animalProteinGMin) {
+        return gramsRequest(kcalMax, proteinPctMax, animalProteinGMin, null);
+    }
+
+    private static AgeGroupMealConfigRequest gramsRequest(
+            BigDecimal kcalMax, BigDecimal proteinPctMax, BigDecimal animalProteinGMin, BigDecimal plantProteinGMin) {
+        return new AgeGroupMealConfigRequest(
+                AGE_GROUP, // ageGroupId
+                TODAY.plusDays(1), // effectiveFrom
+                new BigDecimal("30000"), // mealPrice
+                null, // serviceFee
+                null, // kcalMin
+                kcalMax,
+                null, // proteinPctMin
+                proteinPctMax,
+                null,
+                null, // lipidPct
+                null,
+                null, // glucidPct
+                animalProteinGMin,
+                null, // đạm động vật (min, max)
+                plantProteinGMin,
+                null, // đạm thực vật
+                null,
+                null, // béo động vật
+                null,
+                null, // béo thực vật
+                null,
+                null, // bột đường (g)
+                null,
+                null,
+                null,
+                null, // kcal% bữa sáng / trưa
+                null,
+                null, // kcal% bữa chiều
+                null, // dailyKcalNeed
+                // vi chất, kẽm, cơ cấu áp dụng và ghi chú để trống
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
     private static AgeGroupMealConfigRequest feeRequest(
             LocalDate from,
             BigDecimal kcalMin,
@@ -409,6 +561,67 @@ class AgeGroupMealConfigServiceImplTest {
                 null,
                 ironMin,
                 ironMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    private static AgeGroupMealConfigRequest gramsRequest(
+            BigDecimal kcalMax,
+            BigDecimal animalProteinGMax,
+            BigDecimal plantProteinGMax,
+            BigDecimal animalLipidGMax,
+            BigDecimal plantLipidGMax,
+            BigDecimal glucidGMax) {
+        return new AgeGroupMealConfigRequest(
+                AGE_GROUP,
+                TODAY.plusDays(1),
+                new BigDecimal("30000"),
+                null,
+                null,
+                kcalMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                animalProteinGMax,
+                null,
+                plantProteinGMax,
+                null,
+                animalLipidGMax,
+                null,
+                plantLipidGMax,
+                null,
+                glucidGMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,

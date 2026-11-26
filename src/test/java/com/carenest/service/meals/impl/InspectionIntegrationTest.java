@@ -157,14 +157,16 @@ class InspectionIntegrationTest {
     @DisplayName("M1 tươi: dựng từ kiểm nhận hàng tươi kèm nhà cung cấp, khối lượng theo kg")
     void freshSkeletonFromCheckWithSupplier() {
         long pork = food("THIT", "Thịt", "FRESH");
+        long lineSupplier = supplier();
         long check = insertId("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at,"
                 + " supplier_id) VALUES (" + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW
-                + "', " + supplier() + ") RETURNING id");
+                + "', " + lineSupplier + ") RETURNING id");
         jdbc.update(
-                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result)"
-                        + " VALUES (?, ?, 2000, 2500, 'ENOUGH')",
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result, supplier_id)"
+                        + " VALUES (?, ?, 2000, 2500, 'ENOUGH', ?)",
                 check,
-                pork);
+                pork,
+                lineSupplier);
 
         assertThat(sheet(approver, InspectionTab.FRESH).rows()).singleElement().satisfies(row -> {
             assertThat(row)
@@ -177,6 +179,37 @@ class InspectionIntegrationTest {
                     .containsEntry("supplierContact", "12 Lê Lợi, 0901234567")
                     .containsEntry("deliveryPerson", "Anh Nam");
         });
+    }
+
+    @Test
+    @DisplayName("M1 tươi: dòng chưa ghi NCC lấy NCC của thực phẩm, không lấy NCC cấp phiếu")
+    void freshSkeletonUsesFoodSupplierNotCheckSupplier() {
+        long pork = food("THIT", "Thịt", "FRESH");
+        long veg = food("RAU", "Rau", "FRESH");
+        long checkSupplier = supplier();
+        long vegSupplier = insertId("INSERT INTO suppliers (name, phone, address, delivery_person)"
+                + " VALUES ('Hợp tác xã Rau sạch', '0912345678', '5 Trần Phú', 'Chị Lan') RETURNING id");
+        jdbc.update("UPDATE food_prices SET supplier_id = ? WHERE food_id = ?", vegSupplier, veg);
+        long check = insertId("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at,"
+                + " supplier_id) VALUES (" + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW
+                + "', " + checkSupplier + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result, supplier_id)"
+                        + " VALUES (?, ?, 2000, 2000, 'ENOUGH', ?)",
+                check,
+                pork,
+                checkSupplier);
+        jdbc.update(
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result)"
+                        + " VALUES (?, ?, 1000, 1000, 'ENOUGH')",
+                check,
+                veg);
+
+        assertThat(sheet(approver, InspectionTab.FRESH).rows())
+                .extracting(r -> r.get("name"), r -> r.get("supplierName"))
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Rau", "Hợp tác xã Rau sạch"),
+                        org.assertj.core.groups.Tuple.tuple("Thịt", "Cơ sở Hòa Phát"));
     }
 
     @Test
@@ -352,6 +385,37 @@ class InspectionIntegrationTest {
         expectCode(
                 () -> inspectionService.save(approver, otherCampus, MONDAY, InspectionTab.PROCESS, request),
                 ApiCode.INSPECTION_ACCESS_DENIED);
+    }
+
+    @Test
+    @DisplayName("NUT-21/INS-02: ký M5 khi còn mẫu chờ duyệt thì 6140; duyệt hết ⇒ ký được")
+    void signSampleSheetBlocksWhileSamplePending() {
+        confirmedCount(kindergartenClass, 10);
+        FoodSampleResponse pending = foodSampleService.createSample(
+                kitchen,
+                new FoodSampleRequest(
+                        MONDAY,
+                        MealSession.LUNCH,
+                        List.of(com),
+                        null,
+                        null,
+                        List.of(new FoodSampleRequest.DishDetailInput(com, "100 g", "Hộp nhựa", "2-8 °C"))));
+        inspectionService.save(
+                approver,
+                campus,
+                MONDAY,
+                InspectionTab.SAMPLE,
+                new InspectionSaveRequest(0, Map.of(), List.of(row("sample:" + pending.id()))));
+
+        expectCode(
+                () -> inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null),
+                ApiCode.INSPECTION_SAMPLE_PENDING);
+
+        foodSampleService.approveSample(approver, pending.id());
+        entityManager.flush();
+        entityManager.clear();
+        InspectionSheetResponse signed = inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null);
+        assertThat(signed.status()).isEqualTo(InspectionStatus.SIGNED);
     }
 
     @Test

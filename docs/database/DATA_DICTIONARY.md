@@ -20,6 +20,7 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | id | BIGINT identity | không | Khóa chính, dùng làm `userId` trong CareNest | — |
 | keycloak_user_id | VARCHAR(36) | không | = claim `sub` của access token; UNIQUE | AUTH-07 |
 | username | VARCHAR(100) | không | Username Keycloak; UNIQUE. Phụ huynh = SĐT chuẩn hóa, chỉ đổi khi yêu cầu đổi SĐT được duyệt (`guardian_phone_change_requests`, G94-180/AUTH-21 — entity không ghi cột này, đổi bằng `UserAccountRepository.updateUsername`); nhân sự không được là SĐT (AUTH-18) | AUTH-21 |
+| password_changed_at | TIMESTAMPTZ | có | V196: lần đổi/đặt lại mật khẩu gần nhất (đổi, quên, đổi lần đầu, cấp mật khẩu tạm, đổi SĐT đăng nhập, kích hoạt phụ huynh). Access token có `iat` trước giây này bị 401 1002; trả ở `/accounts/me`. Null = chưa ghi nhận. Entity không ghi cột này, đổi bằng `UserAccountRepository.markPasswordChanged` | AUTH_CONTRACT |
 | email | VARCHAR(255) | có | Nhân sự: email đăng nhập/khôi phục mật khẩu (có trên Keycloak). Phụ huynh: email liên hệ, có thể null, chỉ lưu ở đây (không gửi Keycloak, không dùng đăng nhập/khôi phục). Không UNIQUE: phụ huynh được trùng email nhân sự | AUTH-18 |
 | full_name | VARCHAR(150) | không | Họ tên đầy đủ (= `firstName` bên Keycloak) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
@@ -722,7 +723,7 @@ Mục đích: số suất từng lớp của một bữa. `pending = true` là s
 | meal_count_id | BIGINT FK meal_counts (ON DELETE CASCADE) | không | | — |
 | classroom_id | BIGINT FK classrooms | không | UNIQUE `(meal_count_id, classroom_id, pending)` | — |
 | present / absent / missing | INTEGER ≥ 0 | không | Sĩ số theo điểm danh lúc tổng hợp | — |
-| normal / substitute | INTEGER ≥ 0 | không | Suất thường / suất thay thế (chưa có dữ liệu dị ứng ⇒ thay thế = 0) | NUT-01 |
+| normal / substitute | INTEGER ≥ 0 | không | Suất thường / suất thay thế (từ 25/11/2026 luôn ghi `substitute` = 0, mọi trẻ ăn nằm trong `normal`; dòng cũ có `substitute` > 0 gộp vào `normal` khi đọc; cột chưa xóa) | NUT-01, NUT-02 |
 
 ## meal_count_history  (module: nutrition, scope: CAMPUS)
 Mục đích: lịch sử sổ báo ăn (chỉ thêm). Migration: V26.
@@ -929,8 +930,8 @@ Hàng tươi (`foods.storage = FRESH`) không vào kho (NUT-12): chỉ có bản
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
 
-## revoked_web_sessions (module: identity-access, scope: SYSTEM) — V143
-AUTH-28: phiên Web Keycloak bị đăng nhập mới hơn thay thế, để chặn ngay access token còn hạn của phiên đó. PK session_id VARCHAR(64) (claim `sid`); keycloak_user_id VARCHAR(36) NOT NULL; revoked_at, expires_at TIMESTAMPTZ NOT NULL, CHECK expires_at > revoked_at; index `expires_at` cho dọn. Giữ 10 phút (> tuổi access token 5 phút) rồi xóa. Không lưu token.
+## revoked_web_sessions (module: identity-access, scope: SYSTEM) — V143, V196
+AUTH-28: phiên Web Keycloak bị đăng nhập mới hơn thay thế, hoặc đã đăng xuất, để chặn ngay access token còn hạn của phiên đó. PK session_id VARCHAR(64) (claim `sid`); keycloak_user_id VARCHAR(36) NOT NULL; revoked_at, expires_at TIMESTAMPTZ NOT NULL, CHECK expires_at > revoked_at; reason VARCHAR(16) NOT NULL DEFAULT 'REPLACED', CHECK IN ('REPLACED','ENDED') (V196: REPLACED ⇒ 401 1016, ENDED = đăng xuất ⇒ 401 1002); index `expires_at` cho dọn. Giữ 10 phút (> tuổi access token 5 phút) rồi xóa. Không lưu token.
 
 ## otp_send_limits (module: identity-access, scope: SYSTEM)
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
@@ -1052,8 +1053,8 @@ V81: child_evaluations thêm `domain_comments` TEXT (JSON {"<domainId>": "nhận
 V175: `child_evaluations.sheet_presentation` TEXT nullable — JSON `{ageGroupName, teachers, principal, measurement}` chốt khi xác nhận phiếu cuối năm (OBS-28). Cân đo gồm ngày, cân nặng và chiều cao tại lúc chốt. Phiếu cũ để null, không tự backfill thông tin người ký/cân đo hiện tại thành lịch sử.
 
 V181: `child_evaluation_events.action` thêm `TEMPLATE_DRAFTED` (CHECK `ck_child_evaluation_events_action`: AI_DRAFTED | AI_REDRAFTED | TEMPLATE_DRAFTED | EDITED | CONFIRMED) — nháp hệ thống tạo sẵn từ mẫu câu ghi vết riêng, không ghi là AI (AI-03). Vết cũ `AI_DRAFTED` giữ nguyên.
-V196: `leave_requests.notice_only` BOOLEAN NOT NULL DEFAULT FALSE — đơn báo nghỉ chiều sau giờ chốt chỉ là thông báo (ATT-04, ATT-05b). Bảng mới `leave_attendance_effects` (id identity PK; leave_request_id FK → leave_requests ON DELETE CASCADE; attendance_record_id FK → attendance_records ON DELETE CASCADE; record_created; before_status, before_meals, before_absent_part, before_recorded_by, before_recorded_at; after_recorded_at NOT NULL; UK (leave_request_id, attendance_record_id); CHECK ck_leave_attendance_effect_snapshot) lưu trạng thái điểm danh trước/sau khi đơn nghỉ áp dụng để hủy đơn không ghi đè thao tác của giáo viên. Đổi số V183 → V190 → V195 khi merge dev và nhánh G94-467 25/11/2026.
-V197: `attendance_cutoffs` thêm 8 mốc lịch sinh hoạt (TIME NOT NULL có mặc định): dropoff_open_from 06:30, morning_start 07:00, morning_end 11:00, afternoon_start 13:30, pickup_start 15:00, full_day_pickup_from 15:00 (Cần chốt 25/11/2026, phương án A; trước là 15:30), pickup_end 17:00, afternoon_end 17:00. Đổi số V184 → V191 → V196 khi merge dev và nhánh G94-467 25/11/2026.
+V197: `leave_requests.notice_only` BOOLEAN NOT NULL DEFAULT FALSE — đơn báo nghỉ chiều sau giờ chốt chỉ là thông báo (ATT-04, ATT-05b). Bảng mới `leave_attendance_effects` (id identity PK; leave_request_id FK → leave_requests ON DELETE CASCADE; attendance_record_id FK → attendance_records ON DELETE CASCADE; record_created; before_status, before_meals, before_absent_part, before_recorded_by, before_recorded_at; after_recorded_at NOT NULL; UK (leave_request_id, attendance_record_id); CHECK ck_leave_attendance_effect_snapshot) lưu trạng thái điểm danh trước/sau khi đơn nghỉ áp dụng để hủy đơn không ghi đè thao tác của giáo viên. Đổi số V183 → V190 → V195 khi merge dev và nhánh G94-467 25/11/2026.
+V198: `attendance_cutoffs` thêm 8 mốc lịch sinh hoạt (TIME NOT NULL có mặc định): dropoff_open_from 06:30, morning_start 07:00, morning_end 11:00, afternoon_start 13:30, pickup_start 15:00, full_day_pickup_from 15:00 (Cần chốt 25/11/2026, phương án A; trước là 15:30), pickup_end 17:00, afternoon_end 17:00. Đổi số V184 → V191 → V197 khi merge dev và nhánh G94-467 25/11/2026.
 
 V171: child_evaluations thêm nguồn bản nháp (OBS-34, AI-01): `draft_source` VARCHAR(10) NOT NULL DEFAULT 'TEMPLATE' (CHECK TEMPLATE | AI), `draft_model` VARCHAR(100) và `draft_prompt_version` VARCHAR(60) (chỉ có khi nguồn là AI). Nháp cũ đều là mẫu câu nên mặc định TEMPLATE; không lưu prompt hay phản hồi thô (AI-05).
 

@@ -26,11 +26,10 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
     cân đối theo nhu cầu của Bộ — chưa đạt ⇒ chặn công bố                             (NUT-08, NUT-18)
     chi phí vượt ngân sách thực phẩm (giá suất − phí dịch vụ) ⇒ cảnh báo              (NUT-19)
     món lặp trong tuần ⇒ cảnh báo                                                     (NUT-20)
-    dị ứng                                                                            (NUT-09)
+    dị ứng: chỉ cảnh báo món có chất gây dị ứng, không có suất thay thế            (NUT-09, NUT-23)
     kho khô không đủ theo sĩ số dự kiến ⇒ cảnh báo, chưa trừ                          (NUT-11, P-38)
       └─ cộng dồn theo ngày từ hôm nay: số thực phẩm thiếu, ngày bắt đầu thiếu; chi tiết ở bản dự trù
-[S] Món có chất dị ứng mức nặng: PHT chọn món thay thế theo chất × món,
-    dùng chung cho mọi trẻ dị ứng chất đó; hệ thống gợi ý                             (NUT-23)
+[S] Dị ứng do nhà trường và phụ huynh tự thỏa thuận; hệ thống không lập món thay thế (NUT-23, chốt 25/11)
       ↓
 [S] PHT công bố thực đơn CẢ TUẦN, một lần cho cả trường — công bố là duyệt;
     không chờ chốt suất, không công bố theo ngày                                      (NUT-08, chốt 02/11)
@@ -54,7 +53,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 [S] PHT ghi đủ/thiếu/thừa: lần 1 so bản dự trù (sĩ số dự kiến),
     lần 2 so nhu cầu theo thực đơn tuần đã công bố × suất đã xác nhận                 (NUT-12)
 [S] Bếp (App) xem thực đơn, số suất theo lớp từng bữa, định lượng,
-    số suất dị ứng/thay thế theo lớp — không có tên trẻ                               (AUTH-05, NUT-17, NUT-23)
+    cảnh báo và số trẻ dị ứng theo món, lớp — không có tên trẻ                              (AUTH-05, NUT-17, NUT-23)
 [B] Bếp nấu, chia suất theo danh sách lớp
     (không theo dõi trạng thái nấu, không ghi bàn giao — NUT-14, NUT-15 REMOVED)
 [S] Bếp chụp ảnh mẫu bữa theo cơ sở, trong khung giờ HT cấu hình                      (NUT-16)
@@ -83,7 +82,8 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 ```text
 [S] Bếp ghi lưu mẫu trên App (ngày, bữa, món) → PHT duyệt
 [S] Sau ≥24 giờ bếp hủy mẫu, ghi hủy trên App → PHT duyệt
-[S] Hệ thống tạo nhãn mẫu, biểu mẫu lưu/hủy từ bản ghi đã duyệt → PHT xuất/in
+[S] Hệ thống tạo biểu mẫu lưu/hủy (Mẫu 5) từ bản ghi đã duyệt → PHT xuất/in
+[S] Nhãn mẫu (Mẫu 4): PHT in theo thực đơn đã công bố của ngày, không chờ bản ghi lưu mẫu (INS-01)
 [B] Ký giấy các bên
 ```
 

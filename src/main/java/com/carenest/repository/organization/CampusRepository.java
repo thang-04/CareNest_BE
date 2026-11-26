@@ -30,9 +30,20 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
 
     boolean existsByCodeIgnoreCase(String code);
 
-    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+    // So tên đầy đủ không phân biệt hoa thường, coi mọi dấu gạch (-, –, —) là một và bỏ khoảng trắng quanh dấu gạch
+    @Query(
+            value = "select count(*) > 0 from campuses c where c.id <> :id and "
+                    + "lower(regexp_replace(c.name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))"
+                    + " = lower(regexp_replace(:name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))",
+            nativeQuery = true)
+    boolean existsByNameFoldedAndIdNot(@Param("name") String name, @Param("id") Long id);
 
-    boolean existsByNameIgnoreCase(String name);
+    @Query(
+            value = "select count(*) > 0 from campuses c where "
+                    + "lower(regexp_replace(c.name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))"
+                    + " = lower(regexp_replace(:name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))",
+            nativeQuery = true)
+    boolean existsByNameFolded(@Param("name") String name);
 
     // Số liệu chỉ đọc cho màn điểm trường: trẻ đang học (enrollment hiệu lực hôm nay) theo lớp của năm học
     @Query(value = """
@@ -246,8 +257,9 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
 
     @Query(
             value = "select count(*) > 0 from school_year_campus_members m"
-                    + " where m.school_year_id = :yearId and m.campus_id <> :campusId"
-                    + " and lower(m.name) = lower(:name)",
+                    + " where m.school_year_id = :yearId and m.campus_id <> :campusId and "
+                    + "lower(regexp_replace(m.name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))"
+                    + " = lower(regexp_replace(:name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))",
             nativeQuery = true)
     boolean existsNameInYear(
             @Param("yearId") Long yearId, @Param("campusId") Long campusId, @Param("name") String name);
