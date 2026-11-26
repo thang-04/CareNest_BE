@@ -1,6 +1,7 @@
 package com.carenest.dto.meals;
 
 import com.carenest.utils.enums.FoodStorage;
+import com.carenest.utils.enums.FoodUnit;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -64,7 +65,8 @@ public record DayBalanceResponse(
             BigDecimal wastePct,
             String purchaseUnit,
             BigDecimal purchaseUnitSize,
-            BigDecimal unitPrice) {}
+            BigDecimal unitPrice,
+            FoodUnit unit) {}
 
     /** {@code evaluation} cùng dạng bảng kiểm kế hoạch tuần (dinh dưỡng, tiền mỗi trẻ, ba kết luận). */
     @Schema(name = "DayBalanceGroupResult")

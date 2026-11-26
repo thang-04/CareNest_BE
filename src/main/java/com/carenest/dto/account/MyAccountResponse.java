@@ -1,6 +1,5 @@
 package com.carenest.dto.account;
 
-import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import java.time.Instant;
@@ -20,7 +19,7 @@ public record MyAccountResponse(
         List<CareNestRole> roles,
         List<Permission> permissions,
         List<Permission> schoolWidePermissions,
-        List<StaffAssignmentSummaryResponse> assignments,
+        List<MyAssignmentResponse> assignments,
         List<Long> childIds,
         boolean photoUploaded,
         boolean profileUpdateRequired,
@@ -36,7 +35,7 @@ public record MyAccountResponse(
             List<CareNestRole> roles,
             List<Permission> permissions,
             List<Permission> schoolWidePermissions,
-            List<StaffAssignmentSummaryResponse> assignments,
+            List<MyAssignmentResponse> assignments,
             List<Long> childIds,
             boolean photoUploaded,
             boolean profileUpdateRequired) {

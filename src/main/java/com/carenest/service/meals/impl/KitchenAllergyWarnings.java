@@ -150,7 +150,8 @@ class KitchenAllergyWarnings {
         return new Report(tallies, unknownLabels);
     }
 
-    private static String clean(String name) {
+    /** Chữ đã khai sau khi gộp khoảng trắng và chuẩn hóa Unicode, để hiện lại cho người xem. */
+    static String clean(String name) {
         return Normalizer.normalize(name, Normalizer.Form.NFC)
                 .replaceAll("(?U)\\s+", " ")
                 .trim();

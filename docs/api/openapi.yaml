@@ -3930,6 +3930,82 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/{childId}/meal-photos/{photoId}/content:
+    get:
+      operationId: getPhotoContent_1
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: photoId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: OK
+      tags:
+      - parent-menu-controller
+  /api/children/{childId}/meal-photos/{photoId}/url:
+    get:
+      operationId: getPhotoUrl_1
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: photoId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - parent-menu-controller
+  /api/children/{childId}/menu:
+    get:
+      operationId: getWeek
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: weekStart
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentMenuResponse"
+          description: OK
+      tags:
+      - parent-menu-controller
   /api/children/{childId}/photo:
     get:
       operationId: getChildPhoto
@@ -10885,6 +10961,35 @@ paths:
           description: OK
       tags:
       - vice-principal-assignment-controller
+  /api/school/appearance:
+    get:
+      operationId: getAppearance
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAppearanceResponse"
+          description: OK
+      tags:
+      - school-appearance-controller
+    put:
+      operationId: saveAppearance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppearanceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAppearanceResponse"
+          description: OK
+      tags:
+      - school-appearance-controller
   /api/signatures/me:
     get:
       operationId: listSignatures
@@ -12246,6 +12351,45 @@ components:
         updatedAt:
           type: string
           format: date-time
+    AppearanceRequest:
+      type: object
+      properties:
+        enabledSceneIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        mode:
+          type: string
+          enum:
+          - FIXED
+          - AUTO
+          - DAILY_RANDOM
+        pinnedSceneId:
+          type: string
+      required:
+      - enabledSceneIds
+      - mode
+    AppearanceResponse:
+      type: object
+      properties:
+        enabledSceneIds:
+          type: array
+          items:
+            type: string
+        mode:
+          type: string
+          enum:
+          - FIXED
+          - AUTO
+          - DAILY_RANDOM
+        pinnedSceneId:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
     ApprovalItem:
       type: object
       properties:
@@ -15156,6 +15300,11 @@ components:
           enum:
           - FRESH
           - DRY
+        unit:
+          type: string
+          enum:
+          - g
+          - ml
         unitPrice:
           type: number
         wastePct:
@@ -17358,6 +17507,8 @@ components:
           - ml
         unitPrice:
           type: number
+        unitsLocked:
+          type: boolean
         vitaminA:
           type: number
         vitaminB1:
@@ -21390,7 +21541,7 @@ components:
         assignments:
           type: array
           items:
-            $ref: "#/components/schemas/StaffAssignmentSummaryResponse"
+            $ref: "#/components/schemas/MyAssignmentResponse"
         childIds:
           type: array
           items:
@@ -21536,6 +21687,34 @@ components:
           format: date-time
         title:
           type: string
+    MyAssignmentResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        campusName:
+          type: string
+        classroomId:
+          type: integer
+          format: int64
+        staffRole:
+          type: string
+          enum:
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - AGE_GROUP_TEAM_LEADER
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
     NewAdmission:
       type: object
       properties:
@@ -22465,6 +22644,78 @@ components:
           type: boolean
         text:
           type: string
+    ParentMenuDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        dayOff:
+          type: boolean
+        enrolled:
+          type: boolean
+        meals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentMenuMeal"
+    ParentMenuDish:
+      type: object
+      properties:
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        childAllergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        name:
+          type: string
+    ParentMenuMeal:
+      type: object
+      properties:
+        dishes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentMenuDish"
+        photo:
+          $ref: "#/components/schemas/ParentMenuPhoto"
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+    ParentMenuPhoto:
+      type: object
+      properties:
+        photoId:
+          type: integer
+          format: int64
+        uploadedAt:
+          type: string
+          format: date-time
+    ParentMenuResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentMenuDay"
+        mealsHidden:
+          type: boolean
+        published:
+          type: boolean
+        unmatchedAllergies:
+          type: array
+          items:
+            type: string
+        weekStart:
+          type: string
+          format: date
     ParentPasswordResponse:
       type: object
       properties:
@@ -24364,6 +24615,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AnnouncementTemplateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAppearanceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AppearanceResponse"
         desc:
           type: string
         errorCode:
@@ -26919,6 +27183,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentEvaluationsResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentMenuResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentMenuResponse"
         desc:
           type: string
         errorCode:

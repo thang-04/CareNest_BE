@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.meals.FoodImportRequest;
 import com.carenest.dto.meals.FoodRequest;
 import com.carenest.dto.meals.FoodResponse;
@@ -208,6 +209,99 @@ class FoodServiceImplTest {
 
         assertThat(created).isEqualTo(2);
         verify(foodRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("NUT-32: thực phẩm đã nhập kho thì không đổi được đơn vị tính, đơn vị gốc, quy đổi")
+    void updateRejectsUnitChangeWhenStocked() {
+        Food stocked = namedFood("Gạo tẻ", 7L);
+        given(foodRepository.findById(7L)).willReturn(Optional.of(stocked));
+        given(foodRepository.findIdsWithStockHistory(List.of(7L))).willReturn(List.of(7L));
+        FoodRequest changed = withUnits(food("TP001", "Viện Dinh dưỡng 2017"), FoodUnit.ml, "bao", "500");
+
+        assertThatThrownBy(() -> service.updateFood(VICE_PRINCIPAL, 7L, changed))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                    assertThat(ex.getFieldErrors())
+                            .extracting(FieldErrorResponse::field)
+                            .containsExactly("purchaseUnit", "unit", "purchaseUnitSize");
+                });
+        assertThat(stocked.getPurchaseUnitSize()).isEqualByComparingTo("1000");
+    }
+
+    @Test
+    @DisplayName("NUT-32: đã nhập kho vẫn sửa được thông tin khác khi giữ nguyên đơn vị và quy đổi")
+    void updateKeepsStockedFoodEditableWhenUnitsUnchanged() {
+        given(foodRepository.findById(7L)).willReturn(Optional.of(namedFood("Gạo tẻ", 7L)));
+        given(foodRepository.findIdsWithStockHistory(List.of(7L))).willReturn(List.of(7L));
+        FoodRequest sameUnits =
+                withName(withUnits(food("TP001", "Viện Dinh dưỡng 2017"), FoodUnit.g, " KG ", "1000.00"), "Gạo tám");
+
+        FoodResponse updated = service.updateFood(VICE_PRINCIPAL, 7L, sameUnits);
+
+        assertThat(updated.name()).isEqualTo("Gạo tám");
+        assertThat(updated.unitsLocked()).isTrue();
+    }
+
+    @Test
+    @DisplayName("NUT-32: chưa nhập kho thì đổi quy đổi bình thường")
+    void updateAllowsUnitChangeWithoutStock() {
+        given(foodRepository.findById(7L)).willReturn(Optional.of(namedFood("Gạo tẻ", 7L)));
+
+        FoodResponse updated = service.updateFood(
+                VICE_PRINCIPAL, 7L, withUnits(food("TP001", "Viện Dinh dưỡng 2017"), FoodUnit.g, "bao", "500"));
+
+        assertThat(updated.purchaseUnit()).isEqualTo("bao");
+        assertThat(updated.purchaseUnitSize()).isEqualByComparingTo("500");
+        assertThat(updated.unitsLocked()).isFalse();
+    }
+
+    @Test
+    @DisplayName("NUT-32: nhập file đổi quy đổi của thực phẩm đã nhập kho ⇒ không dòng nào được lưu")
+    void importRejectsUnitChangeWhenStocked() {
+        Food stocked = namedFood("Gạo tẻ", 8L);
+        given(foodRepository.findByCodeIn(anyCollection())).willReturn(List.of());
+        given(foodRepository.findAllById(List.of(8L))).willReturn(List.of(stocked));
+        given(foodRepository.findIdsWithStockHistory(List.of(8L))).willReturn(List.of(8L));
+        FoodRequest changed = withUnits(foodByName("Gạo tẻ"), FoodUnit.g, "kg", "500");
+
+        assertThatThrownBy(() -> service.importFoods(
+                        VICE_PRINCIPAL, new FoodImportRequest(List.of(new FoodImportRequest.Item(8L, changed)))))
+                .hasMessageContaining("dòng 1 đã nhập kho nên không đổi được đơn vị tính, đơn vị gốc, quy đổi");
+        verify(foodRepository, never()).saveAll(any());
+    }
+
+    private static FoodRequest withUnits(FoodRequest request, FoodUnit unit, String purchaseUnit, String size) {
+        return new FoodRequest(
+                request.code(),
+                request.name(),
+                request.foodGroup(),
+                unit,
+                purchaseUnit,
+                new BigDecimal(size),
+                request.unitPrice(),
+                request.kcal(),
+                request.protein(),
+                request.lipid(),
+                request.glucid(),
+                request.calcium(),
+                request.phosphorus(),
+                request.iron(),
+                request.vitaminA(),
+                request.vitaminB1(),
+                request.vitaminB2(),
+                request.vitaminPp(),
+                request.vitaminC(),
+                request.zinc(),
+                request.nutrientSource(),
+                request.wastePct(),
+                request.storage(),
+                request.origin(),
+                request.note(),
+                request.allergenIds(),
+                request.supplierId(),
+                request.effectiveFrom(),
+                request.priceReason());
     }
 
     private static FoodRequest food(String code, String nutrientSource) {

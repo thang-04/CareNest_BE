@@ -26,7 +26,7 @@ public class NutritionCatalogMapper {
         return allergens.stream().distinct().sorted().map(this::toResponse).toList();
     }
 
-    public FoodResponse toResponse(Food food, FoodPriceBook.PriceAt price) {
+    public FoodResponse toResponse(Food food, FoodPriceBook.PriceAt price, boolean unitsLocked) {
         return new FoodResponse(
                 food.getId(),
                 food.getCode(),
@@ -58,7 +58,8 @@ public class NutritionCatalogMapper {
                 toAllergenResponses(food.getAllergens()),
                 price.supplierId(),
                 price.supplierName(),
-                price.contractStatus());
+                price.contractStatus(),
+                unitsLocked);
     }
 
     public AgeGroupMealConfigResponse toResponse(

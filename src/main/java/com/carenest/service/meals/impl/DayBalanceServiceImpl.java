@@ -395,7 +395,8 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                                     meta.wastePct(),
                                     meta.purchaseUnit(),
                                     meta.unitSize(),
-                                    draft.prices().get(f.getId()));
+                                    draft.prices().get(f.getId()),
+                                    f.getUnit());
                         })
                         .toList(),
                 groupResults(source, draft, result, foods),

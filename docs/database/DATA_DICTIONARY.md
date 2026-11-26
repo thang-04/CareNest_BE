@@ -142,6 +142,17 @@ Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 �
 | created_at | TIMESTAMPTZ | không | Lúc đặt | — |
 Index: `idx_attendance_cutoffs_school_year_id (school_year_id, effective_from)`.
 
+## school_appearance  (module: school-structure, scope: SCHOOL)
+Mục đích: tranh nền giao diện dùng chung cho cả trường (Hiệu trưởng/Phó hiệu trưởng đổi, mọi người dùng đọc). Migration: `V204__create_school_appearance.sql`. Bảng chỉ có một dòng `id = 1`; chưa có dòng = mặc định (AUTO, bật cả 20 tranh, ghim T0).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | SMALLINT | không | Luôn = 1 (CHECK) | — |
+| mode | VARCHAR(20) | không | FIXED / AUTO / DAILY_RANDOM | — |
+| pinned_scene_id | VARCHAR(8) | không | Mã tranh ghim (dùng khi FIXED) | — |
+| enabled_scene_ids | text[] | không | Mã các tranh đang bật, ít nhất một | — |
+| updated_by | BIGINT FK user_accounts | có | Người lưu gần nhất | — |
+| updated_at | TIMESTAMPTZ | không | Lúc lưu gần nhất | — |
+
 ## classrooms  (module: school-structure, scope: CLASS)
 Mục đích: lớp của một campus trong một năm học (năm sau là lớp khác ⇒ phân công cũ không tự áp). Migration: V2.
 Lưu ý SCH-02 (khảo sát team 27/10): trường giữ lớp qua các năm, có thể đổi tên, thêm lớp mới khi cần; mô hình "mỗi năm một bản ghi lớp" hiện tại cần chức năng chuyển năm hoặc đổi thiết kế — chờ thiết kế school-structure. Chưa có cột nhóm tuổi (SCH-01) và phòng (SCH-03).
