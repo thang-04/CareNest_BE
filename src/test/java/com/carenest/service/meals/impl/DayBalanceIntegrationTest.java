@@ -250,14 +250,16 @@ class DayBalanceIntegrationTest {
     }
 
     @Test
-    @DisplayName("NUT-35: số trẻ dự kiến vượt tổng trẻ đang học của nhóm tuổi tại điểm trường thì từ chối, bằng tổng thì nhận")
+    @DisplayName(
+            "NUT-35: số trẻ dự kiến vượt tổng trẻ đang học của nhóm tuổi tại điểm trường thì từ chối, bằng tổng thì nhận")
     void expectedChildrenCannotExceedEnrolled() {
         DayBalanceRequest over = new DayBalanceRequest(
                 null, List.of(new DayBalanceRequest.CountInput(campus2, ag3, 23)), null, null, false, null);
         DayBalanceRequest exact = new DayBalanceRequest(
                 null, List.of(new DayBalanceRequest.CountInput(campus2, ag3, 22)), null, null, false, null);
 
-        expectCode(() -> dayBalanceService.previewBalance(principal, MONDAY, 1, over), ApiCode.DAY_BALANCE_INPUT_INVALID);
+        expectCode(
+                () -> dayBalanceService.previewBalance(principal, MONDAY, 1, over), ApiCode.DAY_BALANCE_INPUT_INVALID);
         expectCode(() -> dayBalanceService.saveBalance(principal, MONDAY, 1, over), ApiCode.DAY_BALANCE_INPUT_INVALID);
         assertThat(dayBalanceService.previewBalance(principal, MONDAY, 1, exact).counts())
                 .extracting(DayBalanceResponse.Count::children)
@@ -536,11 +538,12 @@ class DayBalanceIntegrationTest {
     }
 
     private void enrollChildren(long classroom, int count) {
-        jdbc.update("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, meal_registered)"
-                + " SELECT 'HSB" + classroom + "-' || n, 'Trẻ thử', DATE '2023-01-01', 'MALE', 'ACTIVE',"
-                + " DATE '2026-09-01', TRUE FROM generate_series(1, " + count + ") n");
-        jdbc.update("INSERT INTO enrollments (child_id, classroom_id, valid_from)"
-                + " SELECT id, " + classroom + ", DATE '2026-09-01' FROM children WHERE code LIKE 'HSB" + classroom + "-%'");
+        jdbc.update(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, meal_registered)"
+                        + " SELECT 'HSB" + classroom + "-' || n, 'Trẻ thử', DATE '2023-01-01', 'MALE', 'ACTIVE',"
+                        + " DATE '2026-09-01', TRUE FROM generate_series(1, " + count + ") n");
+        jdbc.update("INSERT INTO enrollments (child_id, classroom_id, valid_from)" + " SELECT id, " + classroom
+                + ", DATE '2026-09-01' FROM children WHERE code LIKE 'HSB" + classroom + "-%'");
     }
 
     private DayBalanceRequest request(Long version, boolean round) {

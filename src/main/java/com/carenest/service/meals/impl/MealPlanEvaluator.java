@@ -692,31 +692,31 @@ final class MealPlanEvaluator {
                 .add(factors.lipid().multiply(totals.lipid))
                 .add(factors.glucid().multiply(totals.glucid));
         rows.add(energyRow(
-                "protein",
-                totals.protein,
-                factors.protein(),
-                macroKcal,
-                kcalTarget,
-                incomplete,
-                core ? norm.proteinPct() : null)
+                        "protein",
+                        totals.protein,
+                        factors.protein(),
+                        macroKcal,
+                        kcalTarget,
+                        incomplete,
+                        core ? norm.proteinPct() : null)
                 .withApplied(appliedOf(norm, Applied::protein)));
         rows.add(energyRow(
-                "lipid",
-                totals.lipid,
-                factors.lipid(),
-                macroKcal,
-                kcalTarget,
-                incomplete,
-                core ? norm.lipidPct() : null)
+                        "lipid",
+                        totals.lipid,
+                        factors.lipid(),
+                        macroKcal,
+                        kcalTarget,
+                        incomplete,
+                        core ? norm.lipidPct() : null)
                 .withApplied(appliedOf(norm, Applied::lipid)));
         rows.add(energyRow(
-                "glucid",
-                totals.glucid,
-                factors.glucid(),
-                macroKcal,
-                kcalTarget,
-                incomplete,
-                core ? norm.glucidPct() : null)
+                        "glucid",
+                        totals.glucid,
+                        factors.glucid(),
+                        macroKcal,
+                        kcalTarget,
+                        incomplete,
+                        core ? norm.glucidPct() : null)
                 .withApplied(appliedOf(norm, Applied::glucid)));
         rows.add(gramRow(
                 "animalProteinG",

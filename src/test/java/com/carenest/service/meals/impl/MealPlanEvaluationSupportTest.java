@@ -21,7 +21,8 @@ class MealPlanEvaluationSupportTest {
             new BigDecimal("0.60")));
 
     @Test
-    @DisplayName("NUT-34: đã chọn cơ cấu áp dụng thì định mức gam là hàm lượng quy đổi tại hai mốc kcal, làm tròn 2 số lẻ")
+    @DisplayName(
+            "NUT-34: đã chọn cơ cấu áp dụng thì định mức gam là hàm lượng quy đổi tại hai mốc kcal, làm tròn 2 số lẻ")
     void gramNormsFollowConvertedContent() {
         Norm norm = MealPlanEvaluationSupport.toNorm(config("615", "726", "14", "26", "60", "99"), CONVERTER);
 

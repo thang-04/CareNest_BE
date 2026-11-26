@@ -209,9 +209,7 @@ class MealPlanEvaluationSupport {
                 converted
                         ? gramRange(low.plantLipidG(), high.plantLipidG())
                         : new Range(c.getPlantLipidGMin(), c.getPlantLipidGMax()),
-                converted
-                        ? gramRange(low.glucidG(), high.glucidG())
-                        : new Range(c.getGlucidGMin(), c.getGlucidGMax()),
+                converted ? gramRange(low.glucidG(), high.glucidG()) : new Range(c.getGlucidGMin(), c.getGlucidGMax()),
                 sessionKcalPct,
                 c.getDailyKcalNeed(),
                 micro,
