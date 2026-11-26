@@ -10961,6 +10961,35 @@ paths:
           description: OK
       tags:
       - vice-principal-assignment-controller
+  /api/school/appearance:
+    get:
+      operationId: getAppearance
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAppearanceResponse"
+          description: OK
+      tags:
+      - school-appearance-controller
+    put:
+      operationId: saveAppearance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppearanceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAppearanceResponse"
+          description: OK
+      tags:
+      - school-appearance-controller
   /api/signatures/me:
     get:
       operationId: listSignatures
@@ -12322,6 +12351,45 @@ components:
         updatedAt:
           type: string
           format: date-time
+    AppearanceRequest:
+      type: object
+      properties:
+        enabledSceneIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        mode:
+          type: string
+          enum:
+          - FIXED
+          - AUTO
+          - DAILY_RANDOM
+        pinnedSceneId:
+          type: string
+      required:
+      - enabledSceneIds
+      - mode
+    AppearanceResponse:
+      type: object
+      properties:
+        enabledSceneIds:
+          type: array
+          items:
+            type: string
+        mode:
+          type: string
+          enum:
+          - FIXED
+          - AUTO
+          - DAILY_RANDOM
+        pinnedSceneId:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
     ApprovalItem:
       type: object
       properties:
@@ -24547,6 +24615,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AnnouncementTemplateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAppearanceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AppearanceResponse"
         desc:
           type: string
         errorCode:
