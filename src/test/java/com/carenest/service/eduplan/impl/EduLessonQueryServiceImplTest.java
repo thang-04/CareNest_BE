@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.carenest.dto.eduplan.ApprovedDayLessonResponse.Goal;
+import com.carenest.dto.eduplan.DayActivity;
 import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduClassDocRelease;
@@ -231,5 +232,45 @@ class EduLessonQueryServiceImplTest {
                 .thenReturn(List.of(release));
         when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(theme, week, draftDay, dossier));
         assertThat(goalsOn(monday)).containsExactly(7L);
+    }
+
+    @Test
+    void dayActivitiesListEveryRowWithContentIncludingRowsWithoutGoals() {
+        // EDU-37: phụ huynh thấy tên mọi hoạt động trong ngày của giáo án đã ban hành, cả dòng gõ tay không MT
+        LocalDate monday = LocalDate.of(2026, 11, 9);
+        when(config.getEduConfig())
+                .thenReturn(new EduConfigResponse(
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        null,
+                        List.of(
+                                new EduConfigResponse.WeekRow("don", "Đón trẻ", false, false, null),
+                                new EduConfigResponse.WeekRow("hoc", "Hoạt động học", false, false, null),
+                                new EduConfigResponse.WeekRow("choi", "Chơi ngoài trời", false, false, null)),
+                        null));
+        EduClassDoc theme = doc(
+                EduClassDoc.THEME,
+                5L,
+                null,
+                "{'activities':[{'id':'c-1','slot':'hoc','name':'Bật xa','goalIds':['7']}]}");
+        EduClassDoc week = doc(EduClassDoc.WEEK, 5L, monday, "{'picks':{}}");
+        EduClassDoc day = doc(
+                EduClassDoc.DAY,
+                5L,
+                monday,
+                "{'week':{'picks':{'hoc.0':[{'cardId':'c-1','text':'Bật xa'}],"
+                        + "'don.0':[{'text':'Trò chuyện buổi sáng'}]},"
+                        + "'grid':{'choi':{'days':['Quan sát cây']}}}}");
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(theme, week, day));
+
+        assertThat(service.findDayActivities(1L, monday))
+                .extracting(DayActivity::label, DayActivity::items)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Đón trẻ", List.of("Trò chuyện buổi sáng")),
+                        org.assertj.core.groups.Tuple.tuple("Hoạt động học", List.of("Bật xa")),
+                        org.assertj.core.groups.Tuple.tuple("Chơi ngoài trời", List.of("Quan sát cây")));
+        // Ngày không có giáo án đã ban hành ⇒ rỗng
+        assertThat(service.findDayActivities(1L, monday.plusDays(7))).isEmpty();
     }
 }
