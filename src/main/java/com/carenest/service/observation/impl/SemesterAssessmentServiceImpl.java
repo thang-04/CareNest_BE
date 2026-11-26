@@ -139,12 +139,16 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         return build(user, cls.id(), req.semester(), entity);
     }
 
-    private static boolean incomplete(Response b) {
+    /**
+     * OBS-25: ô không có kết quả (trẻ vào lớp sau các chủ đề của kỳ) là "chưa có dữ liệu", không chặn xác nhận; chỉ chặn
+     * khi bảng trống hoặc cả bảng chưa có kết quả nào (user chốt 26/11/2026).
+     */
+    static boolean incomplete(Response b) {
         return b.rows().isEmpty()
                 || b.domains().isEmpty()
                 || b.rows().stream()
-                        .anyMatch(c ->
-                                c.domains().isEmpty() || c.domains().stream().anyMatch(d -> d.met() == null));
+                        .noneMatch(c -> c.domains().stream()
+                                .anyMatch(d -> d.goals().stream().anyMatch(g -> g.met() != null)));
     }
 
     private void requireReadPeriod(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
@@ -206,9 +210,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 // childThemeResults tổng hợp theo lịch sử học, tránh xuất hiện đồng thời ở hai lớp sau chuyển lớp.
                 : enrollment.findChildrenInClassroom(classId, to);
         // OBS-25 (Cần chốt 10/11/2026): MT học kỳ lấy từ kết quả cuối các chủ đề đã xong trong kỳ (≥50% chủ đề Đạt)
-        Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results = new HashMap<>();
-        children.forEach(
-                c -> results.put(c.id(), themeEvaluationService.childThemeResults(classId, c.id(), from, end)));
+        Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results =
+                new HashMap<>(themeEvaluationService.childThemeResults(
+                        classId, children.stream().map(c -> c.id()).toList(), from, end));
         Set<Long> classroomGoals = Set.copyOf(selected);
         // Giữ mục tiêu đã học ở lớp cũ, kể cả lịch chủ đề lớp mới không gắn mục tiêu đó.
         results.values().forEach(r -> selected.addAll(r.keySet()));
