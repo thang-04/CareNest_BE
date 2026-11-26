@@ -438,7 +438,7 @@ class ChildEnrollmentControllerTest {
             "CHD-01: PHT tiếp nhận ⇒ 201, trường hồ sơ cùng cấp với guardianAccounts, tuần thai chuyển xuống service")
     void vicePrincipalEnrollsChild() throws Exception {
         CurrentUser vice = authenticate(CareNestRole.VICE_PRINCIPAL);
-        given(childEnrollmentService.enroll(eq(vice), any()))
+        given(childEnrollmentService.enrollWithPhotos(eq(vice), any(), any()))
                 .willReturn(new ChildEnrollmentResponse(
                         view(),
                         List.of(new GuardianAccountResultResponse(
@@ -460,7 +460,7 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data.guardianAccounts[0].smsStatus").value("SENT"));
 
         ArgumentCaptor<EnrollChildRequest> request = ArgumentCaptor.forClass(EnrollChildRequest.class);
-        verify(childEnrollmentService).enroll(eq(vice), request.capture());
+        verify(childEnrollmentService).enrollWithPhotos(eq(vice), request.capture(), any());
         assertThat(request.getValue().child().profile().gestationWeeks()).isEqualTo(39);
         assertThat(request.getValue().campusId()).isEqualTo(11L);
         assertThat(request.getValue().classId()).isNull();
@@ -471,7 +471,7 @@ class ChildEnrollmentControllerTest {
     @DisplayName("CHD-01: tiếp nhận có chọn lớp truyền đủ form xuống service và trả hồ sơ có lớp")
     void enrollmentPassesSelectedClassAndFormData() throws Exception {
         CurrentUser principal = authenticate(CareNestRole.PRINCIPAL);
-        given(childEnrollmentService.enroll(eq(principal), any()))
+        given(childEnrollmentService.enrollWithPhotos(eq(principal), any(), any()))
                 .willReturn(new ChildEnrollmentResponse(view(21L), List.of()));
 
         mockMvc.perform(post("/api/children/enrollments")
@@ -485,7 +485,7 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data.guardianAccounts").isEmpty());
 
         ArgumentCaptor<EnrollChildRequest> request = ArgumentCaptor.forClass(EnrollChildRequest.class);
-        verify(childEnrollmentService).enroll(eq(principal), request.capture());
+        verify(childEnrollmentService).enrollWithPhotos(eq(principal), request.capture(), any());
         EnrollChildRequest form = request.getValue();
         assertThat(form.classId()).isEqualTo(21L);
         assertThat(form.campusId()).isEqualTo(11L);
@@ -510,7 +510,7 @@ class ChildEnrollmentControllerTest {
                                         "guardians.0.phone", "Nhập số điện thoại hợp lệ, ví dụ 0912 345 678"),
                                 new FieldErrorResponse("profile.gestationWeeks", "Nhập tuần thai khi sinh"))))
                 .given(childEnrollmentService)
-                .enroll(any(), any());
+                .enrollWithPhotos(any(), any(), any());
 
         // Ô số để trống gửi chuỗi rỗng: JSON vẫn nhận (null), service báo lỗi theo ô thay vì 400 JSON hỏng
         mockMvc.perform(post("/api/children/enrollments")
@@ -523,7 +523,7 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data[1].field").value("profile.gestationWeeks"));
 
         ArgumentCaptor<EnrollChildRequest> request = ArgumentCaptor.forClass(EnrollChildRequest.class);
-        verify(childEnrollmentService).enroll(any(), request.capture());
+        verify(childEnrollmentService).enrollWithPhotos(any(), request.capture(), any());
         assertThat(request.getValue().child().profile().gestationWeeks()).isNull();
     }
 
@@ -640,7 +640,7 @@ class ChildEnrollmentControllerTest {
     @DisplayName("CHD-01: chỉ cần quyền tiếp nhận để gọi API và nhận kết quả từ service")
     void enrollerWithoutParentAccountPermissionCanEnroll() throws Exception {
         CurrentUser enroller = authenticateWithPermissions(Permission.CHILD_ENROLL);
-        given(childEnrollmentService.enroll(eq(enroller), any()))
+        given(childEnrollmentService.enrollWithPhotos(eq(enroller), any(), any()))
                 .willReturn(new ChildEnrollmentResponse(
                         view(),
                         List.of(new GuardianAccountResultResponse(
@@ -658,7 +658,7 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data.guardianAccounts[0].result").value("NOT_ACTIVATED"))
                 .andExpect(jsonPath("$.data.guardianAccounts[0].smsStatus").doesNotExist());
 
-        verify(childEnrollmentService).enroll(eq(enroller), any());
+        verify(childEnrollmentService).enrollWithPhotos(eq(enroller), any(), any());
         verifyNoInteractions(childIntakeService);
     }
 
@@ -666,7 +666,7 @@ class ChildEnrollmentControllerTest {
     @DisplayName("CHD-04: service báo hồ sơ trùng khi lưu tiếp nhận ⇒ 409, mã 3008")
     void enrollmentReturnsDuplicateChildConflict() throws Exception {
         CurrentUser principal = authenticate(CareNestRole.PRINCIPAL);
-        given(childEnrollmentService.enroll(eq(principal), any()))
+        given(childEnrollmentService.enrollWithPhotos(eq(principal), any(), any()))
                 .willThrow(GlobalException.of(ApiCode.CHILD_DUPLICATE));
 
         mockMvc.perform(post("/api/children/enrollments")
@@ -679,7 +679,7 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.desc").value(ApiCode.CHILD_DUPLICATE.getDefaultDesc()))
                 .andExpect(jsonPath("$.data").doesNotExist());
 
-        verify(childEnrollmentService).enroll(eq(principal), any());
+        verify(childEnrollmentService).enrollWithPhotos(eq(principal), any(), any());
         verifyNoInteractions(childIntakeService);
     }
 
@@ -687,7 +687,7 @@ class ChildEnrollmentControllerTest {
     @DisplayName("AUTH-18: service báo xung đột phụ huynh khi lưu tiếp nhận ⇒ 409 kèm ô sai")
     void enrollmentReturnsGuardianIdentityConflict() throws Exception {
         CurrentUser principal = authenticate(CareNestRole.PRINCIPAL);
-        given(childEnrollmentService.enroll(eq(principal), any()))
+        given(childEnrollmentService.enrollWithPhotos(eq(principal), any(), any()))
                 .willThrow(GlobalException.withFieldErrors(
                         ApiCode.GUARDIAN_IDENTITY_CONFLICT,
                         List.of(new FieldErrorResponse("guardians.0.phone", "Số điện thoại đã thuộc phụ huynh khác"))));
@@ -702,7 +702,7 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data[0].field").value("guardians.0.phone"))
                 .andExpect(jsonPath("$.data[0].message").value("Số điện thoại đã thuộc phụ huynh khác"));
 
-        verify(childEnrollmentService).enroll(eq(principal), any());
+        verify(childEnrollmentService).enrollWithPhotos(eq(principal), any(), any());
     }
 
     @Test

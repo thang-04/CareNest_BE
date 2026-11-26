@@ -28,6 +28,7 @@ import com.carenest.utils.ResponseJson;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -144,7 +145,8 @@ public class ChildEnrollmentController {
             @RequestBody EnrollChildRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|enroll|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        ChildEnrollmentResponse enrolled = childEnrollmentService.enroll(currentUser, request);
+        // G94-180/CHD-15: JSON không kèm ảnh ⇒ service báo thiếu ảnh của trẻ và phụ huynh theo ô
+        ChildEnrollmentResponse enrolled = childEnrollmentService.enrollWithPhotos(currentUser, request, Map.of());
         log.info("{}|childId={}|END", logPrefix, enrolled.child().id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Enroll child success", enrolled);
     }

@@ -24,7 +24,8 @@ public interface ChildEnrollmentService {
 
     /**
      * Lưu form tiếp nhận: hồ sơ trẻ + phụ huynh cùng một giao dịch; người có quyền quản lý tài khoản phụ huynh thì tạo
-     * tài khoản cho phụ huynh chưa có và gửi SMS sau khi lưu, không có quyền thì phụ huynh chờ kích hoạt (P-18).
+     * tài khoản cho phụ huynh chưa có và gửi SMS sau khi lưu, không có quyền thì phụ huynh chờ kích hoạt (P-18). Không kiểm ảnh bắt buộc (G94-180/CHD-15): API tiếp nhận gọi
+     * {@link #enrollWithPhotos}; hàm này chỉ dùng nội bộ và kiểm thử.
      */
     ChildEnrollmentResponse enroll(CurrentUser actor, EnrollChildRequest request);
 

@@ -169,7 +169,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
         String logPrefix = LOG_PREFIX + "|enroll|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
-            ChildEnrollmentResponse response = enrollWithPhotos(actor, request, Map.of());
+            ChildEnrollmentResponse response = register(logPrefix, actor, request, Map.of(), false);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -184,105 +184,129 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
         String logPrefix = LOG_PREFIX + "|enrollWithPhotos|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
-            EnrollmentDraft draft = childIntakeService.prepareEnrollment(actor, request);
-            EnrollmentPhotos photos =
-                    childPhotoService.validatePhotos(draft.guardians().size(), files);
-            // P-18 A: không có quyền quản lý tài khoản phụ huynh (ở điểm trường nhận trẻ — prepare đã kiểm phạm vi)
-            // ⇒ vẫn lưu; phụ huynh chưa có tài khoản chờ kích hoạt, trùng tài khoản có sẵn thì vẫn liên kết
-            boolean manageAccounts = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
-            ParentAccounts accounts = loadAccounts(draft.guardians());
-            // Tài khoản có sẵn: hồ sơ ghi họ tên, SĐT, email của tài khoản, không sửa tài khoản (C-2; sửa tài khoản
-            // theo hồ sơ, đổi SĐT đổi tên đăng nhập làm ở Phase 4 — AUTH-21)
-            List<GuardianDraft> guardians = withAccountInfo(draft.guardians(), accounts);
-            List<FieldErrorResponse> conflicts = identityConflicts(guardians, accounts, manageAccounts);
-            if (!conflicts.isEmpty()) {
-                throw GlobalException.withFieldErrors(ApiCode.GUARDIAN_IDENTITY_CONFLICT, conflicts);
-            }
-
-            List<GuardianDraft> newParents = manageAccounts
-                    ? guardians.stream()
-                            .filter(GuardianDraft::accountRecipient)
-                            .filter(g -> accounts.parentOf(g).isEmpty())
-                            .toList()
-                    : List.of();
-            // AUTH-18: có nhà cung cấp SMS thật ⇒ tài khoản không mật khẩu + mã kích hoạt; cổng giả ⇒ mật khẩu tạm
-            boolean codeMode = smsSender.activationCodeMode();
-            List<String> secrets = newParents.stream()
-                    .map(g -> codeMode
-                            ? activationCodes.generate()
-                            : passwordGenerator.generate()) // carenest:allow-secret
-                    .toList();
-            List<NewIdentityUser> identities = IntStream.range(0, newParents.size())
-                    .mapToObj(i -> new NewIdentityUser(
-                            newParents.get(i).phone(),
-                            null,
-                            newParents.get(i).fullName(),
-                            codeMode ? null : secrets.get(i)))
-                    .toList();
-            EnrollmentDraft resolved = draft.withGuardians(guardians);
-
-            Enrolled enrolled =
-                    accountLifecycle.createIdentities(logPrefix, identities, CareNestRole.PARENT, keycloakUserIds -> {
-                        Map<Integer, Long> accountIds = new HashMap<>();
-                        for (GuardianDraft g : guardians) {
-                            if (!g.accountRecipient()) continue;
-                            accounts.parentOf(g).ifPresent(existing -> {
-                                // AUTH-18: tài khoản cũ chưa có CCCD được bổ sung (đọc lại trong giao dịch)
-                                if (userAccountRepository.claimCitizenId(existing.getId(), g.citizenId()) != 1) {
-                                    throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
-                                }
-                                accountIds.put(g.position(), existing.getId());
-                            });
-                        }
-                        List<UserAccount> created = new ArrayList<>();
-                        for (int i = 0; i < newParents.size(); i++) {
-                            GuardianDraft g = newParents.get(i);
-                            UserAccount parent = userAccountRepository.saveAndFlush(UserAccount.createParent(
-                                    keycloakUserIds.get(i), g.phone(), g.email(), g.fullName(), g.citizenId()));
-                            accountIds.put(g.position(), parent.getId());
-                            created.add(parent);
-                            if (codeMode) activationCodes.store(parent.getId(), secrets.get(i));
-                        }
-                        Long childId = childIntakeService.createEnrolledChild(actor, resolved, accountIds);
-                        childPhotoService.attachToEnrollment(childId, photos);
-                        return new Enrolled(childId, created, accountIds);
-                    });
-
-            // Sau commit: SMS mã kích hoạt hoặc mật khẩu tạm tới SĐT; không trả về giao diện
-            Map<Integer, SmsStatus> smsByPosition = new HashMap<>();
-            for (int i = 0; i < newParents.size(); i++) {
-                UserAccount parent = enrolled.created().get(i);
-                smsByPosition.put(
-                        newParents.get(i).position(),
-                        codeMode
-                                ? smsSender.sendActivationCode(parent, secrets.get(i))
-                                : smsSender.sendActivation(parent, secrets.get(i)));
-            }
-            ChildViewResponse view = childIntakeService.getChildView(enrolled.childId());
-            List<GuardianAccountResultResponse> results = guardians.stream()
-                    .filter(GuardianDraft::accountRecipient)
-                    .map(g -> new GuardianAccountResultResponse(
-                            g.fullName(),
-                            g.phone(),
-                            smsByPosition.containsKey(g.position())
-                                    ? GuardianAccountResult.CREATED
-                                    : enrolled.accountIds().containsKey(g.position())
-                                            ? GuardianAccountResult.LINKED
-                                            : GuardianAccountResult.NOT_ACTIVATED,
-                            false,
-                            smsByPosition.get(g.position())))
-                    .toList();
-            log.info(
-                    "{}|childId={}|created={}|linked={}|END",
-                    logPrefix,
-                    enrolled.childId(),
-                    newParents.size(),
-                    enrolled.accountIds().size() - newParents.size());
-            return new ChildEnrollmentResponse(view, results);
+            ChildEnrollmentResponse response = register(logPrefix, actor, request, files, true);
+            log.info("{}|END", logPrefix);
+            return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /**
+     * Lưu hồ sơ tiếp nhận. {@code photosRequired}: G94-180/CHD-15 (user chốt 2026-11-26) tiếp nhận qua HTTP bắt buộc ảnh
+     * của trẻ và ảnh từng phụ huynh trên hồ sơ; {@link #enroll} (không ảnh) chỉ dùng nội bộ và kiểm thử.
+     */
+    private ChildEnrollmentResponse register(
+            String logPrefix,
+            CurrentUser actor,
+            EnrollChildRequest request,
+            Map<String, List<MultipartFile>> files,
+            boolean photosRequired) {
+        EnrollmentDraft draft = childIntakeService.prepareEnrollment(actor, request);
+        EnrollmentPhotos photos =
+                childPhotoService.validatePhotos(draft.guardians().size(), files);
+        if (photosRequired) requirePhotos(photos, draft.guardians().size());
+        // P-18 A: không có quyền quản lý tài khoản phụ huynh (ở điểm trường nhận trẻ — prepare đã kiểm phạm vi)
+        // ⇒ vẫn lưu; phụ huynh chưa có tài khoản chờ kích hoạt, trùng tài khoản có sẵn thì vẫn liên kết
+        boolean manageAccounts = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
+        ParentAccounts accounts = loadAccounts(draft.guardians());
+        // Tài khoản có sẵn: hồ sơ ghi họ tên, SĐT, email của tài khoản, không sửa tài khoản (C-2; sửa tài khoản
+        // theo hồ sơ, đổi SĐT đổi tên đăng nhập làm ở Phase 4 — AUTH-21)
+        List<GuardianDraft> guardians = withAccountInfo(draft.guardians(), accounts);
+        List<FieldErrorResponse> conflicts = identityConflicts(guardians, accounts, manageAccounts);
+        if (!conflicts.isEmpty()) {
+            throw GlobalException.withFieldErrors(ApiCode.GUARDIAN_IDENTITY_CONFLICT, conflicts);
+        }
+
+        List<GuardianDraft> newParents = manageAccounts
+                ? guardians.stream()
+                        .filter(GuardianDraft::accountRecipient)
+                        .filter(g -> accounts.parentOf(g).isEmpty())
+                        .toList()
+                : List.of();
+        // AUTH-18: có nhà cung cấp SMS thật ⇒ tài khoản không mật khẩu + mã kích hoạt; cổng giả ⇒ mật khẩu tạm
+        boolean codeMode = smsSender.activationCodeMode();
+        List<String> secrets = newParents.stream()
+                .map(g -> codeMode ? activationCodes.generate() : passwordGenerator.generate()) // carenest:allow-secret
+                .toList();
+        List<NewIdentityUser> identities = IntStream.range(0, newParents.size())
+                .mapToObj(i -> new NewIdentityUser(
+                        newParents.get(i).phone(),
+                        null,
+                        newParents.get(i).fullName(),
+                        codeMode ? null : secrets.get(i)))
+                .toList();
+        EnrollmentDraft resolved = draft.withGuardians(guardians);
+
+        Enrolled enrolled =
+                accountLifecycle.createIdentities(logPrefix, identities, CareNestRole.PARENT, keycloakUserIds -> {
+                    Map<Integer, Long> accountIds = new HashMap<>();
+                    for (GuardianDraft g : guardians) {
+                        if (!g.accountRecipient()) continue;
+                        accounts.parentOf(g).ifPresent(existing -> {
+                            // AUTH-18: tài khoản cũ chưa có CCCD được bổ sung (đọc lại trong giao dịch)
+                            if (userAccountRepository.claimCitizenId(existing.getId(), g.citizenId()) != 1) {
+                                throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+                            }
+                            accountIds.put(g.position(), existing.getId());
+                        });
+                    }
+                    List<UserAccount> created = new ArrayList<>();
+                    for (int i = 0; i < newParents.size(); i++) {
+                        GuardianDraft g = newParents.get(i);
+                        UserAccount parent = userAccountRepository.saveAndFlush(UserAccount.createParent(
+                                keycloakUserIds.get(i), g.phone(), g.email(), g.fullName(), g.citizenId()));
+                        accountIds.put(g.position(), parent.getId());
+                        created.add(parent);
+                        if (codeMode) activationCodes.store(parent.getId(), secrets.get(i));
+                    }
+                    Long childId = childIntakeService.createEnrolledChild(actor, resolved, accountIds);
+                    childPhotoService.attachToEnrollment(childId, photos);
+                    return new Enrolled(childId, created, accountIds);
+                });
+
+        // Sau commit: SMS mã kích hoạt hoặc mật khẩu tạm tới SĐT; không trả về giao diện
+        Map<Integer, SmsStatus> smsByPosition = new HashMap<>();
+        for (int i = 0; i < newParents.size(); i++) {
+            UserAccount parent = enrolled.created().get(i);
+            smsByPosition.put(
+                    newParents.get(i).position(),
+                    codeMode
+                            ? smsSender.sendActivationCode(parent, secrets.get(i))
+                            : smsSender.sendActivation(parent, secrets.get(i)));
+        }
+        ChildViewResponse view = childIntakeService.getChildView(enrolled.childId());
+        List<GuardianAccountResultResponse> results = guardians.stream()
+                .filter(GuardianDraft::accountRecipient)
+                .map(g -> new GuardianAccountResultResponse(
+                        g.fullName(),
+                        g.phone(),
+                        smsByPosition.containsKey(g.position())
+                                ? GuardianAccountResult.CREATED
+                                : enrolled.accountIds().containsKey(g.position())
+                                        ? GuardianAccountResult.LINKED
+                                        : GuardianAccountResult.NOT_ACTIVATED,
+                        false,
+                        smsByPosition.get(g.position())))
+                .toList();
+        log.info(
+                "{}|childId={}|created={}|linked={}",
+                logPrefix,
+                enrolled.childId(),
+                newParents.size(),
+                enrolled.accountIds().size() - newParents.size());
+        return new ChildEnrollmentResponse(view, results);
+    }
+
+    /** G94-180/CHD-15: thiếu ảnh của trẻ hoặc của phụ huynh nào ⇒ 400 theo ô {@code photo}, {@code guardians.i.photo}. */
+    private static void requirePhotos(EnrollmentPhotos photos, int guardianCount) {
+        List<FieldErrorResponse> missing = new ArrayList<>();
+        if (photos.child() == null) missing.add(new FieldErrorResponse("photo", "Tải ảnh của trẻ"));
+        for (int i = 0; i < guardianCount; i++)
+            if (!photos.guardians().containsKey(i))
+                missing.add(new FieldErrorResponse("guardians." + i + ".photo", "Tải ảnh phụ huynh " + (i + 1)));
+        if (!missing.isEmpty()) throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, missing);
     }
 
     /** Tài khoản có SĐT (tên đăng nhập) hoặc CCCD của các phụ huynh trên form. */

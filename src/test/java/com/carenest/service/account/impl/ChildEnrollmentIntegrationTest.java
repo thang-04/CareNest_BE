@@ -269,6 +269,30 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("G94-180/CHD-15: tiếp nhận thiếu ảnh của trẻ hoặc phụ huynh bị chặn theo ô, không tạo hồ sơ")
+    void enrollmentWithoutPhotosIsRejected() throws Exception {
+        var request =
+                request("Trẻ thiếu ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000714", "999000000714"));
+        assertThatThrownBy(() -> enrollmentService.enrollWithPhotos(principal, request, Map.of()))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(com.carenest.dto.common.FieldErrorResponse::field)
+                                .containsExactly("photo", "guardians.0.photo"));
+        assertThatThrownBy(() -> enrollmentService.enrollWithPhotos(
+                        principal, request, Map.of("childPhoto", List.of(portrait("childPhoto")))))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(com.carenest.dto.common.FieldErrorResponse::field)
+                                .containsExactly("guardians.0.photo"));
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from children where full_name = ?", Integer.class, "Trẻ thiếu ảnh giả"))
+                .isZero();
+        verifyNoInteractions(identityProviderClient, smsGateway);
+    }
+
+    @Test
     @DisplayName("CHD-02: S3 lỗi giữa chừng rollback hồ sơ, dọn object ảnh mới và bù trừ Keycloak")
     void uploadFailureRollsBackEnrollment() throws Exception {
         org.mockito.Mockito.doReturn(
