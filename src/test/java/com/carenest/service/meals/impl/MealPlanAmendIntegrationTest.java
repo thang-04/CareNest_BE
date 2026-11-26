@@ -10,6 +10,7 @@ import com.carenest.dto.meals.MealPlanRevisionResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.service.meals.DayBalanceService;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -69,6 +70,9 @@ class MealPlanAmendIntegrationTest {
     private MealPlanService mealPlanService;
 
     @Autowired
+    private DayBalanceService dayBalanceService;
+
+    @Autowired
     private MutableClock clock;
 
     @Autowired
@@ -102,6 +106,7 @@ class MealPlanAmendIntegrationTest {
                         + " protein_pct_min, protein_pct_max, lipid_pct_min, lipid_pct_max, glucid_pct_min, glucid_pct_max)"
                         + " VALUES (?, '2026-09-01', 30000, 300, 600, 12, 25, 15, 35, 40, 70)",
                 ag3);
+        jdbc.update("UPDATE age_group_meal_configs SET budget_tolerance_pct = 100");
         rice = food("GAO", "Gạo", "DRY", "PLANT", "350", "7", "1", "77");
         long pork = food("THIT", "Thịt", "FRESH", "ANIMAL", "250", "20", "18", "0");
         long milk = food("SUA", "Sữa", "FRESH", "ANIMAL", "60", "3", "3", "5");
@@ -211,6 +216,7 @@ class MealPlanAmendIntegrationTest {
         expectCode(
                 () -> mealPlanService.amendMealPlanDay(principal, MONDAY, WEDNESDAY, lunch("", com)),
                 ApiCode.MEAL_PLAN_NOT_PUBLISHED);
+        BalancedWeek.balance(dayBalanceService, principal, MONDAY);
         mealPlanService.publishMealPlan(principal, MONDAY);
 
         expectCode(() -> mealPlanService.amendMealPlanDay(vp, MONDAY, WEDNESDAY, lunch("", com)), ApiCode.FORBIDDEN);
@@ -267,6 +273,7 @@ class MealPlanAmendIntegrationTest {
 
     private void publishWeek() {
         mealPlanService.saveMealPlan(principal, MONDAY, weekPlan());
+        BalancedWeek.balance(dayBalanceService, principal, MONDAY);
         mealPlanService.publishMealPlan(principal, MONDAY);
     }
 

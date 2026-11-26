@@ -16,6 +16,7 @@ import java.util.List;
  * @param confirmedAt lúc xác nhận sổ báo ăn gần nhất; chỉ có khi basis = CONFIRMED
  * @param groups nhóm tuổi có suất trong ngày, theo thứ tự hiển thị; {@code lines[].groups} và {@code totals.groups}
  *     cùng thứ tự này
+ * @param balanceRound lần cân đối đang dùng để tính (1 hoặc 2); null = tính theo công thức món
  */
 public record DayMarketResponse(
         Long campusId,
@@ -26,7 +27,8 @@ public record DayMarketResponse(
         List<DayMarketGroup> groups,
         List<DayMarketLine> lines,
         DayMarketTotals totals,
-        List<DayMarketSessionMenu> menu) {
+        List<DayMarketSessionMenu> menu,
+        Integer balanceRound) {
 
     /**
      * @param servings số suất tính tiền ăn của nhóm trong ngày

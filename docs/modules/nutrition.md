@@ -12,7 +12,7 @@ Food, NutrientValue (source, sourceVersion), Dish, Recipe (gam/trẻ theo nhóm 
 Điểm danh (attendance), dị ứng gốc (child), cấu hình giờ chốt (school-structure).
 
 ## Rules
-NUT-01..25 (NUT-14, NUT-15 REMOVED), AI-01..06. Flow: `docs/business/flows/meal-management.md`, `docs/business/flows/attendance.md`.
+NUT-01..31 (NUT-14, NUT-15 REMOVED), AI-01..06. Flow: `docs/business/flows/meal-management.md`, `docs/business/flows/attendance.md`.
 
 ## Phụ thuộc
 - Dùng: service `attendance` (trẻ có mặt), service `child` (allergySummary: số trẻ theo chất, mức, lớp — không danh tính), service `organization` (nhóm tuổi, số bữa), `AiClient` (`integration/`).
@@ -58,6 +58,8 @@ Phần chưa có API (ảnh bữa) — thiết kế bảng (PROPOSED): `MEAL_NUT
 
 Khóa ghi ngày cũ + phê duyệt HT (23/11/2026, INS-05, NUT-21, G94-450): ghi biên bản kiểm thực (`FRESH|DRY|PROCESS|SERVE|SAMPLE`: lưu nháp, ký, sửa lại) của ngày đã qua 00:00 `Asia/Ho_Chi_Minh` (đồng hồ BE) bị từ chối khi chưa có grant HT. PHT (`FOOD_SAFETY_APPROVE` theo điểm trường) gửi yêu cầu cho đúng một mẫu + một ngày + một điểm trường kèm lý do; HT duyệt/từ chối hoặc tự mở (SELF_OPEN, lý do ≥3 ký tự, ghi lịch sử). Grant có hạn (mặc định 48h), tiêu thụ khi ký thành công; từ chối/thu hồi/hết hạn không mở. Xem/in không bị khóa. Lệnh bếp ghi/hủy mẫu (`/food-samples`) không thêm khóa: ghi mẫu vốn chỉ hôm nay, hủy mẫu là bước hợp lệ sau 24 giờ.
 
+Cân đối khẩu phần theo ngày (V198–V200, NUT-31, plan `docs/plans/active/2026-11-26-day-ration-balance.md`): `DayBalanceController` — `GET /nutrition/day-balances?from&to`, `GET`/`PUT /nutrition/day-balances/{date}?round=`, `POST .../preview` (`MENU_MANAGE` để ghi). Bảng `day_balances`, `day_balance_counts`, `day_balance_lines`. Dự trù, đi chợ, kiểm nhận, trừ kho, bếp lấy nhu cầu qua `DayDemand` (lần 2, không thì lần 1, không thì công thức món); điều kiện công bố ở `DayBalanceGate`; sau commit `FreshForecastPublishListener` lập dự trù, `DayBalanceStockListener` đồng bộ kho.
+
 ## PENDING
 Kiểm thực ba bước (M1–M3), sổ lưu mẫu Mẫu 4–5 và chữ ký ảnh: user chốt 09–10/11 (INS-01..05, SIG-01, ADR-0024; đóng P-26, P-27), đã cài đặt ở BE (xem trên); còn mở: danh sách chọn chuẩn cho dụng cụ chứa/nhiệt độ lưu mẫu (hiện là chuỗi tự do), ghi đồng thời hai luồng chưa có test riêng, ô nhà sản xuất của M1 khô chưa có nguồn (kho chưa lưu), App bếp chưa có ô ba trường. Đã đóng 28/10: P-04..P-10; 01/11: P-24, P-25, P-37; 09/11: P-26, P-27.
 
@@ -78,7 +80,7 @@ Kiểm thực ba bước (M1–M3), sổ lưu mẫu Mẫu 4–5 và chữ ký �
 - Xóa bản dự trù không xóa lịch sử kiểm nhận (`fresh_checks.forecast_id` về null, `fresh_check_lines.expected_qty` đã chụp); kiểm nhận lần 1 đã ghi vẫn hiện theo dòng đã lưu dù sau đó có bản dự trù mới.
 - Số version Flyway không đoán trước được khi nhiều luồng cùng làm trên một nhánh: kiểm `ls db/migration` ngay trước khi tạo file; hai file cùng version làm Flyway chặn khởi động, bản stale trong `target/classes` còn giữ file cũ sau khi đổi tên.
 - Bếp chỉ dùng App, cả tổ dùng chung một tài khoản mỗi cơ sở (AUTH-21, AUTH-22); kiểm nhận hàng tươi và nhập kho do PHT ghi trên Web (NUT-11, NUT-12).
-- Công bố thực đơn **cả tuần**, một lần cho cả trường, không chờ chốt suất (NUT-08, chốt 02/11); chưa cân đối dinh dưỡng thì chặn. Đã công bố không sửa; ngoại lệ bất khả kháng (P-39, chốt 18/11): `PUT /nutrition/meal-plans/{weekStart}/days/{date}/amend` (`MENU_MANAGE`, lý do bắt buộc, cân đối chỉ cảnh báo, tính lại trừ kho ngày đã chốt suất, báo `MENU_CHANGED` tới phụ huynh + bếp), lịch sử `GET /nutrition/meal-plans/{weekStart}/revisions` (bảng `meal_plan_day_revisions`, V145). Đến ngày chỉ thêm ảnh bữa.
+- Công bố thực đơn **cả tuần**, một lần cho cả trường, không chờ chốt suất (NUT-08, chốt 02/11); ngày chưa có cân đối lần 1 còn khớp và đạt thì chặn (NUT-31). Đã công bố không sửa; ngoại lệ bất khả kháng (P-39, chốt 18/11): `PUT /nutrition/meal-plans/{weekStart}/days/{date}/amend` (`MENU_MANAGE`, lý do bắt buộc, cân đối chỉ cảnh báo, tính lại trừ kho ngày đã chốt suất, báo `MENU_CHANGED` tới phụ huynh + bếp), lịch sử `GET /nutrition/meal-plans/{weekStart}/revisions` (bảng `meal_plan_day_revisions`, V145). Đến ngày chỉ thêm ảnh bữa.
 - AI không được ghi vào Food/NutrientValue; output AI chỉ là MealPlan DRAFT (NUT-05, AI-01).
 - MealCount CONFIRMED bất biến — không recompute ngầm khi attendance đổi (ADR-0005).
 - Không gửi tên/ID trẻ cho AI khi xét dị ứng; dùng tổng hợp (AI-04).
@@ -87,6 +89,7 @@ Kiểm thực ba bước (M1–M3), sổ lưu mẫu Mẫu 4–5 và chữ ký �
 - NUT-03 (Cần chốt 04/11/2026): sổ đã xác nhận có số mới do sửa điểm danh ⇒ thông báo `MEAL_COUNT_RECONFIRM` (V78) cho PHT điểm trường (không có PHT thì HT), một lần mỗi lần sổ chuyển sang cần xác nhận lại.
 - NUT-03 (04/11): `POST /meal-counts/{id}/confirm?seenServings=` — tổng suất các bữa cơ sở–ngày người duyệt đang thấy; khác số hiện tại ⇒ 409 `6074` `MEAL_COUNT_CHANGED_SINCE_VIEW` (không xác nhận số chưa xem). Không gửi ⇒ không kiểm. `seenSubstitute` còn nhận để client cũ không vỡ, bỏ qua (25/11/2026).
 - NUT-02 (01/11): xác nhận theo cơ sở–ngày — `POST /meal-counts/{id}/confirm` xác nhận mọi bữa còn chờ cùng cơ sở + ngày + năm; bữa đã xác nhận gọi lại ⇒ 200 trả trạng thái hiện tại (không còn 409 `6005`, để FE gọi lần lượt từng bữa không vỡ). Còn lớp có trẻ đang học chưa điểm danh (`tallyMeals.missing > 0`) ⇒ 409 `6009` `MEAL_COUNT_ATTENDANCE_INCOMPLETE`, câu lỗi liệt kê tên lớp.
+- Tên schema OpenAPI lấy tên đơn của record: record lồng trùng tên (`Line`, `Food`, `Count`…) đè nhau trong `openapi.yaml` mà test vẫn xanh. DTO mới đặt `@Schema(name = ...)` hoặc tên riêng; soát diff snapshot.
 
 ## Related issues
 Chưa có. Rủi ro dự kiến: CMR-01, CMR-02.
