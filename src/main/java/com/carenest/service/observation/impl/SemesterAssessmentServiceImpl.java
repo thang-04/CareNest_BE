@@ -139,12 +139,16 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         return build(user, cls.id(), req.semester(), entity);
     }
 
-    private static boolean incomplete(Response b) {
+    /**
+     * OBS-25: ô không có kết quả (trẻ vào lớp sau các chủ đề của kỳ) là "chưa có dữ liệu", không chặn xác nhận; chỉ chặn
+     * khi bảng trống hoặc cả bảng chưa có kết quả nào (user chốt 26/11/2026).
+     */
+    static boolean incomplete(Response b) {
         return b.rows().isEmpty()
                 || b.domains().isEmpty()
                 || b.rows().stream()
-                        .anyMatch(c ->
-                                c.domains().isEmpty() || c.domains().stream().anyMatch(d -> d.met() == null));
+                        .noneMatch(c -> c.domains().stream()
+                                .anyMatch(d -> d.goals().stream().anyMatch(g -> g.met() != null)));
     }
 
     private void requireReadPeriod(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
@@ -190,14 +194,19 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
             throw GlobalException.of(ApiCode.SEMESTER_DATE_REQUIRED, "ngày học kỳ trong Cấu hình thời gian");
         requireReadPeriod(user, cls, from, end);
         LocalDate to = end.isAfter(rules.today()) ? rules.today() : end;
+        // Chủ đề thuộc học kỳ theo ngày kết thúc; chủ đề kết thúc trong khoảng nghỉ giữa hai kỳ thuộc học kỳ I, sau học
+        // kỳ II đến hết năm thuộc học kỳ II để không chủ đề nào rơi khỏi cả hai kỳ (user chốt 26/11/2026)
+        LocalDate[] themeRange = themeRange(semester, year.startDate(), year.endDate(), year.semester2Start());
+        LocalDate themeFrom = themeRange[0];
+        LocalDate themeTo = themeRange[1];
         Set<Long> selected = new HashSet<>();
         if (cls.ageGroupId() != null)
             // Lịch chủ đề theo lớp (lịch lớp đã duyệt, chưa có thì lịch tổ) như bảng đánh giá chủ đề
             for (var t : calendar.findApprovedThemes(classId)) {
                 // OBS-25 (Cần chốt 10/11/2026): chủ đề thuộc học kỳ = ngày kết thúc chủ đề nằm trong học kỳ
                 if (t.endDate() != null
-                        && !t.endDate().isBefore(from)
-                        && !t.endDate().isAfter(end))
+                        && !t.endDate().isBefore(themeFrom)
+                        && !t.endDate().isAfter(themeTo))
                     themes.findThemeGoals(t.themeId()).forEach(g -> selected.add(g.getLineage()));
             }
         var children = to.isBefore(from)
@@ -206,9 +215,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 // childThemeResults tổng hợp theo lịch sử học, tránh xuất hiện đồng thời ở hai lớp sau chuyển lớp.
                 : enrollment.findChildrenInClassroom(classId, to);
         // OBS-25 (Cần chốt 10/11/2026): MT học kỳ lấy từ kết quả cuối các chủ đề đã xong trong kỳ (≥50% chủ đề Đạt)
-        Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results = new HashMap<>();
-        children.forEach(
-                c -> results.put(c.id(), themeEvaluationService.childThemeResults(classId, c.id(), from, end)));
+        Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results =
+                new HashMap<>(themeEvaluationService.childThemeResults(
+                        classId, children.stream().map(c -> c.id()).toList(), themeFrom, themeTo));
         Set<Long> classroomGoals = Set.copyOf(selected);
         // Giữ mục tiêu đã học ở lớp cũ, kể cả lịch chủ đề lớp mới không gắn mục tiêu đó.
         results.values().forEach(r -> selected.addAll(r.keySet()));
@@ -323,6 +332,14 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private ThemeEvaluationDtos.ThemeSigners signersOn(Long classId, LocalDate end) {
         LocalDate today = rules.today();
         return themeEvaluationService.signersAt(classId, end.isAfter(today) ? today : end);
+    }
+
+    /** Khoảng ngày kết thúc của chủ đề thuộc học kỳ: học kỳ I gồm cả khoảng nghỉ trước học kỳ II, học kỳ II tới hết năm. */
+    static LocalDate[] themeRange(int semester, LocalDate yearStart, LocalDate yearEnd, LocalDate semester2Start) {
+        if (semester == 1) {
+            return new LocalDate[] {yearStart, semester2Start == null ? yearEnd : semester2Start.minusDays(1)};
+        }
+        return new LocalDate[] {semester2Start, yearEnd};
     }
 
     static Domain summarize(Long id, String name, List<Goal> goals) {

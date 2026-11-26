@@ -282,6 +282,13 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     throw GlobalException.of(ApiCode.CLASS_WITHOUT_AGE_GROUP, from.name());
                 }
                 Child child = board.children.get(item.childId());
+                // Trẻ nghỉ học hẳn trước khi năm mới bắt đầu không học năm mới: chỉ được chọn Nghỉ học
+                if (child != null && leavesBeforeYear(setup, child) && item.action() != PlacementAction.LEAVE) {
+                    throw GlobalException.of(
+                            ApiCode.PLACEMENT_CHILD_LEAVING,
+                            child.getFullName(),
+                            DISPLAY_DATE.format(child.getScheduledLeaveOn()));
+                }
                 if (item.action() == PlacementAction.GRADUATE && (child == null || ageMonths(setup, child) < 72)) {
                     throw GlobalException.of(ApiCode.GRADUATION_NOT_ALLOWED);
                 }
@@ -377,6 +384,10 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     if (board.placementOf(child.getId()) != null) {
                         continue;
                     }
+                    if (leavesBeforeYear(setup, child)) {
+                        board.place(child.getId(), from.id(), PlacementAction.LEAVE, null, currentUser.userId());
+                        continue;
+                    }
                     if (unknownGroup) {
                         left++;
                         continue;
@@ -423,7 +434,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         try {
             checkPrincipal(currentUser);
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
-            YearReadinessResponse response = buildReadiness(setup, loadBoard(setup));
+            YearReadinessResponse response =
+                    buildReadiness(setup, loadBoard(setup), teachingWeeksOf(currentUser, schoolYearId));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -442,7 +454,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             Board board = loadBoard(setup);
             if (setup.year().status() == SchoolYearStatus.PLANNED) {
-                YearReadinessResponse readiness = buildReadiness(setup, board);
+                YearReadinessResponse readiness =
+                        buildReadiness(setup, board, teachingWeeksOf(currentUser, schoolYearId));
                 List<String> stepBlockers = readiness.steps().stream()
                         .filter(s -> s.required() && !s.ok())
                         .map(s -> s.label() + ": " + s.detail())
@@ -634,16 +647,40 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         return today.isAfter(setup.year().startDate()) ? today : setup.year().startDate();
     }
 
-    private YearReadinessResponse buildReadiness(YearSetupResponse setup, Board board) {
+    /** Số tuần thực học của năm (null nếu chưa nhập ngày học kỳ), tính một lần cho bước thông tin năm học. */
+    /** Trẻ có lịch nghỉ học hẳn không sau ngày bắt đầu năm mới thì không học năm mới. */
+    private static boolean leavesBeforeYear(YearSetupResponse setup, Child child) {
+        return child.getScheduledLeaveOn() != null
+                && !child.getScheduledLeaveOn().isAfter(setup.year().startDate());
+    }
+
+    private Integer teachingWeeksOf(CurrentUser currentUser, Long schoolYearId) {
+        SchoolYearDetailResponse year = schoolYearService.getSchoolYear(currentUser, schoolYearId);
+        List<TeachingWeeks.Break> breaks = schoolYearService.getHolidays(currentUser, schoolYearId).stream()
+                .map(h -> new TeachingWeeks.Break(h.startDate(), h.endDate()))
+                .toList();
+        return TeachingWeeks.count(
+                year.semester1Start(), year.semester1End(), year.semester2Start(), year.semester2End(), breaks);
+    }
+
+    private YearReadinessResponse buildReadiness(YearSetupResponse setup, Board board, Integer teachingWeeks) {
         List<YearSetupResponse.SetupClass> classes = setup.classes();
         boolean hasClasses = !classes.isEmpty();
         List<YearReadinessResponse.Step> steps = new ArrayList<>();
-        steps.add(step(
+        // Thiếu 35 tuần thực học chỉ cảnh báo (vàng), không chặn kích hoạt (user chốt 26/11/2026)
+        boolean weeksOff = teachingWeeks != null && teachingWeeks < TeachingWeeks.STANDARD;
+        steps.add(new YearReadinessResponse.Step(
                 "info",
+                STEP_LABELS.get("info"),
                 true,
                 true,
+                weeksOff,
                 DISPLAY_DATE.format(setup.year().startDate()) + " – "
-                        + DISPLAY_DATE.format(setup.year().endDate())));
+                        + DISPLAY_DATE.format(setup.year().endDate())
+                        + (teachingWeeks == null
+                                ? ""
+                                : " · " + teachingWeeks + " tuần thực học"
+                                        + (weeksOff ? " (chuẩn " + TeachingWeeks.STANDARD + " tuần)" : ""))));
         Set<Long> groupsWithClasses = classes.stream()
                 .map(YearSetupResponse.SetupClass::ageGroupId)
                 .filter(Objects::nonNull)

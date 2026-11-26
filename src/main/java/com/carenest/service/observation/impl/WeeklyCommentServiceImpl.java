@@ -851,12 +851,16 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         WeekOption range = weekRange(cls, week);
         LocalDate from = range.from();
         LocalDate to = min(range.to(), rules.today());
-        int schoolDays = 0;
+        // Số ngày học tính theo thời gian trẻ ở lớp (trẻ vào lớp thứ Tư không bị ghi "đi học 2/5 ngày")
+        List<LocalDate> schoolDayList = new ArrayList<>();
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             if (rules.isSchoolDay(d)) {
-                schoolDays++;
+                schoolDayList.add(d);
             }
         }
+        Map<Long, List<EnrollmentService.ClassStay>> stays =
+                enrollmentService.findStaysInClassroom(cls.id(), from, to).stream()
+                        .collect(Collectors.groupingBy(EnrollmentService.ClassStay::childId));
         Map<Long, EvaluationSources.ChildData> loaded = sources.load(cls, childIds, from, to, false);
         Set<Long> ticketed = childIds.isEmpty()
                 ? Set.of()
@@ -887,6 +891,10 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             int present = d == null ? 0 : d.presentDays();
             int flags = d == null ? 0 : d.flagCount();
             boolean ticket = ticketed.contains(childId);
+            List<EnrollmentService.ClassStay> childStays = stays.getOrDefault(childId, List.of());
+            int schoolDays = (int) schoolDayList.stream()
+                    .filter(day -> childStays.stream().anyMatch(stay -> stay.covers(day)))
+                    .count();
             WeeklyCommentDraftGenerator.WeekFacts facts = new WeeklyCommentDraftGenerator.WeekFacts(
                     present,
                     schoolDays,
