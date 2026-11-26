@@ -198,6 +198,54 @@ class DayBalanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Chưa làm tròn: lượng mua theo đơn vị của các điểm trường cộng đúng số toàn trường")
+    void campusQuantitiesAddUpToSchoolTotal() {
+        DayBalanceRequest edit = new DayBalanceRequest(
+                null,
+                request(null, false).counts(),
+                null,
+                List.of(new DayBalanceRequest.EditInput(ag3, pork, new BigDecimal("33.3333"), null)),
+                false,
+                null);
+
+        DayBalanceResponse preview = dayBalanceService.previewBalance(principal, MONDAY, 1, edit);
+
+        assertThat(preview.summary())
+                .allSatisfy(row -> assertThat(row.campuses().stream()
+                                .map(DayBalanceResponse.CampusShare::purchaseQuantity)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add))
+                        .isEqualByComparingTo(row.purchaseQuantity()));
+    }
+
+    @Test
+    @DisplayName("Số trẻ hoặc sửa gam cho dòng không có trong ngày bị từ chối; không gửi cờ thì hiểu là tắt")
+    void rejectsUnknownRowsAndDefaultsFlags() {
+        DayBalanceRequest unknownFood = new DayBalanceRequest(
+                null,
+                null,
+                null,
+                List.of(new DayBalanceRequest.EditInput(ag3, 999_999L, BigDecimal.TEN, null)),
+                false,
+                null);
+        DayBalanceRequest unknownCampus = new DayBalanceRequest(
+                null, List.of(new DayBalanceRequest.CountInput(999_999L, ag3, 5)), null, null, false, null);
+
+        expectCode(
+                () -> dayBalanceService.previewBalance(principal, MONDAY, 1, unknownFood),
+                ApiCode.DAY_BALANCE_INPUT_INVALID);
+        expectCode(
+                () -> dayBalanceService.previewBalance(principal, MONDAY, 1, unknownCampus),
+                ApiCode.DAY_BALANCE_INPUT_INVALID);
+        DayBalanceRequest noFlags = new DayBalanceRequest(null, null, null, null, null, null, null);
+        assertThat(noFlags.applyRounding()).isFalse();
+        assertThat(noFlags.fromRecipe()).isFalse();
+        assertThat(dayBalanceService
+                        .previewBalance(principal, MONDAY, 1, noFlags)
+                        .lines())
+                .hasSize(3);
+    }
+
+    @Test
     @DisplayName("Sửa gam làm ngày không đạt tiền: trạng thái nêu nhóm tuổi và tiêu chí")
     void editingGramsFailsMoney() {
         DayBalanceRequest edit = new DayBalanceRequest(
