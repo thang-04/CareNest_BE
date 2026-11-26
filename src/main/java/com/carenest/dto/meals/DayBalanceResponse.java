@@ -44,7 +44,7 @@ public record DayBalanceResponse(
     public record AgeGroup(Long ageGroupId, String name, MenuBlock block, List<MealSession> sessions) {}
 
     @Schema(name = "DayBalanceCount")
-    public record Count(Long campusId, Long ageGroupId, int children) {}
+    public record Count(Long campusId, Long ageGroupId, int children, int enrolled) {}
 
     @Schema(name = "DayBalanceLine")
     public record Line(

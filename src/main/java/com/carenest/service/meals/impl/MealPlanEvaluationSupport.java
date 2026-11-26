@@ -1,6 +1,7 @@
 package com.carenest.service.meals.impl;
 
 import com.carenest.config.NutritionConversionProperties;
+import com.carenest.dto.meals.NutritionConversionResponse.ConvertedGrams;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.meals.AgeGroupMealConfig;
@@ -19,10 +20,12 @@ import com.carenest.service.meals.impl.MealPlanEvaluator.Portion;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Range;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.utils.NutritionConversion;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
 import com.carenest.utils.enums.Micronutrient;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -89,10 +92,11 @@ class MealPlanEvaluationSupport {
                         .collect(Collectors.groupingBy(AgeGroupMealConfig::getAgeGroupId));
         EnergyFactors factors = new EnergyFactors(
                 conversion.proteinKcalPerG(), conversion.lipidKcalPerG(), conversion.glucidKcalPerG());
+        NutritionConversion converter = new NutritionConversion(conversion);
         return (ageGroupId, date) -> configs.getOrDefault(ageGroupId, List.of()).stream()
                 .filter(c -> !c.getEffectiveFrom().isAfter(date))
                 .findFirst()
-                .map(c -> toNorm(c).withFactors(factors))
+                .map(c -> toNorm(c, converter).withFactors(factors))
                 .orElse(null);
     }
 
@@ -167,7 +171,18 @@ class MealPlanEvaluationSupport {
         return micro;
     }
 
-    static Norm toNorm(AgeGroupMealConfig c) {
+    // Làm tròn 2 số lẻ như số hiển thị để thấy sao chấm vậy
+    private static Range gramRange(BigDecimal atKcalMin, BigDecimal atKcalMax) {
+        return new Range(atKcalMin.setScale(2, RoundingMode.HALF_UP), atKcalMax.setScale(2, RoundingMode.HALF_UP));
+    }
+
+    static Norm toNorm(AgeGroupMealConfig c, NutritionConversion converter) {
+        // NUT-34: đã chọn cơ cấu áp dụng thì định mức gam/trẻ/ngày là hàm lượng quy đổi tại hai mốc kcal của trường
+        ConvertedGrams low = converter.convert(
+                c.getKcalMin(), c.getAppliedProteinPct(), c.getAppliedLipidPct(), c.getAppliedGlucidPct());
+        ConvertedGrams high = converter.convert(
+                c.getKcalMax(), c.getAppliedProteinPct(), c.getAppliedLipidPct(), c.getAppliedGlucidPct());
+        boolean converted = low != null && high != null;
         Map<Micronutrient, Range> micro = new EnumMap<>(Micronutrient.class);
         for (Micronutrient nutrient : Micronutrient.values()) {
             micro.put(nutrient, new Range(MicronutrientValues.min(c, nutrient), MicronutrientValues.max(c, nutrient)));
@@ -182,16 +197,26 @@ class MealPlanEvaluationSupport {
                 new Range(c.getProteinPctMin(), c.getProteinPctMax()),
                 new Range(c.getLipidPctMin(), c.getLipidPctMax()),
                 new Range(c.getGlucidPctMin(), c.getGlucidPctMax()),
-                new Range(c.getAnimalProteinGMin(), c.getAnimalProteinGMax()),
-                new Range(c.getPlantProteinGMin(), c.getPlantProteinGMax()),
-                new Range(c.getAnimalLipidGMin(), c.getAnimalLipidGMax()),
-                new Range(c.getPlantLipidGMin(), c.getPlantLipidGMax()),
-                new Range(c.getGlucidGMin(), c.getGlucidGMax()),
+                converted
+                        ? gramRange(low.animalProteinG(), high.animalProteinG())
+                        : new Range(c.getAnimalProteinGMin(), c.getAnimalProteinGMax()),
+                converted
+                        ? gramRange(low.plantProteinG(), high.plantProteinG())
+                        : new Range(c.getPlantProteinGMin(), c.getPlantProteinGMax()),
+                converted
+                        ? gramRange(low.animalLipidG(), high.animalLipidG())
+                        : new Range(c.getAnimalLipidGMin(), c.getAnimalLipidGMax()),
+                converted
+                        ? gramRange(low.plantLipidG(), high.plantLipidG())
+                        : new Range(c.getPlantLipidGMin(), c.getPlantLipidGMax()),
+                converted ? gramRange(low.glucidG(), high.glucidG()) : new Range(c.getGlucidGMin(), c.getGlucidGMax()),
                 sessionKcalPct,
                 c.getDailyKcalMax(),
                 micro,
                 c.getServiceFee(),
                 c.getBudgetTolerancePct(),
-                EnergyFactors.DEFAULT);
+                EnergyFactors.DEFAULT,
+                new MealPlanEvaluator.Applied(
+                        c.getAppliedProteinPct(), c.getAppliedLipidPct(), c.getAppliedGlucidPct()));
     }
 }
