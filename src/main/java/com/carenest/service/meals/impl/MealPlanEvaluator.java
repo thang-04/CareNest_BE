@@ -48,8 +48,8 @@ final class MealPlanEvaluator {
     private static final BigDecimal TWO = BigDecimal.valueOf(2);
     private static final Map<String, Micronutrient> MICRO_BY_KEY =
             Arrays.stream(Micronutrient.values()).collect(Collectors.toMap(Micronutrient::key, Function.identity()));
-    private static final Map<String, BigDecimal> ENERGY_FACTOR =
-            Map.of("protein", BigDecimal.valueOf(4), "lipid", BigDecimal.valueOf(9), "glucid", BigDecimal.valueOf(4));
+    private static final Set<String> ENERGY_KEYS = Set.of("protein", "lipid", "glucid");
+    private static final BigDecimal DEFAULT_TOLERANCE_PCT = BigDecimal.valueOf(5);
     private static final Map<String, String> ROW_LABELS = Map.of(
             "kcal", "Năng lượng",
             "protein", "Tỷ lệ năng lượng từ đạm",
@@ -63,6 +63,12 @@ final class MealPlanEvaluator {
     private static final Map<MealSession, String> SESSION_LABELS =
             Map.of(MealSession.MORNING, "sáng", MealSession.LUNCH, "trưa", MealSession.AFTERNOON, "chiều");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM");
+
+    /** Hệ số kcal/g dùng cho cơ cấu P:L:G (cùng bộ với quy đổi định mức, NUT-28). */
+    record EnergyFactors(BigDecimal protein, BigDecimal lipid, BigDecimal glucid) {
+        static final EnergyFactors DEFAULT =
+                new EnergyFactors(new BigDecimal("4.1"), new BigDecimal("9.3"), new BigDecimal("4.1"));
+    }
 
     record AgeGroupInfo(Long id, String name, MenuBlock block, List<MealSession> sessions) {}
 
@@ -128,7 +134,84 @@ final class MealPlanEvaluator {
             Map<MealSession, Range> sessionKcalPct,
             BigDecimal dailyKcalNeed,
             Map<Micronutrient, Range> micro,
-            BigDecimal serviceFee) {
+            BigDecimal serviceFee,
+            BigDecimal budgetTolerancePct,
+            EnergyFactors factors) {
+
+        /** Biên tiền và hệ số P:L:G mặc định. */
+        Norm(
+                BigDecimal mealPrice,
+                Range kcal,
+                Range proteinPct,
+                Range lipidPct,
+                Range glucidPct,
+                Range animalProteinG,
+                Range plantProteinG,
+                Range animalLipidG,
+                Range plantLipidG,
+                Range glucidG,
+                Map<MealSession, Range> sessionKcalPct,
+                BigDecimal dailyKcalNeed,
+                Map<Micronutrient, Range> micro,
+                BigDecimal serviceFee) {
+            this(
+                    mealPrice,
+                    kcal,
+                    proteinPct,
+                    lipidPct,
+                    glucidPct,
+                    animalProteinG,
+                    plantProteinG,
+                    animalLipidG,
+                    plantLipidG,
+                    glucidG,
+                    sessionKcalPct,
+                    dailyKcalNeed,
+                    micro,
+                    serviceFee,
+                    DEFAULT_TOLERANCE_PCT,
+                    EnergyFactors.DEFAULT);
+        }
+
+        Norm withBudgetTolerance(BigDecimal tolerancePct) {
+            return new Norm(
+                    mealPrice,
+                    kcal,
+                    proteinPct,
+                    lipidPct,
+                    glucidPct,
+                    animalProteinG,
+                    plantProteinG,
+                    animalLipidG,
+                    plantLipidG,
+                    glucidG,
+                    sessionKcalPct,
+                    dailyKcalNeed,
+                    micro,
+                    serviceFee,
+                    tolerancePct,
+                    factors);
+        }
+
+        Norm withFactors(EnergyFactors energyFactors) {
+            return new Norm(
+                    mealPrice,
+                    kcal,
+                    proteinPct,
+                    lipidPct,
+                    glucidPct,
+                    animalProteinG,
+                    plantProteinG,
+                    animalLipidG,
+                    plantLipidG,
+                    glucidG,
+                    sessionKcalPct,
+                    dailyKcalNeed,
+                    micro,
+                    serviceFee,
+                    budgetTolerancePct,
+                    energyFactors);
+        }
 
         /** Chưa có phí dịch vụ (= 0). */
         Norm(
@@ -366,6 +449,7 @@ final class MealPlanEvaluator {
         BigDecimal mealPrice = norm == null ? null : norm.mealPrice();
         BigDecimal serviceFee = norm == null || mealPrice == null ? null : norm.serviceFee();
         BigDecimal foodBudget = norm == null ? null : norm.foodBudget();
+        BigDecimal tolerance = norm == null ? null : norm.budgetTolerancePct();
         if (items.isEmpty()) {
             return new Evaluation(
                     day.date(),
@@ -379,12 +463,17 @@ final class MealPlanEvaluator {
                     serviceFee,
                     foodBudget,
                     List.of(),
-                    List.of());
+                    List.of(),
+                    NO_DISHES,
+                    NO_DISHES,
+                    NO_DISHES,
+                    tolerance);
         }
         Acc day0 = new Acc();
         Map<MealSession, BigDecimal> sessionKcal = new EnumMap<>(MealSession.class);
         List<String> missing = new ArrayList<>();
         long cost = 0;
+        boolean unpriced = false;
         for (MealSession session : MealSession.values()) {
             Acc sessionAcc = new Acc();
             for (ItemPlan item : items) {
@@ -403,6 +492,7 @@ final class MealPlanEvaluator {
                 }
                 sessionAcc.add(dishTotals(portions));
                 cost += dishCost(portions, day.date(), priceOf);
+                unpriced |= portions.stream().anyMatch(p -> priceFor(p.food(), day.date(), priceOf) == null);
             }
             Acc sessionRounded = sessionAcc.rounded();
             day0.add(sessionRounded);
@@ -426,7 +516,36 @@ final class MealPlanEvaluator {
                 serviceFee,
                 foodBudget,
                 rows,
-                sessions);
+                sessions,
+                verdict(rows, Set.of("kcal")),
+                verdict(rows, ENERGY_KEYS),
+                moneyStatus(BigDecimal.valueOf(cost), foodBudget, tolerance, !missing.isEmpty() || unpriced),
+                tolerance);
+    }
+
+    /** NUT-19: đạt tiền khi chi phí nằm trong ngân sách thực phẩm ± biên % trường cấu hình. */
+    static String moneyStatus(BigDecimal cost, BigDecimal budget, BigDecimal tolerancePct, boolean incomplete) {
+        if (budget == null) {
+            return NA;
+        }
+        if (incomplete) {
+            return INCOMPLETE;
+        }
+        BigDecimal margin = budget.multiply(tolerancePct == null ? DEFAULT_TOLERANCE_PCT : tolerancePct)
+                .divide(HUNDRED, 4, RoundingMode.HALF_UP);
+        if (cost.compareTo(budget.subtract(margin)) < 0) {
+            return LOW;
+        }
+        return cost.compareTo(budget.add(margin)) > 0 ? HIGH : OK;
+    }
+
+    /** Giá đơn vị mua dùng để tính tiền của một thực phẩm tại ngày; null khi chưa có giá hoặc chưa có cỡ đơn vị mua. */
+    private static BigDecimal priceFor(FoodInfo food, LocalDate date, BiFunction<Long, LocalDate, BigDecimal> priceOf) {
+        if (food.purchaseUnitSize() == null || food.purchaseUnitSize().signum() <= 0) {
+            return null;
+        }
+        BigDecimal dated = priceOf.apply(food.id(), date);
+        return dated != null ? dated : food.unitPrice();
     }
 
     /** Một món cho một trẻ: dinh dưỡng trên 100 g/ml ăn được × gam/100, làm tròn 0,1 (FE {@code dishTotals}). */
@@ -468,11 +587,8 @@ final class MealPlanEvaluator {
         BigDecimal cost = BigDecimal.ZERO;
         for (Portion p : portions) {
             FoodInfo f = p.food();
-            BigDecimal dated = priceOf.apply(f.id(), date);
-            BigDecimal price = dated != null ? dated : f.unitPrice();
-            if (price != null
-                    && f.purchaseUnitSize() != null
-                    && f.purchaseUnitSize().signum() > 0) {
+            BigDecimal price = priceFor(f, date, priceOf);
+            if (price != null) {
                 cost = cost.add(price.multiply(MealDemandCalculator.purchased(p.grams(), f.wastePct()))
                         .divide(f.purchaseUnitSize(), 6, RoundingMode.HALF_UP));
             }
@@ -504,9 +620,36 @@ final class MealPlanEvaluator {
                 noAttainment(kcalTarget, incomplete, kcal) ? null : percentInt(kcal, kcalTarget),
                 status(core, incomplete, kcal, kcal, kcalRange.min(), kcalRange.max()),
                 false));
-        rows.add(energyRow("protein", totals.protein, kcal, kcalTarget, incomplete, core ? norm.proteinPct() : null));
-        rows.add(energyRow("lipid", totals.lipid, kcal, kcalTarget, incomplete, core ? norm.lipidPct() : null));
-        rows.add(energyRow("glucid", totals.glucid, kcal, kcalTarget, incomplete, core ? norm.glucidPct() : null));
+        EnergyFactors factors = norm == null ? EnergyFactors.DEFAULT : norm.factors();
+        // Mẫu số là năng lượng ba chất sinh ra, nên P% + L% + G% = 100%
+        BigDecimal macroKcal = factors.protein()
+                .multiply(totals.protein)
+                .add(factors.lipid().multiply(totals.lipid))
+                .add(factors.glucid().multiply(totals.glucid));
+        rows.add(energyRow(
+                "protein",
+                totals.protein,
+                factors.protein(),
+                macroKcal,
+                kcalTarget,
+                incomplete,
+                core ? norm.proteinPct() : null));
+        rows.add(energyRow(
+                "lipid",
+                totals.lipid,
+                factors.lipid(),
+                macroKcal,
+                kcalTarget,
+                incomplete,
+                core ? norm.lipidPct() : null));
+        rows.add(energyRow(
+                "glucid",
+                totals.glucid,
+                factors.glucid(),
+                macroKcal,
+                kcalTarget,
+                incomplete,
+                core ? norm.glucidPct() : null));
         rows.add(gramRow(
                 "animalProteinG",
                 totals.animalProtein,
@@ -548,18 +691,23 @@ final class MealPlanEvaluator {
 
     /** Dòng cơ cấu P:L:G: {@code percent} = % năng lượng; {@code pct} null khi chưa đủ 4 khoảng chính. */
     private static NormRow energyRow(
-            String key, BigDecimal value, BigDecimal kcal, BigDecimal kcalTarget, boolean incomplete, Range pct) {
+            String key,
+            BigDecimal value,
+            BigDecimal factor,
+            BigDecimal macroKcal,
+            BigDecimal kcalTarget,
+            boolean incomplete,
+            Range pct) {
         boolean core = pct != null;
         BigDecimal min = core ? pct.min() : null;
         BigDecimal max = core ? pct.max() : null;
-        BigDecimal factor = ENERGY_FACTOR.get(key);
-        BigDecimal percent = kcal.signum() == 0
+        BigDecimal percent = macroKcal.signum() == 0
                 ? null
-                : round1(factor.multiply(value).multiply(HUNDRED).divide(kcal, 10, RoundingMode.HALF_UP));
+                : round1(factor.multiply(value).multiply(HUNDRED).divide(macroKcal, 10, RoundingMode.HALF_UP));
         BigDecimal target = core
                 ? round1(kcalTarget.multiply(mid(min, max)).divide(HUNDRED.multiply(factor), 10, RoundingMode.HALF_UP))
                 : null;
-        Integer attainment = noAttainment(target, incomplete, kcal) ? null : percentInt(value, target);
+        Integer attainment = noAttainment(target, incomplete, macroKcal) ? null : percentInt(value, target);
         return new NormRow(
                 key,
                 value,
@@ -568,7 +716,7 @@ final class MealPlanEvaluator {
                 max,
                 target,
                 attainment,
-                status(core, incomplete, percent, kcal, min, max),
+                status(core, incomplete, percent, macroKcal, min, max),
                 false);
     }
 
@@ -661,15 +809,15 @@ final class MealPlanEvaluator {
         return measured.compareTo(max) > 0 ? HIGH : OK;
     }
 
-    /**
-     * FE {@code overallNormStatus}: thiếu dữ liệu > chưa đặt định mức > thấp/cao > đạt; dòng tùy chọn NA bỏ qua. Vi chất
-     * (NUT-26) chỉ cảnh báo nên không tính vào trạng thái ngày.
-     */
+    /** Trạng thái ngày chỉ tính năng lượng và cơ cấu P:L:G; dòng gam và vi chất (NUT-26) chỉ cảnh báo. */
     private static String overall(List<NormRow> rows) {
-        List<NormRow> counted = rows.stream()
-                .filter(r -> !MICRO_BY_KEY.containsKey(r.key()))
-                .filter(r -> !(r.optional() && NA.equals(r.status())))
-                .toList();
+        return verdict(rows, Set.of("kcal", "protein", "lipid", "glucid"));
+    }
+
+    /** Kết luận của một nhóm dòng: thiếu dữ liệu > chưa đặt định mức > thấp/cao > đạt. */
+    private static String verdict(List<NormRow> rows, Set<String> keys) {
+        List<NormRow> counted =
+                rows.stream().filter(r -> keys.contains(r.key())).toList();
         if (counted.stream().anyMatch(r -> INCOMPLETE.equals(r.status()))) {
             return INCOMPLETE;
         }
@@ -701,7 +849,7 @@ final class MealPlanEvaluator {
                         null,
                         prefix
                                 + evaluation.rows().stream()
-                                        .filter(r -> !MICRO_BY_KEY.containsKey(r.key()))
+                                        .filter(r -> !r.optional())
                                         .filter(r -> LOW.equals(r.status()) || HIGH.equals(r.status()))
                                         .map(MealPlanEvaluator::describe)
                                         .collect(Collectors.joining("; "))));
@@ -719,19 +867,9 @@ final class MealPlanEvaluator {
                 // NO_DISHES đã báo theo bữa của khối; OK không có lỗi
             }
         }
+        gramIssues(date, group, evaluation, prefix, issues);
         microIssues(date, group, evaluation, prefix, issues);
-        // NUT-19: chi phí vượt ngân sách thực phẩm (giá suất − phí dịch vụ) chỉ cảnh báo
-        if (evaluation.foodBudget() != null && evaluation.cost().compareTo(evaluation.foodBudget()) > 0) {
-            issues.add(new Issue(
-                    WARNING,
-                    "OVER_BUDGET",
-                    date,
-                    group.id(),
-                    group.block(),
-                    null,
-                    prefix + "chi phí " + plain(evaluation.cost()) + "đ/trẻ vượt ngân sách thực phẩm "
-                            + plain(evaluation.foodBudget()) + "đ"));
-        }
+        moneyIssue(date, group, evaluation, prefix, issues);
         List<SessionRow> offSessions = evaluation.sessions().stream()
                 .filter(r -> LOW.equals(r.status()) || HIGH.equals(r.status()))
                 .toList();
@@ -750,6 +888,45 @@ final class MealPlanEvaluator {
                                             + plain(r.max()) + "%)")
                                     .collect(Collectors.joining("; "))));
         }
+    }
+
+    // Định mức gam theo chất chỉ cảnh báo: công bố chỉ xét lượng, chất (P:L:G) và tiền
+    private static void gramIssues(
+            LocalDate date, AgeGroupInfo group, Evaluation evaluation, String prefix, List<Issue> issues) {
+        List<String> off = evaluation.rows().stream()
+                .filter(r -> r.optional() && !MICRO_BY_KEY.containsKey(r.key()))
+                .filter(r -> LOW.equals(r.status()) || HIGH.equals(r.status()))
+                .map(MealPlanEvaluator::describe)
+                .toList();
+        if (!off.isEmpty()) {
+            issues.add(new Issue(
+                    WARNING,
+                    "NUTRIENT_GRAM_OFF",
+                    date,
+                    group.id(),
+                    group.block(),
+                    null,
+                    prefix + String.join("; ", off)));
+        }
+    }
+
+    // NUT-19: chi phí ngoài ngân sách thực phẩm (giá suất − phí dịch vụ) ± biên cấu hình
+    private static void moneyIssue(
+            LocalDate date, AgeGroupInfo group, Evaluation evaluation, String prefix, List<Issue> issues) {
+        boolean over = HIGH.equals(evaluation.moneyStatus());
+        if (!over && !LOW.equals(evaluation.moneyStatus())) {
+            return;
+        }
+        issues.add(new Issue(
+                WARNING,
+                over ? "OVER_BUDGET" : "UNDER_BUDGET",
+                date,
+                group.id(),
+                group.block(),
+                null,
+                prefix + "chi phí " + plain(evaluation.cost()) + "đ/trẻ " + (over ? "vượt" : "thấp hơn")
+                        + " ngân sách thực phẩm " + plain(evaluation.foodBudget()) + "đ (biên ±"
+                        + plain(evaluation.budgetTolerancePct()) + "%)"));
     }
 
     // NUT-26: vi chất lệch định mức chỉ cảnh báo; thiếu số liệu chỉ báo thông tin, không đổi trạng thái ngày, không
@@ -800,7 +977,7 @@ final class MealPlanEvaluator {
             return nutrient.label() + " " + direction + " định mức (" + plain(row.value()) + " " + nutrient.unit()
                     + " so với " + range + " " + nutrient.unit() + ")";
         }
-        boolean energyShare = ENERGY_FACTOR.containsKey(row.key());
+        boolean energyShare = ENERGY_KEYS.contains(row.key());
         BigDecimal measured = energyShare ? row.percent() : row.value();
         String unit = energyShare ? "%" : "kcal".equals(row.key()) ? " kcal" : " g";
         return ROW_LABELS.get(row.key()) + " " + direction + " định mức (" + plain(measured) + unit + " so với "

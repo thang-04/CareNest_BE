@@ -38,7 +38,8 @@ class MealPlanEvaluatorTest {
     // Gạo: 350 kcal, P 7, L 1, G 77 /100 g; thịt: 250 kcal, P 20, L 18 /100 g
     private static final FoodInfo RICE = food(1L, "350", "7", "1", "77", FoodOrigin.PLANT, "20000", List.of());
     private static final FoodInfo PORK = food(2L, "250", "20", "18", "0", FoodOrigin.ANIMAL, "120000", List.of("Thịt"));
-    // Một trẻ ag-3: cơm 60 g + thịt 40 g ⇒ 310 kcal, P 12.2 g (15.7%), L 7.8 g (22.6%), G 46.2 g (59.6%)
+    // Một trẻ ag-3: cơm 60 g + thịt 40 g ⇒ 310 kcal, P 12.2 g, L 7.8 g, G 46.2 g;
+    // P:L:G theo 4,1 – 9,3 – 4,1 trên tổng ba chất = 16,0 – 23,3 – 60,7%
     private static final DishInfo COM =
             new DishInfo(10L, "Cơm", DishType.CARB, Map.of(AG3, List.of(new Portion(RICE, new BigDecimal("60")))));
     private static final DishInfo THIT =
@@ -57,8 +58,9 @@ class MealPlanEvaluatorTest {
         assertThat(evaluation.totals().protein()).isEqualByComparingTo("12.2");
         assertThat(evaluation.totals().animalProtein()).isEqualByComparingTo("8");
         assertThat(evaluation.totals().plantProtein()).isEqualByComparingTo("4.2");
-        assertThat(row(evaluation, "protein").percent()).isEqualByComparingTo("15.7");
-        assertThat(row(evaluation, "glucid").percent()).isEqualByComparingTo("59.6");
+        assertThat(row(evaluation, "protein").percent()).isEqualByComparingTo("16");
+        assertThat(row(evaluation, "lipid").percent()).isEqualByComparingTo("23.3");
+        assertThat(row(evaluation, "glucid").percent()).isEqualByComparingTo("60.7");
         assertThat(row(evaluation, "kcal").attainment()).isEqualTo(100);
         assertThat(row(evaluation, "animalProteinG").status()).isEqualTo("NA");
         assertThat(evaluation.sessions()).singleElement().satisfies(r -> {
@@ -70,7 +72,8 @@ class MealPlanEvaluatorTest {
     }
 
     @Test
-    @DisplayName("NUT-24: định mức gam ĐV-TV ⇒ dòng gam có tỷ lệ ĐV/TV, % đạt; dưới khoảng gam ⇒ chặn nêu gam")
+    @DisplayName(
+            "NUT-24: định mức gam ĐV-TV ⇒ dòng gam có tỷ lệ ĐV/TV, % đạt; dưới khoảng gam chỉ cảnh báo, không chặn")
     void gramNormsAreEvaluatedWhenSet() {
         Norm norm = withGrams(norm("280", "340"), range("6", "10"), range("6", "10"), range("40", "50"));
 
@@ -87,13 +90,113 @@ class MealPlanEvaluatorTest {
         assertThat(row(evaluation, "plantProteinG").status()).isEqualTo("LOW");
         assertThat(row(evaluation, "glucidG").status()).isEqualTo("OK");
         assertThat(row(evaluation, "animalLipidG").status()).isEqualTo("NA");
-        assertThat(evaluation.status()).isEqualTo("LOW");
+        assertThat(evaluation.status()).isEqualTo("OK");
         assertThat(result.issues())
-                .filteredOn(i -> "NOT_BALANCED".equals(i.code()))
+                .filteredOn(i -> "NUTRIENT_GRAM_OFF".equals(i.code()))
                 .singleElement()
-                .satisfies(
-                        i -> assertThat(i.message()).contains("Đạm thực vật thấp hơn định mức (4.2 g so với 6–10 g)"));
-        assertThat(result.publishable()).isFalse();
+                .satisfies(i -> {
+                    assertThat(i.severity()).isEqualTo("WARNING");
+                    assertThat(i.message()).contains("Đạm thực vật thấp hơn định mức (4.2 g so với 6–10 g)");
+                });
+        assertThat(result.publishable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("NUT-24: cơ cấu P:L:G tính trên tổng năng lượng ba chất nên cộng lại đúng 100% như phần mềm PMS")
+    void macroSharesAddUpToHundred() {
+        // Số của ảnh PMS: đạm 26,14 g, béo 20,1 g, bột đường 88,5 g ⇒ 16,3 – 28,5 – 55,2
+        FoodInfo mixed = food(3L, "656.96", "26.14", "20.1", "88.5", FoodOrigin.PLANT, "10000", List.of());
+        DishInfo dish = new DishInfo(
+                20L, "Khẩu phần", DishType.CARB, Map.of(AG3, List.of(new Portion(mixed, new BigDecimal("100")))));
+        DayPlan day = new DayPlan(MONDAY, false, List.of(new ItemPlan(MealSession.LUNCH, MenuBlock.KINDERGARTEN, 20L)));
+
+        Evaluation evaluation = MealPlanEvaluator.evaluate(
+                        List.of(day), List.of(GROUP), Map.of(20L, dish), (g, d) -> norm("615", "726"))
+                .evaluations()
+                .getFirst();
+
+        // Tổng theo món làm tròn 0,1: đạm 26,1 g, béo 20,1 g, bột đường 88,5 g
+        BigDecimal sum = row(evaluation, "protein")
+                .percent()
+                .add(row(evaluation, "lipid").percent())
+                .add(row(evaluation, "glucid").percent());
+        assertThat(sum).isBetween(new BigDecimal("99.9"), new BigDecimal("100.1"));
+        assertThat(row(evaluation, "protein").percent()).isEqualByComparingTo("16.3");
+        assertThat(row(evaluation, "lipid").percent()).isEqualByComparingTo("28.5");
+        assertThat(row(evaluation, "glucid").percent()).isEqualByComparingTo("55.2");
+    }
+
+    @Test
+    @DisplayName("NUT-19: đạt tiền khi chi phí nằm trong ngân sách ± biên; ngoài biên cảnh báo vượt hoặc thấp")
+    void moneyVerdictUsesToleranceBand() {
+        // Chi phí 6000đ/trẻ, biên 5%: ngân sách 5715..6315 là đạt
+        assertThat(moneyStatus("6315", "5")).isEqualTo("OK");
+        assertThat(moneyStatus("5715", "5")).isEqualTo("OK");
+        assertThat(moneyStatus("5700", "5")).isEqualTo("HIGH");
+        assertThat(moneyStatus("6400", "5")).isEqualTo("LOW");
+        assertThat(moneyStatus("6400", "10")).isEqualTo("OK");
+
+        MealPlanEvaluator.Result low = MealPlanEvaluator.evaluate(
+                List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> norm("280", "340", "9000"));
+        assertThat(low.issues())
+                .filteredOn(i -> "UNDER_BUDGET".equals(i.code()))
+                .singleElement()
+                .satisfies(i -> {
+                    assertThat(i.severity()).isEqualTo("WARNING");
+                    assertThat(i.message()).contains("6000đ", "9000đ", "±5%");
+                });
+        assertThat(low.publishable()).isTrue();
+    }
+
+    @Test
+    @DisplayName(
+            "Ba kết luận: lượng theo kcal, chất theo P:L:G, tiền theo ngân sách; thiếu giá thì tiền chưa đủ dữ liệu")
+    void evaluationCarriesThreeVerdicts() {
+        Evaluation ok = MealPlanEvaluator.evaluate(
+                        List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> norm("280", "340", "6000"))
+                .evaluations()
+                .getFirst();
+        assertThat(List.of(ok.quantityStatus(), ok.qualityStatus(), ok.moneyStatus()))
+                .containsExactly("OK", "OK", "OK");
+        assertThat(ok.budgetTolerancePct()).isEqualByComparingTo("5");
+
+        Evaluation overKcal = MealPlanEvaluator.evaluate(
+                        List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> norm("200", "300", "6000"))
+                .evaluations()
+                .getFirst();
+        assertThat(overKcal.quantityStatus()).isEqualTo("HIGH");
+        assertThat(overKcal.qualityStatus()).isEqualTo("OK");
+
+        FoodInfo unpriced = new FoodInfo(
+                RICE.id(),
+                RICE.kcal(),
+                RICE.protein(),
+                RICE.lipid(),
+                RICE.glucid(),
+                RICE.origin(),
+                null,
+                RICE.purchaseUnitSize(),
+                RICE.wastePct(),
+                RICE.allergens());
+        DishInfo noPrice = new DishInfo(
+                10L, "Cơm", DishType.CARB, Map.of(AG3, List.of(new Portion(unpriced, new BigDecimal("60")))));
+        Evaluation incomplete = MealPlanEvaluator.evaluate(
+                        List.of(lunch(MONDAY)),
+                        List.of(GROUP),
+                        Map.of(10L, noPrice, 11L, THIT),
+                        (g, d) -> norm("280", "340", "6000"))
+                .evaluations()
+                .getFirst();
+        assertThat(incomplete.moneyStatus()).isEqualTo("INCOMPLETE");
+    }
+
+    private static String moneyStatus(String budget, String tolerance) {
+        Norm base = norm("280", "340", budget);
+        Norm norm = base.withBudgetTolerance(new BigDecimal(tolerance));
+        return MealPlanEvaluator.evaluate(List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> norm)
+                .evaluations()
+                .getFirst()
+                .moneyStatus();
     }
 
     @Test
@@ -256,7 +359,7 @@ class MealPlanEvaluatorTest {
     @Test
     @DisplayName("NUT-19: cảnh báo vượt khi chi phí lớn hơn ngân sách thực phẩm = giá suất − phí dịch vụ")
     void overBudgetComparesCostWithFoodBudgetAfterServiceFee() {
-        // Chi phí 6000đ/trẻ; giá suất 8000đ: không phí ⇒ trong ngân sách, phí 3000đ ⇒ ngân sách 5000đ, vượt
+        // Chi phí 6000đ/trẻ; giá suất 8000đ: không phí ⇒ không vượt, phí 3000đ ⇒ ngân sách 5000đ, vượt
         MealPlanEvaluator.Result noFee = MealPlanEvaluator.evaluate(
                 List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> withFee(norm("280", "340", "8000"), "0"));
         MealPlanEvaluator.Result withFee = MealPlanEvaluator.evaluate(

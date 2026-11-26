@@ -58,4 +58,5 @@ public record AgeGroupMealConfigResponse(
         BigDecimal appliedGlucidPct,
         NutritionConversionResponse conversion,
         String normBasis,
-        boolean editable) {}
+        boolean editable,
+        BigDecimal budgetTolerancePct) {}

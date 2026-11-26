@@ -22,6 +22,9 @@ public interface FreshGoodsService {
     /** Tính bản dự trù theo thực đơn tuần và sĩ số, không lưu. */
     FreshForecastResponse previewForecast(CurrentUser currentUser, FreshForecastRequest request);
 
+    /** Lập bản dự trù mỗi điểm trường cho các ngày còn lại của tuần vừa công bố; điểm trường không có nhu cầu thì bỏ. */
+    void createForecastsForPublishedWeek(LocalDate weekStart, Long userId);
+
     FreshForecastResponse createForecast(CurrentUser currentUser, FreshForecastRequest request);
 
     FreshForecastResponse getForecast(CurrentUser currentUser, Long forecastId);

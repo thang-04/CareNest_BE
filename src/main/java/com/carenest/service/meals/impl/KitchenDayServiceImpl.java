@@ -63,6 +63,7 @@ public class KitchenDayServiceImpl implements KitchenDayService {
     private final FoodRepository foodRepository;
     private final FoodSampleRepository campusLookup;
     private final MealDemandCalculator demandCalculator;
+    private final DayDemand dayDemand;
     private final ClassroomService classroomService;
     private final KitchenAccess kitchenAccess;
     private final StockMapper stockMapper;
@@ -191,7 +192,7 @@ public class KitchenDayServiceImpl implements KitchenDayService {
         }
         Map<FoodStorage, Map<Long, BigDecimal>> byStorage = new LinkedHashMap<>();
         for (FoodStorage storage : List.of(FoodStorage.FRESH, FoodStorage.DRY)) {
-            byStorage.put(storage, demandCalculator.demand(day, servings, storage));
+            byStorage.put(storage, dayDemand.byServings(day, servings, storage));
         }
         Set<Long> foodIds =
                 byStorage.values().stream().flatMap(m -> m.keySet().stream()).collect(Collectors.toSet());
