@@ -401,6 +401,14 @@ public class CampusServiceImpl implements CampusService {
                 if (!vicePrincipals.isEmpty()) {
                     throw GlobalException.of(ApiCode.CAMPUS_HAS_VICE_PRINCIPALS, String.join(", ", vicePrincipals));
                 }
+                boolean runningYear = schoolYearRepository
+                        .findById(yearId)
+                        .map(y -> y.getStatus() == SchoolYearStatus.ACTIVE)
+                        .orElse(false);
+                checkNoPeople(
+                        campusRepository.findCurrentStaffNames(campusId, yearId, LocalDate.now(clock)),
+                        campusRepository.findYearAdmissionNames(campusId, yearId),
+                        runningYear ? campusRepository.findWaitingChildNames(campusId) : List.of());
             }
             campusRepository.updateYearStatus(yearId, campusId, status.name());
             boolean activeYear = schoolYearRepository
@@ -446,6 +454,10 @@ public class CampusServiceImpl implements CampusService {
                 if (!vicePrincipals.isEmpty()) {
                     throw GlobalException.of(ApiCode.CAMPUS_HAS_VICE_PRINCIPALS, String.join(", ", vicePrincipals));
                 }
+                checkNoPeople(
+                        campusRepository.findCurrentStaffNames(campusId, null, LocalDate.now(clock)),
+                        campusRepository.findOpenAdmissionNames(campusId),
+                        campusRepository.findWaitingChildNames(campusId));
                 campus.deactivate(clock.instant());
             } else if (status == CampusStatus.ACTIVE && !campus.isActive()) {
                 campus.activate();
@@ -675,6 +687,23 @@ public class CampusServiceImpl implements CampusService {
             parts.add("dữ liệu suất ăn, kho bếp năm này");
         }
         return parts.isEmpty() ? null : String.join(", ", parts);
+    }
+
+    // Ngừng điểm trường không được để lại nhân sự đang phân công hay trẻ đang chờ vào lớp ở đó
+    private static void checkNoPeople(List<String> staff, List<String> admitted, List<String> waiting) {
+        List<String> parts = new ArrayList<>();
+        if (!staff.isEmpty()) {
+            parts.add("nhân sự " + firstNames(staff));
+        }
+        if (!admitted.isEmpty()) {
+            parts.add("trẻ đã tiếp nhận " + firstNames(admitted));
+        }
+        if (!waiting.isEmpty()) {
+            parts.add("trẻ chờ xếp lớp " + firstNames(waiting));
+        }
+        if (!parts.isEmpty()) {
+            throw GlobalException.of(ApiCode.CAMPUS_HAS_PEOPLE, String.join("; ", parts));
+        }
     }
 
     // Nhân sự theo vai trò, mỗi vai trò tối đa 3 tên

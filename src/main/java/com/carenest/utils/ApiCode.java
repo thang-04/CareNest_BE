@@ -210,6 +210,7 @@ public enum ApiCode {
     SCHOOL_YEAR_START_LOCKED(2028, HttpStatus.CONFLICT, "Năm học đang hoạt động, không đổi được ngày bắt đầu"),
     SCHOOL_YEAR_END_BEFORE_TODAY(
             2029, HttpStatus.BAD_REQUEST, "Ngày kết thúc năm học đang hoạt động không được trước hôm nay"),
+    SCHOOL_YEAR_END_HAS_DATA(2041, HttpStatus.CONFLICT, "Sau ngày {0} còn {1}. Xử lý trước khi rút ngắn năm học"),
     HOLIDAY_OUT_OF_YEAR(2030, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" phải nằm trong năm học ({1} – {2})"),
     HOLIDAY_OVERLAP(2031, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" trùng ngày với đợt \"{1}\""),
     HOLIDAY_RANGE_INVALID(2032, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\": ngày bắt đầu không được sau ngày kết thúc"),
@@ -253,6 +254,7 @@ public enum ApiCode {
             2112,
             HttpStatus.CONFLICT,
             "Điểm trường còn PHT phụ trách: {0}. Gỡ phân công PHT trước khi ngừng hoạt động"),
+    CAMPUS_HAS_PEOPLE(2127, HttpStatus.CONFLICT, "Điểm trường còn {0}. Chuyển hoặc kết thúc trước khi ngừng hoạt động"),
     CAMPUS_INACTIVE(2113, HttpStatus.CONFLICT, "Điểm trường đã ngừng hoạt động, chọn điểm trường khác"),
     ROOM_CODE_EXISTS(2114, HttpStatus.CONFLICT, "Điểm trường đã có phòng cùng mã"),
     ROOM_NAME_EXISTS(2115, HttpStatus.CONFLICT, "Điểm trường đã có phòng cùng tên"),

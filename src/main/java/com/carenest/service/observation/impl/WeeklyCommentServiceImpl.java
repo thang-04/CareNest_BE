@@ -917,7 +917,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                     met,
                     unmet,
                     flags,
-                    ticket);
+                    ticket,
+                    d == null ? 0 : d.halfDays());
             out.put(
                     childId,
                     new ChildWeek(

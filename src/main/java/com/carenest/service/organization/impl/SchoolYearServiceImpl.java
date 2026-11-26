@@ -75,6 +75,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final RoomRepository roomRepository;
     private final NotificationService notificationService;
     private final SchoolConfigAccess schoolConfigAccess;
+    private final List<com.carenest.service.organization.SchoolYearEndUsage> yearEndUsages;
 
     @Override
     @Transactional(readOnly = true)
@@ -196,6 +197,9 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 if (request.endDate().isBefore(LocalDate.now(clock))) {
                     throw GlobalException.of(ApiCode.SCHOOL_YEAR_END_BEFORE_TODAY);
                 }
+                if (request.endDate().isBefore(schoolYear.getEndDate())) {
+                    checkNothingAfter(schoolYearId, request.endDate());
+                }
             }
             // Đổi ngày năm học: học kỳ đã đặt phải còn nằm trong năm
             if (schoolYear.getSemester1Start() != null) {
@@ -309,6 +313,16 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    // Rút ngắn năm đang chạy không được bỏ rơi đơn nghỉ, lịch vào lớp đã đặt sau ngày kết thúc mới
+    private void checkNothingAfter(Long schoolYearId, LocalDate newEnd) {
+        List<String> usages = yearEndUsages.stream()
+                .flatMap(usage -> usage.usageAfter(schoolYearId, newEnd).stream())
+                .toList();
+        if (!usages.isEmpty()) {
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_END_HAS_DATA, DMY.format(newEnd), String.join(", ", usages));
         }
     }
 

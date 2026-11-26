@@ -100,4 +100,11 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
                         where o.childId = c.id and (o.validTo is null or o.validTo >= :date))))
             """)
     List<Long> findChildIdsLeftSchool(@Param("childIds") Collection<Long> childIds, @Param("date") LocalDate date);
+
+    /** Lịch vào lớp / chuyển lớp của năm học bắt đầu sau :date (rút ngắn năm học). */
+    @Query(
+            value = "select count(*) from enrollments e join classrooms c on c.id = e.classroom_id"
+                    + " where c.school_year_id = :yearId and e.valid_from > :date",
+            nativeQuery = true)
+    long countOfYearStartingAfter(@Param("yearId") Long yearId, @Param("date") LocalDate date);
 }

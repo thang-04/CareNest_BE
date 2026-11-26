@@ -53,7 +53,8 @@ class TemplateWeeklyCommentDraftGenerator implements WeeklyCommentDraftGenerator
         String days = f.presentDays() >= f.schoolDays()
                 ? "Tuần này con đi học đều cả " + f.presentDays() + " ngày"
                 : "Tuần này con đi học " + f.presentDays() + "/" + f.schoolDays() + " ngày";
-        return days + (mostly(f.emotion(), Emotion.HAPPY, f.presentDays()) ? ", vào lớp vui vẻ." : ".");
+        String half = f.halfDays() > 0 ? " (trong đó " + f.halfDays() + " ngày học một buổi)" : "";
+        return days + half + (mostly(f.emotion(), Emotion.HAPPY, f.presentDays()) ? ", vào lớp vui vẻ." : ".");
     }
 
     private static String daily(WeekFacts f) {
