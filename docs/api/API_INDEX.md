@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 450 endpoint.
+Tổng: 452 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -135,6 +135,7 @@ GET /children/{childId} · src/main/java/com/carenest/controller/child/ChildCont
 PUT /children/{childId} · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#update
 GET /children/{childId}/account-recipient · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#candidates
 PUT /children/{childId}/account-recipient · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#select
+GET /children/{childId}/activities · src/main/java/com/carenest/controller/observation/ParentActivityController.java#getDayActivities
 GET /children/{childId}/attendance · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getAttendance
 GET /children/{childId}/attendance/today · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getToday
 GET /children/{childId}/daily-assessments · src/main/java/com/carenest/controller/observation/ParentAssessmentController.java#getDailyAssessments
@@ -173,6 +174,7 @@ POST /children/{childId}/readmit · src/main/java/com/carenest/controller/child/
 GET /children/{childId}/rewards · src/main/java/com/carenest/controller/observation/ParentAssessmentController.java#getRewards
 DELETE /children/{childId}/scheduled-leave · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#cancelScheduledLeave
 GET /children/{childId}/school-years · src/main/java/com/carenest/controller/child/ChildSchoolYearController.java#getChildSchoolYears
+GET /children/{childId}/teachers · src/main/java/com/carenest/controller/account/ChildTeacherController.java#getTeachers
 GET /children/{childId}/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#listForParent
 POST /children/{childId}/withdraw · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
 GET /children/duplicate-check · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#checkDuplicate

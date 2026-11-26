@@ -3283,6 +3283,31 @@ paths:
           description: OK
       tags:
       - selected-parent-account-controller
+  /api/children/{childId}/activities:
+    get:
+      operationId: getDayActivities
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentDayActivitiesResponse"
+          description: OK
+      tags:
+      - parent-activity-controller
   /api/children/{childId}/attendance:
     get:
       operationId: getAttendance
@@ -4201,6 +4226,25 @@ paths:
           description: OK
       tags:
       - child-school-year-controller
+  /api/children/{childId}/teachers:
+    get:
+      operationId: getTeachers
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListChildTeacherResponse"
+          description: OK
+      tags:
+      - child-teacher-controller
   /api/children/{childId}/weekly-comments:
     get:
       operationId: listForParent
@@ -13548,6 +13592,15 @@ components:
           - PLANNED
           - ACTIVE
           - CLOSED
+    ChildTeacherResponse:
+      type: object
+      properties:
+        fullName:
+          type: string
+        homeroom:
+          type: boolean
+        phone:
+          type: string
     ChildTotal:
       type: object
       properties:
@@ -14948,6 +15001,15 @@ components:
           type: string
         "off":
           type: boolean
+    DayActivity:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+        label:
+          type: string
     DayBoardResponse:
       type: object
       properties:
@@ -21963,6 +22025,16 @@ components:
             - OTHER
         temperature:
           type: number
+    ParentDayActivitiesResponse:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayActivity"
+        date:
+          type: string
+          format: date
     ParentDomain:
       type: object
       properties:
@@ -25257,6 +25329,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListChildTeacherResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildTeacherResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListClassItem:
       type: object
       properties:
@@ -26500,6 +26587,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentAttendanceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentDayActivitiesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentDayActivitiesResponse"
         desc:
           type: string
         errorCode:
