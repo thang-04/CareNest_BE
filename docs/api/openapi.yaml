@@ -15156,6 +15156,11 @@ components:
           enum:
           - FRESH
           - DRY
+        unit:
+          type: string
+          enum:
+          - g
+          - ml
         unitPrice:
           type: number
         wastePct:
@@ -17358,6 +17363,8 @@ components:
           - ml
         unitPrice:
           type: number
+        unitsLocked:
+          type: boolean
         vitaminA:
           type: number
         vitaminB1:
