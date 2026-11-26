@@ -78,3 +78,5 @@ ENV-261004-keycloak-user-profile-account-not-fully-set-up (user profile Keycloak
 
 ## Đọc thêm khi
 Đổi model quyền/scope ⇒ ADR-0002, ADR-0003, `docs/architecture/SECURITY.md` (mức L4).
+
+- 26/11/2026 (TBD-4, PAR-04): `GET /children/{childId}/teachers` (`ChildTeacherController` → `ChildTeacherService`, `hasRole('PARENT')`): GV đang dạy lớp hiện tại của trẻ `[{ fullName, phone, homeroom }]`, chủ nhiệm trước; `phone` = tên đăng nhập khi là SĐT 10 số, null nếu không. Đặt ở module tài khoản vì module trẻ không gọi ngược tài khoản (MODULE_MAP). Không liên kết ⇒ 403 4108. Test `ChildTeacherServiceImplTest`.
