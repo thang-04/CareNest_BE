@@ -204,6 +204,18 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                 throw GlobalException.of(
                         ApiCode.DAY_BALANCE_INPUT_INVALID, "số trẻ gửi cho điểm trường hoặc nhóm tuổi không có");
             }
+            // NUT-35: số trẻ dự kiến không vượt tổng trẻ đang học của nhóm tuổi tại điểm trường
+            Map<Long, Map<Long, Integer>> enrolledByCampus = new HashMap<>();
+            for (DayBalanceRequest.CountInput c : request.counts()) {
+                int enrolled = enrolledByCampus
+                        .computeIfAbsent(c.campusId(), id -> reader.enrolledCounts(id, source.date()))
+                        .getOrDefault(c.ageGroupId(), 0);
+                if (c.children() > enrolled) {
+                    throw GlobalException.of(
+                            ApiCode.DAY_BALANCE_INPUT_INVALID,
+                            "số trẻ dự kiến " + c.children() + " vượt tổng trẻ đang học " + enrolled);
+                }
+            }
         }
         List<DayBalanceCount> mergedCounts = draft.counts().stream()
                 .map(c -> {
@@ -344,6 +356,7 @@ public class DayBalanceServiceImpl implements DayBalanceService {
     private DayBalanceResponse toResponse(CurrentUser currentUser, Source source, Draft draft, int round) {
         MealPlanEvaluator.Result result = reader.evaluate(source, draft);
         boolean stale = reader.stale(source);
+        Map<Long, Map<Long, Integer>> enrolledByCampus = new HashMap<>();
         Map<Long, String> campusNames = campusService.getCampuses(currentUser, null).stream()
                 .collect(Collectors.toMap(CampusResponse::id, CampusResponse::name));
         Map<Long, String> dishNames = DayBalanceReader.dishNames(source);
@@ -372,7 +385,13 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                         .map(g -> new DayBalanceResponse.AgeGroup(g.id(), g.name(), g.block(), g.sessions()))
                         .toList(),
                 draft.counts().stream()
-                        .map(c -> new DayBalanceResponse.Count(c.campusId(), c.ageGroupId(), c.children()))
+                        .map(c -> new DayBalanceResponse.Count(
+                                c.campusId(),
+                                c.ageGroupId(),
+                                c.children(),
+                                enrolledByCampus
+                                        .computeIfAbsent(c.campusId(), id -> reader.enrolledCounts(id, source.date()))
+                                        .getOrDefault(c.ageGroupId(), 0)))
                         .toList(),
                 draft.lines().stream()
                         .map(l -> new DayBalanceResponse.Line(

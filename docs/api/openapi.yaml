@@ -15176,6 +15176,9 @@ components:
         children:
           type: integer
           format: int32
+        enrolled:
+          type: integer
+          format: int32
     DayBalanceCountInput:
       type: object
       properties:
@@ -21695,6 +21698,8 @@ components:
     NormRow:
       type: object
       properties:
+        applied:
+          type: number
         attainment:
           type: integer
           format: int32

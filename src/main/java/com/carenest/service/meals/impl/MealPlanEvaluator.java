@@ -64,6 +64,9 @@ final class MealPlanEvaluator {
             Map.of(MealSession.MORNING, "sáng", MealSession.LUNCH, "trưa", MealSession.AFTERNOON, "chiều");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM");
 
+    /** Cơ cấu áp dụng P:L:G của định mức (% năng lượng mỗi chất, NUT-28); chỉ để hiển thị, không dùng chấm ngày. */
+    record Applied(BigDecimal protein, BigDecimal lipid, BigDecimal glucid) {}
+
     /** Hệ số kcal/g dùng cho cơ cấu P:L:G (cùng bộ với quy đổi định mức, NUT-28). */
     record EnergyFactors(BigDecimal protein, BigDecimal lipid, BigDecimal glucid) {
         static final EnergyFactors DEFAULT =
@@ -136,9 +139,10 @@ final class MealPlanEvaluator {
             Map<Micronutrient, Range> micro,
             BigDecimal serviceFee,
             BigDecimal budgetTolerancePct,
-            EnergyFactors factors) {
+            EnergyFactors factors,
+            Applied applied) {
 
-        /** Biên tiền và hệ số P:L:G mặc định. */
+        /** Biên tiền, hệ số P:L:G mặc định, chưa có cơ cấu áp dụng. */
         Norm(
                 BigDecimal mealPrice,
                 Range kcal,
@@ -170,7 +174,45 @@ final class MealPlanEvaluator {
                     micro,
                     serviceFee,
                     DEFAULT_TOLERANCE_PCT,
-                    EnergyFactors.DEFAULT);
+                    EnergyFactors.DEFAULT,
+                    null);
+        }
+
+        Norm(
+                BigDecimal mealPrice,
+                Range kcal,
+                Range proteinPct,
+                Range lipidPct,
+                Range glucidPct,
+                Range animalProteinG,
+                Range plantProteinG,
+                Range animalLipidG,
+                Range plantLipidG,
+                Range glucidG,
+                Map<MealSession, Range> sessionKcalPct,
+                BigDecimal dailyKcalNeed,
+                Map<Micronutrient, Range> micro,
+                BigDecimal serviceFee,
+                BigDecimal budgetTolerancePct,
+                EnergyFactors factors) {
+            this(
+                    mealPrice,
+                    kcal,
+                    proteinPct,
+                    lipidPct,
+                    glucidPct,
+                    animalProteinG,
+                    plantProteinG,
+                    animalLipidG,
+                    plantLipidG,
+                    glucidG,
+                    sessionKcalPct,
+                    dailyKcalNeed,
+                    micro,
+                    serviceFee,
+                    budgetTolerancePct,
+                    factors,
+                    null);
         }
 
         Norm withBudgetTolerance(BigDecimal tolerancePct) {
@@ -190,7 +232,8 @@ final class MealPlanEvaluator {
                     micro,
                     serviceFee,
                     tolerancePct,
-                    factors);
+                    factors,
+                    applied);
         }
 
         Norm withFactors(EnergyFactors energyFactors) {
@@ -210,7 +253,29 @@ final class MealPlanEvaluator {
                     micro,
                     serviceFee,
                     budgetTolerancePct,
-                    energyFactors);
+                    energyFactors,
+                    applied);
+        }
+
+        Norm withApplied(Applied appliedStructure) {
+            return new Norm(
+                    mealPrice,
+                    kcal,
+                    proteinPct,
+                    lipidPct,
+                    glucidPct,
+                    animalProteinG,
+                    plantProteinG,
+                    animalLipidG,
+                    plantLipidG,
+                    glucidG,
+                    sessionKcalPct,
+                    dailyKcalNeed,
+                    micro,
+                    serviceFee,
+                    budgetTolerancePct,
+                    factors,
+                    appliedStructure);
         }
 
         /** Chưa có phí dịch vụ (= 0). */
@@ -633,7 +698,8 @@ final class MealPlanEvaluator {
                 macroKcal,
                 kcalTarget,
                 incomplete,
-                core ? norm.proteinPct() : null));
+                core ? norm.proteinPct() : null)
+                .withApplied(appliedOf(norm, Applied::protein)));
         rows.add(energyRow(
                 "lipid",
                 totals.lipid,
@@ -641,7 +707,8 @@ final class MealPlanEvaluator {
                 macroKcal,
                 kcalTarget,
                 incomplete,
-                core ? norm.lipidPct() : null));
+                core ? norm.lipidPct() : null)
+                .withApplied(appliedOf(norm, Applied::lipid)));
         rows.add(energyRow(
                 "glucid",
                 totals.glucid,
@@ -649,7 +716,8 @@ final class MealPlanEvaluator {
                 macroKcal,
                 kcalTarget,
                 incomplete,
-                core ? norm.glucidPct() : null));
+                core ? norm.glucidPct() : null)
+                .withApplied(appliedOf(norm, Applied::glucid)));
         rows.add(gramRow(
                 "animalProteinG",
                 totals.animalProtein,
@@ -718,6 +786,10 @@ final class MealPlanEvaluator {
                 attainment,
                 status(core, incomplete, percent, macroKcal, min, max),
                 false);
+    }
+
+    private static BigDecimal appliedOf(Norm norm, java.util.function.Function<Applied, BigDecimal> pick) {
+        return norm == null || norm.applied() == null ? null : pick.apply(norm.applied());
     }
 
     /** Dòng gam: {@code percent} = % ĐV hoặc TV trên tổng đạm/béo (tỷ lệ cơ cấu), {@code attainment} so giữa khoảng. */
