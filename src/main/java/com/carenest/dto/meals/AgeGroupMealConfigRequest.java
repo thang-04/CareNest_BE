@@ -9,7 +9,8 @@ import java.time.LocalDate;
 
 /**
  * Giá suất, phí dịch vụ (để trống = 0, không vượt giá suất — NUT-19) + chuẩn dinh dưỡng của một nhóm tuổi từ ngày hiệu lực; chuẩn để trống được khi trường chưa chốt. P:L:G là %
- * năng lượng, đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), {@code *KcalPct*} là % năng lượng của bữa so {@code dailyKcalNeed} = nhu cầu năng lượng cả ngày, kcal/trẻ (NUT-25).
+ * năng lượng, đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), {@code *KcalPct*} là % năng lượng của bữa so {@code dailyKcalMax} = nhu cầu năng lượng cả ngày tối đa, kcal/trẻ (NUT-25).
+ * Năng lượng khuyến nghị tại trường và khoảng tỷ lệ đạm/béo/đường do hệ thống đặt theo Thông tư 28/2016 (NUT-33), không nhận từ client.
  * Vi chất (NUT-26) là tổng mỗi trẻ mỗi ngày trên các bữa trường phục vụ; max để trống = chỉ cần đạt mức tối thiểu.
  */
 public record AgeGroupMealConfigRequest(
@@ -17,14 +18,6 @@ public record AgeGroupMealConfigRequest(
         @NotNull LocalDate effectiveFrom,
         @NotNull @DecimalMin("0") BigDecimal mealPrice,
         @DecimalMin("0") BigDecimal serviceFee,
-        @DecimalMin("0") BigDecimal kcalMin,
-        @DecimalMin("0") BigDecimal kcalMax,
-        @DecimalMin("0") @DecimalMax("100") BigDecimal proteinPctMin,
-        @DecimalMin("0") @DecimalMax("100") BigDecimal proteinPctMax,
-        @DecimalMin("0") @DecimalMax("100") BigDecimal lipidPctMin,
-        @DecimalMin("0") @DecimalMax("100") BigDecimal lipidPctMax,
-        @DecimalMin("0") @DecimalMax("100") BigDecimal glucidPctMin,
-        @DecimalMin("0") @DecimalMax("100") BigDecimal glucidPctMax,
         @DecimalMin("0") @DecimalMax("1250") BigDecimal animalProteinGMin,
         @DecimalMin("0") @DecimalMax("1250") BigDecimal animalProteinGMax,
         @DecimalMin("0") @DecimalMax("1250") BigDecimal plantProteinGMin,
@@ -42,8 +35,12 @@ public record AgeGroupMealConfigRequest(
         @DecimalMin("0") @DecimalMax("100") BigDecimal afternoonKcalPctMin,
         @DecimalMin("0") @DecimalMax("100") BigDecimal afternoonKcalPctMax,
 
+        // NUT-25: nhu cầu năng lượng cả ngày (kcal/trẻ); nhập đủ cả hai hoặc để trống cả hai
         @DecimalMin(value = "0", inclusive = false) @DecimalMax("5000")
-        BigDecimal dailyKcalNeed,
+        BigDecimal dailyKcalMin,
+
+        @DecimalMin(value = "0", inclusive = false) @DecimalMax("5000")
+        BigDecimal dailyKcalMax,
 
         @DecimalMin("0") @DecimalMax("100000") BigDecimal calciumMin,
         @DecimalMin("0") @DecimalMax("100000") BigDecimal calciumMax,
@@ -80,14 +77,6 @@ public record AgeGroupMealConfigRequest(
             LocalDate effectiveFrom,
             BigDecimal mealPrice,
             BigDecimal serviceFee,
-            BigDecimal kcalMin,
-            BigDecimal kcalMax,
-            BigDecimal proteinPctMin,
-            BigDecimal proteinPctMax,
-            BigDecimal lipidPctMin,
-            BigDecimal lipidPctMax,
-            BigDecimal glucidPctMin,
-            BigDecimal glucidPctMax,
             BigDecimal animalProteinGMin,
             BigDecimal animalProteinGMax,
             BigDecimal plantProteinGMin,
@@ -104,7 +93,8 @@ public record AgeGroupMealConfigRequest(
             BigDecimal lunchKcalPctMax,
             BigDecimal afternoonKcalPctMin,
             BigDecimal afternoonKcalPctMax,
-            BigDecimal dailyKcalNeed,
+            BigDecimal dailyKcalMin,
+            BigDecimal dailyKcalMax,
             BigDecimal calciumMin,
             BigDecimal calciumMax,
             BigDecimal phosphorusMin,
@@ -132,14 +122,6 @@ public record AgeGroupMealConfigRequest(
                 effectiveFrom,
                 mealPrice,
                 serviceFee,
-                kcalMin,
-                kcalMax,
-                proteinPctMin,
-                proteinPctMax,
-                lipidPctMin,
-                lipidPctMax,
-                glucidPctMin,
-                glucidPctMax,
                 animalProteinGMin,
                 animalProteinGMax,
                 plantProteinGMin,
@@ -156,7 +138,8 @@ public record AgeGroupMealConfigRequest(
                 lunchKcalPctMax,
                 afternoonKcalPctMin,
                 afternoonKcalPctMax,
-                dailyKcalNeed,
+                dailyKcalMin,
+                dailyKcalMax,
                 calciumMin,
                 calciumMax,
                 phosphorusMin,
