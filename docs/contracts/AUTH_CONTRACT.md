@@ -309,6 +309,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
 - PHT xem mọi cơ sở (AUTH-20, chốt 31/10): mã `ALL_CAMPUS_VIEW` đã bỏ khỏi `Permission` (V39 xóa dòng ma trận/ngoại lệ cũ; lịch sử giữ chuỗi gốc). FE bỏ mã này ở danh mục quyền/ngoại lệ (`permissionConstants.js`, `permissionCatalog.js`) và luôn hiện bộ lọc điểm trường cho PHT; gửi mã cũ trong `PUT .../permission-overrides` ⇒ 400.
 - Mã kích hoạt (ADR-0026): APP thêm màn "Kích hoạt tài khoản" (chưa đăng nhập) gọi `POST /parent-activation`, xong thì vào đăng nhập PKCE với `username` trả về; 400 1006 ⇒ báo mã sai/hết hạn, liên hệ nhà trường gửi lại. FE màn Tài khoản phụ huynh thêm "Gửi lại mã" (`POST /parent-accounts/{userId}/activation-code`); có `activationCode` ⇒ in phiếu mã (không in mật khẩu); 409 1136 ⇒ dùng "Cấp lại mật khẩu tạm".
+- Tranh nền màn đăng nhập: `GET /school/appearance` công khai (không Bearer/cookie) để màn đăng nhập hiển thị tranh theo cấu hình của trường; chỉ trả chế độ và mã tranh đang bật/ghim; họ tên người lưu gần nhất chỉ trả cho người đã đăng nhập, không có dữ liệu trẻ. `PUT` vẫn cần đăng nhập và quyền Hiệu trưởng/Phó hiệu trưởng.
 - Types: sinh lại từ `docs/api/openapi.yaml`.
 
 ## Còn chờ

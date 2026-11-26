@@ -37,13 +37,13 @@ public class SchoolAppearanceServiceImpl implements SchoolAppearanceService {
 
     @Override
     @Transactional(readOnly = true)
-    public AppearanceResponse getAppearance() {
+    public AppearanceResponse getAppearance(boolean withUpdater) {
         String logPrefix = LOG_PREFIX + "|getAppearance";
         log.info("{}|START", logPrefix);
         try {
             AppearanceResponse response = schoolAppearanceRepository
                     .findById(SchoolAppearance.SINGLETON_ID)
-                    .map(this::toResponse)
+                    .map(row -> toResponse(row, withUpdater))
                     .orElseGet(SchoolAppearanceServiceImpl::defaultResponse);
             log.info("{}|END", logPrefix);
             return response;
@@ -74,7 +74,7 @@ public class SchoolAppearanceServiceImpl implements SchoolAppearanceService {
                     .findById(SchoolAppearance.SINGLETON_ID)
                     .orElseGet(SchoolAppearance::create);
             row.apply(request.mode(), pinned, enabled, currentUser.userId(), Instant.now(clock));
-            AppearanceResponse response = toResponse(schoolAppearanceRepository.saveAndFlush(row));
+            AppearanceResponse response = toResponse(schoolAppearanceRepository.saveAndFlush(row), true);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -92,8 +92,8 @@ public class SchoolAppearanceServiceImpl implements SchoolAppearanceService {
         return new AppearanceResponse(AppearanceMode.AUTO, DEFAULT_SCENE_ID, SCENE_IDS, null, null);
     }
 
-    private AppearanceResponse toResponse(SchoolAppearance row) {
-        String updatedBy = row.getUpdatedBy() == null
+    private AppearanceResponse toResponse(SchoolAppearance row, boolean withUpdater) {
+        String updatedBy = !withUpdater || row.getUpdatedBy() == null
                 ? null
                 : schoolAppearanceRepository
                         .findUserFullName(row.getUpdatedBy())
