@@ -5249,6 +5249,7 @@ paths:
           enum:
           - MAIN
           - REVIEW
+          - OVERDUE
       - in: query
         name: classId
         required: false
