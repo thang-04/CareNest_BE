@@ -2,6 +2,7 @@ package com.carenest.service.attendance.impl;
 
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceDay;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceResponse;
+import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceSchedule;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceTotals;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentDailyHealthResponse;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentTodayResponse;
@@ -10,11 +11,14 @@ import com.carenest.entity.attendance.AttendanceDayUnlock;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.DailyHealthEntry;
+import com.carenest.entity.organization.AttendanceCutoff;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceDayUnlockRepository;
 import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
+import com.carenest.repository.organization.AttendanceCutoffRepository;
+import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.ParentAttendanceService;
@@ -65,6 +69,46 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
     private final EnrollmentService enrollmentService;
     private final ClassroomService classroomService;
     private final AccountService accountService;
+    private final SchoolYearRepository schoolYearRepository;
+    private final AttendanceCutoffRepository attendanceCutoffRepository;
+
+    @Override
+    public ParentAttendanceSchedule getSchedule(CurrentUser currentUser, LocalDate requestedDate) {
+        LocalDate date = requestedDate == null ? rules.today() : requestedDate;
+        String logPrefix = LOG_PREFIX + "|getSchedule|userId=" + currentUser.userId() + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            if (!currentUser.hasRole(CareNestRole.PARENT)) {
+                throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
+            }
+            var year = schoolYearRepository
+                    .findContaining(date)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+            AttendanceCutoff setting = attendanceCutoffRepository
+                    .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
+                            year.getId(), date)
+                    .orElse(null);
+            ParentAttendanceSchedule response = new ParentAttendanceSchedule(
+                    date,
+                    year.getId(),
+                    year.getName(),
+                    setting == null ? AttendanceCutoff.DEFAULT_DROPOFF_OPEN_FROM : setting.getDropoffOpenFrom(),
+                    setting == null ? AttendanceCutoff.DEFAULT_MORNING_START : setting.getMorningStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_MORNING_END : setting.getMorningEnd(),
+                    setting == null ? AttendanceCutoff.DEFAULT_AFTERNOON_START : setting.getAfternoonStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_LATEST_ARRIVAL : setting.getLatestAfternoonArrival(),
+                    setting == null ? AttendanceCutoff.DEFAULT_PICKUP_START : setting.getPickupStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM : setting.getFullDayPickupFrom(),
+                    setting == null ? AttendanceCutoff.DEFAULT_PICKUP_END : setting.getPickupEnd(),
+                    setting == null ? AttendanceCutoff.DEFAULT_AFTERNOON_END : setting.getAfternoonEnd(),
+                    setting == null ? rules.cutoff(year.getId(), date) : setting.getCutoffTime());
+            log.info("{}|schoolYearId={}|END", logPrefix, year.getId());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     public ParentTodayResponse getToday(CurrentUser currentUser, Long childId) {

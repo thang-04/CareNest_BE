@@ -1,6 +1,7 @@
 package com.carenest.controller.attendance;
 
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceResponse;
+import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceSchedule;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentDailyHealthResponse;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentTodayResponse;
 import com.carenest.security.CurrentUser;
@@ -27,6 +28,18 @@ public class ParentAttendanceController {
     private static final String LOG_PREFIX = "[ParentAttendanceController]";
 
     private final ParentAttendanceService parentAttendanceService;
+
+    @GetMapping("/parent/attendance-schedule")
+    @PreAuthorize("hasRole('PARENT')")
+    public ResponseEntity<ResponseJson<ParentAttendanceSchedule>> getSchedule(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getSchedule|userId=" + currentUser.userId() + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        ParentAttendanceSchedule schedule = parentAttendanceService.getSchedule(currentUser, date);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get parent attendance schedule success", schedule);
+    }
 
     @GetMapping("/children/{childId}/attendance/today")
     @PreAuthorize("hasRole('PARENT')")
