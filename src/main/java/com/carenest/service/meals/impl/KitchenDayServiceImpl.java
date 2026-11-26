@@ -11,6 +11,7 @@ import com.carenest.entity.meals.MealPlanDay;
 import com.carenest.entity.meals.MealPlanItem;
 import com.carenest.entity.meals.MealPlanWeek;
 import com.carenest.exception.GlobalException;
+import com.carenest.mapper.meals.NutritionCatalogMapper;
 import com.carenest.mapper.meals.StockMapper;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
@@ -21,6 +22,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.KitchenDayService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.Allergen;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
@@ -31,6 +33,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -63,6 +66,8 @@ public class KitchenDayServiceImpl implements KitchenDayService {
     private final ClassroomService classroomService;
     private final KitchenAccess kitchenAccess;
     private final StockMapper stockMapper;
+    private final KitchenAllergyWarnings allergyWarnings;
+    private final NutritionCatalogMapper catalogMapper;
     private final Clock clock;
 
     @Override
@@ -104,6 +109,8 @@ public class KitchenDayServiceImpl implements KitchenDayService {
                 .filter(Objects::nonNull)
                 .max(Comparator.naturalOrder())
                 .orElse(null);
+        KitchenAllergyWarnings.Report allergies =
+                publishedDay == null ? allergyWarnings.empty() : allergyWarnings.load(campusId, date);
 
         return new KitchenDayResponse(
                 campusId,
@@ -112,16 +119,18 @@ public class KitchenDayServiceImpl implements KitchenDayService {
                 menuStatus,
                 countStatus,
                 confirmedAt,
-                publishedDay == null ? List.of() : menu(publishedDay),
+                publishedDay == null ? List.of() : menu(publishedDay, allergies),
                 servings(confirmed),
-                publishedDay == null ? List.of() : foodNeeds(publishedDay, counts));
+                publishedDay == null ? List.of() : foodNeeds(publishedDay, counts),
+                allergies.unmatched());
     }
 
-    private List<KitchenDayResponse.SessionMenu> menu(MealPlanDay day) {
+    private List<KitchenDayResponse.SessionMenu> menu(MealPlanDay day, KitchenAllergyWarnings.Report allergies) {
         Set<Long> dishIds = day.getItems().stream().map(MealPlanItem::getDishId).collect(Collectors.toSet());
+        // Nạp kèm nguyên liệu, thực phẩm: chất gây dị ứng của món gộp từ nguyên liệu
         Map<Long, Dish> dishes = dishIds.isEmpty()
                 ? Map.of()
-                : dishRepository.findAllById(dishIds).stream()
+                : dishRepository.findByIdIn(dishIds).stream()
                         .collect(Collectors.toMap(Dish::getId, Function.identity()));
         record Slot(MealSession session, MenuBlock block) {}
         Map<Slot, List<KitchenDayResponse.MenuDish>> bySlot = new LinkedHashMap<>();
@@ -130,8 +139,16 @@ public class KitchenDayServiceImpl implements KitchenDayService {
             if (dish == null) {
                 continue;
             }
+            Set<Allergen> dishAllergens = dish.getIngredients().stream()
+                    .flatMap(ingredient -> ingredient.getFood().getAllergens().stream())
+                    .collect(Collectors.toCollection(() -> EnumSet.noneOf(Allergen.class)));
             bySlot.computeIfAbsent(new Slot(item.getSession(), item.getMenuBlock()), slot -> new ArrayList<>())
-                    .add(new KitchenDayResponse.MenuDish(dish.getId(), dish.getCode(), dish.getName()));
+                    .add(new KitchenDayResponse.MenuDish(
+                            dish.getId(),
+                            dish.getCode(),
+                            dish.getName(),
+                            catalogMapper.toAllergenResponses(dishAllergens),
+                            allergies.warnings(item.getSession(), item.getMenuBlock(), dishAllergens)));
         }
         return bySlot.entrySet().stream()
                 .sorted(Comparator.comparing(

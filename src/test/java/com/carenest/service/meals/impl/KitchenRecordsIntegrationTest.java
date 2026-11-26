@@ -152,6 +152,46 @@ class KitchenRecordsIntegrationTest {
         InMemoryS3.install(s3);
     }
 
+    /** Năm chèn tay chưa có danh sách nhóm tuổi: lớp cần nó để biết các bữa. */
+    private void seedYearAgeGroups() {
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name,"
+                        + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
+                        + " SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions,"
+                        + " max_class_size, nutrition_note FROM age_groups",
+                year);
+    }
+
+    private long insertClassroom(long campusId, String name, long ageGroupId) {
+        return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusId
+                + ", " + year + ", '" + name + "', " + ageGroupId + ") RETURNING id");
+    }
+
+    private long enrolledChild(long classroomId, String validFrom) {
+        long child = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ Dị Ứng', '2022-06-01', 'MALE', 'ACTIVE', CURRENT_DATE)"
+                        + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, ?::date)",
+                child,
+                classroomId,
+                validFrom);
+        return child;
+    }
+
+    private void allergies(long childId, String... names) {
+        jdbc.update(
+                "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
+                        + " self_history_state, family_history_state, tb_contact_state, declared_by)"
+                        + " VALUES (?, 'REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED',"
+                        + " 'NONE_REPORTED', 'NONE_REPORTED', ?)",
+                childId,
+                insertUserId("khai-" + childId));
+        for (String name : names) {
+            jdbc.update("INSERT INTO child_allergies (child_id, name) VALUES (?, ?)", childId, name);
+        }
+    }
+
     private void attachCampusesToYear(long schoolYearId) {
         jdbc.update(
                 "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
@@ -218,6 +258,89 @@ class KitchenRecordsIntegrationTest {
                         .getKitchenDay(kitchen, MONDAY.plusDays(5), null)
                         .dayOff())
                 .isTrue();
+    }
+
+    @Test
+    @DisplayName("NUT-23, NUT-13, AUTH-05: món nêu chất gây dị ứng và số trẻ theo lớp đúng khối, không lộ trẻ")
+    void kitchenSeesAllergyWarningsPerDishAndClass() {
+        seedYearAgeGroups();
+        jdbc.update("UPDATE foods SET allergen_codes = 'SHRIMP' WHERE id = ?", pork);
+        long first = enrolledChild(classroom, "2026-09-01");
+        allergies(first, "Tôm", "Mực");
+        allergies(enrolledChild(classroom, "2026-09-01"), "  tôm ");
+        long nurseryGroup = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-2'", Long.class);
+        long nursery = insertClassroom(campus, "Nhà trẻ K", nurseryGroup);
+        allergies(enrolledChild(nursery, "2026-09-01"), "Tôm");
+        long farClass = insertClassroom(otherCampus, "Lớp O", ag3);
+        allergies(enrolledChild(farClass, "2026-09-01"), "Tôm", "Mực");
+
+        KitchenDayResponse day = kitchenDayService.getKitchenDay(kitchen, MONDAY, null);
+
+        List<KitchenDayResponse.MenuDish> dishes = day.menu().getFirst().dishes();
+        assertThat(dishes)
+                .filteredOn(d -> d.code().equals("COM"))
+                .singleElement()
+                .satisfies(d -> {
+                    assertThat(d.allergens()).isEmpty();
+                    assertThat(d.allergyWarnings()).isEmpty();
+                });
+        assertThat(dishes)
+                .filteredOn(d -> d.code().equals("THITRIM"))
+                .singleElement()
+                .satisfies(d -> {
+                    assertThat(d.allergens()).extracting(a -> a.code()).containsExactly("SHRIMP");
+                    assertThat(d.allergyWarnings()).singleElement().satisfies(w -> {
+                        assertThat(w.allergen().code()).isEqualTo("SHRIMP");
+                        assertThat(w.byClass())
+                                .containsExactly(new KitchenDayResponse.AllergyClassCount(classroom, "Lớp K", 2));
+                    });
+                });
+        assertThat(day.unmatchedAllergies()).singleElement().satisfies(u -> {
+            assertThat(u.name()).isEqualTo("Mực");
+            assertThat(u.byClass()).containsExactly(new KitchenDayResponse.AllergyClassCount(classroom, "Lớp K", 1));
+        });
+        assertThat(day.toString()).doesNotContain("Trẻ Dị Ứng").doesNotContain("childId");
+    }
+
+    @Test
+    @DisplayName("CHD-13: trẻ không báo ăn, chưa vào lớp không tính; trẻ vắng theo điểm danh vẫn tính")
+    void allergyCountFollowsMealRegisteredEnrollment() {
+        seedYearAgeGroups();
+        long absent = enrolledChild(classroom, "2026-09-01");
+        allergies(absent, "Mực");
+        jdbc.update(
+                "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, meals, recorded_by,"
+                        + " recorded_at) VALUES (?, ?, ?, ?, 'EXCUSED', '', ?, now())",
+                absent,
+                classroom,
+                campus,
+                MONDAY,
+                kitchen.userId());
+        long noMeal = enrolledChild(classroom, "2026-09-01");
+        allergies(noMeal, "Mực");
+        jdbc.update("UPDATE children SET meal_registered = FALSE WHERE id = ?", noMeal);
+        allergies(enrolledChild(classroom, MONDAY.plusDays(1).toString()), "Mực");
+
+        KitchenDayResponse day = kitchenDayService.getKitchenDay(kitchen, MONDAY, null);
+
+        assertThat(day.unmatchedAllergies())
+                .singleElement()
+                .satisfies(u -> assertThat(u.byClass())
+                        .containsExactly(new KitchenDayResponse.AllergyClassCount(classroom, "Lớp K", 1)));
+    }
+
+    @Test
+    @DisplayName("NUT-08: tuần chưa công bố hoặc ngày nghỉ ⇒ không trả cảnh báo dị ứng")
+    void noAllergyDataWithoutPublishedMenu() {
+        seedYearAgeGroups();
+        allergies(enrolledChild(classroom, "2026-09-01"), "Mực");
+
+        assertThat(kitchenDayService.getKitchenDay(kitchen, DRAFT_MONDAY, null).unmatchedAllergies())
+                .isEmpty();
+        assertThat(kitchenDayService
+                        .getKitchenDay(kitchen, MONDAY.plusDays(5), null)
+                        .unmatchedAllergies())
+                .isEmpty();
     }
 
     @Test
