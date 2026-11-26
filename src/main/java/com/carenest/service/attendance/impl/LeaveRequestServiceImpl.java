@@ -203,11 +203,13 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         boolean hasMeals = part != LeavePart.FULL_DAY
                 && !part.dayPart().other().mealsOf(startingClass.mealSessions()).isEmpty();
         Boolean eats = hasMeals ? (Boolean) (requestedEats == null || requestedEats) : null;
-        if (from.isBefore(startingClass.yearStart()) || to.isAfter(startingClass.yearEnd())) {
+        // Đơn chỉ trong thời gian học: từ đầu năm học đến hết học kỳ II (user chốt 26/11/2026)
+        LocalDate lastLeaveDay = rules.lastLeaveDay(startingClass.schoolYearId(), startingClass.yearEnd());
+        if (from.isBefore(startingClass.yearStart()) || to.isAfter(lastLeaveDay)) {
             throw GlobalException.of(
                     ApiCode.LEAVE_OUTSIDE_SCHOOL_YEAR,
                     startingClass.yearStart().format(DD_MM_YYYY),
-                    startingClass.yearEnd().format(DD_MM_YYYY));
+                    lastLeaveDay.format(DD_MM_YYYY));
         }
         // ATT-05: một đơn tối đa leaveMaxDays ngày lịch, tính cả ngày đầu và ngày cuối
         if (ChronoUnit.DAYS.between(from, to) + 1 > attendanceProperties.leaveMaxDays()) {
@@ -444,7 +446,16 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 ensureMealsOpen(classOnOrNull(leave.getChildId(), day), day);
                 // Đơn gửi trước V201 không có dòng leave_attendance_effects: hoàn tác như cách cũ
                 if (effects.isEmpty()) {
-                    revertLegacy(leave, day, currentUser.userId(), at);
+                    if (leave.getPart() == LeavePart.AFTERNOON) {
+                        // Đơn nghỉ chiều gửi khi chưa có điểm danh nên không có dòng hiệu ứng: bản ghi do GV tạo sau đó
+                        // chỉ mang dấu nghỉ chiều của đơn, hủy đơn thì trả lại bữa xế cùng dấu
+                        recordRepository.findByChildIdInAndDate(List.of(leave.getChildId()), day).stream()
+                                .filter(record -> record.getAbsentPart() == DayPart.AFTERNOON)
+                                .forEach(record -> restoreTeacherRecordedAfternoon(
+                                        record, leave.getChildId(), currentUser.userId(), at));
+                    } else {
+                        revertLegacy(leave, day, currentUser.userId(), at);
+                    }
                     continue;
                 }
                 recordRepository
@@ -891,7 +902,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             for (LocalDate d = r.getFromDate(); !d.isAfter(r.getToDate()); d = d.plusDays(1)) {
                 if (rules.isSchoolDay(d)) {
                     ClassroomInfoResponse cls = classOn(r.getChildId(), d);
-                    days.add(new LeaveDay(d, cls == null ? null : cls.id(), cls == null ? null : cls.name()));
+                    // Ngày trẻ không còn học ở trường (đã nghỉ học hẳn) không còn hiệu lực, không hiện trong đơn
+                    if (cls != null) {
+                        days.add(new LeaveDay(d, cls.id(), cls.name()));
+                    }
                 }
             }
             return days;
