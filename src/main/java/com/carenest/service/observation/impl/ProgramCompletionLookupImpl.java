@@ -7,6 +7,7 @@ import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.EvaluationStatus;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -31,5 +32,18 @@ public class ProgramCompletionLookupImpl implements ProgramCompletionLookup {
                 // Trẻ chuyển lớp có thể có hai đánh giá cuối năm: có một bản hoàn thành là hoàn thành
                 .collect(Collectors.toMap(
                         ChildEvaluation::getChildId, ChildEvaluation::getProgramCompleted, Boolean::logicalOr));
+    }
+
+    @Override
+    public Set<Long> yearEndConfirmed(Long schoolYearId, Collection<Long> childIds) {
+        if (childIds.isEmpty()) {
+            return Set.of();
+        }
+        return evaluationRepository
+                .findBySchoolYearIdAndPeriodTypeAndStatusAndChildIdIn(
+                        schoolYearId, EvaluationPeriodType.YEAR, EvaluationStatus.CONFIRMED, childIds)
+                .stream()
+                .map(ChildEvaluation::getChildId)
+                .collect(Collectors.toSet());
     }
 }

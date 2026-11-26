@@ -895,12 +895,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             throw GlobalException.of(ApiCode.EVALUATION_CONTENT_TOO_LONG, CONTENT_MAX);
         }
         String lower = text.toLowerCase(Locale.ROOT);
-        DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream()
-                .filter(lower::contains)
-                .findFirst()
-                .ifPresent(term -> {
-                    throw GlobalException.of(ApiCode.EVALUATION_DIAGNOSTIC_TERM, term);
-                });
+        DiagnosticTerms.matches(text).stream().findFirst().ifPresent(term -> {
+            throw GlobalException.of(ApiCode.EVALUATION_DIAGNOSTIC_TERM, term);
+        });
         return text;
     }
 

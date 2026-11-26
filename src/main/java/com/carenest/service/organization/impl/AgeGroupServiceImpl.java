@@ -31,6 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class AgeGroupServiceImpl implements AgeGroupService {
+    /** Sĩ số tối đa theo luật của nhóm lớn nhất (mẫu giáo 5–6 tuổi, V176). */
+    private static final int LEGAL_MAX_CLASS_SIZE = 35;
+
     private static final String LOG_PREFIX = "[AgeGroupServiceImpl]";
 
     private final AgeGroupRepository ageGroupRepository;
@@ -192,6 +195,10 @@ public class AgeGroupServiceImpl implements AgeGroupService {
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
             validate(request, null);
+            // API cũ không kèm năm học: vẫn không được vượt sĩ số tối đa theo luật của nhóm lớn nhất (Điều lệ GDMN)
+            if (request.maxClassSize() != null && request.maxClassSize() > LEGAL_MAX_CLASS_SIZE) {
+                throw GlobalException.of(ApiCode.AGE_GROUP_MAX_EXCEEDS_STANDARD, request.name(), LEGAL_MAX_CLASS_SIZE);
+            }
             short sortOrder = (short) (ageGroupRepository.findMaxSortOrder() + 1);
             AgeGroup ageGroup = AgeGroup.create(nextCode(sortOrder), sortOrder);
             applyRequest(ageGroup, request);
@@ -292,6 +299,10 @@ public class AgeGroupServiceImpl implements AgeGroupService {
             AgeGroup ageGroup = ageGroupRepository
                     .findById(ageGroupId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
+            // Nhóm chuẩn của Bộ là danh mục dùng chung: không xóa qua API này
+            if (ageGroup.isStandardGroup()) {
+                throw GlobalException.of(ApiCode.AGE_GROUP_HAS_DEPENDENTS, "danh mục chuẩn của Bộ GD&ĐT");
+            }
             // Nhóm tuổi dùng chung mọi năm học: xóa là mất ở cả năm khác, nên lỗi nêu rõ năm học và người đang dùng
             if (classroomRepository.countByAgeGroupId(ageGroupId) > 0) {
                 throw GlobalException.of(

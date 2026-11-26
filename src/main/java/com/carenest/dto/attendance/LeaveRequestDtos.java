@@ -51,7 +51,8 @@ public final class LeaveRequestDtos {
             List<MealSession> keptMeals,
             boolean eatsApplies,
             List<LocalDate> appliedDates,
-            List<LocalDate> skippedDates) {}
+            List<LocalDate> skippedDates,
+            boolean noticeOnly) {}
 
     /**
      * status: ACTIVE / CANCELLED (hủy hết). effectiveTo: ngày cuối còn hiệu lực. appliedDates: ngày đã ghi Vắng có phép;
@@ -84,7 +85,8 @@ public final class LeaveRequestDtos {
             List<LeaveDay> days,
             List<MealSession> offMeals,
             Instant teacherSeenAt,
-            String teacherSeenByName) {}
+            String teacherSeenByName,
+            boolean noticeOnly) {}
 
     /** Một ngày học của đơn gắn với lớp trẻ học ngày đó (trẻ chuyển lớp sau khi gửi đơn, Cần chốt 24/11/2026). */
     public record LeaveDay(LocalDate date, Long classId, String className) {}
@@ -98,10 +100,11 @@ public final class LeaveRequestDtos {
             String reason,
             LeavePart part,
             Boolean eats,
-            List<MealSession> eatsMeals) {
+            List<MealSession> eatsMeals,
+            boolean noticeOnly) {
 
         public LeaveTag(Long requestId, LocalDate fromDate, LocalDate toDate, String reason) {
-            this(requestId, fromDate, toDate, reason, LeavePart.FULL_DAY, null, List.of());
+            this(requestId, fromDate, toDate, reason, LeavePart.FULL_DAY, null, List.of(), false);
         }
     }
 }

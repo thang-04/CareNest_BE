@@ -127,6 +127,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                         req.semester(),
                         board.startDate(),
                         board.endDate()));
+        DiagnosticTerms.requireClean(req.note());
         entity.save(req.note() == null ? null : req.note().trim());
         if (confirm) {
             var snapshot = build(user, cls.id(), req.semester(), entity);

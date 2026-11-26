@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
     private final AccountService accountService;
     private final NotificationService notificationService;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -138,9 +140,13 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
                         teacherIds,
                         NotificationType.ATTENDANCE_DAY_UNLOCKED,
                         "Mở lại điểm danh " + cls.name(),
-                        "Điểm danh ngày " + DMY.format(date) + " được mở lại để kiểm tra, sửa. Lý do: " + reason,
+                        "Điểm danh ngày " + DMY.format(date)
+                                + " được mở lại để kiểm tra, sửa (đánh giá ngày đó cũng được mở lại nếu đã khóa). Lý do: "
+                                + reason,
                         null);
             }
+            eventPublisher.publishEvent(new AttendanceDayUnlockedEvent(
+                    cls.id(), cls.campusId(), date, request.validUntil(), reason, currentUser.userId()));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {

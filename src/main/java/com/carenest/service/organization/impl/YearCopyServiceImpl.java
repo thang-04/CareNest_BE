@@ -1,5 +1,6 @@
 package com.carenest.service.organization.impl;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassTeachersRequest;
 import com.carenest.dto.organization.CopyClassesRequest;
 import com.carenest.dto.organization.CopyClassesResponse;
@@ -327,15 +328,29 @@ public class YearCopyServiceImpl implements YearCopyService {
             attendanceCutoffService.saveCutoff(
                     currentUser,
                     target.getId(),
-                    // Cần chốt 19/11/2026: chép cả giờ đến muộn nhất buổi chiều
+                    // Chép đầy đủ giờ chốt và lịch sinh hoạt để năm mới không rơi về mặc định.
                     new CutoffRequest(
                             time,
                             from,
                             "Sao chép từ năm học " + source.getName(),
-                            history.getFirst().getLatestAfternoonArrival()));
+                            history.getFirst().getLatestAfternoonArrival(),
+                            history.getFirst().getDropoffOpenFrom(),
+                            history.getFirst().getMorningStart(),
+                            history.getFirst().getMorningEnd(),
+                            history.getFirst().getAfternoonStart(),
+                            history.getFirst().getPickupStart(),
+                            history.getFirst().getFullDayPickupFrom(),
+                            history.getFirst().getPickupEnd(),
+                            history.getFirst().getAfternoonEnd()));
             return time;
         } catch (GlobalException ex) {
-            skipped.add(new YearCopyResponse.Skipped(YearCopyPart.CUTOFF, source.getName(), ex.getMessage()));
+            // Lịch cũ sai thứ tự phương án A (PCK-04): nêu ô sai thay câu chung "xem các ô báo đỏ"
+            String reason = ex.getFieldErrors().isEmpty()
+                    ? ex.getMessage()
+                    : ex.getFieldErrors().stream()
+                            .map(FieldErrorResponse::message)
+                            .collect(Collectors.joining("; "));
+            skipped.add(new YearCopyResponse.Skipped(YearCopyPart.CUTOFF, source.getName(), reason));
             return null;
         }
     }

@@ -3,6 +3,7 @@ package com.carenest.controller.attendance;
 import com.carenest.dto.attendance.AttendanceClassResponse;
 import com.carenest.dto.attendance.AttendanceSummaryResponse;
 import com.carenest.dto.attendance.ClassAttendanceResponse;
+import com.carenest.dto.attendance.CorrectMealParticipationRequest;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.DayUnlockRequest;
 import com.carenest.dto.attendance.DayUnlockResponse;
@@ -101,6 +102,38 @@ public class AttendanceController {
         SaveAttendanceResponse saved = attendanceService.markArrived(currentUser, classId, childId, date);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Mark arrived success", saved);
+    }
+
+    /** ATT-03/B2: ngày đã mở lại, sửa trẻ bị ghi nhầm vắng sáng không phép thành có mặt cả ngày. */
+    @PostMapping("/classes/{classId}/attendance/children/{childId}/full-day-present")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_RECORD')")
+    public ResponseEntity<ResponseJson<SaveAttendanceResponse>> correctFullDayPresent(
+            @PathVariable Long classId,
+            @PathVariable Long childId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|correctFullDayPresent|userId=" + currentUser.userId() + "|classId=" + classId
+                + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        SaveAttendanceResponse saved = attendanceService.correctFullDayPresent(currentUser, classId, childId, date);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Correct full-day present success", saved);
+    }
+
+    @PostMapping("/classes/{classId}/attendance/children/{childId}/meal-participation")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_RECORD')")
+    public ResponseEntity<ResponseJson<SaveAttendanceResponse>> correctMealParticipation(
+            @PathVariable Long classId,
+            @PathVariable Long childId,
+            @Valid @RequestBody CorrectMealParticipationRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|correctMealParticipation|userId=" + currentUser.userId() + "|classId="
+                + classId + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        SaveAttendanceResponse saved =
+                attendanceService.correctMealParticipation(currentUser, classId, childId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Correct meal participation success", saved);
     }
 
     @GetMapping("/classes/{classId}/attendance/summary")

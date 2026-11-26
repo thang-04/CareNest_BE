@@ -93,8 +93,10 @@ class WithdrawNewYearBoardIntegrationTest {
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
         // Năm đang học kết thúc 04/09/2027: ngày nghỉ học phải trong năm học đang hoạt động (user chốt 2026-11-25)
-        long oldYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
-                + "VALUES ('2026-2027', '2026-09-01', '2027-09-04', 'ACTIVE') RETURNING id");
+        // CFG-YR-03: xếp lớp năm mới mở từ ngày kết thúc HK II (25/05/2027)
+        long oldYear = insertId("INSERT INTO school_years (name, start_date, end_date, status, semester1_start, "
+                + "semester1_end, semester2_start, semester2_end) VALUES ('2026-2027', '2026-09-01', '2027-09-04', "
+                + "'ACTIVE', '2026-09-01', '2027-01-15', '2027-01-18', '2027-05-25') RETURNING id");
         newYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
                 + "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id");
         long room1 = room(campus, "P.1");

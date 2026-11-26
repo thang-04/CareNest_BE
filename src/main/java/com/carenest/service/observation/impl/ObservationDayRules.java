@@ -264,21 +264,26 @@ class ObservationDayRules {
      * lớp, hoặc người dạy thay có đợt dạy thay chứa ngày đó (kể cả đợt đã hết khi ngày được mở lại).
      */
     boolean canRecordDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
-        // GV dạy chính chỉ ghi ngày thuộc phân công của mình: ngày mở lại trước khi nhận lớp thuộc người dạy lúc đó
-        return (canRecordPeriod(user, cls)
-                        && staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), date))
-                || (user.hasRole(CareNestRole.TEACHER)
-                        && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+        // User chốt 26/11/2026: GV được phân công lớp (hiện tại hoặc đúng ngày được ghi) đều ghi được
+        return user.hasRole(CareNestRole.TEACHER)
+                && (canRecordPeriod(user, cls)
+                        || staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), date)
+                        || staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
     }
 
     /** Người nhận nhắc việc / thông báo mở lại việc theo ngày: GV dạy chính hiện tại và người dạy thay ngày đó. */
     List<Long> dayTeacherIds(ClassroomInfoResponse cls, LocalDate date) {
-        return Stream.concat(
+        return Stream.of(
                         periodTeacherIds(cls).stream(),
+                        staffAssignmentService
+                                .findCurrentMainTeacherIds(List.of(cls.id()), date)
+                                .getOrDefault(cls.id(), List.of())
+                                .stream(),
                         staffAssignmentService
                                 .findSubstituteTeacherIdsOn(List.of(cls.id()), date)
                                 .getOrDefault(cls.id(), List.of())
                                 .stream())
+                .flatMap(java.util.function.Function.identity())
                 .distinct()
                 .toList();
     }

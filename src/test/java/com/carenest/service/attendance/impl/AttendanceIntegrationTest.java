@@ -322,11 +322,12 @@ class AttendanceIntegrationTest {
         expectError(
                 () -> service.saveClassAttendance(teacherB, oldClass, request(TODAY, present(child1))),
                 ApiCode.FORBIDDEN);
-        // Lớp hết phân công vẫn hiện để đọc đúng đợt cũ; hôm nay và quyền ghi không được mở rộng.
+        // Lớp hết phân công vẫn hiện để đọc đúng đợt cũ; hôm nay không được mở rộng.
         expectError(() -> service.getClassAttendance(teacherB, classA, TODAY), ApiCode.FORBIDDEN);
+        // User chốt 26/11/2026: ngày nằm trong đợt được phân công thì ghi được
         assertThat(service.getClassAttendance(teacherB, classA, LocalDate.of(2026, 9, 15))
                         .canRecord())
-                .isFalse();
+                .isTrue();
         assertThat(service.getClasses(teacherB, null))
                 .extracting(AttendanceClassResponse::id)
                 .containsExactlyInAnyOrder(classA, classB);

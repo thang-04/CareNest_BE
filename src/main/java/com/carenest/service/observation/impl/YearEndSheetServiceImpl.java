@@ -480,6 +480,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         if (t.length() > NOTE_MAX) {
             throw GlobalException.of(ApiCode.YEAR_SHEET_NOTE_TOO_LONG, NOTE_MAX);
         }
+        DiagnosticTerms.requireClean(t);
         return t;
     }
 

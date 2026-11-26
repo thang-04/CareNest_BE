@@ -532,6 +532,9 @@ class YearTransitionIntegrationTest {
         assertThat(board.classes().getFirst().children())
                 .extracting(PlacementBoardResponse.ChildPlacement::programCompleted)
                 .containsExactly(true, null);
+        assertThat(board.classes().getFirst().children())
+                .extracting(PlacementBoardResponse.ChildPlacement::yearEndConfirmed)
+                .containsExactly(true, false);
 
         AutoPlaceResponse auto = service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null));
         assertThat(auto.graduated()).isEqualTo(1);
@@ -639,6 +642,44 @@ class YearTransitionIntegrationTest {
                 ApiCode.CONFLICT);
         expectError(() -> service.autoPlace(principal, laterYear, new AutoPlaceRequest(null, null)), ApiCode.CONFLICT);
         assertThat(service.getPlacements(principal, newYear).editable()).isTrue();
+    }
+
+    @Test
+    void placementOpensFromSecondSemesterEndOfActiveYear() {
+        // CFG-YR-03: chưa đặt học kỳ ⇒ mốc là ngày kết thúc năm đang hoạt động (02/09/2027, sau hôm nay 30/08/2027)
+        jdbc.update("UPDATE school_years SET end_date = '2027-09-02' WHERE id = ?", oldYear);
+
+        PlacementBoardResponse closed = service.getPlacements(principal, newYear);
+        assertThat(closed.editable()).isFalse();
+        assertThat(closed.placementOpenFrom()).isEqualTo(LocalDate.of(2027, 9, 2));
+        SavePlacementsRequest leave =
+                new SavePlacementsRequest(List.of(new SavePlacementsRequest.Item(child1, PlacementAction.LEAVE, null)));
+        assertThatThrownBy(() -> service.savePlacements(principal, newYear, leave))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.PLACEMENT_NOT_OPEN);
+        assertThatThrownBy(() -> service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.PLACEMENT_NOT_OPEN);
+
+        // Có ngày kết thúc HK II (25/05/2027) ⇒ mở từ ngày đó
+        jdbc.update(
+                "UPDATE school_years SET semester1_start = '2026-09-01', semester1_end = '2027-01-15', "
+                        + "semester2_start = '2027-01-18', semester2_end = '2027-05-25' WHERE id = ?",
+                oldYear);
+        entityManager.clear();
+        PlacementBoardResponse open = service.getPlacements(principal, newYear);
+        assertThat(open.editable()).isTrue();
+        assertThat(open.placementOpenFrom()).isEqualTo(LocalDate.of(2027, 5, 25));
+        service.savePlacements(principal, newYear, leave);
+        assertThat(service.getPlacements(principal, newYear)
+                        .classes()
+                        .getFirst()
+                        .children()
+                        .getFirst()
+                        .placement())
+                .isNotNull();
     }
 
     @Test

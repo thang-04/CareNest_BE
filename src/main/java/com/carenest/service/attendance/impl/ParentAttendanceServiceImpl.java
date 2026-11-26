@@ -75,7 +75,13 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
             LocalDate today = rules.today();
             ParentAttendanceDay day = new ChildDays(childId, today, today).day(today);
             ParentTodayResponse response = new ParentTodayResponse(
-                    today, day.status(), day.absentPart(), day.arrivedAt(), day.classId(), day.className());
+                    today,
+                    day.status(),
+                    day.absentPart(),
+                    day.absentPartUnexcused(),
+                    day.arrivedAt(),
+                    day.classId(),
+                    day.className());
             log.info("{}|status={}|END", logPrefix, response.status());
             return response;
         } catch (RuntimeException ex) {
@@ -111,9 +117,12 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                     // ATT-14: mỗi buổi 0,5 ngày
                     present += s.status() != AttendanceStatus.PRESENT ? 0 : s.absentPart() == null ? 1 : 0.5;
                     double ownExcused = s.status() == AttendanceStatus.EXCUSED ? 1 : 0;
-                    excused += s.absentPart() == null ? ownExcused : 0.5 + ownExcused * 0.5;
+                    excused += s.absentPart() == null
+                            ? ownExcused
+                            : (s.absentPartUnexcused() ? 0 : 0.5) + ownExcused * 0.5;
                     double ownAbsent = s.status() == AttendanceStatus.UNEXCUSED ? 1 : 0;
-                    absent += s.absentPart() == null ? ownAbsent : ownAbsent * 0.5;
+                    absent +=
+                            s.absentPart() == null ? ownAbsent : (s.absentPartUnexcused() ? 0.5 : 0) + ownAbsent * 0.5;
                 }
             }
             ParentAttendanceResponse response = new ParentAttendanceResponse(
@@ -170,6 +179,12 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
         if (!user.hasRole(CareNestRole.PARENT) || !guardianChildLinkService.isGuardianOf(user.userId(), childId)) {
             throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
         }
+        // CHD-04 (user chốt 26/11/2026): trẻ đã thôi học hoặc ra trường thì phụ huynh mất quyền xem ngay
+        if (!enrollmentService
+                .findChildIdsLeftSchool(java.util.Set.of(childId), rules.today())
+                .isEmpty()) {
+            throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
+        }
     }
 
     // ATT-15: tối đa 62 ngày, nằm trong một năm học (theo lớp trẻ học trong khoảng)
@@ -197,7 +212,12 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
     }
 
     /** Trạng thái đã chốt của bản ghi một ngày (ngày đang mở lại: trạng thái trước khi mở lại). */
-    private record Snapshot(AttendanceStatus status, List<MealSession> meals, DayPart absentPart, Instant at) {}
+    private record Snapshot(
+            AttendanceStatus status,
+            List<MealSession> meals,
+            DayPart absentPart,
+            boolean absentPartUnexcused,
+            Instant at) {}
 
     /** Dữ liệu một trẻ trong khoảng ngày, đọc theo lô: các đoạn học lớp, bản ghi, lần mở lại còn hạn. */
     private final class ChildDays {
@@ -246,17 +266,20 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
             }
             AttendanceDayUnlock unlock = unlocks.get(cls.id() + ":" + date);
             if (unlock == null) {
-                return new Snapshot(r.getStatus(), r.getMeals(), r.getAbsentPart(), r.getRecordedAt());
+                return new Snapshot(
+                        r.getStatus(), r.getMeals(), r.getAbsentPart(), r.isAbsentPartUnexcused(), r.getRecordedAt());
             }
             // Ngày đang mở lại: GV có thể đang sửa, phụ huynh thấy bản trước lần mở lại này
             List<AttendanceRecordHistory> history = historyRepository.findByRecordIdOrderByIdAsc(r.getId());
             if (history.isEmpty()) {
-                return new Snapshot(r.getStatus(), r.getMeals(), r.getAbsentPart(), r.getRecordedAt());
+                return new Snapshot(
+                        r.getStatus(), r.getMeals(), r.getAbsentPart(), r.isAbsentPartUnexcused(), r.getRecordedAt());
             }
             return history.stream()
                     .filter(h -> !unlock.getId().equals(h.getUnlockId()))
                     .reduce((a, b) -> b)
-                    .map(h -> new Snapshot(h.getStatus(), h.getMeals(), h.getAbsentPart(), h.getAt()))
+                    .map(h -> new Snapshot(
+                            h.getStatus(), h.getMeals(), h.getAbsentPart(), h.isAbsentPartUnexcused(), h.getAt()))
                     .orElse(null);
         }
 
@@ -264,13 +287,23 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
             ClassroomInfoResponse cls = classOn(date);
             if (cls == null) {
                 return new ParentAttendanceDay(
-                        date, ParentAttendanceStatus.NOT_ENROLLED, null, null, List.of(), List.of(), null, null, null);
+                        date,
+                        ParentAttendanceStatus.NOT_ENROLLED,
+                        null,
+                        false,
+                        null,
+                        List.of(),
+                        List.of(),
+                        null,
+                        null,
+                        null);
             }
             if (!rules.isSchoolDay(date)) {
                 return new ParentAttendanceDay(
                         date,
                         ParentAttendanceStatus.NO_SCHOOL,
                         null,
+                        false,
                         null,
                         List.of(),
                         List.of(),
@@ -284,6 +317,7 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                         date,
                         ParentAttendanceStatus.NOT_RECORDED,
                         null,
+                        false,
                         null,
                         List.of(),
                         List.of(),
@@ -307,6 +341,7 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                         case UNEXCUSED -> ParentAttendanceStatus.ABSENT;
                     },
                     s.absentPart(),
+                    s.absentPartUnexcused(),
                     s.status() == AttendanceStatus.PRESENT ? s.at() : null,
                     eaten,
                     cancelled,

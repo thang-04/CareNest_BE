@@ -17,11 +17,12 @@ public final class ParentAttendanceDtos {
 
     private ParentAttendanceDtos() {}
 
-    /** absentPart: buổi nghỉ theo đơn nửa buổi; arrivedAt: lúc GV ghi có mặt (null nếu không có mặt). */
+    /** absentPart: buổi nghỉ; absentPartUnexcused phân biệt sáng vắng không phép; arrivedAt: lúc GV ghi có mặt. */
     public record ParentTodayResponse(
             LocalDate date,
             ParentAttendanceStatus status,
             DayPart absentPart,
+            boolean absentPartUnexcused,
             Instant arrivedAt,
             Long classId,
             String className) {}
@@ -34,6 +35,7 @@ public final class ParentAttendanceDtos {
             LocalDate date,
             ParentAttendanceStatus status,
             DayPart absentPart,
+            boolean absentPartUnexcused,
             Instant arrivedAt,
             List<MealSession> mealsEaten,
             List<MealSession> cancelledMeals,

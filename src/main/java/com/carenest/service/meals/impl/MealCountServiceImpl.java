@@ -340,6 +340,10 @@ public class MealCountServiceImpl implements MealCountService {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
             Year year = editableYear(count.getSchoolYearId());
+            // ATT-06, NUT-02: chỉ xác nhận sau giờ chốt điểm danh (chốt điểm danh là chốt suất cả ngày)
+            if (!attendanceService.getYearDayInfo(count.getDate(), year.id()).baseLocked()) {
+                throw GlobalException.of(ApiCode.MEAL_COUNT_NOT_LOCKED_YET);
+            }
             // Sổ đã chốt mà gọi xác nhận lại (vd. client gọi lần lượt từng bữa sang ngày sau) ⇒ trả trạng thái hiện tại
             checkNotPastDay(count.getDate(), count.hasPending() || count.isConfirmed());
             // NUT-02, ATT-06: xác nhận theo cơ sở–ngày — một lần cho mọi bữa còn chờ của cơ sở trong ngày
@@ -354,6 +358,9 @@ public class MealCountServiceImpl implements MealCountService {
                 // nơi)
                 requireInspectionUnsigned(count.getCampusId(), count.getDate());
                 checkAttendanceComplete(count.getCampusId(), count.getDate(), year);
+                // Điểm danh có thể vừa commit mà listener chưa chạy: tính lại số sổ chưa khóa dưới khóa cơ sở–ngày
+                // để xác nhận đúng số hiện tại, không chốt số cũ rồi bị "chờ xác nhận lại" (ATT-07)
+                refreshUnconfirmed(count.getCampusId(), count.getDate(), year.id());
                 // NUT-03: không xác nhận số người duyệt chưa thấy (GV sửa điểm danh khi đang mở lại, điều chỉnh khác)
                 if (seenServings != null) {
                     int servings = totalsOf(count, viewer, year).stream()
@@ -411,8 +418,10 @@ public class MealCountServiceImpl implements MealCountService {
                     .findClassroomInfo(classroomId)
                     .map(ClassroomInfoResponse::schoolYearId)
                     .orElse(null);
+            // ATT-07: sổ đã xác nhận khóa cứng, điểm danh không đổi được suất nên không cập nhật lại sổ đó
             List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, date).stream()
                     .filter(c -> c.getSchoolYearId().equals(yearId))
+                    .filter(c -> !c.isConfirmed() || c.hasPending())
                     .toList();
             if (!counts.isEmpty()) {
                 ClassMealTally tally = attendanceService.tallyMeals(date, campusId, yearId).stream()
@@ -452,6 +461,31 @@ public class MealCountServiceImpl implements MealCountService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    /** Cập nhật số từng lớp của các sổ chưa xác nhận theo điểm danh hiện tại (gọi dưới khóa cơ sở–ngày). */
+    private void refreshUnconfirmed(Long campusId, LocalDate date, Long yearId) {
+        List<MealCount> open = mealCountRepository.findByCampusIdAndDate(campusId, date).stream()
+                .filter(c -> c.getSchoolYearId().equals(yearId))
+                .filter(c -> !c.isConfirmed())
+                .toList();
+        if (open.isEmpty()) {
+            return;
+        }
+        for (ClassMealTally tally : attendanceService.tallyMeals(date, campusId, yearId)) {
+            for (MealCount count : open) {
+                if (!tally.sessions().contains(count.getSession())
+                        && count.visibleLine(tally.classroomId()).isEmpty()) {
+                    continue;
+                }
+                count.replaceClassFigures(
+                        tally.classroomId(),
+                        tally.present(),
+                        tally.absent(),
+                        tally.missing(),
+                        tally.meals().getOrDefault(count.getSession(), 0));
+            }
         }
     }
 
