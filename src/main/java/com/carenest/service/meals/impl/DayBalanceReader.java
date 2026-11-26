@@ -26,6 +26,7 @@ import com.carenest.service.meals.impl.MealPlanEvaluator.DishInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.ItemPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Portion;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
 import java.math.BigDecimal;
@@ -67,6 +68,7 @@ class DayBalanceReader {
     private final MealPlanEvaluationSupport evaluationSupport;
     private final FoodPriceService foodPriceService;
     private final ClassroomService classroomService;
+    private final SchoolYearService schoolYearService;
 
     /** Món của một nhóm tuổi trong một bữa. */
     record DishKey(Long ageGroupId, MealSession session, Long dishId) {
@@ -85,14 +87,16 @@ class DayBalanceReader {
             List<Long> campusIds,
             DayBalance saved,
             short round,
-            DayBalance seed) {
+            DayBalance seed,
+            String offReason) {
 
+        /** Ngày nghỉ: tuần đánh dấu nghỉ hoặc rơi vào cuối tuần, lịch nghỉ của trường. */
         boolean dayOff() {
-            return day != null && day.isOff();
+            return offReason != null;
         }
 
         List<MealPlanItem> items() {
-            return day == null || day.isOff() ? List.of() : day.getItems();
+            return day == null || dayOff() ? List.of() : day.getItems();
         }
     }
 
@@ -121,6 +125,22 @@ class DayBalanceReader {
             counts.forEach(c -> children.merge(c.ageGroupId(), c.children(), Integer::sum));
             return children;
         }
+    }
+
+    // Lý do ngày không phục vụ bữa; null = ngày học. Tuần đánh dấu nghỉ thắng, rồi tới cuối tuần, lịch nghỉ của trường
+    private String offReasonOf(LocalDate date, MealPlanDay day) {
+        if (day != null && day.isOff()) {
+            return day.getNote().isBlank()
+                    ? "Ngày nghỉ theo kế hoạch tuần"
+                    : day.getNote().trim();
+        }
+        if (schoolYearService.isSchoolDay(date)) {
+            return null;
+        }
+        if (date.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || date.getDayOfWeek() == java.time.DayOfWeek.SUNDAY) {
+            return "Cuối tuần";
+        }
+        return schoolYearService.holidayName(date).orElse("Nghỉ theo lịch của trường");
     }
 
     boolean saved(LocalDate date, short round) {
@@ -181,7 +201,7 @@ class DayBalanceReader {
                 .distinct()
                 .sorted()
                 .toList();
-        return new Source(date, day, groups, dishes, foods, campusIds, saved, round, seed);
+        return new Source(date, day, groups, dishes, foods, campusIds, saved, round, seed, offReasonOf(date, day));
     }
 
     /**
