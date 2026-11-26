@@ -97,8 +97,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final NotificationService notificationService;
     private final com.carenest.repository.attendance.PickupRecordRepository pickupRecordRepository;
     private final EarlyPickupRule earlyPickupRule;
-    private final com.carenest.repository.meals.MealCountRepository mealCountRepository;
-    private final com.carenest.repository.meals.InspectionSheetRepository inspectionSheetRepository;
+    private final com.carenest.service.attendance.MealChangeGuard mealChangeGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -347,10 +346,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 // Nghỉ sáng trước giờ chốt: GV chỉ đổi công tắc ăn bữa xế (giữ nguyên trạng thái theo đơn)
                 boolean mealOnly =
                         tag.part() == LeavePart.MORNING && current != null && current.getStatus() == entry.status();
-                // Đơn cả ngày: chỉ khi ngày mở lại GV mới ghi được trẻ vẫn đến (Có mặt); không đổi thành vắng không
-                // phép
+                // Đơn cả ngày (user chốt 26/11/2026): trẻ vẫn đến lớp thì GV ghi Có mặt ngay, kể cả trước giờ chốt;
+                // vẫn không đổi thành vắng không phép
                 boolean fullDayLocked =
-                        tag.part() == LeavePart.FULL_DAY && (!reopened || entry.status() == AttendanceStatus.UNEXCUSED);
+                        tag.part() == LeavePart.FULL_DAY && entry.status() == AttendanceStatus.UNEXCUSED;
                 if (fullDayLocked || (tag.part() == LeavePart.MORNING && !reopened && !mealOnly)) {
                     throw GlobalException.of(ApiCode.LEAVE_ATTENDANCE_LOCKED);
                 }
@@ -372,7 +371,12 @@ public class AttendanceServiceImpl implements AttendanceService {
             // ATT-09: Vắng có phép chỉ do đơn nghỉ đặt; GV giữ nguyên được trạng thái đã có, không tự chọn mới
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 AttendanceRecord record = existing.get(entry.childId());
+                LeaveTag excusingTag = tags.get(entry.childId());
+                boolean fullDayLeave =
+                        excusingTag != null && !excusingTag.noticeOnly() && excusingTag.part() == LeavePart.FULL_DAY;
+                // Đơn nghỉ cả ngày còn hiệu lực thì GV đổi lại Vắng có phép được (trẻ ghi Có mặt nhầm)
                 if (entry.status() == AttendanceStatus.EXCUSED
+                        && !fullDayLeave
                         && (record == null || record.getStatus() != AttendanceStatus.EXCUSED)) {
                     throw GlobalException.of(ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
                 }
@@ -422,10 +426,19 @@ public class AttendanceServiceImpl implements AttendanceService {
             // PCK-04: trẻ không có đơn, đã giao trước mốc tính đủ ngày ⇒ giữ 0,5 ngày khi lưu lại (bữa không đổi)
             Set<Long> pickedUpEarly = pickedUpBeforeFullDay(cls, date, seen);
             int changed = 0;
-            boolean mealsChanged = false;
+            List<Long> presentDespiteLeave = new ArrayList<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 List<MealSession> meals = mealsByChild.get(entry.childId());
                 AttendanceRecord record = existing.get(entry.childId());
+                LeaveTag fullDayTag = tags.get(entry.childId());
+                if (entry.status() == AttendanceStatus.PRESENT
+                        && record != null
+                        && record.getStatus() == AttendanceStatus.EXCUSED
+                        && fullDayTag != null
+                        && !fullDayTag.noticeOnly()
+                        && fullDayTag.part() == LeavePart.FULL_DAY) {
+                    presentDespiteLeave.add(entry.childId());
+                }
                 DayPart absentPart = absentParts.containsKey(entry.childId())
                         ? absentParts.get(entry.childId())
                         : entry.status() == AttendanceStatus.PRESENT
@@ -453,11 +466,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                             currentUser.userId(),
                             at));
                     action = AttendanceRecordHistory.RECORDED;
-                    mealsChanged |= !meals.isEmpty();
                 } else if (record.differsFrom(entry.status(), meals, absentPart)
                         || record.isAbsentPartUnexcused() != unexcusedMorning
                         || !record.getClassroomId().equals(cls.id())) {
-                    mealsChanged |= !record.getMeals().equals(meals);
                     record.moveToClass(cls.id(), cls.campusId());
                     record.update(entry.status(), meals, currentUser.userId(), at);
                     action = AttendanceRecordHistory.UPDATED;
@@ -468,8 +479,13 @@ public class AttendanceServiceImpl implements AttendanceService {
                 historyRepository.save(AttendanceRecordHistory.of(record, action, unlockId));
                 changed++;
             }
-            // Ngày mở lại sửa chuyên cần không làm sổ suất đã chốt phải xác nhận lại.
-            if (changed > 0 && (!reopened || mealsChanged)) {
+            // Trẻ có đơn nghỉ cả ngày nhưng GV ghi Có mặt: báo phụ huynh, đơn giữ trong lịch sử
+            if (!presentDespiteLeave.isEmpty()) {
+                notifyGuardiansPresent(presentDespiteLeave, date);
+            }
+            // Mọi thay đổi điểm danh đều cập nhật số của sổ chưa xác nhận; sổ đã xác nhận khóa cứng nên bị bỏ qua
+            // (ATT-07)
+            if (changed > 0) {
                 eventPublisher.publishEvent(
                         new AttendanceService.AttendanceChangedEvent(date, cls.campusId(), cls.id()));
             }
@@ -478,6 +494,25 @@ public class AttendanceServiceImpl implements AttendanceService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    private void notifyGuardiansPresent(List<Long> childIds, LocalDate date) {
+        for (Long childId : childIds) {
+            List<Long> parents = guardianChildLinkService.findLinksOfChild(childId).stream()
+                    .map(com.carenest.dto.child.GuardianLinkResponse::userId)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (!parents.isEmpty()) {
+                notificationService.notifyUsers(
+                        parents,
+                        com.carenest.utils.enums.NotificationType.LEAVE_REQUEST_CHANGED,
+                        "Cô đã ghi con có mặt",
+                        "Con có đơn nghỉ ngày "
+                                + date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                + " nhưng đến lớp, cô đã ghi con có mặt. Đơn nghỉ vẫn được lưu trong lịch sử.",
+                        childId);
+            }
         }
     }
 
@@ -531,8 +566,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                     record,
                     AttendanceRecordHistory.UPDATED,
                     info.unlock() == null ? null : info.unlock().id()));
-            // ATT-03/B2: chỉ đổi chuyên cần; bữa đã chốt được giữ nguyên nên không được làm sổ suất chuyển chờ xác nhận
-            // lại.
+            // ATT-03/B2: bữa đã chốt giữ nguyên; sổ chưa xác nhận cập nhật số có mặt, sổ đã xác nhận bị bỏ qua (ATT-07)
+            eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(day, cls.campusId(), cls.id()));
             log.info("{}|END", logPrefix);
             return new SaveAttendanceResponse(at, 1, 1);
         } catch (RuntimeException ex) {
@@ -579,7 +614,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             record.markAbsentPart(null);
             historyRepository.save(AttendanceRecordHistory.of(
                     record, AttendanceRecordHistory.UPDATED, info.unlock().id()));
-            // Bữa giữ nguyên: không phát AttendanceChangedEvent để sổ suất không phải xác nhận lại
+            // Bữa giữ nguyên; sổ chưa xác nhận cập nhật số, sổ đã xác nhận bị bỏ qua (ATT-07)
+            eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(day, cls.campusId(), cls.id()));
             log.info("{}|END", logPrefix);
             return new SaveAttendanceResponse(at, 1, 1);
         } catch (RuntimeException ex) {
@@ -642,7 +678,13 @@ public class AttendanceServiceImpl implements AttendanceService {
             Instant at = rules.now();
             int closed = 0;
             for (Long classId : classIds) {
-                ClassroomInfoResponse cls = findClass(classId);
+                ClassroomInfoResponse cls =
+                        classroomService.findClassroomInfo(classId).orElse(null);
+                if (cls == null) {
+                    // Lớp đã xóa hoặc không còn: bỏ qua, không làm hỏng việc đóng buổi của các lớp khác
+                    log.warn("{}|classId={}|SKIP|class not found", logPrefix, classId);
+                    continue;
+                }
                 LocalTime latest = rules.latestArrival(cls.schoolYearId(), today);
                 if (!rules.isLockedAt(today, latest, at)) {
                     continue;
@@ -675,12 +717,21 @@ public class AttendanceServiceImpl implements AttendanceService {
                     Set<Long> receivers = new LinkedHashSet<>(teachers);
                     guardianChildLinkService.findLinksOfChild(r.getChildId()).forEach(l -> receivers.add(l.userId()));
                     if (!receivers.isEmpty()) {
-                        notificationService.notifyUsers(
-                                receivers,
-                                NotificationType.LEAVE_REQUEST_CHANGED,
-                                "Bé chưa đến buổi chiều",
-                                body,
-                                r.getChildId());
+                        try {
+                            notificationService.notifyUsers(
+                                    receivers,
+                                    NotificationType.LEAVE_REQUEST_CHANGED,
+                                    "Bé chưa đến buổi chiều",
+                                    body,
+                                    r.getChildId());
+                        } catch (RuntimeException notifyEx) {
+                            // Lỗi thông báo không được làm mất việc đóng buổi của cả lớp (job chạy lại mỗi 5 phút)
+                            log.warn(
+                                    "{}|childId={}|NOTIFY_ERROR|type={}",
+                                    logPrefix,
+                                    r.getChildId(),
+                                    notifyEx.getClass().getSimpleName());
+                        }
                     }
                     closed++;
                 }
@@ -965,27 +1016,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         return taken;
     }
 
-    /** Locks the campus-day before checking confirmed meal counts and signed kitchen records. */
+    /** ATT-02a, ATT-07: bữa đã xác nhận hoặc phiếu bếp đã ký thì khóa cứng, không đổi suất. */
     private void ensureMealChangeAllowed(ClassroomInfoResponse cls, LocalDate date, Set<MealSession> sessions) {
-        if (sessions.isEmpty()) {
-            return;
-        }
-        mealCountRepository.lockCampusDay(cls.campusId(), date);
-        inspectionSheetRepository.lockCampus(cls.campusId());
-        boolean signed = Stream.of(
-                        com.carenest.utils.enums.InspectionTab.PROCESS, com.carenest.utils.enums.InspectionTab.SERVE)
-                .anyMatch(tab -> inspectionSheetRepository.existsByCampusIdAndSheetDateAndTabAndStatus(
-                        cls.campusId(), date, tab, com.carenest.utils.enums.InspectionStatus.SIGNED));
-        if (signed) {
-            throw GlobalException.of(ApiCode.MEAL_COUNT_INSPECTION_SIGNED, date);
-        }
-        boolean confirmed = mealCountRepository.findByCampusIdAndDate(cls.campusId(), date).stream()
-                .anyMatch(count -> count.getSchoolYearId().equals(cls.schoolYearId())
-                        && sessions.contains(count.getSession())
-                        && count.isConfirmed());
-        if (confirmed) {
-            throw GlobalException.of(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
-        }
+        mealChangeGuard.ensureChangeAllowed(cls.campusId(), cls.schoolYearId(), date, sessions);
     }
 
     private static String mealLabel(MealSession session) {

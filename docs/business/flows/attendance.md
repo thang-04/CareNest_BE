@@ -13,7 +13,7 @@ Module: attendance → nutrition (health nhận ghi nhận đầu ngày). Rule: 
       ↓ giờ chốt do HT cấu hình, chung toàn trường (ATT-06): điểm danh khóa
 [S] nutrition tính số suất = trẻ có mặt × các bữa của nhóm tuổi, theo lớp và cơ sở (ATT-02, NUT-01, NUT-17)
 [S] PHT đang phân công tại cơ sở xem theo lớp → xác nhận → MealCount CONFIRMED (NUT-02)
-      ├─ số sai → trả GV sửa qua mở lại điểm danh (ATT-08)
+      ├─ số sai, chưa xác nhận → trả GV sửa qua mở lại điểm danh (ATT-08); đã xác nhận thì khóa (ATT-07)
       └─ PHT vắng → HT xác nhận thay
 [S] Bếp (App) xem số suất đã xác nhận theo lớp, từng bữa (AUTH-05, NUT-17)
 [B] Bếp nấu, chia suất theo danh sách lớp (không ghi bàn giao — NUT-15 REMOVED)
@@ -26,11 +26,10 @@ Module: attendance → nutrition (health nhận ghi nhận đầu ngày). Rule: 
 [B] Trẻ đến sau giờ chốt → trường không nhận, phụ huynh đưa về (ATT-03)
 [S] GV quên hoặc ghi sai → PHT mở lại điểm danh của lớp, bắt buộc lý do, lưu nhật ký (ATT-08)
 [S] GV sửa AttendanceRecord
-      ├─ MealCount chưa xác nhận → tính lại bình thường
-      └─ MealCount đã CONFIRMED
-            → attendance phát event AttendanceChanged (không biết trạng thái MealCount)
-            → nutrition đánh dấu số suất đã thay đổi, lưu lịch sử, PHT xác nhận lại (không sửa ngầm)
-            → bếp làm theo số xác nhận lại; kho khô điều chỉnh theo NUT-11
+      ├─ MealCount chưa xác nhận → tính lại bình thường (event AttendanceChanged)
+      └─ MealCount đã CONFIRMED hoặc phiếu bếp đã ký → khóa cứng (ATT-07):
+            không đổi suất, chỉ sửa chuyên cần không đổi suất (chọn buổi, sửa nhãn vắng sáng)
+            bếp làm theo số đã xác nhận
 [B] Thiếu/thừa suất thực tế: bếp báo PHT qua Zalo, điện thoại (NUT-22)
 ```
 

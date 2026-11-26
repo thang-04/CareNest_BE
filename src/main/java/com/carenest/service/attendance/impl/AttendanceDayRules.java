@@ -325,7 +325,9 @@ class AttendanceDayRules {
      */
     boolean canRecordDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return user.hasRole(CareNestRole.TEACHER)
+                // User chốt 26/11/2026: GV được phân công lớp (hiện tại hoặc đúng ngày được ghi) đều ghi được
                 && (staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), today())
+                        || staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), date)
                         || staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date)
                         || (cls.yearStatus() == SchoolYearStatus.ACTIVE && taughtClosedYear(user, cls)));
     }
@@ -359,15 +361,21 @@ class AttendanceDayRules {
         Long id = cls.id();
         // Đã qua ngày kết thúc năm: GV dạy chính năm đó (ngày mở lại vẫn trong năm)
         LocalDate at = cls.yearEnd() != null && today().isAfter(cls.yearEnd()) ? cls.yearEnd() : today();
-        return Stream.concat(
+        return Stream.of(
                         staffAssignmentService
                                 .findCurrentMainTeacherIds(List.of(id), at)
+                                .getOrDefault(id, List.of())
+                                .stream(),
+                        // GV chính đang dạy đúng ngày được mở lại cũng được báo (có thể đã chuyển lớp sau đó)
+                        staffAssignmentService
+                                .findCurrentMainTeacherIds(List.of(id), date)
                                 .getOrDefault(id, List.of())
                                 .stream(),
                         staffAssignmentService
                                 .findSubstituteTeacherIdsOn(List.of(id), date)
                                 .getOrDefault(id, List.of())
                                 .stream())
+                .flatMap(java.util.function.Function.identity())
                 .distinct()
                 .toList();
     }

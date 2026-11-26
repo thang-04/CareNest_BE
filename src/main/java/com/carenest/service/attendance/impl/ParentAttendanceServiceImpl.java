@@ -179,6 +179,12 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
         if (!user.hasRole(CareNestRole.PARENT) || !guardianChildLinkService.isGuardianOf(user.userId(), childId)) {
             throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
         }
+        // CHD-04 (user chốt 26/11/2026): trẻ đã thôi học hoặc ra trường thì phụ huynh mất quyền xem ngay
+        if (!enrollmentService
+                .findChildIdsLeftSchool(java.util.Set.of(childId), rules.today())
+                .isEmpty()) {
+            throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
+        }
     }
 
     // ATT-15: tối đa 62 ngày, nằm trong một năm học (theo lớp trẻ học trong khoảng)

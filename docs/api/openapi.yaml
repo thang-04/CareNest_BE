@@ -4384,11 +4384,11 @@ paths:
           type: integer
           format: int64
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/CorrectMealParticipationRequest"
+        required: true
       responses:
         "200":
           content:
@@ -14308,6 +14308,16 @@ components:
           type: array
           items:
             type: string
+    CorrectMealParticipationRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        participates:
+          type: boolean
+      required:
+      - date
     Counts:
       type: object
       properties:
@@ -14941,17 +14951,6 @@ components:
             - FLU
             - TIRED
             - OTHER
-    CorrectMealParticipationRequest:
-      type: object
-      required:
-      - date
-      - participates
-      properties:
-        date:
-          type: string
-          format: date
-        participates:
-          type: boolean
     DayInfoResponse:
       type: object
       properties:

@@ -88,6 +88,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final StaffAssignmentService staffAssignmentService;
     private final NotificationService notificationService;
     private final ChildClassHistoryService childClassHistoryService;
+    private final com.carenest.service.attendance.MealChangeGuard mealChangeGuard;
 
     @Override
     public LeaveRequestResponse createLeaveRequest(CurrentUser currentUser, CreateLeaveRequest request) {
@@ -123,6 +124,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     .findChildIdsWithoutMeals(List.of(request.childId()))
                     .contains(request.childId());
             for (LocalDate d : applied) {
+                ensureMealsOpen(classOf.get(d), d);
                 if (part == LeavePart.FULL_DAY) {
                     markExcused(saved, classOf.get(d), d, at);
                 } else {
@@ -439,6 +441,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                             .collect(Collectors.toMap(LeaveAttendanceEffect::getAttendanceRecordId, effect -> effect));
             for (LocalDate d = first; !d.isAfter(end); d = d.plusDays(1)) {
                 LocalDate day = d;
+                ensureMealsOpen(classOnOrNull(leave.getChildId(), day), day);
                 // Đơn gửi trước V196 không có dòng leave_attendance_effects: hoàn tác như cách cũ
                 if (effects.isEmpty()) {
                     revertLegacy(leave, day, currentUser.userId(), at);
@@ -563,6 +566,14 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     }
 
     // ATT-05b (Cần chốt 25/11/2026): báo nghỉ chiều hôm nay chỉ gửi / hủy trước giờ bắt đầu buổi chiều
+    /** ATT-07: sổ suất đã xác nhận (hoặc phiếu bếp đã ký) khóa cứng, đơn nghỉ không đổi được bữa của ngày đó. */
+    private void ensureMealsOpen(ClassroomInfoResponse cls, LocalDate date) {
+        if (cls != null && !date.isAfter(rules.today())) {
+            mealChangeGuard.ensureChangeAllowed(
+                    cls.campusId(), cls.schoolYearId(), date, java.util.Set.copyOf(cls.mealSessions()));
+        }
+    }
+
     private void checkAfternoonNoticeOpen(ClassroomInfoResponse cls, LocalDate date) {
         LocalTime afternoonStart = rules.afternoonStart(cls.schoolYearId(), date);
         if (rules.reachedToday(afternoonStart)) {

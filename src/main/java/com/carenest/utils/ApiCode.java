@@ -453,6 +453,12 @@ public enum ApiCode {
     LEAVE_OUTSIDE_SCHOOL_YEAR(4034, HttpStatus.BAD_REQUEST, "Đơn nghỉ phải nằm trong năm học ({0} – {1})"),
     LEAVE_CHILD_ABSENT_TODAY(4033, HttpStatus.CONFLICT, "Trẻ đã được điểm danh vắng hôm nay, không cần báo nghỉ chiều"),
     LEAVE_CHILD_LEAVING(4035, HttpStatus.CONFLICT, "Trẻ nghỉ học từ {0}, không gửi đơn nghỉ cho các ngày từ ngày này"),
+    CUTOFF_FIRST_FROM_YEAR_START(
+            4040, HttpStatus.BAD_REQUEST, "Giờ chốt đầu tiên của năm học phải áp dụng từ ngày bắt đầu năm học {0}"),
+    CUTOFF_CHANGE_TOO_LATE(
+            4039,
+            HttpStatus.CONFLICT,
+            "Hôm nay đã qua giờ chốt, giờ chốt mới chỉ áp dụng từ ngày mai (không đổi giờ chốt giữa ngày)"),
     CUTOFF_LATEST_ARRIVAL_INVALID(4030, HttpStatus.BAD_REQUEST, "Giờ đến muộn nhất buổi chiều phải sau giờ chốt {0}"),
     ATTENDANCE_ARRIVAL_NOT_ALLOWED(
             4036, HttpStatus.CONFLICT, "Chỉ ghi Đã đến cho trẻ vắng buổi sáng chưa đến, từ {0} đến trước {1}"),
@@ -549,6 +555,8 @@ public enum ApiCode {
     ABSENT_CHILD_NO_MEAL(6002, HttpStatus.BAD_REQUEST, "Trẻ vắng mặt không thể đăng ký suất ăn"),
     MEAL_COUNT_ACCESS_DENIED(6003, HttpStatus.FORBIDDEN, "Bạn không có quyền với sổ báo ăn này"),
     MEAL_COUNT_NOT_FOUND(6004, HttpStatus.NOT_FOUND, "Không tìm thấy sổ báo ăn"),
+    MEAL_COUNT_NOT_LOCKED_YET(
+            6078, HttpStatus.CONFLICT, "Chưa tới giờ chốt điểm danh, chưa xác nhận được số suất của ngày này"),
     MEAL_COUNT_ALREADY_CONFIRMED(6005, HttpStatus.CONFLICT, "Sổ báo ăn bữa này đã được xác nhận"),
     MEAL_COUNT_UNCHANGED(6006, HttpStatus.BAD_REQUEST, "Số suất chưa thay đổi"),
     MEAL_COUNT_YEAR_READ_ONLY(6007, HttpStatus.CONFLICT, "Năm học không hoạt động, sổ báo ăn chỉ xem"),
@@ -561,10 +569,7 @@ public enum ApiCode {
             6009,
             HttpStatus.CONFLICT,
             "Còn lớp chưa điểm danh đủ trẻ: {0}. Mở lại điểm danh để giáo viên hoàn tất rồi xác nhận"),
-    MEAL_COUNT_PAST_DAY(
-            6073,
-            HttpStatus.CONFLICT,
-            "Sổ báo ăn ngày đã qua chỉ xem; chỉ xác nhận lại khi có thay đổi sau lúc mở lại điểm danh"),
+    MEAL_COUNT_PAST_DAY(6073, HttpStatus.CONFLICT, "Sổ báo ăn ngày đã qua chỉ xem, không xác nhận lại"),
     MEAL_COUNT_CHANGED_SINCE_VIEW(
             6074,
             HttpStatus.CONFLICT,
