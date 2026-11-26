@@ -439,11 +439,12 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, date);
         Map<Long, AttendanceStatus> statuses = statusesOf(children, date);
         Map<Long, ClassChildResponse> present = new LinkedHashMap<>();
-        Set<Long> current = enrollmentService.findChildrenInClassroom(classId, rules.today()).stream()
-                .map(ClassChildResponse::id)
-                .collect(Collectors.toSet());
+        // Trẻ đã chuyển lớp vẫn được lớp cũ đánh giá những ngày trẻ còn học ở lớp đó (cô dạy trẻ lúc ấy, user chốt
+        // 26/11/2026); trẻ đã nghỉ học hẳn thì không ghi thêm
+        Set<Long> left = enrollmentService.findChildIdsLeftSchool(
+                children.stream().map(ClassChildResponse::id).toList(), rules.today());
         children.stream()
-                .filter(c -> current.contains(c.id()) && statuses.get(c.id()) == AttendanceStatus.PRESENT)
+                .filter(c -> !left.contains(c.id()) && statuses.get(c.id()) == AttendanceStatus.PRESENT)
                 .forEach(c -> present.put(c.id(), c));
         return present;
     }
