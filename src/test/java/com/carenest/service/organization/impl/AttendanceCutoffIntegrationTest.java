@@ -137,7 +137,7 @@ class AttendanceCutoffIntegrationTest {
         CutoffResponse response = service.saveCutoff(
                 principal, year, new CutoffRequest(LocalTime.of(8, 30), LocalDate.of(2026, 9, 1), null));
 
-        // PCK-04 (phương án A): mặc định mốc tính đủ ngày 15:00, cột V201 cũng mặc định 15:00
+        // PCK-04 (phương án A): mặc định mốc tính đủ ngày 15:00, cột V202 cũng mặc định 15:00
         assertThat(response.setting().fullDayPickupFrom()).isEqualTo(LocalTime.of(15, 0));
         assertThat(service.findFullDayPickupFrom(year, LocalDate.of(2026, 9, 2)))
                 .contains(LocalTime.of(15, 0));

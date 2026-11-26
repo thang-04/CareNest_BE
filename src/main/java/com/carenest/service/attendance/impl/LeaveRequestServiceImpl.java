@@ -442,7 +442,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             for (LocalDate d = first; !d.isAfter(end); d = d.plusDays(1)) {
                 LocalDate day = d;
                 ensureMealsOpen(classOnOrNull(leave.getChildId(), day), day);
-                // Đơn gửi trước V197 không có dòng leave_attendance_effects: hoàn tác như cách cũ
+                // Đơn gửi trước V201 không có dòng leave_attendance_effects: hoàn tác như cách cũ
                 if (effects.isEmpty()) {
                     revertLegacy(leave, day, currentUser.userId(), at);
                     continue;
@@ -771,7 +771,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 record.getDate(), record.getCampusId(), record.getClassroomId()));
     }
 
-    /** Hoàn tác đơn cũ chưa có snapshot hiệu ứng (trước V197), giữ nguyên cách làm trước đó. */
+    /** Hoàn tác đơn cũ chưa có snapshot hiệu ứng (trước V201), giữ nguyên cách làm trước đó. */
     private void revertLegacy(LeaveRequest leave, LocalDate day, Long userId, Instant at) {
         // Nghỉ chiều: buổi sáng do GV ghi nên chỉ bỏ dấu nghỉ chiều (ATT-12)
         recordRepository.findByChildIdInAndDate(List.of(leave.getChildId()), day).stream()

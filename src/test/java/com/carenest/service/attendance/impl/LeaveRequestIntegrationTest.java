@@ -422,7 +422,7 @@ class LeaveRequestIntegrationTest {
                         .record()
                         .status())
                 .isEqualTo(AttendanceStatus.EXCUSED);
-        // Đơn gửi trước V197: không có dòng leave_attendance_effects
+        // Đơn gửi trước V201: không có dòng leave_attendance_effects
         jdbc.update("DELETE FROM leave_attendance_effects WHERE leave_request_id = ?", leave.id());
 
         service.cancelLeaveRequest(parent, leave.id());
@@ -578,7 +578,7 @@ class LeaveRequestIntegrationTest {
         service.cancelLeaveRequest(parent, leave.id());
         assertThat(count("SELECT count(*) FROM attendance_record_history WHERE record_id = ?", oldRecord))
                 .isEqualTo(3);
-        // V197: hủy đơn chỉ hoàn tác phần đơn đã đổi ⇒ trả về điểm danh Có mặt giáo viên đã ghi trước đó
+        // V201: hủy đơn chỉ hoàn tác phần đơn đã đổi ⇒ trả về điểm danh Có mặt giáo viên đã ghi trước đó
         var restored = rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
                 .record();
         assertThat(restored.status()).isEqualTo(AttendanceStatus.PRESENT);
