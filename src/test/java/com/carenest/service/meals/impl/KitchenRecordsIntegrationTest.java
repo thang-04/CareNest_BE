@@ -16,6 +16,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.integration.storage.InMemoryS3;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.service.account.AccountService;
 import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.FoodSampleService;
 import com.carenest.service.meals.KitchenDayService;
@@ -99,6 +100,9 @@ class KitchenRecordsIntegrationTest {
 
     @Autowired
     private DayBoardService dayBoardService;
+
+    @Autowired
+    private AccountService accountService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -600,6 +604,23 @@ class KitchenRecordsIntegrationTest {
         unsignSheet(MONDAY, "SAMPLE");
         assertThat(foodSampleService.disposeSample(kitchen, sample.id(), null).disposalStatus())
                 .isEqualTo(FoodSampleDisposalStatus.RECORDED);
+    }
+
+    @Test
+    @DisplayName("AUTH-22: tài khoản bếp nhận tên điểm trường đang phân công hôm nay, bỏ phân công đã hết hạn")
+    void kitchenAccountCarriesTodayCampusName() {
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to)"
+                        + " VALUES (?, 'KITCHEN_STAFF', ?, '2025-01-01', '2025-12-31')",
+                kitchen.userId(),
+                otherCampus);
+
+        assertThat(accountService.getMyAccount(kitchen).assignments())
+                .singleElement()
+                .satisfies(a -> {
+                    assertThat(a.campusId()).isEqualTo(campus);
+                    assertThat(a.campusName()).isEqualTo("Cơ sở K");
+                });
     }
 
     @Test

@@ -21386,7 +21386,7 @@ components:
         assignments:
           type: array
           items:
-            $ref: "#/components/schemas/StaffAssignmentSummaryResponse"
+            $ref: "#/components/schemas/MyAssignmentResponse"
         childIds:
           type: array
           items:
@@ -21608,6 +21608,34 @@ components:
           minLength: 0
     NotificationListResponse:
       type: object
+    MyAssignmentResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        campusName:
+          type: string
+        classroomId:
+          type: integer
+          format: int64
+        staffRole:
+          type: string
+          enum:
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - AGE_GROUP_TEAM_LEADER
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
       properties:
         items:
           type: array
