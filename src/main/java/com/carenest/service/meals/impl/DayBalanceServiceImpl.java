@@ -82,10 +82,10 @@ public class DayBalanceServiceImpl implements DayBalanceService {
     private DayBalanceStatusResponse statusOf(LocalDate date) {
         Source source = reader.load(date, DayBalanceReader.ROUND_EXPECTED);
         if (source.dayOff()) {
-            return new DayBalanceStatusResponse(date, true, false, false, false, List.of());
+            return new DayBalanceStatusResponse(date, true, source.offReason(), false, false, false, List.of());
         }
         if (source.saved() == null) {
-            return new DayBalanceStatusResponse(date, false, false, false, false, List.of("Chưa cân đối"));
+            return new DayBalanceStatusResponse(date, false, null, false, false, false, List.of("Chưa cân đối"));
         }
         boolean stale = reader.stale(source);
         MealPlanEvaluator.Result result = reader.evaluate(source, reader.compose(source, true));
@@ -95,7 +95,7 @@ public class DayBalanceServiceImpl implements DayBalanceService {
         }
         problems.addAll(DayBalanceReader.problems(result));
         return new DayBalanceStatusResponse(
-                date, false, true, stale, !stale && DayBalanceReader.passed(source, result), problems);
+                date, false, null, true, stale, !stale && DayBalanceReader.passed(source, result), problems);
     }
 
     @Override
@@ -300,7 +300,8 @@ public class DayBalanceServiceImpl implements DayBalanceService {
             throw GlobalException.of(ApiCode.DAY_BALANCE_LOCKED, source.date(), "ngày đã qua");
         }
         if (source.dayOff()) {
-            throw GlobalException.of(ApiCode.DAY_BALANCE_LOCKED, source.date(), "ngày nghỉ");
+            throw GlobalException.of(
+                    ApiCode.DAY_BALANCE_LOCKED, source.date(), "ngày nghỉ (" + source.offReason() + ")");
         }
         if (source.items().isEmpty()) {
             throw GlobalException.of(ApiCode.DAY_BALANCE_NO_MENU, source.date());
@@ -346,6 +347,7 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                 stale,
                 canEdit,
                 source.dayOff(),
+                source.offReason(),
                 draft.roundingStep(),
                 DayBalanceReader.passed(source, result),
                 source.campusIds().stream()
