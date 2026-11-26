@@ -11423,6 +11423,10 @@ components:
           type: number
           maximum: 100
           minimum: 0
+        budgetTolerancePct:
+          type: number
+          maximum: 100
+          minimum: 0
         calciumMax:
           type: number
           maximum: 100000
@@ -11609,6 +11613,8 @@ components:
         appliedLipidPct:
           type: number
         appliedProteinPct:
+          type: number
+        budgetTolerancePct:
           type: number
         calciumMax:
           type: number
@@ -16071,6 +16077,8 @@ components:
           enum:
           - NURSERY
           - KINDERGARTEN
+        budgetTolerancePct:
+          type: number
         cost:
           type: number
         date:
@@ -16080,6 +16088,12 @@ components:
           type: number
         mealPrice:
           type: number
+        moneyStatus:
+          type: string
+        qualityStatus:
+          type: string
+        quantityStatus:
+          type: string
         rows:
           type: array
           items:
