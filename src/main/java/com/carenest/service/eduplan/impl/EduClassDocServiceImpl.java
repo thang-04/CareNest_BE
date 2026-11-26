@@ -1142,7 +1142,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             : toNodes(currentUser, shownDocs, EduClassDoc.WEEK, evaluations, context, reviewView),
                     classItems,
                     List.copyOf(staff.values()),
-                    deadlineBoard || viewOnly ? List.of() : buildCreationCapabilities(currentUser, classItems, context),
+                    deadlineBoard
+                            ? List.of()
+                            : viewOnly
+                                    ? viewOnlyCapabilities(classItems)
+                                    : buildCreationCapabilities(currentUser, classItems, context),
                     deadlineBoard
                             ? overdueNodes(currentUser, shownDocs, EduClassDoc.SEMESTER, context)
                             : toNodes(currentUser, shownDocs, EduClassDoc.SEMESTER, evaluations, context, reviewView),
@@ -1206,6 +1210,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     // EDU-89: năm đang hoạt động, hoặc năm sắp tới đã tới ngày mở chuẩn bị (CFG-YR-05)
     private static boolean planYearOpen(SchoolYearDetailResponse year) {
         return year == null || year.status() == SchoolYearStatus.ACTIVE || year.preparing();
+    }
+
+    // Xem quá hạn: không ai tạo được; mã khác AUTHOR_FORBIDDEN để Web hiện cả bản đang soạn (như năm chỉ xem)
+    private static List<ClassDocsResponse.CreationCapability> viewOnlyCapabilities(
+            List<ClassDocsResponse.ClassItem> classItems) {
+        return classItems.stream()
+                .flatMap(cls -> java.util.stream.Stream.of("branch", "theme", "week", "day")
+                        .map(kind -> new ClassDocsResponse.CreationCapability(
+                                Long.parseLong(cls.id()), kind, false, null, "OVERDUE_VIEW")))
+                .toList();
     }
 
     private List<ClassDocsResponse.CreationCapability> buildCreationCapabilities(
