@@ -37,6 +37,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -616,6 +617,20 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             return !schoolHolidayRepository.existsByStartDateLessThanEqualAndEndDateGreaterThanEqual(date, date);
         }
         return holidaysOfTransaction().stream().noneMatch(h -> h.covers(date));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> holidayName(LocalDate date) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return schoolHolidayRepository
+                    .findFirstByStartDateLessThanEqualAndEndDateGreaterThanEqual(date, date)
+                    .map(SchoolHoliday::getName);
+        }
+        return holidaysOfTransaction().stream()
+                .filter(h -> h.covers(date))
+                .map(SchoolHoliday::getName)
+                .findFirst();
     }
 
     // Báo cáo gọi isSchoolDay hàng nghìn lần: đọc ngày nghỉ một lần cho mỗi transaction (luôn là dữ liệu đã commit lúc

@@ -105,6 +105,13 @@ class DayBalanceIntegrationTest {
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        // Đợt nghỉ khai báo trước mọi lần đọc: ngày học được đọc một lần cho mỗi transaction
+        jdbc.update(
+                "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) VALUES (?, ?, ?, ?)",
+                year,
+                MONDAY.plusDays(2),
+                MONDAY.plusDays(2),
+                "Nghỉ lễ thử nghiệm");
         jdbc.update(
                 "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address,"
                         + " phone, status) SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
@@ -383,6 +390,35 @@ class DayBalanceIntegrationTest {
             days.add(new MealPlanRequest.DayInput(MONDAY.plusDays(i), true, "Nghỉ", List.of()));
         }
         mealPlanService.saveMealPlan(principal, MONDAY, new MealPlanRequest(days));
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-31: ngày trong đợt nghỉ của trường là ngày nghỉ kèm tên đợt, không cân đối được dù thực đơn có món")
+    void schoolHolidayIsOffDay() {
+        LocalDate wednesday = MONDAY.plusDays(2);
+        List<MealPlanRequest.DayInput> days = new ArrayList<>(menu(thit).days());
+        days.add(new MealPlanRequest.DayInput(wednesday, false, "", days.get(0).items()));
+        mealPlanService.saveMealPlan(principal, MONDAY, new MealPlanRequest(days));
+
+        DayBalanceStatusResponse status = dayBalanceService.getStatuses(principal, MONDAY, MONDAY.plusDays(4)).stream()
+                .filter(d -> d.date().equals(wednesday))
+                .findFirst()
+                .orElseThrow();
+        assertThat(status.dayOff()).isTrue();
+        assertThat(status.offReason()).isEqualTo("Nghỉ lễ thử nghiệm");
+        DayBalanceResponse balance = dayBalanceService.getBalance(principal, wednesday, 1);
+        assertThat(balance.dayOff()).isTrue();
+        assertThat(balance.canEdit()).isFalse();
+        assertThat(balance.offReason()).isEqualTo("Nghỉ lễ thử nghiệm");
+        expectCode(
+                () -> dayBalanceService.saveBalance(principal, wednesday, 1, request(null, false)),
+                ApiCode.DAY_BALANCE_LOCKED);
+        assertThat(dayBalanceService
+                        .getStatuses(principal, MONDAY, MONDAY)
+                        .getFirst()
+                        .dayOff())
+                .isFalse();
     }
 
     private FreshCheckResponse.FreshCheckRound round2(long campus) {

@@ -15204,6 +15204,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DayBalanceLine"
+        offReason:
+          type: string
         passed:
           type: boolean
         round:
@@ -15233,6 +15235,8 @@ components:
           format: date
         dayOff:
           type: boolean
+        offReason:
+          type: string
         passed:
           type: boolean
         problems:
