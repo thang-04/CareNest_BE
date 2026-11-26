@@ -16,10 +16,10 @@ public final class SchoolNutritionPolicy {
 
     public record Policy(Range protein, Range lipid, Range glucid, Range dailyShare) {}
 
-    private static final Policy NURSERY = new Policy(
-            range(13, 20), range(30, 40), range(47, 50), new Range(share("0.60"), share("0.70")));
-    private static final Policy PRESCHOOL = new Policy(
-            range(13, 20), range(25, 35), range(52, 60), new Range(share("0.50"), share("0.55")));
+    private static final Policy NURSERY =
+            new Policy(range(13, 20), range(30, 40), range(47, 50), new Range(share("0.60"), share("0.70")));
+    private static final Policy PRESCHOOL =
+            new Policy(range(13, 20), range(25, 35), range(52, 60), new Range(share("0.50"), share("0.55")));
 
     private SchoolNutritionPolicy() {}
 

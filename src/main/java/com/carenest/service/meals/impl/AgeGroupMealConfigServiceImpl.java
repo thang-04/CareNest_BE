@@ -486,7 +486,8 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         }
     }
 
-    // NUT-25: nhu cầu năng lượng cả ngày nhập đủ tối thiểu và tối đa (hoặc để trống cả hai), tối thiểu không vượt tối đa
+    // NUT-25: nhu cầu năng lượng cả ngày nhập đủ tối thiểu và tối đa (hoặc để trống cả hai), tối thiểu không vượt tối
+    // đa
     private static void checkDailyKcal(AgeGroupMealConfigRequest request) {
         BigDecimal min = request.dailyKcalMin();
         BigDecimal max = request.dailyKcalMax();
@@ -517,15 +518,18 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                 .findFirst()
                 .orElse(null);
         SchoolNutritionPolicy.Policy policy = SchoolNutritionPolicy.forAgeFromMonths(ageFromMonths);
-        AgeGroupMealConfig previous = configRepository.findByAgeGroupIdOrderByEffectiveFromDesc(request.ageGroupId()).stream()
-                .filter(c -> c != config)
-                .findFirst()
-                .orElse(null);
+        AgeGroupMealConfig previous =
+                configRepository.findByAgeGroupIdOrderByEffectiveFromDesc(request.ageGroupId()).stream()
+                        .filter(c -> c != config)
+                        .findFirst()
+                        .orElse(null);
         BigDecimal kcalMin = null;
         BigDecimal kcalMax = null;
         if (policy != null) {
-            kcalMin = SchoolNutritionPolicy.atSchool(request.dailyKcalMin(), policy.dailyShare().min());
-            kcalMax = SchoolNutritionPolicy.atSchool(request.dailyKcalMax(), policy.dailyShare().max());
+            kcalMin = SchoolNutritionPolicy.atSchool(
+                    request.dailyKcalMin(), policy.dailyShare().min());
+            kcalMax = SchoolNutritionPolicy.atSchool(
+                    request.dailyKcalMax(), policy.dailyShare().max());
         }
         if (previous != null) {
             return new EnergyRanges(

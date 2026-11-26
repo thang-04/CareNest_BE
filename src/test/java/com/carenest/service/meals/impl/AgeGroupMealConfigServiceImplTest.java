@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.carenest.config.NutritionConversionProperties;
@@ -206,8 +205,8 @@ class AgeGroupMealConfigServiceImplTest {
     void rejectsHalfFilledDailyKcal() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
 
-        assertThatThrownBy(() -> service.createConfig(
-                        VICE_PRINCIPAL, request(TODAY.plusDays(1), new BigDecimal("1200"), null)))
+        assertThatThrownBy(() ->
+                        service.createConfig(VICE_PRINCIPAL, request(TODAY.plusDays(1), new BigDecimal("1200"), null)))
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.NUTRITION_NORM_RANGE_INVALID);
         verify(repository, never()).save(any());
@@ -408,7 +407,8 @@ class AgeGroupMealConfigServiceImplTest {
         return build(TODAY.plusDays(1), null, dailyMax, dailyMax, grams, null, null, null, null, null, null, null);
     }
 
-    // Nhóm mẫu giáo lớn: khoảng Thông tư đạm 13–20, béo 25–35, bột đường 52–60 (chứa mẫu nghiệm thu 14–26–60 và 15–25–60)
+    // Nhóm mẫu giáo lớn: khoảng Thông tư đạm 13–20, béo 25–35, bột đường 52–60 (chứa mẫu nghiệm thu 14–26–60 và
+    // 15–25–60)
     private static AgeGroupMealConfigRequest structureRequest(BigDecimal p, BigDecimal l, BigDecimal g) {
         // Nhu cầu cả ngày 1230–1320 kcal ⇒ khuyến nghị tại trường 615–726 kcal (50–55%)
         return build(
@@ -445,14 +445,44 @@ class AgeGroupMealConfigServiceImplTest {
                 from,
                 new BigDecimal("30000"),
                 serviceFee,
-                grams[0], grams[1], grams[2], grams[3], grams[4], grams[5], grams[6], grams[7], grams[8], grams[9],
+                grams[0],
+                grams[1],
+                grams[2],
+                grams[3],
+                grams[4],
+                grams[5],
+                grams[6],
+                grams[7],
+                grams[8],
+                grams[9],
                 // % năng lượng bữa sáng, trưa, chiều (mỗi cặp min, max)
-                null, null, lunchPctMin, null, afternoonPctMin, null,
+                null,
+                null,
+                lunchPctMin,
+                null,
+                afternoonPctMin,
+                null,
                 dailyMin,
                 dailyMax,
                 // vi chất theo thứ tự canxi, photpho, sắt, A, B1, B2, PP, C, kẽm (mỗi cặp min, max)
-                null, null, null, null, ironMin, ironMax, null, null, null, null, null, null, null, null, null, null,
-                null, null,
+                null,
+                null,
+                null,
+                null,
+                ironMin,
+                ironMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 appliedProtein,
                 appliedLipid,
                 appliedGlucid,
@@ -468,8 +498,7 @@ class AgeGroupMealConfigServiceImplTest {
 
         // VPS: năng lượng 615–726, đạm 13–20%, đạm động vật 300–400 g ⇒ 300 g × 4 = 1.200 kcal > 726 × 20%
         assertThatThrownBy(() -> service.createConfig(
-                        VICE_PRINCIPAL,
-                        gramsMinRequest(new BigDecimal("1320"), new BigDecimal("300"), null)))
+                        VICE_PRINCIPAL, gramsMinRequest(new BigDecimal("1320"), new BigDecimal("300"), null)))
                 .isInstanceOf(GlobalException.class)
                 .satisfies(ex -> {
                     assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.MEAL_CONFIG_GRAMS_EXCEED_ENERGY);
@@ -487,8 +516,7 @@ class AgeGroupMealConfigServiceImplTest {
         given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
 
         AgeGroupMealConfigResponse created = service.createConfig(
-                VICE_PRINCIPAL,
-                gramsMinRequest(new BigDecimal("1320"), new BigDecimal("10"), new BigDecimal("8")));
+                VICE_PRINCIPAL, gramsMinRequest(new BigDecimal("1320"), new BigDecimal("10"), new BigDecimal("8")));
 
         assertThat(created.animalProteinGMin()).isEqualByComparingTo("10");
     }

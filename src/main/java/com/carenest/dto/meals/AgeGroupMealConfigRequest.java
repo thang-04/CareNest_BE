@@ -36,8 +36,11 @@ public record AgeGroupMealConfigRequest(
         @DecimalMin("0") @DecimalMax("100") BigDecimal afternoonKcalPctMax,
 
         // NUT-25: nhu cầu năng lượng cả ngày (kcal/trẻ); nhập đủ cả hai hoặc để trống cả hai
-        @DecimalMin(value = "0", inclusive = false) @DecimalMax("5000") BigDecimal dailyKcalMin,
-        @DecimalMin(value = "0", inclusive = false) @DecimalMax("5000") BigDecimal dailyKcalMax,
+        @DecimalMin(value = "0", inclusive = false) @DecimalMax("5000")
+        BigDecimal dailyKcalMin,
+
+        @DecimalMin(value = "0", inclusive = false) @DecimalMax("5000")
+        BigDecimal dailyKcalMax,
 
         @DecimalMin("0") @DecimalMax("100000") BigDecimal calciumMin,
         @DecimalMin("0") @DecimalMax("100000") BigDecimal calciumMax,
