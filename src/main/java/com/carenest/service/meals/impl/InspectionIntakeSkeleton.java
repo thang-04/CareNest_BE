@@ -14,6 +14,7 @@ import com.carenest.repository.meals.SupplierRepository;
 import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.utils.enums.FoodUnit;
+import com.carenest.utils.enums.FreshCheckHandling;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -83,6 +84,10 @@ class InspectionIntakeSkeleton {
         String receivedAt = check.getCheckedAt().atZone(clock.getZone()).format(HOUR_MINUTE);
         return check.getLines().stream()
                 .filter(line -> foods.containsKey(line.getFoodId()))
+                // Hàng đã trả lại hết ở lần 2 không còn là hàng nhận vào bếp
+                .filter(line -> !(line.getHandlingAction() == FreshCheckHandling.RETURN
+                        && line.getReceivedQty() != null
+                        && line.getReceivedQty().signum() == 0))
                 .sorted(Comparator.comparing(line -> foods.get(line.getFoodId()).getName()))
                 .map(line -> {
                     Food food = foods.get(line.getFoodId());

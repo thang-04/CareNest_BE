@@ -288,6 +288,9 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         checkDailyKcalAboveMax(request);
         checkMaxGramsWithinEnergy(request);
         checkAppliedStructure(request);
+        // NUT-19: để trống biên tiền thì dùng 5%
+        config.changeBudgetTolerance(
+                request.budgetTolerancePct() == null ? BigDecimal.valueOf(5) : request.budgetTolerancePct());
         config.changeInfo(
                 request.effectiveFrom(),
                 request.mealPrice(),

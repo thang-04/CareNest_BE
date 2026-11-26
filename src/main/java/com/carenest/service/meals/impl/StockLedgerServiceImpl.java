@@ -66,6 +66,7 @@ public class StockLedgerServiceImpl implements StockLedgerService {
     private final FoodRepository foodRepository;
     private final SupplierRepository supplierRepository;
     private final MealDemandCalculator demandCalculator;
+    private final DayDemand dayDemand;
     private final CampusAccessPolicy campusAccessPolicy;
     private final BoardingWriteGuard writeGuard;
     private final StockMapper mapper;
@@ -399,7 +400,7 @@ public class StockLedgerServiceImpl implements StockLedgerService {
         if (day == null || day.isOff()) {
             return Map.of();
         }
-        return demandCalculator.demand(
+        return dayDemand.byServings(
                 day,
                 demandCalculator.confirmedServings(mealCountRepository.findByCampusIdAndDate(campusId, date)),
                 FoodStorage.DRY);

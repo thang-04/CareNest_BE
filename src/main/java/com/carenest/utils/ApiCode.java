@@ -671,6 +671,11 @@ public enum ApiCode {
     MEAL_PLAN_DAY_LOCKED(6092, HttpStatus.CONFLICT, "Ngày {0} đã qua giờ chốt hoặc là ngày nghỉ, không sửa được"),
     MEAL_PLAN_REASON_REQUIRED(6093, HttpStatus.BAD_REQUEST, "Cần nhập lý do sửa thực đơn (10–500 ký tự)"),
     MEAL_PLAN_AMEND_NO_CHANGE(6094, HttpStatus.BAD_REQUEST, "Thực đơn ngày {0} không có thay đổi"),
+    DAY_BALANCE_LOCKED(6141, HttpStatus.CONFLICT, "Ngày {0} không sửa được bản cân đối: {1}"),
+    DAY_BALANCE_CONFLICT(6142, HttpStatus.CONFLICT, "Bản cân đối ngày {0} vừa được sửa, tải lại rồi lưu"),
+    DAY_BALANCE_NO_MENU(6143, HttpStatus.CONFLICT, "Ngày {0} chưa có thực đơn để cân đối"),
+    DAY_BALANCE_INPUT_INVALID(6144, HttpStatus.BAD_REQUEST, "Số liệu cân đối không hợp lệ: {0}"),
+    FRESH_CHECK_HANDLING_INVALID(6145, HttpStatus.BAD_REQUEST, "Xử lý chênh lệch {0} chưa hợp lệ: {1}"),
     FOOD_PRICE_NOT_FOUND(6095, HttpStatus.NOT_FOUND, "Không tìm thấy mức giá"),
     FOOD_PRICE_DATE_PAST(
             6096, HttpStatus.BAD_REQUEST, "Ngày hiệu lực phải từ hôm nay trở đi, giá các ngày đã qua giữ nguyên"),

@@ -42,6 +42,10 @@ public class AgeGroupMealConfig {
     @Column(name = "service_fee", nullable = false)
     private BigDecimal serviceFee = BigDecimal.ZERO;
 
+    /** NUT-19: chi phí thực phẩm được lệch ngân sách tối đa bấy nhiêu % thì vẫn đạt tiền. */
+    @Column(name = "budget_tolerance_pct", nullable = false, precision = 5, scale = 2)
+    private BigDecimal budgetTolerancePct = BigDecimal.valueOf(5);
+
     @Column(name = "kcal_min")
     private BigDecimal kcalMin;
 
@@ -205,6 +209,10 @@ public class AgeGroupMealConfig {
         config.createdBy = createdBy;
         config.updatedBy = createdBy;
         return config;
+    }
+
+    public void changeBudgetTolerance(BigDecimal tolerancePct) {
+        this.budgetTolerancePct = tolerancePct;
     }
 
     public void changeInfo(

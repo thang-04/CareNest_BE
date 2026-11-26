@@ -9,6 +9,7 @@ import com.carenest.dto.meals.MealPlanResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.service.meals.DayBalanceService;
 import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.support.MovableClock;
@@ -52,6 +53,9 @@ class MealPlanIntegrationTest {
 
     @Autowired
     private MealPlanService mealPlanService;
+
+    @Autowired
+    private DayBalanceService dayBalanceService;
 
     @Autowired
     private DayBoardService dayBoardService;
@@ -99,6 +103,7 @@ class MealPlanIntegrationTest {
                         + " protein_pct_min, protein_pct_max, lipid_pct_min, lipid_pct_max, glucid_pct_min, glucid_pct_max)"
                         + " VALUES (?, '2026-09-01', 30000, 300, 600, 12, 25, 15, 35, 40, 70)",
                 ag3);
+        jdbc.update("UPDATE age_group_meal_configs SET budget_tolerance_pct = 100");
         long rice = food("GAO", "Gạo", "DRY", "PLANT", "350", "7", "1", "77");
         long pork = food("THIT", "Thịt", "FRESH", "ANIMAL", "250", "20", "18", "0");
         long milk = food("SUA", "Sữa", "FRESH", "ANIMAL", "60", "3", "3", "5");
@@ -152,13 +157,16 @@ class MealPlanIntegrationTest {
         assertThat(draft.status()).isEqualTo("DRAFT");
         assertThat(draft.publishable()).isFalse();
         assertThat(draft.issues())
-                .filteredOn(i -> "NOT_BALANCED".equals(i.code()))
+                .filteredOn(i -> "BALANCE_MISSING".equals(i.code()))
                 .singleElement()
-                .satisfies(i -> {
-                    assertThat(i.date()).isEqualTo(MONDAY);
-                    assertThat(i.ageGroupId()).isEqualTo(ag3);
-                    assertThat(i.message()).contains("Năng lượng cao hơn định mức");
-                });
+                .satisfies(i -> assertThat(i.date()).isEqualTo(MONDAY));
+        expectCode(() -> mealPlanService.publishMealPlan(principal, MONDAY), ApiCode.MEAL_PLAN_NOT_PUBLISHABLE);
+
+        BalancedWeek.balance(dayBalanceService, principal, MONDAY);
+        assertThat(mealPlanService.getMealPlan(principal, MONDAY).issues())
+                .filteredOn(i -> "BALANCE_NOT_PASSED".equals(i.code()))
+                .singleElement()
+                .satisfies(i -> assertThat(i.message()).contains("Mẫu giáo", "chưa đạt lượng"));
         expectCode(() -> mealPlanService.publishMealPlan(principal, MONDAY), ApiCode.MEAL_PLAN_NOT_PUBLISHABLE);
 
         // Đổi bữa chiều sang sữa ⇒ 430 kcal, P 16,9%, L 28,9%, G 52,3%
@@ -167,6 +175,7 @@ class MealPlanIntegrationTest {
             assertThat(e.status()).isEqualTo("OK");
             assertThat(e.totals().kcal()).isEqualByComparingTo("430");
         });
+        BalancedWeek.balance(dayBalanceService, principal, MONDAY);
         MealPlanResponse published = mealPlanService.publishMealPlan(principal, MONDAY);
 
         assertThat(published.status()).isEqualTo("PUBLISHED");
@@ -220,6 +229,7 @@ class MealPlanIntegrationTest {
         assertThat(before.menu().status()).isEqualTo("DRAFT");
         assertThat(before.dryStock().status()).isEqualTo("NO_MENU");
 
+        BalancedWeek.balance(dayBalanceService, principal, MONDAY);
         mealPlanService.publishMealPlan(principal, MONDAY);
         DayBoardResponse.CampusBoard after = board(principal);
 

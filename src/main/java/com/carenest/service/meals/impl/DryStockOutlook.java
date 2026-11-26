@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -49,6 +50,7 @@ class DryStockOutlook {
     private final MealCountRepository mealCountRepository;
     private final FreshForecastRepository forecastRepository;
     private final MealDemandCalculator demandCalculator;
+    private final DayDemand dayDemand;
     private final Clock clock;
 
     /** {@code unitPrice}: giá theo đơn vị mua của lô (phiếu nhập); null khi phiếu không ghi giá. */
@@ -101,6 +103,12 @@ class DryStockOutlook {
         SortedMap<LocalDate, Map<Long, BigDecimal>> demand = new TreeMap<>();
         for (Map.Entry<LocalDate, MealPlanDay> entry : days.entrySet()) {
             LocalDate date = entry.getKey();
+            // Ngày đã cân đối: lượng khô của điểm trường lấy theo bản cân đối
+            Optional<DayDemand.Balanced> balanced = dayDemand.latest(date);
+            if (balanced.isPresent()) {
+                demand.put(date, dayDemand.campusShare(balanced.get(), campusId, FoodStorage.DRY));
+                continue;
+            }
             List<MealDemandCalculator.Servings> servings =
                     servingsOverride == null ? null : servingsOverride.apply(date);
             if (servings == null) {
