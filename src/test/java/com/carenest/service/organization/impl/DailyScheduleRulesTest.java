@@ -109,15 +109,21 @@ class DailyScheduleRulesTest {
     }
 
     @Test
-    void latestAfternoonArrivalAfterCutoffFromMorningEndBeforePickupStart() {
+    void latestAfternoonArrivalMustFallInsideAfternoonReceptionWindow() {
         assertThat(errors("time", "10:30", "latestAfternoonArrival", "10:30"))
                 .containsExactly(
                         Map.entry("latestAfternoonArrival", "Giờ đến muộn nhất buổi chiều phải sau Giờ chốt (10:30)"));
-        assertThat(errors("latestAfternoonArrival", "11:00")).isEmpty();
+        assertThat(errors("latestAfternoonArrival", "11:00"))
+                .containsExactly(Map.entry(
+                        "latestAfternoonArrival", "Giờ đến muộn nhất buổi chiều phải sau Bắt đầu chiều (13:30)"));
         assertThat(errors("latestAfternoonArrival", "10:59"))
                 .containsExactly(Map.entry(
                         "latestAfternoonArrival",
                         "Giờ đến muộn nhất buổi chiều phải bằng hoặc sau Kết thúc sáng (11:00)"));
+        assertThat(errors("latestAfternoonArrival", "13:30"))
+                .containsExactly(Map.entry(
+                        "latestAfternoonArrival", "Giờ đến muộn nhất buổi chiều phải sau Bắt đầu chiều (13:30)"));
+        assertThat(errors("latestAfternoonArrival", "13:31")).isEmpty();
         assertThat(errors("latestAfternoonArrival", "14:59")).isEmpty();
         assertThat(errors("latestAfternoonArrival", "15:00"))
                 .containsExactly(Map.entry(
