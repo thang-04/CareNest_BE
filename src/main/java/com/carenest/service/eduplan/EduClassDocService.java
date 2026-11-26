@@ -33,6 +33,12 @@ public interface EduClassDocService {
     /** Tài liệu (đủ nội dung) của đúng một lớp; classes/staff vẫn đủ phạm vi người xem. Lớp ngoài phạm vi ⇒ rỗng. */
     ClassDocsResponse getClassDocsOfClass(CurrentUser currentUser, Long schoolYearId, boolean reviewView, Long classId);
 
+    /**
+     * Hiệu trưởng xem mọi hồ sơ (kể cả chưa ban hành, đang quá hạn) của một lớp ở chế độ chỉ đọc: quyền để rỗng, không có
+     * khả năng tạo. Chỉ Hiệu trưởng có phân công hiệu lực.
+     */
+    ClassDocsResponse getClassDocsOverdueView(CurrentUser currentUser, Long schoolYearId, Long classId);
+
     /** Danh sách gọn có phân trang (không nội dung soạn); reviewView = hàng chờ duyệt. Cùng luật xem như getClassDocs. */
     com.carenest.dto.common.PageResponse<ObjectNode> getClassDocSummaries(
             CurrentUser currentUser,

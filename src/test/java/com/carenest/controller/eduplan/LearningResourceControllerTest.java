@@ -34,8 +34,7 @@ import org.springframework.test.web.servlet.MockMvc;
 class LearningResourceControllerTest {
     private static final String KEY = "dd_1_1_2026-09-07";
     private static final String CONFIRM = "/api/education-plans/class-docs/day/" + KEY + "/learning-resources/confirm";
-    private static final String BODY =
-            """
+    private static final String BODY = """
             {"uploadId":"up/abc.pdf","fileName":"demo.pdf","activityKey":"2026-09-07#hoc","activityLabel":"Hoạt động học"}
             """;
 
@@ -103,7 +102,8 @@ class LearningResourceControllerTest {
         teacher();
         mvc.perform(post(CONFIRM)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"uploadId\":\"up/abc.pdf\",\"fileName\":\"demo.pdf\",\"activityKey\":\"2026-09-07#hoc\"}")
+                        .content(
+                                "{\"uploadId\":\"up/abc.pdf\",\"fileName\":\"demo.pdf\",\"activityKey\":\"2026-09-07#hoc\"}")
                         .header("Idempotency-Key", UUID.randomUUID().toString())
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isBadRequest());
