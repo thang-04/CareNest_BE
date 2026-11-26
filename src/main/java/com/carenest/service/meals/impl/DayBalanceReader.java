@@ -334,6 +334,11 @@ class DayBalanceReader {
         return counts;
     }
 
+    /** Trẻ đang học theo nhóm tuổi của điểm trường tại ngày: trần cho số trẻ dự kiến nhập tay ở lần 1. */
+    Map<Long, Integer> enrolledCounts(Long campusId, LocalDate date) {
+        return demandCalculator.enrolledByAgeGroup(campusId, date);
+    }
+
     /** Suất đã chốt theo nhóm tuổi của điểm trường–ngày; nhiều bữa thì lấy bữa đông nhất. */
     Map<Long, Integer> confirmedCounts(Long campusId, LocalDate date) {
         Map<Long, Integer> counts = new HashMap<>();

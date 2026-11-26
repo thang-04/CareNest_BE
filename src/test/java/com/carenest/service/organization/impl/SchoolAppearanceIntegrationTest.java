@@ -53,7 +53,7 @@ class SchoolAppearanceIntegrationTest {
 
     @Test
     void neverSavedReturnsDefaultWithEveryScene() {
-        AppearanceResponse response = service.getAppearance();
+        AppearanceResponse response = service.getAppearance(true);
 
         assertThat(response.mode()).isEqualTo(AppearanceMode.AUTO);
         assertThat(response.enabledSceneIds()).hasSize(20);
@@ -65,7 +65,8 @@ class SchoolAppearanceIntegrationTest {
     void saveThenReadReturnsSavedConfigWithUpdaterName() {
         service.saveAppearance(
                 principal, new AppearanceRequest(AppearanceMode.FIXED, "T3", List.of("T3", "T4", "T3", "ZZ")));
-        AppearanceResponse response = service.getAppearance();
+        AppearanceResponse response = service.getAppearance(true);
+        assertThat(service.getAppearance(false).updatedBy()).isNull();
 
         assertThat(response.mode()).isEqualTo(AppearanceMode.FIXED);
         assertThat(response.pinnedSceneId()).isEqualTo("T3");
@@ -82,7 +83,7 @@ class SchoolAppearanceIntegrationTest {
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM school_appearance", Integer.class))
                 .isEqualTo(1);
-        assertThat(service.getAppearance().enabledSceneIds()).containsExactly("T5");
+        assertThat(service.getAppearance(true).enabledSceneIds()).containsExactly("T5");
     }
 
     @Test

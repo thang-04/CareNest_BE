@@ -14,6 +14,7 @@ import com.carenest.service.meals.AgeGroupMealConfigService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.NutritionConversion;
+import com.carenest.utils.SchoolNutritionPolicy;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -256,11 +257,9 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         }
     }
 
-    private static void apply(AgeGroupMealConfig config, AgeGroupMealConfigRequest request, Long userId) {
-        checkRange("năng lượng", request.kcalMin(), request.kcalMax());
-        checkRange("đạm", request.proteinPctMin(), request.proteinPctMax());
-        checkRange("béo", request.lipidPctMin(), request.lipidPctMax());
-        checkRange("bột đường", request.glucidPctMin(), request.glucidPctMax());
+    private void apply(AgeGroupMealConfig config, AgeGroupMealConfigRequest request, Long userId) {
+        checkDailyKcal(request);
+        EnergyRanges energy = energyRanges(config, request);
         checkRange("đạm động vật", request.animalProteinGMin(), request.animalProteinGMax());
         checkRange("đạm thực vật", request.plantProteinGMin(), request.plantProteinGMax());
         checkRange("béo động vật", request.animalLipidGMin(), request.animalLipidGMax());
@@ -277,7 +276,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         checkRange("vitamin B2", request.vitaminB2Min(), request.vitaminB2Max());
         checkRange("vitamin PP", request.vitaminPpMin(), request.vitaminPpMax());
         checkRange("vitamin C", request.vitaminCMin(), request.vitaminCMax());
-        checkGramsWithinEnergy(request);
+        checkGramsWithinEnergy(request, energy);
         checkRange("kẽm", request.zincMin(), request.zincMax());
         checkSessionShares(request);
         BigDecimal serviceFee = request.serviceFee() == null ? BigDecimal.ZERO : request.serviceFee();
@@ -285,9 +284,8 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         if (serviceFee.compareTo(request.mealPrice()) > 0) {
             throw GlobalException.of(ApiCode.MEAL_SERVICE_FEE_INVALID);
         }
-        checkDailyKcalAboveMax(request);
-        checkMaxGramsWithinEnergy(request);
-        checkAppliedStructure(request);
+        checkMaxGramsWithinEnergy(request, energy);
+        checkAppliedStructure(request, energy);
         // NUT-19: để trống biên tiền thì dùng 5%
         config.changeBudgetTolerance(
                 request.budgetTolerancePct() == null ? BigDecimal.valueOf(5) : request.budgetTolerancePct());
@@ -296,14 +294,14 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                 request.mealPrice(),
                 serviceFee,
                 new AgeGroupMealConfig.Norms(
-                        request.kcalMin(),
-                        request.kcalMax(),
-                        request.proteinPctMin(),
-                        request.proteinPctMax(),
-                        request.lipidPctMin(),
-                        request.lipidPctMax(),
-                        request.glucidPctMin(),
-                        request.glucidPctMax(),
+                        energy.kcalMin(),
+                        energy.kcalMax(),
+                        energy.proteinMin(),
+                        energy.proteinMax(),
+                        energy.lipidMin(),
+                        energy.lipidMax(),
+                        energy.glucidMin(),
+                        energy.glucidMax(),
                         request.animalProteinGMin(),
                         request.animalProteinGMax(),
                         request.plantProteinGMin(),
@@ -320,7 +318,8 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                         request.lunchKcalPctMax(),
                         request.afternoonKcalPctMin(),
                         request.afternoonKcalPctMax(),
-                        request.dailyKcalNeed(),
+                        request.dailyKcalMin(),
+                        request.dailyKcalMax(),
                         request.calciumMin(),
                         request.calciumMax(),
                         request.phosphorusMin(),
@@ -363,20 +362,20 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
     // đã nhập cùng bản (NUT-24): (đạm ĐV min + đạm TV min) × 4 kcal ≤ năng lượng max × tỷ lệ đạm max,
     // (béo ĐV min + béo TV min) × 9 kcal ≤ năng lượng max × tỷ lệ béo max,
     // bột đường (g) min × 4 kcal ≤ năng lượng max × tỷ lệ bột đường max. Thiếu số nào thì bỏ qua hạng đó.
-    private static void checkGramsWithinEnergy(AgeGroupMealConfigRequest request) {
+    private static void checkGramsWithinEnergy(AgeGroupMealConfigRequest request, EnergyRanges energy) {
         checkGramsPair(
                 "đạm",
                 add(request.animalProteinGMin(), request.plantProteinGMin()),
                 PROTEIN_KCAL_PER_G,
-                request.kcalMax(),
-                request.proteinPctMax());
+                energy.kcalMax(),
+                energy.proteinMax());
         checkGramsPair(
                 "béo",
                 add(request.animalLipidGMin(), request.plantLipidGMin()),
                 LIPID_KCAL_PER_G,
-                request.kcalMax(),
-                request.lipidPctMax());
-        checkGramsPair("bột đường", request.glucidGMin(), GLUCID_KCAL_PER_G, request.kcalMax(), request.glucidPctMax());
+                energy.kcalMax(),
+                energy.lipidMax());
+        checkGramsPair("bột đường", request.glucidGMin(), GLUCID_KCAL_PER_G, energy.kcalMax(), energy.glucidMax());
     }
 
     private static void checkGramsPair(
@@ -407,7 +406,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
 
     // NUT-28: cơ cấu áp dụng nhập đủ ba chất, tổng 100%, mỗi chất nằm trong khoảng min–max của chính chất đó (nếu đã
     // đặt)
-    private static void checkAppliedStructure(AgeGroupMealConfigRequest request) {
+    private static void checkAppliedStructure(AgeGroupMealConfigRequest request, EnergyRanges energy) {
         BigDecimal protein = request.appliedProteinPct();
         BigDecimal lipid = request.appliedLipidPct();
         BigDecimal glucid = request.appliedGlucidPct();
@@ -423,9 +422,9 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                     ApiCode.APPLIED_STRUCTURE_INVALID,
                     "tổng là " + total.stripTrailingZeros().toPlainString() + "%, cần đúng 100%");
         }
-        checkWithinRange("đạm", protein, request.proteinPctMin(), request.proteinPctMax());
-        checkWithinRange("béo", lipid, request.lipidPctMin(), request.lipidPctMax());
-        checkWithinRange("bột đường", glucid, request.glucidPctMin(), request.glucidPctMax());
+        checkWithinRange("đạm", protein, energy.proteinMin(), energy.proteinMax());
+        checkWithinRange("béo", lipid, energy.lipidMin(), energy.lipidMax());
+        checkWithinRange("bột đường", glucid, energy.glucidMin(), energy.glucidMax());
     }
 
     private static void checkWithinRange(String label, BigDecimal value, BigDecimal min, BigDecimal max) {
@@ -433,20 +432,6 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             throw GlobalException.of(
                     ApiCode.APPLIED_STRUCTURE_INVALID,
                     label + " " + value.stripTrailingZeros().toPlainString() + "% nằm ngoài khoảng cho phép");
-        }
-    }
-
-    /** Nhu cầu năng lượng cả ngày phải lớn hơn năng lượng tối đa (chỉ so kcal, không so các tỷ lệ %). */
-    private static void checkDailyKcalAboveMax(AgeGroupMealConfigRequest request) {
-        BigDecimal need = request.dailyKcalNeed();
-        BigDecimal kcalMax = request.kcalMax();
-        if (need != null && kcalMax != null && need.compareTo(kcalMax) <= 0) {
-            throw GlobalException.withFieldErrors(
-                    ApiCode.INVALID_REQUEST_DATA,
-                    List.of(new FieldErrorResponse(
-                            "dailyKcalNeed",
-                            "Nhu cầu năng lượng cả ngày phải lớn hơn năng lượng tối đa ("
-                                    + kcalMax.stripTrailingZeros().toPlainString() + " kcal).")));
         }
     }
 
@@ -458,8 +443,8 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
      * NUT-24: gam tối đa của một chất (đạm, béo, bột đường) quy ra kcal không được vượt năng lượng tối đa của nhóm tuổi,
      * để không nhập được số vô lý (vd. 300 g đạm) làm mọi ngày bị chấm thiếu và chặn công bố.
      */
-    private static void checkMaxGramsWithinEnergy(AgeGroupMealConfigRequest request) {
-        BigDecimal kcalMax = request.kcalMax();
+    private static void checkMaxGramsWithinEnergy(AgeGroupMealConfigRequest request, EnergyRanges energy) {
+        BigDecimal kcalMax = energy.kcalMax();
         if (kcalMax == null) {
             return;
         }
@@ -499,6 +484,76 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                                     + " kcal, vượt năng lượng tối đa ("
                                     + kcalMax.stripTrailingZeros().toPlainString() + " kcal).")));
         }
+    }
+
+    // NUT-25: nhu cầu năng lượng cả ngày nhập đủ tối thiểu và tối đa (hoặc để trống cả hai), tối thiểu không vượt tối
+    // đa
+    private static void checkDailyKcal(AgeGroupMealConfigRequest request) {
+        BigDecimal min = request.dailyKcalMin();
+        BigDecimal max = request.dailyKcalMax();
+        if ((min == null) != (max == null)) {
+            throw GlobalException.of(
+                    ApiCode.NUTRITION_NORM_RANGE_INVALID, "nhu cầu năng lượng cả ngày (nhập đủ tối thiểu và tối đa)");
+        }
+        checkRange("nhu cầu năng lượng cả ngày", min, max);
+    }
+
+    /** Năng lượng khuyến nghị tại trường và khoảng đạm/béo/đường của bản định mức (NUT-33). */
+    private record EnergyRanges(
+            BigDecimal kcalMin,
+            BigDecimal kcalMax,
+            BigDecimal proteinMin,
+            BigDecimal proteinMax,
+            BigDecimal lipidMin,
+            BigDecimal lipidMax,
+            BigDecimal glucidMin,
+            BigDecimal glucidMax) {}
+
+    // Khoảng đạm/béo/đường lấy từ bản trước của nhóm tuổi (giá trị đã lưu); nhóm chưa có bản nào thì nạp theo Thông tư.
+    // Năng lượng khuyến nghị luôn tính lại từ nhu cầu cả ngày theo tuổi của nhóm; nhóm chưa có tuổi thì để trống.
+    private EnergyRanges energyRanges(AgeGroupMealConfig config, AgeGroupMealConfigRequest request) {
+        Integer ageFromMonths = ageGroupService.getAgeGroups().stream()
+                .filter(g -> g.id().equals(request.ageGroupId()))
+                .map(AgeGroupDetailResponse::ageFromMonths)
+                .findFirst()
+                .orElse(null);
+        SchoolNutritionPolicy.Policy policy = SchoolNutritionPolicy.forAgeFromMonths(ageFromMonths);
+        AgeGroupMealConfig previous =
+                configRepository.findByAgeGroupIdOrderByEffectiveFromDesc(request.ageGroupId()).stream()
+                        .filter(c -> c != config)
+                        .findFirst()
+                        .orElse(null);
+        BigDecimal kcalMin = null;
+        BigDecimal kcalMax = null;
+        if (policy != null) {
+            kcalMin = SchoolNutritionPolicy.atSchool(
+                    request.dailyKcalMin(), policy.dailyShare().min());
+            kcalMax = SchoolNutritionPolicy.atSchool(
+                    request.dailyKcalMax(), policy.dailyShare().max());
+        }
+        if (previous != null) {
+            return new EnergyRanges(
+                    kcalMin,
+                    kcalMax,
+                    previous.getProteinPctMin(),
+                    previous.getProteinPctMax(),
+                    previous.getLipidPctMin(),
+                    previous.getLipidPctMax(),
+                    previous.getGlucidPctMin(),
+                    previous.getGlucidPctMax());
+        }
+        if (policy == null) {
+            return new EnergyRanges(kcalMin, kcalMax, null, null, null, null, null, null);
+        }
+        return new EnergyRanges(
+                kcalMin,
+                kcalMax,
+                policy.protein().min(),
+                policy.protein().max(),
+                policy.lipid().min(),
+                policy.lipid().max(),
+                policy.glucid().min(),
+                policy.glucid().max());
     }
 
     private static void checkRange(String label, BigDecimal min, BigDecimal max) {

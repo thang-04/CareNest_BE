@@ -2,6 +2,7 @@ package com.carenest.service.meals.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.carenest.dto.meals.DayBalanceRequest;
 import com.carenest.dto.meals.DayBalanceResponse;
@@ -117,8 +118,10 @@ class DayBalanceIntegrationTest {
                         + " phone, status) SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
                 year);
         for (long campus : List.of(campus1, campus2)) {
-            insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus + ", "
-                    + year + ", 'Lớp " + campus + "', " + ag3 + ") RETURNING id");
+            long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
+                    + campus + ", " + year + ", 'Lớp " + campus + "', " + ag3 + ") RETURNING id");
+            // Trẻ đang học có báo ăn: điểm trường A 31 trẻ, điểm trường B 22 trẻ (trần của số trẻ dự kiến, NUT-31)
+            enrollChildren(classroom, campus == campus1 ? 31 : 22);
         }
         // Ngân sách 6000đ đúng bằng chi phí công thức: cơm 1200 + thịt 800 + sữa 4000
         jdbc.update(
@@ -152,9 +155,10 @@ class DayBalanceIntegrationTest {
         assertThat(balance.campuses())
                 .extracting(DayBalanceResponse.Campus::campusId)
                 .containsExactly(campus1, campus2);
+        // Chưa lưu: số trẻ dự kiến lấy theo trẻ đang học; kèm tổng trẻ đang học làm trần khi nhập
         assertThat(balance.counts())
-                .hasSize(2)
-                .allSatisfy(c -> assertThat(c.children()).isZero());
+                .extracting(DayBalanceResponse.Count::children, DayBalanceResponse.Count::enrolled)
+                .containsExactly(tuple(31, 31), tuple(22, 22));
         assertThat(balance.lines()).hasSize(3);
         assertThat(balance.passed()).isTrue();
         assertThat(balance.groups()).singleElement().satisfies(g -> {
@@ -243,6 +247,23 @@ class DayBalanceIntegrationTest {
                         .previewBalance(principal, MONDAY, 1, noFlags)
                         .lines())
                 .hasSize(3);
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-35: số trẻ dự kiến vượt tổng trẻ đang học của nhóm tuổi tại điểm trường thì từ chối, bằng tổng thì nhận")
+    void expectedChildrenCannotExceedEnrolled() {
+        DayBalanceRequest over = new DayBalanceRequest(
+                null, List.of(new DayBalanceRequest.CountInput(campus2, ag3, 23)), null, null, false, null);
+        DayBalanceRequest exact = new DayBalanceRequest(
+                null, List.of(new DayBalanceRequest.CountInput(campus2, ag3, 22)), null, null, false, null);
+
+        expectCode(
+                () -> dayBalanceService.previewBalance(principal, MONDAY, 1, over), ApiCode.DAY_BALANCE_INPUT_INVALID);
+        expectCode(() -> dayBalanceService.saveBalance(principal, MONDAY, 1, over), ApiCode.DAY_BALANCE_INPUT_INVALID);
+        assertThat(dayBalanceService.previewBalance(principal, MONDAY, 1, exact).counts())
+                .extracting(DayBalanceResponse.Count::children)
+                .containsExactly(31, 22);
     }
 
     @Test
@@ -514,6 +535,15 @@ class DayBalanceIntegrationTest {
                     servings,
                     servings);
         }
+    }
+
+    private void enrollChildren(long classroom, int count) {
+        jdbc.update(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, meal_registered)"
+                        + " SELECT 'HSB" + classroom + "-' || n, 'Trẻ thử', DATE '2023-01-01', 'MALE', 'ACTIVE',"
+                        + " DATE '2026-09-01', TRUE FROM generate_series(1, " + count + ") n");
+        jdbc.update("INSERT INTO enrollments (child_id, classroom_id, valid_from)" + " SELECT id, " + classroom
+                + ", DATE '2026-09-01' FROM children WHERE code LIKE 'HSB" + classroom + "-%'");
     }
 
     private DayBalanceRequest request(Long version, boolean round) {
