@@ -873,9 +873,19 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|tallyMeals|campusId=" + campusId + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            List<ClassMealTally> tallies = classroomService.findYearClassrooms(schoolYearId).stream()
+            List<ClassroomInfoResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> c.campusId().equals(campusId))
-                    .map(c -> tally(c, date))
+                    .toList();
+            Map<Long, Set<Long>> childIdsByClass = enrollmentService.findChildIdsInClassrooms(
+                    classes.stream().map(ClassroomInfoResponse::id).toList(), date);
+            Set<Long> childIds =
+                    childIdsByClass.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+            Map<Long, AttendanceRecord> records = childIds.isEmpty()
+                    ? Map.of()
+                    : recordRepository.findByChildIdInAndDate(childIds, date).stream()
+                            .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+            List<ClassMealTally> tallies = classes.stream()
+                    .map(c -> tally(c, childIdsByClass.getOrDefault(c.id(), Set.of()), records))
                     .toList();
             log.info("{}|END", logPrefix);
             return tallies;
@@ -886,13 +896,12 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // NUT-01, ATT-02: suất = trẻ có mặt và có bật tham gia bữa đó; trẻ chưa điểm danh không tính suất.
-    private ClassMealTally tally(ClassroomInfoResponse cls, LocalDate date) {
-        List<Long> childIds = enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
-                .map(ClassChildResponse::id)
-                .toList();
+    private ClassMealTally tally(
+            ClassroomInfoResponse cls, Set<Long> childIds, Map<Long, AttendanceRecord> recordsByChild) {
         // Trẻ của lớp ngày đó: bản ghi đơn nghỉ gửi trước khi chuyển lớp tính cho lớp mới (một trẻ một bản ghi / ngày)
-        Map<Long, AttendanceRecord> records = recordRepository.findByChildIdInAndDate(childIds, date).stream()
-                .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+        Map<Long, AttendanceRecord> records = recordsByChild.entrySet().stream()
+                .filter(entry -> childIds.contains(entry.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         int present = 0;
         int absent = 0;
         Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
