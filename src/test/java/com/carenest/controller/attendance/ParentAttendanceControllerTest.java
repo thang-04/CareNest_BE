@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
+import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceSchedule;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentTodayResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
@@ -23,6 +24,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ParentAttendanceStatus;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +66,39 @@ class ParentAttendanceControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value(4108));
         verify(parentAttendanceService).getToday(parent, 8L);
+    }
+
+    @Test
+    @DisplayName("Phụ huynh xem được giờ đưa đón áp dụng trong ngày; nhân viên bị chặn")
+    void parentReadsAttendanceSchedule() throws Exception {
+        CurrentUser parent = authenticate(TestPermissions.userWithDefaults(5L, CareNestRole.PARENT));
+        LocalDate date = LocalDate.of(2026, 10, 21);
+        given(parentAttendanceService.getSchedule(eq(parent), eq(date)))
+                .willReturn(new ParentAttendanceSchedule(
+                        date,
+                        1L,
+                        "2026-2027",
+                        LocalTime.of(6, 30),
+                        LocalTime.of(7, 0),
+                        LocalTime.of(11, 0),
+                        LocalTime.of(13, 30),
+                        LocalTime.of(14, 0),
+                        LocalTime.of(15, 0),
+                        LocalTime.of(15, 0),
+                        LocalTime.of(17, 0),
+                        LocalTime.of(17, 0),
+                        LocalTime.of(8, 30)));
+
+        mockMvc.perform(get("/api/parent/attendance-schedule")
+                        .param("date", "2026-10-21")
+                        .with(token(CareNestRole.PARENT)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.afternoonStart").value("13:30:00"))
+                .andExpect(jsonPath("$.data.attendanceCutoff").value("08:30:00"));
+
+        authenticate(TestPermissions.userWithDefaults(4L, CareNestRole.TEACHER));
+        mockMvc.perform(get("/api/parent/attendance-schedule").with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isForbidden());
     }
 
     @Test

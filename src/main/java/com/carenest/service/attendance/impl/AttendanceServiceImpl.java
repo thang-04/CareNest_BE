@@ -637,7 +637,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
             }
             DayInfoResponse info = rules.dayInfo(request.date(), cls, null);
-            if (!info.baseLocked()) throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
+            // ATT-08, ATT-02a: sau giờ chốt, chỉ lớp/ngày PHT đang mở lại mới được sửa suất chưa xác nhận.
+            if (!info.baseLocked() || info.unlock() == null) {
+                throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
+            }
             classroomService.lockForUpdate(classId);
             AttendanceRecord record = recordRepository.findByChildIdInAndDate(List.of(childId), request.date()).stream()
                     .filter(r -> r.getClassroomId().equals(classId))
