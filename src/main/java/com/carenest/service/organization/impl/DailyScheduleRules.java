@@ -51,11 +51,19 @@ final class DailyScheduleRules {
         // Giờ chốt: từ giờ mở đón trẻ, trước kết thúc sáng
         notBefore(errors, "time", "Giờ chốt", s.time(), "Mở đón trẻ", s.dropoffOpenFrom());
         before(errors, "time", "Giờ chốt", s.time(), "Kết thúc sáng", s.morningEnd());
-        // ATT-13: giờ đến muộn nhất buổi chiều sau giờ chốt, từ kết thúc sáng, trước bắt đầu trả trẻ
+        // ATT-13: giờ đến muộn nhất buổi chiều phải nằm trong khung nhận trẻ chiều:
+        // sau giờ chốt, từ kết thúc sáng, sau khi buổi chiều bắt đầu và trước khi trả trẻ.
         String arrival = "Giờ đến muộn nhất buổi chiều";
         after(errors, "latestAfternoonArrival", arrival, s.latestAfternoonArrival(), "Giờ chốt", s.time());
         notBefore(
                 errors, "latestAfternoonArrival", arrival, s.latestAfternoonArrival(), "Kết thúc sáng", s.morningEnd());
+        after(
+                errors,
+                "latestAfternoonArrival",
+                arrival,
+                s.latestAfternoonArrival(),
+                "Bắt đầu chiều",
+                s.afternoonStart());
         before(
                 errors,
                 "latestAfternoonArrival",

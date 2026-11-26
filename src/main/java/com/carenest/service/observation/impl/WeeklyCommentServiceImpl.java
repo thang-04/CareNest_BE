@@ -339,6 +339,12 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                     || !guardianChildLinkService.isGuardianOf(currentUser.userId(), childId)) {
                 throw GlobalException.of(ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
             }
+            // CHD-04 (user chốt 26/11/2026): trẻ đã thôi học hoặc ra trường thì phụ huynh mất quyền xem ngay
+            if (!enrollmentService
+                    .findChildIdsLeftSchool(java.util.Set.of(childId), LocalDate.now(clock))
+                    .isEmpty()) {
+                throw GlobalException.of(ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
+            }
             // Bộ chọn năm App phụ huynh: năm trẻ không học ⇒ như không có năm đó
             if (schoolYearId != null
                     && childSchoolYearService
@@ -809,12 +815,9 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             throw GlobalException.of(ApiCode.EVALUATION_CONTENT_TOO_LONG, CONTENT_MAX);
         }
         String lower = text.toLowerCase(Locale.ROOT);
-        DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream()
-                .filter(lower::contains)
-                .findFirst()
-                .ifPresent(term -> {
-                    throw GlobalException.of(ApiCode.EVALUATION_DIAGNOSTIC_TERM, term);
-                });
+        DiagnosticTerms.matches(text).stream().findFirst().ifPresent(term -> {
+            throw GlobalException.of(ApiCode.EVALUATION_DIAGNOSTIC_TERM, term);
+        });
         return text;
     }
 

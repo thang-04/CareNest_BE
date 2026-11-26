@@ -5,7 +5,7 @@ owner: Cần
 jira: G94-236 / BE-FEAT-29
 branch: feature/G94-236-BE-FEAT-29-daily-attendance
 modules: [attendance, organization]
-rules: [ATT-04, ATT-05, ATT-05b, ATT-06, ATT-12, PCK-04]
+rules: [ATT-03, ATT-04, ATT-05, ATT-05b, ATT-06, ATT-12, ATT-13, ATT-14, PCK-04]
 risk: high
 created: 2026-11-25
 updated: 2026-11-25
@@ -24,6 +24,8 @@ updated: 2026-11-25
 4. HT cấu hình lịch sinh hoạt có hiệu lực theo năm học: mở đón trẻ; bắt đầu/kết thúc sáng; bắt đầu/kết thúc chiều; bắt đầu/kết thúc khung trả trẻ; mốc giữa chiều tính đủ ngày — user, 25/11/2026. Giờ chốt điểm danh/suất ăn và giờ đến muộn nhất buổi chiều là hai cấu hình độc lập. Bản này áp dụng chung cho các điểm trường của năm học vì cấu trúc `attendance_cutoffs` hiện có chưa mang `campus_id`.
 5. Trẻ đã điểm danh sáng và được trả trước mốc giữa chiều tính 0,5 ngày; từ mốc giữa chiều tính 1 ngày. Không dùng giờ bắt đầu chiều làm mốc đủ ngày — user, 25/11/2026.
 6. Việc trả trẻ sau giờ chốt không thay đổi suất đã chốt; trước giờ chốt, thay đổi suất cần tuân theo bữa thực tế được GV ghi nhận — user, 25/11/2026.
+7. Ngoại lệ ATT-03: trẻ đã bị ghi vắng sáng không phép vẫn được GV ghi nhận đến buổi chiều từ giờ chốt tới giờ đến muộn nhất; kết quả là 0,5 ngày có mặt + 0,5 ngày vắng không phép, không đổi suất ăn đã chốt — user, 25/11/2026.
+8. Mã lỗi `4033` chỉ dành cho báo nghỉ chiều sau chốt khi trẻ đã vắng; lỗi ghi nhận “Đã đến” ngoài khung đổi thành `4036` — user, 25/11/2026.
 
 ## Làm rõ nghiệp vụ
 
@@ -42,6 +44,8 @@ Không có. Các mốc giờ là dữ liệu HT cấu hình, không hard-code th
 - **AC-3** (`ATT-04`, `ATT-12`): hủy đơn trước giờ chốt chỉ khôi phục đúng trạng thái/bữa ăn do đơn tạo; không ghi đè sửa đổi sau đó của giáo viên.
 - **AC-4** (`PCK-04`): HT cấu hình lịch sinh hoạt theo năm học, có lịch sử hiệu lực và áp dụng chung cho các điểm trường của năm đó.
 - **AC-5** (`PCK-04`): trẻ đã có mặt sáng và trả trước mốc giữa chiều được tính 0,5; từ mốc đó được tính 1 ngày; số suất sau giờ chốt không đổi.
+- **AC-6** (`ATT-03`, `ATT-13`, `ATT-14`): Given trẻ đã bị GV ghi Vắng không phép buổi sáng, When GV bấm “Đã đến” sau giờ chốt và trước giờ đến muộn nhất, Then bản ghi giữ nguyên bữa ăn, có nhãn “Sáng vắng không phép, chiều có mặt”, chuyên cần = 0,5 có mặt + 0,5 vắng không phép.
+- **AC-7** (`ATT-13`): Given nút “Đã đến” được gọi trước giờ chốt, sau giờ đến muộn nhất, sai trẻ/lớp hoặc trẻ đã có mặt, Then API trả 4036; 4033 chỉ còn là lỗi của báo nghỉ chiều sau chốt.
 
 ## Key decisions
 
@@ -72,6 +76,12 @@ Không có. Các mốc giờ là dữ liệu HT cấu hình, không hard-code th
 - Tests: AC-4, AC-5 → schedule/pickup integration + FE validation tests.
 - Exit: BE targeted tests, FE lint/test/build pass.
 
+### Phase 4 — Ghi nhận đến chiều khi vắng sáng không phép
+- Files: C `V198__attendance_morning_absence_source.sql` · M `AttendanceRecord`, `AttendanceRecordHistory`, `AttendanceServiceImpl`, DTO/OpenAPI/business rules · M `FE:AttendancePage`, `FE:attendanceApi`, mock/test.
+- Steps: lưu nguồn vắng của buổi sáng; mở rộng endpoint `arrived` đang có để nhận cả bản ghi vắng sáng không phép trong khung giờ; giữ nguyên danh sách bữa; FE hiện nút và nhãn đúng nguồn vắng; đổi mã lỗi ngoài khung thành 4036.
+- Tests: AC-6, AC-7 → `LeaveRequestIntegrationTest`, `AttendanceServiceImplTest`, FE attendance test.
+- Exit: targeted Maven tests + FE lint/test/build pass.
+
 ## Test matrix
 
 | AC | Rule | Test | Phase | Kết quả |
@@ -81,6 +91,8 @@ Không có. Các mốc giờ là dữ liệu HT cấu hình, không hard-code th
 | AC-3 | ATT-04, ATT-12 | cancellation restores own effect only | 1 | code complete; Testcontainers pending |
 | AC-4 | PCK-04 | cutoff/schedule mapping | 3 | compile + FE validation passed |
 | AC-5 | PCK-04 | pickup before/at full-day threshold | 3 | `PickupServiceImplTest` passed |
+| AC-6 | ATT-03, ATT-13, ATT-14 | unexcused morning → arrived afternoon | 4 | passed: `LeaveRequestIntegrationTest` + `AttendanceServiceImplTest` |
+| AC-7 | ATT-13 | arrival API error separation | 4 | passed: targeted BE tests + OpenAPI snapshot |
 
 ## Rủi ro & rollback
 
@@ -97,3 +109,20 @@ Không có. Các mốc giờ là dữ liệu HT cấu hình, không hard-code th
 - Đã thêm lịch sinh hoạt theo năm học, migration V198 (đổi từ V184, V191, V196, V197 khi merge dev), API/OpenAPI/FE validation, và mốc tính đủ ngày khi trả trẻ.
 - Đã mở rộng V198 thành tám mốc vận hành: mở đón trẻ, sáng bắt đầu/kết thúc, chiều bắt đầu/kết thúc, trả trẻ bắt đầu/kết thúc và mốc tính đủ ngày; giờ chốt/báo ăn và giờ đến muộn vẫn độc lập.
 - `PickupServiceImplTest` và compile/Spotless BE đã qua; test tích hợp `LeaveRequestIntegrationTest` bị Testcontainers skip do máy không có Docker. FE lint/build/API contract và test `attendance-half-day` đã qua.
+
+### 2026-11-25 — Phase 4 completed
+- User chọn phương án B2: cho phép ghi nhận đến buổi chiều cho trẻ vắng sáng không phép; đồng ý tách mã lỗi 4036.
+- Đã thêm V198 lưu nguồn vắng buổi sáng vào bản ghi và lịch sử; endpoint `arrived` nhận đúng ca B2, giữ nguyên danh sách bữa và không phát `AttendanceChangedEvent`, nên sổ suất không bị chuyển sang chờ xác nhận lại.
+- Đã bổ sung DTO/OpenAPI/FE/mock/test để phân biệt nhãn “Sáng vắng không phép · chiều có mặt” với nghỉ sáng có phép.
+- Kiểm chứng: targeted BE tests, Flyway V198 trong Testcontainers, Spotless, FE attendance-half-day 5/5, ESLint/Prettier và build FE đều pass.
+
+### 2026-11-26 — Sửa ghi nhầm vắng sáng
+- User duyệt đề xuất: khi BGH mở lại ngày, GV bấm “Sửa: có mặt cả ngày” cho trẻ mang nhãn “Sáng vắng không phép · chiều có mặt”; xóa nhãn, ghi lịch sử theo lần mở lại, không đổi bữa và không phát `AttendanceChangedEvent`.
+- API mới `POST /classes/{classId}/attendance/children/{childId}/full-day-present`, lỗi `ATTENDANCE_FULL_DAY_FIX_NOT_ALLOWED` 4037 khi ngày chưa mở lại hoặc không đúng ca (đơn nghỉ sáng có phép không sửa ở đây).
+- FE: nút “Đã đến” hiện thêm khi ngày đã mở lại (khớp BE); nhãn “Không có suất xế” cho trẻ sáng vắng không phép mà bữa xế đã bỏ.
+- Kiểm chứng: `AttendanceServiceImplTest` 6/6, `LeaveRequestIntegrationTest` 21/21, `ParentAttendanceControllerTest`, `PickupServiceImplTest`, `OpenApiSnapshotTest`, Spotless pass; FE ESLint, `attendance-half-day` 6/6, build pass.
+
+### 2026-11-26 — Mở lại điểm danh: chọn buổi và đơn nghỉ cả ngày
+- User duyệt: khi ngày mở lại, trẻ Có mặt chọn Cả ngày / Chỉ sáng / Chỉ chiều (`entries[].presentPart`, lỗi 4038 nếu ngày chưa mở lại); trẻ có đơn nghỉ cả ngày mà vẫn đến được ghi Có mặt, không cho ghi Vắng không phép.
+- Sửa `AttendanceRegressionIntegrationTest` dùng 13:40 vì khung nhận trẻ chiều bắt đầu 13:30.
+- Kiểm chứng: `LeaveRequestIntegrationTest` 24/24, `AttendanceIntegrationTest` 19/19, `AttendanceRegressionIntegrationTest` 10/10, `AttendanceHistoryIntegrationTest`, `MealCountListenerIntegrationTest`, `AttendanceServiceImplTest`, `OpenApiSnapshotTest`, Spotless pass.

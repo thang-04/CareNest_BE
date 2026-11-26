@@ -1017,6 +1017,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     }
 
     private static String note(ThemeEvaluationRequest request) {
+        DiagnosticTerms.requireClean(request.note());
         return request.note() == null || request.note().isBlank()
                 ? null
                 : request.note().trim();

@@ -393,8 +393,8 @@ class EvaluationDeadlineIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cần chốt 14/11/2026: GV dạy chính không ghi ngày mở lại trước ngày mình nhận lớp")
-    void mainTeacherCannotRecordDayBeforeAssignmentStarted() {
+    @DisplayName("Cần chốt 26/11/2026: GV đang dạy chính lớp ghi được ngày mở lại, kể cả trước ngày nhận lớp")
+    void mainTeacherCanRecordDayBeforeAssignmentStarted() {
         var newcomer = user("newcomer", CareNestRole.TEACHER);
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
@@ -403,7 +403,7 @@ class EvaluationDeadlineIntegrationTest {
                 classA);
         var cls = classroomService.findClassroomInfo(classA).orElseThrow();
         assertThat(rules.canRecordDay(newcomer, cls, LocalDate.of(2026, 10, 15)))
-                .isFalse();
+                .isTrue();
         assertThat(rules.canRecordDay(newcomer, cls, LocalDate.of(2026, 10, 21)))
                 .isTrue();
         assertThat(rules.canRecordDay(teacherA, cls, LocalDate.of(2026, 10, 15)))

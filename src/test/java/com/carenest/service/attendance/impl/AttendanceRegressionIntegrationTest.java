@@ -261,7 +261,7 @@ class AttendanceRegressionIntegrationTest {
         transfer(child1, classB, fri);
         CurrentUser teacherB = user("teacherb", CareNestRole.TEACHER);
         teach(teacherB, classB);
-        clock.now = Instant.parse("2026-10-23T06:00:00Z"); // 13:00 thứ 6
+        clock.now = Instant.parse("2026-10-23T06:40:00Z"); // 13:40 thứ 6, trong khung nhận trẻ chiều
 
         service.markArrived(teacherB, classB, child1, fri);
         entityManager.flush();

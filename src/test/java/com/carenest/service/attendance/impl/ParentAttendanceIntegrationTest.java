@@ -168,22 +168,15 @@ class ParentAttendanceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Trẻ đã nghỉ học: vẫn xem số cũ, ngày sau khi nghỉ là NOT_ENROLLED (bỏ bản ghi sót)")
-    void withdrawnChildKeepsOldDataOnly() {
+    @DisplayName("CHD-04 (26/11/2026): trẻ đã thôi học thì phụ huynh mất quyền xem điểm danh")
+    void withdrawnChildIsForbiddenForParent() {
         jdbc.update("DELETE FROM enrollments WHERE child_id = ? AND classroom_id = ?", child, classB);
         record(classA, LocalDate.of(2026, 10, 19), "PRESENT", "LUNCH", null);
-        record(classA, LocalDate.of(2026, 10, 20), "EXCUSED", "", null);
 
-        ParentAttendanceResponse month = service.getAttendance(parent, child, LocalDate.of(2026, 10, 19), TODAY);
-
-        assertThat(month.days())
-                .extracting(ParentAttendanceDay::status)
-                .containsExactly(
-                        ParentAttendanceStatus.PRESENT,
-                        ParentAttendanceStatus.NOT_ENROLLED,
-                        ParentAttendanceStatus.NOT_ENROLLED);
-        assertThat(month.totals().excused()).isZero();
-        assertThat(service.getToday(parent, child).status()).isEqualTo(ParentAttendanceStatus.NOT_ENROLLED);
+        expectCode(
+                () -> service.getAttendance(parent, child, LocalDate.of(2026, 10, 19), TODAY),
+                ApiCode.PARENT_CHILD_FORBIDDEN);
+        expectCode(() -> service.getToday(parent, child), ApiCode.PARENT_CHILD_FORBIDDEN);
     }
 
     @Test

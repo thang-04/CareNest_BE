@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.carenest.dto.attendance.ClassAttendanceResponse;
+import com.carenest.dto.attendance.DayUnlockRequest;
 import com.carenest.dto.attendance.LeaveRequestDtos.CreateLeaveRequest;
 import com.carenest.dto.attendance.LeaveRequestDtos.LeaveRequestResponse;
+import com.carenest.dto.attendance.LeaveRequestDtos.PreviewLeaveRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
@@ -91,6 +93,9 @@ class LeaveRequestIntegrationTest {
 
     @Autowired
     private AttendanceService attendanceService;
+
+    @Autowired
+    private com.carenest.service.attendance.AttendanceDayUnlockService unlockService;
 
     @Autowired
     private MovableClock clock;
@@ -198,14 +203,39 @@ class LeaveRequestIntegrationTest {
         assertThat(tally.absent()).isEqualTo(1);
         assertThat(tally.meals().get(MealSession.LUNCH)).isEqualTo(1);
 
+        // Đơn cả ngày mà trẻ vẫn đến: GV không đổi thành Vắng không phép, nhưng ghi được Có mặt ngay trước giờ chốt
         expectError(
                 () -> attendanceService.saveClassAttendance(
                         teacherA,
                         classA,
                         new SaveAttendanceRequest(
                                 TODAY,
-                                List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, Map.of())))),
+                                List.of(new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.UNEXCUSED, Map.of())))),
                 ApiCode.LEAVE_ATTENDANCE_LOCKED);
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(new SaveAttendanceRequest.Entry(
+                                child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true)))));
+        ClassAttendanceResponse.ChildRow presentRow =
+                rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1);
+        assertThat(presentRow.record().status()).isEqualTo(AttendanceStatus.PRESENT);
+        assertThat(presentRow.leave()).isNotNull();
+        assertThat(attendanceService.tallyMeals(TODAY, campusA, null).stream()
+                        .filter(t -> t.classroomId().equals(classA))
+                        .findFirst()
+                        .orElseThrow()
+                        .meals()
+                        .get(MealSession.LUNCH))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM notifications WHERE type = 'LEAVE_REQUEST_CHANGED' AND user_id = ?",
+                        Integer.class,
+                        parent.userId()))
+                .isEqualTo(1);
     }
 
     @Test
@@ -273,6 +303,9 @@ class LeaveRequestIntegrationTest {
         // ATT-05b: hôm nay đã qua giờ chốt ⇒ không đổi điểm danh hôm nay
         assertThat(leave.skippedDates()).containsExactly(TODAY);
         assertThat(leave.appliedDates()).containsExactly(THU);
+        expectError(
+                () -> service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Bổ sung")),
+                ApiCode.LEAVE_NO_SCHOOL_DAY);
         assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
                 .isZero();
         // Ngày bị bỏ qua không mang nhãn đơn nghỉ, nên không khóa điểm danh của GV hôm đó (ATT-05b)
@@ -318,6 +351,41 @@ class LeaveRequestIntegrationTest {
         assertThat(cancelled.status()).isEqualTo("CANCELLED");
         assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
                 .isZero();
+    }
+
+    @Test
+    void afternoonNoticeClosesAtAfternoonStartAndIsRefusedForAbsentChild() {
+        // ATT-05b (Cần chốt 25/11/2026): gửi / hủy báo nghỉ chiều hôm nay chỉ trước giờ bắt đầu buổi chiều 13:30
+        clock.now = AFTER_CUTOFF;
+        LeaveRequestResponse leave = service.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đón sớm", LeavePart.AFTERNOON, true));
+        clock.now = Instant.parse("2026-10-21T06:30:00Z");
+        expectError(() -> service.cancelLeaveRequest(parent, leave.id()), ApiCode.LEAVE_AFTERNOON_NOTICE_CLOSED);
+        expectError(
+                () -> service.createLeaveRequest(
+                        parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đón sớm", LeavePart.AFTERNOON, true)),
+                ApiCode.LEAVE_AFTERNOON_NOTICE_CLOSED);
+        // Đơn cho ngày mai vẫn gửi bình thường
+        assertThat(service.createLeaveRequest(
+                                parent,
+                                new CreateLeaveRequest(child1, TODAY.plusDays(1), TODAY.plusDays(1), "Ốm", null, null))
+                        .noticeOnly())
+                .isFalse();
+    }
+
+    @Test
+    void afternoonNoticeIsRefusedWhenChildIsAlreadyAbsentToday() {
+        clock.now = BEFORE_CUTOFF;
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY, List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.UNEXCUSED, Map.of()))));
+        clock.now = AFTER_CUTOFF;
+        expectError(
+                () -> service.createLeaveRequest(
+                        parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đón sớm", LeavePart.AFTERNOON, true)),
+                ApiCode.LEAVE_CHILD_ABSENT_TODAY);
     }
 
     @Test
@@ -591,7 +659,7 @@ class LeaveRequestIntegrationTest {
         expectError(
                 () -> attendanceService.markArrived(teacherA, classA, child1, TODAY),
                 ApiCode.ATTENDANCE_ARRIVAL_NOT_ALLOWED);
-        clock.now = AFTER_CUTOFF;
+        clock.now = Instant.parse("2026-10-21T06:40:00Z"); // 13:40 giờ trường, trong khung nhận trẻ chiều
         attendanceService.markArrived(teacherA, classA, child1, TODAY);
         assertThat(rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
                         .record()
@@ -622,6 +690,144 @@ class LeaveRequestIntegrationTest {
         assertThat(total.attendedDays()).isEqualTo(0.5);
         assertThat(total.morningOff()).isEqualTo(1);
         assertThat(summary.days().getFirst().morningOff()).isEqualTo(2);
+    }
+
+    @Test
+    void unexcusedMorningAbsenceCanArriveInAfternoonWithoutChangingMeals() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY, List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.UNEXCUSED, Map.of()))));
+        ClassAttendanceResponse.RecordView before = rowOf(
+                        attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                .record();
+        assertThat(before.status()).isEqualTo(AttendanceStatus.UNEXCUSED);
+        assertThat(before.meals()).doesNotContainValue(true);
+
+        clock.now = Instant.parse("2026-10-21T06:40:00Z"); // 13:40 giờ trường, trong khung nhận trẻ chiều
+        attendanceService.markArrived(teacherA, classA, child1, TODAY);
+
+        ClassAttendanceResponse.RecordView after = rowOf(
+                        attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                .record();
+        assertThat(after.status()).isEqualTo(AttendanceStatus.PRESENT);
+        assertThat(after.absentPart()).isEqualTo(DayPart.MORNING);
+        assertThat(after.absentPartUnexcused()).isTrue();
+        assertThat(after.meals()).doesNotContainValue(true);
+        var total = attendanceService.getClassSummary(principal, classA, TODAY, TODAY).children().stream()
+                .filter(c -> c.child().id().equals(child1))
+                .findFirst()
+                .orElseThrow();
+        assertThat(total.attendedDays()).isEqualTo(0.5);
+    }
+
+    @Test
+    void reopenedDayRecordsPresentPartInOneStep() {
+        clock.now = AFTER_CUTOFF;
+        reopenToday();
+
+        // Mở lại: quên điểm danh, bé An chỉ đến chiều, bé Bình chỉ học sáng — mỗi trẻ một lần bấm
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(
+                                new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.PRESENT, null, null, LeavePart.AFTERNOON),
+                                new SaveAttendanceRequest.Entry(
+                                        child2, AttendanceStatus.PRESENT, null, null, LeavePart.MORNING))));
+
+        ClassAttendanceResponse sheet = attendanceService.getClassAttendance(teacherA, classA, TODAY);
+        ClassAttendanceResponse.RecordView an = rowOf(sheet, child1).record();
+        assertThat(an.absentPart()).isEqualTo(DayPart.MORNING);
+        assertThat(an.absentPartUnexcused()).isTrue();
+        assertThat(an.meals().get(MealSession.LUNCH)).isNotEqualTo(Boolean.TRUE);
+        ClassAttendanceResponse.RecordView binh = rowOf(sheet, child2).record();
+        assertThat(binh.absentPart()).isEqualTo(DayPart.AFTERNOON);
+        assertThat(binh.absentPartUnexcused()).isFalse();
+        assertThat(attendedDays(child1)).isEqualTo(0.5);
+        assertThat(attendedDays(child2)).isEqualTo(0.5);
+
+        // Sửa lại bé An thành cả ngày cũng một lần bấm
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(new SaveAttendanceRequest.Entry(
+                                child1, AttendanceStatus.PRESENT, null, null, LeavePart.FULL_DAY))));
+        ClassAttendanceResponse.RecordView fixed = rowOf(
+                        attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                .record();
+        assertThat(fixed.absentPart()).isNull();
+        assertThat(fixed.absentPartUnexcused()).isFalse();
+        assertThat(attendedDays(child1)).isEqualTo(1.0);
+    }
+
+    @Test
+    void presentPartNeedsReopenedDay() {
+        expectError(
+                () -> attendanceService.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        new SaveAttendanceRequest(
+                                TODAY,
+                                List.of(new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.PRESENT, null, null, LeavePart.MORNING)))),
+                ApiCode.ATTENDANCE_PART_REQUIRES_UNLOCK);
+    }
+
+    @Test
+    void fullDayLeaveChildCanBeMarkedPresentWhenReopened() {
+        service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Ốm"));
+        clock.now = AFTER_CUTOFF;
+        reopenToday();
+
+        // Đơn cả ngày chỉ đổi thành Có mặt (trẻ vẫn đến), không thành Vắng không phép
+        expectError(
+                () -> attendanceService.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        new SaveAttendanceRequest(
+                                TODAY,
+                                List.of(new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.UNEXCUSED, Map.of())))),
+                ApiCode.LEAVE_ATTENDANCE_LOCKED);
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY, List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, null))));
+
+        ClassAttendanceResponse.ChildRow row =
+                rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1);
+        assertThat(row.record().status()).isEqualTo(AttendanceStatus.PRESENT);
+        assertThat(row.record().absentPart()).isNull();
+        assertThat(row.leave()).isNotNull();
+        assertThat(attendedDays(child1)).isEqualTo(1.0);
+    }
+
+    private void reopenToday() {
+        CurrentUser unlocker = new CurrentUser(
+                principal.userId(),
+                "kc-principal",
+                "principal",
+                "principal",
+                null,
+                Set.of(CareNestRole.PRINCIPAL),
+                Set.of(Permission.ATTENDANCE_VIEW, Permission.ATTENDANCE_UNLOCK));
+        unlockService.unlockDay(
+                unlocker, new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plusSeconds(3600), "GV sửa điểm danh"));
+    }
+
+    private double attendedDays(long childId) {
+        return attendanceService.getClassSummary(principal, classA, TODAY, TODAY).children().stream()
+                .filter(c -> c.child().id().equals(childId))
+                .findFirst()
+                .orElseThrow()
+                .attendedDays();
     }
 
     @Test
@@ -719,7 +925,36 @@ class LeaveRequestIntegrationTest {
         expectError(
                 () -> service.createLeaveRequest(
                         parent, new CreateLeaveRequest(child1, TODAY, LocalDate.of(2035, 1, 1), "Nghỉ")),
-                ApiCode.LEAVE_DATE_RANGE_INVALID);
+                ApiCode.LEAVE_OUTSIDE_SCHOOL_YEAR);
+        assertThatThrownBy(() -> service.createLeaveRequest(
+                        parent, new CreateLeaveRequest(child1, TODAY, LocalDate.of(2035, 1, 1), "Nghỉ")))
+                .hasMessageStartingWith("Đơn nghỉ phải nằm trong năm học (");
+    }
+
+    @Test
+    void leaveFromScheduledWithdrawalDateIsRejectedForSubmitAndPreview() {
+        LocalDate scheduledLeaveOn = LocalDate.of(2026, 11, 27);
+        LocalDate dayBeforeScheduledLeave = scheduledLeaveOn.minusDays(1);
+        jdbc.update(
+                "UPDATE children SET scheduled_leave_on = ?, scheduled_leave_reason = 'Chuyển trường' WHERE id = ?",
+                scheduledLeaveOn,
+                child1);
+
+        expectError(
+                () -> service.createLeaveRequest(
+                        parent, new CreateLeaveRequest(child1, dayBeforeScheduledLeave, scheduledLeaveOn, "Nghỉ")),
+                ApiCode.LEAVE_CHILD_LEAVING);
+        expectError(
+                () -> service.previewLeaveRequest(
+                        parent,
+                        new PreviewLeaveRequest(child1, dayBeforeScheduledLeave, scheduledLeaveOn, null, null, null)),
+                ApiCode.LEAVE_CHILD_LEAVING);
+        assertThat(service.createLeaveRequest(
+                                parent,
+                                new CreateLeaveRequest(
+                                        child1, dayBeforeScheduledLeave, dayBeforeScheduledLeave, "Nghỉ"))
+                        .appliedDates())
+                .containsExactly(dayBeforeScheduledLeave);
     }
 
     private void teach(CurrentUser user, long classroomId) {

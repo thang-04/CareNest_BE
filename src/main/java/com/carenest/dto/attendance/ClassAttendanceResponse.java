@@ -16,7 +16,7 @@ import java.util.Map;
 
 /**
  * Sổ điểm danh một lớp/ngày: trẻ đang học lớp ngày đó kèm bản ghi (null = chưa điểm danh). latestAfternoonArrival: giờ
- * đến muộn nhất buổi chiều của trẻ nghỉ sáng (ATT-13).
+ * nhận trẻ buổi chiều: từ afternoonStart đến latestAfternoonArrival (ATT-03/B2).
  */
 public record ClassAttendanceResponse(
         DayInfoResponse day,
@@ -26,6 +26,7 @@ public record ClassAttendanceResponse(
         List<MealSession> mealSessions,
         boolean canRecord,
         List<ChildRow> children,
+        @JsonFormat(pattern = "HH:mm") LocalTime afternoonStart,
         @JsonFormat(pattern = "HH:mm") LocalTime latestAfternoonArrival) {
 
     /** health: sức khỏe trong ngày theo lần ghi nhận mới nhất; checked = false khi chưa khám. */
@@ -68,5 +69,6 @@ public record ClassAttendanceResponse(
             Long recordedBy,
             String recordedByName,
             Instant recordedAt,
-            DayPart absentPart) {}
+            DayPart absentPart,
+            boolean absentPartUnexcused) {}
 }

@@ -164,6 +164,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             Board board = loadBoard(setup);
             Map<Long, Boolean> completion = graduatingCompletion(setup, board);
+            Set<Long> yearEndConfirmed = yearEndConfirmed(setup, board);
+            LocalDate openFrom = placementOpenFrom(currentUser, setup);
             List<PlacementBoardResponse.SourceClass> classes = setup.sourceClasses().stream()
                     .filter(c -> placesCampus(currentUser, c.campusId()))
                     .map(c -> {
@@ -184,7 +186,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                                         null,
                                         child.getDateOfBirth(),
                                         board.placementOf(child.getId()),
-                                        completion.get(child.getId())))
+                                        completion.get(child.getId()),
+                                        yearEndConfirmed.contains(child.getId())))
                                 .sorted(Comparator.comparing(PlacementBoardResponse.ChildPlacement::fullName))
                                 .toList();
                         return new PlacementBoardResponse.SourceClass(
@@ -232,7 +235,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                                                     .anyMatch(c -> placesCampus(currentUser, c.id()))))
                             && setup.year().status() == SchoolYearStatus.PLANNED
                             && setup.sourceYear() != null
-                            && isNextYear(setup),
+                            && isNextYear(setup)
+                            && !placementNotOpen(openFrom),
                     setup.ageGroups().stream()
                             .map(g -> new PlacementBoardResponse.AgeGroupBrief(g.id(), g.shortName()))
                             .toList(),
@@ -242,7 +246,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                             .toList(),
                     classes,
                     targets,
-                    newAdmissions);
+                    newAdmissions,
+                    openFrom);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -259,6 +264,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         try {
             checkCanPlace(currentUser, schoolYearId);
             YearSetupResponse setup = checkPlanned(schoolYearId);
+            checkPlacementOpen(currentUser, setup);
             Board board = loadBoard(setup);
             board.purgeStale();
             Map<Long, YearSetupResponse.SetupClass> targets = setup.classes().stream()
@@ -348,6 +354,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         try {
             checkCanPlace(currentUser, schoolYearId);
             YearSetupResponse setup = checkPlanned(schoolYearId);
+            checkPlacementOpen(currentUser, setup);
             Board board = loadBoard(setup);
             board.purgeStale();
             int promoted = 0;
@@ -842,6 +849,46 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             throw GlobalException.of(ApiCode.PLACEMENT_NOT_NEXT_YEAR, next == null ? "" : next.name());
         }
         return setup;
+    }
+
+    // CFG-YR-03 (Cần chốt 25/11/2026): xếp lớp mở từ ngày kết thúc HK II của năm đang hoạt động; chưa đặt thì ngày kết
+    // thúc năm
+    private LocalDate placementOpenFrom(CurrentUser user, YearSetupResponse setup) {
+        if (setup.sourceYear() == null) {
+            return null;
+        }
+        SchoolYearDetailResponse source =
+                schoolYearService.getSchoolYear(user, setup.sourceYear().id());
+        return source.semester2End() != null ? source.semester2End() : source.endDate();
+    }
+
+    private boolean placementNotOpen(LocalDate openFrom) {
+        return openFrom != null
+                && !devActivation.skipDateWindow()
+                && LocalDate.now(clock).isBefore(openFrom);
+    }
+
+    private void checkPlacementOpen(CurrentUser user, YearSetupResponse setup) {
+        LocalDate openFrom = placementOpenFrom(user, setup);
+        if (placementNotOpen(openFrom)) {
+            throw GlobalException.of(
+                    ApiCode.PLACEMENT_NOT_OPEN,
+                    DISPLAY_DATE.format(openFrom),
+                    setup.sourceYear().name());
+        }
+    }
+
+    private Set<Long> yearEndConfirmed(YearSetupResponse setup, Board board) {
+        if (setup.sourceYear() == null || programCompletionLookups.isEmpty()) {
+            return Set.of();
+        }
+        List<Long> childIds = setup.sourceClasses().stream()
+                .flatMap(c -> board.childrenOf(c.id()).stream())
+                .map(Child::getId)
+                .toList();
+        return programCompletionLookups
+                .getFirst()
+                .yearEndConfirmed(setup.sourceYear().id(), childIds);
     }
 
     // CFG-YR-03: chỉ xếp lớp cho năm sắp diễn ra sớm nhất (năm kế tiếp năm đang hoạt động)

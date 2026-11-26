@@ -3,8 +3,10 @@ package com.carenest.service.child;
 import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.child.ChildProfileResponse;
 import com.carenest.security.CurrentUser;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public interface ChildService {
@@ -21,4 +23,7 @@ public interface ChildService {
 
     /** Trẻ không báo ăn (CHD-13) trong danh sách đã cho: điểm danh không cho suất ăn; chỉ dùng nội bộ, không kiểm quyền. */
     Set<Long> findChildIdsWithoutMeals(Collection<Long> childIds);
+
+    /** Ngày trẻ đã được đặt lịch nghỉ học; chỉ dùng nội bộ để chặn dữ liệu phát sinh sau ngày đó. */
+    Optional<LocalDate> findScheduledLeaveOn(Long childId);
 }

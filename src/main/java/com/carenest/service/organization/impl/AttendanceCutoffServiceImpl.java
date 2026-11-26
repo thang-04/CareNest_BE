@@ -95,6 +95,12 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             LocalTime time = request.time().withSecond(0).withNano(0);
             List<AttendanceCutoff> history =
                     attendanceCutoffRepository.findAllBySchoolYearIdOrderByIdDesc(schoolYearId);
+            // Không để khoảng đầu năm học không có giờ chốt (sẽ rơi về giá trị mặc định mà màn hình báo đã cài)
+            if (history.isEmpty() && request.effectiveFrom().isAfter(year.getStartDate())) {
+                throw GlobalException.of(
+                        ApiCode.CUTOFF_FIRST_FROM_YEAR_START,
+                        DateTimeFormatter.ofPattern("dd/MM/yyyy").format(year.getStartDate()));
+            }
             LocalTime latestArrival = request.latestAfternoonArrival() != null
                     ? request.latestAfternoonArrival().withSecond(0).withNano(0)
                     : history.isEmpty()
@@ -167,6 +173,22 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             if (!history.isEmpty() && request.effectiveFrom().isBefore(LocalDate.now(clock))) {
                 throw GlobalException.of(ApiCode.CUTOFF_DATE_PAST);
             }
+            // Không đổi giờ chốt giữa ngày: hôm nay đã qua giờ chốt hiện hành hoặc giờ chốt mới thì ngày đã/đang khóa,
+            // đổi lúc này làm đơn nghỉ và điểm danh đã xử lý bị tính lại sai
+            LocalDate today = LocalDate.now(clock);
+            if (!history.isEmpty() && request.effectiveFrom().equals(today)) {
+                LocalTime nowTime = LocalTime.now(clock);
+                LocalTime currentCutoff = history.stream()
+                        .filter(c -> !c.getEffectiveFrom().isAfter(today))
+                        .max(java.util.Comparator.comparing(AttendanceCutoff::getEffectiveFrom)
+                                .thenComparing(AttendanceCutoff::getId))
+                        .map(AttendanceCutoff::getCutoffTime)
+                        .orElse(time);
+                LocalTime earliest = currentCutoff.isBefore(time) ? currentCutoff : time;
+                if (!nowTime.isBefore(earliest)) {
+                    throw GlobalException.of(ApiCode.CUTOFF_CHANGE_TOO_LATE);
+                }
+            }
             attendanceCutoffRepository.saveAndFlush(AttendanceCutoff.create(
                             schoolYearId,
                             time,
@@ -225,6 +247,24 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
                             schoolYearId, date)
                     .map(AttendanceCutoff::getCutoffTime);
+            log.info("{}|END", logPrefix);
+            return time;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LocalTime> findAfternoonStart(Long schoolYearId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findAfternoonStart|schoolYearId=" + schoolYearId + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<LocalTime> time = attendanceCutoffRepository
+                    .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
+                            schoolYearId, date)
+                    .map(AttendanceCutoff::getAfternoonStart);
             log.info("{}|END", logPrefix);
             return time;
         } catch (RuntimeException ex) {

@@ -7,7 +7,8 @@ import java.util.List;
 
 /**
  * Màn Xếp lớp năm học mới: lớp năm ACTIVE (nguồn) kèm trẻ đang học và kết quả đã xếp, lớp năm mới (đích) kèm chỗ đã dùng.
- * Dữ liệu trẻ chỉ gồm id, họ tên, ngày sinh (cần để xếp lớp).
+ * Dữ liệu trẻ chỉ gồm id, họ tên, ngày sinh (cần để xếp lớp). placementOpenFrom: ngày mở xếp lớp (kết thúc HK II năm
+ * nguồn, CFG-YR-03); trước ngày đó bảng chỉ xem.
  */
 public record PlacementBoardResponse(
         YearBrief year,
@@ -17,7 +18,8 @@ public record PlacementBoardResponse(
         List<CampusBrief> campuses,
         List<SourceClass> classes,
         List<TargetClass> targets,
-        List<NewAdmission> newAdmissions) {
+        List<NewAdmission> newAdmissions,
+        LocalDate placementOpenFrom) {
 
     public PlacementBoardResponse(
             YearBrief year,
@@ -27,7 +29,7 @@ public record PlacementBoardResponse(
             List<CampusBrief> campuses,
             List<SourceClass> classes,
             List<TargetClass> targets) {
-        this(year, sourceYear, editable, ageGroups, campuses, classes, targets, List.of());
+        this(year, sourceYear, editable, ageGroups, campuses, classes, targets, List.of(), null);
     }
 
     public record YearBrief(Long id, String name) {}
@@ -49,6 +51,8 @@ public record PlacementBoardResponse(
     /**
      * code, photoUrl: BE chưa có (luôn null), giữ để khớp dạng FE. programCompleted: lớp nhóm tuổi lớn nhất, kết quả
      * hoàn thành chương trình ở đánh giá cuối năm đã xác nhận (null = chưa đánh giá hoặc không phải lớp ra trường).
+     * yearEndConfirmed: đã có
+     * đánh giá cuối năm xác nhận (chỉ để tham khảo, không chặn xếp lớp).
      */
     public record ChildPlacement(
             Long id,
@@ -57,7 +61,8 @@ public record PlacementBoardResponse(
             String photoUrl,
             LocalDate birthDate,
             Placement placement,
-            Boolean programCompleted) {}
+            Boolean programCompleted,
+            boolean yearEndConfirmed) {}
 
     public record Placement(
             Long schoolYear,

@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 451 endpoint.
+Tổng: 453 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -196,6 +196,8 @@ PUT /classes/{classId} · src/main/java/com/carenest/controller/organization/Cla
 GET /classes/{classId}/attendance · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClassAttendance
 PUT /classes/{classId}/attendance · src/main/java/com/carenest/controller/attendance/AttendanceController.java#saveClassAttendance
 POST /classes/{classId}/attendance/children/{childId}/arrived · src/main/java/com/carenest/controller/attendance/AttendanceController.java#markArrived
+POST /classes/{classId}/attendance/children/{childId}/full-day-present · src/main/java/com/carenest/controller/attendance/AttendanceController.java#correctFullDayPresent
+POST /classes/{classId}/attendance/children/{childId}/meal-participation · src/main/java/com/carenest/controller/attendance/AttendanceController.java#correctMealParticipation
 GET /classes/{classId}/attendance/summary · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClassSummary
 GET /classes/{classId}/children/{childId}/daily-health · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getClassChildHealth
 GET /classes/{classId}/daily-assessment · src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#getDailySheet

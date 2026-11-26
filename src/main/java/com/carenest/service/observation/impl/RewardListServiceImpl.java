@@ -453,12 +453,9 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_NOTE_TOO_LONG, name, NOTE_MAX);
             }
             String lower = note.toLowerCase(Locale.ROOT);
-            DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream()
-                    .filter(lower::contains)
-                    .findFirst()
-                    .ifPresent(term -> {
-                        throw GlobalException.of(ApiCode.REWARD_NOTE_DIAGNOSTIC, name, term);
-                    });
+            DiagnosticTerms.matches(note).stream().findFirst().ifPresent(term -> {
+                throw GlobalException.of(ApiCode.REWARD_NOTE_DIAGNOSTIC, name, term);
+            });
             if (picked.isEmpty()) {
                 // Không có danh hiệu thì không lưu dòng (ghi chú đi kèm danh hiệu)
                 continue;

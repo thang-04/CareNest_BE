@@ -1,6 +1,7 @@
 package com.carenest.service.attendance.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -9,10 +10,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.carenest.dto.attendance.CorrectMealParticipationRequest;
 import com.carenest.dto.attendance.DayInfoResponse;
+import com.carenest.dto.attendance.DayUnlockResponse;
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
+import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
@@ -26,6 +30,7 @@ import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.DayPart;
@@ -58,6 +63,8 @@ class AttendanceServiceImplTest {
     private final ChildService children = mock(ChildService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final GuardianChildLinkService guardians = mock(GuardianChildLinkService.class);
+    private final com.carenest.service.attendance.MealChangeGuard mealGuard =
+            mock(com.carenest.service.attendance.MealChangeGuard.class);
     private AttendanceServiceImpl service;
     private AttendanceRecord morningLeave;
 
@@ -78,7 +85,8 @@ class AttendanceServiceImplTest {
                 guardians,
                 mock(NotificationService.class),
                 mock(com.carenest.repository.attendance.PickupRecordRepository.class),
-                new EarlyPickupRule(mock(com.carenest.service.organization.AttendanceCutoffService.class)));
+                new EarlyPickupRule(mock(com.carenest.service.organization.AttendanceCutoffService.class)),
+                mealGuard);
         when(classrooms.findClassroomInfo(CLASS))
                 .thenReturn(Optional.of(new ClassroomInfoResponse(
                         CLASS,
@@ -96,28 +104,157 @@ class AttendanceServiceImplTest {
         when(rules.now()).thenReturn(NOW);
         when(rules.isSchoolDay(TODAY)).thenReturn(true);
         when(rules.latestArrival(7L, TODAY)).thenReturn(LocalTime.of(14, 0));
+        when(rules.afternoonStart(7L, TODAY)).thenReturn(LocalTime.of(13, 30));
         morningLeave = AttendanceRecord.create(
                 CHILD, CLASS, CAMPUS, TODAY, AttendanceStatus.EXCUSED, List.of(MealSession.AFTERNOON), 5L, NOW);
         morningLeave.markAbsentPart(DayPart.MORNING);
     }
 
     @Test
-    void markArrivedNotifiesMealCountLikeSavingAttendance() {
+    void markArrivedKeepsMealCountUnchanged() {
         CurrentUser teacher = new CurrentUser(1L, "kc", "t", "t", null, Set.of(CareNestRole.TEACHER), Set.of());
         when(rules.canRecordAttendanceDay(
                         teacher, classrooms.findClassroomInfo(CLASS).orElseThrow(), TODAY))
                 .thenReturn(true);
         when(rules.dayInfo(eq(TODAY), any(), any()))
                 .thenReturn(
-                        new DayInfoResponse(TODAY, TODAY, "13:00", "08:30", null, null, true, true, NOW, true, null));
+                        new DayInfoResponse(TODAY, TODAY, "13:30", "08:30", null, null, true, true, NOW, true, null));
         when(rules.isBaseLocked(TODAY, LocalTime.of(14, 0))).thenReturn(false);
+        when(rules.reachedToday(LocalTime.of(13, 30))).thenReturn(true);
         when(enrollments.findChildrenInClassroom(CLASS, TODAY))
                 .thenReturn(List.of(new ClassChildResponse(CHILD, "An", LocalDate.of(2023, 1, 1))));
         when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(morningLeave));
 
         service.markArrived(teacher, CLASS, CHILD, TODAY);
 
-        verify(events).publishEvent(new AttendanceService.AttendanceChangedEvent(TODAY, CAMPUS, CLASS));
+        assertThat(morningLeave.getMeals()).containsExactly(MealSession.AFTERNOON);
+        // ATT-07: bữa giữ nguyên; vẫn phát event để sổ chưa xác nhận cập nhật số, sổ đã xác nhận bị bỏ qua
+        verify(events)
+                .publishEvent(any(com.carenest.service.attendance.AttendanceService.AttendanceChangedEvent.class));
+    }
+
+    @Test
+    void correctMealParticipationAfterCutoffUpdatesOnlyUnconfirmedMealParticipation() {
+        CurrentUser teacher = new CurrentUser(1L, "kc", "t", "t", null, Set.of(CareNestRole.TEACHER), Set.of());
+        AttendanceRecord present = AttendanceRecord.create(
+                CHILD,
+                CLASS,
+                CAMPUS,
+                TODAY,
+                AttendanceStatus.PRESENT,
+                List.of(MealSession.LUNCH, MealSession.AFTERNOON),
+                1L,
+                NOW);
+        when(rules.canRecordAttendanceDay(
+                        teacher, classrooms.findClassroomInfo(CLASS).orElseThrow(), TODAY))
+                .thenReturn(true);
+        when(rules.dayInfo(eq(TODAY), any(), any()))
+                .thenReturn(
+                        new DayInfoResponse(TODAY, TODAY, "09:00", "08:30", null, null, true, true, NOW, true, null));
+        when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(present));
+        when(children.findChildIdsWithoutMeals(Set.of(CHILD))).thenReturn(Set.of());
+
+        var result = service.correctMealParticipation(
+                teacher, CLASS, CHILD, new CorrectMealParticipationRequest(TODAY, false));
+
+        assertThat(result.changed()).isEqualTo(1);
+        assertThat(present.getStatus()).isEqualTo(AttendanceStatus.PRESENT);
+        assertThat(present.getMeals()).isEmpty();
+        verify(events).publishEvent(any(AttendanceService.AttendanceChangedEvent.class));
+    }
+
+    @Test
+    void markArrivedRejectsBeforeAfternoonReceptionStarts() {
+        CurrentUser teacher = new CurrentUser(1L, "kc", "t", "t", null, Set.of(CareNestRole.TEACHER), Set.of());
+        when(rules.canRecordAttendanceDay(
+                        teacher, classrooms.findClassroomInfo(CLASS).orElseThrow(), TODAY))
+                .thenReturn(true);
+        when(rules.dayInfo(eq(TODAY), any(), any()))
+                .thenReturn(
+                        new DayInfoResponse(TODAY, TODAY, "09:00", "08:30", null, null, true, true, NOW, true, null));
+        when(rules.reachedToday(LocalTime.of(13, 30))).thenReturn(false);
+        when(enrollments.findChildrenInClassroom(CLASS, TODAY))
+                .thenReturn(List.of(new ClassChildResponse(CHILD, "An", LocalDate.of(2023, 1, 1))));
+        when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(morningLeave));
+
+        assertThatThrownBy(() -> service.markArrived(teacher, CLASS, CHILD, TODAY))
+                .isInstanceOf(GlobalException.class)
+                .extracting(error -> ((GlobalException) error).getApiCode())
+                .isEqualTo(ApiCode.ATTENDANCE_ARRIVAL_NOT_ALLOWED);
+    }
+
+    @Test
+    void correctFullDayPresentClearsMorningAbsenceWhenDayUnlocked() {
+        CurrentUser teacher = teacherAllowedToRecord();
+        DayUnlockResponse unlock = new DayUnlockResponse(
+                55L, CLASS, "Lớp A", CAMPUS, TODAY, NOW, "GV ghi nhầm vắng sáng", 9L, "BGH", NOW, null, null, null);
+        when(rules.dayInfo(eq(TODAY), any(), any()))
+                .thenReturn(new DayInfoResponse(
+                        TODAY, TODAY, "15:00", "08:30", null, null, true, true, NOW, false, unlock));
+        AttendanceRecord arrivedAfternoon = morningUnexcusedThenArrived();
+        when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(arrivedAfternoon));
+
+        service.correctFullDayPresent(teacher, CLASS, CHILD, TODAY);
+
+        assertThat(arrivedAfternoon.getAbsentPart()).isNull();
+        assertThat(arrivedAfternoon.isAbsentPartUnexcused()).isFalse();
+        assertThat(arrivedAfternoon.presentDays()).isEqualTo(1.0);
+        assertThat(arrivedAfternoon.unexcusedDays()).isZero();
+        assertThat(arrivedAfternoon.getMeals()).containsExactly(MealSession.AFTERNOON);
+        // ATT-07: bữa giữ nguyên; vẫn phát event để sổ chưa xác nhận cập nhật số, sổ đã xác nhận bị bỏ qua
+        verify(events)
+                .publishEvent(any(com.carenest.service.attendance.AttendanceService.AttendanceChangedEvent.class));
+    }
+
+    @Test
+    void correctFullDayPresentRejectsWhenDayNotUnlocked() {
+        CurrentUser teacher = teacherAllowedToRecord();
+        when(rules.dayInfo(eq(TODAY), any(), any()))
+                .thenReturn(
+                        new DayInfoResponse(TODAY, TODAY, "15:00", "08:30", null, null, true, true, NOW, true, null));
+        AttendanceRecord arrivedAfternoon = morningUnexcusedThenArrived();
+        when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(arrivedAfternoon));
+
+        assertThatThrownBy(() -> service.correctFullDayPresent(teacher, CLASS, CHILD, TODAY))
+                .isInstanceOf(GlobalException.class)
+                .extracting(error -> ((GlobalException) error).getApiCode())
+                .isEqualTo(ApiCode.ATTENDANCE_FULL_DAY_FIX_NOT_ALLOWED);
+        assertThat(arrivedAfternoon.getAbsentPart()).isEqualTo(DayPart.MORNING);
+    }
+
+    @Test
+    void correctFullDayPresentRejectsExcusedMorningLeave() {
+        CurrentUser teacher = teacherAllowedToRecord();
+        DayUnlockResponse unlock =
+                new DayUnlockResponse(55L, CLASS, "Lớp A", CAMPUS, TODAY, NOW, "Sửa", 9L, "BGH", NOW, null, null, null);
+        when(rules.dayInfo(eq(TODAY), any(), any()))
+                .thenReturn(new DayInfoResponse(
+                        TODAY, TODAY, "15:00", "08:30", null, null, true, true, NOW, false, unlock));
+        // Đơn nghỉ sáng có phép của phụ huynh: không phải lỗi ghi nhầm của GV
+        morningLeave.update(AttendanceStatus.PRESENT, morningLeave.getMeals(), 1L, NOW);
+        when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(morningLeave));
+
+        assertThatThrownBy(() -> service.correctFullDayPresent(teacher, CLASS, CHILD, TODAY))
+                .isInstanceOf(GlobalException.class)
+                .extracting(error -> ((GlobalException) error).getApiCode())
+                .isEqualTo(ApiCode.ATTENDANCE_FULL_DAY_FIX_NOT_ALLOWED);
+    }
+
+    private CurrentUser teacherAllowedToRecord() {
+        CurrentUser teacher = new CurrentUser(1L, "kc", "t", "t", null, Set.of(CareNestRole.TEACHER), Set.of());
+        when(rules.canRecordAttendanceDay(
+                        teacher, classrooms.findClassroomInfo(CLASS).orElseThrow(), TODAY))
+                .thenReturn(true);
+        when(enrollments.findChildrenInClassroom(CLASS, TODAY))
+                .thenReturn(List.of(new ClassChildResponse(CHILD, "An", LocalDate.of(2023, 1, 1))));
+        return teacher;
+    }
+
+    private AttendanceRecord morningUnexcusedThenArrived() {
+        AttendanceRecord record = AttendanceRecord.create(
+                CHILD, CLASS, CAMPUS, TODAY, AttendanceStatus.PRESENT, List.of(MealSession.AFTERNOON), 1L, NOW);
+        record.markAbsentPart(DayPart.MORNING, true);
+        return record;
     }
 
     @Test

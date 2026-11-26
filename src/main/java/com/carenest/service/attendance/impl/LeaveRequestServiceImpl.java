@@ -39,6 +39,7 @@ import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -69,6 +70,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
 
     private static final String LOG_PREFIX = "[LeaveRequestServiceImpl]";
     private static final DateTimeFormatter DD_MM_YYYY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
 
     private final LeaveRequestRepository leaveRequestRepository;
     private final LeaveAttendanceEffectRepository leaveAttendanceEffectRepository;
@@ -86,6 +88,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final StaffAssignmentService staffAssignmentService;
     private final NotificationService notificationService;
     private final ChildClassHistoryService childClassHistoryService;
+    private final com.carenest.service.attendance.MealChangeGuard mealChangeGuard;
 
     @Override
     public LeaveRequestResponse createLeaveRequest(CurrentUser currentUser, CreateLeaveRequest request) {
@@ -121,6 +124,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     .findChildIdsWithoutMeals(List.of(request.childId()))
                     .contains(request.childId());
             for (LocalDate d : applied) {
+                ensureMealsOpen(classOf.get(d), d);
                 if (part == LeavePart.FULL_DAY) {
                     markExcused(saved, classOf.get(d), d, at);
                 } else {
@@ -183,6 +187,11 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         if (from.isBefore(rules.today())) {
             throw GlobalException.of(ApiCode.LEAVE_DATE_IN_PAST);
         }
+        childService.findScheduledLeaveOn(childId).ifPresent(scheduledLeaveOn -> {
+            if (!to.isBefore(scheduledLeaveOn)) {
+                throw GlobalException.of(ApiCode.LEAVE_CHILD_LEAVING, scheduledLeaveOn.format(DD_MM_YYYY));
+            }
+        });
         LeavePart part = requestedPart == null ? LeavePart.FULL_DAY : requestedPart;
 
         // ATT-12: nghỉ một buổi chỉ cho đơn 1 ngày
@@ -195,7 +204,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 && !part.dayPart().other().mealsOf(startingClass.mealSessions()).isEmpty();
         Boolean eats = hasMeals ? (Boolean) (requestedEats == null || requestedEats) : null;
         if (from.isBefore(startingClass.yearStart()) || to.isAfter(startingClass.yearEnd())) {
-            throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
+            throw GlobalException.of(
+                    ApiCode.LEAVE_OUTSIDE_SCHOOL_YEAR,
+                    startingClass.yearStart().format(DD_MM_YYYY),
+                    startingClass.yearEnd().format(DD_MM_YYYY));
         }
         // ATT-05: một đơn tối đa leaveMaxDays ngày lịch, tính cả ngày đầu và ngày cuối
         if (ChronoUnit.DAYS.between(from, to) + 1 > attendanceProperties.leaveMaxDays()) {
@@ -230,6 +242,14 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 && skipped.equals(List.of(from));
         if (applied.isEmpty() && !noticeOnly) {
             throw GlobalException.of(ApiCode.LEAVE_NO_SCHOOL_DAY);
+        }
+        if (noticeOnly) {
+            checkAfternoonNoticeOpen(startingClass, from);
+            // Trẻ vắng hôm nay (cả ngày, hoặc buổi còn lại sau nghỉ sáng) thì báo nghỉ chiều là thừa
+            if (recordRepository.findByChildIdInAndDate(List.of(childId), from).stream()
+                    .anyMatch(r -> r.getStatus() != AttendanceStatus.PRESENT)) {
+                throw GlobalException.of(ApiCode.LEAVE_CHILD_ABSENT_TODAY);
+            }
         }
         List<LocalDate> effectiveDays = noticeOnly ? List.of(from) : applied;
         for (LeaveRequest other : leaveRequestRepository.findOverlapping(List.of(childId), from, to)) {
@@ -382,6 +402,13 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                 if (leave.getCancelledFrom() != null) {
                     throw GlobalException.of(ApiCode.LEAVE_CANNOT_CANCEL);
                 }
+                if (leave.getFromDate().isBefore(rules.today())) {
+                    throw GlobalException.of(ApiCode.LEAVE_CANNOT_CANCEL);
+                }
+                ClassroomInfoResponse noticeClass = classOnOrNull(leave.getChildId(), leave.getFromDate());
+                if (noticeClass != null) {
+                    checkAfternoonNoticeOpen(noticeClass, leave.getFromDate());
+                }
                 leave.cancelFrom(leave.getFromDate(), currentUser.userId(), at);
                 leaveRequestRepository.flush();
                 notifyTeachers(
@@ -414,6 +441,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                             .collect(Collectors.toMap(LeaveAttendanceEffect::getAttendanceRecordId, effect -> effect));
             for (LocalDate d = first; !d.isAfter(end); d = d.plusDays(1)) {
                 LocalDate day = d;
+                ensureMealsOpen(classOnOrNull(leave.getChildId(), day), day);
                 // Đơn gửi trước V197 không có dòng leave_attendance_effects: hoàn tác như cách cũ
                 if (effects.isEmpty()) {
                     revertLegacy(leave, day, currentUser.userId(), at);
@@ -535,6 +563,22 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             classOn(childId, d).ifPresent(c -> ids.add(c.id()));
         }
         ids.forEach(classroomService::lockForUpdate);
+    }
+
+    // ATT-05b (Cần chốt 25/11/2026): báo nghỉ chiều hôm nay chỉ gửi / hủy trước giờ bắt đầu buổi chiều
+    /** ATT-07: sổ suất đã xác nhận (hoặc phiếu bếp đã ký) khóa cứng, đơn nghỉ không đổi được bữa của ngày đó. */
+    private void ensureMealsOpen(ClassroomInfoResponse cls, LocalDate date) {
+        if (cls != null && !date.isAfter(rules.today())) {
+            mealChangeGuard.ensureChangeAllowed(
+                    cls.campusId(), cls.schoolYearId(), date, java.util.Set.copyOf(cls.mealSessions()));
+        }
+    }
+
+    private void checkAfternoonNoticeOpen(ClassroomInfoResponse cls, LocalDate date) {
+        LocalTime afternoonStart = rules.afternoonStart(cls.schoolYearId(), date);
+        if (rules.reachedToday(afternoonStart)) {
+            throw GlobalException.of(ApiCode.LEAVE_AFTERNOON_NOTICE_CLOSED, afternoonStart.format(HH_MM));
+        }
     }
 
     private void checkGuardian(CurrentUser user, Long childId) {

@@ -52,7 +52,7 @@ class ParentAttendanceControllerTest {
         CurrentUser parent = authenticate(TestPermissions.userWithDefaults(5L, CareNestRole.PARENT));
         given(parentAttendanceService.getToday(eq(parent), eq(9L)))
                 .willReturn(new ParentTodayResponse(
-                        LocalDate.of(2026, 10, 21), ParentAttendanceStatus.PRESENT, null, null, 1L, "Lớp A"));
+                        LocalDate.of(2026, 10, 21), ParentAttendanceStatus.PRESENT, null, false, null, 1L, "Lớp A"));
         mockMvc.perform(get("/api/children/9/attendance/today").with(token(CareNestRole.PARENT)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PRESENT"))
