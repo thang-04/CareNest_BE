@@ -91,7 +91,8 @@ public class CampusServiceImpl implements CampusService {
             Map<Long, Long> childCounts = yearId == null
                     ? Map.of()
                     : toMap(campusRepository.countChildrenByCampus(yearId, countDate(yearId, today)));
-            Map<Long, List<StaffBriefResponse>> vicePrincipals = campusStaff(today, StaffRole.VICE_PRINCIPAL);
+            LocalDate staffAt = yearId == null ? today : countDate(yearId, today);
+            Map<Long, List<StaffBriefResponse>> vicePrincipals = campusStaff(staffAt, StaffRole.VICE_PRINCIPAL);
             Map<Long, SchoolYearRepository.CampusSnapshot> snapshot = campusSnapshot(yearId);
             // V151: chỉ điểm trường thuộc năm đang xem.
             Set<Long> yearCampuses = yearCampusIds(yearId);
@@ -180,10 +181,11 @@ public class CampusServiceImpl implements CampusService {
                     ? 0
                     : toMap(campusRepository.countChildrenByCampus(yearId, countDate))
                             .getOrDefault(campusId, 0L);
+            // Xem lại năm cũ phải trả đúng nhân sự ở thời điểm kết thúc năm, cùng mốc với lớp và sĩ số.
             List<StaffBriefResponse> vicePrincipals =
-                    campusStaff(today, StaffRole.VICE_PRINCIPAL).getOrDefault(campusId, List.of());
+                    campusStaff(countDate, StaffRole.VICE_PRINCIPAL).getOrDefault(campusId, List.of());
             List<StaffBriefResponse> kitchenStaff =
-                    campusStaff(today, StaffRole.KITCHEN_STAFF).getOrDefault(campusId, List.of());
+                    campusStaff(countDate, StaffRole.KITCHEN_STAFF).getOrDefault(campusId, List.of());
             List<StaffBriefResponse> teachers = yearId == null
                     ? List.of()
                     : campusRepository.findActiveClassroomStaff(campusId, yearId, countDate).stream()

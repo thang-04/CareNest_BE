@@ -10961,6 +10961,35 @@ paths:
           description: OK
       tags:
       - vice-principal-assignment-controller
+  /api/school/appearance:
+    get:
+      operationId: getAppearance
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAppearanceResponse"
+          description: OK
+      tags:
+      - school-appearance-controller
+    put:
+      operationId: saveAppearance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppearanceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAppearanceResponse"
+          description: OK
+      tags:
+      - school-appearance-controller
   /api/signatures/me:
     get:
       operationId: listSignatures
@@ -11687,7 +11716,11 @@ components:
           type: number
           maximum: 100000
           minimum: 0
-        dailyKcalNeed:
+        dailyKcalMax:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 5000
+        dailyKcalMin:
           type: number
           exclusiveMinimum: 0
           maximum: 5000
@@ -11702,14 +11735,6 @@ components:
           type: number
           maximum: 1250
           minimum: 0
-        glucidPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        glucidPctMin:
-          type: number
-          maximum: 100
-          minimum: 0
         ironMax:
           type: number
           maximum: 100000
@@ -11717,20 +11742,6 @@ components:
         ironMin:
           type: number
           maximum: 100000
-          minimum: 0
-        kcalMax:
-          type: number
-          minimum: 0
-        kcalMin:
-          type: number
-          minimum: 0
-        lipidPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        lipidPctMin:
-          type: number
-          maximum: 100
           minimum: 0
         lunchKcalPctMax:
           type: number
@@ -11778,14 +11789,6 @@ components:
         plantProteinGMin:
           type: number
           maximum: 1250
-          minimum: 0
-        proteinPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        proteinPctMin:
-          type: number
-          maximum: 100
           minimum: 0
         serviceFee:
           type: number
@@ -11874,7 +11877,9 @@ components:
           type: number
         conversion:
           $ref: "#/components/schemas/NutritionConversionResponse"
-        dailyKcalNeed:
+        dailyKcalMax:
+          type: number
+        dailyKcalMin:
           type: number
         editable:
           type: boolean
@@ -12322,6 +12327,45 @@ components:
         updatedAt:
           type: string
           format: date-time
+    AppearanceRequest:
+      type: object
+      properties:
+        enabledSceneIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        mode:
+          type: string
+          enum:
+          - FIXED
+          - AUTO
+          - DAILY_RANDOM
+        pinnedSceneId:
+          type: string
+      required:
+      - enabledSceneIds
+      - mode
+    AppearanceResponse:
+      type: object
+      properties:
+        enabledSceneIds:
+          type: array
+          items:
+            type: string
+        mode:
+          type: string
+          enum:
+          - FIXED
+          - AUTO
+          - DAILY_RANDOM
+        pinnedSceneId:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
     ApprovalItem:
       type: object
       properties:
@@ -24552,6 +24596,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AnnouncementTemplateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAppearanceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AppearanceResponse"
         desc:
           type: string
         errorCode:

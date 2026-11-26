@@ -798,10 +798,13 @@ public class AttendanceServiceImpl implements AttendanceService {
             // CFG-YR-01: chỉ tính ngày trong năm học, khoảng chọn vượt năm thì cắt về ngày bắt đầu / kết thúc năm
             LocalDate start = yearRef == null ? range[0] : clampStart(range[0], yearRef);
             LocalDate end = yearRef == null ? range[1] : clampEnd(range[1], yearRef);
+            // Phân công hôm nay đọc một lần cho mọi lớp (như getClasses), không tra lại phân công từng lớp
+            Set<Long> activeClassIds = leader ? rules.activeTeacherClassIds(currentUser) : Set.of();
             List<ClassSummary> parts = yearClasses.stream()
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
                     .filter(c -> ageGroupId == null || ageGroupId.equals(c.ageGroupId()))
-                    .filter(c -> leader ? rules.canView(currentUser, c) : ledGroups.contains(c.ageGroupId()))
+                    .filter(c ->
+                            leader ? rules.canView(currentUser, c, activeClassIds) : ledGroups.contains(c.ageGroupId()))
                     .map(c -> summarize(c, start, end))
                     .toList();
             // Cột bữa của tổng hợp nhiều lớp = các bữa có ở ít nhất một lớp
@@ -870,9 +873,19 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|tallyMeals|campusId=" + campusId + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            List<ClassMealTally> tallies = classroomService.findYearClassrooms(schoolYearId).stream()
+            List<ClassroomInfoResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> c.campusId().equals(campusId))
-                    .map(c -> tally(c, date))
+                    .toList();
+            Map<Long, Set<Long>> childIdsByClass = enrollmentService.findChildIdsInClassrooms(
+                    classes.stream().map(ClassroomInfoResponse::id).toList(), date);
+            Set<Long> childIds =
+                    childIdsByClass.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+            Map<Long, AttendanceRecord> records = childIds.isEmpty()
+                    ? Map.of()
+                    : recordRepository.findByChildIdInAndDate(childIds, date).stream()
+                            .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+            List<ClassMealTally> tallies = classes.stream()
+                    .map(c -> tally(c, childIdsByClass.getOrDefault(c.id(), Set.of()), records))
                     .toList();
             log.info("{}|END", logPrefix);
             return tallies;
@@ -883,13 +896,12 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // NUT-01, ATT-02: suất = trẻ có mặt và có bật tham gia bữa đó; trẻ chưa điểm danh không tính suất.
-    private ClassMealTally tally(ClassroomInfoResponse cls, LocalDate date) {
-        List<Long> childIds = enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
-                .map(ClassChildResponse::id)
-                .toList();
+    private ClassMealTally tally(
+            ClassroomInfoResponse cls, Set<Long> childIds, Map<Long, AttendanceRecord> recordsByChild) {
         // Trẻ của lớp ngày đó: bản ghi đơn nghỉ gửi trước khi chuyển lớp tính cho lớp mới (một trẻ một bản ghi / ngày)
-        Map<Long, AttendanceRecord> records = recordRepository.findByChildIdInAndDate(childIds, date).stream()
-                .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+        Map<Long, AttendanceRecord> records = recordsByChild.entrySet().stream()
+                .filter(entry -> childIds.contains(entry.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         int present = 0;
         int absent = 0;
         Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
@@ -1291,17 +1303,31 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|findClassDays|classes=" + classroomIds.size();
         log.info("{}|START", logPrefix);
         try {
-            List<ClassChildDay> result = classroomIds.isEmpty()
-                    ? List.of()
-                    : recordRepository.findByClassroomIdInAndDateBetween(classroomIds, from, to).stream()
-                            .map(r -> new ClassChildDay(
-                                    r.getClassroomId(),
+            // Bản ghi thuộc lớp theo thời gian trẻ ở lớp, không theo lớp lưu sẵn trên bản ghi (đơn nghỉ tạo bản ghi từ
+            // trước): bỏ ngày sau khi trẻ nghỉ / chuyển đi, tính cho lớp mới ngày trẻ đã chuyển đến
+            List<ClassChildDay> result = new ArrayList<>();
+            Map<Long, List<EnrollmentService.ClassStay>> staysByClass = new LinkedHashMap<>();
+            Set<Long> childIds = new HashSet<>();
+            for (Long classroomId : classroomIds) {
+                List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(classroomId, from, to);
+                staysByClass.put(classroomId, stays);
+                stays.forEach(stay -> childIds.add(stay.childId()));
+            }
+            if (!childIds.isEmpty()) {
+                for (AttendanceRecord r : recordRepository.findByChildIdInAndDateBetween(childIds, from, to)) {
+                    staysByClass.forEach((classroomId, stays) -> {
+                        if (inClass(stays, r.getChildId(), r.getDate())) {
+                            result.add(new ClassChildDay(
+                                    classroomId,
                                     r.getChildId(),
                                     r.getDate(),
                                     r.getStatus(),
                                     r.getMeals() == null ? List.of() : List.copyOf(r.getMeals()),
-                                    r.getAbsentPart()))
-                            .toList();
+                                    r.getAbsentPart()));
+                        }
+                    });
+                }
+            }
             log.info("{}|count={}|END", logPrefix, result.size());
             return result;
         } catch (RuntimeException ex) {

@@ -2,7 +2,11 @@ package com.carenest.service.observation.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.carenest.dto.observation.SemesterAssessmentDtos.Child;
+import com.carenest.dto.observation.SemesterAssessmentDtos.Domain;
 import com.carenest.dto.observation.SemesterAssessmentDtos.Goal;
+import com.carenest.dto.observation.SemesterAssessmentDtos.Response;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,5 +30,69 @@ class SemesterDomainResultTest {
                 .isNull();
         assertThat(SemesterAssessmentServiceImpl.summarize(1L, "D", List.of()).met())
                 .isNull();
+    }
+
+    @Test
+    @DisplayName("Chủ đề kết thúc trong khoảng nghỉ giữa hai học kỳ thuộc học kỳ I, sau học kỳ II thuộc học kỳ II")
+    void themeInTheGapBelongsToSemesterOne() {
+        LocalDate yearStart = LocalDate.of(2026, 9, 1);
+        LocalDate yearEnd = LocalDate.of(2027, 5, 31);
+        LocalDate s2Start = LocalDate.of(2027, 2, 1);
+        LocalDate gap = LocalDate.of(2027, 1, 25); // HK I kết thúc 15/01, HK II bắt đầu 01/02
+
+        LocalDate[] one = SemesterAssessmentServiceImpl.themeRange(1, yearStart, yearEnd, s2Start);
+        LocalDate[] two = SemesterAssessmentServiceImpl.themeRange(2, yearStart, yearEnd, s2Start);
+
+        assertThat(!gap.isBefore(one[0]) && !gap.isAfter(one[1])).isTrue();
+        assertThat(!gap.isBefore(two[0]) && !gap.isAfter(two[1])).isFalse();
+        assertThat(two[1]).isEqualTo(yearEnd);
+        // chưa đặt học kỳ II thì học kỳ I lấy tới hết năm
+        assertThat(SemesterAssessmentServiceImpl.themeRange(1, yearStart, yearEnd, null)[1])
+                .isEqualTo(yearEnd);
+    }
+
+    private Response board(List<Domain> columns, List<Child> rows) {
+        LocalDate day = LocalDate.of(2026, 12, 31);
+        return new Response(
+                1L,
+                "Lớp",
+                1L,
+                "2026-2027",
+                1,
+                day.minusMonths(4),
+                day,
+                "NONE",
+                null,
+                columns,
+                rows,
+                true,
+                false,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    private Child child(long id, Boolean... results) {
+        List<Goal> goals = java.util.Arrays.stream(results).map(this::g).toList();
+        return new Child(id, "Trẻ " + id, List.of(SemesterAssessmentServiceImpl.summarize(1L, "D", goals)), null);
+    }
+
+    @Test
+    @DisplayName(
+            "OBS-25: trẻ vào lớp muộn chưa có kết quả không chặn xác nhận học kỳ, bảng không có kết quả nào thì chặn")
+    void lateJoinerWithoutResultsDoesNotBlockConfirmation() {
+        List<Domain> columns = List.of(SemesterAssessmentServiceImpl.summarize(1L, "D", List.of()));
+
+        assertThat(SemesterAssessmentServiceImpl.incomplete(
+                        board(columns, List.of(child(1, true, false), child(2, (Boolean) null)))))
+                .isFalse();
+        assertThat(SemesterAssessmentServiceImpl.incomplete(
+                        board(columns, List.of(child(1, (Boolean) null), child(2, (Boolean) null)))))
+                .isTrue();
+        assertThat(SemesterAssessmentServiceImpl.incomplete(board(columns, List.of())))
+                .isTrue();
+        assertThat(SemesterAssessmentServiceImpl.incomplete(board(List.of(), List.of(child(1, true)))))
+                .isTrue();
     }
 }

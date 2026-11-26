@@ -361,6 +361,8 @@ public enum ApiCode {
     PREP_YEAR_NOT_OPEN(2412, HttpStatus.CONFLICT, "Năm học {0} chưa tới ngày mở chuẩn bị ({1})"),
     NO_ACTIVE_YEAR_TO_MOVE_FROM(2410, HttpStatus.CONFLICT, "Không có năm học đang hoạt động để chuyển trẻ"),
     PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
+    PLACEMENT_CHILD_LEAVING(
+            2418, HttpStatus.CONFLICT, "{0} nghỉ học từ {1}, không học năm học mới nên chỉ chọn Nghỉ học"),
     PLACEMENT_NOT_OPEN(2417, HttpStatus.CONFLICT, "Xếp lớp năm học mới mở từ {0} (kết thúc học kỳ II năm học {1})"),
     PLACEMENT_CHILD_ALREADY_ENROLLED(
             2413, HttpStatus.CONFLICT, "{0} đang có lớp, không vào lớp năm học mới theo đăng ký tiếp nhận được"),

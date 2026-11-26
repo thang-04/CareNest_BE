@@ -560,6 +560,49 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
+    @DisplayName("Trẻ nghỉ học hẳn trước năm mới chỉ được chọn Nghỉ học; nghỉ sau ngày bắt đầu năm mới vẫn xếp được")
+    void childLeavingBeforeNewYearCanOnlyBePlacedAsLeave() {
+        // Lịch nghỉ trước ngày bắt đầu năm mới (05/09/2027)
+        jdbc.update(
+                "UPDATE children SET scheduled_leave_on = '2027-08-15', scheduled_leave_reason = 'Chuyển nhà' WHERE id = ?",
+                child1);
+        entityManager.clear();
+
+        assertThatThrownBy(() -> service.savePlacements(
+                        principal,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(new SavePlacementsRequest.Item(child1, PlacementAction.STAY, newClass3)))))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.PLACEMENT_CHILD_LEAVING);
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(new SavePlacementsRequest.Item(child1, PlacementAction.LEAVE, null))));
+
+        // Tự động xếp lớp không đưa trẻ này lên lớp mới
+        jdbc.update("DELETE FROM class_placements WHERE child_id = ?", child1);
+        service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null));
+        assertThat(jdbc.queryForObject(
+                        "SELECT action FROM class_placements WHERE child_id = ? AND school_year_id = ?",
+                        String.class,
+                        child1,
+                        newYear))
+                .isEqualTo("LEAVE");
+
+        // Nghỉ sau ngày bắt đầu năm mới: vẫn học một thời gian nên xếp được
+        jdbc.update("UPDATE children SET scheduled_leave_on = '2027-10-15' WHERE id = ?", child1);
+        entityManager.clear();
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(new SavePlacementsRequest.Item(child1, PlacementAction.STAY, newClass3))));
+    }
+
+    @Test
     void vicePrincipalCannotSave() {
         CurrentUser vicePrincipal = new CurrentUser(999L, "kc", "vp", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
 
