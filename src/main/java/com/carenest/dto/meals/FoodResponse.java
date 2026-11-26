@@ -9,7 +9,10 @@ import com.carenest.utils.enums.FoodUnit;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** {@code unitPrice}, NCC và trạng thái hợp đồng lấy tại hôm nay theo lịch sử giá (NUT-27). */
+/**
+ * {@code unitPrice}, NCC và trạng thái hợp đồng lấy tại hôm nay theo lịch sử giá (NUT-27). {@code unitsLocked}: đã
+ * nhập kho nên không đổi được đơn vị tính, đơn vị gốc, quy đổi (NUT-32).
+ */
 public record FoodResponse(
         Long id,
         String code,
@@ -41,4 +44,5 @@ public record FoodResponse(
         List<AllergenResponse> allergens,
         Long supplierId,
         String supplierName,
-        ContractStatus contractStatus) {}
+        ContractStatus contractStatus,
+        boolean unitsLocked) {}

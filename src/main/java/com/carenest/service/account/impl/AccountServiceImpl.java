@@ -1,6 +1,7 @@
 package com.carenest.service.account.impl;
 
 import com.carenest.dto.account.MyAccountResponse;
+import com.carenest.dto.account.MyAssignmentResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.repository.account.UserAccountRepository;
@@ -8,6 +9,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
@@ -17,6 +19,7 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +37,19 @@ public class AccountServiceImpl implements AccountService {
     private final GuardianChildLinkService guardianChildLinkService;
     private final EnrollmentService enrollmentService;
     private final UserAccountRepository userAccountRepository;
+    private final SchoolStructureService schoolStructureService;
     private final Clock clock;
+
+    private static MyAssignmentResponse toMyAssignment(StaffAssignmentSummaryResponse assignment, String campusName) {
+        return new MyAssignmentResponse(
+                assignment.staffRole(),
+                assignment.campusId(),
+                campusName,
+                assignment.classroomId(),
+                assignment.ageGroupId(),
+                assignment.validFrom(),
+                assignment.validTo());
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -43,10 +58,18 @@ public class AccountServiceImpl implements AccountService {
         log.info("{}|START", logPrefix);
         try {
             // Tóm tắt phạm vi tính giống policy: phân công/liên kết chỉ có hiệu lực khi role tương ứng có trong token
-            List<StaffAssignmentSummaryResponse> assignments =
+            List<StaffAssignmentSummaryResponse> effective =
                     staffAssignmentService.findActiveAssignments(currentUser.userId(), LocalDate.now(clock)).stream()
                             .filter(assignment -> currentUser.hasRole(tokenRoleOf(assignment.staffRole())))
                             .toList();
+            Map<Long, String> campusNames = schoolStructureService.findCampusNames(effective.stream()
+                    .map(StaffAssignmentSummaryResponse::campusId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet()));
+            List<MyAssignmentResponse> assignments = effective.stream()
+                    .map(assignment -> toMyAssignment(
+                            assignment, assignment.campusId() == null ? null : campusNames.get(assignment.campusId())))
+                    .toList();
             List<Long> childIds =
                     currentUser.hasRole(CareNestRole.PARENT) ? studyingChildIds(currentUser.userId()) : List.of();
 

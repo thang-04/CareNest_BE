@@ -1,5 +1,6 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.meals.AllergenResponse;
 import com.carenest.dto.meals.FoodDishUsageResponse;
 import com.carenest.dto.meals.FoodHistoryResponse;
@@ -81,14 +82,16 @@ public class FoodServiceImpl implements FoodService {
             String term = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
             FoodPriceBook book = foodPriceService.bookAll();
             LocalDate today = LocalDate.now(clock);
-            List<FoodResponse> response = foodRepository.findAllByOrderByNameAsc().stream()
+            List<Food> foods = foodRepository.findAllByOrderByNameAsc();
+            Set<Long> locked = stockedIds(foods.stream().map(Food::getId).toList());
+            List<FoodResponse> response = foods.stream()
                     .filter(food -> term.isEmpty()
                             || food.getName().toLowerCase(Locale.ROOT).contains(term)
                             || food.getCode().toLowerCase(Locale.ROOT).contains(term))
                     .filter(food -> foodGroup == null || food.getFoodGroup() == foodGroup)
                     .filter(food -> storage == null || food.getStorage() == storage)
                     .filter(food -> status == null || food.getStatus() == status)
-                    .map(food -> mapper.toResponse(food, book.at(food.getId(), today)))
+                    .map(food -> mapper.toResponse(food, book.at(food.getId(), today), locked.contains(food.getId())))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -205,6 +208,7 @@ public class FoodServiceImpl implements FoodService {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
             requireUniqueName(request.name(), foodId);
+            requireUnitsUnchangedWhenStocked(food, request);
             Map<String, String> before = FoodSnapshot.of(food);
             apply(
                     food,
@@ -275,6 +279,7 @@ public class FoodServiceImpl implements FoodService {
                 nameOwners.putIfAbsent(CatalogNames.key(catalogFood.getName()), catalogFood.getId());
             }
             Set<String> seenNames = new HashSet<>();
+            Set<Long> stocked = stockedIds(new ArrayList<>(existing.keySet()));
             for (int i = 0; i < items.size(); i++) {
                 FoodImportRequest.Item item = items.get(i);
                 FoodRequest data = item.data();
@@ -299,6 +304,10 @@ public class FoodServiceImpl implements FoodService {
                 }
                 if (data.origin() == null) {
                     errors.add(row + " thiếu nguồn gốc");
+                }
+                Food current = item.id() == null ? null : existing.get(item.id());
+                if (current != null && unitsChanged(current, data) && stocked.contains(current.getId())) {
+                    errors.add(row + " đã nhập kho nên không đổi được đơn vị tính, đơn vị gốc, quy đổi");
                 }
                 if (data.allergenIds() != null
                         && !data.allergenIds().stream().allMatch(id -> Allergen.fromId(id) != null)) {
@@ -349,7 +358,38 @@ public class FoodServiceImpl implements FoodService {
     }
 
     private FoodResponse toResponse(Food food) {
-        return mapper.toResponse(food, priceToday(food));
+        boolean locked =
+                food.getId() != null && !stockedIds(List.of(food.getId())).isEmpty();
+        return mapper.toResponse(food, priceToday(food), locked);
+    }
+
+    // NUT-32: kho lưu theo đơn vị gốc, số theo đơn vị mua tính lại từ quy đổi hiện tại nên đã nhập kho thì khóa đơn vị
+    private void requireUnitsUnchangedWhenStocked(Food food, FoodRequest request) {
+        if (!unitsChanged(food, request) || stockedIds(List.of(food.getId())).isEmpty()) {
+            return;
+        }
+        String message = "Thực phẩm đã nhập kho, không đổi được. Tạo thực phẩm mới nếu quy cách khác.";
+        List<FieldErrorResponse> errors = new ArrayList<>();
+        if (!food.getPurchaseUnit().equalsIgnoreCase(request.purchaseUnit().trim())) {
+            errors.add(new FieldErrorResponse("purchaseUnit", message));
+        }
+        if (food.getUnit() != request.unit()) {
+            errors.add(new FieldErrorResponse("unit", message));
+        }
+        if (food.getPurchaseUnitSize().compareTo(request.purchaseUnitSize()) != 0) {
+            errors.add(new FieldErrorResponse("purchaseUnitSize", message));
+        }
+        throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
+    }
+
+    private static boolean unitsChanged(Food food, FoodRequest request) {
+        return !food.getPurchaseUnit().equalsIgnoreCase(request.purchaseUnit().trim())
+                || food.getUnit() != request.unit()
+                || food.getPurchaseUnitSize().compareTo(request.purchaseUnitSize()) != 0;
+    }
+
+    private Set<Long> stockedIds(List<Long> foodIds) {
+        return foodIds.isEmpty() ? Set.of() : new HashSet<>(foodRepository.findIdsWithStockHistory(foodIds));
     }
 
     private FoodPriceBook.PriceAt priceToday(Food food) {

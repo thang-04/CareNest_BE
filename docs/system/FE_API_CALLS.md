@@ -241,7 +241,7 @@ GET /school-years/{x}/prep-classes · src/services/school-config/api/schoolConfi
 GET /school-years/{x}/readiness · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/child/YearTransitionController.java#getReadiness
 GET /school-years/{x}/semester-locks · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/SchoolYearController.java#getSemesterLocks
 GET /school-years/{x}/vice-principal-assignments · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/VicePrincipalAssignmentController.java#getAssignments
-GET /school/appearance · src/services/appearance/api/appearanceApi.js [appearance: demo] → (BE chưa có)
+GET /school/appearance · src/services/appearance/api/appearanceApi.js [appearance: api] → src/main/java/com/carenest/controller/organization/SchoolAppearanceController.java#getAppearance
 GET /signatures/me · src/services/signatureService.js [signatures: api] → src/main/java/com/carenest/controller/account/UserSignatureController.java#listSignatures
 GET /signatures/me/{x}/content · src/services/signatureService.js [signatures: api] → src/main/java/com/carenest/controller/account/UserSignatureController.java#getSignatureContent
 GET /teacher-assignments · src/services/masterDataService.js [master-data: api] → src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#getTeacherAssignments
@@ -451,7 +451,7 @@ PUT /school-years/{x}/holidays · src/services/school-config/api/schoolConfigApi
 PUT /school-years/{x}/placements · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/child/YearTransitionController.java#savePlacements
 PUT /school-years/{x}/semester · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/SchoolYearController.java#updateSemester
 PUT /school-years/{x}/vice-principal-assignments/{x} · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/VicePrincipalAssignmentController.java#assign
-PUT /school/appearance · src/services/appearance/api/appearanceApi.js [appearance: demo] → (BE chưa có)
+PUT /school/appearance · src/services/appearance/api/appearanceApi.js [appearance: api] → src/main/java/com/carenest/controller/organization/SchoolAppearanceController.java#saveAppearance
 PUT /team-leader-assignments · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#assignTeamLeader
 PUT /users/{x} · src/services/school-config/api/schoolConfigApi.js [school-config: api] → (BE chưa có — pending)
 ```
