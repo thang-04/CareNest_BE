@@ -250,6 +250,36 @@ class DayBalanceIntegrationTest {
                 ApiCode.DAY_BALANCE_LOCKED);
     }
 
+    @Test
+    @DisplayName("Về công thức: bỏ gam đã sửa nhưng giữ số trẻ đã lưu")
+    void resetsToRecipe() {
+        dayBalanceService.saveBalance(principal, MONDAY, 1, request(null, false));
+        dayBalanceService.saveBalance(
+                principal,
+                MONDAY,
+                1,
+                new DayBalanceRequest(
+                        dayBalanceService.getBalance(principal, MONDAY, 1).version(),
+                        null,
+                        null,
+                        List.of(new DayBalanceRequest.EditInput(ag3, rice, new BigDecimal("70"), null)),
+                        false,
+                        null));
+
+        DayBalanceResponse reset = dayBalanceService.previewBalance(
+                principal, MONDAY, 1, new DayBalanceRequest(null, null, null, null, false, null, true));
+
+        assertThat(reset.lines().stream()
+                        .filter(l -> l.foodId() == rice)
+                        .findFirst()
+                        .orElseThrow()
+                        .grams())
+                .isEqualByComparingTo("60");
+        assertThat(reset.counts())
+                .extracting(DayBalanceResponse.Count::children)
+                .containsExactly(31, 22);
+    }
+
     private DayBalanceRequest request(Long version, boolean round) {
         return new DayBalanceRequest(
                 version,

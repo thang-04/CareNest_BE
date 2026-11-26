@@ -30,7 +30,6 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -184,7 +183,7 @@ public class DayBalanceServiceImpl implements DayBalanceService {
 
     // Số gửi lên chỉ ghi đè ô đang có trong thực đơn: không thêm được món hay thực phẩm ngoài thực đơn
     private Draft apply(Source source, DayBalanceRequest request) {
-        Draft draft = reader.compose(source, false);
+        Draft draft = reader.compose(source, false, request.fromRecipe());
         Map<String, DayBalanceRequest.CountInput> counts = new HashMap<>();
         if (request.counts() != null) {
             request.counts().forEach(c -> counts.put(c.campusId() + "|" + c.ageGroupId(), c));
@@ -391,10 +390,7 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                     FoodMeta meta = draft.foods().get(food.getId());
                     BigDecimal total = DayBalanceCalculator.purchaseTotal(
                             draft.lines(), children, food.getId(), meta, draft.roundingStep());
-                    Map<Long, BigDecimal> shares = DayBalanceCalculator.allocate(
-                            total,
-                            campusWeights(source.campusIds(), draft, food.getId()),
-                            DayBalanceCalculator.stepOf(meta, draft.roundingStep()));
+                    Map<Long, BigDecimal> shares = DayBalanceReader.campusShares(source, draft, food.getId(), total);
                     return new DayBalanceResponse.SummaryRow(
                             food.getId(),
                             total,
@@ -406,24 +402,6 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                                     .toList());
                 })
                 .toList();
-    }
-
-    // Phần của điểm trường theo nhu cầu: số trẻ từng nhóm tuổi ở đó × gam mỗi trẻ của nhóm
-    private static Map<Long, BigDecimal> campusWeights(List<Long> campusIds, Draft draft, Long foodId) {
-        Map<Long, BigDecimal> gramsByGroup = new HashMap<>();
-        draft.lines().stream()
-                .filter(l -> l.foodId().equals(foodId))
-                .forEach(l -> gramsByGroup.merge(l.ageGroupId(), l.grams(), BigDecimal::add));
-        Map<Long, BigDecimal> weights = new LinkedHashMap<>();
-        campusIds.forEach(id -> weights.put(id, BigDecimal.ZERO));
-        draft.counts()
-                .forEach(c -> weights.merge(
-                        c.campusId(),
-                        gramsByGroup
-                                .getOrDefault(c.ageGroupId(), BigDecimal.ZERO)
-                                .multiply(BigDecimal.valueOf(c.children())),
-                        BigDecimal::add));
-        return weights;
     }
 
     private static BigDecimal quantity(BigDecimal purchase, FoodMeta meta) {

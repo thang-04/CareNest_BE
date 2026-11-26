@@ -23,6 +23,7 @@ import com.carenest.integration.ai.AiRawResult;
 import com.carenest.integration.ai.EmbeddingClient;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.service.meals.DayBalanceService;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.service.meals.MenuAiDraftService;
 import com.carenest.utils.ApiCode;
@@ -132,6 +133,9 @@ class MenuAiDraftIntegrationTest {
     private MealPlanService mealPlanService;
 
     @Autowired
+    private DayBalanceService dayBalanceService;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @MockitoBean
@@ -184,6 +188,7 @@ class MenuAiDraftIntegrationTest {
                         + " protein_pct_min, protein_pct_max, lipid_pct_min, lipid_pct_max, glucid_pct_min, glucid_pct_max)"
                         + " VALUES (?, '2026-09-01', 30000, 300, 600, 12, 25, 15, 35, 40, 70)",
                 ag3);
+        jdbc.update("UPDATE age_group_meal_configs SET budget_tolerance_pct = 100");
         long rice = food("AI-GAO", "Gạo (giả)", "PLANT", "350", "7", "1", "77");
         long porkFood = food("AI-THIT", "Thịt (giả)", "ANIMAL", "250", "20", "18", "0");
         long fish = food("AI-CA", "Cá (giả)", "ANIMAL", "100", "18", "3", "0");
@@ -331,6 +336,7 @@ class MenuAiDraftIntegrationTest {
         MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
         draftService.applyDraft(principal, draft.id(), null, null);
         MenuAiDraftResponse second = draftService.createDraft(principal, weekly(MONDAY));
+        BalancedWeek.balance(dayBalanceService, principal, MONDAY);
         mealPlanService.publishMealPlan(principal, MONDAY);
 
         expectCode(() -> draftService.createDraft(principal, weekly(MONDAY)), ApiCode.MEAL_PLAN_PUBLISHED);
@@ -1121,6 +1127,7 @@ class MenuAiDraftIntegrationTest {
     private MealPlanResponse publishedKindergartenWeek() {
         MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
         MealPlanResponse applied = draftService.applyDraft(principal, draft.id(), null, null);
+        BalancedWeek.balance(dayBalanceService, principal, MONDAY);
         mealPlanService.publishMealPlan(principal, MONDAY);
         return applied;
     }
@@ -1183,6 +1190,7 @@ class MenuAiDraftIntegrationTest {
         MenuAiDraftResponse weekDraft = draftService.createDraft(principal, weekly(MONDAY));
         draftService.applyDraft(principal, weekDraft.id(), null, null);
         MenuAiDraftResponse second = draftService.createDraft(principal, weekly(MONDAY));
+        BalancedWeek.balance(dayBalanceService, principal, MONDAY);
         mealPlanService.publishMealPlan(principal, MONDAY);
         clock.set(MONDAY.minusDays(1), "07:00");
 

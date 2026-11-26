@@ -8,6 +8,7 @@ import com.carenest.dto.meals.FreshForecastResponse;
 import com.carenest.dto.meals.FreshForecastSummaryResponse;
 import com.carenest.dto.meals.StockReceiptResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
+import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.meals.Dish;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.FreshCheck;
@@ -35,6 +36,7 @@ import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.meals.FreshGoodsService;
 import com.carenest.service.meals.StockReceiptService;
 import com.carenest.service.organization.AgeGroupService;
+import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodStorage;
@@ -59,6 +61,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -92,6 +95,8 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
     private final MealCountRepository mealCountRepository;
     private final FoodRepository foodRepository;
     private final MealDemandCalculator demandCalculator;
+    private final DayDemand dayDemand;
+    private final ClassroomService classroomService;
     private final DryStockOutlook dryStockOutlook;
     private final AgeGroupService ageGroupService;
     private final CampusAccessPolicy campusAccessPolicy;
@@ -234,6 +239,38 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public void createForecastsForPublishedWeek(LocalDate weekStart, Long userId) {
+        String logPrefix = LOG_PREFIX + "|createForecastsForPublishedWeek|userId=" + userId + "|weekStart=" + weekStart;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            LocalDate from = weekStart.isBefore(today) ? today : weekStart;
+            LocalDate to = weekStart.plusDays(4);
+            if (!from.isAfter(to)) {
+                classroomService.findActiveYearClassrooms().stream()
+                        .map(ClassroomInfoResponse::campusId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .forEach(campusId -> createFromBalance(campusId, from, to, userId));
+            }
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private void createFromBalance(Long campusId, LocalDate from, LocalDate to, Long userId) {
+        Calculated calculated = calculate(
+                new FreshForecastRequest(campusId, from, to, "Lập tự động khi công bố thực đơn", null, null), userId);
+        if (calculated.forecast().getLines().isEmpty()) {
+            return;
+        }
+        calculated.forecast().orderDry(suggestedDryOrder(dryLines(calculated.forecast())));
+        forecastRepository.save(calculated.forecast());
     }
 
     @Override
@@ -495,8 +532,8 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         }
         List<DayInfo> days = planDays(from, to);
         String note = request.note() == null ? "" : request.note().trim();
-        FreshForecast forecast =
-                FreshForecast.of(request.campusId(), from, to, note, counts, forecastLines(days, servings), userId);
+        FreshForecast forecast = FreshForecast.of(
+                request.campusId(), from, to, note, counts, forecastLines(request.campusId(), days, servings), userId);
         return new Calculated(forecast, days, ageGroups);
     }
 
@@ -535,17 +572,27 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         return days;
     }
 
-    private List<FreshForecastLine> forecastLines(List<DayInfo> days, List<MealDemandCalculator.Servings> servings) {
+    private List<FreshForecastLine> forecastLines(
+            Long campusId, List<DayInfo> days, List<MealDemandCalculator.Servings> servings) {
         List<MealPlanDay> planDays =
                 days.stream().map(DayInfo::day).filter(Objects::nonNull).toList();
-        if (planDays.isEmpty() || servings.isEmpty()) {
+        if (planDays.isEmpty()) {
             return List.of();
         }
         Map<Long, Dish> dishes = demandCalculator.dishesOf(planDays);
         Map<Long, MenuBlock> blocks = demandCalculator.blockOfAgeGroup();
         Map<LocalDate, Map<Long, BigDecimal>> demandByDate = new LinkedHashMap<>();
+        // Ngày đã cân đối đã làm tròn trên tổng toàn trường: giữ nguyên phần của điểm trường
+        Set<LocalDate> balancedDates = new HashSet<>();
         for (DayInfo info : days) {
-            if (info.day() != null) {
+            if (info.day() == null) {
+                continue;
+            }
+            Optional<DayDemand.Balanced> balanced = dayDemand.of(info.date(), DayBalanceReader.ROUND_EXPECTED);
+            if (balanced.isPresent()) {
+                balancedDates.add(info.date());
+                demandByDate.put(info.date(), dayDemand.campusShare(balanced.get(), campusId, FoodStorage.FRESH));
+            } else {
                 demandByDate.put(
                         info.date(),
                         MealDemandCalculator.compute(info.day(), dishes, blocks, servings, FoodStorage.FRESH));
@@ -560,7 +607,11 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                 .filter(entry -> entry.getValue().signum() > 0)
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> lines.add(FreshForecastLine.of(
-                        date, entry.getKey(), PurchaseUnits.roundUp(entry.getValue(), foods.get(entry.getKey()))))));
+                        date,
+                        entry.getKey(),
+                        balancedDates.contains(date)
+                                ? entry.getValue()
+                                : PurchaseUnits.roundUp(entry.getValue(), foods.get(entry.getKey()))))));
         return lines;
     }
 
@@ -631,7 +682,37 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                 forecast.getCreatedBy(),
                 campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, forecast.getCampusId()),
                 // Bản xem trước chưa lưu (id null) thì không có gì để xóa
-                forecast.getId() != null && !checkRepository.existsByForecastId(forecast.getId()));
+                forecast.getId() != null && !checkRepository.existsByForecastId(forecast.getId()),
+                forecast.getId() != null && outdated(forecast));
+    }
+
+    /** Bản cân đối đã đổi sau khi lập: lượng hàng tươi của một ngày đã cân đối trong kỳ không còn khớp. */
+    private boolean outdated(FreshForecast forecast) {
+        LocalDate today = LocalDate.now(clock);
+        for (LocalDate date = forecast.getPeriodFrom();
+                !date.isAfter(forecast.getPeriodTo());
+                date = date.plusDays(1)) {
+            if (date.isBefore(today)) {
+                continue;
+            }
+            Optional<DayDemand.Balanced> balanced = dayDemand.of(date, DayBalanceReader.ROUND_EXPECTED);
+            if (balanced.isEmpty()) {
+                continue;
+            }
+            LocalDate day = date;
+            Map<Long, BigDecimal> ordered = new HashMap<>();
+            forecast.getLines().stream()
+                    .filter(line -> line.getMenuDate().equals(day))
+                    .forEach(line -> ordered.merge(line.getFoodId(), line.getQuantity(), BigDecimal::add));
+            Map<Long, BigDecimal> current =
+                    dayDemand.campusShare(balanced.get(), forecast.getCampusId(), FoodStorage.FRESH);
+            if (!ordered.keySet().equals(current.keySet())
+                    || current.entrySet().stream()
+                            .anyMatch(e -> e.getValue().compareTo(ordered.get(e.getKey())) != 0)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -725,7 +806,7 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         if (basis.blockedReason() != null) {
             return Expected.unavailable(FreshCheckSource.CONFIRMED_SERVINGS, basis.blockedReason());
         }
-        Map<Long, BigDecimal> demand = demandCalculator.demand(
+        Map<Long, BigDecimal> demand = dayDemand.byServings(
                 basis.day(), demandCalculator.confirmedServings(basis.counts()), FoodStorage.FRESH);
         Map<Long, Food> foods = foods(demand.keySet());
         Map<Long, BigDecimal> lines = new LinkedHashMap<>();

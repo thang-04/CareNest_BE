@@ -16,6 +16,7 @@ import java.util.List;
  * {@code edits} sửa theo thực phẩm của một nhóm tuổi (gam mỗi trẻ hoặc lượng mua theo đơn vị mua, chỉ một trong hai).
  * {@code applyRounding}: làm tròn lượng mua toàn trường ngay lượt này; {@code roundingStep} là bước kg/lít
  * (0,1 – 0,5 – 1), gửi kèm khi lưu số đã làm tròn. {@code version}: phiên bản đã đọc, null khi chưa có bản lưu.
+ * {@code fromRecipe}: bỏ gam đã lưu, dựng lại từ công thức món.
  */
 public record DayBalanceRequest(
         Long version,
@@ -23,7 +24,18 @@ public record DayBalanceRequest(
         @Size(max = 2000) List<@NotNull @Valid LineInput> lines,
         @Size(max = 200) List<@NotNull @Valid EditInput> edits,
         boolean applyRounding,
-        BigDecimal roundingStep) {
+        BigDecimal roundingStep,
+        boolean fromRecipe) {
+
+    public DayBalanceRequest(
+            Long version,
+            List<CountInput> counts,
+            List<LineInput> lines,
+            List<EditInput> edits,
+            boolean applyRounding,
+            BigDecimal roundingStep) {
+        this(version, counts, lines, edits, applyRounding, roundingStep, false);
+    }
 
     public record CountInput(
             @NotNull Long campusId,

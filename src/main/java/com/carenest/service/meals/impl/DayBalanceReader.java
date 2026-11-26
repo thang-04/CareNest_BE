@@ -113,6 +113,29 @@ class DayBalanceReader {
         }
     }
 
+    boolean saved(LocalDate date, short round) {
+        return balanceRepository.existsByBalanceDateAndRound(date, round);
+    }
+
+    /** Chia tổng lượng mua của một thực phẩm cho điểm trường theo số trẻ từng nhóm tuổi ở đó × gam mỗi trẻ. */
+    static Map<Long, BigDecimal> campusShares(Source source, Draft draft, Long foodId, BigDecimal total) {
+        Map<Long, BigDecimal> gramsByGroup = new HashMap<>();
+        draft.lines().stream()
+                .filter(l -> l.foodId().equals(foodId))
+                .forEach(l -> gramsByGroup.merge(l.ageGroupId(), l.grams(), BigDecimal::add));
+        Map<Long, BigDecimal> weights = new LinkedHashMap<>();
+        source.campusIds().forEach(id -> weights.put(id, BigDecimal.ZERO));
+        draft.counts()
+                .forEach(c -> weights.merge(
+                        c.campusId(),
+                        gramsByGroup
+                                .getOrDefault(c.ageGroupId(), BigDecimal.ZERO)
+                                .multiply(BigDecimal.valueOf(c.children())),
+                        BigDecimal::add));
+        return DayBalanceCalculator.allocate(
+                total, weights, DayBalanceCalculator.stepOf(draft.foods().get(foodId), draft.roundingStep()));
+    }
+
     Source load(LocalDate date, short round) {
         LocalDate weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         MealPlanWeek week = weekRepository.findByWeekStart(weekStart).orElse(null);
@@ -149,8 +172,13 @@ class DayBalanceReader {
      * thì mất dòng. {@code snapshot}: dùng thải bỏ, giá, đơn vị mua đã chụp lúc lưu (để xem lại số đã chốt).
      */
     Draft compose(Source source, boolean snapshot) {
+        return compose(source, snapshot, false);
+    }
+
+    /** {@code fromRecipe}: gam lấy lại từ công thức món, chỉ giữ số trẻ đã lưu. */
+    Draft compose(Source source, boolean snapshot, boolean fromRecipe) {
         Map<DishKey, List<Line>> saved = new LinkedHashMap<>();
-        if (source.saved() != null) {
+        if (source.saved() != null && !fromRecipe) {
             source.saved().getLines().stream()
                     .sorted(Comparator.comparing(DayBalanceLine::foodId))
                     .forEach(l -> {
@@ -171,7 +199,9 @@ class DayBalanceReader {
                     id,
                     new FoodMeta(
                             food.getWastePct(), food.getPurchaseUnit(), food.getPurchaseUnitSize(), food.getStorage()));
-            BigDecimal price = book.price(id, source.date());
+            // Thực phẩm chưa có mức giá theo ngày thì dùng đơn giá danh mục
+            BigDecimal dated = book.price(id, source.date());
+            BigDecimal price = dated != null ? dated : food.getUnitPrice();
             if (price != null) {
                 prices.put(id, price);
             }

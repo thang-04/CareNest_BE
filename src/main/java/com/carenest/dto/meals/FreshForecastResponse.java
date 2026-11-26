@@ -26,7 +26,8 @@ public record FreshForecastResponse(
         Instant createdAt,
         Long createdBy,
         boolean canManage,
-        boolean deletable) {
+        boolean deletable,
+        boolean outdated) {
 
     /** {@code enrolledCount}: số trẻ đang học lúc lập; {@code expectedCount}: số dùng để tính suất. */
     public record FreshForecastCount(Long ageGroupId, String ageGroupName, int enrolledCount, int expectedCount) {}

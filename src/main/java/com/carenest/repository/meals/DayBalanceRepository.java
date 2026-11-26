@@ -10,5 +10,7 @@ public interface DayBalanceRepository extends JpaRepository<DayBalance, Long> {
 
     Optional<DayBalance> findByBalanceDateAndRound(LocalDate balanceDate, short round);
 
+    boolean existsByBalanceDateAndRound(LocalDate balanceDate, short round);
+
     List<DayBalance> findByBalanceDateBetween(LocalDate from, LocalDate to);
 }

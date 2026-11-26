@@ -15022,6 +15022,8 @@ components:
             $ref: "#/components/schemas/EditInput"
           maxItems: 200
           minItems: 0
+        fromRecipe:
+          type: boolean
         lines:
           type: array
           items:
@@ -15270,6 +15272,9 @@ components:
     DayMarketResponse:
       type: object
       properties:
+        balanceRound:
+          type: integer
+          format: int32
         basis:
           type: string
         campusId:
@@ -17495,6 +17500,8 @@ components:
             $ref: "#/components/schemas/FreshForecastLine"
         note:
           type: string
+        outdated:
+          type: boolean
         periodFrom:
           type: string
           format: date
@@ -20991,6 +20998,8 @@ components:
             $ref: "#/components/schemas/MenuStatisticsItem"
           maxItems: 60
           minItems: 0
+        useBalance:
+          type: boolean
       required:
       - items
     MenuStatisticsResponse:
@@ -21001,6 +21010,9 @@ components:
           format: int64
         ageGroupName:
           type: string
+        balanceRound:
+          type: integer
+          format: int32
         children:
           type: integer
           format: int32
