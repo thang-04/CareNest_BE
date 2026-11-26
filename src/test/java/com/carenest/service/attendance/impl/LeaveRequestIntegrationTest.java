@@ -203,14 +203,39 @@ class LeaveRequestIntegrationTest {
         assertThat(tally.absent()).isEqualTo(1);
         assertThat(tally.meals().get(MealSession.LUNCH)).isEqualTo(1);
 
+        // Đơn cả ngày mà trẻ vẫn đến: GV không đổi thành Vắng không phép, nhưng ghi được Có mặt ngay trước giờ chốt
         expectError(
                 () -> attendanceService.saveClassAttendance(
                         teacherA,
                         classA,
                         new SaveAttendanceRequest(
                                 TODAY,
-                                List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, Map.of())))),
+                                List.of(new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.UNEXCUSED, Map.of())))),
                 ApiCode.LEAVE_ATTENDANCE_LOCKED);
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(new SaveAttendanceRequest.Entry(
+                                child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true)))));
+        ClassAttendanceResponse.ChildRow presentRow =
+                rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1);
+        assertThat(presentRow.record().status()).isEqualTo(AttendanceStatus.PRESENT);
+        assertThat(presentRow.leave()).isNotNull();
+        assertThat(attendanceService.tallyMeals(TODAY, campusA, null).stream()
+                        .filter(t -> t.classroomId().equals(classA))
+                        .findFirst()
+                        .orElseThrow()
+                        .meals()
+                        .get(MealSession.LUNCH))
+                .isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM notifications WHERE type = 'LEAVE_REQUEST_CHANGED' AND user_id = ?",
+                        Integer.class,
+                        parent.userId()))
+                .isEqualTo(1);
     }
 
     @Test

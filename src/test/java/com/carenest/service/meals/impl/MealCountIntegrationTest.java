@@ -366,46 +366,27 @@ class MealCountIntegrationTest {
     }
 
     @Test
-    void lateChildAfterConfirmationNeedsReconfirmationWhileKitchenKeepsOldCount() {
+    void lateChildAfterConfirmationIsRejectedAndCountStaysConfirmed() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         clock.now = AFTER_CUTOFF;
         long lunchId = lunch(service.getMealCounts(vpA, TODAY, null)).id();
         service.confirm(vpA, lunchId);
 
-        // Trẻ đến muộn: PHT mở lại, GV ghi có mặt + ăn trưa (ATT-07)
-        unlockService.unlockDay(
-                vpA, new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "Trẻ đến muộn"));
-        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
-        service.markAttendanceChanged(TODAY, campusA, classA);
+        // ATT-07: sổ đã xác nhận khóa cứng; PHT mở lại điểm danh nhưng GV không lưu đổi được
+        reopenDay();
+        expectCode(
+                () -> attendanceService.saveClassAttendance(
+                        teacherA, classA, request(present(child1), present(child2))),
+                ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
 
         MealCountResponse review = lunch(service.getMealCounts(vpA, TODAY, null));
-        assertThat(review.status()).isEqualTo("PENDING_CONFIRMATION");
-        assertThat(review.needsReconfirmation()).isTrue();
-        assertThat(review.totals().normal()).isEqualTo(2);
-        // Người duyệt thấy số đã chốt cũ cạnh số mới của lớp thay đổi (NUT-03)
-        assertThat(review.classes())
-                .filteredOn(l -> l.classId().equals(classA))
-                .singleElement()
-                .satisfies(l -> {
-                    assertThat(l.normal()).isEqualTo(2);
-                    assertThat(l.confirmedNormal()).isEqualTo(1);
-                });
-        MealCountResponse kitchen = lunch(service.getMealCounts(kitchenA, TODAY, null));
-        assertThat(kitchen.classes())
-                .allSatisfy(l -> assertThat(l.confirmedNormal()).isNull());
-        assertThat(kitchen.status()).isEqualTo("CONFIRMED");
-        assertThat(kitchen.needsReconfirmation()).isFalse();
-        assertThat(kitchen.totals().normal()).isEqualTo(1);
-
-        service.confirm(vpA, lunchId);
-        assertThat(lunch(service.getMealCounts(kitchenA, TODAY, null)).totals().normal())
-                .isEqualTo(2);
-        assertThat(lunch(service.getMealCounts(vpA, TODAY, null)).needsReconfirmation())
-                .isFalse();
+        assertThat(review.status()).isEqualTo("CONFIRMED");
+        assertThat(review.needsReconfirmation()).isFalse();
+        assertThat(review.totals().normal()).isEqualTo(1);
     }
 
     @Test
-    void principalConfirmsAnyCampusAndReconfirmsAfterChange() {
+    void principalConfirmsAnyCampusAndKitchenSeesConfirmedCount() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         clock.now = AFTER_CUTOFF;
         long lunchId = lunch(service.getMealCounts(principal, TODAY, null)).id();
@@ -415,17 +396,17 @@ class MealCountIntegrationTest {
         assertThat(confirmed.confirmedByName()).isEqualTo("principal");
         assertThat(confirmed.confirmedByRole()).isEqualTo(StaffRole.PRINCIPAL);
 
-        // ATT-07: đổi điểm danh sau xác nhận ⇒ chờ xác nhận lại; HT xác nhận lại, bếp nhận số mới
-        unlockService.unlockDay(
-                vpA, new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "Trẻ đến muộn"));
-        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
-        service.markAttendanceChanged(TODAY, campusA, classA);
+        // ATT-07: đổi điểm danh sau xác nhận bị từ chối, bếp vẫn nhận số đã xác nhận
+        reopenDay();
+        expectCode(
+                () -> attendanceService.saveClassAttendance(
+                        teacherA, classA, request(present(child1), present(child2))),
+                ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
         assertThat(lunch(service.getMealCounts(principal, TODAY, null)))
                 .extracting(MealCountResponse::needsReconfirmation, MealCountResponse::canConfirm)
-                .containsExactly(true, true);
-        service.confirm(principal, lunchId);
+                .containsExactly(false, false);
         assertThat(lunch(service.getMealCounts(kitchenA, TODAY, null)).totals().normal())
-                .isEqualTo(2);
+                .isEqualTo(1);
     }
 
     @Test
@@ -450,41 +431,37 @@ class MealCountIntegrationTest {
     }
 
     @Test
-    @DisplayName(
-            "NUT-02: đổi điểm danh sau khi xác nhận ⇒ số mới chờ xác nhận lại, mọi trẻ ăn là suất thường, lịch sử ghi đủ")
-    void attendanceChangeAfterConfirmNeedsReconfirmation() {
+    @DisplayName("ATT-07: đổi điểm danh sau khi xác nhận bị từ chối, sổ suất ăn giữ nguyên, không có lịch sử đổi")
+    void attendanceChangeAfterConfirmIsRejected() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         clock.now = AFTER_CUTOFF;
         long lunchId = lunch(service.getMealCounts(vpA, TODAY, null)).id();
         service.confirm(vpA, lunchId);
 
-        reopenAndMarkBothPresent();
+        reopenDay();
+        expectCode(
+                () -> attendanceService.saveClassAttendance(
+                        teacherA, classA, request(present(child1), present(child2))),
+                ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
 
         MealCountResponse review = lunch(service.getMealCounts(vpA, TODAY, null));
-        assertThat(review.needsReconfirmation()).isTrue();
+        assertThat(review.needsReconfirmation()).isFalse();
         assertThat(review.totals())
                 .extracting(MealCountResponse.Totals::normal, MealCountResponse.Totals::substitute)
-                .containsExactly(2, 0);
-        assertThat(review.classes()).singleElement().satisfies(l -> {
-            assertThat(l.substituteAdjusted()).isFalse();
-            assertThat(l.attendanceChanged()).isFalse();
-        });
+                .containsExactly(1, 0);
         assertThat(jdbc.queryForList(
                         "SELECT action FROM meal_count_history WHERE meal_count_id = ? ORDER BY id",
                         String.class,
                         lunchId))
-                .containsExactly("AGGREGATED", "CONFIRMED", "ATTENDANCE_CHANGED");
-        // NUT-03: PHT điểm trường nhận thông báo cần xác nhận lại (một lần)
+                .containsExactly("AGGREGATED", "CONFIRMED");
         assertThat(jdbc.queryForList(
                         "SELECT user_id FROM notifications WHERE type = 'MEAL_COUNT_RECONFIRM'", Long.class))
-                .containsExactly(vpA.userId());
+                .isEmpty();
 
-        // ATT-08: mở lại (trả lại GV kiểm tra) báo giáo viên lớp
+        // ATT-08: mở lại (trả lại GV kiểm tra) vẫn báo giáo viên lớp
         assertThat(jdbc.queryForList(
                         "SELECT user_id FROM notifications WHERE type = 'ATTENDANCE_DAY_UNLOCKED'", Long.class))
                 .contains(teacherA.userId());
-
-        assertThat(service.confirm(vpA, lunchId).needsReconfirmation()).isFalse();
     }
 
     @Test
@@ -499,22 +476,6 @@ class MealCountIntegrationTest {
         assertThat(summary.days())
                 .singleElement()
                 .satisfies(d -> assertThat(d.substitute()).isZero());
-    }
-
-    @Test
-    void pastDayReconfirmationIsIdempotentAcrossSessions() {
-        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
-        clock.now = AFTER_CUTOFF;
-        var counts = service.getMealCounts(vpA, TODAY, null).counts();
-        service.confirm(vpA, counts.getFirst().id());
-        reopenAndMarkBothPresent();
-        clock.now = AFTER_CUTOFF.plus(Duration.ofDays(1));
-        for (var count : counts) {
-            assertThat(service.confirm(vpA, count.id()).needsReconfirmation()).isFalse();
-        }
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM meal_count_history WHERE action='CONFIRMED'", Integer.class))
-                .isEqualTo(4);
     }
 
     @Test
@@ -559,12 +520,16 @@ class MealCountIntegrationTest {
 
     @Test
     @DisplayName(
-            "INS-03: M2 hoặc M3 của ngày đã ký ⇒ không điều chỉnh, không xác nhận lại suất (6106); Sửa lại biên bản thì được")
+            "INS-03: M2 hoặc M3 của ngày đã ký ⇒ không điều chỉnh, không xác nhận suất (6106); Sửa lại biên bản thì được")
     void signedProcessOrServeSheetLocksServings() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         clock.now = AFTER_CUTOFF;
         long lunchId = lunch(service.getMealCounts(vpA, TODAY, null)).id();
-        service.confirm(vpA, lunchId);
+
+        signSheet("PROCESS");
+        expectCode(() -> service.confirm(vpA, lunchId), ApiCode.MEAL_COUNT_INSPECTION_SIGNED);
+        unsignSheet("PROCESS");
+        assertThat(service.confirm(vpA, lunchId).status()).isEqualTo("CONFIRMED");
 
         signSheet("SERVE");
         assertThat(lunch(service.getMealCounts(vpA, TODAY, null))).satisfies(c -> {
@@ -572,13 +537,6 @@ class MealCountIntegrationTest {
             assertThat(c.canAdjust()).isFalse();
             assertThat(c.canConfirm()).isFalse();
         });
-
-        unsignSheet("SERVE");
-        reopenAndMarkBothPresent(); // chờ xác nhận lại
-        signSheet("PROCESS");
-        expectCode(() -> service.confirm(vpA, lunchId), ApiCode.MEAL_COUNT_INSPECTION_SIGNED);
-        unsignSheet("PROCESS");
-        assertThat(service.confirm(vpA, lunchId).status()).isEqualTo("CONFIRMED");
     }
 
     private void signSheet(String tab) {
@@ -606,12 +564,17 @@ class MealCountIntegrationTest {
                 .sum();
     }
 
-    // Mở lại điểm danh (trả lại GV kiểm tra) rồi cả hai trẻ có mặt: số của lớp đổi sau khi tổng hợp
+    // Mở lại điểm danh (trả lại GV kiểm tra) rồi cả hai trẻ có mặt: số của lớp đổi khi sổ chưa xác nhận
     private void reopenAndMarkBothPresent() {
-        unlockService.unlockDay(
-                vpA, new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "Trẻ đến muộn"));
+        reopenDay();
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
         service.markAttendanceChanged(TODAY, campusA, classA);
+    }
+
+    // Mở lại điểm danh (trả lại GV kiểm tra) sau giờ chốt
+    private void reopenDay() {
+        unlockService.unlockDay(
+                vpA, new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "Trẻ đến muộn"));
     }
 
     private void declareAllergy(long childId) {

@@ -840,8 +840,9 @@ class DailyAssessmentIntegrationTest {
                 "UPDATE staff_assignments SET valid_to='2026-10-27' WHERE user_id=? AND classroom_id=?",
                 teacherA.userId(),
                 classA);
+        // User chốt 26/11/2026: ngày thuộc đợt được phân công thì ghi được
         assertThat(service.getDailySheet(teacherA, classA, YESTERDAY).canRecord())
-                .isFalse();
+                .isTrue();
         expectCode(() -> service.getDailySheet(teacherA, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
         var historyClass = attendanceService.getClasses(teacherA, null).stream()
                 .filter(c -> c.id().equals(classA))
@@ -878,7 +879,7 @@ class DailyAssessmentIntegrationTest {
         assertThat(sheet.canRecord()).isFalse();
         expectCode(
                 () -> service.saveGeneral(teacherA, oldClass, general(oldDay, child1, "x")),
-                ApiCode.CLASS_ACCESS_DENIED);
+                ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         expectCode(
                 () -> unlockService.unlockDay(
                         principal, new AssessmentDayUnlockRequest(oldClass, oldDay, NOW.plusSeconds(3600), "Bổ sung")),

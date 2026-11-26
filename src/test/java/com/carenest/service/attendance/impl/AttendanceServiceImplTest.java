@@ -8,7 +8,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.carenest.dto.attendance.CorrectMealParticipationRequest;
@@ -22,8 +21,6 @@ import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
 import com.carenest.repository.attendance.LeaveRequestRepository;
-import com.carenest.repository.meals.InspectionSheetRepository;
-import com.carenest.repository.meals.MealCountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
@@ -66,8 +63,8 @@ class AttendanceServiceImplTest {
     private final ChildService children = mock(ChildService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final GuardianChildLinkService guardians = mock(GuardianChildLinkService.class);
-    private final MealCountRepository mealCounts = mock(MealCountRepository.class);
-    private final InspectionSheetRepository inspectionSheets = mock(InspectionSheetRepository.class);
+    private final com.carenest.service.attendance.MealChangeGuard mealGuard =
+            mock(com.carenest.service.attendance.MealChangeGuard.class);
     private AttendanceServiceImpl service;
     private AttendanceRecord morningLeave;
 
@@ -89,8 +86,7 @@ class AttendanceServiceImplTest {
                 mock(NotificationService.class),
                 mock(com.carenest.repository.attendance.PickupRecordRepository.class),
                 new EarlyPickupRule(mock(com.carenest.service.organization.AttendanceCutoffService.class)),
-                mealCounts,
-                inspectionSheets);
+                mealGuard);
         when(classrooms.findClassroomInfo(CLASS))
                 .thenReturn(Optional.of(new ClassroomInfoResponse(
                         CLASS,
@@ -132,7 +128,9 @@ class AttendanceServiceImplTest {
         service.markArrived(teacher, CLASS, CHILD, TODAY);
 
         assertThat(morningLeave.getMeals()).containsExactly(MealSession.AFTERNOON);
-        verifyNoInteractions(events);
+        // ATT-07: bữa giữ nguyên; vẫn phát event để sổ chưa xác nhận cập nhật số, sổ đã xác nhận bị bỏ qua
+        verify(events)
+                .publishEvent(any(com.carenest.service.attendance.AttendanceService.AttendanceChangedEvent.class));
     }
 
     @Test
@@ -155,7 +153,6 @@ class AttendanceServiceImplTest {
                         new DayInfoResponse(TODAY, TODAY, "09:00", "08:30", null, null, true, true, NOW, true, null));
         when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(present));
         when(children.findChildIdsWithoutMeals(Set.of(CHILD))).thenReturn(Set.of());
-        when(mealCounts.findByCampusIdAndDate(CAMPUS, TODAY)).thenReturn(List.of());
 
         var result = service.correctMealParticipation(
                 teacher, CLASS, CHILD, new CorrectMealParticipationRequest(TODAY, false));
@@ -204,7 +201,9 @@ class AttendanceServiceImplTest {
         assertThat(arrivedAfternoon.presentDays()).isEqualTo(1.0);
         assertThat(arrivedAfternoon.unexcusedDays()).isZero();
         assertThat(arrivedAfternoon.getMeals()).containsExactly(MealSession.AFTERNOON);
-        verifyNoInteractions(events);
+        // ATT-07: bữa giữ nguyên; vẫn phát event để sổ chưa xác nhận cập nhật số, sổ đã xác nhận bị bỏ qua
+        verify(events)
+                .publishEvent(any(com.carenest.service.attendance.AttendanceService.AttendanceChangedEvent.class));
     }
 
     @Test
