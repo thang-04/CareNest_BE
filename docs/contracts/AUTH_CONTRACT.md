@@ -73,12 +73,12 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 { "code": 200, "desc": "Get my account success",
   "data": { "userId": 12, "username": "teacher.a", "fullName": "...", "email": null, "roles": ["TEACHER"],
             "permissions": ["CHILD_PROFILE_VIEW"], "schoolWidePermissions": [],
-            "assignments": [ { "staffRole": "TEACHER", "campusId": null, "classroomId": 3,
+            "assignments": [ { "staffRole": "TEACHER", "campusId": null, "campusName": null, "classroomId": 3,
                                "validFrom": "2026-09-01", "validTo": null } ],
             "childIds": [] } }
 ```
 
-- `assignments`: phân công **đang hiệu lực hôm nay** và khớp role trong token (`staffRole` PRINCIPAL: cả hai id null; VICE_PRINCIPAL/KITCHEN_STAFF: `campusId`; TEACHER: `classroomId`).
+- `assignments`: phân công **đang hiệu lực hôm nay** và khớp role trong token (`staffRole` PRINCIPAL: cả hai id null; VICE_PRINCIPAL/KITCHEN_STAFF: `campusId`; TEACHER: `classroomId`). `campusName` (thêm 26/11, AUTH-22): tên điểm trường của `campusId`, null khi phân công không gắn điểm trường; App bếp dùng làm nhãn nơi đang xem. Cùng cấu trúc trong `account` của response đăng nhập/làm mới phiên.
 - `childIds`: trẻ liên kết với tài khoản (chỉ khi có role PARENT).
 - `pinnedCampusPermissions`: `{ "<mã>": campusId }` — mã sửa theo mảng HT giao tại một điểm trường cụ thể (AUTH-20); mã có trong đây chỉ sửa ở điểm trường đó, không ở điểm trường phụ trách.
 - `permissions`: quyền hiệu lực (ADR-0017) — dùng ẩn/hiện menu, route; đổi ngay khi Hiệu trưởng sửa ma trận/ngoại lệ (gọi lại `/accounts/me` để cập nhật).
