@@ -13,6 +13,8 @@ import java.util.List;
  * {@code countStatus}: NONE (chưa bữa nào có suất đã xác nhận), PARTIAL (một số bữa), CONFIRMED (mọi bữa có sổ).
  * {@code foods}: lượng thực phẩm cần của ngày
  * (đơn vị gốc, đã cộng thải bỏ), rỗng khi ngày nghỉ, thực đơn chưa công bố hoặc chưa có suất đã xác nhận.
+ * Dị ứng (NUT-23): đếm trẻ báo ăn đang học trong lớp của năm đang hoạt động theo khai báo hiện tại, không theo điểm
+ * danh; rỗng không có nghĩa là món an toàn. {@code unmatchedAllergies}: chữ đã khai không khớp chất nào trong danh mục.
  */
 public record KitchenDayResponse(
         Long campusId,
@@ -23,11 +25,24 @@ public record KitchenDayResponse(
         Instant confirmedAt,
         List<SessionMenu> menu,
         List<ClassServings> servings,
-        List<FoodNeed> foods) {
+        List<FoodNeed> foods,
+        List<UnmatchedAllergy> unmatchedAllergies) {
 
     public record SessionMenu(MealSession session, MenuBlock menuBlock, List<MenuDish> dishes) {}
 
-    public record MenuDish(Long id, String code, String name) {}
+    /** {@code allergyWarnings}: chỉ chất của món có trẻ dị ứng ở lớp đúng khối, ăn bữa đó. */
+    public record MenuDish(
+            Long id,
+            String code,
+            String name,
+            List<AllergenResponse> allergens,
+            List<DishAllergyWarning> allergyWarnings) {}
+
+    public record DishAllergyWarning(AllergenResponse allergen, List<AllergyClassCount> byClass) {}
+
+    public record AllergyClassCount(Long classroomId, String classroomName, int count) {}
+
+    public record UnmatchedAllergy(String name, List<AllergyClassCount> byClass) {}
 
     public record ClassServings(
             MealSession session, Long classroomId, String classroomName, int normal, int substitute) {}

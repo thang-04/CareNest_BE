@@ -3,6 +3,7 @@ package com.carenest.service.child.impl;
 import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.child.ChildProfileResponse;
 import com.carenest.entity.child.Child;
+import com.carenest.entity.child.ChildAllergy;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.child.ChildMapper;
 import com.carenest.repository.child.ChildAllergyRepository;
@@ -15,6 +16,7 @@ import com.carenest.utils.ApiCode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -113,6 +115,26 @@ public class ChildServiceImpl implements ChildService {
                     childRepository.findById(childId).map(Child::getScheduledLeaveOn);
             log.info("{}|found={}|END", logPrefix, scheduledLeaveOn.isPresent());
             return scheduledLeaveOn;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, List<String>> findAllergyNames(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findAllergyNames|count=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, List<String>> result = childIds.isEmpty()
+                    ? Map.of()
+                    : allergyRepository.findAllByChildIdInOrderByIdAsc(childIds).stream()
+                            .collect(Collectors.groupingBy(
+                                    ChildAllergy::getChildId,
+                                    Collectors.mapping(ChildAllergy::getName, Collectors.toList())));
+            log.info("{}|END", logPrefix);
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
