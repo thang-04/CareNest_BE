@@ -24,6 +24,7 @@ public record DayBalanceResponse(
         boolean stale,
         boolean canEdit,
         boolean dayOff,
+        String offReason,
         BigDecimal roundingStep,
         boolean passed,
         List<Campus> campuses,
