@@ -12113,6 +12113,17 @@ components:
             type: string
         state:
           type: string
+    AllergyClassCount:
+      type: object
+      properties:
+        classroomId:
+          type: integer
+          format: int64
+        classroomName:
+          type: string
+        count:
+          type: integer
+          format: int32
     AnnouncementAttachmentResponse:
       type: object
       properties:
@@ -16055,6 +16066,15 @@ components:
           - MORNING
           - LUNCH
           - AFTERNOON
+    DishAllergyWarning:
+      type: object
+      properties:
+        allergen:
+          $ref: "#/components/schemas/AllergenResponse"
+        byClass:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergyClassCount"
     DishCopyRequest:
       type: object
       properties:
@@ -20227,6 +20247,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ClassServings"
+        unmatchedAllergies:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnmatchedAllergy"
     KitchenRoom:
       type: object
       properties:
@@ -21267,6 +21291,14 @@ components:
     MenuDish:
       type: object
       properties:
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        allergyWarnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/DishAllergyWarning"
         code:
           type: string
         id:
@@ -30252,6 +30284,15 @@ components:
         level:
           type: string
         text:
+          type: string
+    UnmatchedAllergy:
+      type: object
+      properties:
+        byClass:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergyClassCount"
+        name:
           type: string
     Unplaced:
       type: object
