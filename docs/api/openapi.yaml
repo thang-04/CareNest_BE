@@ -11716,7 +11716,11 @@ components:
           type: number
           maximum: 100000
           minimum: 0
-        dailyKcalNeed:
+        dailyKcalMax:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 5000
+        dailyKcalMin:
           type: number
           exclusiveMinimum: 0
           maximum: 5000
@@ -11731,14 +11735,6 @@ components:
           type: number
           maximum: 1250
           minimum: 0
-        glucidPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        glucidPctMin:
-          type: number
-          maximum: 100
-          minimum: 0
         ironMax:
           type: number
           maximum: 100000
@@ -11746,20 +11742,6 @@ components:
         ironMin:
           type: number
           maximum: 100000
-          minimum: 0
-        kcalMax:
-          type: number
-          minimum: 0
-        kcalMin:
-          type: number
-          minimum: 0
-        lipidPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        lipidPctMin:
-          type: number
-          maximum: 100
           minimum: 0
         lunchKcalPctMax:
           type: number
@@ -11807,14 +11789,6 @@ components:
         plantProteinGMin:
           type: number
           maximum: 1250
-          minimum: 0
-        proteinPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        proteinPctMin:
-          type: number
-          maximum: 100
           minimum: 0
         serviceFee:
           type: number
@@ -11903,7 +11877,9 @@ components:
           type: number
         conversion:
           $ref: "#/components/schemas/NutritionConversionResponse"
-        dailyKcalNeed:
+        dailyKcalMax:
+          type: number
+        dailyKcalMin:
           type: number
         editable:
           type: boolean
