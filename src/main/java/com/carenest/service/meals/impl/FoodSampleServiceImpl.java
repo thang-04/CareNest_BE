@@ -12,6 +12,7 @@ import com.carenest.repository.meals.FoodSampleRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.FoodSampleService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.FoodSampleDisposalStatus;
 import com.carenest.utils.enums.FoodSampleStatus;
@@ -52,6 +53,7 @@ public class FoodSampleServiceImpl implements FoodSampleService {
     private final KitchenAccess kitchenAccess;
     private final BoardingWriteGuard writeGuard;
     private final CampusAccessPolicy campusAccessPolicy;
+    private final SchoolYearService schoolYearService;
     private final Clock clock;
 
     @Override
@@ -149,6 +151,8 @@ public class FoodSampleServiceImpl implements FoodSampleService {
         log.info("{}|START", logPrefix);
         try {
             FoodSample sample = requireKitchenSample(currentUser, sampleId);
+            // CFG-YR-01: năm học đã kết thúc chỉ xem
+            schoolYearService.checkDateYearOpen(sample.getSampleDate());
             if (sample.getDisposalStatus() != FoodSampleDisposalStatus.NONE) {
                 throw GlobalException.of(ApiCode.FOOD_SAMPLE_STATE_INVALID);
             }

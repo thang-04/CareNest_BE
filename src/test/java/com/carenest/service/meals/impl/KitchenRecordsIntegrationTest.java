@@ -603,6 +603,24 @@ class KitchenRecordsIntegrationTest {
     }
 
     @Test
+    @DisplayName("CFG-YR-01: mẫu thuộc năm học đã kết thúc ⇒ không ghi hủy, dữ liệu giữ nguyên")
+    void disposeRejectedWhenSchoolYearClosed() {
+        CLOCK.set(MONDAY, LocalTime.of(6, 0));
+        FoodSampleResponse sample = foodSampleService.createSample(kitchen, sampleRequest(null));
+        CLOCK.set(MONDAY.plusDays(1), LocalTime.of(7, 0));
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", year);
+
+        expectCode(() -> foodSampleService.disposeSample(kitchen, sample.id(), null), ApiCode.SCHOOL_YEAR_CLOSED);
+
+        assertThat(foodSampleService.getSamples(kitchen, null, MONDAY, MONDAY))
+                .singleElement()
+                .satisfies(s -> {
+                    assertThat(s.disposalStatus()).isEqualTo(FoodSampleDisposalStatus.NONE);
+                    assertThat(s.disposedAt()).isNull();
+                });
+    }
+
+    @Test
     @DisplayName("NUT-16: ngày không học (thứ Bảy) ⇒ không đăng ảnh bữa ăn")
     void photoOnlyOnSchoolDay() {
         mealPhotoService.updateWindows(principal, windows(MealSession.LUNCH, "10:00", "11:00"));
