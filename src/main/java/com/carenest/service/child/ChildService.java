@@ -4,6 +4,7 @@ import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.child.ChildProfileResponse;
 import com.carenest.security.CurrentUser;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -21,4 +22,7 @@ public interface ChildService {
 
     /** Trẻ không báo ăn (CHD-13) trong danh sách đã cho: điểm danh không cho suất ăn; chỉ dùng nội bộ, không kiểm quyền. */
     Set<Long> findChildIdsWithoutMeals(Collection<Long> childIds);
+
+    /** childId → tên dị ứng đã khai (chữ tự do, CHD-06); trẻ không khai không có khóa. Chỉ dùng nội bộ, không kiểm quyền. */
+    Map<Long, List<String>> findAllergyNames(Collection<Long> childIds);
 }
