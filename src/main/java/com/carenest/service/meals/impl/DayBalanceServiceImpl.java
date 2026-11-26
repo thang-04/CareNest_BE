@@ -48,6 +48,7 @@ public class DayBalanceServiceImpl implements DayBalanceService {
     private static final String LOG_PREFIX = "[DayBalanceServiceImpl]";
     private static final int MAX_RANGE_DAYS = 31;
     private static final int QUANTITY_SCALE = 3;
+    private static final BigDecimal QUANTITY_STEP = BigDecimal.ONE.movePointLeft(QUANTITY_SCALE);
     private static final List<BigDecimal> STEPS = List.of(new BigDecimal("0.1"), new BigDecimal("0.5"), BigDecimal.ONE);
 
     private final DayBalanceReader reader;
@@ -196,6 +197,13 @@ public class DayBalanceServiceImpl implements DayBalanceService {
             draft = draft.withCounts(confirmedCounts(source, draft.counts()));
         } else if (request.counts() != null) {
             request.counts().forEach(c -> counts.put(c.campusId() + "|" + c.ageGroupId(), c));
+            boolean unknown = request.counts().stream()
+                    .anyMatch(c -> !source.campusIds().contains(c.campusId())
+                            || source.groups().stream().noneMatch(g -> g.id().equals(c.ageGroupId())));
+            if (unknown) {
+                throw GlobalException.of(
+                        ApiCode.DAY_BALANCE_INPUT_INVALID, "số trẻ gửi cho điểm trường hoặc nhóm tuổi không có");
+            }
         }
         List<DayBalanceCount> mergedCounts = draft.counts().stream()
                 .map(c -> {
@@ -259,6 +267,13 @@ public class DayBalanceServiceImpl implements DayBalanceService {
     private static Draft applyEdit(Draft draft, DayBalanceRequest.EditInput edit) {
         if ((edit.gramsPerChild() == null) == (edit.purchaseQuantity() == null)) {
             throw GlobalException.of(ApiCode.DAY_BALANCE_INPUT_INVALID, "mỗi lần sửa chọn gam mỗi trẻ hoặc lượng mua");
+        }
+        boolean inMenu = draft.lines().stream()
+                .anyMatch(l ->
+                        l.ageGroupId().equals(edit.ageGroupId()) && l.foodId().equals(edit.foodId()));
+        if (!inMenu) {
+            throw GlobalException.of(
+                    ApiCode.DAY_BALANCE_INPUT_INVALID, "thực phẩm cần sửa không có trong món của nhóm tuổi này");
         }
         BigDecimal grams = edit.gramsPerChild();
         if (grams == null) {
@@ -438,14 +453,19 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                     BigDecimal total = DayBalanceCalculator.purchaseTotal(
                             draft.lines(), children, food.getId(), meta, draft.roundingStep());
                     Map<Long, BigDecimal> shares = DayBalanceReader.campusShares(source, draft, food.getId(), total);
+                    BigDecimal quantity = quantity(total, meta);
+                    // Chia lại số đã làm tròn toàn trường để phần các điểm trường cộng đúng số toàn trường
+                    Map<Long, BigDecimal> quantities = quantity == null
+                            ? Map.of()
+                            : DayBalanceCalculator.allocate(quantity, shares, QUANTITY_STEP);
                     return new DayBalanceResponse.SummaryRow(
                             food.getId(),
                             total,
-                            quantity(total, meta),
+                            quantity,
                             cost(total, meta, draft.prices().get(food.getId())),
                             shares.entrySet().stream()
                                     .map(e -> new DayBalanceResponse.CampusShare(
-                                            e.getKey(), e.getValue(), quantity(e.getValue(), meta)))
+                                            e.getKey(), e.getValue(), quantities.get(e.getKey())))
                                     .toList());
                 })
                 .toList();

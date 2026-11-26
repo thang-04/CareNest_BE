@@ -24,9 +24,15 @@ public record DayBalanceRequest(
         @Size(max = 200) List<@NotNull @Valid CountInput> counts,
         @Size(max = 2000) List<@NotNull @Valid LineInput> lines,
         @Size(max = 200) List<@NotNull @Valid EditInput> edits,
-        boolean applyRounding,
+        Boolean applyRounding,
         BigDecimal roundingStep,
-        boolean fromRecipe) {
+        Boolean fromRecipe) {
+
+    // Không gửi cờ thì hiểu là không làm tròn, không dựng lại từ công thức
+    public DayBalanceRequest {
+        applyRounding = Boolean.TRUE.equals(applyRounding);
+        fromRecipe = Boolean.TRUE.equals(fromRecipe);
+    }
 
     public DayBalanceRequest(
             Long version,
