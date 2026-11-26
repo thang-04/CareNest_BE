@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 449 endpoint.
+Tổng: 451 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -328,6 +328,10 @@ PUT /nutrition/age-group-configs/{configId} · src/main/java/com/carenest/contro
 POST /nutrition/age-group-configs/batch · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#saveConfigs
 GET /nutrition/age-group-configs/statuses · src/main/java/com/carenest/controller/meals/AgeGroupMealConfigController.java#getGroupStatuses
 GET /nutrition/allergens · src/main/java/com/carenest/controller/meals/NutritionFoodController.java#getAllergens
+GET /nutrition/day-balances · src/main/java/com/carenest/controller/meals/DayBalanceController.java#getStatuses
+GET /nutrition/day-balances/{date} · src/main/java/com/carenest/controller/meals/DayBalanceController.java#getBalance
+PUT /nutrition/day-balances/{date} · src/main/java/com/carenest/controller/meals/DayBalanceController.java#saveBalance
+POST /nutrition/day-balances/{date}/preview · src/main/java/com/carenest/controller/meals/DayBalanceController.java#previewBalance
 GET /nutrition/day-board · src/main/java/com/carenest/controller/meals/MealPlanController.java#getDayBoard
 GET /nutrition/day-market · src/main/java/com/carenest/controller/meals/DayMarketController.java#getDayMarket
 GET /nutrition/dishes · src/main/java/com/carenest/controller/meals/NutritionDishController.java#getDishes

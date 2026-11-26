@@ -122,7 +122,8 @@ public class NutritionCatalogMapper {
                         config.getAppliedLipidPct(),
                         config.getAppliedGlucidPct()),
                 config.getNormBasis(),
-                config.getEffectiveFrom().isAfter(today));
+                config.getEffectiveFrom().isAfter(today),
+                config.getBudgetTolerancePct());
     }
 
     public SupplierResponse toResponse(Supplier supplier, boolean showIdCard, LocalDate today) {

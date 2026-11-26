@@ -32,6 +32,7 @@ final class MenuScore {
     private static final double OVER_BUDGET_SLOPE = 2.0;
     private static final double WARNING_PENALTY = 0.2;
     private static final double RECENT_PENALTY = 0.5;
+    private static final Set<String> UNSCORED_WARNINGS = Set.of("UNDER_BUDGET", "NUTRIENT_GRAM_OFF");
 
     record Breakdown(int norm, int cost, int variety, int warnings) {
         int total() {
@@ -49,6 +50,8 @@ final class MenuScore {
                 evaluations.stream().mapToDouble(MenuScore::costFit).average().orElse(0);
         long warnings = result.issues().stream()
                 .filter(i -> MealPlanEvaluator.WARNING.equals(i.severity()))
+                // Chấm phương án giữ nguyên: chi phí thấp và định mức gam không trừ điểm cảnh báo
+                .filter(i -> !UNSCORED_WARNINGS.contains(i.code()))
                 .count();
         return new Breakdown(
                 points(weights.norm(), norm),

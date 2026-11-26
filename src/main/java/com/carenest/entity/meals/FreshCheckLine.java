@@ -1,5 +1,6 @@
 package com.carenest.entity.meals;
 
+import com.carenest.utils.enums.FreshCheckHandling;
 import com.carenest.utils.enums.FreshCheckResult;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -52,6 +53,20 @@ public class FreshCheckLine {
     @Column(nullable = false, length = 300)
     private String note = "";
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "handling_action", length = 20)
+    private FreshCheckHandling handlingAction;
+
+    @Column(name = "handling_qty", precision = 14, scale = 2)
+    private BigDecimal handlingQty;
+
+    /** Cách xử lý chênh lệch của lần 2 theo bản cân đối. */
+    public FreshCheckLine handled(FreshCheckHandling action, BigDecimal quantity) {
+        this.handlingAction = action;
+        this.handlingQty = quantity;
+        return this;
+    }
+
     public static FreshCheckLine of(
             Long foodId,
             Long supplierId,
@@ -75,6 +90,8 @@ public class FreshCheckLine {
         this.receivedQty = incoming.receivedQty;
         this.result = incoming.result;
         this.note = incoming.note;
+        this.handlingAction = incoming.handlingAction;
+        this.handlingQty = incoming.handlingQty;
     }
 
     void attachTo(FreshCheck check) {

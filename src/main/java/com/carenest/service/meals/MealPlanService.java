@@ -36,4 +36,7 @@ public interface MealPlanService {
 
     /** Lịch sử sửa ngoại lệ của tuần, mới nhất trước; tuần chưa lập ⇒ rỗng. */
     List<MealPlanRevisionResponse> getMealPlanRevisions(CurrentUser currentUser, LocalDate weekStart);
+
+    /** Thực đơn tuần vừa được công bố. */
+    record MealPlanPublishedEvent(LocalDate weekStart, Long publishedBy) {}
 }

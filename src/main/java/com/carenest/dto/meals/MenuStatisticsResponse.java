@@ -39,7 +39,8 @@ public record MenuStatisticsResponse(
         BigDecimal serviceFee,
         BigDecimal foodBudget,
         Evaluation evaluation,
-        List<MenuStatisticsResponse> groups) {
+        List<MenuStatisticsResponse> groups,
+        Integer balanceRound) {
 
     public record SupplierCost(Long supplierId, String supplierName, ContractStatus contractStatus, BigDecimal cost) {}
 

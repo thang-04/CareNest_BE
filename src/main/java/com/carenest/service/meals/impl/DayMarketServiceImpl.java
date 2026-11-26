@@ -64,6 +64,7 @@ public class DayMarketServiceImpl implements DayMarketService {
     private final AgeGroupMealConfigRepository configRepository;
     private final FreshForecastRepository campusLookup;
     private final MealDemandCalculator demandCalculator;
+    private final DayDemand dayDemand;
     private final AgeGroupService ageGroupService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final StockMapper stockMapper;
@@ -111,11 +112,19 @@ public class DayMarketServiceImpl implements DayMarketService {
         List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, date);
         // NUT-03: chỉ dùng số chốt khi mọi sổ báo ăn của ngày đã xác nhận; chưa đủ thì tính theo sĩ số đang học
         // (NUT-07)
-        boolean confirmed = !counts.isEmpty() && counts.stream().allMatch(MealCount::isConfirmed);
-        List<MealDemandCalculator.Servings> servings = (confirmed
-                        ? demandCalculator.confirmedServings(counts)
-                        : demandCalculator.expectedServings(demandCalculator.enrolledByAgeGroup(campusId, date)))
+        boolean allConfirmed = !counts.isEmpty() && counts.stream().allMatch(MealCount::isConfirmed);
+        // Ngày đã cân đối: số suất và lượng mua theo bản mới nhất (lần 2, chưa có thì lần 1)
+        DayDemand.Balanced balanced = dayDemand.latest(date).orElse(null);
+        boolean confirmed = balanced == null ? allConfirmed : balanced.round() == DayBalanceReader.ROUND_CONFIRMED;
+        List<MealDemandCalculator.Servings> servings = (balanced != null
+                        ? demandCalculator.expectedServings(balancedCounts(balanced, campusId))
+                        : confirmed
+                                ? demandCalculator.confirmedServings(counts)
+                                : demandCalculator.expectedServings(
+                                        demandCalculator.enrolledByAgeGroup(campusId, date)))
                 .stream().filter(s -> s.portions() > 0).toList();
+        Map<Long, BigDecimal> orderShare =
+                balanced == null ? Map.of() : dayDemand.campusShare(balanced, campusId, FoodStorage.FRESH);
         Instant confirmedAt = confirmed
                 ? counts.stream()
                         .map(MealCount::getConfirmedAt)
@@ -139,7 +148,10 @@ public class DayMarketServiceImpl implements DayMarketService {
         Map<Long, Map<Long, BigDecimal>> quantities = new HashMap<>();
         for (AgeGroupDetailResponse group : ageGroups) {
             for (FoodStorage storage : FoodStorage.values()) {
-                MealDemandCalculator.compute(day, dishes, blocks, servingsByGroup.get(group.id()), storage)
+                (balanced == null
+                                ? MealDemandCalculator.compute(
+                                        day, dishes, blocks, servingsByGroup.get(group.id()), storage)
+                                : dayDemand.byServings(balanced, servingsByGroup.get(group.id()), storage))
                         .forEach((foodId, qty) -> {
                             if (qty.signum() > 0) {
                                 quantities
@@ -187,7 +199,9 @@ public class DayMarketServiceImpl implements DayMarketService {
                     food.getStorage().name(),
                     price.price(),
                     quantity,
-                    PurchaseUnits.roundUp(quantity, food),
+                    balanced == null
+                            ? PurchaseUnits.roundUp(quantity, food)
+                            : orderShare.getOrDefault(food.getId(), quantity),
                     cost,
                     shares,
                     price.supplierId(),
@@ -246,7 +260,14 @@ public class DayMarketServiceImpl implements DayMarketService {
                 groups,
                 lines,
                 totals,
-                menu(day, dishes, blocks, ageGroups, servingsByGroup));
+                menu(day, dishes, blocks, ageGroups, servingsByGroup),
+                balanced == null ? null : balanced.round());
+    }
+
+    private static Map<Long, Integer> balancedCounts(DayDemand.Balanced balanced, Long campusId) {
+        return balanced.draft().counts().stream()
+                .filter(c -> campusId.equals(c.campusId()))
+                .collect(Collectors.toMap(c -> c.ageGroupId(), c -> c.children(), Integer::sum));
     }
 
     private static DayMarketResponse empty(Long campusId, LocalDate date, String status) {
@@ -260,7 +281,8 @@ public class DayMarketServiceImpl implements DayMarketService {
                 List.of(),
                 List.of(),
                 new DayMarketResponse.DayMarketTotals(0, null, null, zero, zero, zero, null, List.of()),
-                List.of());
+                List.of(),
+                null);
     }
 
     // Tiền theo lượng thực dùng: lượng ÷ quy cách mua × đơn giá đơn vị mua, làm tròn đồng (cùng cách thống kê thực đơn)
