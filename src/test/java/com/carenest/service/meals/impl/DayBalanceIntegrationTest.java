@@ -6,17 +6,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.carenest.dto.meals.DayBalanceRequest;
 import com.carenest.dto.meals.DayBalanceResponse;
 import com.carenest.dto.meals.DayBalanceStatusResponse;
+import com.carenest.dto.meals.FreshCheckRequest;
+import com.carenest.dto.meals.FreshCheckResponse;
+import com.carenest.dto.meals.FreshForecastRequest;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.DayBalanceService;
+import com.carenest.service.meals.FreshGoodsService;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.support.MovableClock;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FreshCheckHandling;
+import com.carenest.utils.enums.FreshCheckResult;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -59,7 +66,13 @@ class DayBalanceIntegrationTest {
     private MealPlanService mealPlanService;
 
     @Autowired
+    private FreshGoodsService freshGoodsService;
+
+    @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private CurrentUser principal;
     private CurrentUser kitchen;
@@ -106,6 +119,7 @@ class DayBalanceIntegrationTest {
                         + " protein_pct_min, protein_pct_max, lipid_pct_min, lipid_pct_max, glucid_pct_min, glucid_pct_max)"
                         + " VALUES (?, '2026-09-01', 6000, 300, 600, 12, 25, 15, 35, 40, 70)",
                 ag3);
+        jdbc.update("UPDATE age_group_meal_configs SET budget_tolerance_pct = 40");
         rice = food("GAO", "Gạo", "DRY", "PLANT", "350", "7", "1", "77");
         pork = food("THIT", "Thịt", "FRESH", "ANIMAL", "250", "20", "18", "0");
         milk = food("SUA", "Sữa", "FRESH", "ANIMAL", "60", "3", "3", "5");
@@ -183,7 +197,7 @@ class DayBalanceIntegrationTest {
                 null,
                 null,
                 null,
-                List.of(new DayBalanceRequest.EditInput(ag3, milk, new BigDecimal("300"), null)),
+                List.of(new DayBalanceRequest.EditInput(ag3, milk, new BigDecimal("400"), null)),
                 false,
                 null);
 
@@ -278,6 +292,144 @@ class DayBalanceIntegrationTest {
         assertThat(reset.counts())
                 .extracting(DayBalanceResponse.Count::children)
                 .containsExactly(31, 22);
+    }
+
+    @Test
+    @DisplayName("Lần 2 chỉ mở khi mọi điểm trường chốt suất; giữ gam lần 1, tính lại theo suất chốt và làm tròn")
+    void secondRoundFollowsConfirmedCounts() {
+        dayBalanceService.saveBalance(principal, MONDAY, 1, request(null, true));
+
+        assertThat(dayBalanceService.getBalance(principal, MONDAY, 2).blockedReason())
+                .contains("xác nhận suất ăn");
+        expectCode(
+                () -> dayBalanceService.saveBalance(principal, MONDAY, 2, request(null, true)),
+                ApiCode.DAY_BALANCE_LOCKED);
+
+        confirm(campus1, 25);
+        confirm(campus2, 22);
+        DayBalanceResponse seeded = dayBalanceService.getBalance(principal, MONDAY, 2);
+
+        assertThat(seeded.canEdit()).isTrue();
+        assertThat(seeded.saved()).isFalse();
+        assertThat(seeded.counts())
+                .extracting(DayBalanceResponse.Count::children)
+                .containsExactly(25, 22);
+        assertThat(seeded.roundingStep()).isEqualByComparingTo("0.1");
+        // Thịt 40 g × 47 = 1880 g ⇒ 1,9 kg
+        assertThat(summary(seeded, pork).purchaseTotal()).isEqualByComparingTo("1900");
+        assertThat(seeded.lines())
+                .allSatisfy(l -> assertThat(l.baseGrams())
+                        .isEqualByComparingTo(l.foodId() == rice ? "60" : l.foodId() == pork ? "40" : "200"));
+    }
+
+    @Test
+    @DisplayName("Kiểm nhận lần 2: dòng lệch phải chọn gọi thêm, trả lại hoặc giữ dùng; BE tính số thực nhận")
+    void secondReceiptHandlesDifferences() {
+        publishableWeek();
+        dayBalanceService.saveBalance(principal, MONDAY, 1, request(null, true));
+        mealPlanService.publishMealPlan(principal, MONDAY);
+        freshGoodsService.createForecast(principal, new FreshForecastRequest(campus1, MONDAY, MONDAY, "", null, null));
+        FreshCheckResponse.FreshCheckRound first =
+                freshGoodsService.getChecks(principal, campus1, MONDAY).rounds().getFirst();
+        freshGoodsService.recordCheck(
+                principal,
+                campus1,
+                MONDAY,
+                1,
+                new FreshCheckRequest(
+                        "",
+                        first.lines().stream()
+                                .map(l -> new FreshCheckRequest.FreshCheckLineInput(
+                                        l.food().id(), null, FreshCheckResult.ENOUGH, null, null))
+                                .toList(),
+                        null));
+        confirm(campus1, 25);
+        confirm(campus2, 22);
+
+        assertThat(round2(campus1).available()).isFalse();
+        assertThat(round2(campus1).unavailableReason()).contains("lần 2");
+
+        dayBalanceService.saveBalance(principal, MONDAY, 2, new DayBalanceRequest(null, null, null, null, false, null));
+        FreshCheckResponse.FreshCheckRound second = round2(campus1);
+
+        assertThat(second.handlingRequired()).isTrue();
+        FreshCheckResponse.FreshCheckLine porkLine = line(second, pork);
+        assertThat(porkLine.round1Qty()).isEqualByComparingTo("1300");
+        assertThat(porkLine.expectedQty()).isEqualByComparingTo("1000");
+        expectCode(
+                () -> freshGoodsService.recordCheck(principal, campus1, MONDAY, 2, handling(second, false)),
+                ApiCode.FRESH_CHECK_HANDLING_INVALID);
+
+        freshGoodsService.recordCheck(principal, campus1, MONDAY, 2, handling(second, true));
+
+        FreshCheckResponse.FreshCheckLine saved = line(round2(campus1), pork);
+        assertThat(saved.handlingAction()).isEqualTo(FreshCheckHandling.RETURN);
+        assertThat(saved.handlingQty()).isEqualByComparingTo("300");
+        assertThat(saved.receivedQty()).isEqualByComparingTo("1000");
+        assertThat(saved.result()).isEqualTo(FreshCheckResult.ENOUGH);
+
+        // Chốt lại suất ⇒ bản lần 2 cũ, phải cân đối lại trước khi kiểm
+        jdbc.update("UPDATE meal_count_lines SET present = 20, normal = 20 WHERE normal = 25");
+        // Sửa thẳng DB trong cùng transaction test: bỏ bản đã nạp để đọc lại số mới
+        entityManager.clear();
+        assertThat(dayBalanceService.getBalance(principal, MONDAY, 2).stale()).isTrue();
+        assertThat(round2(campus1).available()).isFalse();
+    }
+
+    // Chỉ thứ Hai ăn, các ngày còn lại nghỉ để tuần công bố được sau khi cân đối thứ Hai
+    private void publishableWeek() {
+        List<MealPlanRequest.DayInput> days = new ArrayList<>(menu(thit).days());
+        for (int i = 1; i < 5; i++) {
+            days.add(new MealPlanRequest.DayInput(MONDAY.plusDays(i), true, "Nghỉ", List.of()));
+        }
+        mealPlanService.saveMealPlan(principal, MONDAY, new MealPlanRequest(days));
+    }
+
+    private FreshCheckResponse.FreshCheckRound round2(long campus) {
+        return freshGoodsService.getChecks(principal, campus, MONDAY).rounds().get(1);
+    }
+
+    private static FreshCheckResponse.FreshCheckLine line(FreshCheckResponse.FreshCheckRound round, long foodId) {
+        return round.lines().stream()
+                .filter(l -> l.food().id() == foodId)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static FreshCheckRequest handling(FreshCheckResponse.FreshCheckRound round, boolean choose) {
+        return new FreshCheckRequest(
+                "",
+                round.lines().stream()
+                        .map(l -> {
+                            int compared = l.round1Qty().compareTo(l.expectedQty());
+                            FreshCheckHandling action = !choose || compared == 0
+                                    ? null
+                                    : compared > 0 ? FreshCheckHandling.RETURN : FreshCheckHandling.ORDER_MORE;
+                            BigDecimal quantity = action == null
+                                    ? null
+                                    : l.round1Qty().subtract(l.expectedQty()).abs();
+                            return new FreshCheckRequest.FreshCheckLineInput(
+                                    l.food().id(), null, null, null, null, action, quantity);
+                        })
+                        .toList(),
+                null);
+    }
+
+    private void confirm(long campus, int servings) {
+        long year = jdbc.queryForObject("SELECT id FROM school_years WHERE status = 'ACTIVE'", Long.class);
+        long classroom = jdbc.queryForObject("SELECT id FROM classrooms WHERE campus_id = " + campus, Long.class);
+        for (String session : List.of("LUNCH", "AFTERNOON")) {
+            long count = insertId("INSERT INTO meal_counts (campus_id, school_year_id, date, session, status,"
+                    + " aggregated_at, confirmed_at) VALUES (" + campus + ", " + year + ", '" + MONDAY + "', '"
+                    + session + "', 'CONFIRMED', now(), now()) RETURNING id");
+            jdbc.update(
+                    "INSERT INTO meal_count_lines (meal_count_id, classroom_id, pending, present, absent, missing,"
+                            + " normal, substitute) VALUES (?, ?, FALSE, ?, 0, 0, ?, 0)",
+                    count,
+                    classroom,
+                    servings,
+                    servings);
+        }
     }
 
     private DayBalanceRequest request(Long version, boolean round) {

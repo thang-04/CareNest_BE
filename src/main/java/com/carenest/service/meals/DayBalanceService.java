@@ -20,4 +20,7 @@ public interface DayBalanceService {
     DayBalanceResponse previewBalance(CurrentUser currentUser, LocalDate date, int round, DayBalanceRequest request);
 
     DayBalanceResponse saveBalance(CurrentUser currentUser, LocalDate date, int round, DayBalanceRequest request);
+
+    /** Bản cân đối của một ngày vừa được lưu. */
+    record DayBalanceSavedEvent(LocalDate date) {}
 }

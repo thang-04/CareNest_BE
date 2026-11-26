@@ -1,6 +1,7 @@
 package com.carenest.dto.meals;
 
 import com.carenest.utils.enums.MealSession;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -37,11 +38,13 @@ public record DayBalanceRequest(
         this(version, counts, lines, edits, applyRounding, roundingStep, false);
     }
 
+    @Schema(name = "DayBalanceCountInput")
     public record CountInput(
             @NotNull Long campusId,
             @NotNull Long ageGroupId,
             @Min(0) @Max(5000) int children) {}
 
+    @Schema(name = "DayBalanceLineInput")
     public record LineInput(
             @NotNull Long ageGroupId,
             @NotNull MealSession session,
@@ -50,6 +53,7 @@ public record DayBalanceRequest(
             @NotNull @DecimalMin("0") @DecimalMax("5000") BigDecimal baseGrams,
             @NotNull @DecimalMin("0") @DecimalMax("5000") BigDecimal grams) {}
 
+    @Schema(name = "DayBalanceEditInput")
     public record EditInput(
             @NotNull Long ageGroupId,
             @NotNull Long foodId,

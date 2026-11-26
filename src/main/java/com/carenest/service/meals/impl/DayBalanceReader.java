@@ -8,11 +8,13 @@ import com.carenest.entity.meals.DayBalanceLine;
 import com.carenest.entity.meals.Dish;
 import com.carenest.entity.meals.DishIngredient;
 import com.carenest.entity.meals.Food;
+import com.carenest.entity.meals.MealCount;
 import com.carenest.entity.meals.MealPlanDay;
 import com.carenest.entity.meals.MealPlanItem;
 import com.carenest.entity.meals.MealPlanWeek;
 import com.carenest.repository.meals.DayBalanceRepository;
 import com.carenest.repository.meals.FoodRepository;
+import com.carenest.repository.meals.MealCountRepository;
 import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
@@ -55,10 +57,12 @@ class DayBalanceReader {
     static final short ROUND_EXPECTED = 1;
     static final short ROUND_CONFIRMED = 2;
     private static final String OK = "OK";
+    private static final BigDecimal DEFAULT_STEP = new BigDecimal("0.1");
 
     private final DayBalanceRepository balanceRepository;
     private final MealPlanWeekRepository weekRepository;
     private final FoodRepository foodRepository;
+    private final MealCountRepository mealCountRepository;
     private final MealDemandCalculator demandCalculator;
     private final MealPlanEvaluationSupport evaluationSupport;
     private final FoodPriceService foodPriceService;
@@ -79,7 +83,9 @@ class DayBalanceReader {
             Map<Long, Dish> dishes,
             Map<Long, Food> foods,
             List<Long> campusIds,
-            DayBalance saved) {
+            DayBalance saved,
+            short round,
+            DayBalance seed) {
 
         boolean dayOff() {
             return day != null && day.isOff();
@@ -97,6 +103,10 @@ class DayBalanceReader {
             Map<Long, FoodMeta> foods,
             Map<Long, BigDecimal> prices,
             BigDecimal roundingStep) {
+
+        Draft withCounts(List<DayBalanceCount> newCounts) {
+            return new Draft(newCounts, lines, foods, prices, roundingStep);
+        }
 
         Draft withLines(List<Line> newLines) {
             return new Draft(counts, newLines, foods, prices, roundingStep);
@@ -146,13 +156,20 @@ class DayBalanceReader {
         Map<Long, Dish> dishes = day == null ? Map.of() : demandCalculator.dishesOf(List.of(day));
         DayBalance saved =
                 balanceRepository.findByBalanceDateAndRound(date, round).orElse(null);
+        // Lần 2 chưa lưu thì xuất phát từ gam của lần 1
+        DayBalance seed = round == ROUND_CONFIRMED
+                ? balanceRepository
+                        .findByBalanceDateAndRound(date, ROUND_EXPECTED)
+                        .orElse(null)
+                : null;
         Map<Long, Food> foods = new LinkedHashMap<>();
         dishes.values()
                 .forEach(dish ->
                         dish.getIngredients().forEach(i -> foods.put(i.getFood().getId(), i.getFood())));
-        if (saved != null) {
+        DayBalance stored = saved != null ? saved : seed;
+        if (stored != null) {
             // Công thức món đổi sau khi lưu: thực phẩm cũ vẫn nằm trong bản cân đối
-            Set<Long> missing = saved.getLines().stream()
+            Set<Long> missing = stored.getLines().stream()
                     .map(DayBalanceLine::foodId)
                     .filter(id -> !foods.containsKey(id))
                     .collect(Collectors.toSet());
@@ -164,7 +181,7 @@ class DayBalanceReader {
                 .distinct()
                 .sorted()
                 .toList();
-        return new Source(date, day, groups, dishes, foods, campusIds, saved);
+        return new Source(date, day, groups, dishes, foods, campusIds, saved, round, seed);
     }
 
     /**
@@ -178,12 +195,20 @@ class DayBalanceReader {
     /** {@code fromRecipe}: gam lấy lại từ công thức món, chỉ giữ số trẻ đã lưu. */
     Draft compose(Source source, boolean snapshot, boolean fromRecipe) {
         Map<DishKey, List<Line>> saved = new LinkedHashMap<>();
-        if (source.saved() != null && !fromRecipe) {
-            source.saved().getLines().stream()
+        DayBalance stored = source.saved() != null ? source.saved() : source.seed();
+        boolean seeding = source.saved() == null && source.seed() != null;
+        if (stored != null && !fromRecipe) {
+            stored.getLines().stream()
                     .sorted(Comparator.comparing(DayBalanceLine::foodId))
                     .forEach(l -> {
-                        Line line =
-                                new Line(l.ageGroupId(), l.session(), l.dishId(), l.foodId(), l.baseGrams(), l.grams());
+                        // Dựng lần 2 từ gam trước làm tròn của lần 1 để không cộng dồn phần làm tròn
+                        Line line = new Line(
+                                l.ageGroupId(),
+                                l.session(),
+                                l.dishId(),
+                                l.foodId(),
+                                l.baseGrams(),
+                                seeding ? l.baseGrams() : l.grams());
                         saved.computeIfAbsent(DishKey.of(line), k -> new ArrayList<>())
                                 .add(line);
                     });
@@ -220,12 +245,21 @@ class DayBalanceReader {
                 }
             });
         }
-        return new Draft(
+        Draft draft = new Draft(
                 counts(source),
                 lines,
                 metas,
                 prices,
                 source.saved() == null ? null : source.saved().getRoundingStep());
+        // Lần 2 chưa lưu: làm tròn sẵn theo số suất đã chốt, cùng bước với lần 1
+        if (seeding && !fromRecipe) {
+            BigDecimal step = source.seed().getRoundingStep() == null
+                    ? DEFAULT_STEP
+                    : source.seed().getRoundingStep();
+            draft = draft.withRoundingStep(step)
+                    .withLines(DayBalanceCalculator.round(lines, draft.childrenByAgeGroup(), metas, step));
+        }
+        return draft;
     }
 
     // Món của từng nhóm tuổi theo thực đơn ngày, kèm định lượng công thức; món chưa khai định lượng không có dòng
@@ -261,7 +295,7 @@ class DayBalanceReader {
         return expected;
     }
 
-    // Số trẻ: bản đã lưu; ô chưa có thì lấy sĩ số báo ăn của lớp năm học hiện hành
+    // Số trẻ: bản đã lưu; ô chưa có thì lần 1 lấy sĩ số báo ăn của lớp năm học hiện hành, lần 2 lấy suất đã chốt
     private List<DayBalanceCount> counts(Source source) {
         Map<String, Integer> saved = new HashMap<>();
         if (source.saved() != null) {
@@ -269,7 +303,9 @@ class DayBalanceReader {
         }
         List<DayBalanceCount> counts = new ArrayList<>();
         for (Long campusId : source.campusIds()) {
-            Map<Long, Integer> enrolled = demandCalculator.enrolledByAgeGroup(campusId, source.date());
+            Map<Long, Integer> enrolled = source.round() == ROUND_CONFIRMED
+                    ? confirmedCounts(campusId, source.date())
+                    : demandCalculator.enrolledByAgeGroup(campusId, source.date());
             for (AgeGroupInfo group : source.groups()) {
                 int children = saved.getOrDefault(campusId + "|" + group.id(), enrolled.getOrDefault(group.id(), 0));
                 counts.add(new DayBalanceCount(campusId, group.id(), children));
@@ -278,10 +314,43 @@ class DayBalanceReader {
         return counts;
     }
 
-    /** Bản lưu không còn đúng món của thực đơn: thêm, bớt món sau khi lưu. */
+    /** Suất đã chốt theo nhóm tuổi của điểm trường–ngày; nhiều bữa thì lấy bữa đông nhất. */
+    Map<Long, Integer> confirmedCounts(Long campusId, LocalDate date) {
+        Map<Long, Integer> counts = new HashMap<>();
+        demandCalculator
+                .confirmedServings(mealCountRepository.findByCampusIdAndDate(campusId, date))
+                .forEach(s -> counts.merge(s.ageGroupId(), s.portions(), Math::max));
+        return counts;
+    }
+
+    /** Mọi điểm trường có lớp đã xác nhận đủ sổ báo ăn của ngày. */
+    boolean allConfirmed(Source source) {
+        return !source.campusIds().isEmpty()
+                && source.campusIds().stream().allMatch(campusId -> {
+                    List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, source.date());
+                    return !counts.isEmpty() && counts.stream().allMatch(MealCount::isConfirmed);
+                });
+    }
+
+    /** Số suất đã chốt lại khác số của bản cân đối lần 2 đã lưu. */
+    boolean countsChanged(Source source) {
+        if (source.saved() == null || source.round() != ROUND_CONFIRMED) {
+            return false;
+        }
+        Map<Long, Map<Long, Integer>> current = new HashMap<>();
+        return source.saved().getCounts().stream()
+                .anyMatch(c -> current.computeIfAbsent(c.campusId(), id -> confirmedCounts(id, source.date()))
+                                .getOrDefault(c.ageGroupId(), 0)
+                        != c.children());
+    }
+
+    /** Bản lưu không còn đúng: thêm, bớt món sau khi lưu; lần 2 còn tính cả việc chốt lại suất. */
     boolean stale(Source source) {
         if (source.saved() == null) {
             return false;
+        }
+        if (countsChanged(source)) {
+            return true;
         }
         Set<DishKey> saved = source.saved().getLines().stream()
                 .map(l -> new DishKey(l.ageGroupId(), l.session(), l.dishId()))

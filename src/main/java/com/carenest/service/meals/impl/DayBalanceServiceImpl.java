@@ -20,6 +20,7 @@ import com.carenest.service.meals.impl.DayBalanceReader.Draft;
 import com.carenest.service.meals.impl.DayBalanceReader.Source;
 import com.carenest.service.organization.CampusService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +54,8 @@ public class DayBalanceServiceImpl implements DayBalanceService {
     private final DayBalanceRepository balanceRepository;
     private final MealPlanWeekRepository weekRepository;
     private final CampusService campusService;
+    private final BoardingWriteGuard writeGuard;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     @Override
@@ -156,6 +160,8 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                     currentUser.userId(),
                     clock.instant());
             balanceRepository.saveAndFlush(balance);
+            // Kho khô đã trừ theo bản trước thì tính lại theo bản mới (sau commit)
+            events.publishEvent(new DayBalanceSavedEvent(date));
             Source saved = reader.load(date, balanceRound);
             DayBalanceResponse response = toResponse(currentUser, saved, reader.compose(saved, true), round);
             log.info("{}|END", logPrefix);
@@ -185,7 +191,10 @@ public class DayBalanceServiceImpl implements DayBalanceService {
     private Draft apply(Source source, DayBalanceRequest request) {
         Draft draft = reader.compose(source, false, request.fromRecipe());
         Map<String, DayBalanceRequest.CountInput> counts = new HashMap<>();
-        if (request.counts() != null) {
+        // Lần 2 luôn theo suất đã chốt, không nhận số trẻ nhập tay
+        if (source.round() == DayBalanceReader.ROUND_CONFIRMED) {
+            draft = draft.withCounts(confirmedCounts(source, draft.counts()));
+        } else if (request.counts() != null) {
             request.counts().forEach(c -> counts.put(c.campusId() + "|" + c.ageGroupId(), c));
         }
         List<DayBalanceCount> mergedCounts = draft.counts().stream()
@@ -217,7 +226,10 @@ public class DayBalanceServiceImpl implements DayBalanceService {
         if (request.roundingStep() != null && STEPS.stream().noneMatch(s -> s.compareTo(request.roundingStep()) == 0)) {
             throw GlobalException.of(ApiCode.DAY_BALANCE_INPUT_INVALID, "bước làm tròn chỉ nhận 0,1; 0,5 hoặc 1");
         }
-        Draft result = new Draft(mergedCounts, lines, draft.foods(), draft.prices(), request.roundingStep());
+        // Không gửi số nào mới thì bản đã làm tròn vẫn là bản đã làm tròn
+        boolean unchanged = request.counts() == null && request.lines() == null && request.edits() == null;
+        BigDecimal step = request.roundingStep() == null && unchanged ? draft.roundingStep() : request.roundingStep();
+        Draft result = new Draft(mergedCounts, lines, draft.foods(), draft.prices(), step);
         if (request.edits() != null) {
             for (DayBalanceRequest.EditInput edit : request.edits()) {
                 result = applyEdit(result, edit);
@@ -231,6 +243,17 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                     result.lines(), result.childrenByAgeGroup(), result.foods(), request.roundingStep()));
         }
         return result;
+    }
+
+    private List<DayBalanceCount> confirmedCounts(Source source, List<DayBalanceCount> counts) {
+        Map<Long, Map<Long, Integer>> byCampus = new HashMap<>();
+        return counts.stream()
+                .map(c -> new DayBalanceCount(
+                        c.campusId(),
+                        c.ageGroupId(),
+                        byCampus.computeIfAbsent(c.campusId(), id -> reader.confirmedCounts(id, source.date()))
+                                .getOrDefault(c.ageGroupId(), 0)))
+                .toList();
     }
 
     private static Draft applyEdit(Draft draft, DayBalanceRequest.EditInput edit) {
@@ -255,6 +278,23 @@ public class DayBalanceServiceImpl implements DayBalanceService {
         return ageGroupId + "|" + session + "|" + dishId + "|" + foodId;
     }
 
+    // Lần 2 cần lần 1, mọi điểm trường đã chốt suất và biên bản kiểm thực của ngày chưa ký (INS-03)
+    private String blockedReason(Source source) {
+        if (source.round() != DayBalanceReader.ROUND_CONFIRMED) {
+            return null;
+        }
+        if (source.seed() == null) {
+            return "chưa có cân đối lần 1";
+        }
+        if (!reader.allConfirmed(source)) {
+            return "chờ các điểm trường xác nhận suất ăn";
+        }
+        boolean signed = source.campusIds().stream()
+                .anyMatch(
+                        campusId -> writeGuard.signed(campusId, source.date(), InspectionTab.FRESH, InspectionTab.DRY));
+        return signed ? "biên bản kiểm thực đã ký, sửa lại biên bản để cân đối" : null;
+    }
+
     private void checkEditable(Source source) {
         if (source.date().isBefore(LocalDate.now(clock))) {
             throw GlobalException.of(ApiCode.DAY_BALANCE_LOCKED, source.date(), "ngày đã qua");
@@ -265,14 +305,17 @@ public class DayBalanceServiceImpl implements DayBalanceService {
         if (source.items().isEmpty()) {
             throw GlobalException.of(ApiCode.DAY_BALANCE_NO_MENU, source.date());
         }
+        String blocked = blockedReason(source);
+        if (blocked != null) {
+            throw GlobalException.of(ApiCode.DAY_BALANCE_LOCKED, source.date(), blocked);
+        }
     }
 
-    // Lần 2 (theo suất đã chốt) mở ở bước sau
     private static short checkRound(int round) {
-        if (round != DayBalanceReader.ROUND_EXPECTED) {
-            throw GlobalException.of(ApiCode.DAY_BALANCE_INPUT_INVALID, "chỉ cân đối lần 1");
+        if (round != DayBalanceReader.ROUND_EXPECTED && round != DayBalanceReader.ROUND_CONFIRMED) {
+            throw GlobalException.of(ApiCode.DAY_BALANCE_INPUT_INVALID, "chỉ có lần 1 và lần 2");
         }
-        return DayBalanceReader.ROUND_EXPECTED;
+        return (short) round;
     }
 
     // AUTH-20, NUT-08: cân đối khẩu phần cùng quyền với lập thực đơn
@@ -289,9 +332,10 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                 .collect(Collectors.toMap(CampusResponse::id, CampusResponse::name));
         Map<Long, String> dishNames = DayBalanceReader.dishNames(source);
         List<Food> foods = DayBalanceReader.usedFoods(source, draft);
-        boolean canEdit = currentUser.hasPermission(Permission.MENU_MANAGE)
-                && !source.date().isBefore(LocalDate.now(clock))
-                && !source.items().isEmpty();
+        boolean open =
+                !source.date().isBefore(LocalDate.now(clock)) && !source.items().isEmpty();
+        String blocked = open ? blockedReason(source) : null;
+        boolean canEdit = currentUser.hasPermission(Permission.MENU_MANAGE) && open && blocked == null;
         DayBalance saved = source.saved();
         return new DayBalanceResponse(
                 source.date(),
@@ -338,7 +382,8 @@ public class DayBalanceServiceImpl implements DayBalanceService {
                         })
                         .toList(),
                 groupResults(source, draft, result, foods),
-                summary(source, draft, foods));
+                summary(source, draft, foods),
+                blocked);
     }
 
     private static List<DayBalanceResponse.GroupResult> groupResults(
