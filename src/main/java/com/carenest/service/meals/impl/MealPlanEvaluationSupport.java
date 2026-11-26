@@ -135,23 +135,28 @@ class MealPlanEvaluationSupport {
         Map<Long, List<Portion>> byAgeGroup = new HashMap<>();
         for (DishIngredient ingredient : dish.getIngredients()) {
             Food food = ingredient.getFood();
-            FoodInfo info = new FoodInfo(
-                    food.getId(),
-                    food.getKcal(),
-                    food.getProtein(),
-                    food.getLipid(),
-                    food.getGlucid(),
-                    food.getOrigin(),
-                    null,
-                    food.getPurchaseUnitSize(),
-                    food.getWastePct(),
-                    food.getAllergens().stream().map(a -> a.getName()).sorted().toList(),
-                    microOf(food));
+            FoodInfo info = foodInfo(food, food.getPurchaseUnitSize(), food.getWastePct());
             byAgeGroup
                     .computeIfAbsent(ingredient.getAgeGroupId(), id -> new ArrayList<>())
                     .add(new Portion(info, ingredient.getGramsPerChild()));
         }
         return new DishInfo(dish.getId(), dish.getName(), dish.getDishType(), byAgeGroup);
+    }
+
+    /** Số liệu thực phẩm cho bộ kiểm; giá lấy riêng theo ngày nên để trống. */
+    static FoodInfo foodInfo(Food food, BigDecimal purchaseUnitSize, BigDecimal wastePct) {
+        return new FoodInfo(
+                food.getId(),
+                food.getKcal(),
+                food.getProtein(),
+                food.getLipid(),
+                food.getGlucid(),
+                food.getOrigin(),
+                null,
+                purchaseUnitSize,
+                wastePct,
+                food.getAllergens().stream().map(a -> a.getName()).sorted().toList(),
+                microOf(food));
     }
 
     private static Map<Micronutrient, BigDecimal> microOf(Food food) {
