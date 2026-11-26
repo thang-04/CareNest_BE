@@ -7,4 +7,6 @@ import java.util.List;
 
 /** pinnedSceneId bắt buộc khi mode = FIXED; các chế độ khác có thể bỏ trống. */
 public record AppearanceRequest(
-        @NotNull AppearanceMode mode, String pinnedSceneId, @NotEmpty List<String> enabledSceneIds) {}
+        @NotNull AppearanceMode mode,
+        String pinnedSceneId,
+        @NotEmpty List<String> enabledSceneIds) {}

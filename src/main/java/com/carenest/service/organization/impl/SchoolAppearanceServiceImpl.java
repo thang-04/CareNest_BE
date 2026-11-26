@@ -58,9 +58,8 @@ public class SchoolAppearanceServiceImpl implements SchoolAppearanceService {
         String logPrefix = LOG_PREFIX + "|saveAppearance|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
-            List<String> enabled = new LinkedHashSet<>(request.enabledSceneIds()).stream()
-                    .filter(SCENE_IDS::contains)
-                    .toList();
+            List<String> enabled = new LinkedHashSet<>(request.enabledSceneIds())
+                    .stream().filter(SCENE_IDS::contains).toList();
             if (enabled.isEmpty()) {
                 throw invalid("enabledSceneIds", "Cần bật ít nhất một tranh");
             }
@@ -96,7 +95,9 @@ public class SchoolAppearanceServiceImpl implements SchoolAppearanceService {
     private AppearanceResponse toResponse(SchoolAppearance row) {
         String updatedBy = row.getUpdatedBy() == null
                 ? null
-                : schoolAppearanceRepository.findUserFullName(row.getUpdatedBy()).orElse(null);
+                : schoolAppearanceRepository
+                        .findUserFullName(row.getUpdatedBy())
+                        .orElse(null);
         return new AppearanceResponse(
                 row.getMode(), row.getPinnedSceneId(), row.getEnabledSceneIds(), updatedBy, row.getUpdatedAt());
     }
