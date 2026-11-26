@@ -20,6 +20,19 @@ class DiagnosticTermsTest {
     }
 
     @Test
+    @DisplayName("OBS-17: không chặn nhầm từ thường dùng chỉ khác dấu với thuật ngữ chẩn đoán")
+    void doesNotBlockLookAlikeWords() {
+        assertThat(DiagnosticTerms.containsAny("Bé thiếu năng lượng buổi sáng")).isFalse();
+        assertThat(DiagnosticTerms.containsAny("Bé hỏi bài nào cô cũng trả lời"))
+                .isFalse();
+        assertThat(DiagnosticTerms.containsAny("Bé có dấu hiệu thiểu năng")).isTrue();
+        assertThat(DiagnosticTerms.containsAny("Bé bị bại não")).isTrue();
+        assertThat(DiagnosticTerms.containsAny("be bi bai nao")).isTrue();
+        assertThat(DiagnosticTerms.containsAny("Bé có dấu hiệu tâm thần")).isTrue();
+        assertThat(DiagnosticTerms.containsAny("hay tang dong")).isTrue();
+    }
+
+    @Test
     @DisplayName("OBS-17: câu mô tả hành vi quan sát được không bị chặn")
     void allowsObservedBehaviour() {
         assertThat(DiagnosticTerms.containsAny("Bé ăn hết suất, ngủ ngon, chơi vui cùng bạn"))

@@ -32,6 +32,25 @@ class SemesterDomainResultTest {
                 .isNull();
     }
 
+    @Test
+    @DisplayName("Chủ đề kết thúc trong khoảng nghỉ giữa hai học kỳ thuộc học kỳ I, sau học kỳ II thuộc học kỳ II")
+    void themeInTheGapBelongsToSemesterOne() {
+        LocalDate yearStart = LocalDate.of(2026, 9, 1);
+        LocalDate yearEnd = LocalDate.of(2027, 5, 31);
+        LocalDate s2Start = LocalDate.of(2027, 2, 1);
+        LocalDate gap = LocalDate.of(2027, 1, 25); // HK I kết thúc 15/01, HK II bắt đầu 01/02
+
+        LocalDate[] one = SemesterAssessmentServiceImpl.themeRange(1, yearStart, yearEnd, s2Start);
+        LocalDate[] two = SemesterAssessmentServiceImpl.themeRange(2, yearStart, yearEnd, s2Start);
+
+        assertThat(!gap.isBefore(one[0]) && !gap.isAfter(one[1])).isTrue();
+        assertThat(!gap.isBefore(two[0]) && !gap.isAfter(two[1])).isFalse();
+        assertThat(two[1]).isEqualTo(yearEnd);
+        // chưa đặt học kỳ II thì học kỳ I lấy tới hết năm
+        assertThat(SemesterAssessmentServiceImpl.themeRange(1, yearStart, yearEnd, null)[1])
+                .isEqualTo(yearEnd);
+    }
+
     private Response board(List<Domain> columns, List<Child> rows) {
         LocalDate day = LocalDate.of(2026, 12, 31);
         return new Response(
