@@ -17,14 +17,14 @@ import com.carenest.repository.attendance.AttendanceDayUnlockRepository;
 import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
-import com.carenest.repository.organization.AttendanceCutoffRepository;
-import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.ParentAttendanceService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
@@ -69,8 +69,8 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
     private final EnrollmentService enrollmentService;
     private final ClassroomService classroomService;
     private final AccountService accountService;
-    private final SchoolYearRepository schoolYearRepository;
-    private final AttendanceCutoffRepository attendanceCutoffRepository;
+    private final SchoolYearService schoolYearService;
+    private final AttendanceCutoffService attendanceCutoffService;
 
     @Override
     public ParentAttendanceSchedule getSchedule(CurrentUser currentUser, LocalDate requestedDate) {
@@ -81,28 +81,26 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
             if (!currentUser.hasRole(CareNestRole.PARENT)) {
                 throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
             }
-            var year = schoolYearRepository
-                    .findContaining(date)
+            var year = schoolYearService
+                    .findYearContaining(date)
                     .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
-            AttendanceCutoff setting = attendanceCutoffRepository
-                    .findFirstBySchoolYearIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDescIdDesc(
-                            year.getId(), date)
-                    .orElse(null);
+            var setting =
+                    attendanceCutoffService.findDailySchedule(year.id(), date).orElse(null);
             ParentAttendanceSchedule response = new ParentAttendanceSchedule(
                     date,
-                    year.getId(),
-                    year.getName(),
-                    setting == null ? AttendanceCutoff.DEFAULT_DROPOFF_OPEN_FROM : setting.getDropoffOpenFrom(),
-                    setting == null ? AttendanceCutoff.DEFAULT_MORNING_START : setting.getMorningStart(),
-                    setting == null ? AttendanceCutoff.DEFAULT_MORNING_END : setting.getMorningEnd(),
-                    setting == null ? AttendanceCutoff.DEFAULT_AFTERNOON_START : setting.getAfternoonStart(),
-                    setting == null ? AttendanceCutoff.DEFAULT_LATEST_ARRIVAL : setting.getLatestAfternoonArrival(),
-                    setting == null ? AttendanceCutoff.DEFAULT_PICKUP_START : setting.getPickupStart(),
-                    setting == null ? AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM : setting.getFullDayPickupFrom(),
-                    setting == null ? AttendanceCutoff.DEFAULT_PICKUP_END : setting.getPickupEnd(),
-                    setting == null ? AttendanceCutoff.DEFAULT_AFTERNOON_END : setting.getAfternoonEnd(),
-                    setting == null ? rules.cutoff(year.getId(), date) : setting.getCutoffTime());
-            log.info("{}|schoolYearId={}|END", logPrefix, year.getId());
+                    year.id(),
+                    year.name(),
+                    setting == null ? AttendanceCutoff.DEFAULT_DROPOFF_OPEN_FROM : setting.dropoffOpenFrom(),
+                    setting == null ? AttendanceCutoff.DEFAULT_MORNING_START : setting.morningStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_MORNING_END : setting.morningEnd(),
+                    setting == null ? AttendanceCutoff.DEFAULT_AFTERNOON_START : setting.afternoonStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_LATEST_ARRIVAL : setting.latestAfternoonArrival(),
+                    setting == null ? AttendanceCutoff.DEFAULT_PICKUP_START : setting.pickupStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM : setting.fullDayPickupFrom(),
+                    setting == null ? AttendanceCutoff.DEFAULT_PICKUP_END : setting.pickupEnd(),
+                    setting == null ? AttendanceCutoff.DEFAULT_AFTERNOON_END : setting.afternoonEnd(),
+                    setting == null ? rules.cutoff(year.id(), date) : setting.cutoffTime());
+            log.info("{}|schoolYearId={}|END", logPrefix, year.id());
             return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());

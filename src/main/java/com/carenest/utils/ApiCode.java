@@ -435,7 +435,7 @@ public enum ApiCode {
             4014, HttpStatus.BAD_REQUEST, "Chọn hạn mở lại sau thời điểm hiện tại và không quá ngày kết thúc năm học"),
     UNLOCK_ALREADY_ACTIVE(4015, HttpStatus.CONFLICT, "Lớp/ngày này đang có lần mở lại còn hiệu lực"),
     UNLOCK_ALREADY_ENDED(4016, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
-    LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, báo nghỉ cần xác nhận lại số suất"),
+    LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, hôm nay chỉ báo nghỉ được buổi chiều"),
     LEAVE_TOO_LONG(4028, HttpStatus.BAD_REQUEST, "Một đơn nghỉ tối đa {0} ngày, hãy chia thành nhiều đơn"),
     LEAVE_ATTENDANCE_LOCKED(4027, HttpStatus.CONFLICT, "Phụ huynh cần hủy đơn nghỉ trước giờ chốt để điểm danh lại"),
     LEAVE_NOT_GUARDIAN(4026, HttpStatus.FORBIDDEN, "Bạn chỉ báo nghỉ được cho con mình"),
@@ -447,7 +447,6 @@ public enum ApiCode {
     LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
     LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
     // ATT-12, ATT-13 (Cần chốt 18/11/2026): nghỉ nửa buổi
-    LEAVE_HALF_DAY_SINGLE_DAY(4031, HttpStatus.BAD_REQUEST, "Nghỉ buổi sáng hoặc buổi chiều chỉ chọn cho một ngày"),
     LEAVE_AFTERNOON_NOTICE_CLOSED(
             4032,
             HttpStatus.CONFLICT,
@@ -489,6 +488,7 @@ public enum ApiCode {
     PICKUP_CHILD_ABSENT(4106, HttpStatus.CONFLICT, "Trẻ được điểm danh vắng hôm nay"),
     PICKUP_ALREADY_HANDED_OVER(4107, HttpStatus.CONFLICT, "Trẻ đã được trả cho người đón hôm nay"),
     // AUTH-04 (Cần chốt 24/11/2026): API phụ huynh xem điểm danh, sức khỏe đầu ngày của con
+    PICKUP_CORRECTION_TODAY_ONLY(4110, HttpStatus.CONFLICT, "Chỉ sửa được giờ trả trẻ đã ghi trong hôm nay"),
     PARENT_CHILD_FORBIDDEN(4108, HttpStatus.FORBIDDEN, "Bạn chỉ xem được thông tin của con mình"),
     PARENT_RANGE_INVALID(4109, HttpStatus.BAD_REQUEST, "Chọn khoảng ngày trong một năm học, tối đa {0} ngày"),
 

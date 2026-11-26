@@ -372,6 +372,32 @@ class YearConfigPerYearIntegrationTest {
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("Phòng năm nay", 25));
     }
 
+    @Test
+    @DisplayName("Lớp năm cũ không khóa sửa sức chứa phòng của năm mới")
+    void oldYearClassDoesNotBlockRoomCapacityInNewYear() {
+        RoomResponse room = roomService.createRoom(
+                principal, new RoomRequest(campusA, "P501", "Phòng dùng lại", RoomType.CLASS, 25, null, ""), active);
+        insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, room_id,"
+                + " capacity, status) VALUES (" + campusA + ", " + active + ", 'Lớp năm cũ', " + group + ", "
+                + room.id() + ", 25, 'ACTIVE') RETURNING id");
+        roomRepository.addToYear(planned, room.id());
+
+        RoomResponse roomInPlannedYear = rooms(planned).stream()
+                .filter(item -> item.id().equals(room.id()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(roomInPlannedYear.yearClasses()).isEmpty();
+        assertThat(roomInPlannedYear.usage()).isEmpty();
+        assertThat(roomInPlannedYear.minCapacity()).isZero();
+
+        RoomResponse updated = roomService.updateRoom(
+                principal,
+                room.id(),
+                new RoomRequest(campusA, "P501", "Phòng dùng lại", RoomType.CLASS, 10, null, ""),
+                planned);
+        assertThat(updated.capacity()).isEqualTo(10);
+    }
+
     private List<RoomResponse> rooms(long yearId) {
         return roomService.getRooms(principal, null, yearId);
     }

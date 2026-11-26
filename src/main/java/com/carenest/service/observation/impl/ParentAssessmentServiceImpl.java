@@ -236,8 +236,24 @@ public class ParentAssessmentServiceImpl implements ParentAssessmentService {
             Stays stays = checkedRange(childId, from, to);
             List<DailyObservation> observations =
                     observationRepository.findByChildIdInAndDateBetween(List.of(childId), from, to);
+            Set<LocalDate> presentDays = attendanceService.findDayStatuses(List.of(childId), from, to).stream()
+                    .filter(a -> a.status() == AttendanceStatus.PRESENT)
+                    .map(AttendanceService.ChildDayStatus::date)
+                    .collect(Collectors.toSet());
+            Map<Long, List<AssessmentDayUnlock>> unlocks = new HashMap<>();
+            stays.list().stream()
+                    .map(EnrollmentService.ChildClassStay::classroomId)
+                    .distinct()
+                    .forEach(classId -> unlocks.put(
+                            classId,
+                            unlockRepository.findByClassroomIdInAndDateBetweenAndValidUntilAfter(
+                                    List.of(classId), from, to, rules.now())));
+            // Như phiếu ngày (OBS-36): cờ chỉ hiện ở ngày trẻ có mặt và không phải phần cô đang mở lại sửa
             List<ParentFlag> flags = observations.stream()
                     .filter(o -> o.getFlag() != null && stays.classOn(o.getDate()) != null)
+                    .filter(o -> presentDays.contains(o.getDate())
+                            && !editedWhileReopened(
+                                    unlocks.get(stays.classOn(o.getDate()).id()), o.getDate(), o, List.of()))
                     .sorted(Comparator.comparing(DailyObservation::getDate))
                     .map(o -> {
                         ClassroomInfoResponse cls = stays.classOn(o.getDate());

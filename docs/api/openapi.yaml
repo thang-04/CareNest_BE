@@ -10149,6 +10149,25 @@ paths:
           description: OK
       tags:
       - parent-activation-controller
+  /api/parent/attendance-schedule:
+    get:
+      operationId: getSchedule_1
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentAttendanceSchedule"
+          description: OK
+      tags:
+      - parent-attendance-controller
   /api/permission-change-logs:
     get:
       operationId: getPermissionChangeLogs
@@ -10274,6 +10293,31 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonListPickupClassResponse"
+          description: OK
+      tags:
+      - pickup-controller
+  /api/pickups/{pickupId}/handover-time:
+    patch:
+      operationId: correctHandoverTime
+      parameters:
+      - in: path
+        name: pickupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CorrectHandoverTimeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPickupRecordResponse"
           description: OK
       tags:
       - pickup-controller
@@ -14439,6 +14483,14 @@ components:
           type: array
           items:
             type: string
+    CorrectHandoverTimeRequest:
+      type: object
+      properties:
+        handoverTime:
+          type: string
+          format: time-local
+        reason:
+          type: string
     CorrectMealParticipationRequest:
       type: object
       properties:
@@ -22289,6 +22341,47 @@ components:
           format: date
         totals:
           $ref: "#/components/schemas/ParentAttendanceTotals"
+    ParentAttendanceSchedule:
+      type: object
+      properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        attendanceCutoff:
+          type: string
+          format: time-local
+        date:
+          type: string
+          format: date
+        dropoffOpenFrom:
+          type: string
+          format: time-local
+        fullDayPickupFrom:
+          type: string
+          format: time-local
+        latestAfternoonArrival:
+          type: string
+          format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
+          type: string
+          format: time-local
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
     ParentAttendanceTotals:
       type: object
       properties:
@@ -26911,6 +27004,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonParentAttendanceSchedule:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentAttendanceSchedule"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonParentEvaluationsResponse:
       type: object
       properties:
@@ -28038,7 +28144,7 @@ components:
         capacity:
           type: integer
           format: int32
-          maximum: 32767
+          maximum: 60
           minimum: 1
         managerUserId:
           type: integer

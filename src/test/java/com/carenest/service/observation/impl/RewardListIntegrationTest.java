@@ -229,8 +229,8 @@ class RewardListIntegrationTest {
                 .allSatisfy(d -> assertThat(d.getDayOfWeek().getValue()).isLessThan(6))
                 .doesNotContain(java.time.LocalDate.of(2026, 11, 20))
                 .contains(java.time.LocalDate.of(2026, 11, 19));
-        // Hôm nay là ngày học nhưng chưa tới lúc nhắc (chỉ nhắc ngày đã qua)
-        assertThat(an.schoolDays()).isEqualTo(detail.unrecordedDays().size() + 1);
+        // Hôm nay lớp chưa điểm danh nên chưa tính là ngày phải đi, như báo cáo chất lượng tháng
+        assertThat(an.schoolDays()).isEqualTo(detail.unrecordedDays().size());
     }
 
     @Test

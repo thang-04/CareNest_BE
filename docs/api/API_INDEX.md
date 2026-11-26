@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 453 endpoint.
+Tổng: 455 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -419,10 +419,12 @@ GET /parent-accounts/phone-change-requests · src/main/java/com/carenest/control
 POST /parent-accounts/phone-change-requests/{requestId}/approve · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#approve
 POST /parent-accounts/phone-change-requests/{requestId}/reject · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#reject
 POST /parent-activation · src/main/java/com/carenest/controller/account/ParentActivationController.java#activateParentAccount
+GET /parent/attendance-schedule · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getSchedule
 GET /permission-change-logs · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionChangeLogs
 GET /permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
 GET /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
 POST /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#recordResult
+PATCH /pickups/{pickupId}/handover-time · src/main/java/com/carenest/controller/attendance/PickupController.java#correctHandoverTime
 GET /pickups/children/{childId} · src/main/java/com/carenest/controller/attendance/PickupController.java#getChild
 GET /pickups/classes · src/main/java/com/carenest/controller/attendance/PickupController.java#listClasses
 GET /role-permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermissions

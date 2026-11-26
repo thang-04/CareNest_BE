@@ -313,6 +313,27 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<SchoolYearDetailResponse> findYearContaining(LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findYearContaining|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            java.util.Optional<SchoolYearDetailResponse> year =
+                    schoolYearRepository.findContaining(date).map(this::toDetail);
+            log.info("{}|END", logPrefix);
+            return year;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void lockForUpdate(Long schoolYearId) {
+        schoolYearRepository.findForUpdate(schoolYearId);
+    }
+
+    @Override
     public SchoolYearDetailResponse activateSchoolYear(CurrentUser currentUser, Long schoolYearId, String confirmName) {
         String logPrefix =
                 LOG_PREFIX + "|activateSchoolYear|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;

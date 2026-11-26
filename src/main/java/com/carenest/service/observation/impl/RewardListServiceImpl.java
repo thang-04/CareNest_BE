@@ -542,6 +542,10 @@ public class RewardListServiceImpl implements RewardListService {
                 }
             }
         }
+        // Hôm nay chưa điểm danh thì chưa tính là ngày phải đi, như báo cáo chất lượng tháng
+        if (!recorded.contains(today)) {
+            schoolDays.remove(today);
+        }
         // OBS-23: ngày phải đi của từng trẻ = ngày học của lớp trong thời gian trẻ thuộc lớp (trẻ vào giữa năm không
         // bị tính các ngày trước khi vào); số tuần / tháng học cũng theo thời gian trẻ ở lớp
         List<EnrollmentService.ClassStay> stays = to.isBefore(cls.yearStart())

@@ -13,6 +13,6 @@ public record RoomRequest(
         @NotBlank @Size(max = 20) String room,
         @NotBlank @Size(max = 50) String name,
         @NotNull RoomType type,
-        @Min(1) @Max(Short.MAX_VALUE) Integer capacity,
+        @Min(1) @Max(60) Integer capacity,
         Long managerUserId,
         @Size(max = 500) String note) {}
