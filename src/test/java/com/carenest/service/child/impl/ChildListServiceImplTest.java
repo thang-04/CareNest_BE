@@ -146,7 +146,9 @@ class ChildListServiceImplTest {
                         eq(21L),
                         any()))
                 .willReturn(List.of(other));
-        given(childRepository.findAllById(List.of(201L))).willReturn(List.of(child(201L, ChildStatus.ACTIVE, 20L)));
+        Child photographed = child(201L, ChildStatus.ACTIVE, 20L);
+        photographed.assignEnrollmentPhoto("photo", "image/png", 3, java.time.Instant.EPOCH);
+        given(childRepository.findAllById(List.of(201L))).willReturn(List.of(photographed));
         given(classroomService.findClassroomInfo(21L))
                 .willReturn(Optional.of(new ClassroomInfoResponse(
                         21L,
@@ -169,6 +171,7 @@ class ChildListServiceImplTest {
 
         assertThat(page.items()).singleElement().satisfies(item -> {
             assertThat(item.campusId()).isEqualTo(20L);
+            assertThat(item.photoMissing()).isFalse();
             assertThat(item.canManage()).isFalse();
         });
     }
@@ -192,6 +195,7 @@ class ChildListServiceImplTest {
                 .willReturn(List.of(first, second));
         Child pending = child(102L, ChildStatus.PENDING_PLACEMENT, 10L);
         pending.scheduleLeave(LocalDate.of(2026, 12, 1), "Chuyển nhà", 5L);
+        pending.assignEnrollmentPhoto("photo", "image/png", 3, java.time.Instant.EPOCH);
         given(childRepository.findAllById(List.of(102L))).willReturn(List.of(pending));
         given(guardianViews.of(List.of(102L)))
                 .willReturn(Map.of(
@@ -218,6 +222,7 @@ class ChildListServiceImplTest {
         assertThat(page.totalPages()).isEqualTo(2);
         assertThat(page.items()).singleElement().satisfies(item -> {
             assertThat(item.id()).isEqualTo(102L);
+            assertThat(item.photoMissing()).isTrue();
             assertThat(item.classId()).isNull();
             assertThat(item.campusId()).isEqualTo(10L);
             assertThat(item.hasDeclaration()).isTrue();

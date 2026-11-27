@@ -43,4 +43,5 @@ public record ChildListItemResponse(
         LocalDate startDate,
         boolean startDue,
         ChildNextClassResponse nextClass,
-        LocalDate scheduledLeaveOn) {}
+        LocalDate scheduledLeaveOn,
+        boolean photoMissing) {}
