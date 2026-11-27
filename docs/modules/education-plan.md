@@ -19,7 +19,7 @@
 - Theo EDU-71 PROPOSED (user trực tiếp 09/11), hồ sơ mất giới hạn hoặc chưa phân biệt được legacy thật phải bị chặn gửi và báo kiểm tra; chỉ khôi phục khi có bằng chứng, giữ trạng thái. Legacy thật được xác nhận giữ ngoại lệ thời lượng cũ và vẫn kiểm đủ ngày.
 - Theo EDU-70, PHT soạn năm → chỉ HT duyệt; TT soạn năm hoặc tổ → PHT hoặc HT duyệt; GV soạn kế hoạch giáo dục ngày lớp → chuỗi theo cấu hình HT, không bắt buộc bước TT; chỉ PHT duyệt cũng hợp lệ (user10/11). HT phân công một người soạn theo phạm vi; không tự duyệt hoặc cấp dưới duyệt cấp trên. REVIEW cấm sửa, cuối chuỗi ban hành; không dùng lease. Phần HT cấu hình chuỗi tùy ý và TT duyệt năm/tổ trong quyết định lịch sử đã được EDU-70 thay thế.
 - Năm mới ban hành tự chuyển nguồn tổ nháp/chờ (giữ phần nhập, chờ về nháp); tổ đã ban hành có bản cập nhật nháp, giữ bản ban hành cũ cho lớp tới khi cập nhật duyệt. Đỏ phần đổi/xóa/liên kết ảnh hưởng; mục mới riêng để phân bổ, chủ đề kết thúc không đỏ; baseline là nguồn tổ dùng trước chuyển.
-- Không ai xóa tổ kể cả nháp; chỉ điều chỉnh và giữ lịch sử. Chỉ năm hiện phiên bản, tổ giữ lịch sử nội bộ.
+- Theo EDU-116 (Tiền 28/11/2026), chỉ người tạo phiên bản điều chỉnh kế hoạch tổ được xóa phiên bản đó khi đang Nháp hoặc Trả lại. Bản nháp đầu tiên và bản điều chỉnh do hệ thống tự mở theo EDU-62 không được xóa. Bản đã ban hành trước đó vẫn có hiệu lực. Chỉ kế hoạch năm học hiển thị bảng phiên bản, kế hoạch tổ lưu lịch sử nội bộ.
 - Mẫu nhánh tùy chọn nhưng gửi phải phủ mọi tuần học bằng nhánh có tên; nhánh nhiều tuần có đủ giáo án từng tuần. Năm nhập file hai chế độ thay toàn bộ/thay phần có, preview/xác nhận nháp/lưu tay; tổ không nhập file sửa cây.
 
 ## Trạng thái triển khai tách khỏi mức xác nhận
