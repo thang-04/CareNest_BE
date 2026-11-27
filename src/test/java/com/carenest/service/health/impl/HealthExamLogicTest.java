@@ -51,12 +51,14 @@ class HealthExamLogicTest {
         draft.pulse = new BigDecimal("300");
         draft.respiratory = new BigDecimal("100");
         draft.lengthSd = new BigDecimal("-7");
+        draft.weightSd = new BigDecimal("7");
         draft.arm = new BigDecimal("400");
         assertThat(HealthExamValidator.draftRanges(draft.build()))
                 .containsExactly(
                         new FieldErrorResponse("exam.vitals.pulse", "Nhập mạch từ 40 đến 220 lần/phút"),
                         new FieldErrorResponse("exam.vitals.respiratoryRate", "Nhập nhịp thở từ 10 đến 90 lần/phút"),
                         new FieldErrorResponse("exam.nutrition.lengthForAgeSd", "Nhập chiều dài/tuổi (SD) từ -6 đến 6"),
+                        new FieldErrorResponse("exam.nutrition.weightForAgeSd", "Nhập cân nặng/tuổi (SD) từ -6 đến 6"),
                         new FieldErrorResponse(
                                 "exam.nutrition.armCircumferenceMm", "Nhập chu vi vòng cánh tay từ 50 đến 300 mm"));
     }
@@ -776,6 +778,7 @@ class HealthExamLogicTest {
         BigDecimal respiratory = new BigDecimal("24");
         String respiratoryStatus = "NORMAL";
         BigDecimal lengthSd;
+        BigDecimal weightSd;
         BigDecimal arm;
         String headStatus = "NORMAL";
         List<String> statuses = List.of("NORMAL");
@@ -815,7 +818,7 @@ class HealthExamLogicTest {
                     new HealthExamHistory(self, selfText, family, "", tbContact, tbContactDate),
                     new HealthExamVitals(
                             temperature, temperatureStatus, pulse, pulseStatus, respiratory, respiratoryStatus),
-                    new HealthExamNutrition(lengthSd, null, headStatus, arm, statuses),
+                    new HealthExamNutrition(lengthSd, weightSd, headStatus, arm, statuses),
                     new HealthExamDevelopment(mental, motor, autismRisk),
                     new HealthExamImmunization(bcg, "YES", "YES"),
                     clinical,

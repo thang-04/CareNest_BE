@@ -1229,6 +1229,20 @@ class ChildEnrollmentIntegrationTest {
                                 campusA,
                                 newGuardian("0918888941", "999900000941"))),
                 ApiCode.CHILD_DUPLICATE_LEFT);
+        expectCode(
+                () -> imports.importRows(
+                        principal,
+                        new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                                List.of(request(
+                                        "Trẻ Đã Nghỉ Nhập",
+                                        "2023-03-03",
+                                        null,
+                                        campusA,
+                                        newGuardian("0918888941", "999900000941"))),
+                                campusA,
+                                null,
+                                TODAY)),
+                ApiCode.CHILD_DUPLICATE_LEFT);
         assertThat(rows.get(2).errors())
                 .contains("Trẻ đã có hồ sơ trong hệ thống (trùng họ tên, ngày sinh và phụ huynh)");
         assertThat(rows.get(2).notes()).noneMatch(n -> n.startsWith("Trẻ từng học ở trường"));
