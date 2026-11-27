@@ -1,5 +1,13 @@
 # Verification — bằng chứng trước khi báo xong
 
+## N+1 tiếp nhận trẻ và danh sách đợt khám — 27/11/2026
+
+- Hoàn thành bốn hạng mục trong `../N+1-ke-hoach-sua-code-G94-180-2026-11-26.md`, đo trên PostgreSQL Testcontainers bằng Hibernate Statistics và StatementInspector.
+- Danh sách xếp lớp tăng 3 lên 13 lớp vẫn dùng 10 SQL. Nhập 5 và 10 dòng giữ số đọc năm học ở 2 cho năm hiện tại, 3 cho năm kế tiếp, đọc điểm trường ở 3, đọc phân công ở 2.
+- Tìm kỳ liên kết và tra lớp hiện tại cho 8 đợt cùng ngày giảm từ 8 xuống 1 truy vấn cho mỗi nhóm. Ba ngày tham chiếu dùng 3 truy vấn tra lớp, không có kết quả dùng 0.
+- Native Maven `verify` với tám class liên quan đạt 230/230 test, 0 fail/error/skip, gồm OpenAPI 4/4. Package và Spotless đạt. Log ở TEMP, tên `nplus1-combined-verify.log`. Review riêng spec và chất lượng mã không còn finding.
+- Chưa benchmark độ trễ DB triển khai hoặc lô đủ 500 dòng. Số đo nhập file chỉ tính nhóm tra cứu năm, điểm trường và phạm vi, các thao tác tạo hồ sơ và kiểm trùng theo dòng tiếp tục tăng theo số dòng.
+
 ## BR hồ sơ trẻ, sức khỏe và đón trẻ — 27/11/2026
 
 - Đã chạy `./mvnw.cmd -q verify` với Docker. Surefire chạy 2.805 test, 0 assertion failure, 15 error, 3 skip. Toàn bộ 15 error nằm trong `EduYearPlanServiceIntegrationTest`, cùng lỗi dữ liệu thử nghiệm vượt `varchar(20)`. Đây là nhóm lỗi cũ được kế hoạch yêu cầu ghi nhận.
