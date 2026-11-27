@@ -177,7 +177,6 @@ class ParentAttendanceIntegrationTest {
 
     @Test
     void attendanceUsesPhoneConfirmationDescriptionWhenPickupNameIsBlank() {
-        record(classB, TODAY, "PRESENT", "LUNCH", null);
         long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
         jdbc.update(
                 "INSERT INTO pickup_records (child_id, classroom_id, campus_id, date, outcome, verification,"
@@ -194,6 +193,7 @@ class ParentAttendanceIntegrationTest {
                 service.getAttendance(parent, child, TODAY, TODAY).days().getFirst();
         assertThat(day.pickedUpByName()).isEqualTo("Người đón đã được phụ huynh xác nhận qua điện thoại");
         assertThat(day.pickedUpAt()).isEqualTo(NOW);
+        assertThat(day.status()).isEqualTo(ParentAttendanceStatus.NOT_RECORDED);
     }
 
     @Test

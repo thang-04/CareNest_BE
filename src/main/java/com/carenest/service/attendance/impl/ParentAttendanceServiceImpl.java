@@ -333,10 +333,10 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                         null,
                         List.of(),
                         List.of(),
-                        null,
+                        pickupName(pickups.get(date)),
                         cls.id(),
                         cls.name(),
-                        null);
+                        pickups.containsKey(date) ? pickups.get(date).getHandedOverAt() : null);
             }
             List<MealSession> eaten = s.meals().stream().sorted().toList();
             boolean missedPart = s.status() != AttendanceStatus.PRESENT || s.absentPart() != null;
