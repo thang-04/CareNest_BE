@@ -96,6 +96,9 @@ class ParentMenuIntegrationTest {
     private ParentMenuService parentMenuService;
 
     @Autowired
+    private com.carenest.service.meals.ClassMenuService classMenuService;
+
+    @Autowired
     private FileStorage fileStorage;
 
     @Autowired
@@ -151,6 +154,37 @@ class ParentMenuIntegrationTest {
         child = child();
         enroll(child, kinderClass, "2026-09-01", null);
         parent = parentOf(child, "phu-huynh");
+    }
+
+    @Test
+    @DisplayName("App giáo viên: thực đơn lớp chỉ khi đã công bố, đúng khối và bữa, chỉ giáo viên của lớp")
+    void assignedTeacherReadsPublishedClassMenu() {
+        CurrentUser teacher = user("gv-lop", Set.of(CareNestRole.TEACHER));
+        CurrentUser other = user("gv-khac", Set.of(CareNestRole.TEACHER));
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from)"
+                        + " VALUES (?, 'TEACHER', ?, '2026-09-01')",
+                teacher.userId(),
+                kinderClass);
+
+        var week = classMenuService.getWeek(teacher, kinderClass, MONDAY.plusDays(2));
+
+        assertThat(week.weekStart()).isEqualTo(MONDAY);
+        assertThat(week.published()).isTrue();
+        assertThat(week.days()).hasSize(5);
+        assertThat(week.days().getFirst().meals())
+                .extracting(meal -> meal.session().name())
+                .containsExactly("LUNCH", "AFTERNOON");
+        assertThat(week.days().getFirst().meals().getFirst().dishes())
+                .extracting("name")
+                .containsExactly("Cơm", "Cá kho");
+
+        var draft = classMenuService.getWeek(teacher, kinderClass, DRAFT_MONDAY);
+        assertThat(draft.published()).isFalse();
+        assertThat(draft.days()).allSatisfy(day -> assertThat(day.meals()).isEmpty());
+
+        expectCode(() -> classMenuService.getWeek(other, kinderClass, MONDAY), ApiCode.CLASS_ACCESS_DENIED);
+        expectCode(() -> classMenuService.getWeek(teacher, nurseryClass, MONDAY), ApiCode.CLASS_ACCESS_DENIED);
     }
 
     @Test

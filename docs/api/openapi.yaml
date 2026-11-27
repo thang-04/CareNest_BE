@@ -4033,7 +4033,7 @@ paths:
       - parent-menu-controller
   /api/children/{childId}/menu:
     get:
-      operationId: getWeek
+      operationId: getWeek_2
       parameters:
       - in: path
         name: childId
@@ -4667,6 +4667,31 @@ paths:
           description: OK
       tags:
       - daily-assessment-controller
+  /api/classes/{classId}/menu:
+    get:
+      operationId: getWeek_1
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: weekStart
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMenuResponse"
+          description: OK
+      tags:
+      - class-menu-controller
   /api/classes/{classId}/pickups:
     get:
       operationId: getBoard_1
@@ -4736,6 +4761,31 @@ paths:
           description: OK
       tags:
       - teacher-assignment-controller
+  /api/classes/{classId}/teaching-activities:
+    get:
+      operationId: getWeek
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: weekStart
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassTeachingActivitiesResponse"
+          description: OK
+      tags:
+      - class-teaching-activity-controller
   /api/classes/{classId}/transferred-assessment-history:
     get:
       operationId: getTransferredHistory
@@ -14065,6 +14115,57 @@ components:
         today:
           type: string
           format: date
+    ClassMenuDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        dayOff:
+          type: boolean
+        inSchoolYear:
+          type: boolean
+        meals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassMenuMeal"
+    ClassMenuDish:
+      type: object
+      properties:
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        name:
+          type: string
+    ClassMenuMeal:
+      type: object
+      properties:
+        dishes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassMenuDish"
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+    ClassMenuResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassMenuDay"
+        published:
+          type: boolean
+        weekStart:
+          type: string
+          format: date
     ClassOption:
       type: object
       properties:
@@ -14413,6 +14514,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Teacher"
+    ClassTeachingActivitiesResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/TeachingDay"
+        published:
+          type: boolean
+        weekStart:
+          type: string
+          format: date
     ClassTotal:
       type: object
       properties:
@@ -24658,6 +24774,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonClassMenuResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassMenuResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonClassRatingResponse:
       type: object
       properties:
@@ -24705,6 +24834,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassTeachersResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassTeachingActivitiesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassTeachingActivitiesResponse"
         desc:
           type: string
         errorCode:
@@ -28896,6 +29038,8 @@ components:
         id:
           type: integer
           format: int64
+        locked:
+          type: boolean
     StaffItem:
       type: object
       properties:
@@ -29500,6 +29644,18 @@ components:
         id:
           type: integer
           format: int64
+    TeachingDay:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        date:
+          type: string
+          format: date
+        published:
+          type: boolean
     TeamLeader:
       type: object
       properties:
