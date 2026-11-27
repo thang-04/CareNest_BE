@@ -198,6 +198,7 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 - `GET /education-plans/goals/review-queue` → `List<YearPlanSummaryResponse>` kế hoạch năm/tổ REVIEW mà người gọi là người duyệt đúng lượt hoặc người duyệt bước khác của chuỗi (EDU-93; `permissions.canApprove` phân biệt, FE hiện "Mở duyệt"/"Xem"). Hồ sơ lớp: danh sách `class-docs` chỉ trả DRAFT/REVIEW cho GV chủ nhiệm và người duyệt của lớp.
 - Chi tiết: `history`/`lastReturnNote` rỗng với người chỉ xem; `versions` lọc theo `canView` (cả TEAM). Hồ sơ lớp có `releases[] {id, version, releasedAt, approvedBy}`; `GET /education-plans/class-docs/releases/{id}` trả nội dung bản cũ.
 - Mã lỗi 7384 `EDU_PLAN_NOT_RELEASED`.
+- Trạng thái trống của danh sách cho người chỉ xem (EDU-73, Tiền 28/11/2026): “Kế hoạch năm học chưa được ban hành” ở trang năm học và “Kế hoạch giáo dục tổ chưa được ban hành” ở trang tổ.
 - `EduClassDocFutureEdit.validateBranch/validateWeek` nhận tập chủ đề đã ban hành (`releasedThemes`: theme APPROVED hoặc có sự kiện `revise_future`); chủ đề chưa ban hành không bị khóa phần đã qua — sửa lỗi lưu chủ đề nhánh lần đầu bị 409 7117.
 - Kiểm chứng: Playwright `CareNest_FE/tests/e2e/integration/edu-approval-visibility-api.spec.mjs` (4) và `system/edu-approval-visibility-ui.spec.mjs` (5) trên BE thật; JUnit `EduClassDocBranchReleaseLockTest`.
 

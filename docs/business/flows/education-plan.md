@@ -87,6 +87,8 @@ Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chư
 - **EDU-73 (Tiền 23/11/2026):** ở các trang chính, mọi vai trò khi chỉ có quyền xem chỉ thấy bản đã ban hành trong phạm vi mình được xem. Trang Dự kiến chủ đề - chủ đề nhánh: thay bởi EDU-111 (5) (Tiền 25/11/2026) — mọi người xem được lớp đọc lịch nhánh hiện tại ở mọi trạng thái (GV lưu là người xem thấy), chỉ GVCN sửa; gói học kỳ đã duyệt vẫn bất biến (EDU-111 (8)). Người được phân công soạn xem được lịch dự kiến và các trạng thái khác trong phạm vi soạn.
 - Hồ sơ chưa ban hành đang quá hạn hoặc đã mở hạn chỉ xuất hiện ở **Kế hoạch quá hạn** cho quyền mở hạn theo EDU-76/97. Luồng soạn và hàng chờ duyệt theo EDU-93 vẫn áp dụng theo phân công.
 
+- **EDU-73 (Tiền 28/11/2026):** Khi danh sách chưa có bản đã ban hành, người chỉ xem thấy “Kế hoạch năm học chưa được ban hành” ở trang năm học và “Kế hoạch giáo dục tổ chưa được ban hành” ở trang tổ.
+
 ## Cách duyệt cố định, phiên bản và khóa theo thời gian (spec 004 — Tiền 11/11/2026, EDU-75/76/77)
 
 - Không còn lựa chọn "theo học kỳ"/"theo chủ đề". Gửi kế hoạch giáo dục chủ đề thiếu tên nhánh, kế hoạch chủ đề hoặc kế hoạch tuần ⇒ chặn
