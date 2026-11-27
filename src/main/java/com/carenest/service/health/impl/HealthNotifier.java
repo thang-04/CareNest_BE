@@ -46,7 +46,7 @@ class HealthNotifier {
                 parents,
                 NotificationType.HEALTH_RESULT_UPDATED,
                 "Kết quả sức khỏe đã cập nhật",
-                "Kết quả cân đo, khám sức khỏe của " + childName + " đã được cập nhật. Mở mục Sức khỏe để xem.",
+                "Kết quả cân đo, khám sức khỏe của " + childName + " đã được cập nhật. Mở Sổ sức khỏe để xem.",
                 childId);
     }
 
@@ -63,7 +63,7 @@ class HealthNotifier {
                 NotificationType.HEALTH_TREND_APPROVED,
                 "Nhận định xu hướng sức khỏe mới",
                 overview == null || overview.isBlank()
-                        ? "Đã có nhận định xu hướng tăng trưởng mới. Mở mục Sức khỏe để xem."
+                        ? "Đã có nhận định xu hướng tăng trưởng mới. Mở Sổ sức khỏe để xem."
                         : overview,
                 childId);
     }

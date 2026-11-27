@@ -75,7 +75,7 @@ final class NotificationRuleCatalog {
                 false,
                 List.of("tenTre"),
                 "Kết quả sức khỏe mới",
-                "Đã có kết quả cân đo, khám sức khỏe mới của {tenTre}. Mở mục Sức khỏe để xem.");
+                "Đã có kết quả cân đo, khám sức khỏe mới của {tenTre}. Mở Sổ sức khỏe để xem.");
         editable(
                 NotificationType.CHILD_EVALUATION_CONFIRMED,
                 "PAR-03",

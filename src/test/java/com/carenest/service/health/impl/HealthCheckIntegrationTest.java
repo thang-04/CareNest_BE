@@ -754,7 +754,7 @@ class HealthCheckIntegrationTest {
                 + "VALUES ('2027-2028', '2027-09-01', '2028-05-31') RETURNING id");
         expectField(
                 () -> checks.createHealthCheck(
-                        principal, request(HealthCheckKind.MEASUREMENT, campusA, "2027-08-30", "2027-09-02")),
+                        principal, request(HealthCheckKind.EXAM, campusA, "2027-08-30", "2027-09-02")),
                 "endDate",
                 "Ngày khám phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
 
@@ -763,7 +763,7 @@ class HealthCheckIntegrationTest {
                 () -> checks.createHealthCheck(
                         principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-08-26", "2026-09-03")),
                 "startDate",
-                "Ngày khám phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
+                "Ngày cân đo phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
     }
 
     @Test
@@ -780,7 +780,7 @@ class HealthCheckIntegrationTest {
                         round.id(),
                         request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2027-09-05")),
                 "endDate",
-                "Ngày khám phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
+                "Ngày cân đo phải trong năm học 2026-2027 (01/09/2026 – 31/08/2027)");
     }
 
     // ---------- G94-180/HLT-09 (user chốt 2026-11-24, Q2 = A): trẻ chuyển lớp khi kỳ đang mở ----------

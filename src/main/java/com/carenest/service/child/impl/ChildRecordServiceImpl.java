@@ -1149,7 +1149,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             // Health dựa vào điều này: ngày đo/khám không kiểm ngày sinh (module card child, Known pitfalls)
             LocalDate firstDay = firstStudyDay(child);
             if (draft != null && draft.dateOfBirth().isAfter(firstDay)) {
-                errors.put("dateOfBirth", "Ngày sinh không được sau ngày tiếp nhận (" + DAY.format(firstDay) + ")");
+                errors.put("dateOfBirth", "Ngày sinh không được sau ngày đầu tiên đi học (" + DAY.format(firstDay) + ")");
             }
 
             List<ChildGuardian> existing = childGuardianRepository.findAllByChildIdOrderByPositionAsc(childId);

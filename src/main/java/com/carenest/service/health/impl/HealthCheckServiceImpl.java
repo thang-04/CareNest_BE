@@ -252,7 +252,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             }
             checkCreationDates(request);
             HealthCheckRules.YearWindow year = rules.activeYearWindow();
-            checkWithinYear(year, request.startDate(), request.endDate());
+            checkWithinYear(year, request.kind(), request.startDate(), request.endDate());
             checkCampusFree(request.campusId(), null);
             HealthCheckCampaign campaign = campaignRepository.save(HealthCheckCampaign.builder()
                     .kind(request.kind() == null ? HealthCheckKind.EXAM : request.kind())
@@ -288,7 +288,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 throw GlobalException.of(ApiCode.HEALTH_CHECK_ENDED);
             }
             checkDates(request);
-            checkWithinYear(rules.windowOf(rules.yearOf(campaign)), request.startDate(), request.endDate());
+            checkWithinYear(rules.windowOf(rules.yearOf(campaign)), campaign.getKind(), request.startDate(), request.endDate());
             Results results = results(campaign);
             // Đổi ngày không được để kết quả đã nhập nằm ngoài khoảng mới
             results.measurements().stream()
@@ -434,7 +434,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                         ApiCode.INVALID_REQUEST_DATA,
                         List.of(new FieldErrorResponse("endDate", "Chọn ngày kết thúc mới từ hôm nay")));
             }
-            checkWithinYear(rules.windowOf(rules.yearOf(campaign)), campaign.getStartDate(), endDate);
+            checkWithinYear(rules.windowOf(rules.yearOf(campaign)), campaign.getKind(), campaign.getStartDate(), endDate);
             campaign.update(
                     campaign.getName(),
                     campaign.getStartDate(),
@@ -788,16 +788,16 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     }
 
     // G94-180/HLT-08 (user chốt 2026-11-22): ngày của đợt nằm trong năm của đợt; không có năm ⇒ không giới hạn
-    private static void checkWithinYear(HealthCheckRules.YearWindow year, LocalDate startDate, LocalDate endDate) {
+    private static void checkWithinYear(HealthCheckRules.YearWindow year, HealthCheckKind kind, LocalDate startDate, LocalDate endDate) {
         if (year == null) {
             return;
         }
         List<FieldErrorResponse> errors = new ArrayList<>();
         if (!year.contains(startDate)) {
-            errors.add(new FieldErrorResponse("startDate", year.message()));
+            errors.add(new FieldErrorResponse("startDate", year.message(kind)));
         }
         if (!year.contains(endDate)) {
-            errors.add(new FieldErrorResponse("endDate", year.message()));
+            errors.add(new FieldErrorResponse("endDate", year.message(kind)));
         }
         if (!errors.isEmpty()) {
             throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);

@@ -155,8 +155,9 @@ class HealthCheckRules {
             return !date.isBefore(from) && (until == null || date.isBefore(until));
         }
 
-        String message() {
-            return "Ngày khám phải trong năm học " + name + " ("
+        String message(HealthCheckKind kind) {
+            String label = kind == HealthCheckKind.MEASUREMENT ? "Ngày cân đo" : "Ngày khám";
+            return label + " phải trong năm học " + name + " ("
                     + (until == null
                             ? "từ " + DMY.format(from)
                             : DMY.format(from) + " – " + DMY.format(until.minusDays(1)))
