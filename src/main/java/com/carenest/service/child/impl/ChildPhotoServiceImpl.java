@@ -63,57 +63,66 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
     @Override
     @Transactional
     public ChildViewResponse replaceChildPhoto(CurrentUser actor, Long childId, MultipartFile photo, String reason) {
-        return replacePhoto(actor, childId, null, photo, reason);
-    }
-
-    @Override
-    @Transactional
-    public ChildViewResponse replaceGuardianPhoto(
-            CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason) {
-        return replacePhoto(actor, childId, guardianId, photo, reason);
-    }
-
-    private ChildViewResponse replacePhoto(
-            CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason) {
-        String logPrefix = LOG_PREFIX + "|replacePhoto|childId=" + childId + "|guardianId=" + guardianId + "|userId="
-                + actor.userId();
+        String logPrefix = LOG_PREFIX + "|replaceChildPhoto|childId=" + childId + "|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
-            Child child = records.lockForPhotoEdit(actor, childId);
-            String note = reason == null ? "" : reason.strip();
-            if (note.isEmpty()) invalid("reason", "Nhập lý do chỉnh sửa hồ sơ");
-            if (note.length() > 300) invalid("reason", "Lý do tối đa 300 ký tự");
-            ChildGuardian guardian = guardianId == null
-                    ? null
-                    : guardianRepository
-                            .findById(guardianId)
-                            .filter(g -> childId.equals(g.getChildId()))
-                            .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_GUARDIAN_NOT_FOUND));
-            ImageContent image =
-                    inspect(photo, guardian == null ? "photo" : "guardians." + guardian.getPosition() + ".photo");
-            String key = store(childId, image);
-            var at = clock.instant();
-            String oldKey = guardian == null
-                    ? child.replacePhoto(key, image.contentType(), image.content().length, at)
-                    : guardian.replacePhoto(key, image.contentType(), image.content().length, at);
-            if (oldKey != null && !oldKey.equals(key)) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        storage.removeQuietly(FileCategory.CHILD_AVATAR, oldKey);
-                    }
-                });
-            }
-            String label = guardian == null ? "Ảnh của trẻ" : "Ảnh phụ huynh " + (guardian.getPosition() + 1);
-            String changes = "[{\"field\":\"photo\",\"label\":\"" + label + "\"}]";
-            history.save(ChildHistory.record(childId, ChildHistoryAction.UPDATED, actor.userId(), note, changes, at));
-            ChildViewResponse result = getProfile(actor, childId);
+            ChildViewResponse result = replacePhoto(actor, childId, null, photo, reason);
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional
+    public ChildViewResponse replaceGuardianPhoto(
+            CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason) {
+        String logPrefix = LOG_PREFIX + "|replaceGuardianPhoto|childId=" + childId + "|guardianId=" + guardianId
+                + "|userId=" + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            ChildViewResponse result = replacePhoto(actor, childId, guardianId, photo, reason);
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private ChildViewResponse replacePhoto(
+            CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason) {
+        Child child = records.lockForPhotoEdit(actor, childId);
+        String note = reason == null ? "" : reason.strip();
+        if (note.isEmpty()) invalid("reason", "Nhập lý do chỉnh sửa hồ sơ");
+        if (note.length() > 300) invalid("reason", "Lý do tối đa 300 ký tự");
+        ChildGuardian guardian = guardianId == null
+                ? null
+                : guardianRepository
+                        .findById(guardianId)
+                        .filter(g -> childId.equals(g.getChildId()))
+                        .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_GUARDIAN_NOT_FOUND));
+        ImageContent image =
+                inspect(photo, guardian == null ? "photo" : "guardians." + guardian.getPosition() + ".photo");
+        String key = store(childId, image);
+        var at = clock.instant();
+        String oldKey = guardian == null
+                ? child.replacePhoto(key, image.contentType(), image.content().length, at)
+                : guardian.replacePhoto(key, image.contentType(), image.content().length, at);
+        if (oldKey != null && !oldKey.equals(key)) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    storage.removeQuietly(FileCategory.CHILD_AVATAR, oldKey);
+                }
+            });
+        }
+        String label = guardian == null ? "Ảnh của trẻ" : "Ảnh phụ huynh " + (guardian.getPosition() + 1);
+        String changes = "[{\"field\":\"photo\",\"label\":\"" + label + "\"}]";
+        history.save(ChildHistory.record(childId, ChildHistoryAction.UPDATED, actor.userId(), note, changes, at));
+        return getProfile(actor, childId);
     }
 
     @Override
