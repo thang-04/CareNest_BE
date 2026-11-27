@@ -146,9 +146,12 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             checkWritable(cls, week);
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<Long> targets = request.childId() == null ? List.copyOf(roster.keySet()) : List.of(request.childId());
-            Set<Long> current = currentChildren(cls);
-            targets = targets.stream().filter(current::contains).toList();
-            if (request.childId() != null) checkCurrentChild(cls, request.childId());
+            Set<Long> writable = writableChildren(roster.keySet());
+            targets = targets.stream().filter(writable::contains).toList();
+            if (request.childId() != null) {
+                checkInClass(roster, request.childId());
+                checkStillAtSchool(request.childId());
+            }
             targets.forEach(id -> checkInClass(roster, id));
             Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
             boolean ai = request.ai() && aiGenerator.isEnabled();
@@ -235,7 +238,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             String text = checkContent(request.content(), false);
             rules.lockClassForUpdate(cls.id());
             checkInClass(roster(cls, week), request.childId());
-            checkCurrentChild(cls, request.childId());
+            checkStillAtSchool(request.childId());
             WeeklyComment comment = editableComment(currentUser, cls, request.childId(), week);
             comment.write(text, comment.getDraftSource(), currentUser.userId(), rules.now());
             // Cô sửa bản nháp tức là đã xem (nháp AI được "Gửi tất cả")
@@ -261,7 +264,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             LocalDate week = weekOf(cls, request.weekStart());
             rules.lockClassForUpdate(cls.id());
             checkInClass(roster(cls, week), request.childId());
-            checkCurrentChild(cls, request.childId());
+            checkStillAtSchool(request.childId());
             // Chỉ ghi dấu đã xem, không mở lại bản đã gửi
             commentRepository
                     .findByClassroomIdAndChildIdAndWeekStart(cls.id(), request.childId(), week)
@@ -293,10 +296,10 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             rules.lockClassForUpdate(cls.id());
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<WeeklyComment> toSend = new ArrayList<>();
-            Set<Long> current = currentChildren(cls);
+            Set<Long> writable = writableChildren(roster.keySet());
             if (request.childId() != null) {
                 checkInClass(roster, request.childId());
-                checkCurrentChild(cls, request.childId());
+                checkStillAtSchool(request.childId());
                 WeeklyComment comment = editableComment(currentUser, cls, request.childId(), week);
                 String text = request.content() == null ? comment.getContent() : request.content();
                 comment.write(checkContent(text, true), comment.getDraftSource(), currentUser.userId(), rules.now());
@@ -304,7 +307,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 toSend.add(comment);
             } else {
                 comments(cls.id(), roster.keySet(), week).values().stream()
-                        .filter(c -> current.contains(c.getChildId()))
+                        .filter(c -> writable.contains(c.getChildId()))
                         .filter(c -> !c.isSent() && cls.id().equals(c.getClassroomId()))
                         .filter(c -> !c.getContent().isBlank())
                         .forEach(toSend::add);
@@ -843,8 +846,16 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 .collect(Collectors.toSet());
     }
 
-    private void checkCurrentChild(ClassroomInfoResponse cls, Long childId) {
-        if (!currentChildren(cls).contains(childId)) {
+    // Trẻ chuyển lớp: lớp cũ vẫn viết, gửi được các tuần trẻ học ở lớp mình (checkInClass theo tuần). Nghỉ học hẳn thì
+    // chỉ xem (Cần chốt 27/11/2026)
+    private Set<Long> writableChildren(Set<Long> childIds) {
+        Set<Long> writable = new HashSet<>(childIds);
+        writable.removeAll(enrollmentService.findChildIdsLeftSchool(childIds, rules.today()));
+        return writable;
+    }
+
+    private void checkStillAtSchool(Long childId) {
+        if (writableChildren(Set.of(childId)).isEmpty()) {
             throw GlobalException.of(ApiCode.WEEKLY_COMMENT_CHILD_NOT_IN_CLASS);
         }
     }
@@ -942,7 +953,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         Map<Long, ClassChildResponse> roster = roster(cls, week);
         Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
         Map<Long, WeeklyComment> comments = comments(cls.id(), roster.keySet(), week);
-        Set<Long> current = currentChildren(cls);
+        Set<Long> writable = writableChildren(roster.keySet());
         Set<Long> reopened = comments.isEmpty()
                 ? Set.of()
                 : revisionRepository
@@ -982,7 +993,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                             c == null ? null : c.getUpdatedAt(),
                             c != null && !sent && reopened.contains(c.getId()),
                             w.data(),
-                            !current.contains(child.id()),
+                            !writable.contains(child.id()),
                             history.get(child.id()),
                             c == null || c.isAiReviewed());
                 })
