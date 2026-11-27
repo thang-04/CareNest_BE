@@ -22,6 +22,7 @@ import com.carenest.service.meals.InspectionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ImageFiles;
 import com.carenest.utils.enums.FileCategory;
+import com.carenest.utils.enums.FoodSampleStatus;
 import com.carenest.utils.enums.InspectionStatus;
 import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
@@ -30,11 +31,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -82,7 +85,14 @@ public class InspectionServiceImpl implements InspectionService {
                     day,
                     canEdit(currentUser, campusId),
                     sheets,
-                    grantService.dayApprovals(currentUser, campusId, day));
+                    grantService.dayApprovals(
+                            currentUser,
+                            campusId,
+                            day,
+                            sheets.stream()
+                                    .filter(sheet -> !sheet.rows().isEmpty())
+                                    .map(InspectionSheetResponse::tab)
+                                    .collect(Collectors.toCollection(() -> EnumSet.noneOf(InspectionTab.class)))));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -140,6 +150,14 @@ public class InspectionServiceImpl implements InspectionService {
             }
             if (sheet.isSigned()) {
                 throw GlobalException.of(ApiCode.INSPECTION_SIGNED);
+            }
+            // NUT-21/INS-02: sổ M5 soát toàn bộ mẫu của ngày ⇒ phải duyệt hết mẫu chờ của ngày trước khi ký
+            if (tab == InspectionTab.SAMPLE) {
+                long pending =
+                        campusLookup.countByCampusIdAndSampleDateAndStatus(campusId, date, FoodSampleStatus.RECORDED);
+                if (pending > 0) {
+                    throw GlobalException.of(ApiCode.INSPECTION_SAMPLE_PENDING, pending);
+                }
             }
             // Client chỉ lưu ô PHT nhập: bản chụp phải gộp ô hệ thống (tên món, suất...) từ nguồn lúc ký (INS-03)
             List<Map<String, Object>> rows = merge(tab, skeleton.rows(tab, campusId, date), sheet.getSheetRows());

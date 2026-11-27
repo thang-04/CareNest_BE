@@ -14,7 +14,6 @@ import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.CampusResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.meals.Dish;
-import com.carenest.entity.meals.DishIngredient;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.MealCount;
 import com.carenest.entity.meals.MealPlanDay;
@@ -73,6 +72,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -85,6 +85,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     private static final String NONE = "NONE";
     private static final int SCHOOL_DAYS = 5;
     private static final int MIN_REASON_LENGTH = 10;
+    private static final int MAX_REASON_LENGTH = 500;
 
     private final MealPlanWeekRepository weekRepository;
     private final DishRepository dishRepository;
@@ -101,6 +102,10 @@ public class MealPlanServiceImpl implements MealPlanService {
     private final GuardianChildLinkService guardianChildLinkService;
     private final NotificationService notificationService;
     private final MealPlanDayRevisionRepository revisionRepository;
+    private final DayBalanceGate balanceGate;
+    private final DayDemand dayDemand;
+    private final DayBalanceReader balanceReader;
+    private final ApplicationEventPublisher events;
     private final AttendanceService attendanceService;
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
@@ -189,11 +194,11 @@ public class MealPlanServiceImpl implements MealPlanService {
             if (week.isPublished()) {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_PUBLISHED);
             }
-            // NUT-08: chưa đạt cân đối (hoặc chưa kiểm được) thì chặn công bố
-            MealPlanEvaluator.Result result = evaluate(weekStart, week);
-            List<MealPlanResponse.Issue> blocking = result.issues().stream()
-                    .filter(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()))
-                    .toList();
+            // NUT-08: ngày chưa cân đối đạt lượng, chất, tiền (hoặc chưa đủ món) thì chặn công bố
+            List<MealPlanResponse.Issue> blocking =
+                    balanceGate.weekIssues(week, evaluate(weekStart, week).issues()).stream()
+                            .filter(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()))
+                            .toList();
             if (!blocking.isEmpty()) {
                 throw GlobalException.of(
                         ApiCode.MEAL_PLAN_NOT_PUBLISHABLE,
@@ -204,6 +209,8 @@ public class MealPlanServiceImpl implements MealPlanService {
             weekRepository.flush();
             syncConfirmedDays(weekStart, weekStart.plusDays(SCHOOL_DAYS - 1));
             notifyParents(weekStart);
+            // Bản dự trù lập sau khi công bố đã ghi xong; lỗi lập dự trù không hủy việc công bố
+            events.publishEvent(new MealPlanPublishedEvent(weekStart, currentUser.userId()));
             MealPlanResponse response = toResponse(currentUser, weekStart, week);
             log.info("{}|END", logPrefix);
             return response;
@@ -224,7 +231,7 @@ public class MealPlanServiceImpl implements MealPlanService {
             checkMonday(weekStart);
             checkInWeek(weekStart, date);
             String reason = request.reason() == null ? "" : request.reason().trim();
-            if (reason.length() < MIN_REASON_LENGTH) {
+            if (reason.length() < MIN_REASON_LENGTH || reason.length() > MAX_REASON_LENGTH) {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_REASON_REQUIRED);
             }
             MealPlanWeek week = weekRepository
@@ -470,7 +477,13 @@ public class MealPlanServiceImpl implements MealPlanService {
                             if (groupItems.isEmpty()) return null;
                             return getMenuStatistics(
                                     currentUser,
-                                    new MenuStatisticsRequest(group.id(), date, request.campusId(), null, groupItems));
+                                    new MenuStatisticsRequest(
+                                            group.id(),
+                                            date,
+                                            request.campusId(),
+                                            null,
+                                            groupItems,
+                                            request.useBalance()));
                         })
                         .filter(Objects::nonNull)
                         .filter(group -> !group.dishes().isEmpty())
@@ -512,7 +525,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                         null,
                         null,
                         null,
-                        groups);
+                        groups,
+                        groups.getFirst().balanceRound());
                 log.info("{}|END", logPrefix);
                 return response;
             }
@@ -547,11 +561,22 @@ public class MealPlanServiceImpl implements MealPlanService {
                             book::price)
                     .evaluations()
                     .getFirst();
-            Headcount headcount = headcountOf(request, group.id(), date);
+            DayDemand.Balanced balanced = Boolean.TRUE.equals(request.useBalance())
+                    ? dayDemand.latest(date).orElse(null)
+                    : null;
+            Headcount headcount = headcountOf(request, group.id(), date, balanced);
+            Function<ItemPlan, List<Gram>> portions = portionsOf(dishes, group.id(), balanced);
+            if (balanced != null) {
+                // Dinh dưỡng và tiền theo đúng bản cân đối của ngày
+                evaluation = balanceReader.evaluate(balanced.source(), balanced.draft()).evaluations().stream()
+                        .filter(e -> e.ageGroupId().equals(group.id()))
+                        .findFirst()
+                        .orElse(evaluation);
+            }
             List<MenuStatisticsResponse.Ingredient> ingredients =
-                    ingredientsOf(items, dishes, group.id(), headcount.count(), book, date, request.campusId());
+                    ingredientsOf(items, portions, headcount.count(), book, date, request.campusId(), balanced == null);
             List<MenuStatisticsResponse.DishIngredientLine> dishIngredients =
-                    dishIngredientsOf(items, dishes, group.id(), book, date);
+                    dishIngredientsOf(items, portions, book, date);
             BigDecimal totalCost = ingredients.stream()
                     .map(MenuStatisticsResponse.Ingredient::cost)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -585,7 +610,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     evaluation.serviceFee(),
                     evaluation.foodBudget(),
                     evaluation,
-                    List.of());
+                    List.of(),
+                    balanced == null ? null : balanced.round());
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -622,9 +648,20 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     // N trẻ: người xem nhập > suất đã xác nhận của điểm trường–ngày (NUT-03) > sĩ số đang học của nhóm tuổi
-    private Headcount headcountOf(MenuStatisticsRequest request, Long ageGroupId, LocalDate date) {
+    private Headcount headcountOf(
+            MenuStatisticsRequest request, Long ageGroupId, LocalDate date, DayDemand.Balanced balanced) {
         if (request.children() != null) {
             return new Headcount(request.children(), "INPUT");
+        }
+        // Chưa chốt suất lần 2 thì dùng số trẻ của bản cân đối
+        if (balanced != null) {
+            int children = balanced.draft().counts().stream()
+                    .filter(c -> c.ageGroupId().equals(ageGroupId))
+                    .filter(c ->
+                            request.campusId() == null || request.campusId().equals(c.campusId()))
+                    .mapToInt(c -> c.children())
+                    .sum();
+            return new Headcount(children, "BALANCE");
         }
         if (request.campusId() != null) {
             List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(request.campusId(), date);
@@ -658,25 +695,49 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .collect(Collectors.toSet()));
     }
 
+    /** Gam một trẻ của một thực phẩm trong một món. */
+    private record Gram(Dish dish, Food food, BigDecimal grams) {}
+
+    // Định lượng của món cho nhóm tuổi: theo bản cân đối nếu món có trong đó, không thì theo công thức
+    private static Function<ItemPlan, List<Gram>> portionsOf(
+            Map<Long, Dish> dishes, Long ageGroupId, DayDemand.Balanced balanced) {
+        return item -> {
+            Dish dish = dishes.get(item.dishId());
+            if (balanced != null) {
+                List<Gram> saved = balanced.draft().lines().stream()
+                        .filter(l -> l.ageGroupId().equals(ageGroupId)
+                                && l.session() == item.session()
+                                && l.dishId().equals(item.dishId()))
+                        .filter(l -> balanced.source().foods().containsKey(l.foodId()))
+                        .map(l -> new Gram(dish, balanced.source().foods().get(l.foodId()), l.grams()))
+                        .toList();
+                if (!saved.isEmpty()) {
+                    return saved;
+                }
+            }
+            return dish.getIngredients().stream()
+                    .filter(i -> ageGroupId.equals(i.getAgeGroupId()))
+                    .map(i -> new Gram(dish, i.getFood(), i.getGramsPerChild()))
+                    .toList();
+        };
+    }
+
     // NUT-07: lượng ăn = gam/trẻ × N; lượng mua = ăn ÷ (1 − thải bỏ%); tiền = lượng mua theo đơn vị mua × đơn giá
     // NUT-27: giá và NCC tại ngày thống kê; hàng khô có điểm trường thì giá lô FEFO, phần thiếu kho theo giá danh mục
     private List<MenuStatisticsResponse.Ingredient> ingredientsOf(
             List<ItemPlan> items,
-            Map<Long, Dish> dishes,
-            Long ageGroupId,
+            Function<ItemPlan, List<Gram>> portions,
             int children,
             FoodPriceBook book,
             LocalDate date,
-            Long campusId) {
+            Long campusId,
+            boolean roundCountable) {
         Map<Long, BigDecimal> grams = new LinkedHashMap<>();
         Map<Long, Food> foods = new HashMap<>();
         for (ItemPlan item : items) {
-            for (DishIngredient ingredient : dishes.get(item.dishId()).getIngredients()) {
-                if (!ageGroupId.equals(ingredient.getAgeGroupId())) {
-                    continue;
-                }
-                foods.put(ingredient.getFood().getId(), ingredient.getFood());
-                grams.merge(ingredient.getFood().getId(), ingredient.getGramsPerChild(), BigDecimal::add);
+            for (Gram gram : portions.apply(item)) {
+                foods.put(gram.food().getId(), gram.food());
+                grams.merge(gram.food().getId(), gram.grams(), BigDecimal::add);
             }
         }
         BigDecimal n = BigDecimal.valueOf(children);
@@ -700,8 +761,9 @@ public class MealPlanServiceImpl implements MealPlanService {
             BigDecimal size = food.getPurchaseUnitSize();
             boolean priced = size != null && size.signum() > 0;
             // NUT-12: số mua theo ĐVT làm tròn lên nguyên đơn vị khi đếm được; tiền ăn vẫn theo lượng thực dùng
-            BigDecimal qty =
-                    priced ? PurchaseUnits.roundUp(purchase, food).divide(size, 3, RoundingMode.HALF_UP) : null;
+            // Số đã cân đối được làm tròn trên tổng toàn trường nên không làm tròn lại
+            BigDecimal ordered = roundCountable ? PurchaseUnits.roundUp(purchase, food) : purchase;
+            BigDecimal qty = priced ? ordered.divide(size, 3, RoundingMode.HALF_UP) : null;
             DryStockOutlook.LotTake lot = lots.get(foodId);
             BigDecimal cost = BigDecimal.ZERO;
             String priceSource = PRICE_CATALOG;
@@ -745,16 +807,12 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     // Công thức từng món cho một trẻ: cùng công thức lượng mua và tiền với ingredientsOf nhưng không × N, không gộp
     private static List<MenuStatisticsResponse.DishIngredientLine> dishIngredientsOf(
-            List<ItemPlan> items, Map<Long, Dish> dishes, Long ageGroupId, FoodPriceBook book, LocalDate date) {
+            List<ItemPlan> items, Function<ItemPlan, List<Gram>> portions, FoodPriceBook book, LocalDate date) {
         List<MenuStatisticsResponse.DishIngredientLine> lines = new ArrayList<>();
         for (ItemPlan item : items) {
-            Dish dish = dishes.get(item.dishId());
-            for (DishIngredient ingredient : dish.getIngredients()) {
-                if (!ageGroupId.equals(ingredient.getAgeGroupId())) {
-                    continue;
-                }
-                Food food = ingredient.getFood();
-                BigDecimal purchase = MealDemandCalculator.purchased(ingredient.getGramsPerChild(), food.getWastePct());
+            for (Gram gram : portions.apply(item)) {
+                Food food = gram.food();
+                BigDecimal purchase = MealDemandCalculator.purchased(gram.grams(), food.getWastePct());
                 BigDecimal size = food.getPurchaseUnitSize();
                 BigDecimal unitPrice = book.price(food.getId(), date);
                 boolean priced = size != null && size.signum() > 0 && unitPrice != null;
@@ -762,11 +820,11 @@ public class MealPlanServiceImpl implements MealPlanService {
                         priced ? purchase.multiply(unitPrice).divide(size, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
                 lines.add(new MenuStatisticsResponse.DishIngredientLine(
                         item.session(),
-                        dish.getId(),
-                        dish.getName(),
+                        gram.dish().getId(),
+                        gram.dish().getName(),
                         food.getId(),
                         food.getName(),
-                        ingredient.getGramsPerChild(),
+                        gram.grams(),
                         food.getWastePct(),
                         purchase.setScale(2, RoundingMode.HALF_UP),
                         food.getPurchaseUnit(),
@@ -883,7 +941,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                                     canAmend));
         }
         MealPlanEvaluator.Result result = evaluate(weekStart, week, groups, dishes);
-        List<MealPlanResponse.Issue> issues = new ArrayList<>(result.issues());
+        List<MealPlanResponse.Issue> issues = new ArrayList<>(balanceGate.weekIssues(week, result.issues()));
+        boolean publishable = issues.stream().noneMatch(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()));
         if (week != null) {
             issues.addAll(dryStockIssues(currentUser, weekStart));
         }
@@ -895,7 +954,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                 week == null ? null : week.getPublishedBy(),
                 manage && !published && weekOpen,
                 manage && week != null && !published && weekOpen,
-                week != null && !published && result.publishable(),
+                week != null && !published && publishable,
                 blocks,
                 dayViews,
                 result.evaluations(),

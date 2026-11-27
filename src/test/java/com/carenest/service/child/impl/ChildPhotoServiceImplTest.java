@@ -24,6 +24,7 @@ import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.Gender;
@@ -247,6 +248,17 @@ class ChildPhotoServiceImplTest {
         var result = service.getProfile(vp, 1L);
         assertThat(result.guardians().getFirst().accountStatus()).isNull();
         assertThat(result.photoUrl()).isEqualTo("/children/1/photo");
+    }
+
+    @Test
+    @DisplayName("AUTH-20: trẻ ngoài phạm vi xem hồ sơ ⇒ CHILD_ACCESS_DENIED, không đọc hồ sơ")
+    void profileOutOfScopeIsForbidden() {
+        when(access.canReadChild(TEACHER, 1L)).thenReturn(false);
+        assertThatThrownBy(() -> service.getProfile(TEACHER, 1L))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+        verifyNoInteractions(intake);
     }
 
     private static ChildViewResponse profileWithAccountDetails() {

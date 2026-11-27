@@ -1,5 +1,6 @@
 package com.carenest.service.account.impl;
 
+import com.carenest.config.ClockConfig;
 import com.carenest.exception.GlobalException;
 import com.carenest.service.account.AuthService.RefreshResult;
 import com.carenest.utils.ApiCode;
@@ -12,6 +13,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 /**
@@ -28,7 +30,7 @@ public class AuthRefreshCoalescer {
     private final ConcurrentHashMap<String, Entry> entries = new ConcurrentHashMap<>();
     private final Clock clock;
 
-    public AuthRefreshCoalescer(Clock clock) {
+    public AuthRefreshCoalescer(@Qualifier(ClockConfig.SYSTEM_CLOCK) Clock clock) {
         this.clock = clock;
     }
 

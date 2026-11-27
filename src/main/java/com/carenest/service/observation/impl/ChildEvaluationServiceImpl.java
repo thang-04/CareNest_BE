@@ -17,6 +17,7 @@ import com.carenest.dto.observation.EvaluationDtos.ProgramRow;
 import com.carenest.dto.observation.EvaluationDtos.ProgramTotals;
 import com.carenest.dto.observation.EvaluationDtos.SummaryInfo;
 import com.carenest.dto.observation.EvaluationDtos.TicketRef;
+import com.carenest.dto.observation.YearEndSheetDtos.YearEndSheetRequest;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
@@ -24,11 +25,15 @@ import com.carenest.entity.observation.BehaviourTicket;
 import com.carenest.entity.observation.ChildEvaluation;
 import com.carenest.entity.observation.ChildEvaluationEvent;
 import com.carenest.entity.observation.DailyObservation;
+import com.carenest.entity.observation.EvaluationRevision;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.observation.BehaviourTicketRepository;
 import com.carenest.repository.observation.ChildEvaluationEventRepository;
 import com.carenest.repository.observation.ChildEvaluationRepository;
 import com.carenest.repository.observation.DailyObservationRepository;
+import com.carenest.repository.observation.EvaluationRevisionRepository;
+import com.carenest.repository.observation.RewardListItemRepository;
+import com.carenest.repository.observation.RewardListRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
@@ -71,6 +76,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
@@ -105,6 +111,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final EvaluationDeadlineService evaluationDeadlineService;
     private final AiPeriodCommentDraftGenerator aiDraftGenerator;
     private final PeriodCommentFactsBuilder factsBuilder;
+    private final RewardListRepository rewardListRepository;
+    private final RewardListItemRepository rewardItemRepository;
+    private final EvaluationRevisionRepository revisionRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
@@ -265,11 +275,29 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     @Override
     @Transactional
     public EvaluationRow confirm(CurrentUser currentUser, Long id, String content) {
+        return confirm(currentUser, id, content, null, null);
+    }
+
+    @Override
+    @Transactional
+    public EvaluationRow confirm(
+            CurrentUser currentUser, Long id, String content, Boolean programCompleted, YearEndSheetRequest sheet) {
         String logPrefix = LOG_PREFIX + "|confirm|userId=" + currentUser.userId() + "|id=" + id;
         log.info("{}|START", logPrefix);
         try {
             ChildEvaluation ev = find(id);
+            // Bản đã xác nhận: mở lại trong cùng giao dịch rồi kiểm như bản chưa xác nhận (hạn, quyền); lỗi thì hoàn
+            // tác
+            if (ev.isConfirmed() && ev.getPeriodType() == EvaluationPeriodType.YEAR) {
+                revise(currentUser, ev, programCompleted);
+            }
             ClassroomInfoResponse cls = checkEditable(currentUser, ev);
+            if (programCompleted != null && programApplicable(ev, cls, ageFromMonths())) {
+                ev.markProgram(programCompleted);
+            }
+            if (sheet != null) {
+                yearEndSheetService.save(currentUser, ev.getId(), sheet);
+            }
             if (!rules.isHomeroom(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
             }
@@ -850,6 +878,36 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         return ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.leadsClass(user, cls);
     }
 
+    // OBS-30: giữ bản cũ để tra; không đổi hoàn thành chương trình khi đề xuất khen thưởng dựa vào nó đã gửi / duyệt
+    private void revise(CurrentUser user, ChildEvaluation ev, Boolean programCompleted) {
+        if (programCompleted != null && !programCompleted.equals(ev.getProgramCompleted())) {
+            rewardListRepository
+                    .findByClassroomId(ev.getClassroomId())
+                    .filter(list -> !list.isEditable())
+                    .filter(list -> rewardItemRepository.findByListIdIn(List.of(list.getId())).stream()
+                            .anyMatch(item -> item.getChildId().equals(ev.getChildId())
+                                    && item.titleList().stream()
+                                            .anyMatch(RewardListServiceImpl.PROGRAM_TITLES::contains)))
+                    .ifPresent(list -> {
+                        throw GlobalException.of(ApiCode.EVALUATION_PROGRAM_REWARD_LOCKED);
+                    });
+        }
+        java.util.Map<String, Object> old = new java.util.LinkedHashMap<>();
+        old.put("content", ev.getFinalContent());
+        old.put("programCompleted", ev.getProgramCompleted());
+        old.put("goalResults", ev.getGoalResults());
+        old.put("domainComments", ev.getDomainComments());
+        old.put("forChild", ev.getNoteForChild());
+        old.put("forTeacher", ev.getNoteForTeacher());
+        old.put("forSchool", ev.getNoteForSchool());
+        old.put("forParent", ev.getNoteForParent());
+        old.put("confirmedBy", ev.getConfirmedBy());
+        old.put("confirmedAt", ev.getConfirmedAt());
+        revisionRepository.save(EvaluationRevision.of(
+                EvaluationRevision.YEAR, ev.getId(), objectMapper.writeValueAsString(old), user.userId(), rules.now()));
+        yearEndSheetService.reopenForRevision(ev);
+    }
+
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {
         // Cần chốt 24/11/2026: nhận xét tháng, nhận xét học kỳ cá nhân đã bỏ — dữ liệu cũ chỉ xem, không sửa / xác nhận
         // /
@@ -895,12 +953,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             throw GlobalException.of(ApiCode.EVALUATION_CONTENT_TOO_LONG, CONTENT_MAX);
         }
         String lower = text.toLowerCase(Locale.ROOT);
-        DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream()
-                .filter(lower::contains)
-                .findFirst()
-                .ifPresent(term -> {
-                    throw GlobalException.of(ApiCode.EVALUATION_DIAGNOSTIC_TERM, term);
-                });
+        DiagnosticTerms.matches(text).stream().findFirst().ifPresent(term -> {
+            throw GlobalException.of(ApiCode.EVALUATION_DIAGNOSTIC_TERM, term);
+        });
         return text;
     }
 

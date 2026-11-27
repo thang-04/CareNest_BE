@@ -190,8 +190,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         String logPrefix = LOG_PREFIX + "|saveDeclaration|userId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
-            // CHD-11: GV không ghi thẳng, gửi yêu cầu qua ChildProfileChangeRequestService
+            // CHD-11: GV không ghi thẳng, gửi yêu cầu qua ChildProfileChangeRequestService (chỉ trẻ trong phạm vi lớp)
             if (ChildEditRoles.teacherOnly(actor)) {
+                childAccessPolicy.checkCanViewChild(actor, childId);
                 throw GlobalException.of(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL);
             }
             LocalDate today = LocalDate.now(clock);
@@ -393,6 +394,8 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 // CHD-06: trẻ có khai báo sức khỏe trước khi vào lớp (bếp, điểm danh dùng dị ứng)
                 errors.put("classId", "Trẻ chưa có khai báo ăn và sức khỏe. Khai báo trước khi xếp lớp.");
             } else {
+                // Khóa lớp tới hết giao dịch: hai người cùng xếp không vượt sĩ số tối đa (Điều 15 Điều lệ)
+                classroomService.lockForUpdate(classId);
                 target = classroomService.findClassroomInfo(classId).orElse(null);
                 // Sĩ số tính từ ngày vào lớp trở đi, không tính lịch cũ của chính trẻ (G94-180/CHD-14). Nhóm tuổi chỉ
                 // gợi ý: xếp, chuyển lớp trong năm được sang lớp nhóm khác (G94-180/CHD-13, user chốt 2026-11-22,

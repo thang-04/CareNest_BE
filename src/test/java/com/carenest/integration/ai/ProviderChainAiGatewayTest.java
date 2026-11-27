@@ -26,6 +26,8 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -70,7 +72,7 @@ class ProviderChainAiGatewayTest {
         assertThat(result.content()).isEqualTo("{\"days\":[]}");
         assertThat(result.providerId()).isEqualTo("gemini");
         assertThat(result.model()).isEqualTo("model-gemini");
-        assertThat(result.promptVersion()).isEqualTo("menu/weekly_v1");
+        assertThat(result.promptVersion()).isEqualTo("edu/plan_v1");
         assertThat(result.inputTokens()).isEqualTo(120);
         assertThat(result.outputTokens()).isEqualTo(30);
         server.verify();
@@ -122,10 +124,10 @@ class ProviderChainAiGatewayTest {
     @DisplayName("AI-03: AI tắt ⇒ không có provider dùng được, không gọi mạng")
     void disabledGatewayDoesNotCallProviders() {
         server.expect(never(), requestTo(GEMINI_URL));
-        AiProperties properties = new AiProperties(false, providers(), Map.of(AiTask.MENU_WEEKLY, publicTask()));
+        AiProperties properties = new AiProperties(false, providers(), Map.of(AiTask.EDU_PLAN, publicTask()));
         ProviderChainAiGateway gateway = gateway(properties);
 
-        assertThat(gateway.isAvailable(AiTask.MENU_WEEKLY)).isFalse();
+        assertThat(gateway.isAvailable(AiTask.EDU_PLAN)).isFalse();
         assertThatThrownBy(() -> gateway.complete(request(NOW.plusSeconds(30))))
                 .extracting(ex -> ((AiClientException) ex).getReason())
                 .isEqualTo(AiErrorReason.DISABLED);
@@ -141,7 +143,7 @@ class ProviderChainAiGatewayTest {
                         new AiProperties.Provider(
                                 "gemini", "http://gemini.test", "model-gemini", "", true, null, null, null),
                         provider("groq", false)),
-                Map.of(AiTask.MENU_WEEKLY, publicTask()));
+                Map.of(AiTask.EDU_PLAN, publicTask()));
         server.expect(once(), requestTo(GROQ_URL)).andRespond(withSuccess(OK_BODY, MediaType.APPLICATION_JSON));
 
         AiRawResult result = gateway(properties).complete(request(NOW.plusSeconds(30)));
@@ -155,9 +157,9 @@ class ProviderChainAiGatewayTest {
     void unconfiguredTaskIsUnavailable() {
         ProviderChainAiGateway gateway = gateway(publicChain());
 
-        assertThat(gateway.isAvailable(AiTask.MENU_DAY_FIX)).isFalse();
-        assertThat(gateway.taskConfig(AiTask.MENU_DAY_FIX)).isEmpty();
-        assertThat(gateway.taskConfig(AiTask.MENU_WEEKLY)).isPresent();
+        assertThat(gateway.isAvailable(AiTask.EDU_MATCH)).isFalse();
+        assertThat(gateway.taskConfig(AiTask.EDU_MATCH)).isEmpty();
+        assertThat(gateway.taskConfig(AiTask.EDU_PLAN)).isPresent();
     }
 
     @Test
@@ -181,6 +183,36 @@ class ProviderChainAiGatewayTest {
         assertThat(readTimeouts).containsExactly(Duration.ofSeconds(5));
     }
 
+    @ParameterizedTest
+    @EnumSource(
+            value = AiTask.class,
+            names = {"HEALTH_TREND", "EDU_PLAN", "EDU_MATCH"})
+    @DisplayName("AI-06: tác vụ có output JSON ⇒ gửi response_format json_object")
+    void asksForJsonObjectOnJsonTasks(AiTask task) {
+        server.expect(once(), requestTo(GROQ_URL))
+                .andExpect(jsonPath("$.response_format.type").value("json_object"))
+                .andRespond(withSuccess(OK_BODY, MediaType.APPLICATION_JSON));
+
+        gateway(singleTask(task)).complete(request(task));
+
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = AiTask.class,
+            names = {"WEEKLY_COMMENT", "PERIOD_COMMENT"})
+    @DisplayName("AI-06: tác vụ viết văn xuôi ⇒ không ép JSON (Groq trả 400 khi prompt không nhắc JSON)")
+    void doesNotForceJsonOnProseTasks(AiTask task) {
+        server.expect(once(), requestTo(GROQ_URL))
+                .andExpect(jsonPath("$.response_format").doesNotExist())
+                .andRespond(withSuccess(OK_BODY, MediaType.APPLICATION_JSON));
+
+        gateway(singleTask(task)).complete(request(task));
+
+        server.verify();
+    }
+
     private ProviderChainAiGateway gateway(AiProperties properties) {
         return new ProviderChainAiGateway(
                 properties,
@@ -192,7 +224,7 @@ class ProviderChainAiGatewayTest {
     }
 
     private static AiProperties publicChain() {
-        return new AiProperties(true, providers(), Map.of(AiTask.MENU_WEEKLY, publicTask()));
+        return new AiProperties(true, providers(), Map.of(AiTask.EDU_PLAN, publicTask()));
     }
 
     private static List<AiProperties.Provider> providers() {
@@ -208,7 +240,17 @@ class ProviderChainAiGatewayTest {
         return new AiProperties.TaskConfig(List.of("gemini", "groq"), AiDataClass.PUBLIC_CATALOG, null, 2);
     }
 
+    private static AiProperties singleTask(AiTask task) {
+        AiProperties.TaskConfig config =
+                new AiProperties.TaskConfig(List.of("groq"), AiDataClass.CHILD_DERIVED, null, 0);
+        return new AiProperties(true, providers(), Map.of(task, config));
+    }
+
+    private static AiRequest request(AiTask task) {
+        return new AiRequest(task, "test/v1", "SYS", "USER", NOW.plusSeconds(30));
+    }
+
     private static AiRequest request(Instant deadline) {
-        return new AiRequest(AiTask.MENU_WEEKLY, "menu/weekly_v1", "SYS", "USER", deadline);
+        return new AiRequest(AiTask.EDU_PLAN, "edu/plan_v1", "SYS", "USER", deadline);
     }
 }

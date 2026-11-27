@@ -54,6 +54,10 @@ class AttendanceDayRules {
     private final SchoolYearService schoolYearService;
     private final TeacherReadAccessService teacherReadAccessService;
 
+    java.time.ZoneId zone() {
+        return clock.getZone();
+    }
+
     LocalDate today() {
         return LocalDate.now(clock);
     }
@@ -83,6 +87,15 @@ class AttendanceDayRules {
         return new LocalDate[] {start, end};
     }
 
+    /** Ngày cuối được xin nghỉ: hết học kỳ II nếu đã đặt (không quá ngày kết thúc năm), chưa đặt thì hết năm học. */
+    LocalDate lastLeaveDay(Long schoolYearId, LocalDate yearEnd) {
+        LocalDate semester2End = schoolYearService
+                .findSchoolYearDetail(schoolYearId)
+                .map(com.carenest.dto.organization.SchoolYearDetailResponse::semester2End)
+                .orElse(null);
+        return semester2End == null || semester2End.isAfter(yearEnd) ? yearEnd : semester2End;
+    }
+
     LocalTime cutoff(Long schoolYearId, LocalDate date) {
         return attendanceCutoffService.findCutoffTime(schoolYearId, date).orElse(properties.defaultCutoff());
     }
@@ -92,6 +105,18 @@ class AttendanceDayRules {
         return attendanceCutoffService
                 .findLatestAfternoonArrival(schoolYearId, date)
                 .orElse(AttendanceCutoff.DEFAULT_LATEST_ARRIVAL);
+    }
+
+    /** ATT-05b: giờ bắt đầu buổi chiều theo lịch sinh hoạt ngày. */
+    LocalTime afternoonStart(Long schoolYearId, LocalDate date) {
+        return attendanceCutoffService
+                .findAfternoonStart(schoolYearId, date)
+                .orElse(AttendanceCutoff.DEFAULT_AFTERNOON_START);
+    }
+
+    /** Hôm nay đã tới giờ time chưa (giờ trường). */
+    boolean reachedToday(LocalTime time) {
+        return !LocalTime.now(clock).isBefore(time);
     }
 
     /** ATT-06: ngày đã qua, hoặc hôm nay từ giờ chốt trở đi. */
@@ -309,7 +334,9 @@ class AttendanceDayRules {
      */
     boolean canRecordDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return user.hasRole(CareNestRole.TEACHER)
+                // User chốt 26/11/2026: GV được phân công lớp (hiện tại hoặc đúng ngày được ghi) đều ghi được
                 && (staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), today())
+                        || staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), date)
                         || staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date)
                         || (cls.yearStatus() == SchoolYearStatus.ACTIVE && taughtClosedYear(user, cls)));
     }
@@ -343,15 +370,21 @@ class AttendanceDayRules {
         Long id = cls.id();
         // Đã qua ngày kết thúc năm: GV dạy chính năm đó (ngày mở lại vẫn trong năm)
         LocalDate at = cls.yearEnd() != null && today().isAfter(cls.yearEnd()) ? cls.yearEnd() : today();
-        return Stream.concat(
+        return Stream.of(
                         staffAssignmentService
                                 .findCurrentMainTeacherIds(List.of(id), at)
+                                .getOrDefault(id, List.of())
+                                .stream(),
+                        // GV chính đang dạy đúng ngày được mở lại cũng được báo (có thể đã chuyển lớp sau đó)
+                        staffAssignmentService
+                                .findCurrentMainTeacherIds(List.of(id), date)
                                 .getOrDefault(id, List.of())
                                 .stream(),
                         staffAssignmentService
                                 .findSubstituteTeacherIdsOn(List.of(id), date)
                                 .getOrDefault(id, List.of())
                                 .stream())
+                .flatMap(java.util.function.Function.identity())
                 .distinct()
                 .toList();
     }

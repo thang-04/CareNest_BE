@@ -1931,6 +1931,31 @@ paths:
           description: OK
       tags:
       - semester-assessment-controller
+  /api/assessment/semester-evaluations/revision:
+    get:
+      operationId: getSemesterRevision
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: semester
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
+          description: OK
+      tags:
+      - semester-assessment-controller
   /api/assessment/theme-evaluations:
     get:
       operationId: getEvaluation
@@ -2001,6 +2026,31 @@ paths:
             schema:
               $ref: "#/components/schemas/ThemeEvaluationRequest"
         required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonThemeEvaluationResponse"
+          description: OK
+      tags:
+      - theme-evaluation-controller
+  /api/assessment/theme-evaluations/revision:
+    get:
+      operationId: getRevision
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: themeId
+        required: true
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -3930,6 +3980,82 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/{childId}/meal-photos/{photoId}/content:
+    get:
+      operationId: getPhotoContent_1
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: photoId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: OK
+      tags:
+      - parent-menu-controller
+  /api/children/{childId}/meal-photos/{photoId}/url:
+    get:
+      operationId: getPhotoUrl_1
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: photoId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - parent-menu-controller
+  /api/children/{childId}/menu:
+    get:
+      operationId: getWeek
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: weekStart
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentMenuResponse"
+          description: OK
+      tags:
+      - parent-menu-controller
   /api/children/{childId}/photo:
     get:
       operationId: getChildPhoto
@@ -4327,6 +4453,68 @@ paths:
         schema:
           type: string
           format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/classes/{classId}/attendance/children/{childId}/full-day-present:
+    post:
+      operationId: correctFullDayPresent
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/classes/{classId}/attendance/children/{childId}/meal-participation:
+    post:
+      operationId: correctMealParticipation
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CorrectMealParticipationRequest"
+        required: true
       responses:
         "200":
           content:
@@ -7880,6 +8068,120 @@ paths:
           description: OK
       tags:
       - nutrition-food-controller
+  /api/nutrition/day-balances:
+    get:
+      operationId: getStatuses
+      parameters:
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListDayBalanceStatusResponse"
+          description: OK
+      tags:
+      - day-balance-controller
+  /api/nutrition/day-balances/{date}:
+    get:
+      operationId: getBalance
+      parameters:
+      - in: path
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: round
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayBalanceResponse"
+          description: OK
+      tags:
+      - day-balance-controller
+    put:
+      operationId: saveBalance
+      parameters:
+      - in: path
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: round
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DayBalanceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayBalanceResponse"
+          description: OK
+      tags:
+      - day-balance-controller
+  /api/nutrition/day-balances/{date}/preview:
+    post:
+      operationId: previewBalance
+      parameters:
+      - in: path
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: round
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DayBalanceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayBalanceResponse"
+          description: OK
+      tags:
+      - day-balance-controller
   /api/nutrition/day-board:
     get:
       operationId: getDayBoard
@@ -8569,37 +8871,6 @@ paths:
           description: OK
       tags:
       - fresh-goods-controller
-  /api/nutrition/fresh-checks/dry-receipts:
-    post:
-      operationId: recordDryIntake
-      parameters:
-      - in: query
-        name: campusId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      - in: query
-        name: date
-        required: true
-        schema:
-          type: string
-          format: date
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DryIntakeRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonFreshCheckResponse"
-          description: OK
-      tags:
-      - fresh-goods-controller
   /api/nutrition/fresh-forecasts:
     get:
       operationId: getForecasts
@@ -9003,149 +9274,6 @@ paths:
           description: OK
       tags:
       - meal-plan-controller
-  /api/nutrition/menu-ai-drafts:
-    post:
-      operationId: createDraft
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MenuAiDraftRequest"
-        required: true
-      responses:
-        "201":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
-          description: Created
-      tags:
-      - menu-ai-draft-controller
-  /api/nutrition/menu-ai-drafts/{id}:
-    get:
-      operationId: getDraft
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
-          description: OK
-      tags:
-      - menu-ai-draft-controller
-  /api/nutrition/menu-ai-drafts/{id}/apply:
-    post:
-      operationId: applyDraft
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MenuAiDraftApplyRequest"
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonMealPlanResponse"
-          description: OK
-      tags:
-      - menu-ai-draft-controller
-  /api/nutrition/menu-ai-drafts/{id}/candidates:
-    get:
-      operationId: getCandidates
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonMenuAiDraftCandidatesResponse"
-          description: OK
-      tags:
-      - menu-ai-draft-controller
-  /api/nutrition/menu-ai-drafts/{id}/dismiss:
-    post:
-      operationId: dismissDraft
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
-          description: OK
-      tags:
-      - menu-ai-draft-controller
-  /api/nutrition/menu-ai-drafts/{id}/evaluate:
-    post:
-      operationId: evaluateDraft
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/MenuAiDraftGridRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonMenuAiDraftEvaluationResponse"
-          description: OK
-      tags:
-      - menu-ai-draft-controller
-  /api/nutrition/menu-ai-drafts/{id}/mark-used:
-    post:
-      operationId: markDailyUsed
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
-          description: OK
-      tags:
-      - menu-ai-draft-controller
   /api/nutrition/menu-statistics:
     post:
       operationId: getMenuStatistics
@@ -9923,6 +10051,25 @@ paths:
           description: OK
       tags:
       - parent-activation-controller
+  /api/parent/attendance-schedule:
+    get:
+      operationId: getSchedule_1
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentAttendanceSchedule"
+          description: OK
+      tags:
+      - parent-attendance-controller
   /api/permission-change-logs:
     get:
       operationId: getPermissionChangeLogs
@@ -10048,6 +10195,31 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonListPickupClassResponse"
+          description: OK
+      tags:
+      - pickup-controller
+  /api/pickups/{pickupId}/handover-time:
+    patch:
+      operationId: correctHandoverTime
+      parameters:
+      - in: path
+        name: pickupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CorrectHandoverTimeRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPickupRecordResponse"
           description: OK
       tags:
       - pickup-controller
@@ -10375,6 +10547,30 @@ paths:
       tags:
       - school-year-controller
   /api/school-years/{schoolYearId}/cutoff:
+    delete:
+      operationId: cancelScheduledCutoff
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: effectiveFrom
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCutoffResponse"
+          description: OK
+      tags:
+      - attendance-cutoff-controller
     get:
       operationId: getCutoff
       parameters:
@@ -10659,6 +10855,35 @@ paths:
           description: OK
       tags:
       - vice-principal-assignment-controller
+  /api/school/appearance:
+    get:
+      operationId: getAppearance
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAppearanceResponse"
+          description: OK
+      tags:
+      - school-appearance-controller
+    put:
+      operationId: saveAppearance
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppearanceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAppearanceResponse"
+          description: OK
+      tags:
+      - school-appearance-controller
   /api/signatures/me:
     get:
       operationId: listSignatures
@@ -11373,6 +11598,10 @@ components:
           type: number
           maximum: 100
           minimum: 0
+        budgetTolerancePct:
+          type: number
+          maximum: 100
+          minimum: 0
         calciumMax:
           type: number
           maximum: 100000
@@ -11381,7 +11610,11 @@ components:
           type: number
           maximum: 100000
           minimum: 0
-        dailyKcalNeed:
+        dailyKcalMax:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 5000
+        dailyKcalMin:
           type: number
           exclusiveMinimum: 0
           maximum: 5000
@@ -11396,14 +11629,6 @@ components:
           type: number
           maximum: 1250
           minimum: 0
-        glucidPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        glucidPctMin:
-          type: number
-          maximum: 100
-          minimum: 0
         ironMax:
           type: number
           maximum: 100000
@@ -11411,20 +11636,6 @@ components:
         ironMin:
           type: number
           maximum: 100000
-          minimum: 0
-        kcalMax:
-          type: number
-          minimum: 0
-        kcalMin:
-          type: number
-          minimum: 0
-        lipidPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        lipidPctMin:
-          type: number
-          maximum: 100
           minimum: 0
         lunchKcalPctMax:
           type: number
@@ -11472,14 +11683,6 @@ components:
         plantProteinGMin:
           type: number
           maximum: 1250
-          minimum: 0
-        proteinPctMax:
-          type: number
-          maximum: 100
-          minimum: 0
-        proteinPctMin:
-          type: number
-          maximum: 100
           minimum: 0
         serviceFee:
           type: number
@@ -11560,13 +11763,17 @@ components:
           type: number
         appliedProteinPct:
           type: number
+        budgetTolerancePct:
+          type: number
         calciumMax:
           type: number
         calciumMin:
           type: number
         conversion:
           $ref: "#/components/schemas/NutritionConversionResponse"
-        dailyKcalNeed:
+        dailyKcalMax:
+          type: number
+        dailyKcalMin:
           type: number
         editable:
           type: boolean
@@ -11781,6 +11988,17 @@ components:
             type: string
         state:
           type: string
+    AllergyClassCount:
+      type: object
+      properties:
+        classroomId:
+          type: integer
+          format: int64
+        classroomName:
+          type: string
+        count:
+          type: integer
+          format: int32
     AnnouncementAttachmentResponse:
       type: object
       properties:
@@ -12003,6 +12221,45 @@ components:
         updatedAt:
           type: string
           format: date-time
+    AppearanceRequest:
+      type: object
+      properties:
+        enabledSceneIds:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        mode:
+          type: string
+          enum:
+          - FIXED
+          - AUTO
+          - DAILY_RANDOM
+        pinnedSceneId:
+          type: string
+      required:
+      - enabledSceneIds
+      - mode
+    AppearanceResponse:
+      type: object
+      properties:
+        enabledSceneIds:
+          type: array
+          items:
+            type: string
+        mode:
+          type: string
+          enum:
+          - FIXED
+          - AUTO
+          - DAILY_RANDOM
+        pinnedSceneId:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: string
     ApprovalItem:
       type: object
       properties:
@@ -12411,21 +12668,6 @@ components:
           type: object
           additionalProperties:
             type: string
-    Breakdown:
-      type: object
-      properties:
-        cost:
-          type: integer
-          format: int32
-        norm:
-          type: integer
-          format: int32
-        variety:
-          type: integer
-          format: int32
-        warnings:
-          type: integer
-          format: int32
     Brief:
       type: object
       properties:
@@ -12477,6 +12719,8 @@ components:
           type: string
         freshReceiptStatus:
           type: string
+        m1FreshSigned:
+          type: boolean
         mealCounts:
           $ref: "#/components/schemas/MealCounts"
         menu:
@@ -12707,39 +12951,6 @@ components:
           - TEAM_LEADER
       required:
       - role
-    ChangedCell:
-      type: object
-      properties:
-        date:
-          type: string
-          format: date
-        fromDishId:
-          type: integer
-          format: int64
-        fromDishName:
-          type: string
-        slot:
-          type: string
-        toDishId:
-          type: integer
-          format: int64
-        toDishName:
-          type: string
-    Check:
-      type: object
-      properties:
-        code:
-          type: string
-        detail:
-          type: string
-        label:
-          type: string
-        rules:
-          type: array
-          items:
-            type: string
-        status:
-          type: string
     ChildAddressInput:
       type: object
       properties:
@@ -13186,6 +13397,8 @@ components:
           $ref: "#/components/schemas/Placement"
         programCompleted:
           type: boolean
+        yearEndConfirmed:
+          type: boolean
     ChildPlacementResponse:
       type: object
       properties:
@@ -13590,6 +13803,9 @@ components:
     ClassAttendanceResponse:
       type: object
       properties:
+        afternoonStart:
+          type: string
+          format: time-local
         campusId:
           type: integer
           format: int64
@@ -14100,6 +14316,11 @@ components:
         id:
           type: integer
           format: int64
+        lockedTeacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
         name:
           type: string
         teacherIds:
@@ -14189,6 +14410,28 @@ components:
           type: array
           items:
             type: string
+    CorrectHandoverTimeRequest:
+      type: object
+      properties:
+        handoverTime:
+          type: string
+          format: time-local
+        reason:
+          type: string
+    CorrectMealParticipationRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        meals:
+          type: object
+          additionalProperties:
+            type: boolean
+        participates:
+          type: boolean
+      required:
+      - date
     Counts:
       type: object
       properties:
@@ -14448,16 +14691,40 @@ components:
     CutoffRequest:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
+        fullDayPickupFrom:
+          type: string
+          format: time-local
         latestAfternoonArrival:
+          type: string
+          format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
           type: string
           format: time-local
         note:
           type: string
           maxLength: 500
           minLength: 0
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
+          type: string
+          format: time-local
         time:
           type: string
           format: time-local
@@ -14765,6 +15032,340 @@ components:
           type: string
         "off":
           type: boolean
+    DayBalanceAgeGroup:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        name:
+          type: string
+        sessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+    DayBalanceCampus:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        name:
+          type: string
+    DayBalanceCampusShare:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        purchaseQuantity:
+          type: number
+        purchaseTotal:
+          type: number
+    DayBalanceCount:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        children:
+          type: integer
+          format: int32
+        enrolled:
+          type: integer
+          format: int32
+    DayBalanceCountInput:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        children:
+          type: integer
+          format: int32
+          maximum: 5000
+          minimum: 0
+      required:
+      - ageGroupId
+      - campusId
+    DayBalanceEditInput:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        foodId:
+          type: integer
+          format: int64
+        gramsPerChild:
+          type: number
+          maximum: 5000
+          minimum: 0
+        purchaseQuantity:
+          type: number
+          maximum: 1000000
+          minimum: 0
+      required:
+      - ageGroupId
+      - foodId
+    DayBalanceFood:
+      type: object
+      properties:
+        code:
+          type: string
+        foodId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        purchaseUnit:
+          type: string
+        purchaseUnitSize:
+          type: number
+        storage:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+        unit:
+          type: string
+          enum:
+          - g
+          - ml
+        unitPrice:
+          type: number
+        wastePct:
+          type: number
+    DayBalanceFoodRow:
+      type: object
+      properties:
+        cost:
+          type: number
+        foodId:
+          type: integer
+          format: int64
+        gramsPerChild:
+          type: number
+        purchaseQuantity:
+          type: number
+        purchaseTotal:
+          type: number
+        totalGrams:
+          type: number
+    DayBalanceGroupResult:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        children:
+          type: integer
+          format: int32
+        evaluation:
+          $ref: "#/components/schemas/Evaluation"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceFoodRow"
+        totalCost:
+          type: number
+    DayBalanceLine:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        baseGrams:
+          type: number
+        dishId:
+          type: integer
+          format: int64
+        dishName:
+          type: string
+        foodId:
+          type: integer
+          format: int64
+        grams:
+          type: number
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+    DayBalanceLineInput:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        baseGrams:
+          type: number
+          maximum: 5000
+          minimum: 0
+        dishId:
+          type: integer
+          format: int64
+        foodId:
+          type: integer
+          format: int64
+        grams:
+          type: number
+          maximum: 5000
+          minimum: 0
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+      required:
+      - ageGroupId
+      - baseGrams
+      - dishId
+      - foodId
+      - grams
+      - session
+    DayBalanceRequest:
+      type: object
+      properties:
+        applyRounding:
+          type: boolean
+        counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceCountInput"
+          maxItems: 200
+          minItems: 0
+        edits:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceEditInput"
+          maxItems: 200
+          minItems: 0
+        fromRecipe:
+          type: boolean
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceLineInput"
+          maxItems: 2000
+          minItems: 0
+        roundingStep:
+          type: number
+        version:
+          type: integer
+          format: int64
+    DayBalanceResponse:
+      type: object
+      properties:
+        ageGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceAgeGroup"
+        blockedReason:
+          type: string
+        campuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceCampus"
+        canEdit:
+          type: boolean
+        counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceCount"
+        date:
+          type: string
+          format: date
+        dayOff:
+          type: boolean
+        foods:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceFood"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceGroupResult"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceLine"
+        offReason:
+          type: string
+        passed:
+          type: boolean
+        round:
+          type: integer
+          format: int32
+        roundingStep:
+          type: number
+        saved:
+          type: boolean
+        savedAt:
+          type: string
+          format: date-time
+        stale:
+          type: boolean
+        summary:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceSummaryRow"
+        version:
+          type: integer
+          format: int64
+    DayBalanceStatusResponse:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        dayOff:
+          type: boolean
+        offReason:
+          type: string
+        passed:
+          type: boolean
+        problems:
+          type: array
+          items:
+            type: string
+        saved:
+          type: boolean
+        stale:
+          type: boolean
+    DayBalanceSummaryRow:
+      type: object
+      properties:
+        campuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceCampusShare"
+        cost:
+          type: number
+        foodId:
+          type: integer
+          format: int64
+        purchaseQuantity:
+          type: number
+        purchaseTotal:
+          type: number
     DayBoardResponse:
       type: object
       properties:
@@ -14929,6 +15530,9 @@ components:
     DayMarketResponse:
       type: object
       properties:
+        balanceRound:
+          type: integer
+          format: int32
         basis:
           type: string
         campusId:
@@ -15306,6 +15910,15 @@ components:
           - MORNING
           - LUNCH
           - AFTERNOON
+    DishAllergyWarning:
+      type: object
+      properties:
+        allergen:
+          $ref: "#/components/schemas/AllergenResponse"
+        byClass:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergyClassCount"
     DishCopyRequest:
       type: object
       properties:
@@ -15379,6 +15992,14 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+        usedInTemplates:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateUsage"
+        usedInWeeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekUsage"
     DishIngredientLine:
       type: object
       properties:
@@ -15504,56 +16125,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StockReceiptResponse"
-    DryIntakeLineInput:
-      type: object
-      properties:
-        expiryDate:
-          type: string
-          format: date
-        foodId:
-          type: integer
-          format: int64
-        lotNo:
-          type: string
-          maxLength: 50
-          minLength: 0
-        note:
-          type: string
-          maxLength: 300
-          minLength: 0
-        passed:
-          type: boolean
-        quantity:
-          type: number
-          exclusiveMinimum: 0
-        unitPrice:
-          type: number
-          minimum: 0
-      required:
-      - expiryDate
-      - foodId
-      - lotNo
-      - passed
-      - quantity
-      - unitPrice
-    DryIntakeRequest:
-      type: object
-      properties:
-        lines:
-          type: array
-          items:
-            $ref: "#/components/schemas/DryIntakeLineInput"
-          minItems: 1
-        note:
-          type: string
-          maxLength: 500
-          minLength: 0
-        supplierId:
-          type: integer
-          format: int64
-      required:
-      - lines
-      - supplierId
     DryLine:
       type: object
       properties:
@@ -15599,6 +16170,8 @@ components:
     DryStock:
       type: object
       properties:
+        canSync:
+          type: boolean
         foodCount:
           type: integer
           format: int32
@@ -16010,20 +16583,44 @@ components:
     Entry:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
         at:
           type: string
           format: date-time
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
+        fullDayPickupFrom:
+          type: string
+          format: time-local
         id:
           type: integer
           format: int64
         latestAfternoonArrival:
           type: string
           format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
         note:
           type: string
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
+          type: string
+          format: time-local
         previousTime:
           type: string
           format: time-local
@@ -16048,6 +16645,8 @@ components:
           enum:
           - NURSERY
           - KINDERGARTEN
+        budgetTolerancePct:
+          type: number
         cost:
           type: number
         date:
@@ -16057,6 +16656,12 @@ components:
           type: number
         mealPrice:
           type: number
+        moneyStatus:
+          type: string
+        qualityStatus:
+          type: string
+        quantityStatus:
+          type: string
         rows:
           type: array
           items:
@@ -16076,6 +16681,10 @@ components:
       properties:
         content:
           type: string
+        programCompleted:
+          type: boolean
+        sheet:
+          $ref: "#/components/schemas/YearEndSheetRequest"
     EvaluationDay:
       type: object
       properties:
@@ -16733,6 +17342,8 @@ components:
           - ml
         unitPrice:
           type: number
+        unitsLocked:
+          type: boolean
         vitaminA:
           type: number
         vitaminB1:
@@ -16871,6 +17482,14 @@ components:
           type: number
         food:
           $ref: "#/components/schemas/StockFoodRef"
+        handlingAction:
+          type: string
+          enum:
+          - ORDER_MORE
+          - RETURN
+          - KEEP
+        handlingQty:
+          type: number
         note:
           type: string
         receivedQty:
@@ -16881,6 +17500,8 @@ components:
           - ENOUGH
           - SHORT
           - OVER
+        round1Qty:
+          type: number
         supplier:
           $ref: "#/components/schemas/SupplierInfo"
     FreshCheckLineInput:
@@ -16889,6 +17510,15 @@ components:
         foodId:
           type: integer
           format: int64
+        handlingAction:
+          type: string
+          enum:
+          - ORDER_MORE
+          - RETURN
+          - KEEP
+        handlingQty:
+          type: number
+          minimum: 0
         note:
           type: string
           maxLength: 300
@@ -16907,7 +17537,6 @@ components:
           format: int64
       required:
       - foodId
-      - result
     FreshCheckRequest:
       type: object
       properties:
@@ -16962,6 +17591,8 @@ components:
         forecastId:
           type: integer
           format: int64
+        handlingRequired:
+          type: boolean
         lines:
           type: array
           items:
@@ -17116,6 +17747,8 @@ components:
             $ref: "#/components/schemas/FreshForecastLine"
         note:
           type: string
+        outdated:
+          type: boolean
         periodFrom:
           type: string
           format: date
@@ -19464,6 +20097,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ClassServings"
+        unmatchedAllergies:
+          type: array
+          items:
+            $ref: "#/components/schemas/UnmatchedAllergy"
     KitchenRoom:
       type: object
       properties:
@@ -19658,6 +20295,8 @@ components:
             - MORNING
             - LUNCH
             - AFTERNOON
+        noticeOnly:
+          type: boolean
         offMeals:
           type: array
           items:
@@ -19737,6 +20376,8 @@ components:
         id:
           type: integer
           format: int64
+        noticeOnly:
+          type: boolean
         offMeals:
           type: array
           items:
@@ -20176,8 +20817,6 @@ components:
           minLength: 0
         reason:
           type: string
-          maxLength: 500
-          minLength: 0
       required:
       - items
     MealPlanRequest:
@@ -20294,214 +20933,17 @@ components:
           $ref: "#/components/schemas/DeclarationAnswerInput"
         tbContact:
           $ref: "#/components/schemas/TbContactInput"
-    MenuAiDraftApplyRequest:
-      type: object
-      properties:
-        days:
-          type: array
-          items:
-            $ref: "#/components/schemas/Day"
-        reason:
-          type: string
-          maxLength: 500
-          minLength: 0
-    MenuAiDraftCandidatesResponse:
-      type: object
-      properties:
-        slots:
-          type: array
-          items:
-            $ref: "#/components/schemas/Slot"
-    MenuAiDraftEvaluationResponse:
-      type: object
-      properties:
-        checks:
-          type: array
-          items:
-            $ref: "#/components/schemas/Check"
-        editedCells:
-          type: integer
-          format: int32
-        evaluations:
-          type: array
-          items:
-            $ref: "#/components/schemas/Evaluation"
-        feasible:
-          type: boolean
-        issues:
-          type: array
-          items:
-            $ref: "#/components/schemas/Issue"
-        score:
-          $ref: "#/components/schemas/Score"
-    MenuAiDraftGridRequest:
-      type: object
-      properties:
-        days:
-          type: array
-          items:
-            $ref: "#/components/schemas/Day"
-      required:
-      - days
-    MenuAiDraftRequest:
-      type: object
-      properties:
-        block:
-          type: string
-          enum:
-          - NURSERY
-          - KINDERGARTEN
-        fromDishId:
-          type: integer
-          format: int64
-        kind:
-          type: string
-          enum:
-          - MENU_WEEKLY
-          - MENU_DAILY
-          - MENU_DAY_FIX
-        requiredDishIds:
-          type: array
-          items:
-            type: integer
-            format: int64
-          maxItems: 20
-          minItems: 0
-        season:
-          type: string
-          maxLength: 50
-          minLength: 0
-        strategy:
-          type: string
-          enum:
-          - FREE
-          - TEMPLATE_ADJUST
-        targetDate:
-          type: string
-          format: date
-        targetSession:
-          type: string
-          enum:
-          - MORNING
-          - LUNCH
-          - AFTERNOON
-        unavailableFoodIds:
-          type: array
-          items:
-            type: integer
-            format: int64
-          maxItems: 50
-          minItems: 0
-        weekStart:
-          type: string
-          format: date
-        wishes:
-          type: string
-          maxLength: 300
-          minLength: 0
-      required:
-      - block
-      - kind
-    MenuAiDraftResponse:
-      type: object
-      properties:
-        block:
-          type: string
-          enum:
-          - NURSERY
-          - KINDERGARTEN
-        changedCells:
-          type: array
-          items:
-            $ref: "#/components/schemas/ChangedCell"
-        checks:
-          type: array
-          items:
-            $ref: "#/components/schemas/Check"
-        createdAt:
-          type: string
-          format: date-time
-        days:
-          type: array
-          items:
-            $ref: "#/components/schemas/Day"
-        editedCells:
-          type: integer
-          format: int32
-        fallbackReason:
-          type: string
-          enum:
-          - AI_DISABLED
-          - AI_UNAVAILABLE
-          - AI_TIMEOUT
-          - AI_INVALID
-          - AI_NOT_BETTER
-        feasible:
-          type: boolean
-        fromDishId:
-          type: integer
-          format: int64
-        historyFrom:
-          type: string
-          format: date
-        historyTo:
-          type: string
-          format: date
-        id:
-          type: integer
-          format: int64
-        issues:
-          type: array
-          items:
-            $ref: "#/components/schemas/Issue"
-        kind:
-          type: string
-          enum:
-          - MENU_WEEKLY
-          - MENU_DAILY
-          - MENU_DAY_FIX
-        model:
-          type: string
-        promptVersion:
-          type: string
-        score:
-          $ref: "#/components/schemas/Score"
-        slots:
-          type: array
-          items:
-            $ref: "#/components/schemas/Slot"
-        source:
-          type: string
-          enum:
-          - AI
-          - RULE_BASED
-        status:
-          type: string
-          enum:
-          - PENDING_REVIEW
-          - APPLIED
-          - DISMISSED
-          - NO_FEASIBLE
-        strategy:
-          type: string
-          enum:
-          - FREE
-          - TEMPLATE_ADJUST
-        targetDate:
-          type: string
-          format: date
-        targetSession:
-          type: string
-          enum:
-          - MORNING
-          - LUNCH
-          - AFTERNOON
-        weekStart:
-          type: string
-          format: date
     MenuDish:
       type: object
       properties:
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        allergyWarnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/DishAllergyWarning"
         code:
           type: string
         id:
@@ -20552,6 +20994,8 @@ components:
             $ref: "#/components/schemas/MenuStatisticsItem"
           maxItems: 60
           minItems: 0
+        useBalance:
+          type: boolean
       required:
       - items
     MenuStatisticsResponse:
@@ -20562,6 +21006,9 @@ components:
           format: int64
         ageGroupName:
           type: string
+        balanceRound:
+          type: integer
+          format: int32
         children:
           type: integer
           format: int32
@@ -20724,7 +21171,7 @@ components:
         assignments:
           type: array
           items:
-            $ref: "#/components/schemas/StaffAssignmentSummaryResponse"
+            $ref: "#/components/schemas/MyAssignmentResponse"
         childIds:
           type: array
           items:
@@ -20734,6 +21181,9 @@ components:
           type: string
         fullName:
           type: string
+        passwordChangedAt:
+          type: string
+          format: date-time
         permissions:
           type: array
           items:
@@ -20867,6 +21317,34 @@ components:
           format: date-time
         title:
           type: string
+    MyAssignmentResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        campusName:
+          type: string
+        classroomId:
+          type: integer
+          format: int64
+        staffRole:
+          type: string
+          enum:
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - AGE_GROUP_TEAM_LEADER
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
     NewAdmission:
       type: object
       properties:
@@ -20915,6 +21393,8 @@ components:
     NormRow:
       type: object
       properties:
+        applied:
+          type: number
         attainment:
           type: integer
           format: int32
@@ -21562,6 +22042,8 @@ components:
           enum:
           - MORNING
           - AFTERNOON
+        absentPartUnexcused:
+          type: boolean
         arrivedAt:
           type: string
           format: date-time
@@ -21618,6 +22100,47 @@ components:
           format: date
         totals:
           $ref: "#/components/schemas/ParentAttendanceTotals"
+    ParentAttendanceSchedule:
+      type: object
+      properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        attendanceCutoff:
+          type: string
+          format: time-local
+        date:
+          type: string
+          format: date
+        dropoffOpenFrom:
+          type: string
+          format: time-local
+        fullDayPickupFrom:
+          type: string
+          format: time-local
+        latestAfternoonArrival:
+          type: string
+          format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
+          type: string
+          format: time-local
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
     ParentAttendanceTotals:
       type: object
       properties:
@@ -21794,6 +22317,78 @@ components:
           type: boolean
         text:
           type: string
+    ParentMenuDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        dayOff:
+          type: boolean
+        enrolled:
+          type: boolean
+        meals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentMenuMeal"
+    ParentMenuDish:
+      type: object
+      properties:
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        childAllergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        name:
+          type: string
+    ParentMenuMeal:
+      type: object
+      properties:
+        dishes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentMenuDish"
+        photo:
+          $ref: "#/components/schemas/ParentMenuPhoto"
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+    ParentMenuPhoto:
+      type: object
+      properties:
+        photoId:
+          type: integer
+          format: int64
+        uploadedAt:
+          type: string
+          format: date-time
+    ParentMenuResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentMenuDay"
+        mealsHidden:
+          type: boolean
+        published:
+          type: boolean
+        unmatchedAllergies:
+          type: array
+          items:
+            type: string
+        weekStart:
+          type: string
+          format: date
     ParentPasswordResponse:
       type: object
       properties:
@@ -21927,6 +22522,8 @@ components:
           enum:
           - MORNING
           - AFTERNOON
+        absentPartUnexcused:
+          type: boolean
         arrivedAt:
           type: string
           format: date-time
@@ -22526,6 +23123,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NewAdmission"
+        placementOpenFrom:
+          type: string
+          format: date
         sourceYear:
           $ref: "#/components/schemas/YearBrief"
         targets:
@@ -23693,6 +24293,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonAppearanceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AppearanceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAssessmentDayUnlockResponse:
       type: object
       properties:
@@ -24078,6 +24691,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/DailySheetResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonDayBalanceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayBalanceResponse"
         desc:
           type: string
         errorCode:
@@ -25021,6 +25647,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListDayBalanceStatusResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayBalanceStatusResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListDayUnlockResponse:
       type: object
       properties:
@@ -25895,45 +26536,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonMenuAiDraftCandidatesResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/MenuAiDraftCandidatesResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonMenuAiDraftEvaluationResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/MenuAiDraftEvaluationResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonMenuAiDraftResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/MenuAiDraftResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonMenuStatisticsResponse:
       type: object
       properties:
@@ -26194,6 +26796,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonParentAttendanceSchedule:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentAttendanceSchedule"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonParentEvaluationsResponse:
       type: object
       properties:
@@ -26202,6 +26817,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentEvaluationsResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentMenuResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentMenuResponse"
         desc:
           type: string
         errorCode:
@@ -27312,7 +27940,7 @@ components:
         capacity:
           type: integer
           format: int32
-          maximum: 32767
+          maximum: 60
           minimum: 1
         managerUserId:
           type: integer
@@ -27678,17 +28306,6 @@ components:
         semester2Start:
           type: string
           format: date
-    Score:
-      type: object
-      properties:
-        ai:
-          type: integer
-          format: int32
-        baseline:
-          type: integer
-          format: int32
-        breakdown:
-          $ref: "#/components/schemas/Breakdown"
     SemesterAssessmentChild:
       type: object
       properties:
@@ -27771,10 +28388,14 @@ components:
           type: boolean
         canEdit:
           type: boolean
+        canRevise:
+          type: boolean
         classId:
           type: integer
           format: int64
         className:
+          type: string
+        confirmBlockedReason:
           type: string
         confirmedAt:
           type: string
@@ -27873,9 +28494,21 @@ components:
     Setting:
       type: object
       properties:
+        afternoonEnd:
+          type: string
+          format: time-local
+        afternoonStart:
+          type: string
+          format: time-local
+        dropoffOpenFrom:
+          type: string
+          format: time-local
         effectiveFrom:
           type: string
           format: date
+        fullDayPickupFrom:
+          type: string
+          format: time-local
         history:
           type: array
           items:
@@ -27883,8 +28516,20 @@ components:
         latestAfternoonArrival:
           type: string
           format: time-local
+        morningEnd:
+          type: string
+          format: time-local
+        morningStart:
+          type: string
+          format: time-local
         note:
           type: string
+        pickupEnd:
+          type: string
+          format: time-local
+        pickupStart:
+          type: string
+          format: time-local
         schoolYear:
           type: integer
           format: int64
@@ -28034,31 +28679,6 @@ components:
           - HOLIDAYS
         reason:
           type: string
-    Slot:
-      type: object
-      properties:
-        dishTypes:
-          type: array
-          items:
-            type: string
-            enum:
-            - CARB
-            - MAIN
-            - SOUP
-            - VEGETABLE
-            - SNACK
-            - DESSERT
-        index:
-          type: integer
-          format: int32
-        key:
-          type: string
-        session:
-          type: string
-          enum:
-          - MORNING
-          - LUNCH
-          - AFTERNOON
     SourceClass:
       type: object
       properties:
@@ -28813,6 +29433,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Leader"
+    TemplateUsage:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     ThemeEvaluationRequest:
       type: object
       properties:
@@ -28844,6 +29472,8 @@ components:
         canConfirm:
           type: boolean
         canEdit:
+          type: boolean
+        canRevise:
           type: boolean
         classId:
           type: integer
@@ -29261,6 +29891,15 @@ components:
         level:
           type: string
         text:
+          type: string
+    UnmatchedAllergy:
+      type: object
+      properties:
+        byClass:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergyClassCount"
+        name:
           type: string
     Unplaced:
       type: object
@@ -29768,6 +30407,17 @@ components:
           - AFTERNOON
         status:
           type: string
+    WeekUsage:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - PUBLISHED
+        weekStart:
+          type: string
+          format: date
     WeeklyCommentBoardResponse:
       type: object
       properties:
@@ -30139,6 +30789,8 @@ components:
         ageGroupName:
           type: string
         canEdit:
+          type: boolean
+        canRevise:
           type: boolean
         classId:
           type: integer

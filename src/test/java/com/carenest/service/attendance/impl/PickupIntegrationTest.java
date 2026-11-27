@@ -194,16 +194,18 @@ class PickupIntegrationTest {
                 () -> pickups.recordResult(
                         teacherA, request(present, PickupVerification.PHOTO_MATCH, 5, LocalTime.of(15, 30), "")),
                 ApiCode.INVALID_REQUEST_DATA);
-        expectError(
-                () -> pickups.recordResult(
-                        teacherA, request(present, PickupVerification.PHOTO_MATCH, 0, LocalTime.of(17, 0), "")),
-                ApiCode.INVALID_REQUEST_DATA);
         PickupRecordResponse handed = pickups.recordResult(
                 teacherA, request(present, PickupVerification.PHOTO_MATCH, 0, LocalTime.of(15, 30), ""));
         assertThat(handed.outcome()).isEqualTo(PickupOutcome.HANDED_OVER);
         assertThat(handed.pickupPersonName()).isEqualTo("Mẹ An (giả)");
         assertThat(handed.pickupPersonRelationship()).isEqualTo(GuardianRelationship.MOTHER);
-        assertThat(handed.handedOverAt()).isEqualTo(Instant.parse("2026-11-10T08:30:00Z"));
+        // PCK-04: giờ trả là giờ máy chủ lúc bấm, giờ client gửi lên bị bỏ qua
+        assertThat(handed.handedOverAt()).isEqualTo(Instant.parse("2026-11-10T09:00:00Z"));
+        PickupRecordResponse corrected = pickups.correctHandoverTime(
+                teacherA,
+                handed.id(),
+                new com.carenest.dto.attendance.CorrectHandoverTimeRequest(LocalTime.of(15, 30), "Bấm muộn"));
+        assertThat(corrected.handedOverAt()).isEqualTo(Instant.parse("2026-11-10T08:30:00Z"));
         assertThat(handed.notifiedParents()).isEqualTo(1);
 
         expectError(
@@ -230,8 +232,9 @@ class PickupIntegrationTest {
 
         // Phụ huynh nhận thông báo trẻ đã được đón
         NotificationListResponse inbox = notifications.listMyNotifications(parent, 50);
-        assertThat(inbox.unreadCount()).isEqualTo(1);
-        assertThat(inbox.items()).singleElement().satisfies(n -> {
+        // Một thông báo khi trả, một thông báo khi sửa giờ
+        assertThat(inbox.unreadCount()).isEqualTo(2);
+        assertThat(inbox.items()).hasSize(2).first().satisfies(n -> {
             assertThat(n.type()).isEqualTo(NotificationType.CHILD_PICKED_UP);
             assertThat(n.childId()).isEqualTo(present);
             assertThat(n.body()).contains("15:30").contains("Mẹ An (giả)");
@@ -239,12 +242,12 @@ class PickupIntegrationTest {
         expectError(
                 () -> notifications.markRead(teacherA, inbox.items().getFirst().id()), ApiCode.NOTIFICATION_NOT_FOUND);
         notifications.markRead(parent, inbox.items().getFirst().id());
-        assertThat(notifications.listMyNotifications(parent, 50).unreadCount()).isZero();
+        assertThat(notifications.listMyNotifications(parent, 50).unreadCount()).isEqualTo(1);
 
         // HLT-15: trẻ đã được trả thì UI và API cùng khóa, lịch sử vẫn xem được
         var afterHealth = dailyHealth.getClassChildHealth(teacherA, classA, present, TODAY);
         assertThat(afterHealth.canRecord()).isFalse();
-        assertThat(afterHealth.handedOverAt()).isEqualTo(handed.handedOverAt());
+        assertThat(afterHealth.handedOverAt()).isEqualTo(corrected.handedOverAt());
         assertThat(afterHealth.contacts()).isEqualTo(beforeHealth.contacts());
         expectError(
                 () -> dailyHealth.addEntry(

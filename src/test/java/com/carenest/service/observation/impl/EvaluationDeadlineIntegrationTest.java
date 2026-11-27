@@ -241,6 +241,36 @@ class EvaluationDeadlineIntegrationTest {
     }
 
     @Test
+    @DisplayName("Đánh giá học kỳ: nút Xác nhận khóa thì trả lý do theo đúng thứ tự kiểm của lúc xác nhận")
+    void semesterBoardExplainsWhyConfirmIsBlocked() {
+        CLOCK.set(at(LocalDate.of(2026, 10, 10), 10));
+        var early = semesterAssessments.get(teacherA, classA, 1);
+        assertThat(early.canConfirm()).isFalse();
+        assertThat(early.confirmBlockedReason()).isEqualTo("NOT_ENDED");
+
+        CLOCK.set(at(LocalDate.of(2026, 10, 30), 10));
+        var ended = semesterAssessments.get(teacherA, classA, 1);
+        assertThat(ended.canConfirm()).isFalse();
+        assertThat(ended.confirmBlockedReason()).isEqualTo("INCOMPLETE");
+
+        var assistant = user("assistant", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-09-01', '2027-05-31', FALSE)",
+                assistant.userId(),
+                classA);
+        assertThat(semesterAssessments.get(assistant, classA, 1).confirmBlockedReason())
+                .isEqualTo("NOT_HOMEROOM");
+        var leaderView = semesterAssessments.get(vpA, classA, 1);
+        assertThat(leaderView.canConfirm()).isFalse();
+        assertThat(leaderView.confirmBlockedReason()).isEqualTo("NO_PERMISSION");
+
+        CLOCK.set(at(LocalDate.of(2026, 11, 2), 8));
+        assertThat(semesterAssessments.get(teacherA, classA, 1).confirmBlockedReason())
+                .isEqualTo("DEADLINE_LOCKED");
+    }
+
+    @Test
     @DisplayName("Mở lại lớp – kỳ: PHT điểm trường mở, GV được báo; kết thúc sớm thì khóa lại; quyền và lỗi")
     void reopenByClassAndPeriod() {
         Instant until = at(LocalDate.of(2026, 11, 3), 17);
@@ -363,8 +393,8 @@ class EvaluationDeadlineIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cần chốt 14/11/2026: GV dạy chính không ghi ngày mở lại trước ngày mình nhận lớp")
-    void mainTeacherCannotRecordDayBeforeAssignmentStarted() {
+    @DisplayName("Cần chốt 26/11/2026: GV đang dạy chính lớp ghi được ngày mở lại, kể cả trước ngày nhận lớp")
+    void mainTeacherCanRecordDayBeforeAssignmentStarted() {
         var newcomer = user("newcomer", CareNestRole.TEACHER);
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
@@ -373,7 +403,7 @@ class EvaluationDeadlineIntegrationTest {
                 classA);
         var cls = classroomService.findClassroomInfo(classA).orElseThrow();
         assertThat(rules.canRecordDay(newcomer, cls, LocalDate.of(2026, 10, 15)))
-                .isFalse();
+                .isTrue();
         assertThat(rules.canRecordDay(newcomer, cls, LocalDate.of(2026, 10, 21)))
                 .isTrue();
         assertThat(rules.canRecordDay(teacherA, cls, LocalDate.of(2026, 10, 15)))

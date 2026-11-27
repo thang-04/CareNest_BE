@@ -1,5 +1,6 @@
 package com.carenest.service.attendance.impl;
 
+import com.carenest.dto.attendance.CorrectHandoverTimeRequest;
 import com.carenest.dto.attendance.PickupBoardResponse;
 import com.carenest.dto.attendance.PickupChildResponse;
 import com.carenest.dto.attendance.PickupClassResponse;
@@ -12,10 +13,15 @@ import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
+import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.PickupRecord;
+import com.carenest.entity.attendance.PickupTimeChange;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
+import com.carenest.repository.attendance.LeaveRequestRepository;
 import com.carenest.repository.attendance.PickupRecordRepository;
+import com.carenest.repository.attendance.PickupTimeChangeRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountPhotoService;
 import com.carenest.service.account.AccountService;
@@ -30,7 +36,9 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.DayPart;
 import com.carenest.utils.enums.GuardianRelationship;
+import com.carenest.utils.enums.LeavePart;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupOutcome;
@@ -71,6 +79,8 @@ public class PickupServiceImpl implements PickupService {
     private final AttendanceDayRules rules;
     private final PickupRecordRepository pickupRepository;
     private final AttendanceRecordRepository attendanceRepository;
+    private final AttendanceRecordHistoryRepository attendanceHistoryRepository;
+    private final EarlyPickupRule earlyPickupRule;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
     private final StaffAssignmentService staffAssignmentService;
@@ -81,6 +91,8 @@ public class PickupServiceImpl implements PickupService {
     private final NotificationService notificationService;
     private final AccountService accountService;
     private final Clock clock;
+    private final PickupTimeChangeRepository timeChangeRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -176,6 +188,8 @@ public class PickupServiceImpl implements PickupService {
                 throw GlobalException.of(ApiCode.PICKUP_CHILD_NOT_FOUND);
             }
             ClassroomInfoResponse cls = classOfChild(currentUser, request.childId());
+            // Khóa lớp như điểm danh: trả trẻ cùng lúc không ghi hai lần, không đè điểm danh đang lưu
+            classroomService.lockForUpdate(cls.id());
             PickupVerification verification = request.verification();
             String note = request.note() == null ? "" : request.note().trim();
             List<ChildGuardianContact> contacts = childIntakeService.findGuardianContacts(request.childId());
@@ -195,6 +209,8 @@ public class PickupServiceImpl implements PickupService {
                 throw GlobalException.of(ApiCode.PICKUP_ALREADY_HANDED_OVER);
             }
             Instant now = clock.instant();
+            // PCK-04: giờ trả là giờ bấm ghi nhận, không cho nhập tay
+            LocalTime handoverTime = LocalTime.now(clock).truncatedTo(ChronoUnit.MINUTES);
             boolean handedOver = verification.outcome() == PickupOutcome.HANDED_OVER;
             PickupRecord record = pickupRepository.save(PickupRecord.builder()
                     .childId(request.childId())
@@ -208,7 +224,7 @@ public class PickupServiceImpl implements PickupService {
                     .pickupPersonPhone(guardian == null ? "" : guardian.phone())
                     .handedOverAt(
                             handedOver
-                                    ? today.atTime(request.handoverTime())
+                                    ? today.atTime(handoverTime)
                                             .atZone(clock.getZone())
                                             .toInstant()
                                     : null)
@@ -217,6 +233,7 @@ public class PickupServiceImpl implements PickupService {
                     .recordedAt(now)
                     .build());
             if (handedOver) {
+                markHalfDayWhenPickedUpBeforeFullDayThreshold(attendance, cls, handoverTime, currentUser, now);
                 record.markNotified(notifyParents(record));
             }
             PickupRecordResponse view =
@@ -226,6 +243,119 @@ public class PickupServiceImpl implements PickupService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    @Override
+    public PickupRecordResponse correctHandoverTime(
+            CurrentUser currentUser, Long pickupId, CorrectHandoverTimeRequest request) {
+        String logPrefix = LOG_PREFIX + "|correctHandoverTime|userId=" + currentUser.userId() + "|pickupId=" + pickupId;
+        log.info("{}|START", logPrefix);
+        try {
+            PickupRecord found = pickupRepository
+                    .findById(pickupId)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.PICKUP_CHILD_NOT_FOUND));
+            ClassroomInfoResponse cls = classroomService
+                    .findClassroomInfo(found.getClassroomId())
+                    .filter(c -> mayCorrect(currentUser, c))
+                    .orElseThrow(() -> GlobalException.of(ApiCode.PICKUP_CHILD_NOT_FOUND));
+            checkActiveYear(cls);
+            classroomService.lockForUpdate(cls.id());
+            LocalDate today = rules.today();
+            if (!found.getDate().equals(today) || !found.isHandedOver()) {
+                throw GlobalException.of(ApiCode.PICKUP_CORRECTION_TODAY_ONLY);
+            }
+            LocalTime time = request.handoverTime() == null
+                    ? null
+                    : request.handoverTime().truncatedTo(ChronoUnit.MINUTES);
+            String reason = request.reason() == null ? "" : request.reason().trim();
+            List<FieldErrorResponse> errors = new ArrayList<>();
+            if (time == null) {
+                errors.add(error("handoverTime", "Nhập giờ trả trẻ (HH:mm)."));
+            } else if (time.isAfter(LocalTime.now(clock).truncatedTo(ChronoUnit.MINUTES))) {
+                errors.add(error("handoverTime", "Giờ trả trẻ không được sau giờ hiện tại."));
+            }
+            if (reason.isEmpty()) {
+                errors.add(error("reason", "Nhập lý do sửa giờ trả."));
+            } else if (reason.length() > NOTE_MAX) {
+                errors.add(error("reason", "Lý do tối đa 500 ký tự."));
+            }
+            if (!errors.isEmpty()) {
+                throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
+            }
+            Instant now = clock.instant();
+            Instant oldTime = found.getHandedOverAt();
+            Instant newTime = today.atTime(time).atZone(clock.getZone()).toInstant();
+            found.correctHandedOverAt(newTime);
+            timeChangeRepository.save(
+                    PickupTimeChange.of(found.getId(), oldTime, newTime, reason, currentUser.userId(), now));
+            recalculateHalfDay(found.getChildId(), cls, oldTime, time, currentUser, now);
+            found.markNotified(notifyParents(found));
+            PickupRecordResponse view =
+                    views(List.of(found), Map.of(cls.id(), cls.name())).getFirst();
+            log.info("{}|END", logPrefix);
+            return view;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // Trả trẻ là việc của GV: chỉ GV đang phụ trách lớp được sửa giờ trả
+    private boolean mayCorrect(CurrentUser user, ClassroomInfoResponse cls) {
+        return user.hasRole(CareNestRole.TEACHER)
+                && user.hasPermission(Permission.PICKUP_RECORD)
+                && rules.canRecord(user, cls);
+    }
+
+    // Giờ đúng quyết định lại nửa ngày: bỏ dấu nghỉ chiều do giờ cũ gây ra (không đụng đơn nghỉ chiều), suất giữ nguyên
+    private void recalculateHalfDay(
+            Long childId,
+            ClassroomInfoResponse cls,
+            Instant oldTime,
+            LocalTime newTime,
+            CurrentUser currentUser,
+            Instant now) {
+        LocalDate today = rules.today();
+        AttendanceRecord attendance = attendanceRepository.findByChildIdInAndDate(List.of(childId), today).stream()
+                .findFirst()
+                .orElse(null);
+        if (attendance == null || attendance.getStatus() != AttendanceStatus.PRESENT) {
+            return;
+        }
+        boolean wasEarly =
+                earlyPickupRule.beforeFullDay(cls.schoolYearId(), today, LocalTime.ofInstant(oldTime, clock.getZone()));
+        boolean isEarly = earlyPickupRule.beforeFullDay(cls.schoolYearId(), today, newTime);
+        if (isEarly) {
+            markHalfDayWhenPickedUpBeforeFullDayThreshold(attendance, cls, newTime, currentUser, now);
+        } else if (wasEarly && attendance.getAbsentPart() == DayPart.AFTERNOON && !hasAfternoonLeave(childId, today)) {
+            attendance.update(attendance.getStatus(), attendance.getMeals(), currentUser.userId(), now);
+            attendance.markAbsentPart(null);
+            attendanceRepository.save(attendance);
+            attendanceHistoryRepository.save(
+                    AttendanceRecordHistory.of(attendance, AttendanceRecordHistory.UPDATED, null));
+        }
+    }
+
+    private boolean hasAfternoonLeave(Long childId, LocalDate date) {
+        return leaveRequestRepository.findOverlapping(List.of(childId), date, date).stream()
+                .anyMatch(r -> r.getPart() == LeavePart.AFTERNOON && !r.isNoticeOnly() && r.coversDate(date));
+    }
+
+    /** PCK-04: đã có mặt buổi sáng nhưng trả trước mốc giữa chiều chỉ tính 0,5 ngày; không đổi suất ăn đã ghi. */
+    private void markHalfDayWhenPickedUpBeforeFullDayThreshold(
+            AttendanceRecord attendance,
+            ClassroomInfoResponse cls,
+            LocalTime handoverTime,
+            CurrentUser currentUser,
+            Instant now) {
+        if (attendance.getAbsentPart() == null
+                && earlyPickupRule.beforeFullDay(cls.schoolYearId(), rules.today(), handoverTime)) {
+            attendance.update(attendance.getStatus(), attendance.getMeals(), currentUser.userId(), now);
+            attendance.markAbsentPart(DayPart.AFTERNOON);
+            attendanceRepository.save(attendance);
+            attendanceHistoryRepository.save(
+                    AttendanceRecordHistory.of(attendance, AttendanceRecordHistory.UPDATED, null));
         }
     }
 
@@ -316,15 +446,6 @@ public class PickupServiceImpl implements PickupService {
                         error(
                                 "guardianPosition",
                                 "Người đón không có trong danh sách phụ huynh của hồ sơ trẻ. Hãy gọi điện xác nhận với phụ huynh."));
-            }
-        }
-        if (verification.outcome() == PickupOutcome.HANDED_OVER) {
-            LocalTime time = request.handoverTime();
-            if (time == null) {
-                errors.add(error("handoverTime", "Nhập giờ trả trẻ (HH:mm)."));
-            } else if (time.truncatedTo(ChronoUnit.MINUTES)
-                    .isAfter(LocalTime.now(clock).truncatedTo(ChronoUnit.MINUTES))) {
-                errors.add(error("handoverTime", "Giờ trả trẻ không được sau giờ hiện tại."));
             }
         }
         boolean byPhone = verification != PickupVerification.PHOTO_MATCH;

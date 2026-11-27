@@ -75,8 +75,8 @@ class MealCountConcurrencyIntegrationTest {
         var tx = new TransactionTemplate(manager);
         long countId = tx.execute(s -> {
             var c = MealCount.aggregate(campus, year, date, MealSession.LUNCH, Instant.now());
-            c.addLine(a, 2, 0, 0, 2, 0);
-            c.addLine(b, 2, 0, 0, 2, 0);
+            c.addLine(a, 2, 0, 0, 2);
+            c.addLine(b, 2, 0, 0, 2);
             c.confirm(recorder, StaffRole.PRINCIPAL, Instant.now());
             em.persist(c);
             em.flush();
@@ -116,7 +116,8 @@ class MealCountConcurrencyIntegrationTest {
                             "SELECT normal FROM meal_count_lines WHERE meal_count_id=? AND pending ORDER BY classroom_id",
                             Integer.class,
                             countId))
-                    .containsExactly(1, 1);
+                    // ATT-07: sổ đã xác nhận khóa cứng, điểm danh đổi không tạo dòng chờ xác nhận lại
+                    .isEmpty();
         } finally {
             pool.shutdownNow();
         }

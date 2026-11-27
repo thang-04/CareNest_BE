@@ -12,6 +12,7 @@ import com.carenest.dto.attendance.ClassAttendanceResponse.ChildBrief;
 import com.carenest.dto.attendance.ClassAttendanceResponse.ChildRow;
 import com.carenest.dto.attendance.ClassAttendanceResponse.HealthSummary;
 import com.carenest.dto.attendance.ClassAttendanceResponse.RecordView;
+import com.carenest.dto.attendance.CorrectMealParticipationRequest;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.LeaveRequestDtos.LeaveTag;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
@@ -30,7 +31,6 @@ import com.carenest.repository.attendance.LeaveRequestRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
-import com.carenest.service.attendance.MealSubstituteLookup;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
@@ -93,9 +93,11 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
     private final LeaveRequestRepository leaveRequestRepository;
-    private final List<MealSubstituteLookup> mealSubstituteLookups;
     private final GuardianChildLinkService guardianChildLinkService;
     private final NotificationService notificationService;
+    private final com.carenest.repository.attendance.PickupRecordRepository pickupRecordRepository;
+    private final EarlyPickupRule earlyPickupRule;
+    private final com.carenest.service.attendance.MealChangeGuard mealChangeGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -266,6 +268,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     cls.mealSessions(),
                     cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendanceDay(currentUser, cls, day),
                     rows,
+                    rules.afternoonStart(cls.schoolYearId(), day),
                     rules.latestArrival(cls.schoolYearId(), day));
             log.info("{}|END", logPrefix);
             return sheet;
@@ -298,7 +301,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             // Ngày ngoài năm học của lớp không ghi điểm danh (sau ngày kết thúc chỉ ghi ngày trong năm được mở lại)
             if ((cls.yearStart() != null && date.isBefore(cls.yearStart()))
                     || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
-                throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
+                throw GlobalException.of(ApiCode.ATTENDANCE_DATE_OUT_OF_YEAR);
             }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
             // Ngày khác hôm nay chỉ ghi được khi lớp/ngày đang được mở lại
@@ -323,29 +326,69 @@ public class AttendanceServiceImpl implements AttendanceService {
             boolean reopened = info.unlock() != null;
             Map<Long, AttendanceRecord> existing = recordRepository.findByChildIdInAndDate(seen, date).stream()
                     .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+            // ATT-08 (user chốt 26/11/2026): Cả ngày / Chỉ sáng / Chỉ chiều chỉ chọn khi ngày được mở lại, trẻ Có mặt
+            for (SaveAttendanceRequest.Entry entry : request.entries()) {
+                if (entry.presentPart() != null && (!reopened || entry.status() != AttendanceStatus.PRESENT)) {
+                    throw GlobalException.of(ApiCode.ATTENDANCE_PART_REQUIRES_UNLOCK);
+                }
+            }
             Map<Long, DayPart> absentParts = new HashMap<>();
+            Set<Long> leaveCoversMorning = new HashSet<>();
+            Set<Long> keptFullDayExcused = new HashSet<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 LeaveTag tag = tags.get(entry.childId());
-                if (tag == null) {
+                if (tag == null || tag.noticeOnly()) {
                     continue;
+                }
+                if (tag.part() != LeavePart.AFTERNOON) {
+                    leaveCoversMorning.add(entry.childId());
                 }
                 AttendanceRecord current = existing.get(entry.childId());
                 // Nghỉ sáng trước giờ chốt: GV chỉ đổi công tắc ăn bữa xế (giữ nguyên trạng thái theo đơn)
                 boolean mealOnly =
                         tag.part() == LeavePart.MORNING && current != null && current.getStatus() == entry.status();
-                if (tag.part() == LeavePart.FULL_DAY || (tag.part() == LeavePart.MORNING && !reopened && !mealOnly)) {
+                // Đơn cả ngày (user chốt 26/11/2026): trẻ vẫn đến lớp thì GV ghi Có mặt ngay, kể cả trước giờ chốt;
+                // vẫn không đổi thành vắng không phép
+                boolean fullDayLocked =
+                        tag.part() == LeavePart.FULL_DAY && entry.status() == AttendanceStatus.UNEXCUSED;
+                if (fullDayLocked || (tag.part() == LeavePart.MORNING && !reopened && !mealOnly)) {
                     throw GlobalException.of(ApiCode.LEAVE_ATTENDANCE_LOCKED);
+                }
+                // Nghỉ sáng đã ghép thêm báo nghỉ chiều: cô lưu lại không đổi thì giữ nguyên cả ngày và suất
+                if (tag.part() == LeavePart.MORNING
+                        && current != null
+                        && current.getStatus() == AttendanceStatus.EXCUSED
+                        && current.getAbsentPart() == null
+                        && entry.status() == AttendanceStatus.EXCUSED
+                        && entry.presentPart() == null
+                        && entry.absentPart() == null) {
+                    keptFullDayExcused.add(entry.childId());
+                    continue;
                 }
                 absentParts.put(
                         entry.childId(),
-                        reopened && entry.absentPart() != null
-                                ? entry.absentPart()
-                                : tag.part().dayPart());
+                        entry.presentPart() != null
+                                ? entry.absentPartFromPresent()
+                                : tag.part() == LeavePart.FULL_DAY && entry.status() == AttendanceStatus.PRESENT
+                                        ? null
+                                        : reopened && entry.absentPart() != null
+                                                ? entry.absentPart()
+                                                : tag.part().dayPart());
+            }
+            for (SaveAttendanceRequest.Entry entry : request.entries()) {
+                if (entry.presentPart() != null && !absentParts.containsKey(entry.childId())) {
+                    absentParts.put(entry.childId(), entry.absentPartFromPresent());
+                }
             }
             // ATT-09: Vắng có phép chỉ do đơn nghỉ đặt; GV giữ nguyên được trạng thái đã có, không tự chọn mới
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 AttendanceRecord record = existing.get(entry.childId());
+                LeaveTag excusingTag = tags.get(entry.childId());
+                boolean fullDayLeave =
+                        excusingTag != null && !excusingTag.noticeOnly() && excusingTag.part() == LeavePart.FULL_DAY;
+                // Đơn nghỉ cả ngày còn hiệu lực thì GV đổi lại Vắng có phép được (trẻ ghi Có mặt nhầm)
                 if (entry.status() == AttendanceStatus.EXCUSED
+                        && !fullDayLeave
                         && (record == null || record.getStatus() != AttendanceStatus.EXCUSED)) {
                     throw GlobalException.of(ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
                 }
@@ -355,6 +398,17 @@ public class AttendanceServiceImpl implements AttendanceService {
             Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 LeaveTag tag = tags.get(entry.childId());
+                if (tag != null && tag.noticeOnly()) {
+                    tag = null;
+                }
+                AttendanceRecord current = existing.get(entry.childId());
+                // ATT-08: sau giờ chốt, lựa chọn Có mặt cả ngày / chỉ sáng / chỉ chiều
+                // là sửa chuyên cần. Không được suy lại hay cắt suất đã chốt theo buổi;
+                // bản ghi chưa có trước đó cũng không được tự sinh suất mới.
+                if (keptFullDayExcused.contains(entry.childId()) || (reopened && entry.presentPart() != null)) {
+                    mealsByChild.put(entry.childId(), current == null ? List.of() : current.getMeals());
+                    continue;
+                }
                 mealsByChild.put(
                         entry.childId(),
                         mealsOf(
@@ -364,13 +418,55 @@ public class AttendanceServiceImpl implements AttendanceService {
                                 absentParts.get(entry.childId()),
                                 tag == null || !Boolean.FALSE.equals(tag.eats())));
             }
+            // Một lần mở lại vẫn có thể sửa hồ sơ chuyên cần, nhưng tuyệt đối không
+            // được làm tăng/giảm suất của bữa đã xác nhận hoặc đã khóa ở bếp.
+            // So cả bữa cũ lẫn bữa mới để chặn đúng trường hợp bỏ một suất đã chốt.
+            Set<MealSession> changedMealSessions = new LinkedHashSet<>();
+            for (SaveAttendanceRequest.Entry entry : request.entries()) {
+                List<MealSession> before = existing.containsKey(entry.childId())
+                        ? existing.get(entry.childId()).getMeals()
+                        : List.of();
+                List<MealSession> after = mealsByChild.get(entry.childId());
+                if (!before.equals(after)) {
+                    changedMealSessions.addAll(before);
+                    changedMealSessions.addAll(after);
+                }
+            }
+            ensureMealChangeAllowed(cls, date, changedMealSessions);
             Instant at = rules.now();
             Long unlockId = info.unlock() == null ? null : info.unlock().id();
+            // PCK-04: trẻ không có đơn, đã giao trước mốc tính đủ ngày ⇒ giữ 0,5 ngày khi lưu lại (bữa không đổi)
+            Set<Long> pickedUpEarly = pickedUpBeforeFullDay(cls, date, seen);
             int changed = 0;
+            List<Long> presentDespiteLeave = new ArrayList<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 List<MealSession> meals = mealsByChild.get(entry.childId());
-                DayPart absentPart = absentParts.get(entry.childId());
                 AttendanceRecord record = existing.get(entry.childId());
+                LeaveTag fullDayTag = tags.get(entry.childId());
+                if (entry.status() == AttendanceStatus.PRESENT
+                        && record != null
+                        && record.getStatus() == AttendanceStatus.EXCUSED
+                        && fullDayTag != null
+                        && !fullDayTag.noticeOnly()
+                        && fullDayTag.part() == LeavePart.FULL_DAY
+                        && !wasPresentBefore(record)) {
+                    presentDespiteLeave.add(entry.childId());
+                }
+                DayPart absentPart = absentParts.containsKey(entry.childId())
+                        ? absentParts.get(entry.childId())
+                        : entry.status() == AttendanceStatus.PRESENT
+                                        && record != null
+                                        && record.getAbsentPart() == DayPart.MORNING
+                                        && record.isAbsentPartUnexcused()
+                                ? DayPart.MORNING
+                                : entry.status() == AttendanceStatus.PRESENT && pickedUpEarly.contains(entry.childId())
+                                        ? DayPart.AFTERNOON
+                                        : null;
+                // Vắng sáng không phép khi buổi sáng không có đơn nghỉ che (GV chọn "Chỉ chiều" lúc mở lại)
+                boolean unexcusedMorning = absentPart == DayPart.MORNING
+                        && (entry.presentPart() != null
+                                ? !leaveCoversMorning.contains(entry.childId())
+                                : record != null && record.isAbsentPartUnexcused());
                 String action;
                 if (record == null) {
                     record = recordRepository.save(AttendanceRecord.create(
@@ -384,6 +480,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                             at));
                     action = AttendanceRecordHistory.RECORDED;
                 } else if (record.differsFrom(entry.status(), meals, absentPart)
+                        || record.isAbsentPartUnexcused() != unexcusedMorning
                         || !record.getClassroomId().equals(cls.id())) {
                     record.moveToClass(cls.id(), cls.campusId());
                     record.update(entry.status(), meals, currentUser.userId(), at);
@@ -391,10 +488,16 @@ public class AttendanceServiceImpl implements AttendanceService {
                 } else {
                     continue;
                 }
-                record.markAbsentPart(absentPart);
+                record.markAbsentPart(absentPart, unexcusedMorning);
                 historyRepository.save(AttendanceRecordHistory.of(record, action, unlockId));
                 changed++;
             }
+            // Trẻ có đơn nghỉ cả ngày nhưng GV ghi Có mặt: báo phụ huynh, đơn giữ trong lịch sử
+            if (!presentDespiteLeave.isEmpty()) {
+                notifyGuardiansPresent(presentDespiteLeave, date);
+            }
+            // Mọi thay đổi điểm danh đều cập nhật số của sổ chưa xác nhận; sổ đã xác nhận khóa cứng nên bị bỏ qua
+            // (ATT-07)
             if (changed > 0) {
                 eventPublisher.publishEvent(
                         new AttendanceService.AttendanceChangedEvent(date, cls.campusId(), cls.id()));
@@ -404,6 +507,31 @@ public class AttendanceServiceImpl implements AttendanceService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    // Đã từng ghi Có mặt trong ngày thì phụ huynh đã được báo, đổi qua lại không báo nữa
+    private boolean wasPresentBefore(AttendanceRecord record) {
+        return historyRepository.findByRecordIdOrderByIdAsc(record.getId()).stream()
+                .anyMatch(h -> h.getStatus() == AttendanceStatus.PRESENT);
+    }
+
+    private void notifyGuardiansPresent(List<Long> childIds, LocalDate date) {
+        for (Long childId : childIds) {
+            List<Long> parents = guardianChildLinkService.findLinksOfChild(childId).stream()
+                    .map(com.carenest.dto.child.GuardianLinkResponse::userId)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (!parents.isEmpty()) {
+                notificationService.notifyUsers(
+                        parents,
+                        com.carenest.utils.enums.NotificationType.LEAVE_REQUEST_CHANGED,
+                        "Cô đã ghi con có mặt",
+                        "Con có đơn nghỉ ngày "
+                                + date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                + " nhưng đến lớp, cô đã ghi con có mặt. Đơn nghỉ vẫn được lưu trong lịch sử.",
+                        childId);
+            }
         }
     }
 
@@ -423,8 +551,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             }
             classroomService.lockForUpdate(classId);
             DayInfoResponse info = rules.dayInfo(day, cls, null);
+            LocalTime afternoonStart = rules.afternoonStart(cls.schoolYearId(), day);
             LocalTime latest = rules.latestArrival(cls.schoolYearId(), day);
-            // Trẻ phải thuộc lớp ngày đó; bản ghi do đơn nghỉ gửi trước khi chuyển lớp vẫn mang lớp cũ
+            // Trẻ phải thuộc lớp ngày đó; bản ghi do đơn nghỉ gửi trước khi chuyển lớp vẫn mang lớp cũ.
             boolean inClassToday = enrollmentService.findChildrenInClassroom(classId, day).stream()
                     .anyMatch(c -> c.id().equals(childId));
             AttendanceRecord record = !inClassToday
@@ -432,23 +561,125 @@ public class AttendanceServiceImpl implements AttendanceService {
                     : recordRepository.findByChildIdInAndDate(List.of(childId), day).stream()
                             .findFirst()
                             .orElse(null);
-            // ATT-13: hôm nay từ giờ chốt tới giờ đến muộn nhất; ngoài khung chỉ khi lớp/ngày được mở lại
-            boolean inWindow = day.equals(info.today()) && info.baseLocked() && !rules.isBaseLocked(day, latest);
+            // ATT-03/B2: trường chỉ nhận trẻ trong khung buổi chiều, không phải ngay sau giờ chốt sáng.
+            boolean inWindow = day.equals(info.today())
+                    && info.baseLocked()
+                    && rules.reachedToday(afternoonStart)
+                    && !rules.isBaseLocked(day, latest);
+            boolean morningLeave = record != null && record.getAbsentPart() == DayPart.MORNING;
+            boolean morningUnexcused = record != null
+                    && record.getAbsentPart() == null
+                    && record.getStatus() == AttendanceStatus.UNEXCUSED;
             if (record == null
-                    || record.getAbsentPart() != DayPart.MORNING
+                    || (!morningLeave && !morningUnexcused)
                     || record.getStatus() == AttendanceStatus.PRESENT
                     || !(inWindow || info.unlock() != null)) {
-                throw GlobalException.of(ApiCode.ATTENDANCE_ARRIVAL_NOT_ALLOWED, latest);
+                throw GlobalException.of(ApiCode.ATTENDANCE_ARRIVAL_NOT_ALLOWED, afternoonStart, latest);
             }
             Instant at = rules.now();
             record.moveToClass(cls.id(), cls.campusId());
             record.update(AttendanceStatus.PRESENT, record.getMeals(), currentUser.userId(), at);
+            // B2: vắng sáng không phép nhưng đến chiều giữ suất đã chốt, chỉ đổi chuyên cần thành 0,5 + 0,5.
+            record.markAbsentPart(DayPart.MORNING, morningUnexcused || record.isAbsentPartUnexcused());
             historyRepository.save(AttendanceRecordHistory.of(
                     record,
                     AttendanceRecordHistory.UPDATED,
                     info.unlock() == null ? null : info.unlock().id()));
-            // ATT-07: như lưu điểm danh, sổ báo ăn nghe để xét lại số (sổ không đổi nếu bữa không đổi)
+            // ATT-03/B2: bữa đã chốt giữ nguyên; sổ chưa xác nhận cập nhật số có mặt, sổ đã xác nhận bị bỏ qua (ATT-07)
             eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(day, cls.campusId(), cls.id()));
+            log.info("{}|END", logPrefix);
+            return new SaveAttendanceResponse(at, 1, 1);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public SaveAttendanceResponse correctFullDayPresent(
+            CurrentUser currentUser, Long classId, Long childId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|correctFullDayPresent|userId=" + currentUser.userId() + "|classId=" + classId
+                + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            ClassroomInfoResponse cls = findClass(classId);
+            LocalDate day = date == null ? rules.today() : date;
+            if (!rules.canRecordAttendanceDay(currentUser, cls, day)) {
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            }
+            if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
+                throw GlobalException.of(ApiCode.ATTENDANCE_YEAR_NOT_ACTIVE);
+            }
+            classroomService.lockForUpdate(classId);
+            DayInfoResponse info = rules.dayInfo(day, cls, null);
+            boolean inClassToday = enrollmentService.findChildrenInClassroom(classId, day).stream()
+                    .anyMatch(c -> c.id().equals(childId));
+            AttendanceRecord record = !inClassToday
+                    ? null
+                    : recordRepository.findByChildIdInAndDate(List.of(childId), day).stream()
+                            .findFirst()
+                            .orElse(null);
+            // ATT-03/B2: chỉ sửa lỗi GV ghi nhầm "vắng sáng không phép" khi BGH đã mở lại ngày; đơn nghỉ sáng có phép
+            // của phụ huynh không sửa ở đây
+            if (info.unlock() == null
+                    || record == null
+                    || record.getStatus() != AttendanceStatus.PRESENT
+                    || record.getAbsentPart() != DayPart.MORNING
+                    || !record.isAbsentPartUnexcused()) {
+                throw GlobalException.of(ApiCode.ATTENDANCE_FULL_DAY_FIX_NOT_ALLOWED);
+            }
+            Instant at = rules.now();
+            record.update(AttendanceStatus.PRESENT, record.getMeals(), currentUser.userId(), at);
+            record.markAbsentPart(null);
+            historyRepository.save(AttendanceRecordHistory.of(
+                    record, AttendanceRecordHistory.UPDATED, info.unlock().id()));
+            // Bữa giữ nguyên; sổ chưa xác nhận cập nhật số, sổ đã xác nhận bị bỏ qua (ATT-07)
+            eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(day, cls.campusId(), cls.id()));
+            log.info("{}|END", logPrefix);
+            return new SaveAttendanceResponse(at, 1, 1);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public SaveAttendanceResponse correctMealParticipation(
+            CurrentUser currentUser, Long classId, Long childId, CorrectMealParticipationRequest request) {
+        String logPrefix = LOG_PREFIX + "|correctMealParticipation|userId=" + currentUser.userId() + "|classId="
+                + classId + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            ClassroomInfoResponse cls = findClass(classId);
+            if (!request.date().equals(rules.today())
+                    || !rules.canRecordAttendanceDay(currentUser, cls, request.date())) {
+                throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
+            }
+            DayInfoResponse info = rules.dayInfo(request.date(), cls, null);
+            // ATT-08, ATT-02a: sau giờ chốt, chỉ lớp/ngày PHT đang mở lại mới được sửa suất chưa xác nhận.
+            if (!info.baseLocked() || info.unlock() == null) {
+                throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
+            }
+            classroomService.lockForUpdate(classId);
+            AttendanceRecord record = recordRepository.findByChildIdInAndDate(List.of(childId), request.date()).stream()
+                    .filter(r -> r.getClassroomId().equals(classId))
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_LIST_MISMATCH));
+            if (record.getStatus() != AttendanceStatus.PRESENT
+                    || childService.findChildIdsWithoutMeals(Set.of(childId)).contains(childId)) {
+                throw GlobalException.of(ApiCode.ABSENT_CHILD_NO_MEAL);
+            }
+            List<MealSession> served = record.getAbsentPart() == null
+                    ? cls.mealSessions()
+                    : record.getAbsentPart().other().mealsOf(cls.mealSessions());
+            ensureMealChangeAllowed(cls, request.date(), new LinkedHashSet<>(served));
+            List<MealSession> meals = correctedMeals(request, served);
+            if (record.getMeals().equals(meals)) return new SaveAttendanceResponse(rules.now(), 1, 0);
+            Instant at = rules.now();
+            record.update(AttendanceStatus.PRESENT, meals, currentUser.userId(), at);
+            historyRepository.save(AttendanceRecordHistory.of(record, AttendanceRecordHistory.UPDATED, null));
+            eventPublisher.publishEvent(
+                    new AttendanceService.AttendanceChangedEvent(request.date(), cls.campusId(), cls.id()));
             log.info("{}|END", logPrefix);
             return new SaveAttendanceResponse(at, 1, 1);
         } catch (RuntimeException ex) {
@@ -463,53 +694,79 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|closeMorningLeaves";
         log.info("{}|START", logPrefix);
         try {
-            LocalDate today = rules.today();
-            List<Long> classIds =
-                    rules.isSchoolDay(today) ? recordRepository.findClassroomIdsWithOpenMorningLeave(today) : List.of();
+            LocalDate now = rules.today();
+            List<LocalDate> dates = new ArrayList<>(recordRepository.findPastDatesWithOpenMorningLeave(now));
+            dates.add(now);
             Instant at = rules.now();
             int closed = 0;
-            for (Long classId : classIds) {
-                ClassroomInfoResponse cls = findClass(classId);
-                LocalTime latest = rules.latestArrival(cls.schoolYearId(), today);
-                if (!rules.isLockedAt(today, latest, at)) {
-                    continue;
-                }
-                // Khóa lớp như "Đã đến" rồi mới đọc lại: trẻ vừa được bấm đến không bị ghi vắng cả ngày
-                classroomService.lockForUpdate(classId);
-                List<AttendanceRecord> pending =
-                        recordRepository.findByClassroomIdInAndDate(List.of(classId), today).stream()
-                                .filter(r -> r.getAbsentPart() == DayPart.MORNING
-                                        && r.getStatus() == AttendanceStatus.EXCUSED)
-                                .toList();
-                if (pending.isEmpty()) {
-                    continue;
-                }
-                List<Long> teachers = rules.dayTeacherIds(cls, today);
-                Map<Long, String> names = childService
-                        .findChildBriefs(pending.stream()
-                                .map(AttendanceRecord::getChildId)
-                                .toList())
-                        .entrySet()
-                        .stream()
-                        .collect(Collectors.toMap(
-                                Map.Entry::getKey, e -> e.getValue().fullName()));
-                for (AttendanceRecord r : pending) {
-                    // Sổ báo ăn giữ nguyên (bữa xế đã tính theo công tắc ăn); sai lệch thì BGH mở lại để sửa
-                    r.update(AttendanceStatus.UNEXCUSED, r.getMeals(), r.getRecordedBy(), at);
-                    historyRepository.save(AttendanceRecordHistory.of(r, AttendanceRecordHistory.UPDATED, null));
-                    String body = "Bé " + names.getOrDefault(r.getChildId(), "") + " nghỉ buổi sáng nhưng chưa đến lớp"
-                            + " trước " + latest + ", ghi Vắng cả ngày (sáng có phép, chiều không phép).";
-                    Set<Long> receivers = new LinkedHashSet<>(teachers);
-                    guardianChildLinkService.findLinksOfChild(r.getChildId()).forEach(l -> receivers.add(l.userId()));
-                    if (!receivers.isEmpty()) {
-                        notificationService.notifyUsers(
-                                receivers,
-                                NotificationType.LEAVE_REQUEST_CHANGED,
-                                "Bé chưa đến buổi chiều",
-                                body,
-                                r.getChildId());
+            for (LocalDate today : dates) {
+                List<Long> classIds = rules.isSchoolDay(today)
+                        ? recordRepository.findClassroomIdsWithOpenMorningLeave(today)
+                        : List.of();
+                for (Long classId : classIds) {
+                    ClassroomInfoResponse cls =
+                            classroomService.findClassroomInfo(classId).orElse(null);
+                    if (cls != null && cls.yearStatus() != SchoolYearStatus.ACTIVE) {
+                        continue;
                     }
-                    closed++;
+                    if (cls == null) {
+                        // Lớp đã xóa hoặc không còn: bỏ qua, không làm hỏng việc đóng buổi của các lớp khác
+                        log.warn("{}|classId={}|SKIP|class not found", logPrefix, classId);
+                        continue;
+                    }
+                    LocalTime latest = rules.latestArrival(cls.schoolYearId(), today);
+                    if (!rules.isLockedAt(today, latest, at)) {
+                        continue;
+                    }
+                    // Khóa lớp như "Đã đến" rồi mới đọc lại: trẻ vừa được bấm đến không bị ghi vắng cả ngày
+                    classroomService.lockForUpdate(classId);
+                    List<AttendanceRecord> pending =
+                            recordRepository.findByClassroomIdInAndDate(List.of(classId), today).stream()
+                                    .filter(r -> r.getAbsentPart() == DayPart.MORNING
+                                            && r.getStatus() == AttendanceStatus.EXCUSED)
+                                    .toList();
+                    if (pending.isEmpty()) {
+                        continue;
+                    }
+                    List<Long> teachers = rules.dayTeacherIds(cls, today);
+                    Map<Long, String> names = childService
+                            .findChildBriefs(pending.stream()
+                                    .map(AttendanceRecord::getChildId)
+                                    .toList())
+                            .entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    Map.Entry::getKey, e -> e.getValue().fullName()));
+                    for (AttendanceRecord r : pending) {
+                        // Sổ báo ăn giữ nguyên (bữa xế đã tính theo công tắc ăn); sai lệch thì BGH mở lại để sửa
+                        r.update(AttendanceStatus.UNEXCUSED, r.getMeals(), r.getRecordedBy(), at);
+                        historyRepository.save(AttendanceRecordHistory.of(r, AttendanceRecordHistory.UPDATED, null));
+                        String body =
+                                "Bé " + names.getOrDefault(r.getChildId(), "") + " nghỉ buổi sáng nhưng chưa đến lớp"
+                                        + " trước " + latest + ", ghi Vắng cả ngày (sáng có phép, chiều không phép).";
+                        Set<Long> receivers = new LinkedHashSet<>(teachers);
+                        guardianChildLinkService
+                                .findLinksOfChild(r.getChildId())
+                                .forEach(l -> receivers.add(l.userId()));
+                        if (!receivers.isEmpty()) {
+                            try {
+                                notificationService.notifyUsers(
+                                        receivers,
+                                        NotificationType.LEAVE_REQUEST_CHANGED,
+                                        "Bé chưa đến buổi chiều",
+                                        body,
+                                        r.getChildId());
+                            } catch (RuntimeException notifyEx) {
+                                // Lỗi thông báo không được làm mất việc đóng buổi của cả lớp (job chạy lại mỗi 5 phút)
+                                log.warn(
+                                        "{}|childId={}|NOTIFY_ERROR|type={}",
+                                        logPrefix,
+                                        r.getChildId(),
+                                        notifyEx.getClass().getSimpleName());
+                            }
+                        }
+                        closed++;
+                    }
                 }
             }
             log.info("{}|closed={}|END", logPrefix, closed);
@@ -574,10 +831,13 @@ public class AttendanceServiceImpl implements AttendanceService {
             // CFG-YR-01: chỉ tính ngày trong năm học, khoảng chọn vượt năm thì cắt về ngày bắt đầu / kết thúc năm
             LocalDate start = yearRef == null ? range[0] : clampStart(range[0], yearRef);
             LocalDate end = yearRef == null ? range[1] : clampEnd(range[1], yearRef);
+            // Phân công hôm nay đọc một lần cho mọi lớp (như getClasses), không tra lại phân công từng lớp
+            Set<Long> activeClassIds = leader ? rules.activeTeacherClassIds(currentUser) : Set.of();
             List<ClassSummary> parts = yearClasses.stream()
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
                     .filter(c -> ageGroupId == null || ageGroupId.equals(c.ageGroupId()))
-                    .filter(c -> leader ? rules.canView(currentUser, c) : ledGroups.contains(c.ageGroupId()))
+                    .filter(c ->
+                            leader ? rules.canView(currentUser, c, activeClassIds) : ledGroups.contains(c.ageGroupId()))
                     .map(c -> summarize(c, start, end))
                     .toList();
             // Cột bữa của tổng hợp nhiều lớp = các bữa có ở ít nhất một lớp
@@ -646,9 +906,19 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|tallyMeals|campusId=" + campusId + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            List<ClassMealTally> tallies = classroomService.findYearClassrooms(schoolYearId).stream()
+            List<ClassroomInfoResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> c.campusId().equals(campusId))
-                    .map(c -> tally(c, date))
+                    .toList();
+            Map<Long, Set<Long>> childIdsByClass = enrollmentService.findChildIdsInClassrooms(
+                    classes.stream().map(ClassroomInfoResponse::id).toList(), date);
+            Set<Long> childIds =
+                    childIdsByClass.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+            Map<Long, AttendanceRecord> records = childIds.isEmpty()
+                    ? Map.of()
+                    : recordRepository.findByChildIdInAndDate(childIds, date).stream()
+                            .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+            List<ClassMealTally> tallies = classes.stream()
+                    .map(c -> tally(c, childIdsByClass.getOrDefault(c.id(), Set.of()), records))
                     .toList();
             log.info("{}|END", logPrefix);
             return tallies;
@@ -659,29 +929,18 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     // NUT-01, ATT-02: suất = trẻ có mặt và có bật tham gia bữa đó; trẻ chưa điểm danh không tính suất.
-    private ClassMealTally tally(ClassroomInfoResponse cls, LocalDate date) {
-        List<Long> childIds = enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
-                .map(ClassChildResponse::id)
-                .toList();
+    private ClassMealTally tally(
+            ClassroomInfoResponse cls, Set<Long> childIds, Map<Long, AttendanceRecord> recordsByChild) {
         // Trẻ của lớp ngày đó: bản ghi đơn nghỉ gửi trước khi chuyển lớp tính cho lớp mới (một trẻ một bản ghi / ngày)
-        Map<Long, AttendanceRecord> records = recordRepository.findByChildIdInAndDate(childIds, date).stream()
-                .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+        Map<Long, AttendanceRecord> records = recordsByChild.entrySet().stream()
+                .filter(entry -> childIds.contains(entry.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         int present = 0;
         int absent = 0;
         Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
-        Map<MealSession, Integer> substitutes = new EnumMap<>(MealSession.class);
-        cls.mealSessions().forEach(s -> {
-            meals.put(s, 0);
-            substitutes.put(s, 0);
-        });
+        cls.mealSessions().forEach(s -> meals.put(s, 0));
         // Bữa đã ghi là lịch sử thực tế, không loại khi cấu hình nhóm tuổi thay đổi.
-        records.values()
-                .forEach(r -> r.getMeals().forEach(s -> {
-                    meals.putIfAbsent(s, 0);
-                    substitutes.putIfAbsent(s, 0);
-                }));
-        // Trẻ có dị ứng trong hồ sơ ăn suất thay thế (Cần chốt 04/11/2026: map theo hồ sơ, cô chỉ điểm danh)
-        Set<Long> allergic = childService.findChildIdsWithAllergies(records.keySet());
+        records.values().forEach(r -> r.getMeals().forEach(s -> meals.putIfAbsent(s, 0)));
         for (AttendanceRecord r : records.values()) {
             if (r.getStatus().isAbsent()) {
                 absent++;
@@ -689,13 +948,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 present++;
             }
             // ATT-13: trẻ nghỉ sáng vẫn có bữa xế theo công tắc ăn dù chưa đến; trẻ vắng cả ngày không có bữa
-            boolean substitute = allergic.contains(r.getChildId());
-            r.getMeals().stream().filter(meals::containsKey).forEach(s -> {
-                meals.merge(s, 1, Integer::sum);
-                if (substitute) {
-                    substitutes.merge(s, 1, Integer::sum);
-                }
-            });
+            r.getMeals().stream().filter(meals::containsKey).forEach(s -> meals.merge(s, 1, Integer::sum));
         }
         return new ClassMealTally(
                 cls.id(),
@@ -705,8 +958,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 present,
                 absent,
                 childIds.size() - present - absent,
-                meals,
-                substitutes);
+                meals);
     }
 
     // ATT-04: đơn nghỉ còn hiệu lực của trẻ trong ngày (đơn đã hủy từ ngày này trở đi thì không tính);
@@ -718,7 +970,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalTime cutoff = rules.cutoff(cls.schoolYearId(), date);
         return leaveRequestRepository.findOverlapping(childIds, date, date).stream()
                 .filter(r -> r.coversDate(date))
-                .filter(r -> !rules.isLockedAt(date, cutoff, r.getCreatedAt()))
+                .filter(r -> r.isNoticeOnly() || !rules.isLockedAt(date, cutoff, r.getCreatedAt()))
                 .collect(Collectors.toMap(
                         LeaveRequest::getChildId,
                         r -> new LeaveTag(
@@ -728,8 +980,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                                 r.getReason(),
                                 r.getPart(),
                                 r.getEats(),
-                                LeaveRequestServiceImpl.eatsMeals(r.getPart(), cls)),
-                        (a, b) -> a));
+                                LeaveRequestServiceImpl.eatsMeals(r.getPart(), cls),
+                                r.isNoticeOnly()),
+                        // Trùng ngày (nghỉ sáng + báo nghỉ chiều): nhãn của đơn có hiệu lực điểm danh được ưu tiên
+                        (a, b) -> a.noticeOnly() ? b : a));
     }
 
     private ClassroomInfoResponse findClass(Long classId) {
@@ -750,6 +1004,36 @@ public class AttendanceServiceImpl implements AttendanceService {
      * ATT-02: Có mặt mặc định ăn đủ bữa, GV được tắt; trẻ vắng không có suất. CHD-13: trẻ không báo ăn luôn không có
      * bữa. ATT-13: trẻ nghỉ nửa buổi chỉ có bữa của buổi còn lại, mặc định theo công tắc ăn của đơn.
      */
+    private Set<Long> pickedUpBeforeFullDay(ClassroomInfoResponse cls, LocalDate date, Collection<Long> childIds) {
+        if (childIds.isEmpty()) {
+            return Set.of();
+        }
+        java.util.function.Predicate<java.time.LocalTime> early =
+                earlyPickupRule.beforeFullDayOn(cls.schoolYearId(), date);
+        return pickupRecordRepository.findByChildIdInAndDateOrderByRecordedAtAscIdAsc(childIds, date).stream()
+                .filter(p -> p.getOutcome() == com.carenest.utils.enums.PickupOutcome.HANDED_OVER
+                        && p.getHandedOverAt() != null
+                        && early.test(java.time.LocalTime.ofInstant(p.getHandedOverAt(), rules.zone())))
+                .map(com.carenest.entity.attendance.PickupRecord::getChildId)
+                .collect(Collectors.toSet());
+    }
+
+    // ATT-02a: sửa nhầm theo từng bữa; chỉ nhận bữa trẻ còn được ăn trong ngày
+    private static List<MealSession> correctedMeals(CorrectMealParticipationRequest request, List<MealSession> served) {
+        if (request.meals() == null) {
+            return request.participates() ? served : List.of();
+        }
+        List<MealSession> taken = request.meals().entrySet().stream()
+                .filter(e -> e.getKey() != null && Boolean.TRUE.equals(e.getValue()))
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+        if (!served.containsAll(taken)) {
+            throw GlobalException.of(ApiCode.MEAL_SESSION_NOT_SERVED);
+        }
+        return taken;
+    }
+
     private static List<MealSession> mealsOf(
             SaveAttendanceRequest.Entry entry,
             List<MealSession> classSessions,
@@ -792,6 +1076,11 @@ public class AttendanceServiceImpl implements AttendanceService {
             throw GlobalException.of(ApiCode.ABSENT_CHILD_NO_MEAL);
         }
         return taken;
+    }
+
+    /** ATT-02a, ATT-07: bữa đã xác nhận hoặc phiếu bếp đã ký thì khóa cứng, không đổi suất. */
+    private void ensureMealChangeAllowed(ClassroomInfoResponse cls, LocalDate date, Set<MealSession> sessions) {
+        mealChangeGuard.ensureChangeAllowed(cls.campusId(), cls.schoolYearId(), date, sessions);
     }
 
     private static String mealLabel(MealSession session) {
@@ -863,11 +1152,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             perChild.put(ch.id(), new int[7]);
             childMeals.put(ch.id(), new EnumMap<>(MealSession.class));
         });
-        // Trẻ có khai dị ứng trong hồ sơ ăn suất thay thế (giống Sổ báo ăn, Cần chốt 04/11/2026); ngày đã có sổ báo ăn
-        // thì lấy số thay thế của sổ (sau giờ chốt sổ không tự đổi theo hồ sơ, HT/PHT chỉnh tay — Cần chốt 10/11/2026)
         Set<Long> allergic = childService.findChildIdsWithAllergies(childIds);
-        Map<LocalDate, Integer> bookSubstitutes = new HashMap<>();
-        mealSubstituteLookups.forEach(l -> bookSubstitutes.putAll(l.substitutes(cls.campusId(), cls.id(), from, to)));
         List<DayRow> days = new ArrayList<>();
         Set<MealSession> summarySessions = new java.util.TreeSet<>(cls.mealSessions());
         records.values().forEach(r -> summarySessions.addAll(r.getMeals()));
@@ -899,9 +1184,6 @@ public class AttendanceServiceImpl implements AttendanceService {
                 List<MealSession> eaten = r.getMeals();
                 if (!eaten.isEmpty()) {
                     counts[4]++;
-                    if (allergic.contains(ch.id())) {
-                        counts[5]++;
-                    }
                     child[3]++;
                     eaten.forEach(s -> {
                         meals.merge(s, 1, Integer::sum);
@@ -909,18 +1191,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                     });
                 }
             }
-            int substitute = bookSubstitutes.getOrDefault(date, counts[5]);
             days.add(new DayRow(
-                    date,
-                    counts[0],
-                    counts[1],
-                    counts[2],
-                    counts[3],
-                    counts[4],
-                    substitute,
-                    meals,
-                    counts[6],
-                    counts[7]));
+                    date, counts[0], counts[1], counts[2], counts[3], counts[4], 0, meals, counts[6], counts[7]));
         }
         var history = childClassHistoryService.statuses(
                 cls.id(), childIds, rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());
@@ -1052,7 +1324,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                 r.getRecordedBy(),
                 names.get(r.getRecordedBy()),
                 r.getRecordedAt(),
-                r.getAbsentPart());
+                r.getAbsentPart(),
+                r.isAbsentPartUnexcused());
     }
 
     @Override
@@ -1080,17 +1353,31 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|findClassDays|classes=" + classroomIds.size();
         log.info("{}|START", logPrefix);
         try {
-            List<ClassChildDay> result = classroomIds.isEmpty()
-                    ? List.of()
-                    : recordRepository.findByClassroomIdInAndDateBetween(classroomIds, from, to).stream()
-                            .map(r -> new ClassChildDay(
-                                    r.getClassroomId(),
+            // Bản ghi thuộc lớp theo thời gian trẻ ở lớp, không theo lớp lưu sẵn trên bản ghi (đơn nghỉ tạo bản ghi từ
+            // trước): bỏ ngày sau khi trẻ nghỉ / chuyển đi, tính cho lớp mới ngày trẻ đã chuyển đến
+            List<ClassChildDay> result = new ArrayList<>();
+            Map<Long, List<EnrollmentService.ClassStay>> staysByClass = new LinkedHashMap<>();
+            Set<Long> childIds = new HashSet<>();
+            for (Long classroomId : classroomIds) {
+                List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(classroomId, from, to);
+                staysByClass.put(classroomId, stays);
+                stays.forEach(stay -> childIds.add(stay.childId()));
+            }
+            if (!childIds.isEmpty()) {
+                for (AttendanceRecord r : recordRepository.findByChildIdInAndDateBetween(childIds, from, to)) {
+                    staysByClass.forEach((classroomId, stays) -> {
+                        if (inClass(stays, r.getChildId(), r.getDate())) {
+                            result.add(new ClassChildDay(
+                                    classroomId,
                                     r.getChildId(),
                                     r.getDate(),
                                     r.getStatus(),
                                     r.getMeals() == null ? List.of() : List.copyOf(r.getMeals()),
-                                    r.getAbsentPart()))
-                            .toList();
+                                    r.getAbsentPart()));
+                        }
+                    });
+                }
+            }
             log.info("{}|count={}|END", logPrefix, result.size());
             return result;
         } catch (RuntimeException ex) {

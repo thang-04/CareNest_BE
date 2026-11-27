@@ -30,9 +30,20 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
 
     boolean existsByCodeIgnoreCase(String code);
 
-    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+    // So tên đầy đủ không phân biệt hoa thường, coi mọi dấu gạch (-, –, —) là một và bỏ khoảng trắng quanh dấu gạch
+    @Query(
+            value = "select count(*) > 0 from campuses c where c.id <> :id and "
+                    + "lower(regexp_replace(c.name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))"
+                    + " = lower(regexp_replace(:name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))",
+            nativeQuery = true)
+    boolean existsByNameFoldedAndIdNot(@Param("name") String name, @Param("id") Long id);
 
-    boolean existsByNameIgnoreCase(String name);
+    @Query(
+            value = "select count(*) > 0 from campuses c where "
+                    + "lower(regexp_replace(c.name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))"
+                    + " = lower(regexp_replace(:name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))",
+            nativeQuery = true)
+    boolean existsByNameFolded(@Param("name") String name);
 
     // Số liệu chỉ đọc cho màn điểm trường: trẻ đang học (enrollment hiệu lực hôm nay) theo lớp của năm học
     @Query(value = """
@@ -246,8 +257,9 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
 
     @Query(
             value = "select count(*) > 0 from school_year_campus_members m"
-                    + " where m.school_year_id = :yearId and m.campus_id <> :campusId"
-                    + " and lower(m.name) = lower(:name)",
+                    + " where m.school_year_id = :yearId and m.campus_id <> :campusId and "
+                    + "lower(regexp_replace(m.name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))"
+                    + " = lower(regexp_replace(:name, '\\s*[-‐‑‒–—−]\\s*', '-', 'g'))",
             nativeQuery = true)
     boolean existsNameInYear(
             @Param("yearId") Long yearId, @Param("campusId") Long campusId, @Param("name") String name);
@@ -308,6 +320,35 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
                     + " order by s.staff_role, u.full_name",
             nativeQuery = true)
     List<StaffName> findStaffNamesEver(@Param("campusId") Long campusId);
+
+    /** Nhân sự ngoài PHT còn phân công từ :today ở điểm trường; yearId null = mọi năm chưa kết thúc. */
+    @Query(
+            value = "select distinct u.full_name from staff_assignments s join user_accounts u on u.id = s.user_id"
+                    + " left join classrooms c on c.id = s.classroom_id"
+                    + " where coalesce(s.campus_id, c.campus_id) = :campusId and s.staff_role <> 'VICE_PRINCIPAL'"
+                    + " and (s.valid_to is null or s.valid_to >= :today)"
+                    + " and exists (select 1 from school_years y where y.status <> 'CLOSED'"
+                    + " and (cast(:yearId as bigint) is null or y.id = :yearId)"
+                    + " and (s.school_year_id = y.id or (s.school_year_id is null and s.valid_from <= y.end_date"
+                    + " and (s.valid_to is null or s.valid_to >= y.start_date)))) order by 1",
+            nativeQuery = true)
+    List<String> findCurrentStaffNames(
+            @Param("campusId") Long campusId, @Param("yearId") Long yearId, @Param("today") java.time.LocalDate today);
+
+    /** Trẻ chờ xếp lớp ở điểm trường. */
+    @Query(
+            value = "select full_name from children where status = 'PENDING_PLACEMENT'"
+                    + " and intake_campus_id = :campusId order by full_name",
+            nativeQuery = true)
+    List<String> findWaitingChildNames(@Param("campusId") Long campusId);
+
+    /** Trẻ đã tiếp nhận cho năm học chưa kết thúc ở điểm trường, chưa hủy / chưa kích hoạt. */
+    @Query(
+            value = "select ch.full_name from planned_admissions p join children ch on ch.id = p.child_id"
+                    + " join school_years y on y.id = p.school_year_id where p.campus_id = :campusId"
+                    + " and y.status <> 'CLOSED' and p.status in ('PENDING', 'PLACED') order by ch.full_name",
+            nativeQuery = true)
+    List<String> findOpenAdmissionNames(@Param("campusId") Long campusId);
 
     /** Trẻ đã tiếp nhận cho năm học ở điểm trường, chưa hủy / chưa kích hoạt (họ tên chỉ để báo lý do chặn). */
     @Query(

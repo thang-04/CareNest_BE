@@ -37,6 +37,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -74,6 +75,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final RoomRepository roomRepository;
     private final NotificationService notificationService;
     private final SchoolConfigAccess schoolConfigAccess;
+    private final List<com.carenest.service.organization.SchoolYearEndUsage> yearEndUsages;
 
     @Override
     @Transactional(readOnly = true)
@@ -195,6 +197,9 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 if (request.endDate().isBefore(LocalDate.now(clock))) {
                     throw GlobalException.of(ApiCode.SCHOOL_YEAR_END_BEFORE_TODAY);
                 }
+                if (request.endDate().isBefore(schoolYear.getEndDate())) {
+                    checkNothingAfter(schoolYearId, request.endDate());
+                }
             }
             // Đổi ngày năm học: học kỳ đã đặt phải còn nằm trong năm
             if (schoolYear.getSemester1Start() != null) {
@@ -309,6 +314,37 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // Rút ngắn năm đang chạy không được bỏ rơi đơn nghỉ, lịch vào lớp đã đặt sau ngày kết thúc mới
+    private void checkNothingAfter(Long schoolYearId, LocalDate newEnd) {
+        List<String> usages = yearEndUsages.stream()
+                .flatMap(usage -> usage.usageAfter(schoolYearId, newEnd).stream())
+                .toList();
+        if (!usages.isEmpty()) {
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_END_HAS_DATA, DMY.format(newEnd), String.join(", ", usages));
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<SchoolYearDetailResponse> findYearContaining(LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findYearContaining|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            java.util.Optional<SchoolYearDetailResponse> year =
+                    schoolYearRepository.findContaining(date).map(this::toDetail);
+            log.info("{}|END", logPrefix);
+            return year;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void lockForUpdate(Long schoolYearId) {
+        schoolYearRepository.findForUpdate(schoolYearId);
     }
 
     @Override
@@ -616,6 +652,20 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             return !schoolHolidayRepository.existsByStartDateLessThanEqualAndEndDateGreaterThanEqual(date, date);
         }
         return holidaysOfTransaction().stream().noneMatch(h -> h.covers(date));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> holidayName(LocalDate date) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return schoolHolidayRepository
+                    .findFirstByStartDateLessThanEqualAndEndDateGreaterThanEqual(date, date)
+                    .map(SchoolHoliday::getName);
+        }
+        return holidaysOfTransaction().stream()
+                .filter(h -> h.covers(date))
+                .map(SchoolHoliday::getName)
+                .findFirst();
     }
 
     // Báo cáo gọi isSchoolDay hàng nghìn lần: đọc ngày nghỉ một lần cho mỗi transaction (luôn là dữ liệu đã commit lúc

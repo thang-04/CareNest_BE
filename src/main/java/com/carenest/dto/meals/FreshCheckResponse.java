@@ -1,5 +1,6 @@
 package com.carenest.dto.meals;
 
+import com.carenest.utils.enums.FreshCheckHandling;
 import com.carenest.utils.enums.FreshCheckLock;
 import com.carenest.utils.enums.FreshCheckResult;
 import com.carenest.utils.enums.FreshCheckSource;
@@ -42,7 +43,7 @@ public record FreshCheckResponse(
     /**
      * {@code available} false ⇒ chưa ghi được, lý do ở {@code unavailableReason}. Chưa ghi ({@code recorded} false) thì
      * {@code lines} là danh sách cần nhận với {@code result} null; đã ghi thì là kết quả đã lưu (lượng cần nhận lúc ghi).
-     * {@code forecastId} chỉ có ở lần 1.
+     * {@code forecastId} chỉ có ở lần 1. {@code handlingRequired}: lần 2 theo bản cân đối, dòng lệch phải chọn cách xử lý.
      */
     public record FreshCheckRound(
             int round,
@@ -55,7 +56,8 @@ public record FreshCheckResponse(
             Long checkedBy,
             String note,
             List<FreshCheckLine> lines,
-            SupplierInfo supplier) {}
+            SupplierInfo supplier,
+            boolean handlingRequired) {}
 
     /** Nhà cung cấp; không có số CCCD (dữ liệu cá nhân). Cấp lần kiểm chỉ còn cho dữ liệu cũ. */
     public record SupplierInfo(Long id, String name, String phone, String address, String deliveryPerson) {}
@@ -67,5 +69,8 @@ public record FreshCheckResponse(
             BigDecimal receivedQty,
             FreshCheckResult result,
             String note,
-            SupplierInfo supplier) {}
+            SupplierInfo supplier,
+            BigDecimal round1Qty,
+            FreshCheckHandling handlingAction,
+            BigDecimal handlingQty) {}
 }

@@ -197,13 +197,18 @@ class LeavePreviewIntegrationTest {
         LeavePreviewResponse preview = service.previewLeaveRequest(parent, preview(TODAY, THU, null, null));
         assertThat(preview.skippedDates()).containsExactly(TODAY);
         assertThat(preview.appliedDates()).containsExactly(THU);
+        // Đơn chỉ gồm hôm nay sau giờ chốt: chỉ buổi chiều gửi được dạng thông báo (ATT-05b, chốt 25/11/2026)
         expectCode(
                 () -> service.previewLeaveRequest(parent, preview(TODAY, TODAY, LeavePart.MORNING, true)),
-                ApiCode.LEAVE_NO_SCHOOL_DAY);
+                ApiCode.LEAVE_AFTER_CUTOFF);
+        LeavePreviewResponse noticeOnly =
+                service.previewLeaveRequest(parent, preview(TODAY, TODAY, LeavePart.AFTERNOON, true));
+        assertThat(noticeOnly.appliedDates()).isEmpty();
+        assertThat(noticeOnly.skippedDates()).containsExactly(TODAY);
     }
 
     @Test
-    @DisplayName("Xem trước báo đúng mã lỗi như gửi đơn (4019, 4020, 4021, 4022, 4025, 4026, 4028, 4031)")
+    @DisplayName("Xem trước báo đúng mã lỗi như gửi đơn (4019, 4020, 4021, 4022, 4025, 4026, 4028)")
     void previewRejectsLikeCreate() {
         expectCode(
                 () -> service.previewLeaveRequest(parent, preview(FRI, THU, null, null)),
@@ -220,10 +225,10 @@ class LeavePreviewIntegrationTest {
         expectCode(
                 () -> service.previewLeaveRequest(parent, preview(THU, TODAY.plusDays(40), null, null)),
                 ApiCode.LEAVE_TOO_LONG);
-        // P9: nửa buổi nhiều ngày
-        expectCode(
-                () -> service.previewLeaveRequest(parent, preview(THU, FRI, LeavePart.MORNING, true)),
-                ApiCode.LEAVE_HALF_DAY_SINGLE_DAY);
+        // P9: nửa buổi nhiều ngày được nhận, áp từng ngày học
+        assertThat(service.previewLeaveRequest(parent, preview(THU, FRI, LeavePart.MORNING, true))
+                        .appliedDates())
+                .containsExactly(THU, FRI);
         long noClass = child("Không lớp");
         guardian(parent, noClass);
         expectCode(

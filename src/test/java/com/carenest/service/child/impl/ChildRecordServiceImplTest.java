@@ -148,7 +148,7 @@ class ChildRecordServiceImplTest {
             org.mockito.Mockito.mock(com.carenest.repository.child.PlannedAdmissionRepository.class),
             List.of(
                     new com.carenest.service.attendance.impl.AttendanceChildDayUsageCheck(
-                            attendanceRecordRepository, dailyHealthEntryRepository, pickupRecordRepository),
+                            attendanceRecordRepository, dailyHealthEntryRepository, pickupRecordRepository, CLOCK),
                     new com.carenest.service.observation.impl.AssessmentChildDayUsageCheck(
                             dailyObservationRepository, dailyActivityResultRepository)),
             schoolYearService,
@@ -1022,6 +1022,35 @@ class ChildRecordServiceImplTest {
                 declarationInput("REPORTED", List.of(), "NONE_REPORTED", null), "Phụ huynh bổ sung");
 
         assertThatThrownBy(() -> service.checkDeclaration(teacher, CHILD_ID, request))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+        verify(declarationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CHD-11: GV lưu khai báo trực tiếp ⇒ 3013 nếu trẻ trong lớp, 3001 nếu trẻ ngoài phạm vi")
+    void teacherSaveDeclarationChecksScopeBeforeApprovalNotice() {
+        CurrentUser teacher = new CurrentUser(
+                20L,
+                "kc-20",
+                "gv.lop",
+                "GV",
+                null,
+                java.util.Set.of(CareNestRole.TEACHER),
+                java.util.Set.of(com.carenest.utils.enums.Permission.CHILD_PROFILE_EDIT));
+        var request = new com.carenest.dto.child.HealthDeclarationRequest(
+                declarationInput("REPORTED", List.of(), "NONE_REPORTED", null), "Phụ huynh bổ sung");
+
+        assertThatThrownBy(() -> service.saveDeclaration(teacher, CHILD_ID, request))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL));
+
+        org.mockito.Mockito.doThrow(GlobalException.of(ApiCode.CHILD_ACCESS_DENIED))
+                .when(childAccessPolicy)
+                .checkCanViewChild(teacher, CHILD_ID);
+        assertThatThrownBy(() -> service.saveDeclaration(teacher, CHILD_ID, request))
                 .isInstanceOfSatisfying(
                         GlobalException.class,
                         ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));

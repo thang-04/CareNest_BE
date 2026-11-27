@@ -26,7 +26,7 @@ public class NutritionCatalogMapper {
         return allergens.stream().distinct().sorted().map(this::toResponse).toList();
     }
 
-    public FoodResponse toResponse(Food food, FoodPriceBook.PriceAt price) {
+    public FoodResponse toResponse(Food food, FoodPriceBook.PriceAt price, boolean unitsLocked) {
         return new FoodResponse(
                 food.getId(),
                 food.getCode(),
@@ -58,7 +58,8 @@ public class NutritionCatalogMapper {
                 toAllergenResponses(food.getAllergens()),
                 price.supplierId(),
                 price.supplierName(),
-                price.contractStatus());
+                price.contractStatus(),
+                unitsLocked);
     }
 
     public AgeGroupMealConfigResponse toResponse(
@@ -93,7 +94,8 @@ public class NutritionCatalogMapper {
                 config.getLunchKcalPctMax(),
                 config.getAfternoonKcalPctMin(),
                 config.getAfternoonKcalPctMax(),
-                config.getDailyKcalNeed(),
+                config.getDailyKcalMin(),
+                config.getDailyKcalMax(),
                 config.getCalciumMin(),
                 config.getCalciumMax(),
                 config.getPhosphorusMin(),
@@ -122,7 +124,8 @@ public class NutritionCatalogMapper {
                         config.getAppliedLipidPct(),
                         config.getAppliedGlucidPct()),
                 config.getNormBasis(),
-                config.getEffectiveFrom().isAfter(today));
+                config.getEffectiveFrom().isAfter(today),
+                config.getBudgetTolerancePct());
     }
 
     public SupplierResponse toResponse(Supplier supplier, boolean showIdCard, LocalDate today) {

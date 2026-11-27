@@ -228,7 +228,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                     throw GlobalException.of(ApiCode.CLASS_COMMENT_TOO_LONG);
                 }
                 String lower = text.toLowerCase(java.util.Locale.ROOT);
-                if (DIAGNOSTIC_TERMS.stream().anyMatch(lower::contains)) {
+                if (DiagnosticTerms.containsAny(text)) {
                     throw GlobalException.of(ApiCode.CLASS_COMMENT_DIAGNOSTIC_TERM);
                 }
                 ClassDailyComment comment = classCommentRepository
@@ -241,9 +241,16 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             Map<Long, DailyObservation> existing = observationsOf(present.keySet(), date);
             Map<Long, List<MealSession>> mealChoices = mealChoices(classId, date);
             Instant at = rules.now();
+            int skipped = 0;
             for (SaveDailyGeneralRequest.Entry e : request.entries()) {
                 ClassChildResponse child = requirePresent(present, e.childId());
                 checkText(e.comment(), e.healthNote(), e.behaviorNote());
+                // Cô khác đã ghi trẻ này sau lúc trang được mở: dòng "chỉ tạo mới" không đè (OBS-17, OBS-33)
+                DailyObservation already = existing.get(e.childId());
+                if (Boolean.TRUE.equals(e.createOnly()) && already != null && already.getNap() != null) {
+                    skipped++;
+                    continue;
+                }
                 DailyObservation o = existing.computeIfAbsent(
                         e.childId(),
                         id -> DailyObservation.start(id, classId, cls.campusId(), date, currentUser.userId(), at));
@@ -267,8 +274,8 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                 log.debug("{}|childId={}|saved", logPrefix, child.id());
             }
             observationRepository.flush();
-            SaveDailyResponse response = new SaveDailyResponse(request.entries().size(), at);
-            log.info("{}|saved={}|END", logPrefix, response.saved());
+            SaveDailyResponse response = new SaveDailyResponse(request.entries().size() - skipped, at);
+            log.info("{}|saved={}|skipped={}|END", logPrefix, response.saved(), skipped);
             return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -432,11 +439,12 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, date);
         Map<Long, AttendanceStatus> statuses = statusesOf(children, date);
         Map<Long, ClassChildResponse> present = new LinkedHashMap<>();
-        Set<Long> current = enrollmentService.findChildrenInClassroom(classId, rules.today()).stream()
-                .map(ClassChildResponse::id)
-                .collect(Collectors.toSet());
+        // Trẻ đã chuyển lớp vẫn được lớp cũ đánh giá những ngày trẻ còn học ở lớp đó (cô dạy trẻ lúc ấy, user chốt
+        // 26/11/2026); trẻ đã nghỉ học hẳn thì không ghi thêm
+        Set<Long> left = enrollmentService.findChildIdsLeftSchool(
+                children.stream().map(ClassChildResponse::id).toList(), rules.today());
         children.stream()
-                .filter(c -> current.contains(c.id()) && statuses.get(c.id()) == AttendanceStatus.PRESENT)
+                .filter(c -> !left.contains(c.id()) && statuses.get(c.id()) == AttendanceStatus.PRESENT)
                 .forEach(c -> present.put(c.id(), c));
         return present;
     }
@@ -473,13 +481,13 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
     }
 
     private static void checkText(String... texts) {
-        for (String text : texts) {
-            String lower = text == null ? "" : text.toLowerCase();
-            List<String> found =
-                    DIAGNOSTIC_TERMS.stream().filter(lower::contains).toList();
-            if (!found.isEmpty()) {
-                throw GlobalException.of(ApiCode.ASSESSMENT_DIAGNOSTIC_TERM, String.join("\", \"", found));
-            }
+        List<String> found = DiagnosticTerms.matches(String.join(
+                " ",
+                java.util.Arrays.stream(texts)
+                        .filter(java.util.Objects::nonNull)
+                        .toList()));
+        if (!found.isEmpty()) {
+            throw GlobalException.of(ApiCode.ASSESSMENT_DIAGNOSTIC_TERM, String.join("\", \"", found));
         }
     }
 

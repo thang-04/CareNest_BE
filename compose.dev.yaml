@@ -76,6 +76,8 @@ services:
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       KEYCLOAK_ACTIONS_EMAIL_ENABLED: "true"
       CARENEST_CORS_ALLOWED_ORIGINS: https://dev.carenest.edu.vn
+      # Dev Mode giả lập ngày giờ cho tester (header X-Dev-Now); production không bật
+      CARENEST_DEV_CLOCK_ENABLED: "true"
       # Gateway chỉ bật sau khi bootstrap.mjs --apply --enable trên Keycloak dev (docs/system/DEPLOYMENT.md)
       CARENEST_AUTH_ENABLED: ${CARENEST_AUTH_ENABLED:-false}
       CARENEST_AUTH_ENCRYPTION_KEY: ${CARENEST_AUTH_ENCRYPTION_KEY:?CARENEST_AUTH_ENCRYPTION_KEY is required, see deploy/dev.env.example}
@@ -111,7 +113,6 @@ services:
       CARENEST_AI_ENABLED: ${CARENEST_AI_ENABLED:-true}
       # AI (ADR-0007): tên biến khớp application.yml carenest.ai; AI_ENABLED=false hoặc thiếu model/key ⇒ phương án không AI (AI-03)
       AI_ENABLED: ${AI_ENABLED:-false}
-      AI_MENU_WEEKLY_DEADLINE: ${AI_MENU_WEEKLY_DEADLINE:-30s}
       AI_GEMINI_MODEL: ${AI_GEMINI_MODEL:-}
       AI_GEMINI_API_KEY: ${AI_GEMINI_API_KEY:-}
       AI_GEMINI_REASONING_EFFORT: ${AI_GEMINI_REASONING_EFFORT:-}

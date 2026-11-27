@@ -6,11 +6,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.carenest.dto.account.MyAccountResponse;
+import com.carenest.dto.account.MyAssignmentResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
@@ -19,6 +21,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,8 +52,33 @@ class AccountServiceImplTest {
     private final GuardianChildLinkService guardianChildLinkService = mock(GuardianChildLinkService.class);
     private final UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
     private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
+    private final SchoolStructureService schoolStructureService = mock(SchoolStructureService.class);
     private final AccountServiceImpl accountService = new AccountServiceImpl(
-            staffAssignmentService, guardianChildLinkService, enrollmentService, userAccountRepository, FIXED_CLOCK);
+            staffAssignmentService,
+            guardianChildLinkService,
+            enrollmentService,
+            userAccountRepository,
+            schoolStructureService,
+            FIXED_CLOCK);
+
+    @Test
+    @DisplayName("AUTH-22: phân công gắn điểm trường trả kèm tên điểm trường, phân công lớp thì để trống")
+    void assignmentsCarryCampusName() {
+        CurrentUser staff = user(CareNestRole.KITCHEN_STAFF, CareNestRole.TEACHER);
+        given(staffAssignmentService.findActiveAssignments(staff.userId(), TODAY))
+                .willReturn(List.of(
+                        new StaffAssignmentSummaryResponse(
+                                StaffRole.KITCHEN_STAFF, 1L, null, null, TODAY.minusMonths(1), null),
+                        new StaffAssignmentSummaryResponse(
+                                StaffRole.TEACHER, null, 11L, null, TODAY.minusMonths(1), null)));
+        given(schoolStructureService.findCampusNames(Set.of(1L))).willReturn(Map.of(1L, "Điểm trường A"));
+
+        MyAccountResponse response = accountService.getMyAccount(staff);
+
+        assertThat(response.assignments())
+                .extracting(MyAssignmentResponse::campusName)
+                .containsExactly("Điểm trường A", null);
+    }
 
     @Test
     void teamLeaderAssignmentCountsForTeacherToken() {
@@ -62,7 +90,7 @@ class AccountServiceImplTest {
         MyAccountResponse response = accountService.getMyAccount(teacher);
 
         assertThat(response.assignments())
-                .extracting(StaffAssignmentSummaryResponse::ageGroupId)
+                .extracting(MyAssignmentResponse::ageGroupId)
                 .containsExactly(3L);
     }
 
@@ -80,7 +108,7 @@ class AccountServiceImplTest {
         MyAccountResponse response = accountService.getMyAccount(teacher);
 
         assertThat(response.assignments())
-                .extracting(StaffAssignmentSummaryResponse::staffRole)
+                .extracting(MyAssignmentResponse::staffRole)
                 .containsExactly(StaffRole.TEACHER);
         assertThat(response.childIds()).isEmpty();
         verifyNoInteractions(guardianChildLinkService);

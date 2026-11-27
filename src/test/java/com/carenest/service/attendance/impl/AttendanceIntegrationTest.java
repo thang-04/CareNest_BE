@@ -172,6 +172,16 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Ghi điểm danh ngày ngoài năm học báo đúng lý do, không báo \"chỉ hôm nay\"")
+    void dateOutsideSchoolYearHasOwnError() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.saveClassAttendance(
+                        teacherA, classA, request(LocalDate.of(2027, 7, 1), present(child1))))
+                .isInstanceOf(com.carenest.exception.GlobalException.class)
+                .extracting(ex -> ((com.carenest.exception.GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ATTENDANCE_DATE_OUT_OF_YEAR);
+    }
+
+    @Test
     @DisplayName("Năm đã kết thúc: PHT năm đó xem lại lớp điểm trường mình, dạy thay chỉ xem đúng ngày mình dạy")
     void closedYearReadsFollowThatYearsAssignments() {
         // PHT điểm trường A năm 2025-2026, năm nay không còn phân công
@@ -322,11 +332,12 @@ class AttendanceIntegrationTest {
         expectError(
                 () -> service.saveClassAttendance(teacherB, oldClass, request(TODAY, present(child1))),
                 ApiCode.FORBIDDEN);
-        // Lớp hết phân công vẫn hiện để đọc đúng đợt cũ; hôm nay và quyền ghi không được mở rộng.
+        // Lớp hết phân công vẫn hiện để đọc đúng đợt cũ; hôm nay không được mở rộng.
         expectError(() -> service.getClassAttendance(teacherB, classA, TODAY), ApiCode.FORBIDDEN);
+        // User chốt 26/11/2026: ngày nằm trong đợt được phân công thì ghi được
         assertThat(service.getClassAttendance(teacherB, classA, LocalDate.of(2026, 9, 15))
                         .canRecord())
-                .isFalse();
+                .isTrue();
         assertThat(service.getClasses(teacherB, null))
                 .extracting(AttendanceClassResponse::id)
                 .containsExactlyInAnyOrder(classA, classB);
@@ -470,7 +481,6 @@ class AttendanceIntegrationTest {
         AttendanceService.ClassMealTally after = tallyOf(classA);
         assertThat(after.present()).isEqualTo(before.present() + 1);
         assertThat(after.meals()).isEqualTo(before.meals());
-        assertThat(after.substitutes()).isEqualTo(before.substitutes());
 
         var sheet = service.getClassAttendance(teacherA, classA, TODAY).children();
         assertThat(sheet)
@@ -632,7 +642,7 @@ class AttendanceIntegrationTest {
 
     @Test
     void summaryCountsDaysChildrenAndMeals() {
-        // Trẻ có khai dị ứng: lượt ăn tính là suất thay thế (giống Sổ báo ăn)
+        // NUT-02 (25/11/2026): trẻ có khai dị ứng vẫn là suất thường, tổng hợp không có suất thay thế
         jdbc.update(
                 "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
                         + " self_history_state, family_history_state, tb_contact_state, declared_by)"
@@ -650,7 +660,7 @@ class AttendanceIntegrationTest {
         assertThat(today.present()).isEqualTo(1);
         assertThat(today.unexcused()).isEqualTo(1);
         assertThat(today.mealTotal()).isEqualTo(1);
-        assertThat(today.substitute()).isEqualTo(1);
+        assertThat(today.substitute()).isZero();
         assertThat(today.meals()).containsEntry(MealSession.LUNCH, 1);
         assertThat(summary.days().getFirst().missing()).isEqualTo(2);
 

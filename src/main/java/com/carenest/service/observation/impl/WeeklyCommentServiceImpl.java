@@ -57,6 +57,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -143,17 +144,43 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             ClassroomInfoResponse cls = editableClass(currentUser, request.classId());
             LocalDate week = weekOf(cls, request.weekStart());
             checkWritable(cls, week);
-            rules.lockClassForUpdate(cls.id());
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<Long> targets = request.childId() == null ? List.copyOf(roster.keySet()) : List.of(request.childId());
-            Set<Long> current = currentChildren(cls);
-            targets = targets.stream().filter(current::contains).toList();
-            if (request.childId() != null) checkCurrentChild(cls, request.childId());
+            Set<Long> writable = writableChildren(roster.keySet());
+            targets = targets.stream().filter(writable::contains).toList();
+            if (request.childId() != null) {
+                checkInClass(roster, request.childId());
+                checkStillAtSchool(request.childId());
+            }
             targets.forEach(id -> checkInClass(roster, id));
             Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
-            Map<Long, WeeklyComment> existing = comments(cls.id(), roster.keySet(), week);
             boolean ai = request.ai() && aiGenerator.isEnabled();
             boolean aiFailed = false;
+            // Gọi AI trước khi khóa lớp: AI chậm không chặn cô điểm danh, đánh giá của lớp
+            Map<Long, String> aiTexts = new HashMap<>();
+            if (ai) {
+                Set<Long> keep = new HashSet<>(commentRepository.findChildIdsKeptByDrafting(
+                        cls.id(), week, request.overwrite(), request.childId() == null));
+                for (Long childId : targets) {
+                    ChildWeek candidate = data.get(childId);
+                    if (keep.contains(childId) || candidate.facts().presentDays() <= 0) {
+                        continue;
+                    }
+                    try {
+                        aiTexts.put(childId, aiGenerator.write(candidate.facts()));
+                    } catch (RuntimeException ex) {
+                        log.warn(
+                                "{}|aiFallback|childId={}|type={}",
+                                logPrefix,
+                                childId,
+                                ex.getClass().getSimpleName());
+                        aiFailed = true;
+                    }
+                }
+            }
+            rules.lockClassForUpdate(cls.id());
+            checkWritable(cls, week);
+            Map<Long, WeeklyComment> existing = comments(cls.id(), roster.keySet(), week);
             for (Long childId : targets) {
                 WeeklyComment comment = existing.get(childId);
                 checkSameClass(cls, comment);
@@ -170,21 +197,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 if (hasText && !request.overwrite()) {
                     continue;
                 }
-                String text = null;
-                WeeklyCommentSource source = WeeklyCommentSource.TEMPLATE;
-                if (ai && week1.facts().presentDays() > 0) {
-                    try {
-                        text = aiGenerator.write(week1.facts());
-                        source = WeeklyCommentSource.AI;
-                    } catch (RuntimeException ex) {
-                        log.warn(
-                                "{}|aiFallback|childId={}|type={}",
-                                logPrefix,
-                                childId,
-                                ex.getClass().getSimpleName());
-                        aiFailed = true;
-                    }
-                }
+                String text = aiTexts.get(childId);
+                WeeklyCommentSource source = text == null ? WeeklyCommentSource.TEMPLATE : WeeklyCommentSource.AI;
                 if (text == null) {
                     text = templateGenerator.write(week1.facts());
                 }
@@ -224,7 +238,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             String text = checkContent(request.content(), false);
             rules.lockClassForUpdate(cls.id());
             checkInClass(roster(cls, week), request.childId());
-            checkCurrentChild(cls, request.childId());
+            checkStillAtSchool(request.childId());
             WeeklyComment comment = editableComment(currentUser, cls, request.childId(), week);
             comment.write(text, comment.getDraftSource(), currentUser.userId(), rules.now());
             // Cô sửa bản nháp tức là đã xem (nháp AI được "Gửi tất cả")
@@ -250,7 +264,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             LocalDate week = weekOf(cls, request.weekStart());
             rules.lockClassForUpdate(cls.id());
             checkInClass(roster(cls, week), request.childId());
-            checkCurrentChild(cls, request.childId());
+            checkStillAtSchool(request.childId());
             // Chỉ ghi dấu đã xem, không mở lại bản đã gửi
             commentRepository
                     .findByClassroomIdAndChildIdAndWeekStart(cls.id(), request.childId(), week)
@@ -282,10 +296,10 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             rules.lockClassForUpdate(cls.id());
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<WeeklyComment> toSend = new ArrayList<>();
-            Set<Long> current = currentChildren(cls);
+            Set<Long> writable = writableChildren(roster.keySet());
             if (request.childId() != null) {
                 checkInClass(roster, request.childId());
-                checkCurrentChild(cls, request.childId());
+                checkStillAtSchool(request.childId());
                 WeeklyComment comment = editableComment(currentUser, cls, request.childId(), week);
                 String text = request.content() == null ? comment.getContent() : request.content();
                 comment.write(checkContent(text, true), comment.getDraftSource(), currentUser.userId(), rules.now());
@@ -293,7 +307,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 toSend.add(comment);
             } else {
                 comments(cls.id(), roster.keySet(), week).values().stream()
-                        .filter(c -> current.contains(c.getChildId()))
+                        .filter(c -> writable.contains(c.getChildId()))
                         .filter(c -> !c.isSent() && cls.id().equals(c.getClassroomId()))
                         .filter(c -> !c.getContent().isBlank())
                         .forEach(toSend::add);
@@ -335,6 +349,12 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             // AUTH-04: phụ huynh chỉ xem trẻ đã liên kết với tài khoản mình
             if (!currentUser.hasRole(CareNestRole.PARENT)
                     || !guardianChildLinkService.isGuardianOf(currentUser.userId(), childId)) {
+                throw GlobalException.of(ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
+            }
+            // CHD-04 (user chốt 26/11/2026): trẻ đã thôi học hoặc ra trường thì phụ huynh mất quyền xem ngay
+            if (!enrollmentService
+                    .findChildIdsLeftSchool(java.util.Set.of(childId), LocalDate.now(clock))
+                    .isEmpty()) {
                 throw GlobalException.of(ApiCode.WEEKLY_COMMENT_PARENT_FORBIDDEN);
             }
             List<WeeklyComment> sent =
@@ -796,12 +816,9 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             throw GlobalException.of(ApiCode.EVALUATION_CONTENT_TOO_LONG, CONTENT_MAX);
         }
         String lower = text.toLowerCase(Locale.ROOT);
-        DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream()
-                .filter(lower::contains)
-                .findFirst()
-                .ifPresent(term -> {
-                    throw GlobalException.of(ApiCode.EVALUATION_DIAGNOSTIC_TERM, term);
-                });
+        DiagnosticTerms.matches(text).stream().findFirst().ifPresent(term -> {
+            throw GlobalException.of(ApiCode.EVALUATION_DIAGNOSTIC_TERM, term);
+        });
         return text;
     }
 
@@ -829,8 +846,16 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 .collect(Collectors.toSet());
     }
 
-    private void checkCurrentChild(ClassroomInfoResponse cls, Long childId) {
-        if (!currentChildren(cls).contains(childId)) {
+    // Trẻ chuyển lớp: lớp cũ vẫn viết, gửi được các tuần trẻ học ở lớp mình (checkInClass theo tuần). Nghỉ học hẳn thì
+    // chỉ xem (Cần chốt 27/11/2026)
+    private Set<Long> writableChildren(Set<Long> childIds) {
+        Set<Long> writable = new HashSet<>(childIds);
+        writable.removeAll(enrollmentService.findChildIdsLeftSchool(childIds, rules.today()));
+        return writable;
+    }
+
+    private void checkStillAtSchool(Long childId) {
+        if (writableChildren(Set.of(childId)).isEmpty()) {
             throw GlobalException.of(ApiCode.WEEKLY_COMMENT_CHILD_NOT_IN_CLASS);
         }
     }
@@ -848,12 +873,16 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         WeekOption range = weekRange(cls, week);
         LocalDate from = range.from();
         LocalDate to = min(range.to(), rules.today());
-        int schoolDays = 0;
+        // Số ngày học tính theo thời gian trẻ ở lớp (trẻ vào lớp thứ Tư không bị ghi "đi học 2/5 ngày")
+        List<LocalDate> schoolDayList = new ArrayList<>();
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             if (rules.isSchoolDay(d)) {
-                schoolDays++;
+                schoolDayList.add(d);
             }
         }
+        Map<Long, List<EnrollmentService.ClassStay>> stays =
+                enrollmentService.findStaysInClassroom(cls.id(), from, to).stream()
+                        .collect(Collectors.groupingBy(EnrollmentService.ClassStay::childId));
         Map<Long, EvaluationSources.ChildData> loaded = sources.load(cls, childIds, from, to, false);
         Set<Long> ticketed = childIds.isEmpty()
                 ? Set.of()
@@ -884,6 +913,10 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             int present = d == null ? 0 : d.presentDays();
             int flags = d == null ? 0 : d.flagCount();
             boolean ticket = ticketed.contains(childId);
+            List<EnrollmentService.ClassStay> childStays = stays.getOrDefault(childId, List.of());
+            int schoolDays = (int) schoolDayList.stream()
+                    .filter(day -> childStays.stream().anyMatch(stay -> stay.covers(day)))
+                    .count();
             WeeklyCommentDraftGenerator.WeekFacts facts = new WeeklyCommentDraftGenerator.WeekFacts(
                     present,
                     schoolDays,
@@ -895,7 +928,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                     met,
                     unmet,
                     flags,
-                    ticket);
+                    ticket,
+                    d == null ? 0 : d.halfDays());
             out.put(
                     childId,
                     new ChildWeek(
@@ -919,7 +953,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         Map<Long, ClassChildResponse> roster = roster(cls, week);
         Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
         Map<Long, WeeklyComment> comments = comments(cls.id(), roster.keySet(), week);
-        Set<Long> current = currentChildren(cls);
+        Set<Long> writable = writableChildren(roster.keySet());
         Set<Long> reopened = comments.isEmpty()
                 ? Set.of()
                 : revisionRepository
@@ -959,7 +993,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                             c == null ? null : c.getUpdatedAt(),
                             c != null && !sent && reopened.contains(c.getId()),
                             w.data(),
-                            !current.contains(child.id()),
+                            !writable.contains(child.id()),
                             history.get(child.id()),
                             c == null || c.isAiReviewed());
                 })

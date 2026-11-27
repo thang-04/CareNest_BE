@@ -55,6 +55,8 @@ class SchoolYearServiceImplTest {
             mock(com.carenest.service.organization.SchoolDayUsageCheck.class);
     private final com.carenest.repository.organization.SchoolHolidayRepository holidayRepository =
             mock(com.carenest.repository.organization.SchoolHolidayRepository.class);
+    private final com.carenest.service.organization.SchoolYearEndUsage yearEndUsage =
+            mock(com.carenest.service.organization.SchoolYearEndUsage.class);
     private final SchoolYearServiceImpl service = new SchoolYearServiceImpl(
             schoolYearRepository,
             classroomRepository,
@@ -73,7 +75,8 @@ class SchoolYearServiceImplTest {
             new SchoolConfigAccess(
                     staffAssignmentService,
                     mock(com.carenest.security.authorization.CampusAccessPolicy.class),
-                    FIXED_CLOCK));
+                    FIXED_CLOCK),
+            List.of(yearEndUsage));
 
     @BeforeEach
     void principalHasActiveAssignment() {
@@ -164,6 +167,20 @@ class SchoolYearServiceImplTest {
 
         expectError(
                 () -> service.updateSchoolYear(PRINCIPAL, 5L, request("2028-2029", "2028-09-01")), ApiCode.CONFLICT);
+    }
+
+    @Test
+    void activeYearCannotBeShortenedPastScheduledData() {
+        given(schoolYearRepository.findById(1L))
+                .willReturn(Optional.of(year(1L, "2026-2027", SchoolYearStatus.ACTIVE, "2026-09-01")));
+        given(yearEndUsage.usageAfter(1L, LocalDate.of(2027, 3, 31))).willReturn(Optional.of("2 đơn nghỉ"));
+
+        expectError(
+                () -> service.updateSchoolYear(
+                        PRINCIPAL,
+                        1L,
+                        new SchoolYearRequest("2026-2027", LocalDate.of(2026, 9, 1), LocalDate.of(2027, 3, 31))),
+                ApiCode.CONFLICT);
     }
 
     @Test

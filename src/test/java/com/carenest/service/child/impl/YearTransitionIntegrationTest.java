@@ -532,6 +532,9 @@ class YearTransitionIntegrationTest {
         assertThat(board.classes().getFirst().children())
                 .extracting(PlacementBoardResponse.ChildPlacement::programCompleted)
                 .containsExactly(true, null);
+        assertThat(board.classes().getFirst().children())
+                .extracting(PlacementBoardResponse.ChildPlacement::yearEndConfirmed)
+                .containsExactly(true, false);
 
         AutoPlaceResponse auto = service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null));
         assertThat(auto.graduated()).isEqualTo(1);
@@ -554,6 +557,49 @@ class YearTransitionIntegrationTest {
         assertThat(auto.unplaced())
                 .extracting(AutoPlaceResponse.Unplaced::count)
                 .containsExactly(2);
+    }
+
+    @Test
+    @DisplayName("Trẻ nghỉ học hẳn trước năm mới chỉ được chọn Nghỉ học; nghỉ sau ngày bắt đầu năm mới vẫn xếp được")
+    void childLeavingBeforeNewYearCanOnlyBePlacedAsLeave() {
+        // Lịch nghỉ trước ngày bắt đầu năm mới (05/09/2027)
+        jdbc.update(
+                "UPDATE children SET scheduled_leave_on = '2027-08-15', scheduled_leave_reason = 'Chuyển nhà' WHERE id = ?",
+                child1);
+        entityManager.clear();
+
+        assertThatThrownBy(() -> service.savePlacements(
+                        principal,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(new SavePlacementsRequest.Item(child1, PlacementAction.STAY, newClass3)))))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.PLACEMENT_CHILD_LEAVING);
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(new SavePlacementsRequest.Item(child1, PlacementAction.LEAVE, null))));
+
+        // Tự động xếp lớp không đưa trẻ này lên lớp mới
+        jdbc.update("DELETE FROM class_placements WHERE child_id = ?", child1);
+        service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null));
+        assertThat(jdbc.queryForObject(
+                        "SELECT action FROM class_placements WHERE child_id = ? AND school_year_id = ?",
+                        String.class,
+                        child1,
+                        newYear))
+                .isEqualTo("LEAVE");
+
+        // Nghỉ sau ngày bắt đầu năm mới: vẫn học một thời gian nên xếp được
+        jdbc.update("UPDATE children SET scheduled_leave_on = '2027-10-15' WHERE id = ?", child1);
+        entityManager.clear();
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(new SavePlacementsRequest.Item(child1, PlacementAction.STAY, newClass3))));
     }
 
     @Test
@@ -639,6 +685,44 @@ class YearTransitionIntegrationTest {
                 ApiCode.CONFLICT);
         expectError(() -> service.autoPlace(principal, laterYear, new AutoPlaceRequest(null, null)), ApiCode.CONFLICT);
         assertThat(service.getPlacements(principal, newYear).editable()).isTrue();
+    }
+
+    @Test
+    void placementOpensFromSecondSemesterEndOfActiveYear() {
+        // CFG-YR-03: chưa đặt học kỳ ⇒ mốc là ngày kết thúc năm đang hoạt động (02/09/2027, sau hôm nay 30/08/2027)
+        jdbc.update("UPDATE school_years SET end_date = '2027-09-02' WHERE id = ?", oldYear);
+
+        PlacementBoardResponse closed = service.getPlacements(principal, newYear);
+        assertThat(closed.editable()).isFalse();
+        assertThat(closed.placementOpenFrom()).isEqualTo(LocalDate.of(2027, 9, 2));
+        SavePlacementsRequest leave =
+                new SavePlacementsRequest(List.of(new SavePlacementsRequest.Item(child1, PlacementAction.LEAVE, null)));
+        assertThatThrownBy(() -> service.savePlacements(principal, newYear, leave))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.PLACEMENT_NOT_OPEN);
+        assertThatThrownBy(() -> service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.PLACEMENT_NOT_OPEN);
+
+        // Có ngày kết thúc HK II (25/05/2027) ⇒ mở từ ngày đó
+        jdbc.update(
+                "UPDATE school_years SET semester1_start = '2026-09-01', semester1_end = '2027-01-15', "
+                        + "semester2_start = '2027-01-18', semester2_end = '2027-05-25' WHERE id = ?",
+                oldYear);
+        entityManager.clear();
+        PlacementBoardResponse open = service.getPlacements(principal, newYear);
+        assertThat(open.editable()).isTrue();
+        assertThat(open.placementOpenFrom()).isEqualTo(LocalDate.of(2027, 5, 25));
+        service.savePlacements(principal, newYear, leave);
+        assertThat(service.getPlacements(principal, newYear)
+                        .classes()
+                        .getFirst()
+                        .children()
+                        .getFirst()
+                        .placement())
+                .isNotNull();
     }
 
     @Test

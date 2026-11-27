@@ -169,13 +169,11 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
 
     @Override
     public boolean replacedByNewerWebSession(String rejectedRefreshToken, Instant loginAt) {
-        // Refresh token đến từ cookie đã niêm phong AES-GCM nên payload là bản Keycloak cấp; chỉ đọc sub/sid, không xác
-        // thực lại
-        Map<String, Object> claims = unverifiedClaims(rejectedRefreshToken);
-        if (!(claims.get("sub") instanceof String userId) || !(claims.get("sid") instanceof String sessionId))
-            return false;
+        var ref = sessionOf(rejectedRefreshToken).orElse(null);
+        if (ref == null) return false;
+        String sessionId = ref.sessionId();
         try {
-            return webSessions(userId).stream()
+            return webSessions(ref.keycloakUserId()).stream()
                     .anyMatch(session -> !session.id().equals(sessionId)
                             && session.start() != null
                             && session.start() >= loginAt.toEpochMilli());
@@ -200,6 +198,16 @@ public final class KeycloakAuthGatewayClient implements AuthGatewayClient {
                         && session.clients() != null
                         && session.clients().containsValue(web.clientId()))
                 .toList();
+    }
+
+    @Override
+    public java.util.Optional<SessionRef> sessionOf(String refreshToken) {
+        // Refresh token đến từ cookie đã niêm phong AES-GCM nên payload là bản Keycloak cấp; chỉ đọc sub/sid, không xác
+        // thực lại
+        Map<String, Object> claims = unverifiedClaims(refreshToken);
+        if (!(claims.get("sub") instanceof String userId) || !(claims.get("sid") instanceof String sessionId))
+            return java.util.Optional.empty();
+        return java.util.Optional.of(new SessionRef(userId, sessionId));
     }
 
     private static Map<String, Object> unverifiedClaims(String jwt) {

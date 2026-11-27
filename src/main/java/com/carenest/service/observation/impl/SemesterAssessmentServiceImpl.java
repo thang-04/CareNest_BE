@@ -5,6 +5,7 @@ import com.carenest.dto.observation.ThemeEvaluationDtos;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.observation.SemesterAssessment;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.observation.EvaluationRevisionRepository;
 import com.carenest.repository.observation.SemesterAssessmentRepository;
 import com.carenest.repository.observation.ThemeEvaluationRepository;
 import com.carenest.security.CurrentUser;
@@ -32,6 +33,7 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 public class SemesterAssessmentServiceImpl implements SemesterAssessmentService {
     private static final String LOG_PREFIX = "[SemesterAssessmentServiceImpl]";
+    private static final String CONFIRMED = "CONFIRMED";
     private final ObservationDayRules rules;
     private final SemesterAssessmentRepository repository;
     private final ThemeEvaluationRepository themes;
@@ -42,6 +44,8 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private final ObjectMapper mapper;
     private final ThemeEvaluationService themeEvaluationService;
     private final EduPlanCalendarQueryService calendar;
+    private final ClassThemeGoals classThemeGoals;
+    private final EvaluationRevisionRepository revisionRepository;
     private final EvaluationDeadlineService evaluationDeadlineService;
     private final EvaluationNotifier evaluationNotifier;
 
@@ -90,6 +94,36 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Response revision(CurrentUser user, Long classId, int semester) {
+        String logPrefix = LOG_PREFIX + "|revision|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        try {
+            var saved =
+                    repository.findByClassroomIdAndSemester(classId, semester).orElse(null);
+            if (saved == null || !canRevise(user, visible(user, classId), saved)) {
+                throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
+            }
+            var response = build(user, classId, semester, saved, true);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private boolean canRevise(CurrentUser user, ClassroomInfoResponse cls, SemesterAssessment saved) {
+        return saved.getConfirmedAt() != null
+                && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
+                && rules.canRecordPeriod(user, cls)
+                && rules.isHomeroom(user, cls)
+                && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                && evaluationDeadlineService.isWritable(
+                        cls, EvaluationLockKind.SEMESTER, String.valueOf(saved.getSemester()));
+    }
+
     private ClassroomInfoResponse visible(CurrentUser user, Long id) {
         var cls = rules.findClass(id);
         // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem (chỉ xem) bảng học kỳ các lớp nhóm tuổi mình
@@ -109,8 +143,20 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         if (confirm && !rules.isHomeroom(user, cls)) throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         rules.lockClassForUpdate(cls.id());
-        var board = build(user, cls.id(), req.semester(), null);
-        if (board.status().equals("CONFIRMED")) throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
+        var current = build(user, cls.id(), req.semester(), null);
+        // Bản đã xác nhận chỉ đổi được bằng cách xác nhận lại (còn hạn hoặc đang mở lại), không lưu nháp
+        boolean revising = current.status().equals("CONFIRMED");
+        if (revising && !confirm) throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
+        var board = revising
+                ? build(
+                        user,
+                        cls.id(),
+                        req.semester(),
+                        repository
+                                .findByClassroomIdAndSemester(cls.id(), req.semester())
+                                .orElseThrow(),
+                        true)
+                : current;
         // OBS-06 (Cần chốt 18/11/2026): quá hạn 5 ngày học sau ngày kết thúc học kỳ thì khóa, trừ khi BGH đang mở lại
         evaluationDeadlineService.checkWritable(cls, EvaluationLockKind.SEMESTER, String.valueOf(req.semester()));
         if (rules.today().isBefore(board.startDate())) throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_STARTED);
@@ -126,23 +172,38 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                         req.semester(),
                         board.startDate(),
                         board.endDate()));
+        DiagnosticTerms.requireClean(req.note());
+        if (revising) {
+            revisionRepository.save(com.carenest.entity.observation.EvaluationRevision.of(
+                    com.carenest.entity.observation.EvaluationRevision.SEMESTER,
+                    entity.getId(),
+                    entity.getSnapshot(),
+                    user.userId(),
+                    rules.now()));
+        }
         entity.save(req.note() == null ? null : req.note().trim());
         if (confirm) {
-            var snapshot = build(user, cls.id(), req.semester(), entity);
+            var snapshot = build(user, cls.id(), req.semester(), entity, revising);
             entity.confirm(mapper.writeValueAsString(snapshot), user.userId(), rules.now());
         }
         repository.saveAndFlush(entity);
         // Cần chốt 17/11/2026: xác nhận đánh giá học kỳ ⇒ báo phụ huynh từng trẻ (mẫu "Đánh giá mới của bé")
-        if (confirm) board.rows().forEach(c -> evaluationNotifier.childEvaluationConfirmed(c.childId()));
+        if (confirm) {
+            for (var c : board.rows()) evaluationNotifier.childEvaluationConfirmed(c.childId());
+        }
         return build(user, cls.id(), req.semester(), entity);
     }
 
-    private static boolean incomplete(Response b) {
+    /**
+     * OBS-25: ô không có kết quả (trẻ vào lớp sau các chủ đề của kỳ) là "chưa có dữ liệu", không chặn xác nhận; chỉ chặn
+     * khi bảng trống hoặc cả bảng chưa có kết quả nào (user chốt 26/11/2026).
+     */
+    static boolean incomplete(Response b) {
         return b.rows().isEmpty()
                 || b.domains().isEmpty()
                 || b.rows().stream()
-                        .anyMatch(c ->
-                                c.domains().isEmpty() || c.domains().stream().anyMatch(d -> d.met() == null));
+                        .noneMatch(c -> c.domains().stream()
+                                .anyMatch(d -> d.goals().stream().anyMatch(g -> g.met() != null)));
     }
 
     private void requireReadPeriod(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
@@ -151,34 +212,40 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     }
 
     private Response build(CurrentUser user, Long classId, int semester, SemesterAssessment given) {
+        return build(user, classId, semester, given, false);
+    }
+
+    private Response build(CurrentUser user, Long classId, int semester, SemesterAssessment given, boolean revise) {
         var cls = visible(user, classId);
         if (semester != 1 && semester != 2)
             throw GlobalException.of(ApiCode.SEMESTER_DATE_REQUIRED, "Học kỳ I hoặc II");
         var saved = given != null
                 ? given
                 : repository.findByClassroomIdAndSemester(classId, semester).orElse(null);
-        if (saved != null && saved.getConfirmedAt() != null) {
+        if (saved != null && saved.getConfirmedAt() != null && !revise) {
             var b = mapper.readValue(saved.getSnapshot(), Response.class);
             requireReadPeriod(user, cls, b.startDate(), b.endDate());
             String signer =
                     accounts.findFullNames(List.of(saved.getConfirmedBy())).get(saved.getConfirmedBy());
             return new Response(
-                    b.classId(),
-                    b.className(),
-                    b.schoolYearId(),
-                    b.yearName(),
-                    b.semester(),
-                    b.startDate(),
-                    b.endDate(),
-                    "CONFIRMED",
-                    saved.getNote(),
-                    b.domains(),
-                    labelRows(b.rows(), cls),
-                    false,
-                    false,
-                    saved.getConfirmedAt(),
-                    signer,
-                    signersOn(classId, b.endDate()));
+                            b.classId(),
+                            b.className(),
+                            b.schoolYearId(),
+                            b.yearName(),
+                            b.semester(),
+                            b.startDate(),
+                            b.endDate(),
+                            "CONFIRMED",
+                            saved.getNote(),
+                            b.domains(),
+                            labelRows(b.rows(), cls),
+                            false,
+                            false,
+                            CONFIRMED,
+                            saved.getConfirmedAt(),
+                            signer,
+                            signersOn(classId, b.endDate()))
+                    .withCanRevise(canRevise(user, cls, saved));
         }
         var year = years.getSchoolYear(user, cls.schoolYearId());
         LocalDate from = semester == 1 ? year.semester1Start() : year.semester2Start();
@@ -187,15 +254,20 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
             throw GlobalException.of(ApiCode.SEMESTER_DATE_REQUIRED, "ngày học kỳ trong Cấu hình thời gian");
         requireReadPeriod(user, cls, from, end);
         LocalDate to = end.isAfter(rules.today()) ? rules.today() : end;
+        // Chủ đề thuộc học kỳ theo ngày kết thúc; chủ đề kết thúc trong khoảng nghỉ giữa hai kỳ thuộc học kỳ I, sau học
+        // kỳ II đến hết năm thuộc học kỳ II để không chủ đề nào rơi khỏi cả hai kỳ (user chốt 26/11/2026)
+        LocalDate[] themeRange = themeRange(semester, year.startDate(), year.endDate(), year.semester2Start());
+        LocalDate themeFrom = themeRange[0];
+        LocalDate themeTo = themeRange[1];
         Set<Long> selected = new HashSet<>();
         if (cls.ageGroupId() != null)
             // Lịch chủ đề theo lớp (lịch lớp đã duyệt, chưa có thì lịch tổ) như bảng đánh giá chủ đề
             for (var t : calendar.findApprovedThemes(classId)) {
                 // OBS-25 (Cần chốt 10/11/2026): chủ đề thuộc học kỳ = ngày kết thúc chủ đề nằm trong học kỳ
                 if (t.endDate() != null
-                        && !t.endDate().isBefore(from)
-                        && !t.endDate().isAfter(end))
-                    themes.findThemeGoals(t.themeId()).forEach(g -> selected.add(g.getLineage()));
+                        && !t.endDate().isBefore(themeFrom)
+                        && !t.endDate().isAfter(themeTo))
+                    classThemeGoals.of(classId, t.themeId()).forEach(g -> selected.add(g.getLineage()));
             }
         var children = to.isBefore(from)
                 ? List.<com.carenest.dto.child.ClassChildResponse>of()
@@ -203,9 +275,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 // childThemeResults tổng hợp theo lịch sử học, tránh xuất hiện đồng thời ở hai lớp sau chuyển lớp.
                 : enrollment.findChildrenInClassroom(classId, to);
         // OBS-25 (Cần chốt 10/11/2026): MT học kỳ lấy từ kết quả cuối các chủ đề đã xong trong kỳ (≥50% chủ đề Đạt)
-        Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results = new HashMap<>();
-        children.forEach(
-                c -> results.put(c.id(), themeEvaluationService.childThemeResults(classId, c.id(), from, end)));
+        Map<Long, Map<Long, ThemeEvaluationService.ThemeGoalResult>> results =
+                new HashMap<>(themeEvaluationService.childThemeResults(
+                        classId, children.stream().map(c -> c.id()).toList(), themeFrom, themeTo));
         Set<Long> classroomGoals = Set.copyOf(selected);
         // Giữ mục tiêu đã học ở lớp cũ, kể cả lịch chủ đề lớp mới không gắn mục tiêu đó.
         results.values().forEach(r -> selected.addAll(r.keySet()));
@@ -267,7 +339,9 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 false,
                 null,
                 null,
+                null,
                 null);
+        String blocked = confirmBlockedReason(user, cls, semester, response, end);
         return new Response(
                 classId,
                 cls.name(),
@@ -281,14 +355,28 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 columns,
                 labelRows(rows, cls),
                 edit,
-                edit
-                        && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
-                        && rules.isHomeroom(user, cls)
-                        && !rules.today().isBefore(end)
-                        && !incomplete(response),
+                blocked == null,
+                blocked,
                 null,
                 null,
                 signersOn(classId, end));
+    }
+
+    // Lý do nút Xác nhận khóa, theo đúng thứ tự kiểm của write(); null = bấm được
+    private String confirmBlockedReason(
+            CurrentUser user, ClassroomInfoResponse cls, int semester, Response board, LocalDate end) {
+        if (!user.hasPermission(Permission.ASSESSMENT_CONFIRM) || !rules.canRecordPeriod(user, cls))
+            return "NO_PERMISSION";
+        if (!rules.isHomeroom(user, cls)) return "NOT_HOMEROOM";
+        if (cls.yearStatus() != SchoolYearStatus.ACTIVE) return "YEAR_NOT_ACTIVE";
+        boolean locked = evaluationDeadlineService.periodsOf(cls).stream()
+                .anyMatch(p -> p.kind() == EvaluationLockKind.SEMESTER
+                        && String.valueOf(semester).equals(p.periodKey())
+                        && !p.writable());
+        if (locked) return "DEADLINE_LOCKED";
+        if (rules.today().isBefore(end)) return "NOT_ENDED";
+        if (incomplete(board)) return "INCOMPLETE";
+        return null;
     }
 
     private List<Child> labelRows(List<Child> rows, com.carenest.dto.organization.ClassroomInfoResponse cls) {
@@ -304,6 +392,14 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private ThemeEvaluationDtos.ThemeSigners signersOn(Long classId, LocalDate end) {
         LocalDate today = rules.today();
         return themeEvaluationService.signersAt(classId, end.isAfter(today) ? today : end);
+    }
+
+    /** Khoảng ngày kết thúc của chủ đề thuộc học kỳ: học kỳ I gồm cả khoảng nghỉ trước học kỳ II, học kỳ II tới hết năm. */
+    static LocalDate[] themeRange(int semester, LocalDate yearStart, LocalDate yearEnd, LocalDate semester2Start) {
+        if (semester == 1) {
+            return new LocalDate[] {yearStart, semester2Start == null ? yearEnd : semester2Start.minusDays(1)};
+        }
+        return new LocalDate[] {semester2Start, yearEnd};
     }
 
     static Domain summarize(Long id, String name, List<Goal> goals) {

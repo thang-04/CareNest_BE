@@ -176,6 +176,22 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
 
     @Override
     @Transactional
+    public void reopenForRevision(ChildEvaluation evaluation) {
+        String logPrefix = LOG_PREFIX + "|reopenForRevision|id=" + evaluation.getId();
+        log.info("{}|START", logPrefix);
+        try {
+            List<StoredGoal> manual = new ArrayList<>();
+            manualCells(evaluation).forEach((g, c) -> manual.add(new StoredGoal(g, c.met(), true)));
+            evaluation.reopenForRevision(objectMapper.writeValueAsString(manual));
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
     public void freeze(ChildEvaluation evaluation) {
         String logPrefix = LOG_PREFIX + "|freeze|id=" + evaluation.getId();
         log.info("{}|START", logPrefix);
@@ -351,7 +367,26 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                         ev.getNoteForChild(), ev.getNoteForTeacher(), ev.getNoteForSchool(), ev.getNoteForParent()),
                 ev.getStatus(),
                 canEdit,
-                ev.getConfirmedAt());
+                ev.getConfirmedAt(),
+                canRevise(user, ev, cls));
+    }
+
+    // Cô chủ nhiệm sửa lại bản đã xác nhận khi còn hạn hoặc đang mở lại; trẻ đã chuyển lớp, nghỉ học thì không
+    private boolean canRevise(CurrentUser user, ChildEvaluation ev, ClassroomInfoResponse cls) {
+        return user != null
+                && ev.isConfirmed()
+                && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
+                && rules.canRecordPeriod(user, cls)
+                && rules.isHomeroom(user, cls)
+                && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                && childClassHistoryService
+                        .statuses(
+                                cls.id(),
+                                List.of(ev.getChildId()),
+                                rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today())
+                        .isEmpty()
+                && evaluationDeadlineService.isWritable(
+                        cls, EvaluationLockKind.YEAR, EvaluationDeadlineServiceImpl.YEAR_KEY);
     }
 
     // Kết quả lấy ở lớp cũ (trẻ chuyển lớp cùng nhóm tuổi) ghi kèm tên lớp
@@ -480,6 +515,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         if (t.length() > NOTE_MAX) {
             throw GlobalException.of(ApiCode.YEAR_SHEET_NOTE_TOO_LONG, NOTE_MAX);
         }
+        DiagnosticTerms.requireClean(t);
         return t;
     }
 

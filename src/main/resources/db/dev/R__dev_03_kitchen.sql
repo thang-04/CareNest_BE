@@ -635,6 +635,39 @@ CROSS JOIN old_dish o
 CROSS JOIN k3_ctx x;
 
 DROP TABLE k3_sample_state;
+-- 9. Cân đối khẩu phần lần 1 (NUT-31): các ngày sau hôm nay của tuần đã có món, gam mỗi trẻ lấy đúng công thức món (chưa
+-- làm tròn), số trẻ = sĩ số đang học của điểm trường theo nhóm tuổi. Ngày đã qua và hôm nay không seed để kho, kiểm nhận
+-- theo suất đã chốt vẫn tính theo công thức như trên. Không đè bản người dùng đã lưu (khóa ngày + lần).
+INSERT INTO day_balances (balance_date, round, rounding_step, row_version, saved_by, saved_at)
+SELECT DISTINCT i.menu_date, 1, NULL::numeric, 0, x.pht_main, now() - INTERVAL '1 hour'
+FROM meal_plan_items i
+JOIN meal_plan_weeks w ON w.id = i.week_id
+CROSS JOIN k3_ctx x
+WHERE i.menu_date > x.today
+ON CONFLICT (balance_date, round) DO NOTHING;
+
+INSERT INTO day_balance_counts (day_balance_id, campus_id, age_group_id, children)
+SELECT b.id, c.campus_id, c.age_group_id, c.enrolled
+FROM day_balances b
+JOIN k3_fc_counts c ON c.week_start = b.balance_date - (EXTRACT(ISODOW FROM b.balance_date)::int - 1)
+WHERE b.round = 1
+  AND NOT EXISTS (SELECT 1 FROM day_balance_counts x WHERE x.day_balance_id = b.id)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO day_balance_lines (day_balance_id, age_group_id, session, dish_id, food_id, base_grams, grams, waste_pct,
+                               unit_price, purchase_unit, purchase_unit_size)
+SELECT b.id, di.age_group_id, i.session, i.dish_id, di.food_id, di.grams_per_child, di.grams_per_child, f.waste_pct,
+       f.unit_price, f.purchase_unit, f.purchase_unit_size
+FROM day_balances b
+JOIN meal_plan_weeks w ON w.week_start = b.balance_date - (EXTRACT(ISODOW FROM b.balance_date)::int - 1)
+JOIN meal_plan_items i ON i.week_id = w.id AND i.menu_date = b.balance_date
+JOIN age_groups g ON i.menu_block = CASE WHEN g.age_to_months <= 36 THEN 'NURSERY' ELSE 'KINDERGARTEN' END
+JOIN dish_ingredients di ON di.dish_id = i.dish_id AND di.age_group_id = g.id
+JOIN foods f ON f.id = di.food_id
+WHERE b.round = 1
+  AND NOT EXISTS (SELECT 1 FROM day_balance_lines x WHERE x.day_balance_id = b.id)
+ON CONFLICT DO NOTHING;
+
 DROP TABLE k3_sample;
 DROP TABLE k3_fresh_check;
 DROP TABLE k3_stock_days;

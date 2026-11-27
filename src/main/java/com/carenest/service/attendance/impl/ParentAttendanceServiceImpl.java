@@ -2,6 +2,7 @@ package com.carenest.service.attendance.impl;
 
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceDay;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceResponse;
+import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceSchedule;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceTotals;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentDailyHealthResponse;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentTodayResponse;
@@ -10,6 +11,7 @@ import com.carenest.entity.attendance.AttendanceDayUnlock;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.DailyHealthEntry;
+import com.carenest.entity.organization.AttendanceCutoff;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceDayUnlockRepository;
 import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
@@ -20,7 +22,9 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.ParentAttendanceService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
@@ -65,6 +69,44 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
     private final EnrollmentService enrollmentService;
     private final ClassroomService classroomService;
     private final AccountService accountService;
+    private final SchoolYearService schoolYearService;
+    private final AttendanceCutoffService attendanceCutoffService;
+
+    @Override
+    public ParentAttendanceSchedule getSchedule(CurrentUser currentUser, LocalDate requestedDate) {
+        LocalDate date = requestedDate == null ? rules.today() : requestedDate;
+        String logPrefix = LOG_PREFIX + "|getSchedule|userId=" + currentUser.userId() + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            if (!currentUser.hasRole(CareNestRole.PARENT)) {
+                throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
+            }
+            var year = schoolYearService
+                    .findYearContaining(date)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+            var setting =
+                    attendanceCutoffService.findDailySchedule(year.id(), date).orElse(null);
+            ParentAttendanceSchedule response = new ParentAttendanceSchedule(
+                    date,
+                    year.id(),
+                    year.name(),
+                    setting == null ? AttendanceCutoff.DEFAULT_DROPOFF_OPEN_FROM : setting.dropoffOpenFrom(),
+                    setting == null ? AttendanceCutoff.DEFAULT_MORNING_START : setting.morningStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_MORNING_END : setting.morningEnd(),
+                    setting == null ? AttendanceCutoff.DEFAULT_AFTERNOON_START : setting.afternoonStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_LATEST_ARRIVAL : setting.latestAfternoonArrival(),
+                    setting == null ? AttendanceCutoff.DEFAULT_PICKUP_START : setting.pickupStart(),
+                    setting == null ? AttendanceCutoff.DEFAULT_FULL_DAY_PICKUP_FROM : setting.fullDayPickupFrom(),
+                    setting == null ? AttendanceCutoff.DEFAULT_PICKUP_END : setting.pickupEnd(),
+                    setting == null ? AttendanceCutoff.DEFAULT_AFTERNOON_END : setting.afternoonEnd(),
+                    setting == null ? rules.cutoff(year.id(), date) : setting.cutoffTime());
+            log.info("{}|schoolYearId={}|END", logPrefix, year.id());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     public ParentTodayResponse getToday(CurrentUser currentUser, Long childId) {
@@ -75,7 +117,13 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
             LocalDate today = rules.today();
             ParentAttendanceDay day = new ChildDays(childId, today, today).day(today);
             ParentTodayResponse response = new ParentTodayResponse(
-                    today, day.status(), day.absentPart(), day.arrivedAt(), day.classId(), day.className());
+                    today,
+                    day.status(),
+                    day.absentPart(),
+                    day.absentPartUnexcused(),
+                    day.arrivedAt(),
+                    day.classId(),
+                    day.className());
             log.info("{}|status={}|END", logPrefix, response.status());
             return response;
         } catch (RuntimeException ex) {
@@ -111,9 +159,12 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                     // ATT-14: mỗi buổi 0,5 ngày
                     present += s.status() != AttendanceStatus.PRESENT ? 0 : s.absentPart() == null ? 1 : 0.5;
                     double ownExcused = s.status() == AttendanceStatus.EXCUSED ? 1 : 0;
-                    excused += s.absentPart() == null ? ownExcused : 0.5 + ownExcused * 0.5;
+                    excused += s.absentPart() == null
+                            ? ownExcused
+                            : (s.absentPartUnexcused() ? 0 : 0.5) + ownExcused * 0.5;
                     double ownAbsent = s.status() == AttendanceStatus.UNEXCUSED ? 1 : 0;
-                    absent += s.absentPart() == null ? ownAbsent : ownAbsent * 0.5;
+                    absent +=
+                            s.absentPart() == null ? ownAbsent : (s.absentPartUnexcused() ? 0.5 : 0) + ownAbsent * 0.5;
                 }
             }
             ParentAttendanceResponse response = new ParentAttendanceResponse(
@@ -170,6 +221,12 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
         if (!user.hasRole(CareNestRole.PARENT) || !guardianChildLinkService.isGuardianOf(user.userId(), childId)) {
             throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
         }
+        // CHD-04 (user chốt 26/11/2026): trẻ đã thôi học hoặc ra trường thì phụ huynh mất quyền xem ngay
+        if (!enrollmentService
+                .findChildIdsLeftSchool(java.util.Set.of(childId), rules.today())
+                .isEmpty()) {
+            throw GlobalException.of(ApiCode.PARENT_CHILD_FORBIDDEN);
+        }
     }
 
     // ATT-15: tối đa 62 ngày, nằm trong một năm học (theo lớp trẻ học trong khoảng)
@@ -197,7 +254,12 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
     }
 
     /** Trạng thái đã chốt của bản ghi một ngày (ngày đang mở lại: trạng thái trước khi mở lại). */
-    private record Snapshot(AttendanceStatus status, List<MealSession> meals, DayPart absentPart, Instant at) {}
+    private record Snapshot(
+            AttendanceStatus status,
+            List<MealSession> meals,
+            DayPart absentPart,
+            boolean absentPartUnexcused,
+            Instant at) {}
 
     /** Dữ liệu một trẻ trong khoảng ngày, đọc theo lô: các đoạn học lớp, bản ghi, lần mở lại còn hạn. */
     private final class ChildDays {
@@ -246,17 +308,20 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
             }
             AttendanceDayUnlock unlock = unlocks.get(cls.id() + ":" + date);
             if (unlock == null) {
-                return new Snapshot(r.getStatus(), r.getMeals(), r.getAbsentPart(), r.getRecordedAt());
+                return new Snapshot(
+                        r.getStatus(), r.getMeals(), r.getAbsentPart(), r.isAbsentPartUnexcused(), r.getRecordedAt());
             }
             // Ngày đang mở lại: GV có thể đang sửa, phụ huynh thấy bản trước lần mở lại này
             List<AttendanceRecordHistory> history = historyRepository.findByRecordIdOrderByIdAsc(r.getId());
             if (history.isEmpty()) {
-                return new Snapshot(r.getStatus(), r.getMeals(), r.getAbsentPart(), r.getRecordedAt());
+                return new Snapshot(
+                        r.getStatus(), r.getMeals(), r.getAbsentPart(), r.isAbsentPartUnexcused(), r.getRecordedAt());
             }
             return history.stream()
                     .filter(h -> !unlock.getId().equals(h.getUnlockId()))
                     .reduce((a, b) -> b)
-                    .map(h -> new Snapshot(h.getStatus(), h.getMeals(), h.getAbsentPart(), h.getAt()))
+                    .map(h -> new Snapshot(
+                            h.getStatus(), h.getMeals(), h.getAbsentPart(), h.isAbsentPartUnexcused(), h.getAt()))
                     .orElse(null);
         }
 
@@ -264,13 +329,23 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
             ClassroomInfoResponse cls = classOn(date);
             if (cls == null) {
                 return new ParentAttendanceDay(
-                        date, ParentAttendanceStatus.NOT_ENROLLED, null, null, List.of(), List.of(), null, null, null);
+                        date,
+                        ParentAttendanceStatus.NOT_ENROLLED,
+                        null,
+                        false,
+                        null,
+                        List.of(),
+                        List.of(),
+                        null,
+                        null,
+                        null);
             }
             if (!rules.isSchoolDay(date)) {
                 return new ParentAttendanceDay(
                         date,
                         ParentAttendanceStatus.NO_SCHOOL,
                         null,
+                        false,
                         null,
                         List.of(),
                         List.of(),
@@ -284,6 +359,7 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                         date,
                         ParentAttendanceStatus.NOT_RECORDED,
                         null,
+                        false,
                         null,
                         List.of(),
                         List.of(),
@@ -307,6 +383,7 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                         case UNEXCUSED -> ParentAttendanceStatus.ABSENT;
                     },
                     s.absentPart(),
+                    s.absentPartUnexcused(),
                     s.status() == AttendanceStatus.PRESENT ? s.at() : null,
                     eaten,
                     cancelled,

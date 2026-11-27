@@ -57,6 +57,12 @@ public class RoomServiceImpl implements RoomService {
             schoolConfigAccess.checkCanViewSchool(currentUser);
             Collection<Long> campusFilter = campusId != null ? Set.of(campusId) : null;
             Long yearId = resolveSchoolYearId(schoolYearId);
+            // CFG-YR-05: năm chưa tới ngày mở chuẩn bị chỉ Hiệu trưởng thấy
+            if (schoolYearId != null) {
+                schoolYearRepository
+                        .findById(schoolYearId)
+                        .ifPresent(year -> schoolConfigAccess.checkYearVisible(currentUser, year));
+            }
             boolean closed = yearId != null
                     && schoolYearRepository
                             .findById(yearId)
@@ -89,6 +95,7 @@ public class RoomServiceImpl implements RoomService {
         try {
             checkCanManage(currentUser, request.campusId());
             SchoolYear year = openYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             // Cần chốt 19/11/2026: phòng thêm ở năm nào chỉ có ở năm đó; mã, tên không trùng trong năm
             RoomRequest data = validate(request, null, 0, year.getId());
             boolean active = year.getStatus() == SchoolYearStatus.ACTIVE;
@@ -155,6 +162,7 @@ public class RoomServiceImpl implements RoomService {
             }
             Room room = findRoom(roomId);
             SchoolYear year = openYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             RoomRepository.YearRoomInfo info = yearRoom(year.getId(), roomId);
             if (info == null) {
                 throw GlobalException.of(ApiCode.ROOM_NOT_FOUND);
@@ -218,6 +226,7 @@ public class RoomServiceImpl implements RoomService {
             }
             Room room = findRoom(roomId);
             SchoolYear year = openYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             RoomRepository.YearRoomInfo info = yearRoom(year.getId(), roomId);
             if (info == null) {
                 throw GlobalException.of(ApiCode.ROOM_NOT_FOUND);
@@ -254,6 +263,7 @@ public class RoomServiceImpl implements RoomService {
             }
             Room room = findRoom(roomId);
             SchoolYear year = openYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
             RoomRepository.YearRoomInfo info = yearRoom(year.getId(), roomId);
             if (info == null) {
                 throw GlobalException.of(ApiCode.ROOM_NOT_FOUND);
@@ -525,10 +535,6 @@ public class RoomServiceImpl implements RoomService {
             return List.of();
         }
         List<Long> roomIds = rooms.stream().map(Room::getId).toList();
-        // usage theo dạng FE: số bản ghi đang trỏ tới phòng (hiện chỉ có lớp, mọi năm học)
-        Map<Long, Long> classUsage = classroomRepository.countByRoomIds(roomIds).stream()
-                .collect(Collectors.toMap(
-                        ClassroomRepository.RoomUsage::getRoomId, ClassroomRepository.RoomUsage::getTotal));
         Map<Long, List<Classroom>> openClasses = classroomRepository.findOpenYearClassesByRoomIds(roomIds).stream()
                 .collect(Collectors.groupingBy(Classroom::getRoomId));
         Set<Long> managerIds = rooms.stream()
@@ -548,12 +554,14 @@ public class RoomServiceImpl implements RoomService {
                 .map(room -> {
                     RoomRepository.RoomHomeroom homeroom =
                             room.getRoomType() == RoomType.CLASS ? homerooms.get(room.getId()) : null;
-                    List<Classroom> classes = openClasses.getOrDefault(room.getId(), List.of());
-                    List<String> yearClasses = classes.stream()
-                            .filter(c -> c.getSchoolYearId().equals(schoolYearId))
-                            .map(Classroom::getName)
+                    List<Classroom> classes = openClasses.getOrDefault(room.getId(), List.of()).stream()
+                            .filter(c ->
+                                    schoolYearId == null || c.getSchoolYearId().equals(schoolYearId))
                             .toList();
-                    // Lý do chưa ngừng / xóa được: tên lớp (năm chưa kết thúc) đang dùng phòng, không lặp
+                    List<String> yearClasses =
+                            classes.stream().map(Classroom::getName).toList();
+                    // Tất cả trạng thái trên màn Phòng ban là theo năm đang xem. Lớp năm cũ không được
+                    // khóa việc sửa bản cấu hình của năm mới, nhưng vẫn giữ nguyên lịch sử năm cũ.
                     List<String> blockers =
                             classes.stream().map(Classroom::getName).distinct().toList();
                     // Phòng học: người phụ trách = GV chủ nhiệm của lớp dùng phòng trong năm học
@@ -575,9 +583,7 @@ public class RoomServiceImpl implements RoomService {
                             room.getStatus(),
                             room.getNote(),
                             yearClasses,
-                            classUsage.containsKey(room.getId())
-                                    ? Map.of("classes", classUsage.get(room.getId()))
-                                    : Map.of(),
+                            classes.isEmpty() ? Map.of() : Map.of("classes", (long) classes.size()),
                             blockers,
                             largestCapacity(classes));
                 })

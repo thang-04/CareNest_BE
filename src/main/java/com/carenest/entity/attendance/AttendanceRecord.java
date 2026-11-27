@@ -58,6 +58,10 @@ public class AttendanceRecord {
     @Column(name = "absent_part", length = 10)
     private DayPart absentPart;
 
+    /** ATT-03/B2: chỉ có nghĩa khi absentPart=MORNING; phân biệt sáng vắng không phép với đơn nghỉ sáng. */
+    @Column(name = "absent_part_unexcused", nullable = false)
+    private boolean absentPartUnexcused;
+
     @Column(name = "recorded_by", nullable = false)
     private Long recordedBy;
 
@@ -106,6 +110,12 @@ public class AttendanceRecord {
 
     public void markAbsentPart(DayPart part) {
         this.absentPart = part;
+        this.absentPartUnexcused = false;
+    }
+
+    public void markAbsentPart(DayPart part, boolean unexcused) {
+        this.absentPart = part;
+        this.absentPartUnexcused = part == DayPart.MORNING && unexcused;
     }
 
     /** Số ngày có mặt quy đổi (ATT-14): mỗi buổi 0,5. */
@@ -119,12 +129,12 @@ public class AttendanceRecord {
     /** Số ngày vắng có phép quy đổi: buổi nghỉ theo đơn luôn có phép, buổi còn lại theo status. */
     public double excusedDays() {
         double own = status == AttendanceStatus.EXCUSED ? 1 : 0;
-        return absentPart == null ? own : 0.5 + own * 0.5;
+        return absentPart == null ? own : (absentPartUnexcused ? 0 : 0.5) + own * 0.5;
     }
 
     public double unexcusedDays() {
         double own = status == AttendanceStatus.UNEXCUSED ? 1 : 0;
-        return absentPart == null ? own : own * 0.5;
+        return absentPart == null ? own : (absentPartUnexcused ? 0.5 : 0) + own * 0.5;
     }
 
     public void update(AttendanceStatus status, List<MealSession> meals, Long userId, Instant at) {

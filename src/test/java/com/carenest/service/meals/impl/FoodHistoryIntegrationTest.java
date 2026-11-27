@@ -99,6 +99,76 @@ class FoodHistoryIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "NUT-32: có dòng phiếu nhập kho thì khóa đơn vị; sửa quy đổi bị từ chối theo từng ô, chưa nhập thì cho sửa")
+    void unitsLockOnceStocked() {
+        assertThat(foodService.getFood(rice).unitsLocked()).isFalse();
+        FoodRequest repack = request("Gạo", "18000", null, null, null);
+        FoodRequest changed = new FoodRequest(
+                repack.code(),
+                repack.name(),
+                repack.foodGroup(),
+                repack.unit(),
+                "bao",
+                new BigDecimal("500"),
+                repack.unitPrice(),
+                repack.kcal(),
+                repack.protein(),
+                repack.lipid(),
+                repack.glucid(),
+                repack.calcium(),
+                repack.phosphorus(),
+                repack.iron(),
+                repack.vitaminA(),
+                repack.vitaminB1(),
+                repack.vitaminB2(),
+                repack.vitaminPp(),
+                repack.vitaminC(),
+                repack.zinc(),
+                repack.nutrientSource(),
+                repack.wastePct(),
+                repack.storage(),
+                repack.origin(),
+                repack.note(),
+                repack.allergenIds(),
+                repack.supplierId(),
+                repack.effectiveFrom(),
+                repack.priceReason());
+        assertThat(foodService.updateFood(manager, rice, changed).purchaseUnit())
+                .isEqualTo("bao");
+        foodService.updateFood(manager, rice, repack);
+
+        long campus = jdbc.queryForObject(
+                "INSERT INTO campuses (code, name, address) VALUES ('CS-LOCK', 'CS lock', 'x') RETURNING id",
+                Long.class);
+        long receipt = jdbc.queryForObject(
+                "INSERT INTO stock_receipts (campus_id, supplier_id, received_date, status)"
+                        + " VALUES (?, ?, ?, 'DRAFT') RETURNING id",
+                Long.class,
+                campus,
+                supplierA,
+                today);
+        jdbc.update(
+                "INSERT INTO stock_receipt_lines (receipt_id, food_id, lot_no, expiry_date, quantity, unit_price)"
+                        + " VALUES (?, ?, 'L1', ?, 1000, 18)",
+                receipt,
+                rice,
+                today.plusMonths(3));
+
+        assertThat(foodService.getFood(rice).unitsLocked()).isTrue();
+        assertThat(foodService.getFoods(null, null, null, null))
+                .filteredOn(f -> f.id() == rice)
+                .singleElement()
+                .satisfies(f -> assertThat(f.unitsLocked()).isTrue());
+        assertThatThrownBy(() -> foodService.updateFood(manager, rice, changed))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(e -> e.field())
+                                .containsExactly("purchaseUnit", "purchaseUnitSize"));
+    }
+
+    @Test
     @DisplayName("Sửa thông tin: ghi từng trường đổi với giá trị trước/sau; lưu không đổi gì thì không ghi")
     void historyRecordsOnlyRealChanges() {
         foodService.updateFood(manager, rice, request("Gạo", "18000", null, null, null));

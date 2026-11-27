@@ -3,6 +3,7 @@ package com.carenest.service.attendance;
 import com.carenest.dto.attendance.AttendanceClassResponse;
 import com.carenest.dto.attendance.AttendanceSummaryResponse;
 import com.carenest.dto.attendance.ClassAttendanceResponse;
+import com.carenest.dto.attendance.CorrectMealParticipationRequest;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceResponse;
@@ -30,9 +31,7 @@ public interface AttendanceService {
             int present,
             int absent,
             int missing,
-            Map<MealSession, Integer> meals,
-            // Trẻ có mặt có khai dị ứng trong hồ sơ: suất thay thế (nằm trong meals, Cần chốt 04/11/2026)
-            Map<MealSession, Integer> substitutes) {}
+            Map<MealSession, Integer> meals) {}
 
     /** schoolYearId = năm chọn ở header; null = năm đang hoạt động. */
     List<AttendanceClassResponse> getClasses(CurrentUser currentUser, Long schoolYearId);
@@ -49,8 +48,17 @@ public interface AttendanceService {
 
     SaveAttendanceResponse saveClassAttendance(CurrentUser currentUser, Long classId, SaveAttendanceRequest request);
 
-    /** ATT-13: trẻ nghỉ sáng đã đến buổi chiều (từ giờ chốt tới giờ đến muộn nhất); không đổi sổ báo ăn. */
+    /** ATT-13: trẻ nghỉ sáng đã đến trong khung nhận trẻ chiều; không đổi sổ báo ăn. */
     SaveAttendanceResponse markArrived(CurrentUser currentUser, Long classId, Long childId, LocalDate date);
+
+    /**
+     * ATT-03/B2: ngày đã mở lại, GV sửa trẻ bị ghi nhầm "vắng sáng không phép" (đã bấm Đã đến chiều) thành có mặt cả
+     * ngày; không đổi sổ báo ăn.
+     */
+    SaveAttendanceResponse correctFullDayPresent(CurrentUser currentUser, Long classId, Long childId, LocalDate date);
+
+    SaveAttendanceResponse correctMealParticipation(
+            CurrentUser currentUser, Long classId, Long childId, CorrectMealParticipationRequest request);
 
     /** ATT-13: qua giờ đến muộn nhất mà trẻ nghỉ sáng chưa đến ⇒ Vắng cả ngày, báo GV và phụ huynh; trả số trẻ. */
     int closeMorningLeaves();

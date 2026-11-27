@@ -23,6 +23,11 @@ public interface MealPlanWeekRepository extends JpaRepository<MealPlanWeek, Long
     @EntityGraph(attributePaths = "items")
     List<MealPlanWeek> findWithDaysByWeekStartBetweenOrderByWeekStartAsc(LocalDate from, LocalDate to);
 
+    // Tuần chưa qua có chứa món: hộp xác nhận ngừng dùng món liệt kê nơi đang dùng
+    @Query("select distinct w from MealPlanWeek w join w.items i"
+            + " where i.dishId = :dishId and w.weekStart >= :from order by w.weekStart")
+    List<MealPlanWeek> findFromWeekUsingDish(@Param("dishId") Long dishId, @Param("from") LocalDate from);
+
     /**
      * Khóa dòng tuần tới hết transaction: lưu lưới và công bố chạy tuần tự, công bố luôn kiểm đúng lưới nó công bố
      * (NUT-08). Ngày, món của tuần nạp sau khi đã giữ khóa nên là bản mới nhất.

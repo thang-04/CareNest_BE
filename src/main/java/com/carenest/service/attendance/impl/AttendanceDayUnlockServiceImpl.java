@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
     private final AccountService accountService;
     private final NotificationService notificationService;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -141,6 +143,8 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
                         "Điểm danh ngày " + DMY.format(date) + " được mở lại để kiểm tra, sửa. Lý do: " + reason,
                         null);
             }
+            eventPublisher.publishEvent(new AttendanceDayUnlockedEvent(
+                    cls.id(), cls.campusId(), date, request.validUntil(), reason, currentUser.userId()));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -154,6 +158,8 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
         String logPrefix = LOG_PREFIX + "|revokeUnlock|userId=" + currentUser.userId() + "|unlockId=" + unlockId;
         log.info("{}|START", logPrefix);
         try {
+            // Khóa lớp trước khi đọc lượt mở: không thu hồi giữa lúc giáo viên đang lưu điểm danh
+            unlockRepository.findClassroomIdById(unlockId).ifPresent(classroomService::lockForUpdate);
             AttendanceDayUnlock unlock = unlockRepository
                     .findById(unlockId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.ATTENDANCE_UNLOCK_NOT_FOUND));
@@ -164,7 +170,10 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             if (!unlock.isActiveAt(now)) {
                 throw GlobalException.of(ApiCode.UNLOCK_ALREADY_ENDED);
             }
+            Instant previousUntil = unlock.getValidUntil();
             unlock.revoke(currentUser.userId(), now);
+            eventPublisher.publishEvent(new AttendanceDayUnlockRevokedEvent(
+                    unlock.getClassroomId(), unlock.getDate(), previousUntil, currentUser.userId()));
             String className = classroomService
                     .findClassroomInfo(unlock.getClassroomId())
                     .map(ClassroomInfoResponse::name)

@@ -70,8 +70,8 @@ public class ProviderChainAiGateway implements AiGateway {
             }
             long startedAt = System.nanoTime();
             try {
-                OpenAiCompatibleProvider.Completion completion =
-                        provider.complete(request.systemPrompt(), request.userPrompt(), remaining);
+                OpenAiCompatibleProvider.Completion completion = provider.complete(
+                        request.systemPrompt(), request.userPrompt(), request.expectsJson(), remaining);
                 long latencyMs = elapsedMillis(startedAt);
                 log.info(
                         "{}|complete|task={}|provider={}|model={}|prompt={}|status=OK|latencyMs={}|inputTokens={}|outputTokens={}",

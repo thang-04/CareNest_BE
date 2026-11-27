@@ -10,6 +10,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 /** Quản lý năm học (màn Cấu hình trường › Năm học): xem cho BGH/GV, ghi chỉ Hiệu trưởng. */
 public interface SchoolYearService {
@@ -37,10 +38,22 @@ public interface SchoolYearService {
     /** Ngày học = thứ 2–6 và không phải ngày nghỉ đã khai báo (SCH-05). */
     boolean isSchoolDay(LocalDate date);
 
+    /** Tên đợt nghỉ đã khai báo bao ngày này (SCH-05); không nằm trong đợt nghỉ nào ⇒ rỗng. */
+    Optional<String> holidayName(LocalDate date);
+
     /** Học kỳ nào đã khóa ngày (OBS-25), để màn Cấu hình thời gian khóa sẵn ô ngày. */
     SemesterLockResponse getSemesterLocks(CurrentUser currentUser, Long schoolYearId);
 
     SchoolYearDetailResponse activateSchoolYear(CurrentUser currentUser, Long schoolYearId, String confirmName);
+
+    /**
+     * Khóa dòng năm học tới hết giao dịch: các lần lưu xếp lớp, xếp tự động và kích hoạt năm học của cùng một năm
+     * chạy lần lượt, không ghi đè nhau. Năm không tồn tại ⇒ không làm gì (người gọi tự báo lỗi sau).
+     */
+    void lockForUpdate(Long schoolYearId);
+
+    /** Năm học có khoảng ngày chứa :date. */
+    java.util.Optional<SchoolYearDetailResponse> findYearContaining(LocalDate date);
 
     SchoolYearDetailResponse closeSchoolYear(CurrentUser currentUser, Long schoolYearId);
 

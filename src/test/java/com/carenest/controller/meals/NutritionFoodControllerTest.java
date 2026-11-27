@@ -161,6 +161,7 @@ class NutritionFoodControllerTest {
                 List.of(),
                 null,
                 null,
-                null);
+                null,
+                false);
     }
 }

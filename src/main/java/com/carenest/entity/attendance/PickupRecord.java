@@ -20,7 +20,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Một lần GV xác minh người đón (PCK-02, PCK-04, ATT-10): khớp ảnh phụ huynh hoặc phụ huynh xác nhận qua điện thoại thì
- * trả trẻ; lần không trả được vẫn lưu. Trả thành công tối đa một lần/trẻ/ngày; không sửa, không hủy.
+ * trả trẻ; lần không trả được vẫn lưu. Trả thành công tối đa một lần/trẻ/ngày; không hủy, chỉ sửa giờ trả trong ngày.
  */
 @Getter
 @Entity
@@ -66,7 +66,7 @@ public class PickupRecord {
     @Column(name = "pickup_person_phone", nullable = false, updatable = false, length = 10)
     private String pickupPersonPhone;
 
-    @Column(name = "handed_over_at", updatable = false)
+    @Column(name = "handed_over_at")
     private Instant handedOverAt;
 
     @Column(nullable = false, updatable = false, length = 500)
@@ -114,6 +114,10 @@ public class PickupRecord {
 
     public boolean isHandedOver() {
         return outcome == PickupOutcome.HANDED_OVER;
+    }
+
+    public void correctHandedOverAt(Instant time) {
+        this.handedOverAt = time;
     }
 
     /** Số tài khoản phụ huynh đã được báo trẻ được đón. */

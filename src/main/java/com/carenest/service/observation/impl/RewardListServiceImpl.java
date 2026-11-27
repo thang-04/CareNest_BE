@@ -453,12 +453,9 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_NOTE_TOO_LONG, name, NOTE_MAX);
             }
             String lower = note.toLowerCase(Locale.ROOT);
-            DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream()
-                    .filter(lower::contains)
-                    .findFirst()
-                    .ifPresent(term -> {
-                        throw GlobalException.of(ApiCode.REWARD_NOTE_DIAGNOSTIC, name, term);
-                    });
+            DiagnosticTerms.matches(note).stream().findFirst().ifPresent(term -> {
+                throw GlobalException.of(ApiCode.REWARD_NOTE_DIAGNOSTIC, name, term);
+            });
             if (picked.isEmpty()) {
                 // Không có danh hiệu thì không lưu dòng (ghi chú đi kèm danh hiệu)
                 continue;
@@ -544,6 +541,10 @@ public class RewardListServiceImpl implements RewardListService {
                     present.merge(d.childId(), d.presentDays(), Double::sum);
                 }
             }
+        }
+        // Hôm nay chưa điểm danh thì chưa tính là ngày phải đi, như báo cáo chất lượng tháng
+        if (!recorded.contains(today)) {
+            schoolDays.remove(today);
         }
         // OBS-23: ngày phải đi của từng trẻ = ngày học của lớp trong thời gian trẻ thuộc lớp (trẻ vào giữa năm không
         // bị tính các ngày trước khi vào); số tuần / tháng học cũng theo thời gian trẻ ở lớp

@@ -80,6 +80,9 @@ public class AttendanceRecordHistory {
     @Column(name = "absent_part", length = 10)
     private DayPart absentPart;
 
+    @Column(name = "absent_part_unexcused", nullable = false)
+    private boolean absentPartUnexcused;
+
     public static AttendanceRecordHistory of(AttendanceRecord record, String action, Long unlockId) {
         AttendanceRecordHistory history = new AttendanceRecordHistory();
         history.recordId = record.getId();
@@ -91,6 +94,7 @@ public class AttendanceRecordHistory {
         history.status = record.getStatus();
         history.meals = record.getMeals();
         history.absentPart = record.getAbsentPart();
+        history.absentPartUnexcused = record.isAbsentPartUnexcused();
         history.userId = record.getRecordedBy();
         history.at = record.getRecordedAt();
         history.unlockId = unlockId;

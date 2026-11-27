@@ -46,13 +46,13 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 
 Mọi response thành công dùng `{code,desc,data}` và `Cache-Control: no-store`. Cookie phiên `CARENEST_SESSION`: HttpOnly, SameSite=Lax, path `{API_PREFIX}/auth`, Secure theo cấu hình; remember bật thì Max-Age tối đa 10 giờ, tắt thì session cookie. Idle 30 phút và trần 10 giờ do Keycloak áp (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`); server chặn thêm absolute 10 giờ từ `loginAt` trong cookie. Refresh trả 503 khi provider tạm lỗi thì cookie được giữ, client thử lại được.
 
-OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; response forgot/metadata/resend có `expiresAt`, `resendAvailableAt` và `expiresInSeconds`, `resendInSeconds` (tính tại server lúc trả) — client đếm ngược theo số giây tương đối, không so `expiresAt` với giờ máy (máy lệch giờ ⇒ báo hết hạn sai); 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
+OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; response forgot/metadata/resend có `expiresAt`, `resendAvailableAt` và `expiresInSeconds`, `resendInSeconds` (tính tại server lúc trả) — client đếm ngược theo số giây tương đối, không so `expiresAt` với giờ máy (máy lệch giờ ⇒ báo hết hạn sai); 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút; `requestId`/token sai dạng (không phải chuỗi 43 ký tự chữ số) trả 404 `AUTH_REQUEST_NOT_FOUND` 1004 cùng với trường hợp không tồn tại — không trả 401, để client nhận "bắt đầu lại" chứ không phải "phiên hỏng". (id đúng dạng nhưng không tồn tại/đã dùng ở verify vẫn 1006, không phân biệt với OTP sai.) Policy mật khẩu do Keycloak quyết định; BE kiểm trước "mật khẩu trùng tên đăng nhập (SĐT)" trả 400 `PASSWORD_SAME_AS_USERNAME` 1021 ở đổi mật khẩu, đặt lại mật khẩu (token còn dùng lại được) và kích hoạt tài khoản phụ huynh (Kiểm sau khi mã đúng); từ chối policy khác giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
 
 Recovery/current-password dùng assertion HMAC hạn 60 giây, nonce một lần, ràng buộc realm/subject/issuer/audience/purpose để đổi lấy capability provider 10 phút. Không có API đổi mật khẩu chỉ bằng userId. Native MFA/required actions không được bỏ qua; gateway hiện chưa có UI nhận TOTP, tài khoản yêu cầu TOTP sẽ bị từ chối.
 
 Khi gateway bật, cleanup chạy mỗi60 giây: xóa session/quota hết hạn; challenge được dọn sau1 giờ kể từ expiresAt để vẫn giữ metadata/cooldown trong cửa sổ recovery. Tắt feature dừng cleanup; cần bật lại hoặc vận hành retention riêng nếu ngừng gateway lâu dài.
 
-Lỗi gateway: 401 sai credentials/phiên hết hạn; 403 chưa provision/inactive/CSRF; 403 `errorCode` 1101 `FORBIDDEN` khi tài khoản không có role ADMIN/PRINCIPAL/VICE_PRINCIPAL/TEACHER (bếp, phụ huynh — AUTH-21) ở login, đổi mật khẩu lần đầu (theo `primary_role`) và refresh, token vừa cấp bị thu hồi, không set cookie (refresh 401/403 xóa cookie phiên; 503 giữ cookie để retry); 404 challenge không hợp lệ; 409 cooldown/hết lượt; 428 đổi mật khẩu lần đầu; 503 provider/storage không khả dụng. Không trả OTP, provider proof, refresh token hoặc lỗi nội bộ ra client. Access JWT đã cấp có thể còn hiệu lực tối đa 5 phút sau logout/đổi mật khẩu; ACTIVE check tại server tiếp tục áp dụng.
+Lỗi gateway: 401 sai credentials/phiên hết hạn; 403 chưa provision/inactive/CSRF; 403 `errorCode` 1101 `FORBIDDEN` khi tài khoản không có role ADMIN/PRINCIPAL/VICE_PRINCIPAL/TEACHER (bếp, phụ huynh — AUTH-21) ở login, đổi mật khẩu lần đầu (theo `primary_role`) và refresh, token vừa cấp bị thu hồi, không set cookie (refresh 401/403 xóa cookie phiên; 503 giữ cookie để retry); 404 challenge không hợp lệ; 409 cooldown/hết lượt; 428 đổi mật khẩu lần đầu; 503 provider/storage không khả dụng. Không trả OTP, provider proof, refresh token hoặc lỗi nội bộ ra client. Access JWT đã cấp hết hiệu lực ngay (G94-442): logout Web lưu `sid` của phiên đó (bảng `revoked_web_sessions`, `reason=ENDED`) ⇒ Bearer của phiên đó trả 401 `UNAUTHENTICATED` 1002 (không phải 1016; phiên App/trình duyệt khác không ảnh hưởng). Đổi mật khẩu, đặt lại mật khẩu (quên/đổi lần đầu), HT cấp lại mật khẩu tạm, duyệt đổi SĐT đăng nhập, phụ huynh kích hoạt tài khoản ⇒ ghi `user_accounts.password_changed_at`; mọi access token (Web + App) có `iat` trước giây đó trả 401 1002. Mốc được trả ở `GET /accounts/me` (`passwordChangedAt`, null khi chưa ghi nhận lần nào). ACTIVE check vẫn đứng trước nên tài khoản bị khóa luôn nhận 403 1015.
 
 ## Lỗi (đã có)
 
@@ -73,12 +73,12 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 { "code": 200, "desc": "Get my account success",
   "data": { "userId": 12, "username": "teacher.a", "fullName": "...", "email": null, "roles": ["TEACHER"],
             "permissions": ["CHILD_PROFILE_VIEW"], "schoolWidePermissions": [],
-            "assignments": [ { "staffRole": "TEACHER", "campusId": null, "classroomId": 3,
+            "assignments": [ { "staffRole": "TEACHER", "campusId": null, "campusName": null, "classroomId": 3,
                                "validFrom": "2026-09-01", "validTo": null } ],
             "childIds": [] } }
 ```
 
-- `assignments`: phân công **đang hiệu lực hôm nay** và khớp role trong token (`staffRole` PRINCIPAL: cả hai id null; VICE_PRINCIPAL/KITCHEN_STAFF: `campusId`; TEACHER: `classroomId`).
+- `assignments`: phân công **đang hiệu lực hôm nay** và khớp role trong token (`staffRole` PRINCIPAL: cả hai id null; VICE_PRINCIPAL/KITCHEN_STAFF: `campusId`; TEACHER: `classroomId`). `campusName` (thêm 26/11, AUTH-22): tên điểm trường của `campusId`, null khi phân công không gắn điểm trường; App bếp dùng làm nhãn nơi đang xem. Cùng cấu trúc trong `account` của response đăng nhập/làm mới phiên.
 - `childIds`: trẻ liên kết với tài khoản (chỉ khi có role PARENT).
 - `pinnedCampusPermissions`: `{ "<mã>": campusId }` — mã sửa theo mảng HT giao tại một điểm trường cụ thể (AUTH-20); mã có trong đây chỉ sửa ở điểm trường đó, không ở điểm trường phụ trách.
 - `permissions`: quyền hiệu lực (ADR-0017) — dùng ẩn/hiện menu, route; đổi ngay khi Hiệu trưởng sửa ma trận/ngoại lệ (gọi lại `/accounts/me` để cập nhật).
@@ -277,7 +277,8 @@ Chỉ áp dụng khi `CARENEST_SMS_PROVIDER` là nhà cung cấp thật (vd. `te
 | Tình huống | HTTP / `errorCode` |
 | --- | --- |
 | SĐT không có mã chờ, mã sai/hết hạn/hết lượt/đã dùng, tài khoản khóa (một lỗi chung) | 400 / 1006 `OTP_INVALID_OR_EXPIRED` |
-| Hai mật khẩu khác nhau | 400 / 9002 `MALFORMED_REQUEST` |
+| Hai mật khẩu khác nhau | 400 / 9001 `INVALID_REQUEST_DATA` + ô `confirmPassword` ("Mật khẩu nhập lại không khớp") |
+| Mật khẩu trùng tên đăng nhập (SĐT) | 400 / 1021 `PASSWORD_SAME_AS_USERNAME` (mã giữ nguyên, kiểm sau khi mã đúng) |
 | Keycloak từ chối mật khẩu (mã giữ nguyên, không tính lần sai) | 400 / 1009 `PASSWORD_POLICY_VIOLATION` |
 | Gửi lại trong 60 giây | 429 / 1007 `OTP_RESEND_TOO_SOON` |
 | Gửi lại cho tài khoản đã kích hoạt hoặc tạo bằng mật khẩu tạm | 409 / 1144 `ACTIVATION_NOT_PENDING` |
@@ -308,6 +309,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
 - PHT xem mọi cơ sở (AUTH-20, chốt 31/10): mã `ALL_CAMPUS_VIEW` đã bỏ khỏi `Permission` (V39 xóa dòng ma trận/ngoại lệ cũ; lịch sử giữ chuỗi gốc). FE bỏ mã này ở danh mục quyền/ngoại lệ (`permissionConstants.js`, `permissionCatalog.js`) và luôn hiện bộ lọc điểm trường cho PHT; gửi mã cũ trong `PUT .../permission-overrides` ⇒ 400.
 - Mã kích hoạt (ADR-0026): APP thêm màn "Kích hoạt tài khoản" (chưa đăng nhập) gọi `POST /parent-activation`, xong thì vào đăng nhập PKCE với `username` trả về; 400 1006 ⇒ báo mã sai/hết hạn, liên hệ nhà trường gửi lại. FE màn Tài khoản phụ huynh thêm "Gửi lại mã" (`POST /parent-accounts/{userId}/activation-code`); có `activationCode` ⇒ in phiếu mã (không in mật khẩu); 409 1136 ⇒ dùng "Cấp lại mật khẩu tạm".
+- Tranh nền màn đăng nhập: `GET /school/appearance` công khai (không Bearer/cookie) để màn đăng nhập hiển thị tranh theo cấu hình của trường; chỉ trả chế độ và mã tranh đang bật/ghim; họ tên người lưu gần nhất chỉ trả cho người đã đăng nhập, không có dữ liệu trẻ. `PUT` vẫn cần đăng nhập và quyền Hiệu trưởng/Phó hiệu trưởng.
 - Types: sinh lại từ `docs/api/openapi.yaml`.
 
 ## Còn chờ

@@ -36,8 +36,10 @@ public record MealPlanResponse(
     public record Item(MealSession session, MenuBlock block, Long dishId, String dishName, DishType dishType) {}
 
     /**
-     * {@code status}: OK, LOW, HIGH, NA (chưa đặt định mức), INCOMPLETE (thiếu số liệu), NO_DISHES. {@code cost}
-     * đồng/trẻ; {@code foodBudget} = {@code mealPrice} − {@code serviceFee} (NUT-19), null khi chưa có giá suất.
+     * {@code status}: OK, LOW, HIGH, NA (chưa đặt định mức), INCOMPLETE (thiếu số liệu), NO_DISHES — xét năng lượng và
+     * cơ cấu P:L:G. {@code cost} đồng/trẻ; {@code foodBudget} = {@code mealPrice} − {@code serviceFee} (NUT-19), null khi
+     * chưa có giá suất. Ba kết luận cùng bộ trạng thái: {@code quantityStatus} (lượng, kcal), {@code qualityStatus}
+     * (chất, P:L:G), {@code moneyStatus} (tiền trong {@code foodBudget} ± {@code budgetTolerancePct}%).
      */
     public record Evaluation(
             LocalDate date,
@@ -51,7 +53,11 @@ public record MealPlanResponse(
             BigDecimal serviceFee,
             BigDecimal foodBudget,
             List<NormRow> rows,
-            List<SessionRow> sessions) {}
+            List<SessionRow> sessions,
+            String quantityStatus,
+            String qualityStatus,
+            String moneyStatus,
+            BigDecimal budgetTolerancePct) {}
 
     /** Vi chất (NUT-26) là null khi có thực phẩm trong thực đơn chưa có số liệu vi chất đó ⇒ chưa đủ dữ liệu. */
     public record NutritionTotals(
@@ -91,7 +97,27 @@ public record MealPlanResponse(
             BigDecimal target,
             Integer attainment,
             String status,
-            boolean optional) {}
+            boolean optional,
+            BigDecimal applied) {
+
+        public NormRow(
+                String key,
+                BigDecimal value,
+                BigDecimal percent,
+                BigDecimal min,
+                BigDecimal max,
+                BigDecimal target,
+                Integer attainment,
+                String status,
+                boolean optional) {
+            this(key, value, percent, min, max, target, attainment, status, optional, null);
+        }
+
+        /** Cơ cấu áp dụng P:L:G (% năng lượng) trường đã cấu hình cho dòng đạm, béo, bột đường (NUT-28); null = chưa chọn. */
+        public NormRow withApplied(BigDecimal appliedPct) {
+            return new NormRow(key, value, percent, min, max, target, attainment, status, optional, appliedPct);
+        }
+    }
 
     /**
      * Năng lượng một bữa nhóm tuổi được phục vụ so tỷ lệ % nhu cầu năng lượng cả ngày định mức (NUT-25, {@code percent} = kcal bữa ÷ nhu cầu cả ngày); {@code status} như

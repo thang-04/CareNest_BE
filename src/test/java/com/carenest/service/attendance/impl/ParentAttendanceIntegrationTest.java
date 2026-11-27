@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.tuple;
 
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceDay;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceResponse;
+import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceSchedule;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentDailyHealthResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
@@ -20,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -134,6 +136,27 @@ class ParentAttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Phụ huynh xem lịch đang áp dụng theo ngày; không trả lịch sử cấu hình")
+    void parentReadsDailySchedule() {
+        jdbc.update(
+                "INSERT INTO attendance_cutoffs (school_year_id, cutoff_time, latest_afternoon_arrival, dropoff_open_from,"
+                        + " morning_start, morning_end, afternoon_start, pickup_start, full_day_pickup_from, pickup_end,"
+                        + " afternoon_end, effective_from, note) VALUES (?, '08:30', '14:00', '06:30', '07:00', '11:00',"
+                        + " '13:30', '15:00', '15:00', '17:00', '17:00', '2026-10-01', 'Lịch mới')",
+                year);
+
+        ParentAttendanceSchedule schedule = service.getSchedule(parent, TODAY);
+
+        assertThat(schedule.schoolYearId()).isEqualTo(year);
+        assertThat(schedule.dropoffOpenFrom()).isEqualTo(LocalTime.of(6, 30));
+        assertThat(schedule.afternoonStart()).isEqualTo(LocalTime.of(13, 30));
+        assertThat(schedule.latestAfternoonArrival()).isEqualTo(LocalTime.of(14, 0));
+        assertThat(schedule.fullDayPickupFrom()).isEqualTo(LocalTime.of(15, 0));
+        assertThat(schedule.attendanceCutoff()).isEqualTo(LocalTime.of(8, 30));
+        expectCode(() -> service.getSchedule(teacher, TODAY), ApiCode.PARENT_CHILD_FORBIDDEN);
+    }
+
+    @Test
     @DisplayName("Trẻ chuyển lớp: mỗi ngày mang lớp của ngày đó; nghỉ lễ, cuối tuần là NO_SCHOOL; tổng nửa buổi 0,5")
     void transferredChildShowsClassPerDay() {
         record(classA, LocalDate.of(2026, 10, 15), "PRESENT", "LUNCH,AFTERNOON", null);
@@ -168,22 +191,15 @@ class ParentAttendanceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Trẻ đã nghỉ học: vẫn xem số cũ, ngày sau khi nghỉ là NOT_ENROLLED (bỏ bản ghi sót)")
-    void withdrawnChildKeepsOldDataOnly() {
+    @DisplayName("CHD-04 (26/11/2026): trẻ đã thôi học thì phụ huynh mất quyền xem điểm danh")
+    void withdrawnChildIsForbiddenForParent() {
         jdbc.update("DELETE FROM enrollments WHERE child_id = ? AND classroom_id = ?", child, classB);
         record(classA, LocalDate.of(2026, 10, 19), "PRESENT", "LUNCH", null);
-        record(classA, LocalDate.of(2026, 10, 20), "EXCUSED", "", null);
 
-        ParentAttendanceResponse month = service.getAttendance(parent, child, LocalDate.of(2026, 10, 19), TODAY);
-
-        assertThat(month.days())
-                .extracting(ParentAttendanceDay::status)
-                .containsExactly(
-                        ParentAttendanceStatus.PRESENT,
-                        ParentAttendanceStatus.NOT_ENROLLED,
-                        ParentAttendanceStatus.NOT_ENROLLED);
-        assertThat(month.totals().excused()).isZero();
-        assertThat(service.getToday(parent, child).status()).isEqualTo(ParentAttendanceStatus.NOT_ENROLLED);
+        expectCode(
+                () -> service.getAttendance(parent, child, LocalDate.of(2026, 10, 19), TODAY),
+                ApiCode.PARENT_CHILD_FORBIDDEN);
+        expectCode(() -> service.getToday(parent, child), ApiCode.PARENT_CHILD_FORBIDDEN);
     }
 
     @Test

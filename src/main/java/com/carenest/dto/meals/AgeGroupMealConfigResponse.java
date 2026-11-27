@@ -34,7 +34,8 @@ public record AgeGroupMealConfigResponse(
         BigDecimal lunchKcalPctMax,
         BigDecimal afternoonKcalPctMin,
         BigDecimal afternoonKcalPctMax,
-        BigDecimal dailyKcalNeed,
+        BigDecimal dailyKcalMin,
+        BigDecimal dailyKcalMax,
         BigDecimal calciumMin,
         BigDecimal calciumMax,
         BigDecimal phosphorusMin,
@@ -58,4 +59,5 @@ public record AgeGroupMealConfigResponse(
         BigDecimal appliedGlucidPct,
         NutritionConversionResponse conversion,
         String normBasis,
-        boolean editable) {}
+        boolean editable,
+        BigDecimal budgetTolerancePct) {}

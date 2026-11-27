@@ -143,41 +143,51 @@ class ClassStructureIntegrationTest {
     }
 
     @Test
-    void overlappingAgeRangeIsRejected() {
-        AgeGroupRequest overlapping =
-                new AgeGroupRequest("Nhóm mới", "Mới", 30, 40, List.of(MealSession.LUNCH), 20, null);
+    @DisplayName("SCH: thêm nhóm tuổi tự đặt (không chọn nhóm chuẩn) bị từ chối, kể cả khi không kèm năm")
+    void customAgeGroupIsRejected() {
+        plannedYear();
+        AgeGroupRequest custom = new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH), 15, "");
 
-        expectError(() -> ageGroupService.createAgeGroup(principal, overlapping), ApiCode.CONFLICT);
+        assertThatThrownBy(() -> ageGroupService.createAgeGroup(principal, custom))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.AGE_GROUP_STANDARD_REQUIRED);
     }
 
     @Test
-    void createAgeGroupOutsideExistingRanges() {
+    @DisplayName("Thêm không kèm năm: lấy đúng tên và độ tuổi của nhóm chuẩn")
+    void createWithoutYearUsesStandardGroup() {
         plannedYear();
+        long ag0 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-0'", Long.class);
+
         AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
                 principal,
                 new AgeGroupRequest(
-                        "Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH, MealSession.MORNING), 15, ""));
+                        "Tên client", "x", 0, 1, List.of(MealSession.LUNCH, MealSession.MORNING), 15, "", ag0));
 
-        assertThat(created.code()).startsWith("ag-");
+        assertThat(created.id()).isEqualTo(ag0);
+        assertThat(created.ageFromMonths()).isEqualTo(3);
         assertThat(created.mealSessions()).containsExactly(MealSession.MORNING, MealSession.LUNCH);
     }
 
     @Test
     @DisplayName("Lỗi xóa nhóm tuổi nêu năm học và tổ trưởng đang giữ nhóm (nhóm tuổi dùng chung mọi năm)")
     void deleteAgeGroupNamesYearAndLeader() {
-        plannedYear();
-        AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
-                principal, new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH), 15, ""));
+        // Nhóm tự tạo còn lại từ dữ liệu cũ
+        long customId = insertId("INSERT INTO age_groups (code, name, short_name, sort_order, age_from_months,"
+                + " age_to_months, meal_sessions, max_class_size, nutrition_note, standard_group, regulation_ref,"
+                + " created_at, updated_at) VALUES ('ag-it', 'Nhà trẻ nhỏ', 'NT nhỏ', 90, 0, 3, 'LUNCH', 15, '',"
+                + " FALSE, '', now(), now()) RETURNING id");
         long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
                 + "VALUES ('kc-leader', 'leader.it', 'Cô Tổ Trưởng') RETURNING id");
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
                         + "VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-09-01')",
                 leaderId,
-                created.id(),
+                customId,
                 year);
 
-        assertThatThrownBy(() -> ageGroupService.deleteAgeGroup(principal, created.id()))
+        assertThatThrownBy(() -> ageGroupService.deleteAgeGroup(principal, customId))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage("Nhóm tuổi đã có tổ trưởng Cô Tổ Trưởng ở năm học 2026-2027, không xóa được");
     }
@@ -618,6 +628,23 @@ class ClassStructureIntegrationTest {
     private long plannedYear() {
         return insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+    }
+
+    @Test
+    @DisplayName("GV chưa có lớp nào ở năm ACTIVE: cấu trúc trả lớp rỗng, không phải lỗi quyền (2101)")
+    void teacherWithoutActiveClassGetsEmptyStructure() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-noact', 'noact.it', 'GV không lớp') RETURNING id");
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-noact", "noact.it", "GV", null, Set.of(CareNestRole.TEACHER), Set.of());
+        assertThat(classService.getSchoolStructure(teacher, year, null).classes())
+                .isEmpty();
+        long parentId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-noactp', 'noactp.it', 'PH') RETURNING id");
+        CurrentUser parent =
+                new CurrentUser(parentId, "kc-noactp", "noactp.it", "PH", null, Set.of(CareNestRole.PARENT), Set.of());
+        assertThatThrownBy(() -> classService.getSchoolStructure(parent, year, null))
+                .isInstanceOf(GlobalException.class);
     }
 
     private RoomResponse createRoom(long campusId, String code, int capacity) {

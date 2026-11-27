@@ -3,6 +3,7 @@ package com.carenest.service.attendance.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.carenest.dto.attendance.PickupRequest;
@@ -10,6 +11,7 @@ import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
@@ -20,6 +22,7 @@ import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.notification.NotificationService;
+import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
@@ -64,6 +67,12 @@ class PickupServiceImplTest {
     private AttendanceRecordRepository attendanceRepository;
 
     @Mock
+    private AttendanceRecordHistoryRepository attendanceHistoryRepository;
+
+    @Mock
+    private AttendanceCutoffService attendanceCutoffService;
+
+    @Mock
     private ClassroomService classroomService;
 
     @Mock
@@ -90,6 +99,12 @@ class PickupServiceImplTest {
     @Mock
     private AccountService accountService;
 
+    @Mock
+    private com.carenest.repository.attendance.PickupTimeChangeRepository timeChangeRepository;
+
+    @Mock
+    private com.carenest.repository.attendance.LeaveRequestRepository leaveRequestRepository;
+
     private PickupServiceImpl service;
     private final CurrentUser teacher = new CurrentUser(
             7L, "kc-7", "teacher", "Cô A (giả)", null, Set.of(CareNestRole.TEACHER), Set.of(Permission.PICKUP_RECORD));
@@ -100,6 +115,8 @@ class PickupServiceImplTest {
                 rules,
                 pickupRepository,
                 attendanceRepository,
+                attendanceHistoryRepository,
+                new EarlyPickupRule(attendanceCutoffService),
                 classroomService,
                 enrollmentService,
                 staffAssignmentService,
@@ -109,7 +126,9 @@ class PickupServiceImplTest {
                 accountPhotoService,
                 notificationService,
                 accountService,
-                CLOCK);
+                CLOCK,
+                timeChangeRepository,
+                leaveRequestRepository);
         // Arrange chung: trẻ đang học lớp của cô, năm học đang hoạt động
         ClassroomInfoResponse cls = new ClassroomInfoResponse(
                 CLASS_ID,
@@ -182,15 +201,58 @@ class PickupServiceImplTest {
                         .containsExactly("note"));
     }
 
-    @Test // B: giờ trả sau giờ hiện tại 1 phút ⇒ lỗi ô handoverTime
-    void handoverTimeCannotBeInTheFuture() {
-        assertThatThrownBy(() -> service.recordResult(
-                        teacher,
-                        new PickupRequest(
-                                CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, LocalTime.of(16, 1), "Mẹ đón")))
-                .isInstanceOf(GlobalException.class)
-                .satisfies(ex -> assertThat(((GlobalException) ex).getFieldErrors())
-                        .extracting(FieldErrorResponse::field)
-                        .containsExactly("handoverTime"));
+    @Test
+    void pickupBeforeFullDayThresholdCountsAsHalfDayWithoutChangingMeals() {
+        AttendanceRecord attendance = AttendanceRecord.create(
+                CHILD_ID,
+                CLASS_ID,
+                1L,
+                TODAY,
+                AttendanceStatus.PRESENT,
+                List.of(com.carenest.utils.enums.MealSession.LUNCH),
+                7L,
+                CLOCK.instant());
+        when(attendanceRepository.findByChildIdInAndDate(List.of(CHILD_ID), TODAY))
+                .thenReturn(List.of(attendance));
+        when(pickupRepository.existsByChildIdAndDateAndOutcome(
+                        CHILD_ID, TODAY, com.carenest.utils.enums.PickupOutcome.HANDED_OVER))
+                .thenReturn(false);
+        when(pickupRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(guardianChildLinkService.findLinksOfChild(CHILD_ID)).thenReturn(List.of());
+        when(attendanceCutoffService.findFullDayPickupFrom(1L, TODAY)).thenReturn(Optional.of(LocalTime.of(16, 30)));
+
+        service.recordResult(
+                teacher, new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, null, "Mẹ đón"));
+
+        assertThat(attendance.presentDays()).isEqualTo(0.5);
+        assertThat(attendance.getMeals()).containsExactly(com.carenest.utils.enums.MealSession.LUNCH);
+        verify(attendanceRepository).save(attendance);
+        verify(attendanceHistoryRepository).save(any());
+    }
+
+    @Test
+    void pickupAtFullDayThresholdKeepsAFullAttendanceDay() {
+        AttendanceRecord attendance = AttendanceRecord.create(
+                CHILD_ID,
+                CLASS_ID,
+                1L,
+                TODAY,
+                AttendanceStatus.PRESENT,
+                List.of(com.carenest.utils.enums.MealSession.LUNCH),
+                7L,
+                CLOCK.instant());
+        when(attendanceRepository.findByChildIdInAndDate(List.of(CHILD_ID), TODAY))
+                .thenReturn(List.of(attendance));
+        when(pickupRepository.existsByChildIdAndDateAndOutcome(
+                        CHILD_ID, TODAY, com.carenest.utils.enums.PickupOutcome.HANDED_OVER))
+                .thenReturn(false);
+        when(pickupRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(guardianChildLinkService.findLinksOfChild(CHILD_ID)).thenReturn(List.of());
+
+        service.recordResult(
+                teacher,
+                new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, LocalTime.of(15, 0), "Mẹ đón"));
+
+        assertThat(attendance.presentDays()).isEqualTo(1);
     }
 }

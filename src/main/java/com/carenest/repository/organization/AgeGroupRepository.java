@@ -14,16 +14,7 @@ public interface AgeGroupRepository extends JpaRepository<AgeGroup, Long> {
 
     List<AgeGroup> findAllByStandardGroupTrueOrderBySortOrderAsc();
 
-    boolean existsByCode(String code);
-
     Optional<AgeGroup> findFirstByNameIgnoreCase(String name);
-
-    @Query("select count(g) > 0 from AgeGroup g where lower(g.name) = lower(:name)"
-            + " and (:excludeId is null or g.id <> :excludeId)")
-    boolean existsName(@Param("name") String name, @Param("excludeId") Long excludeId);
-
-    @Query("select coalesce(max(g.sortOrder), 0) from AgeGroup g")
-    short findMaxSortOrder();
 
     @Query(value = "select count(*) from staff_assignments where age_group_id = :ageGroupId", nativeQuery = true)
     long countStaffAssignments(@Param("ageGroupId") Long ageGroupId);

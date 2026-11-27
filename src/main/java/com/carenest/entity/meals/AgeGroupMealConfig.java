@@ -42,6 +42,10 @@ public class AgeGroupMealConfig {
     @Column(name = "service_fee", nullable = false)
     private BigDecimal serviceFee = BigDecimal.ZERO;
 
+    /** NUT-19: chi phí thực phẩm được lệch ngân sách tối đa bấy nhiêu % thì vẫn đạt tiền. */
+    @Column(name = "budget_tolerance_pct", nullable = false, precision = 5, scale = 2)
+    private BigDecimal budgetTolerancePct = BigDecimal.valueOf(5);
+
     @Column(name = "kcal_min")
     private BigDecimal kcalMin;
 
@@ -114,8 +118,11 @@ public class AgeGroupMealConfig {
     @Column(name = "afternoon_kcal_pct_max")
     private BigDecimal afternoonKcalPctMax;
 
-    @Column(name = "daily_kcal_need")
-    private BigDecimal dailyKcalNeed;
+    @Column(name = "daily_kcal_min")
+    private BigDecimal dailyKcalMin;
+
+    @Column(name = "daily_kcal_max")
+    private BigDecimal dailyKcalMax;
 
     // NUT-26: định mức vi chất mỗi trẻ mỗi ngày trên các bữa trường phục vụ; max null = chỉ cần đạt tối thiểu
     @Column(name = "calcium_min")
@@ -207,6 +214,10 @@ public class AgeGroupMealConfig {
         return config;
     }
 
+    public void changeBudgetTolerance(BigDecimal tolerancePct) {
+        this.budgetTolerancePct = tolerancePct;
+    }
+
     public void changeInfo(
             LocalDate effectiveFrom,
             BigDecimal mealPrice,
@@ -241,7 +252,8 @@ public class AgeGroupMealConfig {
         this.lunchKcalPctMax = norms.lunchKcalPctMax();
         this.afternoonKcalPctMin = norms.afternoonKcalPctMin();
         this.afternoonKcalPctMax = norms.afternoonKcalPctMax();
-        this.dailyKcalNeed = norms.dailyKcalNeed();
+        this.dailyKcalMin = norms.dailyKcalMin();
+        this.dailyKcalMax = norms.dailyKcalMax();
         this.calciumMin = norms.calciumMin();
         this.calciumMax = norms.calciumMax();
         this.phosphorusMin = norms.phosphorusMin();
@@ -269,7 +281,7 @@ public class AgeGroupMealConfig {
 
     /**
      * Khoảng chuẩn dinh dưỡng; null = trường chưa chốt chuẩn cho chỉ số đó. P:L:G là % năng lượng (cơ cấu áp dụng),
-     * đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), mỗi bữa là % nhu cầu năng lượng cả ngày {@code dailyKcalNeed} (NUT-25),
+     * đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), mỗi bữa là % nhu cầu năng lượng cả ngày {@code dailyKcalMax} = nhu cầu năng lượng cả ngày tối đa (NUT-25),
      * vi chất là tổng mỗi trẻ mỗi ngày (NUT-26).
      */
     public record Norms(
@@ -297,7 +309,8 @@ public class AgeGroupMealConfig {
             BigDecimal lunchKcalPctMax,
             BigDecimal afternoonKcalPctMin,
             BigDecimal afternoonKcalPctMax,
-            BigDecimal dailyKcalNeed,
+            BigDecimal dailyKcalMin,
+            BigDecimal dailyKcalMax,
             BigDecimal calciumMin,
             BigDecimal calciumMax,
             BigDecimal phosphorusMin,
