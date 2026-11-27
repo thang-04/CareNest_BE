@@ -1197,10 +1197,19 @@ class ChildEnrollmentIntegrationTest {
                 .contains(
                         "Phụ huynh đã có tài khoản (trùng CCCD): Mẹ Đã Có Tài Khoản · 0918888931. Dùng thông tin tài khoản,"
                                 + " chỉ liên kết người được chọn khi kích hoạt sau khi nhập.");
-        assertThat(rows.get(1).errors()).isEmpty();
-        assertThat(rows.get(1).notes())
+        assertThat(rows.get(1).errors())
                 .contains("Trẻ từng học ở trường (hồ sơ cũ " + leftCode
-                        + ", đã nghỉ học): nên mở lại hồ sơ cũ ở Tiếp nhận trẻ thay vì nhập mới.");
+                        + ", đã nghỉ học): mở lại hồ sơ cũ ở Tiếp nhận trẻ, không nhập mới.");
+        expectCode(
+                () -> enrollmentService.enroll(
+                        principal,
+                        request(
+                                "Trẻ Đã Nghỉ Nhập",
+                                "2023-03-03",
+                                null,
+                                campusA,
+                                newGuardian("0918888941", "999900000941"))),
+                ApiCode.CHILD_DUPLICATE_LEFT);
         assertThat(rows.get(2).errors())
                 .contains("Trẻ đã có hồ sơ trong hệ thống (trùng họ tên, ngày sinh và phụ huynh)");
         assertThat(rows.get(2).notes()).noneMatch(n -> n.startsWith("Trẻ từng học ở trường"));

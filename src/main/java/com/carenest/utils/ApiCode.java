@@ -385,6 +385,10 @@ public enum ApiCode {
             3008,
             HttpStatus.CONFLICT,
             "Hồ sơ trẻ này đã tồn tại (trùng họ tên, ngày sinh và phụ huynh). Xem lại hồ sơ đã có."),
+    CHILD_DUPLICATE_LEFT(
+            3020,
+            HttpStatus.CONFLICT,
+            "Trẻ đã có hồ sơ ở trạng thái Đã nghỉ học. Mở lại hồ sơ cũ thay vì tạo hồ sơ mới."),
     // AUTH-18: một người một tài khoản; data = các ô CCCD/SĐT lệch (guardians.{i}.idNumber|phone)
     GUARDIAN_IDENTITY_CONFLICT(
             3009,

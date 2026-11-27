@@ -133,9 +133,9 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                                 || !raw.getOrDefault("diet", "").isBlank()))
                     notes.add("Không báo ăn: bỏ qua cột Dị ứng, Chế độ ăn");
                 if (duplicate != null && duplicate.kind() == DuplicateChildKind.LEFT) {
-                    notes.add("Trẻ từng học ở trường ("
+                    errors.add("Trẻ từng học ở trường ("
                             + (duplicate.code() == null ? "" : "hồ sơ cũ " + duplicate.code() + ", ")
-                            + "đã nghỉ học): nên mở lại hồ sơ cũ ở Tiếp nhận trẻ thay vì nhập mới.");
+                            + "đã nghỉ học): mở lại hồ sơ cũ ở Tiếp nhận trẻ, không nhập mới.");
                 } else if (duplicate != null) {
                     errors.add("Trẻ đã có hồ sơ trong hệ thống (trùng họ tên, ngày sinh và phụ huynh)");
                 }

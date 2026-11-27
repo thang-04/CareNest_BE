@@ -344,17 +344,14 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     result.draft());
             Set<String> citizenIds =
                     draft.guardians().stream().map(GuardianDraft::citizenId).collect(Collectors.toSet());
-            // CHD-04: trùng trẻ đang học / chờ xếp lớp thì không tiếp nhận; trùng trẻ đã nghỉ thì FE gợi ý mở lại
-            boolean duplicate =
-                    sameChildren(
-                                    EnrollmentFormValidator.nameKey(draft.fullName()),
-                                    draft.dateOfBirth(),
-                                    citizenIds,
-                                    null)
-                            .stream()
-                            .anyMatch(c -> c.getStatus() != ChildStatus.LEFT);
-            if (duplicate) {
+            // CP-06: hồ sơ đã nghỉ phải mở lại, không tiếp nhận thành hồ sơ mới.
+            List<Child> duplicates = sameChildren(
+                    EnrollmentFormValidator.nameKey(draft.fullName()), draft.dateOfBirth(), citizenIds, null);
+            if (duplicates.stream().anyMatch(c -> c.getStatus() != ChildStatus.LEFT)) {
                 throw GlobalException.of(ApiCode.CHILD_DUPLICATE);
+            }
+            if (!duplicates.isEmpty()) {
+                throw GlobalException.of(ApiCode.CHILD_DUPLICATE_LEFT);
             }
             log.info(
                     "{}|guardians={}|classroomId={}|campusId={}|END",
