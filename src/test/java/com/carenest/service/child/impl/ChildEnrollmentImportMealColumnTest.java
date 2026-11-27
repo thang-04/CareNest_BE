@@ -137,15 +137,16 @@ class ChildEnrollmentImportMealColumnTest {
             Preview preview = service.preview(VICE, csv(validRow("Không")));
             EnrollChildRequest row = preview.rows().getFirst().payload();
             EnrollmentDraft draft = new EnrollmentDraft("Bé An giả", null, null, List.of(), null, null, null, 1L);
-            given(childIntakeService.prepareEnrollment(eq(VICE), any())).willReturn(draft);
+            given(childIntakeService.prepareEnrollments(eq(VICE), any())).willReturn(List.of(draft));
             given(childIntakeService.createEnrolledChild(eq(VICE), eq(draft), any()))
                     .willReturn(201L);
 
             service.importRows(VICE, new ImportRequest(List.of(row), 1L));
 
-            ArgumentCaptor<EnrollChildRequest> scoped = ArgumentCaptor.forClass(EnrollChildRequest.class);
-            verify(childIntakeService).prepareEnrollment(eq(VICE), scoped.capture());
-            assertThat(scoped.getValue().declaration().mealRegistered()).isFalse();
+            ArgumentCaptor<List<EnrollChildRequest>> scoped = ArgumentCaptor.captor();
+            verify(childIntakeService).prepareEnrollments(eq(VICE), scoped.capture());
+            assertThat(scoped.getValue().getFirst().declaration().mealRegistered())
+                    .isFalse();
         }
     }
 

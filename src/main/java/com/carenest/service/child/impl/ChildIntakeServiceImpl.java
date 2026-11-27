@@ -329,30 +329,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         String logPrefix = LOG_PREFIX + "|prepareEnrollment|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
-            LocalDate today = LocalDate.now(clock);
-            EnrollmentFormValidator.Result result = EnrollmentFormValidator.validate(request, today);
-            if (!result.errors().isEmpty()) {
-                throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, result.errors());
-            }
-            EnrollmentDraft draft = placeOf(
-                    actor,
-                    request.classId(),
-                    request.campusId(),
-                    request.schoolYearId(),
-                    request.startDate(),
-                    today,
-                    result.draft());
-            Set<String> citizenIds =
-                    draft.guardians().stream().map(GuardianDraft::citizenId).collect(Collectors.toSet());
-            // CP-06: hồ sơ đã nghỉ phải mở lại, không tiếp nhận thành hồ sơ mới.
-            List<Child> duplicates = sameChildren(
-                    EnrollmentFormValidator.nameKey(draft.fullName()), draft.dateOfBirth(), citizenIds, null);
-            if (duplicates.stream().anyMatch(c -> c.getStatus() != ChildStatus.LEFT)) {
-                throw GlobalException.of(ApiCode.CHILD_DUPLICATE);
-            }
-            if (!duplicates.isEmpty()) {
-                throw GlobalException.of(ApiCode.CHILD_DUPLICATE_LEFT);
-            }
+            EnrollmentDraft draft = prepare(actor, request, new PlaceLookups());
             log.info(
                     "{}|guardians={}|classroomId={}|campusId={}|END",
                     logPrefix,
@@ -364,6 +341,59 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EnrollmentDraft> prepareEnrollments(CurrentUser actor, List<EnrollChildRequest> requests) {
+        String logPrefix = LOG_PREFIX + "|prepareEnrollments|userId=" + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            PlaceLookups lookups = new PlaceLookups();
+            EnrollmentBatchValidator batch = new EnrollmentBatchValidator();
+            List<EnrollmentDraft> drafts = requests.stream()
+                    .map(request -> {
+                        if (request == null) throw fieldError("file", "Dòng dữ liệu không hợp lệ");
+                        EnrollmentDraft draft = prepare(actor, request, lookups);
+                        batch.check(request);
+                        return draft;
+                    })
+                    .toList();
+            log.info("{}|count={}|END", logPrefix, drafts.size());
+            return drafts;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private EnrollmentDraft prepare(CurrentUser actor, EnrollChildRequest request, PlaceLookups lookups) {
+        LocalDate today = LocalDate.now(clock);
+        EnrollmentFormValidator.Result result = EnrollmentFormValidator.validate(request, today);
+        if (!result.errors().isEmpty()) {
+            throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, result.errors());
+        }
+        EnrollmentDraft draft = placeOf(
+                actor,
+                request.classId(),
+                request.campusId(),
+                request.schoolYearId(),
+                request.startDate(),
+                today,
+                result.draft(),
+                lookups);
+        Set<String> citizenIds =
+                draft.guardians().stream().map(GuardianDraft::citizenId).collect(Collectors.toSet());
+        // CP-06: hồ sơ đã nghỉ phải mở lại, không tiếp nhận thành hồ sơ mới.
+        List<Child> duplicates =
+                sameChildren(EnrollmentFormValidator.nameKey(draft.fullName()), draft.dateOfBirth(), citizenIds, null);
+        if (duplicates.stream().anyMatch(c -> c.getStatus() != ChildStatus.LEFT)) {
+            throw GlobalException.of(ApiCode.CHILD_DUPLICATE);
+        }
+        if (!duplicates.isEmpty()) {
+            throw GlobalException.of(ApiCode.CHILD_DUPLICATE_LEFT);
+        }
+        return draft;
     }
 
     @Override
@@ -704,6 +734,41 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
      * Lớp/điểm trường nhận trẻ (CHD-02, CHD-10): có lớp ⇒ lớp đang hoạt động của năm đang hoạt động, trong phạm vi,
      * chưa đủ sĩ số; không có lớp ⇒ điểm trường tiếp nhận (PHT một điểm trường bỏ trống = điểm trường của mình).
      */
+    private record YearStart(Long schoolYearId, LocalDate startDate) {}
+
+    private record IntakeTarget(SchoolYearDetailResponse year, boolean planned, LocalDate startDate) {}
+
+    private record CampusYear(Long campusId, Long schoolYearId) {}
+
+    private static final class PlaceLookups {
+        private final Map<YearStart, IntakeTarget> targets = new HashMap<>();
+        private final Set<CampusYear> campuses = new HashSet<>();
+        private Boolean wholeSchool;
+        private Set<Long> managed;
+    }
+
+    private IntakeTarget intakeTarget(
+            CurrentUser actor, Long schoolYearId, LocalDate requestedStartDate, LocalDate today) {
+        SchoolYearDetailResponse targetYear = schoolYearId == null
+                ? null
+                : schoolYearService
+                        .findSchoolYearDetail(schoolYearId)
+                        .orElseThrow(() -> fieldError("schoolYearId", "Năm học không tồn tại"));
+        if (targetYear != null && targetYear.status() == SchoolYearStatus.CLOSED) {
+            throw fieldError("schoolYearId", "Năm học đã kết thúc, không thể tiếp nhận trẻ");
+        }
+        boolean planned = targetYear != null && targetYear.status() == SchoolYearStatus.PLANNED;
+        if (planned) {
+            PlannedTarget target = plannedTarget(actor, targetYear, requestedStartDate);
+            return new IntakeTarget(target.year(), true, target.startDate());
+        }
+        return new IntakeTarget(
+                targetYear,
+                false,
+                currentYearStart(
+                        actor, targetYear != null ? targetYear : activeYear(actor), requestedStartDate, today));
+    }
+
     private EnrollmentDraft placeOf(
             CurrentUser actor,
             Long classId,
@@ -711,27 +776,20 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             Long schoolYearId,
             LocalDate requestedStartDate,
             LocalDate today,
-            EnrollmentDraft draft) {
-        boolean wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
-        Set<Long> managed = wholeSchool ? Set.of() : staffAccessPolicy.managedCampusIds(actor);
-        SchoolYearDetailResponse targetYear = schoolYearId == null
-                ? null
-                : schoolYearService
-                        .findSchoolYearDetail(schoolYearId)
-                        .orElseThrow(() -> fieldError("schoolYearId", "Năm học không tồn tại"));
-        boolean planned = targetYear != null && targetYear.status() == SchoolYearStatus.PLANNED;
-        if (targetYear != null && targetYear.status() == SchoolYearStatus.CLOSED) {
-            throw fieldError("schoolYearId", "Năm học đã kết thúc, không thể tiếp nhận trẻ");
+            EnrollmentDraft draft,
+            PlaceLookups lookups) {
+        if (lookups.wholeSchool == null) {
+            lookups.wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
+            lookups.managed = lookups.wholeSchool ? Set.of() : staffAccessPolicy.managedCampusIds(actor);
         }
-        LocalDate startDate;
-        if (planned) {
-            PlannedTarget target = plannedTarget(actor, schoolYearId, requestedStartDate);
-            targetYear = target.year();
-            startDate = target.startDate();
-        } else {
-            startDate = currentYearStart(
-                    actor, targetYear != null ? targetYear : activeYear(actor), requestedStartDate, today);
-        }
+        boolean wholeSchool = lookups.wholeSchool;
+        Set<Long> managed = lookups.managed;
+        IntakeTarget intake = lookups.targets.computeIfAbsent(
+                new YearStart(schoolYearId, requestedStartDate),
+                key -> intakeTarget(actor, key.schoolYearId(), key.startDate(), today));
+        SchoolYearDetailResponse targetYear = intake.year();
+        boolean planned = intake.planned();
+        LocalDate startDate = intake.startDate();
         if (classId != null) {
             ClassroomInfoResponse classroom =
                     classroomService.findClassroomInfo(classId).orElse(null);
@@ -755,13 +813,18 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (target == null) {
             throw fieldError("campusId", "Chọn điểm trường tiếp nhận trẻ");
         }
-        if (campusService.findCampusStatus(target).orElse(null) != CampusStatus.ACTIVE) {
+        CampusYear campusKey = new CampusYear(target, targetYear == null ? null : targetYear.id());
+        if (!lookups.campuses.contains(campusKey)
+                && campusService.findCampusStatus(target).orElse(null) != CampusStatus.ACTIVE) {
             throw fieldError("campusId", "Điểm trường không tồn tại hoặc đã ngừng hoạt động");
         }
         if (!wholeSchool && !managed.contains(target)) {
             throw fieldError("campusId", "Chỉ tiếp nhận trẻ vào điểm trường bạn được giao");
         }
-        requireCampusInYear(actor, target, targetYear == null ? null : targetYear.id());
+        if (!lookups.campuses.contains(campusKey)) {
+            requireCampusInYear(actor, target, campusKey.schoolYearId());
+            lookups.campuses.add(campusKey);
+        }
         EnrollmentDraft pending = draft.withPlacement(null, target);
         return planned ? pending.withAdmission(targetYear.id(), startDate) : pending.withStartDate(startDate);
     }
@@ -826,6 +889,11 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         SchoolYearDetailResponse year = schoolYearService
                 .findSchoolYearDetail(schoolYearId)
                 .orElseThrow(() -> fieldError("schoolYearId", "Năm học không tồn tại"));
+        return plannedTarget(actor, year, requestedStartDate);
+    }
+
+    private PlannedTarget plannedTarget(
+            CurrentUser actor, SchoolYearDetailResponse year, LocalDate requestedStartDate) {
         SchoolYearDetailResponse next = schoolYearService.findNextPlannedYear();
         if (next == null || !next.id().equals(year.id())) {
             throw fieldError("schoolYearId", "Chỉ được đăng ký cho năm học sắp diễn ra gần nhất");

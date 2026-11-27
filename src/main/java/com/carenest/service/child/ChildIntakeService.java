@@ -73,6 +73,8 @@ public interface ChildIntakeService {
      */
     EnrollmentDraft prepareEnrollment(CurrentUser actor, EnrollChildRequest request);
 
+    List<EnrollmentDraft> prepareEnrollments(CurrentUser actor, List<EnrollChildRequest> requests);
+
     /**
      * Ghi hồ sơ trẻ của bản đã kiểm (trẻ, hành chính, khai báo, dị ứng, lịch sử, lớp nếu có, phụ huynh); chạy trong
      * giao dịch của người gọi. {@code accountIdByPosition}: vị trí phụ huynh → tài khoản liên kết với trẻ ngay.

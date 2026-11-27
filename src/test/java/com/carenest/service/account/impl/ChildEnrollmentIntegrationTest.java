@@ -52,6 +52,7 @@ import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SmsStatus;
 import com.carenest.utils.enums.YesNo;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -63,6 +64,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,11 +88,24 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * Tiếp nhận trẻ trên PostgreSQL thật (V10 + school-structure): kiểm trùng, lớp tiếp nhận, tra tài khoản theo CCCD,
  * lưu form kèm tạo/liên kết tài khoản (Keycloak, SMS giả lập), mở lại hồ sơ. Hôm nay = 29/10/2026.
  */
-@SpringBootTest
+@SpringBootTest(
+        properties = {
+            "spring.jpa.properties.hibernate.generate_statistics=true",
+            "spring.jpa.properties.hibernate.session_factory.statement_inspector=com.carenest.service.account.impl.ChildEnrollmentIntegrationTest$LookupStatements"
+        })
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 @RecordApplicationEvents
 class ChildEnrollmentIntegrationTest {
+    public static class LookupStatements implements org.hibernate.resource.jdbc.spi.StatementInspector {
+        private static final ThreadLocal<java.util.List<String>> SQL = new ThreadLocal<>();
+
+        @Override
+        public String inspect(String sql) {
+            if (SQL.get() != null) SQL.get().add(sql.toLowerCase(java.util.Locale.ROOT));
+            return sql;
+        }
+    }
     // Mã phòng duy nhất trong lần chạy (nanoTime % 100000 trùng khi hai lần gọi sát nhau)
     private static final AtomicInteger ROOM_SEQ = new AtomicInteger();
 
@@ -138,6 +154,9 @@ class ChildEnrollmentIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     private CurrentUser principal;
     private CurrentUser vicePrincipal;
@@ -1586,6 +1605,87 @@ class ChildEnrollmentIntegrationTest {
 
     @Autowired
     private com.carenest.service.child.ChildEnrollmentImportService importService;
+
+    @Test
+    void activeIntakeLookupQueriesDoNotGrowWithImportRows() {
+        assertThat(importLookupCounts(activeYear, TODAY, 10, 100))
+                .isEqualTo(importLookupCounts(activeYear, TODAY, 5, 200));
+    }
+
+    @Test
+    void implicitActiveYearLookupQueriesDoNotGrowWithImportRows() {
+        assertThat(importLookupCounts(null, TODAY, 10, 300)).isEqualTo(importLookupCounts(null, TODAY, 5, 400));
+    }
+
+    @Test
+    void plannedIntakeLookupQueriesDoNotGrowWithImportRows() {
+        openPrep("2026-10-29");
+        assertThat(importLookupCounts(plannedYear, null, 10, 500))
+                .isEqualTo(importLookupCounts(plannedYear, null, 5, 600));
+    }
+
+    @Test
+    void batchIntakeKeepsFirstRowErrorBeforeLaterNullRow() {
+        var row = request("Trẻ lỗi theo dòng", "2023-04-10", null, campusA, newGuardian("0900990999", "999900009999"));
+        expectField(
+                () -> intakeService.prepareEnrollments(vicePrincipal, java.util.Arrays.asList(row, row, null)),
+                ApiCode.INVALID_REQUEST_DATA,
+                "file",
+                "Trùng trẻ trong file");
+    }
+
+    @Test
+    void batchIntakeDoesNotReuseTargetOrCampusAcrossCalls() {
+        var row = request("Trẻ phạm vi lô", "2023-04-10", null, campusA, newGuardian("0900990888", "999900008888"));
+        intakeService.prepareEnrollments(vicePrincipal, List.of(row));
+        var outside = new EnrollChildRequest(row.child(), row.declaration(), null, campusB, null, TODAY);
+        expectField(
+                () -> intakeService.prepareEnrollments(vicePrincipal, List.of(outside)),
+                ApiCode.INVALID_REQUEST_DATA,
+                "campusId",
+                "Chỉ tiếp nhận trẻ vào điểm trường bạn được giao");
+    }
+
+    private Map<String, Long> importLookupCounts(Long schoolYearId, LocalDate startDate, int size, int offset) {
+        List<EnrollChildRequest> rows = java.util.stream.IntStream.range(0, size)
+                .mapToObj(i -> request(
+                        "Trẻ đếm truy vấn " + (offset + i),
+                        "2023-04-10",
+                        classA,
+                        campusB,
+                        newGuardian(
+                                "09009" + String.format("%05d", offset + i),
+                                "9999000" + String.format("%05d", offset + i))))
+                .toList();
+        entityManager.flush();
+        entityManager.clear();
+        Statistics statistics =
+                entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.clear();
+        LookupStatements.SQL.set(new java.util.ArrayList<>());
+        var result = importService.importRows(
+                vicePrincipal,
+                new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                        rows, campusA, schoolYearId, startDate));
+        entityManager.flush();
+        assertThat(result.created()).isEqualTo(size);
+        Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        for (String table : List.of("school_years", "campuses", "staff_assignments")) {
+            java.util.regex.Pattern read = java.util.regex.Pattern.compile("\\b(from|join)\\s+" + table + "\\b");
+            long count = LookupStatements.SQL.get().stream()
+                    .filter(sql -> read.matcher(sql).find())
+                    .count();
+            assertThat(count).as(table + " lookup statements").isPositive();
+            counts.put(table, count);
+        }
+        assertThat(statistics.getPrepareStatementCount())
+                .isGreaterThan(counts.values().stream()
+                        .mapToLong(Long::longValue)
+                        .max()
+                        .orElseThrow());
+        LookupStatements.SQL.remove();
+        return counts;
+    }
 
     @Test
     @DisplayName("CHD-11: nhập Excel vào năm sau ⇒ mỗi trẻ một đăng ký chưa có lớp")

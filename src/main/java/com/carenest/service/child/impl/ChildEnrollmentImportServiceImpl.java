@@ -92,9 +92,7 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                     .toList();
             if (!missing.isEmpty()) throw invalid("file", "Thiếu cột: " + String.join(", ", missing));
             List<PreviewRow> result = new ArrayList<>();
-            List<EnrollmentChildInput> children = new ArrayList<>();
-            Map<String, String> ids = new HashMap<>();
-            Map<String, String> phones = new HashMap<>();
+            EnrollmentBatchValidator batch = new EnrollmentBatchValidator();
             for (int i = 1; i < table.size(); i++) {
                 Map<String, String> raw = new HashMap<>();
                 for (int c = 0; c < keys.size(); c++)
@@ -113,7 +111,7 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                 }
                 // CHD-13: ô Báo ăn chỉ nhận Có/Không (hoặc để trống)
                 if (invalidMeal(raw.get("mealRegistered"))) errors.add(MEAL_INVALID);
-                batchCheck(payload, children, ids, phones, errors);
+                batch.collectErrors(payload, errors);
                 var duplicate = childIntakeService.checkDuplicate(
                         actor,
                         payload.child().fullName(),
@@ -160,12 +158,12 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                     || request.rows() == null
                     || request.rows().isEmpty()
                     || request.rows().size() > 500) throw invalid("file", "Mỗi lần nhập từ 1 đến 500 trẻ");
-            List<EnrollmentDraft> drafts = new ArrayList<>();
-            List<EnrollmentChildInput> children = new ArrayList<>();
-            Map<String, String> ids = new HashMap<>();
-            Map<String, String> phones = new HashMap<>();
+            List<EnrollChildRequest> scopedRows = new ArrayList<>();
             for (EnrollChildRequest row : request.rows()) {
-                if (row == null) throw invalid("file", "Dòng dữ liệu không hợp lệ");
+                if (row == null) {
+                    scopedRows.add(null);
+                    continue;
+                }
                 // CHD-11: chuyển năm đích + ngày vào học; năm sau chưa tới ngày chuẩn bị ⇒ 2412 cả lô
                 EnrollChildRequest scoped = new EnrollChildRequest(
                         row.child(),
@@ -174,12 +172,9 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                         request.campusId(),
                         request.schoolYearId(),
                         request.startDate());
-                EnrollmentDraft draft = childIntakeService.prepareEnrollment(actor, scoped);
-                List<String> errors = new ArrayList<>();
-                batchCheck(scoped, children, ids, phones, errors);
-                if (!errors.isEmpty()) throw invalid("file", String.join("; ", errors));
-                drafts.add(draft);
+                scopedRows.add(scoped);
             }
+            List<EnrollmentDraft> drafts = childIntakeService.prepareEnrollments(actor, scopedRows);
             List<Long> idsCreated = drafts.stream()
                     .map(draft -> childIntakeService.createEnrolledChild(actor, draft, Map.of()))
                     .toList();
@@ -188,39 +183,6 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
-        }
-    }
-
-    private static void batchCheck(
-            EnrollChildRequest row,
-            List<EnrollmentChildInput> children,
-            Map<String, String> ids,
-            Map<String, String> phones,
-            List<String> errors) {
-        Set<String> guardianIds = row.child().guardians().stream()
-                .map(g -> com.carenest.utils.CitizenIds.normalize(g.idNumber()).orElse(""))
-                .filter(id -> !id.isBlank())
-                .collect(java.util.stream.Collectors.toSet());
-        boolean duplicate = children.stream()
-                .anyMatch(previous -> java.util.Objects.equals(
-                                previous.dateOfBirth(), row.child().dateOfBirth())
-                        && java.util.Objects.equals(
-                                EnrollmentFormValidator.nameKey(previous.fullName()),
-                                EnrollmentFormValidator.nameKey(row.child().fullName()))
-                        && previous.guardians().stream()
-                                .anyMatch(
-                                        g -> guardianIds.contains(com.carenest.utils.CitizenIds.normalize(g.idNumber())
-                                                .orElse(""))));
-        if (duplicate) errors.add("Trùng trẻ trong file");
-        children.add(row.child());
-        for (GuardianInput g : row.child().guardians()) {
-            String id = g.idNumber() == null ? "" : g.idNumber().replaceAll("\\s", "");
-            String phone = com.carenest.utils.PhoneNumbers.normalize(g.phone()).orElse("");
-            if (id.isBlank() || phone.isBlank()) continue;
-            String oldPhone = ids.putIfAbsent(id, phone);
-            String oldId = phones.putIfAbsent(phone, id);
-            if ((oldPhone != null && !oldPhone.equals(phone)) || (oldId != null && !oldId.equals(id)))
-                errors.add("CCCD và số điện thoại của phụ huynh không nhất quán giữa các dòng");
         }
     }
 
