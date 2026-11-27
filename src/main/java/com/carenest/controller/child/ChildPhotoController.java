@@ -40,10 +40,11 @@ public class ChildPhotoController {
             @RequestPart("photo") MultipartFile photo,
             @RequestParam(value = "reason", required = false) String reason,
             CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(
-                ApiCode.SUCCESSFUL,
-                "Replace child photo success",
-                photoService.replaceChildPhoto(currentUser, childId, photo, reason));
+        String logPrefix = LOG_PREFIX + "|replaceChildPhoto|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse result = photoService.replaceChildPhoto(currentUser, childId, photo, reason);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Replace child photo success", result);
     }
 
     @PutMapping(value = "/{childId}/guardian-photos/{guardianId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -54,10 +55,11 @@ public class ChildPhotoController {
             @RequestPart("photo") MultipartFile photo,
             @RequestParam(value = "reason", required = false) String reason,
             CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(
-                ApiCode.SUCCESSFUL,
-                "Replace guardian photo success",
-                photoService.replaceGuardianPhoto(currentUser, childId, guardianId, photo, reason));
+        String logPrefix = LOG_PREFIX + "|replaceGuardianPhoto|childId=" + childId + "|guardianId=" + guardianId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse result = photoService.replaceGuardianPhoto(currentUser, childId, guardianId, photo, reason);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Replace guardian photo success", result);
     }
 
     @GetMapping("/{childId}/photo")
