@@ -63,6 +63,17 @@ public class ThemeEvaluationController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get theme evaluation success", response);
     }
 
+    @GetMapping("/assessment/theme-evaluations/revision")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_CONFIRM')")
+    public ResponseEntity<ResponseJson<ThemeEvaluationResponse>> getRevision(
+            @RequestParam Long classId, @RequestParam Long themeId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getRevision|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        ThemeEvaluationResponse response = themeEvaluationService.revision(currentUser, classId, themeId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get theme evaluation revision success", response);
+    }
+
     @PutMapping("/assessment/theme-evaluations")
     @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<ThemeEvaluationResponse>> saveEvaluation(

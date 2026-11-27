@@ -81,10 +81,11 @@ public class ChildEvaluationController {
     @PostMapping("/assessment/evaluations/{id}/confirm")
     @PreAuthorize("@permissionGuard.has('ASSESSMENT_CONFIRM')")
     public ResponseEntity<ResponseJson<EvaluationRow>> confirm(
-            @PathVariable Long id, @RequestBody EvaluationContentRequest request, CurrentUser currentUser) {
+            @PathVariable Long id, @Valid @RequestBody EvaluationContentRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|confirm|userId=" + currentUser.userId() + "|id=" + id;
         log.info("{}|START", logPrefix);
-        EvaluationRow row = childEvaluationService.confirm(currentUser, id, request.content());
+        EvaluationRow row = childEvaluationService.confirm(
+                currentUser, id, request.content(), request.programCompleted(), request.sheet());
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Confirm evaluation success", row);
     }

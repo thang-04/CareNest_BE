@@ -216,6 +216,17 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
 
     @Override
     @Transactional(readOnly = true)
+    public boolean isWritable(ClassroomInfoResponse cls, EvaluationLockKind kind, String periodKey) {
+        return periodKey == null
+                || periodsOf(cls).stream()
+                        .filter(p -> p.kind() == kind && periodKey.equals(p.periodKey()))
+                        .findFirst()
+                        .map(p -> p.writable())
+                        .orElse(true);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public String semesterKey(ClassroomInfoResponse cls, LocalDate periodEnd) {
         LocalDate s1End = schoolYearService
                 .findSchoolYearDetail(cls.schoolYearId())

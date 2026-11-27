@@ -5,6 +5,7 @@ import com.carenest.dto.observation.ThemeEvaluationDtos;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.observation.SemesterAssessment;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.observation.EvaluationRevisionRepository;
 import com.carenest.repository.observation.SemesterAssessmentRepository;
 import com.carenest.repository.observation.ThemeEvaluationRepository;
 import com.carenest.security.CurrentUser;
@@ -43,6 +44,8 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private final ObjectMapper mapper;
     private final ThemeEvaluationService themeEvaluationService;
     private final EduPlanCalendarQueryService calendar;
+    private final ClassThemeGoals classThemeGoals;
+    private final EvaluationRevisionRepository revisionRepository;
     private final EvaluationDeadlineService evaluationDeadlineService;
     private final EvaluationNotifier evaluationNotifier;
 
@@ -91,6 +94,36 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Response revision(CurrentUser user, Long classId, int semester) {
+        String logPrefix = LOG_PREFIX + "|revision|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        try {
+            var saved =
+                    repository.findByClassroomIdAndSemester(classId, semester).orElse(null);
+            if (saved == null || !canRevise(user, visible(user, classId), saved)) {
+                throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
+            }
+            var response = build(user, classId, semester, saved, true);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private boolean canRevise(CurrentUser user, ClassroomInfoResponse cls, SemesterAssessment saved) {
+        return saved.getConfirmedAt() != null
+                && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
+                && rules.canRecordPeriod(user, cls)
+                && rules.isHomeroom(user, cls)
+                && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                && evaluationDeadlineService.isWritable(
+                        cls, EvaluationLockKind.SEMESTER, String.valueOf(saved.getSemester()));
+    }
+
     private ClassroomInfoResponse visible(CurrentUser user, Long id) {
         var cls = rules.findClass(id);
         // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem (chỉ xem) bảng học kỳ các lớp nhóm tuổi mình
@@ -110,8 +143,20 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         if (confirm && !rules.isHomeroom(user, cls)) throw GlobalException.of(ApiCode.CONFIRM_HOMEROOM_ONLY);
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         rules.lockClassForUpdate(cls.id());
-        var board = build(user, cls.id(), req.semester(), null);
-        if (board.status().equals("CONFIRMED")) throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
+        var current = build(user, cls.id(), req.semester(), null);
+        // Bản đã xác nhận chỉ đổi được bằng cách xác nhận lại (còn hạn hoặc đang mở lại), không lưu nháp
+        boolean revising = current.status().equals("CONFIRMED");
+        if (revising && !confirm) throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
+        var board = revising
+                ? build(
+                        user,
+                        cls.id(),
+                        req.semester(),
+                        repository
+                                .findByClassroomIdAndSemester(cls.id(), req.semester())
+                                .orElseThrow(),
+                        true)
+                : current;
         // OBS-06 (Cần chốt 18/11/2026): quá hạn 5 ngày học sau ngày kết thúc học kỳ thì khóa, trừ khi BGH đang mở lại
         evaluationDeadlineService.checkWritable(cls, EvaluationLockKind.SEMESTER, String.valueOf(req.semester()));
         if (rules.today().isBefore(board.startDate())) throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_STARTED);
@@ -128,14 +173,24 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                         board.startDate(),
                         board.endDate()));
         DiagnosticTerms.requireClean(req.note());
+        if (revising) {
+            revisionRepository.save(com.carenest.entity.observation.EvaluationRevision.of(
+                    com.carenest.entity.observation.EvaluationRevision.SEMESTER,
+                    entity.getId(),
+                    entity.getSnapshot(),
+                    user.userId(),
+                    rules.now()));
+        }
         entity.save(req.note() == null ? null : req.note().trim());
         if (confirm) {
-            var snapshot = build(user, cls.id(), req.semester(), entity);
+            var snapshot = build(user, cls.id(), req.semester(), entity, revising);
             entity.confirm(mapper.writeValueAsString(snapshot), user.userId(), rules.now());
         }
         repository.saveAndFlush(entity);
         // Cần chốt 17/11/2026: xác nhận đánh giá học kỳ ⇒ báo phụ huynh từng trẻ (mẫu "Đánh giá mới của bé")
-        if (confirm) board.rows().forEach(c -> evaluationNotifier.childEvaluationConfirmed(c.childId()));
+        if (confirm) {
+            for (var c : board.rows()) evaluationNotifier.childEvaluationConfirmed(c.childId());
+        }
         return build(user, cls.id(), req.semester(), entity);
     }
 
@@ -157,35 +212,40 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     }
 
     private Response build(CurrentUser user, Long classId, int semester, SemesterAssessment given) {
+        return build(user, classId, semester, given, false);
+    }
+
+    private Response build(CurrentUser user, Long classId, int semester, SemesterAssessment given, boolean revise) {
         var cls = visible(user, classId);
         if (semester != 1 && semester != 2)
             throw GlobalException.of(ApiCode.SEMESTER_DATE_REQUIRED, "Học kỳ I hoặc II");
         var saved = given != null
                 ? given
                 : repository.findByClassroomIdAndSemester(classId, semester).orElse(null);
-        if (saved != null && saved.getConfirmedAt() != null) {
+        if (saved != null && saved.getConfirmedAt() != null && !revise) {
             var b = mapper.readValue(saved.getSnapshot(), Response.class);
             requireReadPeriod(user, cls, b.startDate(), b.endDate());
             String signer =
                     accounts.findFullNames(List.of(saved.getConfirmedBy())).get(saved.getConfirmedBy());
             return new Response(
-                    b.classId(),
-                    b.className(),
-                    b.schoolYearId(),
-                    b.yearName(),
-                    b.semester(),
-                    b.startDate(),
-                    b.endDate(),
-                    "CONFIRMED",
-                    saved.getNote(),
-                    b.domains(),
-                    labelRows(b.rows(), cls),
-                    false,
-                    false,
-                    CONFIRMED,
-                    saved.getConfirmedAt(),
-                    signer,
-                    signersOn(classId, b.endDate()));
+                            b.classId(),
+                            b.className(),
+                            b.schoolYearId(),
+                            b.yearName(),
+                            b.semester(),
+                            b.startDate(),
+                            b.endDate(),
+                            "CONFIRMED",
+                            saved.getNote(),
+                            b.domains(),
+                            labelRows(b.rows(), cls),
+                            false,
+                            false,
+                            CONFIRMED,
+                            saved.getConfirmedAt(),
+                            signer,
+                            signersOn(classId, b.endDate()))
+                    .withCanRevise(canRevise(user, cls, saved));
         }
         var year = years.getSchoolYear(user, cls.schoolYearId());
         LocalDate from = semester == 1 ? year.semester1Start() : year.semester2Start();
@@ -207,7 +267,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
                 if (t.endDate() != null
                         && !t.endDate().isBefore(themeFrom)
                         && !t.endDate().isAfter(themeTo))
-                    themes.findThemeGoals(t.themeId()).forEach(g -> selected.add(g.getLineage()));
+                    classThemeGoals.of(classId, t.themeId()).forEach(g -> selected.add(g.getLineage()));
             }
         var children = to.isBefore(from)
                 ? List.<com.carenest.dto.child.ClassChildResponse>of()

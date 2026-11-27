@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 454 endpoint.
+Tổng: 456 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -92,10 +92,12 @@ PUT /assessment/reward-lists/classes/{classId} · src/main/java/com/carenest/con
 GET /assessment/semester-evaluations · src/main/java/com/carenest/controller/observation/SemesterAssessmentController.java#getSemesterAssessment
 PUT /assessment/semester-evaluations · src/main/java/com/carenest/controller/observation/SemesterAssessmentController.java#saveSemesterAssessment
 POST /assessment/semester-evaluations/confirm · src/main/java/com/carenest/controller/observation/SemesterAssessmentController.java#confirmSemesterAssessment
+GET /assessment/semester-evaluations/revision · src/main/java/com/carenest/controller/observation/SemesterAssessmentController.java#getSemesterRevision
 GET /assessment/theme-evaluations · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#getEvaluation
 PUT /assessment/theme-evaluations · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#saveEvaluation
 GET /assessment/theme-evaluations/classes · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#getClasses
 POST /assessment/theme-evaluations/confirm · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#confirmEvaluation
+GET /assessment/theme-evaluations/revision · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#getRevision
 GET /assessment/theme-evaluations/themes · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#getThemes
 GET /assessment/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getBoard
 PUT /assessment/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#saveDraft

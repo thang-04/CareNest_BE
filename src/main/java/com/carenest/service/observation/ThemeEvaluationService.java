@@ -26,6 +26,9 @@ public interface ThemeEvaluationService {
 
     ThemeEvaluationResponse save(CurrentUser currentUser, ThemeEvaluationRequest request);
 
+    /** Bảng tính lại để sửa bản đã xác nhận; chưa ghi gì cho tới khi xác nhận lại. */
+    ThemeEvaluationResponse revision(CurrentUser currentUser, Long classId, Long themeId);
+
     ThemeEvaluationResponse confirm(CurrentUser currentUser, ThemeEvaluationRequest request);
 
     /**

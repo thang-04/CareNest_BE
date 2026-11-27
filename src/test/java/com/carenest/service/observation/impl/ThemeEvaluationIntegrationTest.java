@@ -390,6 +390,16 @@ class ThemeEvaluationIntegrationTest {
         result(kid2, classA, "2026-09-23", "extra-fail-2", "", String.valueOf(oldGoal1));
         assertThat(semesters.get(principal, classA, 1).rows()).isEqualTo(confirmed.rows());
         expectCode(() -> semesters.save(teacher, req), ApiCode.EVALUATION_ALREADY_CONFIRMED);
+        org.mockito.Mockito.when(evaluationDeadlineService.isWritable(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
+        assertThat(semesters.revision(teacher, classA, 1).canEdit()).isTrue();
+        assertThat(semesters.confirm(teacher, req).status()).isEqualTo("CONFIRMED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM evaluation_revisions WHERE kind = 'SEMESTER'", Long.class))
+                .isEqualTo(1);
+        confirmed = semesters.get(teacher, classA, 1);
         var second = semesters.get(teacher, classA, 2);
         assertThat(second.startDate()).isEqualTo(java.time.LocalDate.parse("2026-10-03"));
         assertThat(second.rows().stream()
@@ -534,6 +544,36 @@ class ThemeEvaluationIntegrationTest {
 
         assertThat(service.get(teacher, classA, 9201L).canConfirm()).isTrue();
         assertThat(service.confirm(teacher, request).status()).isEqualTo("CONFIRMED");
+    }
+
+    @Test
+    @DisplayName("OBS-30: bản đã xác nhận được xác nhận lại khi còn hạn hoặc đang mở lại, bản cũ được giữ")
+    void confirmedThemeCanBeRevisedWithHistory() {
+        org.mockito.Mockito.when(evaluationDeadlineService.isWritable(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
+        service.confirm(teacher, new ThemeEvaluationRequest(classA, 9201L, "Bản đầu", List.of()));
+        assertThat(service.get(teacher, classA, 9201L).canRevise()).isTrue();
+        assertThat(service.revision(teacher, classA, 9201L).canEdit()).isTrue();
+        assertThat(service.get(teacher, classA, 9201L).note()).isEqualTo("Bản đầu");
+
+        ThemeEvaluationResponse revised = service.confirm(
+                teacher,
+                new ThemeEvaluationRequest(classA, 9201L, "Bản sửa", List.of(new CellInput(kid1, oldGoal1, false))));
+
+        assertThat(revised.status()).isEqualTo("CONFIRMED");
+        assertThat(service.get(teacher, classA, 9201L).note()).isEqualTo("Bản sửa");
+        assertThat(row(service.get(teacher, classA, 9201L), kid1)
+                        .cells()
+                        .getFirst()
+                        .met())
+                .isFalse();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM evaluation_revisions WHERE kind = 'THEME' AND snapshot LIKE '%Bản đầu%'",
+                        Long.class))
+                .isEqualTo(1);
     }
 
     @Test
@@ -748,6 +788,27 @@ class ThemeEvaluationIntegrationTest {
         expectCode(
                 () -> sheetService.save(teacher, yearEval, new YearEndSheetRequest(List.of(), null, null, null, null)),
                 ApiCode.EVALUATION_ALREADY_CONFIRMED);
+        // OBS-30: còn hạn hoặc đang mở lại thì xác nhận lại được, kèm sửa phiếu; bản cũ được giữ
+        org.mockito.Mockito.when(evaluationDeadlineService.isWritable(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(true);
+        assertThat(sheetService.get(teacher, yearEval).canRevise()).isTrue();
+        evaluationService.confirm(
+                teacher,
+                yearEval,
+                "Nhận xét đã sửa lại: trẻ phát triển tốt, tích cực trong các hoạt động.",
+                null,
+                new YearEndSheetRequest(List.of(), "Lời nhắn mới", null, null, null));
+        YearEndSheetResponse revised = sheetService.get(teacher, yearEval);
+        assertThat(revised.status()).isEqualTo(com.carenest.utils.enums.EvaluationStatus.CONFIRMED);
+        assertThat(revised.notes().forChild()).isEqualTo("Lời nhắn mới");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM evaluation_revisions WHERE kind = 'YEAR' AND evaluation_id = ?",
+                        Long.class,
+                        yearEval))
+                .isEqualTo(1);
 
         // Đánh giá cuối năm xác nhận trước khi có phiếu (chưa chốt ô nào): vẫn hiện kết quả tổng hợp, chỉ xem
         long legacy = insertId("INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id,"
@@ -1074,6 +1135,31 @@ class ThemeEvaluationIntegrationTest {
         assertThat(after.historyStatus()).isEqualTo("TRANSFERRED");
         assertThat(after.cells()).isEqualTo(before.cells());
         assertThat(after.rate()).isEqualTo(before.rate());
+    }
+
+    @Test
+    @DisplayName("Mục tiêu chủ đề theo kế hoạch chủ đề đã ban hành của lớp: lớp thêm, bớt mục tiêu thì bảng theo lớp")
+    void themeGoalsFollowApprovedClassThemePlan() {
+        long goal3 = jdbc.queryForObject(
+                "SELECT id FROM edu_plan_goals WHERE team_plan_id = 9002 AND goal_no = 4", Long.class);
+        // Lớp bỏ MT 3, thêm MT 4; bản còn nháp thì chưa áp
+        jdbc.update(
+                "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, status, content,"
+                        + " created_by, updated_by) VALUES ('theme-t', 'theme', ?, 9002, 9201, 'DRAFT', ?::jsonb, ?, ?)",
+                classA,
+                "{\"customTicks\":{\"" + goal2 + "\":false,\"" + goal3 + "\":true}}",
+                teacher.userId(),
+                teacher.userId());
+        assertThat(service.get(teacher, classA, 9201L).goals())
+                .extracting(g -> g.goalNo())
+                .containsExactly((short) 1, (short) 3);
+
+        jdbc.update("UPDATE edu_class_docs SET status = 'APPROVED' WHERE doc_key = 'theme-t'");
+        entityManager.clear();
+
+        assertThat(service.get(teacher, classA, 9201L).goals())
+                .extracting(g -> g.goalNo())
+                .containsExactly((short) 1, (short) 4);
     }
 
     private static ChildRow row(ThemeEvaluationResponse view, long childId) {
