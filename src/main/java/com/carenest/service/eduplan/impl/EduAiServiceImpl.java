@@ -15,8 +15,10 @@ import com.carenest.service.eduplan.EduAiService;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
 import com.carenest.service.eduplan.EduYearPlanService;
+import com.carenest.service.eduplan.impl.match.ChildNameMask;
 import com.carenest.service.eduplan.impl.match.EduGoalContentMatcher;
 import com.carenest.service.eduplan.impl.rag.EduRagRetriever;
+import com.carenest.service.organization.ClassChildNameLookup;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AiErrorReason;
 import com.carenest.utils.enums.AiTask;
@@ -99,6 +101,7 @@ public class EduAiServiceImpl implements EduAiService {
     private final EduYearPlanService yearPlanService;
     private final EduRagRetriever ragRetriever;
     private final EduGoalContentMatcher goalContentMatcher;
+    private final ClassChildNameLookup childNames;
 
     @Override
     public EduAiResponse.LessonSteps suggestLessonSteps(CurrentUser currentUser, EduAiRequest.LessonSteps request) {
@@ -409,6 +412,52 @@ public class EduAiServiceImpl implements EduAiService {
         }
     }
 
+    private static final int CLASS_LINES_MAX = 6;
+
+    @Override
+    public EduAiResponse.GoalContentMap rewriteClassContents(
+            CurrentUser currentUser, EduAiRequest.ClassContents request) {
+        String logPrefix =
+                LOG_PREFIX + "|rewriteClassContents|userId=" + currentUser.userId() + "|classId=" + request.classId();
+        log.info("{}|START", logPrefix);
+        try {
+            // EDU-115: chỉ người soạn kế hoạch chủ đề của lớp; trả nháp, không ghi
+            classDocService.requireThemeAuthor(currentUser, request.classId());
+            YearPlanDetailResponse plan = yearPlanService.getYearPlan(currentUser, request.yearPlanId());
+            Map<Long, EduAiRequest.ClassGoal> wanted = new LinkedHashMap<>();
+            request.goals().forEach(g -> wanted.put(g.id(), g));
+            List<EduGoalContentMatcher.Goal> goals = new ArrayList<>();
+            for (var domain : nullSafe(plan.domains()))
+                for (var row : nullSafe(domain.rows())) {
+                    EduAiRequest.ClassGoal ask = row.id() == null ? null : wanted.get(row.id());
+                    if (ask == null || !"goal".equalsIgnoreCase(row.kind()) || row.text() == null) continue;
+                    List<String> lines = nullSafe(ask.lines());
+                    Integer at = ask.lineIndex();
+                    if (at != null && (at < 0 || at >= lines.size())) throw GlobalException.of(ApiCode.BAD_REQUEST);
+                    // Một dòng thay đúng một câu; cả mục tiêu thì tối đa bằng số dòng đang có (ít nhất 3)
+                    List<String> replace = at == null ? lines : List.of(lines.get(at));
+                    int limit = at != null
+                            ? 1
+                            : Math.min(CLASS_LINES_MAX, Math.max(lines.size(), EduGoalContentMatcher.WRITE_MAX));
+                    goals.add(new EduGoalContentMatcher.Goal(
+                            row.id(), domain.domainId(), domain.name(), row.text(), lines, replace, limit));
+                }
+            if (goals.isEmpty()) throw GlobalException.of(ApiCode.BAD_REQUEST);
+            String situation =
+                    request.situation() == null || request.situation().isBlank()
+                            ? null
+                            : ChildNameMask.mask(
+                                    request.situation(), childNames.childNames(request.classId(), LocalDate.now()));
+            EduAiResponse.GoalContentMap result =
+                    matchContents(goals, plan.ageGroupId(), plan.schoolYearId(), situation);
+            log.info("{}|END|matches={}", logPrefix, result.matches().size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     /**
      * Luồng ghép nội dung dùng chung EDU-106/115: ứng viên 4 nguồn → top K mỗi mục tiêu → AI chấm (song song theo lĩnh vực)
      * → lọc. Lĩnh vực lỗi vào failedDomains; mọi lĩnh vực lỗi ⇒ ném lỗi AI đầu tiên.
@@ -427,7 +476,11 @@ public class EduAiServiceImpl implements EduAiService {
         try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<AiRawResult>> calls = asks.stream()
                     .map(a -> pool.submit(() -> complete(
-                            AiTask.EDU_MATCH, EduGoalContentMatcher.SYSTEM, "goal-content-map", a.prompt(), until)))
+                            AiTask.EDU_MATCH,
+                            a.rewrite() ? EduGoalContentMatcher.REWRITE_SYSTEM : EduGoalContentMatcher.SYSTEM,
+                            "goal-content-map",
+                            a.prompt(),
+                            until)))
                     .toList();
             for (int i = 0; i < asks.size(); i++) {
                 EduGoalContentMatcher.Ask ask = asks.get(i);

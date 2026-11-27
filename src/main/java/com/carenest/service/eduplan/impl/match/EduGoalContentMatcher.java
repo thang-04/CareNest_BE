@@ -37,7 +37,7 @@ public class EduGoalContentMatcher {
 
     static final int TOP_K = 12;
     static final int GOALS_PER_CALL = 15;
-    static final int WRITE_MAX = 3;
+    public static final int WRITE_MAX = 3;
     static final int TEXT_MAX = 300;
     static final int FROM_MAX = 120;
     static final int MIN_SCORE = 2;
@@ -64,11 +64,40 @@ public class EduGoalContentMatcher {
 
     public record Candidate(String key, String text, String source, Long domainId, EduAiResponse.RagRef ref) {}
 
-    /** Mục tiêu cần gợi ý; {@code have} = chữ nội dung đang có (không gợi ý lại). */
-    public record Goal(Long id, Long domainId, String domainName, String text, List<String> have) {}
+    /**
+     * Mục tiêu cần gợi ý; {@code have} = chữ nội dung đang có (không gợi ý lại). EDU-115 viết lại: {@code replace} là các dòng
+     * sẽ bị thay (gửi AI để viết lại), {@code limit} là số câu tối đa nhận.
+     */
+    public record Goal(
+            Long id,
+            Long domainId,
+            String domainName,
+            String text,
+            List<String> have,
+            List<String> replace,
+            int limit) {
+        public Goal(Long id, Long domainId, String domainName, String text, List<String> have) {
+            this(id, domainId, domainName, text, have, List.of(), Integer.MAX_VALUE);
+        }
+    }
 
     public record Ask(
-            Long domainId, String domainName, List<Goal> goals, Map<Long, List<Candidate>> options, String prompt) {}
+            Long domainId,
+            String domainName,
+            List<Goal> goals,
+            Map<Long, List<Candidate>> options,
+            String prompt,
+            boolean rewrite) {}
+
+    public static final String REWRITE_SYSTEM =
+            "Bạn là chuyên gia giáo dục mầm non Việt Nam, VIẾT LẠI nội dung giáo dục"
+                    + " cho phù hợp TÌNH HÌNH LỚP (classSituation).\nQuy tắc:\n"
+                    + "- current là các dòng sẽ bị thay; viết lại bám tình hình lớp, vẫn phục vụ đúng mục tiêu, số dòng bằng limit.\n"
+                    + "- Câu trong options hợp tình hình lớp thì chọn (matches, score 2–3); còn lại viết mới (written).\n"
+                    + "- Mỗi dòng ghi from = cụm từ NGUYÊN VĂN trong câu mục tiêu làm căn cứ.\n"
+                    + "- Câu ngắn, cụ thể, phù hợp độ tuổi. Không nhắc tên trẻ. Không lặp dòng đang có.\n"
+                    + "Chỉ trả JSON: {\"matches\":[{\"goalId\":1,\"key\":\"C12\",\"score\":3,\"from\":\"cụm nguyên văn\"}],"
+                    + "\"written\":[{\"goalId\":1,\"text\":\"câu mới\",\"from\":\"cụm nguyên văn\"}]}";
 
     /** Ứng viên 4 nguồn cùng nhóm tuổi; trùng chữ giữ nguồn ưu tiên C > D > năm trước > RAG. Nguồn lỗi bị bỏ (AI-03). */
     public List<Candidate> candidates(Long ageGroupId, Long schoolYearId) {
@@ -155,15 +184,17 @@ public class EduGoalContentMatcher {
                             .limit(TOP_K)
                             .toList();
                     options.put(g.id(), mine);
-                    body.add(Map.of(
-                            "goalId",
-                            g.id(),
-                            "text",
-                            g.text(),
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("goalId", g.id());
+                    item.put("text", g.text());
+                    if (!g.replace().isEmpty()) item.put("current", g.replace());
+                    if (g.limit() != Integer.MAX_VALUE) item.put("limit", g.limit());
+                    item.put(
                             "options",
                             mine.stream()
                                     .map(c -> Map.of("key", c.key(), "text", c.text()))
-                                    .toList()));
+                                    .toList());
+                    body.add(item);
                 }
                 Map<String, Object> prompt = new LinkedHashMap<>();
                 prompt.put("domain", nz(part.getFirst().domainName()));
@@ -174,7 +205,8 @@ public class EduGoalContentMatcher {
                         part.getFirst().domainName(),
                         part,
                         options,
-                        objectMapper.writeValueAsString(prompt)));
+                        objectMapper.writeValueAsString(prompt),
+                        notBlank(situation)));
             }
         }
         return asks;
@@ -201,6 +233,7 @@ public class EduGoalContentMatcher {
                     .findFirst()
                     .orElse(null);
             if (c == null
+                    || count(result, g.id()) >= g.limit()
                     || !EduTextMatch.containsPhrase(g.text(), from)
                     || !taken.get(g.id()).add(EduTextMatch.key(c.text()))) continue;
             picked.add(g.id());
@@ -209,17 +242,23 @@ public class EduGoalContentMatcher {
         Map<Long, Integer> written = new LinkedHashMap<>();
         for (JsonNode w : out.path("written")) {
             Goal g = goals.get(w.path("goalId").asLong(-1));
-            if (g == null || picked.contains(g.id())) continue;
+            // Gợi ý thường chỉ viết khi không chọn được ứng viên; viết lại theo tình hình lớp thì luôn nhận
+            if (g == null || (!ask.rewrite() && picked.contains(g.id())) || count(result, g.id()) >= g.limit())
+                continue;
             String text = sentence(clip(w.path("text").asString(""), TEXT_MAX));
             String from = w.path("from").asString("").strip();
             if (!notBlank(text)
                     || !EduTextMatch.containsPhrase(g.text(), from)
-                    || written.getOrDefault(g.id(), 0) >= WRITE_MAX
+                    || written.getOrDefault(g.id(), 0) >= (ask.rewrite() ? g.limit() : WRITE_MAX)
                     || !taken.get(g.id()).add(EduTextMatch.key(text))) continue;
             written.merge(g.id(), 1, Integer::sum);
             result.add(new EduAiResponse.GoalContentMatch(g.id(), text, AI, null, clip(from, FROM_MAX)));
         }
         return result;
+    }
+
+    private static long count(List<EduAiResponse.GoalContentMatch> matches, Long goalId) {
+        return matches.stream().filter(m -> m.goalId().equals(goalId)).count();
     }
 
     private static Set<String> keys(List<String> texts) {

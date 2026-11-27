@@ -17,6 +17,9 @@ public interface EduClassDocService {
 
     ClassCalendarPreviewResponse previewClassCalendar(CurrentUser currentUser, ClassCalendarPreviewRequest request);
 
+    /** EDU-115: người soạn được kế hoạch chủ đề của lớp, năm học còn sửa được; không thì ném lỗi quyền. */
+    void requireThemeAuthor(CurrentUser currentUser, Long classroomId);
+
     com.carenest.entity.eduplan.EduClassDoc requireDayAccess(CurrentUser currentUser, String docKey, boolean write);
 
     /** EDU-96: tiêu chí gửi duyệt của kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày (đạt / chưa đạt từng dòng), cho ai xem được tài liệu. */

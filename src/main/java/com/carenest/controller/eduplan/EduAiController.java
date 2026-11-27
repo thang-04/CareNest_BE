@@ -96,6 +96,17 @@ public class EduAiController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Match goal contents success", result);
     }
 
+    @PostMapping("/class-contents")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<EduAiResponse.GoalContentMap>> rewriteClassContents(
+            @Valid @RequestBody EduAiRequest.ClassContents request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|rewriteClassContents|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        EduAiResponse.GoalContentMap result = eduAiService.rewriteClassContents(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Rewrite class contents success", result);
+    }
+
     /** RAG bước (a): thử truy xuất đoạn tham khảo (MT, hoạt động, giáo án mẫu); chỉ đọc kho công khai. */
     @GetMapping("/rag/search")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")

@@ -51,6 +51,19 @@ public final class EduAiRequest {
     /** EDU-106: goalId null ⇒ mọi mục tiêu chưa có nội dung; có ⇒ đúng mục tiêu đó, kể cả đã có nội dung. */
     public record GoalContents(Long goalId) {}
 
+    /**
+     * EDU-115: viết lại nội dung kế hoạch chủ đề. lines = các dòng đang có của mục tiêu; lineIndex null thì thay cả mục tiêu.
+     * situation (tình hình lớp) để trống thì chọn lại theo luồng ghép.
+     */
+    public record ClassContents(
+            @NotNull Long classId,
+            @NotNull Long yearPlanId,
+            @Size(max = 500) String situation,
+            @NotNull @Size(min = 1, max = 60) List<@Valid ClassGoal> goals) {}
+
+    public record ClassGoal(
+            @NotNull Long id, @Size(max = 20) List<@Size(max = 1000) String> lines, Integer lineIndex) {}
+
     public record EditDay(@NotBlank @Size(max = 500) String prompt) {}
 
     /** EDU-103: yêu cầu tổ trưởng gõ cho từng chủ đề (không bắt buộc); nội dung BE tự đọc từ kế hoạch. */

@@ -48,6 +48,8 @@ class EduAiServiceImplTest {
     private final com.carenest.integration.ai.EmbeddingClient embedding =
             mock(com.carenest.integration.ai.EmbeddingClient.class);
     private final CurrentUser user = mock(CurrentUser.class);
+    private final com.carenest.service.organization.ClassChildNameLookup childNames =
+            mock(com.carenest.service.organization.ClassChildNameLookup.class);
     private EduAiServiceImpl service;
 
     @BeforeEach
@@ -59,7 +61,7 @@ class EduAiServiceImplTest {
                 rag,
                 new com.carenest.service.eduplan.impl.match.EduCandidateRanker(embedding),
                 mapper);
-        service = new EduAiServiceImpl(ai, mapper, config, docs, plans, rag, matcher);
+        service = new EduAiServiceImpl(ai, mapper, config, docs, plans, rag, matcher, childNames);
         when(ai.isAvailable(any())).thenReturn(true);
         when(user.userId()).thenReturn(7L);
     }
@@ -446,6 +448,46 @@ class EduAiServiceImplTest {
         var out = service.matchGoalContents(user, 9L, null);
         assertThat(out.matches()).hasSize(1);
         assertThat(out.failedDomains()).extracting("domainId").containsExactly(200L);
+    }
+
+    private EduAiRequest.ClassContents classAsk(String situation, Integer lineIndex) {
+        return new EduAiRequest.ClassContents(
+                3L, 9L, situation, List.of(new EduAiRequest.ClassGoal(10L, List.of("Hát cũ", "Vỗ tay"), lineIndex)));
+    }
+
+    @Test
+    @DisplayName("EDU-115: có tình hình lớp thì AI viết lại, che tên trẻ trước khi gửi, một dòng thay đúng một câu")
+    void rewriteClassContentsMasksNamesAndKeepsOneLine() {
+        annual(true);
+        when(childNames.childNames(any(), any())).thenReturn(List.of("Nguyễn Gia An"));
+        aiReturns("""
+                {"matches":[],"written":[{"goalId":10,"text":"hát cùng bạn","from":"hát"},
+                {"goalId":10,"text":"hát theo cô","from":"hát"}]}
+                """);
+        var out = service.rewriteClassContents(user, classAsk("Gia An còn nhút nhát", 1));
+        assertThat(out.matches())
+                .extracting("text", "source")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("Hát cùng bạn.", "AI"));
+        verify(docs).requireThemeAuthor(user, 3L);
+        org.mockito.ArgumentCaptor<AiRequest> request = org.mockito.ArgumentCaptor.forClass(AiRequest.class);
+        verify(ai).complete(request.capture());
+        assertThat(request.getValue().systemPrompt()).contains("VIẾT LẠI");
+        assertThat(request.getValue().userPrompt())
+                .contains("trẻ còn nhút nhát", "\"current\":[\"Vỗ tay\"]", "\"limit\":1")
+                .doesNotContain("Gia An");
+    }
+
+    @Test
+    @DisplayName("EDU-115: bỏ trống tình hình lớp thì chọn lại theo luồng ghép; dòng ngoài phạm vi bị từ chối")
+    void rewriteClassContentsWithoutSituationUsesSources() {
+        annual(true);
+        aiReturns("{\"matches\":[{\"goalId\":10,\"key\":\"C20\",\"score\":3,\"from\":\"hát\"}]}");
+        var out = service.rewriteClassContents(user, classAsk(" ", null));
+        assertThat(out.matches()).extracting("source").containsExactly("CURRICULUM_C");
+        verify(childNames, never()).childNames(any(), any());
+        assertThatThrownBy(() -> service.rewriteClassContents(user, classAsk(null, 5)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
     }
 
     private EduAiRequest.ThemeContentMap asks() {

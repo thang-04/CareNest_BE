@@ -452,6 +452,27 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public void requireThemeAuthor(CurrentUser currentUser, Long classroomId) {
+        String logPrefix =
+                LOG_PREFIX + "|requireThemeAuthor|userId=" + currentUser.userId() + "|classId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            requireView(currentUser);
+            ClassroomInfoResponse cls = requireClass(classroomId);
+            LocalDate today = LocalDate.now(clock);
+            if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
+            requireClassDocAuthor(currentUser, cls, EduClassDoc.THEME);
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     @Transactional
     public EduClassDoc requireDayAccess(CurrentUser currentUser, String docKey, boolean write) {
         String logPrefix = LOG_PREFIX + "|requireDayAccess|userId=" + currentUser.userId();
