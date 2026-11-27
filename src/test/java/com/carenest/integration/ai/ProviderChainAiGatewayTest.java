@@ -26,6 +26,8 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -181,6 +183,36 @@ class ProviderChainAiGatewayTest {
         assertThat(readTimeouts).containsExactly(Duration.ofSeconds(5));
     }
 
+    @ParameterizedTest
+    @EnumSource(
+            value = AiTask.class,
+            names = {"HEALTH_TREND", "EDU_PLAN", "EDU_MATCH"})
+    @DisplayName("AI-06: tác vụ có output JSON ⇒ gửi response_format json_object")
+    void asksForJsonObjectOnJsonTasks(AiTask task) {
+        server.expect(once(), requestTo(GROQ_URL))
+                .andExpect(jsonPath("$.response_format.type").value("json_object"))
+                .andRespond(withSuccess(OK_BODY, MediaType.APPLICATION_JSON));
+
+        gateway(singleTask(task)).complete(request(task));
+
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = AiTask.class,
+            names = {"WEEKLY_COMMENT", "PERIOD_COMMENT"})
+    @DisplayName("AI-06: tác vụ viết văn xuôi ⇒ không ép JSON (Groq trả 400 khi prompt không nhắc JSON)")
+    void doesNotForceJsonOnProseTasks(AiTask task) {
+        server.expect(once(), requestTo(GROQ_URL))
+                .andExpect(jsonPath("$.response_format").doesNotExist())
+                .andRespond(withSuccess(OK_BODY, MediaType.APPLICATION_JSON));
+
+        gateway(singleTask(task)).complete(request(task));
+
+        server.verify();
+    }
+
     private ProviderChainAiGateway gateway(AiProperties properties) {
         return new ProviderChainAiGateway(
                 properties,
@@ -206,6 +238,16 @@ class ProviderChainAiGatewayTest {
 
     private static AiProperties.TaskConfig publicTask() {
         return new AiProperties.TaskConfig(List.of("gemini", "groq"), AiDataClass.PUBLIC_CATALOG, null, 2);
+    }
+
+    private static AiProperties singleTask(AiTask task) {
+        AiProperties.TaskConfig config =
+                new AiProperties.TaskConfig(List.of("groq"), AiDataClass.CHILD_DERIVED, null, 0);
+        return new AiProperties(true, providers(), Map.of(task, config));
+    }
+
+    private static AiRequest request(AiTask task) {
+        return new AiRequest(task, "test/v1", "SYS", "USER", NOW.plusSeconds(30));
     }
 
     private static AiRequest request(Instant deadline) {

@@ -16,4 +16,12 @@ public record AiRequest(AiTask task, String promptVersion, String systemPrompt, 
         Objects.requireNonNull(userPrompt, "userPrompt");
         Objects.requireNonNull(deadline, "deadline");
     }
+
+    // Khớp cách domain đọc output; switch đủ nhánh để tác vụ mới buộc phải chọn kiểu
+    boolean expectsJson() {
+        return switch (task) {
+            case HEALTH_TREND, EDU_PLAN, EDU_MATCH -> true;
+            case WEEKLY_COMMENT, PERIOD_COMMENT -> false;
+        };
+    }
 }
