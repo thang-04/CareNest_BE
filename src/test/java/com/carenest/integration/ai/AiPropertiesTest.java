@@ -31,11 +31,11 @@ class AiPropertiesTest {
         source.put("carenest.ai.providers[1].base-url", "http://groq.test");
         source.put("carenest.ai.providers[1].model", "oss");
         source.put("carenest.ai.providers[1].read-timeout", "12s");
-        source.put("carenest.ai.tasks.MENU_WEEKLY.chain[0]", "gemini");
-        source.put("carenest.ai.tasks.MENU_WEEKLY.chain[1]", "groq");
-        source.put("carenest.ai.tasks.MENU_WEEKLY.data-class", "PUBLIC_CATALOG");
-        source.put("carenest.ai.tasks.MENU_WEEKLY.deadline", "25s");
-        source.put("carenest.ai.tasks.MENU_WEEKLY.max-repair-rounds", "2");
+        source.put("carenest.ai.tasks.EDU_PLAN.chain[0]", "gemini");
+        source.put("carenest.ai.tasks.EDU_PLAN.chain[1]", "groq");
+        source.put("carenest.ai.tasks.EDU_PLAN.data-class", "PUBLIC_CATALOG");
+        source.put("carenest.ai.tasks.EDU_PLAN.deadline", "25s");
+        source.put("carenest.ai.tasks.EDU_PLAN.max-repair-rounds", "2");
 
         AiProperties properties = new Binder(new MapConfigurationPropertySource(source))
                 .bind("carenest.ai", AiProperties.class)
@@ -48,7 +48,7 @@ class AiPropertiesTest {
         assertThat(properties.providers().get(1).configured()).isFalse();
         assertThat(properties.providers().get(1).readTimeout()).isEqualTo(Duration.ofSeconds(12));
         assertThat(properties.providers().get(1).connectTimeout()).isEqualTo(AiProperties.DEFAULT_CONNECT_TIMEOUT);
-        AiProperties.TaskConfig weekly = properties.tasks().get(AiTask.MENU_WEEKLY);
+        AiProperties.TaskConfig weekly = properties.tasks().get(AiTask.EDU_PLAN);
         assertThat(weekly.chain()).containsExactly("gemini", "groq");
         assertThat(weekly.dataClass()).isEqualTo(AiDataClass.PUBLIC_CATALOG);
         assertThat(weekly.deadline()).isEqualTo(Duration.ofSeconds(25));
@@ -61,7 +61,7 @@ class AiPropertiesTest {
         assertThatThrownBy(() -> new AiProperties(
                         true,
                         List.of(provider("gemini", true)),
-                        Map.of(AiTask.MENU_WEEKLY, task(AiDataClass.CHILD_DERIVED, "gemini"))))
+                        Map.of(AiTask.EDU_PLAN, task(AiDataClass.CHILD_DERIVED, "gemini"))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("gemini");
     }
@@ -71,7 +71,7 @@ class AiPropertiesTest {
     void treatsMissingDataClassAsChildData() {
         assertThat(task(null, "groq").dataClass()).isEqualTo(AiDataClass.CHILD_DERIVED);
         assertThatThrownBy(() -> new AiProperties(
-                        true, List.of(provider("gemini", true)), Map.of(AiTask.MENU_DAILY, task(null, "gemini"))))
+                        true, List.of(provider("gemini", true)), Map.of(AiTask.EDU_MATCH, task(null, "gemini"))))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -81,7 +81,7 @@ class AiPropertiesTest {
         assertThatThrownBy(() -> new AiProperties(
                         true,
                         List.of(provider("groq", false)),
-                        Map.of(AiTask.MENU_WEEKLY, task(AiDataClass.PUBLIC_CATALOG, "gemini"))))
+                        Map.of(AiTask.EDU_PLAN, task(AiDataClass.PUBLIC_CATALOG, "gemini"))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("gemini");
         assertThatThrownBy(() ->
@@ -95,8 +95,8 @@ class AiPropertiesTest {
         Map<String, String> source = Map.of(
                 "carenest.ai.providers[0].id", "gemini",
                 "carenest.ai.providers[0].may-train-on-data", "true",
-                "carenest.ai.tasks.MENU_WEEKLY.chain[0]", "gemini",
-                "carenest.ai.tasks.MENU_WEEKLY.data-class", "CHILD_DERIVED");
+                "carenest.ai.tasks.EDU_PLAN.chain[0]", "gemini",
+                "carenest.ai.tasks.EDU_PLAN.data-class", "CHILD_DERIVED");
 
         assertThatThrownBy(() ->
                         new Binder(new MapConfigurationPropertySource(source)).bind("carenest.ai", AiProperties.class))

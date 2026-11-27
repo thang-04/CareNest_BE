@@ -258,21 +258,6 @@ carenest:
         read-timeout: 30s
         reasoning-effort: ${AI_GROQ_REASONING_EFFORT:}
     tasks:
-      MENU_WEEKLY:
-        chain: [gemini, groq]
-        data-class: PUBLIC_CATALOG
-        deadline: ${AI_MENU_WEEKLY_DEADLINE:30s}
-        max-repair-rounds: 2
-      MENU_DAILY:
-        chain: [gemini, groq]
-        data-class: PUBLIC_CATALOG
-        deadline: 20s
-        max-repair-rounds: 2
-      MENU_DAY_FIX:
-        chain: [gemini, groq]
-        data-class: PUBLIC_CATALOG
-        deadline: 15s
-        max-repair-rounds: 1
       # Số đo của trẻ (đã ẩn danh) là dữ liệu dẫn xuất từ trẻ ⇒ chỉ provider không dùng dữ liệu để train (AI-04)
       HEALTH_TREND:
         chain: [groq]
@@ -314,26 +299,6 @@ carenest:
     batch-size: 50
     # Tổng thời gian cho một lần embed lười trong lúc gợi ý (nằm trong deadline gợi ý)
     budget: ${AI_EMBEDDING_BUDGET:8s}
-  # Gợi ý thực đơn (AI-07): số món ứng viên mỗi ô, trọng số điểm phương án (chỉ chỉnh khi có kết quả eval), khung ô
-  # mặc định của bữa khi khối chưa có thực đơn mẫu đang dùng
-  menu-ai:
-    candidate-limit: 15
-    recent-weeks: 4
-    weights:
-      norm: 45
-      cost: 20
-      variety: 25
-      warnings: 10
-    default-slots:
-      MORNING:
-        - [SNACK, DESSERT]
-      LUNCH:
-        - [CARB]
-        - [MAIN]
-        - [SOUP]
-        - [VEGETABLE]
-      AFTERNOON:
-        - [CARB, SNACK, DESSERT]
 
 management:
   endpoints:

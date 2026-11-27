@@ -713,18 +713,7 @@ public enum ApiCode {
     SUPPLIER_CONTRACT_RANGE_INVALID(
             6102, HttpStatus.BAD_REQUEST, "Ngày kết thúc hợp đồng không được trước ngày bắt đầu"),
     // NUT-28: cơ cấu áp dụng định mức (6115)
-    // AI-07: nháp gợi ý thực đơn (6111–6114; 6091–6107 của dev dành cho sửa ngoại lệ thực đơn, giá thực phẩm, kiểm
-    // nhận, phí dịch vụ)
-    MENU_AI_DRAFT_NOT_FOUND(6111, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
-    MENU_AI_DRAFT_NOT_PENDING(
-            6112,
-            HttpStatus.CONFLICT,
-            "Gợi ý thực đơn đã dùng, đã bỏ hoặc không có phương án, không thao tác tiếp được"),
-    MENU_AI_DRAFT_STALE(
-            6113,
-            HttpStatus.CONFLICT,
-            "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
-    MENU_AI_DRAFT_KIND_INVALID(6114, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
+    // 6111–6114 từng thuộc nháp AI gợi ý thực đơn (đã gỡ); không cấp lại để client cũ không hiểu nhầm mã
     // INS-05: mở ghi biên bản kiểm thực ngày cũ cần HT duyệt (6116–6124)
     INSPECTION_APPROVAL_REQUIRED(
             6116,

@@ -1,6 +1,6 @@
 # Eval thực đơn tuần — chạy không key (16/11/2026)
 
-**Không phải kết quả AI.** Chạy `MenuAiLiveEvalTest` với `AI_LIVE_EVAL=true`, `AI_LIVE_EVAL_RUNS=1`, không có `AI_GEMINI_API_KEY`/`AI_GROQ_API_KEY` ⇒ mọi case dùng phương án theo quy tắc (`fallbackReason=AI_DISABLED`). Dữ liệu giả trong `src/test/resources/ai-eval/menu-cases.json`, không phải định lượng/định mức thật của trường.
+**Không phải kết quả AI.** Chạy `MenuAiLiveEvalTest` với `AI_LIVE_EVAL=true`, `AI_LIVE_EVAL_RUNS=1`, không có `AI_GEMINI_API_KEY`/`AI_GROQ_API_KEY` ⇒ mọi case dùng phương án theo quy tắc (`fallbackReason=AI_DISABLED`). Dữ liệu giả trong file `menu-cases.json` (đã gỡ cùng luồng AI thực đơn 27/11/2026), không phải định lượng/định mức thật của trường.
 
 Mục đích: kiểm đường ống bằng chứng (AC-18) và lấy số nền của phương án không AI.
 
