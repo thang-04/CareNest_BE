@@ -288,7 +288,10 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                                         ? GuardianAccountResult.LINKED
                                         : GuardianAccountResult.NOT_ACTIVATED,
                         false,
-                        smsByPosition.get(g.position())))
+                        smsByPosition.get(g.position()),
+                        smsByPosition.containsKey(g.position())
+                                ? codeMode ? "ACTIVATION_CODE" : "TEMPORARY_PASSWORD"
+                                : null))
                 .toList();
         log.info(
                 "{}|childId={}|created={}|linked={}",

@@ -114,6 +114,9 @@ class ChildEnrollmentIntegrationTest {
     @MockitoBean
     private SmsGateway smsGateway;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private ParentSmsSender parentSmsSender;
+
     // Spy kho thật: giới hạn/định dạng lấy từ cấu hình, chỉ chặn phần gọi S3
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     private com.carenest.integration.storage.FileStorage childPhotoStorage;
@@ -399,6 +402,7 @@ class ChildEnrollmentIntegrationTest {
         });
         assertThat(response.guardianAccounts()).singleElement().satisfies(g -> {
             assertThat(g.result()).isEqualTo(GuardianAccountResult.CREATED);
+            assertThat(g.credential()).isEqualTo("TEMPORARY_PASSWORD");
             assertThat(g.smsStatus()).isEqualTo(SmsStatus.SENT);
             assertThat(g.phone()).isEqualTo("0912345678");
         });
@@ -707,6 +711,17 @@ class ChildEnrollmentIntegrationTest {
         assertThat(left.kind()).isEqualTo(DuplicateChildKind.LEFT);
         assertThat(left.leftAt()).isEqualTo(TODAY);
         assertThat(left.canReadmit()).isTrue();
+    }
+
+    @Test
+    void newParentAccountReportsActivationCodeWhenSmsUsesCodes() {
+        org.mockito.Mockito.doReturn(true).when(parentSmsSender).activationCodeMode();
+        var response = enrollmentService.enroll(
+                principal,
+                request("Trẻ Mã Kích Hoạt", "2023-03-03", null, campusA, newGuardian("0918999941", "999900009941")));
+        assertThat(response.guardianAccounts())
+                .singleElement()
+                .satisfies(g -> assertThat(g.credential()).isEqualTo("ACTIVATION_CODE"));
     }
 
     @Test
@@ -1081,10 +1096,14 @@ class ChildEnrollmentIntegrationTest {
         assertThat(activated).singleElement().satisfies(a -> {
             assertThat(a.username()).isEqualTo("0918888012");
             assertThat(a.newAccount()).isTrue();
+            assertThat(a.credential()).isEqualTo("TEMPORARY_PASSWORD");
         });
         assertThat(selectedAccounts.activate(vicePrincipal, childId, next))
                 .singleElement()
-                .satisfies(a -> assertThat(a.newAccount()).isFalse());
+                .satisfies(a -> {
+                    assertThat(a.newAccount()).isFalse();
+                    assertThat(a.credential()).isNull();
+                });
         assertThat(count("SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL", childId))
                 .isEqualTo(1);
         expectCode(() -> selectedAccounts.select(vicePrincipal, childId, old), ApiCode.GUARDIAN_IDENTITY_CONFLICT);

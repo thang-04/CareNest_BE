@@ -22,5 +22,6 @@ public interface SelectedParentAccountService {
             String fullName,
             String username,
             boolean newAccount,
-            com.carenest.utils.enums.SmsStatus smsStatus) {}
+            com.carenest.utils.enums.SmsStatus smsStatus,
+            String credential) {}
 }

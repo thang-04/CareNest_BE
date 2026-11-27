@@ -8,4 +8,9 @@ import com.carenest.utils.enums.SmsStatus;
  * luôn false tới khi tiếp nhận sửa được tài khoản có sẵn (AUTH-21, Phase 4); {@code smsStatus} chỉ có khi CREATED.
  */
 public record GuardianAccountResultResponse(
-        String fullName, String phone, GuardianAccountResult result, boolean phoneChanged, SmsStatus smsStatus) {}
+        String fullName,
+        String phone,
+        GuardianAccountResult result,
+        boolean phoneChanged,
+        SmsStatus smsStatus,
+        String credential) {}

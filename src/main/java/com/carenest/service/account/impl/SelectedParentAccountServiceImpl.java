@@ -152,8 +152,8 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
                         throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
                 });
                 log.info("{}|END", logPrefix);
-                return List.of(
-                        new ActivationResult(parent.getId(), parent.getFullName(), parent.getUsername(), false, null));
+                return List.of(new ActivationResult(
+                        parent.getId(), parent.getFullName(), parent.getUsername(), false, null, null));
             }
             // AUTH-18: có nhà cung cấp SMS thật ⇒ không mật khẩu, gửi mã kích hoạt; cổng giả ⇒ mật khẩu tạm như cũ
             boolean codeMode = smsSender.activationCodeMode();
@@ -175,7 +175,12 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
                     : smsSender.sendActivation(created, temporaryPassword);
             log.info("{}|END", logPrefix);
             return List.of(new ActivationResult(
-                    created.getId(), created.getFullName(), created.getUsername(), true, smsStatus));
+                    created.getId(),
+                    created.getFullName(),
+                    created.getUsername(),
+                    true,
+                    smsStatus,
+                    codeMode ? "ACTIVATION_CODE" : "TEMPORARY_PASSWORD"));
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

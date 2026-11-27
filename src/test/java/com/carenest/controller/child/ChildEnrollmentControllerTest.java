@@ -442,7 +442,12 @@ class ChildEnrollmentControllerTest {
                 .willReturn(new ChildEnrollmentResponse(
                         view(),
                         List.of(new GuardianAccountResultResponse(
-                                "Trần Thị Mẹ", "0912345678", GuardianAccountResult.CREATED, false, SmsStatus.SENT))));
+                                "Trần Thị Mẹ",
+                                "0912345678",
+                                GuardianAccountResult.CREATED,
+                                false,
+                                SmsStatus.SENT,
+                                "TEMPORARY_PASSWORD"))));
 
         mockMvc.perform(post("/api/children/enrollments")
                         .with(token(CareNestRole.VICE_PRINCIPAL))
@@ -648,6 +653,7 @@ class ChildEnrollmentControllerTest {
                                 "0912345678",
                                 GuardianAccountResult.NOT_ACTIVATED,
                                 false,
+                                null,
                                 null))));
 
         mockMvc.perform(post("/api/children/enrollments")
