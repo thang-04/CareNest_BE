@@ -18,6 +18,7 @@ import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.dto.health.HealthScheduleWarningResponse;
 import com.carenest.entity.health.HealthCheckCampaign;
 import com.carenest.entity.health.HealthCheckCampaignHistory;
+import com.carenest.entity.health.HealthMeasurement;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.health.HealthCheckCampaignHistoryRepository;
 import com.carenest.repository.health.HealthCheckCampaignRepository;
@@ -38,11 +39,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.Set;
 import java.util.List;
+import java.util.Set;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
-import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -838,6 +839,8 @@ class HealthCheckIntegrationTest {
                 .containsExactly(tuple("Lớp A", 1, 0, 1), tuple("Lớp A2", 1, 1, 0));
         assertThat(detail.campaign().progress().total()).isEqualTo(2);
         assertThat(detail.campaign().progress().recorded()).isEqualTo(1);
+        assertThat(checks.listHealthChecks(principal, campusA, null, null, null))
+                .contains(detail.campaign());
     }
 
     @Test
@@ -855,6 +858,8 @@ class HealthCheckIntegrationTest {
         assertThat(inNew.measuredIn())
                 .isEqualTo(new HealthCheckClassResponse.MeasuredIn("Lớp B", "Điểm B", LocalDate.of(2026, 11, 10)));
         HealthCheckResponse roundA = checks.getHealthCheck(vpA, t.roundA()).campaign();
+        assertThat(checks.listHealthChecks(principal, campusA, null, null, null))
+                .contains(roundA);
         assertThat(roundA.progress().total()).isEqualTo(3);
         assertThat(roundA.progress().recorded()).isEqualTo(1);
         // Số đo vẫn thuộc kỳ của điểm B: kỳ điểm A chưa có kết quả của mình (hủy được)
@@ -866,6 +871,8 @@ class HealthCheckIntegrationTest {
                 .isEqualTo(new HealthCheckClassResponse.MovedTo("Lớp A", "Điểm A", LocalDate.of(2026, 11, 12)));
         assertThat(inOld.canEdit()).isFalse();
         HealthCheckResponse roundB = checks.getHealthCheck(vpB, t.roundB()).campaign();
+        assertThat(checks.listHealthChecks(principal, campusB, null, null, null))
+                .contains(roundB);
         assertThat(roundB.progress().total()).isZero();
         assertThat(roundB.hasResults()).isTrue();
 
@@ -1164,23 +1171,32 @@ class HealthCheckIntegrationTest {
     @Test
     void linkedCampaignBatchMatchesSingleLookupAndUsesOneQuery() {
         long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
-        HealthCheckCampaign a = batchCampaign(HealthCheckKind.MEASUREMENT, campusA, year, "2026-11-01", "2026-11-15", false);
-        HealthCheckCampaign overlap = batchCampaign(HealthCheckKind.MEASUREMENT, campusB, year, "2026-11-15", "2026-11-25", false);
-        HealthCheckCampaign legacy = batchCampaign(HealthCheckKind.MEASUREMENT, campusB, null, "2026-11-03", "2026-11-05", false);
+        HealthCheckCampaign a =
+                batchCampaign(HealthCheckKind.MEASUREMENT, campusA, year, "2026-11-01", "2026-11-15", false);
+        HealthCheckCampaign overlap =
+                batchCampaign(HealthCheckKind.MEASUREMENT, campusB, year, "2026-11-15", "2026-11-25", false);
+        HealthCheckCampaign legacy =
+                batchCampaign(HealthCheckKind.MEASUREMENT, campusB, null, "2026-11-03", "2026-11-05", false);
         batchCampaign(HealthCheckKind.MEASUREMENT, campusA, year, "2026-11-01", "2026-11-15", false);
         batchCampaign(HealthCheckKind.MEASUREMENT, campusB, year, "2026-11-01", "2026-11-15", true);
         batchCampaign(HealthCheckKind.EXAM, campusB, year, "2026-11-01", "2026-11-15", false);
         batchCampaign(HealthCheckKind.MEASUREMENT, campusB, year, "2026-12-01", "2026-12-05", false);
-        long nextYear = insertId("INSERT INTO school_years (name, start_date, end_date) VALUES ('2027-2028', '2027-09-01', '2028-05-31') RETURNING id");
+        long nextYear = insertId(
+                "INSERT INTO school_years (name, start_date, end_date) VALUES ('2027-2028', '2027-09-01', '2028-05-31') RETURNING id");
         batchCampaign(HealthCheckKind.MEASUREMENT, campusB, nextYear, "2026-11-01", "2026-11-15", false);
         entityManager.flush();
         var sources = List.of(a, overlap, legacy);
         var batched = rules.linkedCampaigns(sources);
         for (HealthCheckCampaign source : sources) {
-            assertThat(batched.get(source.getId())).extracting(HealthCheckCampaign::getId)
-                    .containsExactlyInAnyOrderElementsOf(rules.linkedCampaigns(source).stream().map(HealthCheckCampaign::getId).toList());
+            assertThat(batched.get(source.getId()))
+                    .extracting(HealthCheckCampaign::getId)
+                    .containsExactlyInAnyOrderElementsOf(rules.linkedCampaigns(source).stream()
+                            .map(HealthCheckCampaign::getId)
+                            .toList());
         }
-        assertThat(batched.get(a.getId())).extracting(HealthCheckCampaign::getId).containsExactlyInAnyOrder(overlap.getId(), legacy.getId());
+        assertThat(batched.get(a.getId()))
+                .extracting(HealthCheckCampaign::getId)
+                .containsExactlyInAnyOrder(overlap.getId(), legacy.getId());
     }
 
     @Test
@@ -1188,7 +1204,13 @@ class HealthCheckIntegrationTest {
         long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
         var rounds = new java.util.ArrayList<HealthCheckCampaign>();
         for (int i = 0; i < 8; i++) {
-            rounds.add(batchCampaign(HealthCheckKind.MEASUREMENT, i % 2 == 0 ? campusA : campusB, year, "2026-11-01", "2026-11-20", false));
+            rounds.add(batchCampaign(
+                    HealthCheckKind.MEASUREMENT,
+                    i % 2 == 0 ? campusA : campusB,
+                    year,
+                    "2026-11-01",
+                    "2026-11-20",
+                    false));
         }
         entityManager.flush();
         Statistics stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
@@ -1202,14 +1224,115 @@ class HealthCheckIntegrationTest {
         assertThat(one).isEqualTo(1);
         assertThat(stats.getPrepareStatementCount()).isEqualTo(one);
         stats.clear();
+        rounds.forEach(rules::linkedCampaigns);
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(8);
+        stats.clear();
         rules.linkedCampaigns(List.<HealthCheckCampaign>of());
         assertThat(stats.getPrepareStatementCount()).isZero();
     }
 
-    private HealthCheckCampaign batchCampaign(HealthCheckKind kind, long campus, Long year, String start, String end, boolean cancelled) {
-        HealthCheckCampaign c = HealthCheckCampaign.builder().kind(kind).campusId(campus).schoolYearId(year)
-                .name("Đợt kiểm thử lô").startDate(LocalDate.parse(start)).endDate(LocalDate.parse(end))
-                .examiner("").note("").createdBy(principal.userId()).createdAt(testClock.instant()).build();
+    @Test
+    void rosterBatchQueriesOncePerReferenceDateAndKeepsTransferredRows() {
+        long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
+        long newClass = classroom(campusA, "Lớp lô mới");
+        transfer(child1, classA, newClass, "2026-11-09");
+        var campaigns = new java.util.ArrayList<HealthCheckCampaign>();
+        var linked = new java.util.HashMap<Long, List<HealthCheckCampaign>>();
+        var measured = new java.util.ArrayList<HealthMeasurement>();
+        for (int i = 0; i < 8; i++) {
+            HealthCheckCampaign campaign =
+                    batchCampaign(HealthCheckKind.MEASUREMENT, campusA, year, "2026-11-01", "2026-11-20", false);
+            campaigns.add(campaign);
+            linked.put(campaign.getId(), List.of());
+            measured.add(batchMeasurement(campaign, child1, "2026-11-02"));
+        }
+        HealthCheckCampaign past =
+                batchCampaign(HealthCheckKind.MEASUREMENT, campusA, year, "2026-11-01", "2026-11-05", false);
+        HealthCheckCampaign future =
+                batchCampaign(HealthCheckKind.MEASUREMENT, campusA, year, "2026-12-01", "2026-12-05", false);
+        entityManager.flush();
+        entityManager.clear();
+        Statistics stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        stats.clear();
+        rules.rostersOf(campaigns.subList(0, 1), linked, measured, List.of());
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(1);
+        entityManager.clear();
+        stats.clear();
+        var batched = rules.rostersOf(campaigns, linked, measured, List.of());
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(1);
+        stats.clear();
+        campaigns.forEach(c -> rules.rosterOf(c, List.of(), measured, List.of()));
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(8);
+        campaigns.add(past);
+        campaigns.add(future);
+        linked.put(past.getId(), List.of());
+        linked.put(future.getId(), List.of());
+        measured.add(batchMeasurement(past, child1, "2026-11-02"));
+        measured.add(batchMeasurement(future, child2, "2026-12-01"));
+        entityManager.clear();
+        stats.clear();
+        batched = rules.rostersOf(campaigns, linked, measured, List.of());
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(3);
+        for (HealthCheckCampaign campaign : campaigns) {
+            var original = rules.rosterOf(campaign, List.of(), measured, List.of());
+            for (var cls : rules.visibleClassesOf(principal, campaign)) {
+                assertThat(batched.get(campaign.getId()).rowsOf(cls)).isEqualTo(original.rowsOf(cls));
+            }
+        }
+        var currentClasses = rules.visibleClassesOf(principal, campaigns.getFirst());
+        var oldClass = currentClasses.stream()
+                .filter(c -> c.id().equals(classA))
+                .findFirst()
+                .orElseThrow();
+        var destination = currentClasses.stream()
+                .filter(c -> c.id().equals(newClass))
+                .findFirst()
+                .orElseThrow();
+        assertThat(batched.get(campaigns.getFirst().getId())
+                        .rowsOf(oldClass)
+                        .getFirst()
+                        .movedTo())
+                .isNotNull();
+        assertThat(batched.get(campaigns.getFirst().getId())
+                        .rowsOf(destination)
+                        .getFirst()
+                        .measuredIn())
+                .isNotNull();
+        assertThat(batched.get(past.getId()).rowsOf(oldClass).getFirst().movedTo())
+                .isNull();
+        stats.clear();
+        rules.rostersOf(campaigns, linked, List.of(), List.of());
+        assertThat(stats.getPrepareStatementCount()).isZero();
+    }
+
+    private HealthMeasurement batchMeasurement(HealthCheckCampaign campaign, long childId, String date) {
+        return HealthMeasurement.builder()
+                .childId(childId)
+                .campaignId(campaign.getId())
+                .classroomId(classA)
+                .date(LocalDate.parse(date))
+                .heightCm(new BigDecimal("98.5"))
+                .weightKg(new BigDecimal("15.2"))
+                .note("")
+                .measuredBy(teacherA.userId())
+                .createdAt(testClock.instant())
+                .build();
+    }
+
+    private HealthCheckCampaign batchCampaign(
+            HealthCheckKind kind, long campus, Long year, String start, String end, boolean cancelled) {
+        HealthCheckCampaign c = HealthCheckCampaign.builder()
+                .kind(kind)
+                .campusId(campus)
+                .schoolYearId(year)
+                .name("Đợt kiểm thử lô")
+                .startDate(LocalDate.parse(start))
+                .endDate(LocalDate.parse(end))
+                .examiner("")
+                .note("")
+                .createdBy(principal.userId())
+                .createdAt(testClock.instant())
+                .build();
         if (cancelled) c.cancel(testClock.instant());
         else c.close(principal.userId(), testClock.instant());
         return campaignRepository.save(c);

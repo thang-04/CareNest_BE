@@ -281,10 +281,18 @@ class HealthCheckRules {
         List<HealthCheckCampaign> rounds = campaigns.stream()
                 .filter(c -> c.getKind() == HealthCheckKind.MEASUREMENT)
                 .toList();
-        List<HealthCheckCampaign> candidates = rounds.isEmpty() ? List.of()
-                : campaignRepository.findLinkableCandidates(HealthCheckKind.MEASUREMENT,
-                        rounds.stream().map(HealthCheckCampaign::getStartDate).min(LocalDate::compareTo).orElseThrow(),
-                        rounds.stream().map(HealthCheckCampaign::getEndDate).max(LocalDate::compareTo).orElseThrow());
+        List<HealthCheckCampaign> candidates = rounds.isEmpty()
+                ? List.of()
+                : campaignRepository.findLinkableCandidates(
+                        HealthCheckKind.MEASUREMENT,
+                        rounds.stream()
+                                .map(HealthCheckCampaign::getStartDate)
+                                .min(LocalDate::compareTo)
+                                .orElseThrow(),
+                        rounds.stream()
+                                .map(HealthCheckCampaign::getEndDate)
+                                .max(LocalDate::compareTo)
+                                .orElseThrow());
         Map<Long, List<HealthCheckCampaign>> linked = new HashMap<>();
         for (HealthCheckCampaign campaign : campaigns) {
             if (campaign.getKind() != HealthCheckKind.MEASUREMENT) {
@@ -292,12 +300,14 @@ class HealthCheckRules {
                 continue;
             }
             Long yearId = yearOf(campaign);
-            linked.put(campaign.getId(), candidates.stream()
-                    .filter(c -> !c.getCampusId().equals(campaign.getCampusId())
-                            && !c.getStartDate().isAfter(campaign.getEndDate())
-                            && !c.getEndDate().isBefore(campaign.getStartDate()))
-                    .filter(c -> Objects.equals(yearOf(c), yearId))
-                    .toList());
+            linked.put(
+                    campaign.getId(),
+                    candidates.stream()
+                            .filter(c -> !c.getCampusId().equals(campaign.getCampusId())
+                                    && !c.getStartDate().isAfter(campaign.getEndDate())
+                                    && !c.getEndDate().isBefore(campaign.getStartDate()))
+                            .filter(c -> Objects.equals(yearOf(c), yearId))
+                            .toList());
         }
         return linked;
     }
@@ -352,7 +362,55 @@ class HealthCheckRules {
             List<HealthCheckCampaign> linked,
             List<HealthMeasurement> measurements,
             List<HealthCheckAbsence> absences) {
-        return new Roster(campaign, linked, measurements, absences);
+        return new Roster(campaign, linked, resultsOf(campaign, linked, measurements), absences, null);
+    }
+
+    Map<Long, Roster> rostersOf(
+            List<HealthCheckCampaign> campaigns,
+            Map<Long, List<HealthCheckCampaign>> linked,
+            List<HealthMeasurement> measurements,
+            List<HealthCheckAbsence> absences) {
+        Map<LocalDate, Set<Long>> childrenByDate = new HashMap<>();
+        Map<Long, Map<Long, HealthMeasurement>> results = new HashMap<>();
+        for (HealthCheckCampaign campaign : campaigns) {
+            Map<Long, HealthMeasurement> campaignResults =
+                    resultsOf(campaign, linked.get(campaign.getId()), measurements);
+            results.put(campaign.getId(), campaignResults);
+            Set<Long> children = campaignResults.keySet();
+            if (!children.isEmpty()) {
+                childrenByDate
+                        .computeIfAbsent(referenceDate(campaign), date -> new HashSet<>())
+                        .addAll(children);
+            }
+        }
+        Map<LocalDate, Map<Long, Long>> classesByDate = new HashMap<>();
+        childrenByDate.forEach((date, children) ->
+                classesByDate.put(date, enrollmentService.findActiveClassroomIdByChildIds(children, date)));
+        Map<Long, Roster> rosters = new HashMap<>();
+        campaigns.forEach(campaign -> rosters.put(
+                campaign.getId(),
+                new Roster(
+                        campaign,
+                        linked.get(campaign.getId()),
+                        results.get(campaign.getId()),
+                        absences,
+                        classesByDate.getOrDefault(referenceDate(campaign), Map.of()))));
+        return rosters;
+    }
+
+    private static Map<Long, HealthMeasurement> resultsOf(
+            HealthCheckCampaign campaign, List<HealthCheckCampaign> linked, List<HealthMeasurement> measurements) {
+        Set<Long> linkedIds = linked.stream().map(HealthCheckCampaign::getId).collect(Collectors.toSet());
+        Map<Long, HealthMeasurement> results = new HashMap<>();
+        measurements.stream()
+                .filter(m -> linkedIds.contains(m.getCampaignId()) && covers(campaign, m.getDate()))
+                .sorted(LATEST)
+                .forEach(m -> results.put(m.getChildId(), m));
+        // Lần đo của chính đợt/kỳ được ưu tiên hơn kỳ liên quan.
+        measurements.stream()
+                .filter(m -> m.getCampaignId().equals(campaign.getId()))
+                .forEach(m -> results.put(m.getChildId(), m));
+        return results;
     }
 
     /**
@@ -373,28 +431,20 @@ class HealthCheckRules {
         private Roster(
                 HealthCheckCampaign campaign,
                 List<HealthCheckCampaign> linked,
-                List<HealthMeasurement> measurements,
-                List<HealthCheckAbsence> absences) {
+                Map<Long, HealthMeasurement> results,
+                List<HealthCheckAbsence> absences,
+                Map<Long, Long> currentClasses) {
             this.campaign = campaign;
             this.linked = linked;
             this.absences = absences;
             this.closed = campaign.statusOn(today()) == HealthCheckStatus.CLOSED;
             this.referenceDate = referenceDate(campaign);
-            Set<Long> linkedIds =
-                    linked.stream().map(HealthCheckCampaign::getId).collect(Collectors.toSet());
-            Map<Long, HealthMeasurement> results = new HashMap<>();
-            measurements.stream()
-                    .filter(m -> linkedIds.contains(m.getCampaignId()) && covers(campaign, m.getDate()))
-                    .sorted(LATEST)
-                    .forEach(m -> results.put(m.getChildId(), m));
-            // Lần đo của chính đợt/kỳ được ưu tiên hơn kỳ liên quan
-            measurements.stream()
-                    .filter(m -> m.getCampaignId().equals(campaign.getId()))
-                    .forEach(m -> results.put(m.getChildId(), m));
             this.resultByChild = results;
-            this.classIdByChild = results.isEmpty()
-                    ? Map.of()
-                    : enrollmentService.findActiveClassroomIdByChildIds(results.keySet(), referenceDate);
+            this.classIdByChild = currentClasses != null
+                    ? currentClasses
+                    : results.isEmpty()
+                            ? Map.of()
+                            : enrollmentService.findActiveClassroomIdByChildIds(results.keySet(), referenceDate);
         }
 
         /**

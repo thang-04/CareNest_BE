@@ -288,7 +288,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 throw GlobalException.of(ApiCode.HEALTH_CHECK_ENDED);
             }
             checkDates(request);
-            checkWithinYear(rules.windowOf(rules.yearOf(campaign)), campaign.getKind(), request.startDate(), request.endDate());
+            checkWithinYear(
+                    rules.windowOf(rules.yearOf(campaign)), campaign.getKind(), request.startDate(), request.endDate());
             Results results = results(campaign);
             // Đổi ngày không được để kết quả đã nhập nằm ngoài khoảng mới
             results.measurements().stream()
@@ -434,7 +435,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                         ApiCode.INVALID_REQUEST_DATA,
                         List.of(new FieldErrorResponse("endDate", "Chọn ngày kết thúc mới từ hôm nay")));
             }
-            checkWithinYear(rules.windowOf(rules.yearOf(campaign)), campaign.getKind(), campaign.getStartDate(), endDate);
+            checkWithinYear(
+                    rules.windowOf(rules.yearOf(campaign)), campaign.getKind(), campaign.getStartDate(), endDate);
             campaign.update(
                     campaign.getName(),
                     campaign.getStartDate(),
@@ -597,6 +599,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 all.measurements().stream().collect(Collectors.groupingBy(HealthMeasurement::getCampaignId));
         Map<Long, List<HealthCheckAbsence>> absences =
                 all.absences().stream().collect(Collectors.groupingBy(HealthCheckAbsence::getCampaignId));
+        Map<Long, HealthCheckRules.Roster> rosters =
+                rules.rostersOf(campaigns, linked, all.measurements(), all.absences());
         return campaigns.stream()
                 .map(c -> toView(
                         user,
@@ -608,12 +612,17 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                                         .toList(),
                                 absences.getOrDefault(c.getId(), List.of()),
                                 all.levels(),
-                                all.bmi())))
+                                all.bmi()),
+                        rosters.get(c.getId())))
                 .toList();
     }
 
     private HealthCheckResponse toView(CurrentUser user, HealthCheckCampaign c, Results results) {
-        HealthCheckRules.Roster roster = rosterOf(c, results);
+        return toView(user, c, results, rosterOf(c, results));
+    }
+
+    private HealthCheckResponse toView(
+            CurrentUser user, HealthCheckCampaign c, Results results, HealthCheckRules.Roster roster) {
         List<HealthCheckRules.Row> rows = rules.visibleClassesOf(user, c).stream()
                 .flatMap(cls -> roster.rowsOf(cls).stream())
                 .toList();
@@ -787,7 +796,8 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     }
 
     // G94-180/HLT-08 (user chốt 2026-11-22): ngày của đợt nằm trong năm của đợt; không có năm ⇒ không giới hạn
-    private static void checkWithinYear(HealthCheckRules.YearWindow year, HealthCheckKind kind, LocalDate startDate, LocalDate endDate) {
+    private static void checkWithinYear(
+            HealthCheckRules.YearWindow year, HealthCheckKind kind, LocalDate startDate, LocalDate endDate) {
         if (year == null) {
             return;
         }
