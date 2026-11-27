@@ -1,5 +1,6 @@
 package com.carenest.security;
 
+import com.carenest.config.ClockConfig;
 import com.carenest.entity.account.RevokedWebSession;
 import com.carenest.repository.account.RevokedWebSessionRepository;
 import java.time.Clock;
@@ -9,7 +10,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import com.carenest.config.ClockConfig;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
