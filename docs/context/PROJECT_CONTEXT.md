@@ -83,7 +83,7 @@ Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kit
 | FE-07 | Phụ huynh xem thông tin được phép (PAR-01), dữ liệu có công bố (PAR-03); thông báo của trường (PAR-05) | CONFIRMED (khảo sát team 27/10) | nhiều module, ADR-0010 | — |
 | FE-08 | ~~Báo + theo dõi sự cố CSVC~~ | REMOVED (Report 1 v2, khảo sát team 27/10, user chốt 29/10) | — | — |
 | FE-09 | Nhận xét định kỳ theo trẻ tuần/tháng/học kỳ/năm (mẫu nền + AI nháp, GV xác nhận); nhận xét lớp hằng ngày | CONFIRMED (OBS-05, OBS-06, RPT-02) | learning-observation | child-observation |
-| FE-10 | AI gợi ý thực đơn có duyệt, có bật/tắt | CONFIRMED (AI-07) | nutrition, ai-assistance | meal-management |
+| FE-10 | ~~AI gợi ý thực đơn có duyệt, có bật/tắt~~ — bỏ 27/11/2026 | REMOVED (AI-07 mục 4) | nutrition, ai-assistance | meal-management |
 | — | Báo cáo ngày cho BGH; báo cáo định kỳ (số ngày ăn từng trẻ, thực đơn tuần, kết quả học kỳ, tổng kết năm, tồn kho) xuất Excel + PDF; xuất Excel danh sách trẻ, cân đo theo mẫu ngành để trường tự nhập CSDL ngành | CONFIRMED (RPT-01..03; khảo sát team 27/10: SCO-04, SCO-05); tổng kết năm P-34 | reporting | — |
 | — | Nhập danh sách trẻ từ Excel để tạo hồ sơ | CONFIRMED (khảo sát team 27/10: SCO-05) | child | — |
 | — | Đón trẻ: danh sách phụ huynh trên màn đón, người lạ thì gọi phụ huynh + ghi lý do, lưu người/giờ đón, báo phụ huynh | CONFIRMED (PCK-01..04) | attendance | pickup |

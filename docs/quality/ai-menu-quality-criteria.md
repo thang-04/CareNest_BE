@@ -99,7 +99,7 @@ Chạy tay (không chạy trong CI), cần key thật để đo AI:
 AI_LIVE_EVAL=true AI_LIVE_EVAL_RUNS=3 ./mvnw test -Dtest=MenuAiLiveEvalTest
 ```
 
-- 10 tình huống trong `src/test/resources/ai-eval/menu-cases.json`: đủ món, thiếu số liệu, dị ứng, ngân sách chặt, ít món, câu chèn lệnh, danh mục lớn, provider lỗi, **thiếu thực phẩm** (NCC hết hàng), **lịch sử 4 tuần**.
+- 10 tình huống trong file `menu-cases.json` (đã gỡ cùng luồng AI thực đơn 27/11/2026): đủ món, thiếu số liệu, dị ứng, ngân sách chặt, ít món, câu chèn lệnh, danh mục lớn, provider lỗi, **thiếu thực phẩm** (NCC hết hàng), **lịch sử 4 tuần**.
 - Kết quả ở `target/ai-eval/menu-eval-<thời điểm>/`:
   - `lines.csv`: mỗi dòng một thực phẩm của một món trong một ô một ngày — gam/trẻ, giá trị /100 g, phần đóng góp (kcal, đạm/béo ĐV–TV, bột đường). Tester cộng theo ngày bằng bảng tính.
   - `days.csv`: tổng ngày hệ thống tính (`kcal_system`), tổng cộng lại từ `lines.csv` (`kcal_recomputed`), khớp hay không, khoảng định mức, trong khoảng hay không, P:L:G, chi phí.

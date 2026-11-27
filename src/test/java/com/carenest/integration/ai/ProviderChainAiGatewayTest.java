@@ -70,7 +70,7 @@ class ProviderChainAiGatewayTest {
         assertThat(result.content()).isEqualTo("{\"days\":[]}");
         assertThat(result.providerId()).isEqualTo("gemini");
         assertThat(result.model()).isEqualTo("model-gemini");
-        assertThat(result.promptVersion()).isEqualTo("menu/weekly_v1");
+        assertThat(result.promptVersion()).isEqualTo("edu/plan_v1");
         assertThat(result.inputTokens()).isEqualTo(120);
         assertThat(result.outputTokens()).isEqualTo(30);
         server.verify();
@@ -122,10 +122,10 @@ class ProviderChainAiGatewayTest {
     @DisplayName("AI-03: AI tắt ⇒ không có provider dùng được, không gọi mạng")
     void disabledGatewayDoesNotCallProviders() {
         server.expect(never(), requestTo(GEMINI_URL));
-        AiProperties properties = new AiProperties(false, providers(), Map.of(AiTask.MENU_WEEKLY, publicTask()));
+        AiProperties properties = new AiProperties(false, providers(), Map.of(AiTask.EDU_PLAN, publicTask()));
         ProviderChainAiGateway gateway = gateway(properties);
 
-        assertThat(gateway.isAvailable(AiTask.MENU_WEEKLY)).isFalse();
+        assertThat(gateway.isAvailable(AiTask.EDU_PLAN)).isFalse();
         assertThatThrownBy(() -> gateway.complete(request(NOW.plusSeconds(30))))
                 .extracting(ex -> ((AiClientException) ex).getReason())
                 .isEqualTo(AiErrorReason.DISABLED);
@@ -141,7 +141,7 @@ class ProviderChainAiGatewayTest {
                         new AiProperties.Provider(
                                 "gemini", "http://gemini.test", "model-gemini", "", true, null, null, null),
                         provider("groq", false)),
-                Map.of(AiTask.MENU_WEEKLY, publicTask()));
+                Map.of(AiTask.EDU_PLAN, publicTask()));
         server.expect(once(), requestTo(GROQ_URL)).andRespond(withSuccess(OK_BODY, MediaType.APPLICATION_JSON));
 
         AiRawResult result = gateway(properties).complete(request(NOW.plusSeconds(30)));
@@ -155,9 +155,9 @@ class ProviderChainAiGatewayTest {
     void unconfiguredTaskIsUnavailable() {
         ProviderChainAiGateway gateway = gateway(publicChain());
 
-        assertThat(gateway.isAvailable(AiTask.MENU_DAY_FIX)).isFalse();
-        assertThat(gateway.taskConfig(AiTask.MENU_DAY_FIX)).isEmpty();
-        assertThat(gateway.taskConfig(AiTask.MENU_WEEKLY)).isPresent();
+        assertThat(gateway.isAvailable(AiTask.EDU_MATCH)).isFalse();
+        assertThat(gateway.taskConfig(AiTask.EDU_MATCH)).isEmpty();
+        assertThat(gateway.taskConfig(AiTask.EDU_PLAN)).isPresent();
     }
 
     @Test
@@ -192,7 +192,7 @@ class ProviderChainAiGatewayTest {
     }
 
     private static AiProperties publicChain() {
-        return new AiProperties(true, providers(), Map.of(AiTask.MENU_WEEKLY, publicTask()));
+        return new AiProperties(true, providers(), Map.of(AiTask.EDU_PLAN, publicTask()));
     }
 
     private static List<AiProperties.Provider> providers() {
@@ -209,6 +209,6 @@ class ProviderChainAiGatewayTest {
     }
 
     private static AiRequest request(Instant deadline) {
-        return new AiRequest(AiTask.MENU_WEEKLY, "menu/weekly_v1", "SYS", "USER", deadline);
+        return new AiRequest(AiTask.EDU_PLAN, "edu/plan_v1", "SYS", "USER", deadline);
     }
 }
