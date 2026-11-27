@@ -388,7 +388,10 @@ public class EduAiServiceImpl implements EduAiService {
     }
 
     @Override
-    public EduAiResponse.GoalContentMap matchGoalContents(CurrentUser currentUser, Long planId, Long goalId) {
+    public EduAiResponse.GoalContentMap matchGoalContents(
+            CurrentUser currentUser, Long planId, EduAiRequest.GoalContents request) {
+        Long goalId = request == null ? null : request.goalId();
+        Map<Long, List<String>> exclude = request == null || request.exclude() == null ? Map.of() : request.exclude();
         String logPrefix = LOG_PREFIX + "|matchGoalContents|userId=" + currentUser.userId() + "|planId=" + planId
                 + "|goalId=" + goalId;
         log.info("{}|START", logPrefix);
@@ -409,9 +412,15 @@ public class EduAiServiceImpl implements EduAiService {
                             .toList();
                     // EDU-106: nút chung chỉ mục tiêu chưa có nội dung; nút từng mục tiêu nhận cả mục tiêu đã có
                     boolean wanted = goalId == null ? have.isEmpty() : goalId.equals(row.id());
-                    if (wanted)
-                        goals.add(new EduGoalContentMatcher.Goal(
-                                row.id(), domain.domainId(), domain.name(), row.text(), have));
+                    if (!wanted) continue;
+                    // Tối đa 3 câu mỗi lần; câu đang có và câu đã gợi ý trước đó không lặp lại
+                    List<String> shown = nullSafe(exclude.get(row.id())).stream()
+                            .filter(t -> t != null && !t.isBlank())
+                            .toList();
+                    List<String> avoid = new ArrayList<>(have);
+                    avoid.addAll(shown);
+                    goals.add(new EduGoalContentMatcher.Goal(
+                            row.id(), domain.domainId(), domain.name(), row.text(), avoid, shown, YEAR_PLAN_LINES));
                 }
             if (goalId != null && goals.isEmpty()) throw GlobalException.of(ApiCode.BAD_REQUEST);
             EduAiResponse.GoalContentMap result = matchContents(goals, plan.ageGroupId(), plan.schoolYearId(), null);
@@ -428,6 +437,7 @@ public class EduAiServiceImpl implements EduAiService {
     }
 
     private static final int CLASS_LINES_MAX = 6;
+    private static final int YEAR_PLAN_LINES = 3;
 
     @Override
     public EduAiResponse.GoalContentMap rewriteClassContents(

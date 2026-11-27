@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import java.util.Map;
 
 /** Yêu cầu AI hỗ trợ soạn kế hoạch giáo dục (EDU-95); chỉ dữ liệu chương trình, không dữ liệu trẻ (AI-04). */
 public final class EduAiRequest {
@@ -48,8 +49,12 @@ public final class EduAiRequest {
             @Size(max = 20) List<@Size(max = 1000) String> lines) {}
 
     /** Sửa theo yêu cầu: một câu giáo viên gõ. */
-    /** EDU-106: goalId null ⇒ mọi mục tiêu chưa có nội dung; có ⇒ đúng mục tiêu đó, kể cả đã có nội dung. */
-    public record GoalContents(Long goalId) {}
+    /**
+     * EDU-106: goalId null ⇒ mọi mục tiêu chưa có nội dung; có ⇒ đúng mục tiêu đó, kể cả đã có nội dung. exclude: theo goalId,
+     * các câu đã gợi ý trong lúc đang soạn, không gợi ý lại.
+     */
+    public record GoalContents(
+            Long goalId, @Size(max = 200) Map<Long, @Size(max = 60) List<@Size(max = 1000) String>> exclude) {}
 
     /**
      * EDU-115: viết lại nội dung kế hoạch chủ đề. lines = các dòng đang có của mục tiêu; lineIndex null thì thay cả mục tiêu.

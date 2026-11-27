@@ -50,6 +50,8 @@ public class EduGoalContentMatcher {
                     + "- Chấm mức phù hợp trực tiếp với mục tiêu: 3 rất phù hợp, 2 phù hợp, 1 liên quan xa, 0 không. Chỉ trả"
                     + " lựa chọn 2–3 điểm. Chọn nhầm tệ hơn bỏ sót.\n"
                     + "- Mỗi lựa chọn ghi from = cụm từ NGUYÊN VĂN trong câu mục tiêu làm căn cứ.\n"
+                    + "- Có limit thì chỉ trả tối đa limit câu hợp nhất cho mục tiêu đó. current là các câu đã gợi ý trước:"
+                    + " không chọn hay viết câu giống hoặc gần nghĩa.\n"
                     + "- Chỉ khi một mục tiêu không có lựa chọn nào đạt 2 điểm mới viết tối đa 3 câu nội dung mới vào written:"
                     + " ngắn, cụ thể, phù hợp độ tuổi, cùng giọng văn với options; kèm from như trên.\n"
                     + "- Có tình hình lớp thì ưu tiên nội dung hợp tình hình lớp. Không nhắc tên trẻ.\n"
@@ -223,7 +225,7 @@ public class EduGoalContentMatcher {
         goals.values().forEach(g -> taken.put(g.id(), keys(g.have())));
         List<EduAiResponse.GoalContentMatch> result = new ArrayList<>();
         Set<Long> picked = new HashSet<>();
-        for (JsonNode m : out.path("matches")) {
+        for (JsonNode m : byScore(out.path("matches"))) {
             Goal g = goals.get(m.path("goalId").asLong(-1));
             if (g == null || m.path("score").asInt(0) < MIN_SCORE) continue;
             String key = m.path("key").asString("");
@@ -255,6 +257,16 @@ public class EduGoalContentMatcher {
             result.add(new EduAiResponse.GoalContentMatch(g.id(), text, AI, null, clip(from, FROM_MAX)));
         }
         return result;
+    }
+
+    // Cắt theo limit phải giữ câu điểm cao: sắp theo điểm giảm dần, cùng điểm giữ thứ tự AI trả
+    private static List<JsonNode> byScore(JsonNode matches) {
+        List<JsonNode> list = new ArrayList<>();
+        matches.forEach(list::add);
+        list.sort(java.util.Comparator.comparingInt(
+                        (JsonNode m) -> m.path("score").asInt(0))
+                .reversed());
+        return list;
     }
 
     private static long count(List<EduAiResponse.GoalContentMatch> matches, Long goalId) {

@@ -350,14 +350,14 @@ class EduAiServiceImplTest {
                 .thenReturn(List.of(catalog(20L, 100L, "Hát đúng giai điệu"), catalog(23L, 100L, "Đã có")));
         aiReturns("{\"matches\":[{\"goalId\":12,\"key\":\"C20\",\"score\":3,\"from\":\"hát\"},"
                 + "{\"goalId\":12,\"key\":\"C23\",\"score\":3,\"from\":\"hát\"}]}");
-        var out = service.matchGoalContents(user, 9L, 12L);
+        var out = service.matchGoalContents(user, 9L, new EduAiRequest.GoalContents(12L, null));
         assertThat(out.matches())
                 .extracting("goalId", "text")
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(12L, "Hát đúng giai điệu"));
         org.mockito.ArgumentCaptor<AiRequest> request = org.mockito.ArgumentCaptor.forClass(AiRequest.class);
         verify(ai).complete(request.capture());
         assertThat(request.getValue().userPrompt()).contains("\"goalId\":12").doesNotContain("\"goalId\":10", "C23");
-        assertThatThrownBy(() -> service.matchGoalContents(user, 9L, 77L))
+        assertThatThrownBy(() -> service.matchGoalContents(user, 9L, new EduAiRequest.GoalContents(77L, null)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.BAD_REQUEST);
     }
@@ -389,10 +389,37 @@ class EduAiServiceImplTest {
                 .extracting("goalId", "text", "source")
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(10L, "Hát cùng cô", "CURRICULUM_D"),
-                        org.assertj.core.groups.Tuple.tuple(10L, "Hát dân ca", "PREVIOUS_YEAR"),
                         org.assertj.core.groups.Tuple.tuple(10L, "Hát theo nhịp.", "RAG"),
+                        org.assertj.core.groups.Tuple.tuple(10L, "Hát dân ca", "PREVIOUS_YEAR"),
                         org.assertj.core.groups.Tuple.tuple(11L, "Đọc thơ theo cô.", "AI"));
-        assertThat(out.matches().get(2).ref().id()).isEqualTo("MT-1");
+        assertThat(out.matches().get(1).ref().id()).isEqualTo("MT-1");
+    }
+
+    @Test
+    @DisplayName("EDU-106: tối đa 3 câu mỗi mục tiêu theo điểm cao; câu đã gợi ý không đưa lại cho AI")
+    void annualCapsAtThreeAndSkipsShownLines() {
+        annual(true);
+        when(curriculum.getContents(5L))
+                .thenReturn(List.of(
+                        catalog(20L, 100L, "Hát một"),
+                        catalog(21L, 100L, "Hát hai"),
+                        catalog(22L, 100L, "Hát ba"),
+                        catalog(23L, 100L, "Hát bốn"),
+                        catalog(24L, 100L, "Hát đã gợi ý")));
+        aiReturns("""
+                {"matches":[{"goalId":10,"key":"C20","score":2,"from":"hát"},
+                {"goalId":10,"key":"C21","score":3,"from":"hát"},
+                {"goalId":10,"key":"C22","score":2,"from":"hát"},
+                {"goalId":10,"key":"C23","score":3,"from":"hát"},
+                {"goalId":10,"key":"C24","score":3,"from":"hát"}]}""");
+        var out = service.matchGoalContents(
+                user, 9L, new EduAiRequest.GoalContents(10L, java.util.Map.of(10L, List.of("Hát đã gợi ý"))));
+        assertThat(out.matches()).extracting("text").containsExactly("Hát hai", "Hát bốn", "Hát một");
+        org.mockito.ArgumentCaptor<AiRequest> request = org.mockito.ArgumentCaptor.forClass(AiRequest.class);
+        verify(ai).complete(request.capture());
+        assertThat(request.getValue().userPrompt())
+                .contains("\"limit\":3", "\"current\":[\"Hát đã gợi ý\"]")
+                .doesNotContain("C24");
     }
 
     @Test

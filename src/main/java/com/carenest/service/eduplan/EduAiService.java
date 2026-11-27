@@ -25,6 +25,7 @@ public interface EduAiService {
     /** EDU-115: nội dung thay thế (nháp) cho kế hoạch chủ đề của lớp; không ghi. */
     EduAiResponse.GoalContentMap rewriteClassContents(CurrentUser currentUser, EduAiRequest.ClassContents request);
 
-    /** EDU-106: goalId null ⇒ mọi mục tiêu chưa có nội dung; có ⇒ đúng mục tiêu đó. */
-    EduAiResponse.GoalContentMap matchGoalContents(CurrentUser currentUser, Long planId, Long goalId);
+    /** EDU-106 (mỗi mục tiêu tối đa 3 câu): goalId null ⇒ mọi mục tiêu chưa có nội dung; có ⇒ đúng mục tiêu đó. */
+    EduAiResponse.GoalContentMap matchGoalContents(
+            CurrentUser currentUser, Long planId, EduAiRequest.GoalContents request);
 }

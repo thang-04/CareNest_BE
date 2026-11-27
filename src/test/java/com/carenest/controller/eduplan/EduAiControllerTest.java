@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
+import com.carenest.dto.eduplan.EduAiRequest;
 import com.carenest.dto.eduplan.EduAiResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
@@ -93,14 +94,14 @@ class EduAiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.matches[0].text").value("Hát theo giai điệu"))
                 .andExpect(jsonPath("$.data.matches[0].source").value("CURRICULUM_C"));
-        given(ai.matchGoalContents(any(), eq(9L), eq(5L)))
+        given(ai.matchGoalContents(any(), eq(9L), eq(new EduAiRequest.GoalContents(5L, null))))
                 .willReturn(new EduAiResponse.GoalContentMap(List.of(), List.of()));
         mvc.perform(post("/api/education-plans/ai/year-plans/9/goal-content-map")
                         .contentType("application/json")
                         .content("{\"goalId\":5}")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
                 .andExpect(status().isOk());
-        org.mockito.Mockito.verify(ai).matchGoalContents(any(), eq(9L), eq(5L));
+        org.mockito.Mockito.verify(ai).matchGoalContents(any(), eq(9L), eq(new EduAiRequest.GoalContents(5L, null)));
     }
 
     @Test
