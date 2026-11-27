@@ -73,7 +73,8 @@ public class HealthExamServiceImpl implements HealthExamService {
     private final HealthNotifier healthNotifier;
 
     /** Đợt khám, hồ sơ trẻ, lớp trẻ đang học (cùng điểm trường với đợt). */
-    private record Target(HealthCheckCampaign campaign, ChildViewResponse child, ClassroomInfoResponse cls) {}
+    private record Target(
+            HealthCheckCampaign campaign, ChildViewResponse child, ClassroomInfoResponse cls, boolean readOnly) {}
 
     @Override
     @Transactional(readOnly = true)
@@ -103,6 +104,9 @@ public class HealthExamServiceImpl implements HealthExamService {
             Target target = target(currentUser, campaignId, childId);
             HealthCheckCampaign campaign = target.campaign();
             ChildViewResponse child = target.child();
+            if (target.readOnly()) {
+                throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
+            }
             // HLT-09: GV đang phụ trách lớp hiện tại của trẻ nhập phiếu; BGH chỉ xem
             if (!rules.canRecord(currentUser, target.cls())) {
                 throw GlobalException.of(ApiCode.HEALTH_EXAM_ACCESS_DENIED);
@@ -261,25 +265,37 @@ public class HealthExamServiceImpl implements HealthExamService {
     }
 
     /**
-     * Ngoài phạm vi xem trẻ, trẻ không còn học ở điểm trường của đợt ⇒ 404 như không tồn tại (không lộ dữ liệu); kỳ cân
-     * đo không dùng phiếu khám.
+     * Ngoài phạm vi xem trẻ ⇒ 404; trẻ không còn học ở điểm trường của đợt chỉ được xem phiếu đã có.
      */
     private Target target(CurrentUser user, Long campaignId, Long childId) {
         HealthCheckCampaign campaign = campaignRepository
                 .findById(campaignId)
                 .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND));
-        if (!childAccessPolicy.canViewChild(user, childId)) {
-            throw GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND);
-        }
+        boolean canView = childAccessPolicy.canViewChild(user, childId);
         ClassroomInfoResponse cls = enrollmentService.findActiveClassroomIds(childId, rules.today()).stream()
                 .findFirst()
                 .flatMap(classroomService::findClassroomInfo)
                 .filter(c -> c.campusId().equals(campaign.getCampusId()))
-                .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND));
+                .orElse(null);
+        boolean readOnly = cls == null;
+        if (readOnly) {
+            HealthMeasurement existing = examOf(records.load(List.of(childId)), childId, campaignId);
+            if (existing == null) {
+                throw GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND);
+            }
+            cls = classroomService
+                    .findClassroomInfo(existing.getClassroomId())
+                    .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND));
+            // HLT-06: phiếu cũ chỉ đọc theo phạm vi lớp đã ghi hoặc quản lý điểm trường của đợt.
+            canView = canView || rules.canManage(user, campaign.getCampusId()) || rules.canRecord(user, cls);
+        }
+        if (!canView) {
+            throw GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND);
+        }
         if (campaign.getKind() != HealthCheckKind.EXAM) {
             throw GlobalException.of(ApiCode.HEALTH_EXAM_ROUND_REQUIRED);
         }
-        return new Target(campaign, childIntakeService.getChildView(childId), cls);
+        return new Target(campaign, childIntakeService.getChildView(childId), cls, readOnly);
     }
 
     private static HealthMeasurement examOf(HealthRecords.Snapshot s, Long childId, Long campaignId) {
@@ -342,8 +358,8 @@ public class HealthExamServiceImpl implements HealthExamService {
                         .filter(n -> n != null && !n.isBlank())
                         .sorted(VI)
                         .toList(),
-                status == HealthCheckStatus.IN_PROGRESS && rules.canRecord(user, target.cls()),
-                status != HealthCheckStatus.IN_PROGRESS);
+                !target.readOnly() && status == HealthCheckStatus.IN_PROGRESS && rules.canRecord(user, target.cls()),
+                target.readOnly() || status != HealthCheckStatus.IN_PROGRESS);
     }
 
     /**

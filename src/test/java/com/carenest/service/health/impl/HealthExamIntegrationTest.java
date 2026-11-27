@@ -747,9 +747,24 @@ class HealthExamIntegrationTest {
             HealthCheckClassResponse.HealthCheckChild row = rowOf(campaign, gone);
             assertThat(row.movedTo()).isNull();
             assertThat(row.canEdit()).isFalse();
-            expectError(() -> exams.getExam(teacherA, campaign, gone), ApiCode.HEALTH_EXAM_NOT_FOUND);
+            var historical = exams.getExam(teacherA, campaign, gone);
+            assertThat(historical.canEdit()).isFalse();
+            assertThat(historical.locked()).isTrue();
+            assertThat(exams.getExam(principal, campaign, gone).locked()).isTrue();
+            expectError(
+                    () -> exams.saveExam(teacherA, campaign, gone, save(HealthExamCatalog.template(), false, "")),
+                    ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
         }
         assertThat(rowOf(campaign, child4).canEdit()).isTrue();
+        expectError(() -> exams.getExam(vpB, campaign, child2), ApiCode.HEALTH_EXAM_NOT_FOUND);
+        expectError(() -> exams.getExam(teacherB, campaign, child2), ApiCode.HEALTH_EXAM_NOT_FOUND);
+        entityManager.flush();
+        jdbc.update("UPDATE enrollments SET valid_to = '2026-11-11' WHERE child_id = ?", child4);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = '2026-11-12', left_reason = 'Chuyển trường' WHERE id = ?",
+                child4);
+        entityManager.clear();
+        expectError(() -> exams.getExam(teacherA, campaign, child4), ApiCode.HEALTH_EXAM_NOT_FOUND);
     }
 
     @Test
