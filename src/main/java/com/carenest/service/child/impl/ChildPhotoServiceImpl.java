@@ -7,6 +7,10 @@ import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildGuardian;
+import com.carenest.entity.child.ChildHistory;
+import com.carenest.repository.child.ChildHistoryRepository;
+import com.carenest.service.child.ChildRecordService;
+import com.carenest.utils.enums.ChildHistoryAction;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.child.ChildGuardianRepository;
@@ -53,6 +57,49 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
     private final CampusAccessPolicy campusAccess;
     private final StaffAccessPolicy staffAccess;
     private final Clock clock;
+    private final ChildRecordService records;
+    private final ChildHistoryRepository history;
+
+    @Override
+    @Transactional
+    public ChildViewResponse replaceChildPhoto(CurrentUser actor, Long childId, MultipartFile photo, String reason) {
+        return replacePhoto(actor, childId, null, photo, reason);
+    }
+
+    @Override
+    @Transactional
+    public ChildViewResponse replaceGuardianPhoto(CurrentUser actor, Long childId, Long guardianId,
+            MultipartFile photo, String reason) {
+        return replacePhoto(actor, childId, guardianId, photo, reason);
+    }
+
+    private ChildViewResponse replacePhoto(CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason) {
+        Child child = records.lockForPhotoEdit(actor, childId);
+        String note = reason == null ? "" : reason.strip();
+        if (note.isEmpty()) invalid("reason", "Nhập lý do chỉnh sửa hồ sơ");
+        if (note.length() > 300) invalid("reason", "Lý do tối đa 300 ký tự");
+        ChildGuardian guardian = guardianId == null ? null : guardianRepository.findById(guardianId)
+                .filter(g -> childId.equals(g.getChildId()))
+                .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_GUARDIAN_NOT_FOUND));
+        ImageContent image = inspect(photo, guardian == null ? "photo" : "guardians." + guardian.getPosition() + ".photo");
+        String key = store(childId, image);
+        var at = clock.instant();
+        String oldKey = guardian == null
+                ? child.replacePhoto(key, image.contentType(), image.content().length, at)
+                : guardian.replacePhoto(key, image.contentType(), image.content().length, at);
+        if (oldKey != null && !oldKey.equals(key)) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    storage.removeQuietly(FileCategory.CHILD_AVATAR, oldKey);
+                }
+            });
+        }
+        String label = guardian == null ? "Ảnh của trẻ" : "Ảnh phụ huynh " + (guardian.getPosition() + 1);
+        String changes = "[{\"field\":\"photo\",\"label\":\"" + label + "\"}]";
+        history.save(ChildHistory.record(childId, ChildHistoryAction.UPDATED, actor.userId(), note, changes, at));
+        return getProfile(actor, childId);
+    }
 
     @Override
     public EnrollmentPhotos validatePhotos(int guardianCount, Map<String, List<MultipartFile>> files) {

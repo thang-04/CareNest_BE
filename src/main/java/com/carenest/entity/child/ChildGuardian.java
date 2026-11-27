@@ -108,6 +108,12 @@ public class ChildGuardian {
     @Column(name = "photo_updated_at")
     private Instant photoUpdatedAt;
 
+    public String replacePhoto(String key, String contentType, int size, Instant at) {
+        String previous = photoKey;
+        assignEnrollmentPhoto(key, contentType, size, at);
+        return previous;
+    }
+
     public void assignEnrollmentPhoto(String key, String contentType, int size, Instant at) {
         this.photoKey = key;
         this.photoContentType = contentType;

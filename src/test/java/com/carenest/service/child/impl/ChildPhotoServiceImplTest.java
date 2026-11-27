@@ -79,6 +79,12 @@ class ChildPhotoServiceImplTest {
     @Mock
     private ChildViewResponse view;
 
+    @Mock
+    private com.carenest.service.child.ChildRecordService records;
+
+    @Mock
+    private com.carenest.repository.child.ChildHistoryRepository history;
+
     private ChildPhotoServiceImpl service;
     private static final Instant NOW = Instant.parse("2026-11-05T03:00:00Z");
     private static final CurrentUser TEACHER = TestPermissions.userWithDefaults(10L, CareNestRole.TEACHER);
@@ -86,7 +92,7 @@ class ChildPhotoServiceImplTest {
     @BeforeEach
     void setup() {
         service = new ChildPhotoServiceImpl(
-                children, guardians, storage, intake, access, campus, staff, Clock.fixed(NOW, ZoneOffset.UTC));
+                children, guardians, storage, intake, access, campus, staff, Clock.fixed(NOW, ZoneOffset.UTC), records, history);
         // Giới hạn ảnh trẻ lấy từ cấu hình kho (mặc định 2 MB)
         lenient().when(storage.maxBytes(FileCategory.CHILD_AVATAR, null)).thenReturn(2L * 1024 * 1024);
         lenient().when(storage.maxSizeText(FileCategory.CHILD_AVATAR, null)).thenReturn("2 MB");
@@ -259,6 +265,36 @@ class ChildPhotoServiceImplTest {
                         GlobalException.class,
                         ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
         verifyNoInteractions(intake);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void cleansOnlySupersededFileAfterTransactionOutcome(boolean committed) throws Exception {
+        CurrentUser principal = TestPermissions.userWithDefaults(3L, CareNestRole.PRINCIPAL);
+        Child child = Child.enroll("T", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 1L,
+                LocalDate.of(2026, 11, 5), true);
+        child.assignEnrollmentPhoto("old", "image/png", 3, NOW);
+        when(records.lockForPhotoEdit(principal, 1L)).thenReturn(child);
+        when(campus.canReadAllCampuses(principal)).thenReturn(true);
+        when(staff.managesWholeSchool(principal)).thenReturn(true);
+        when(intake.getChildView(1L)).thenReturn(view);
+        when(storage.store(eq(FileCategory.CHILD_AVATAR), eq(1L), any(byte[].class)))
+                .thenReturn(new FileStorage.StoredFile("new", "image/png", 3));
+        TransactionSynchronizationManager.initSynchronization();
+        service.replaceChildPhoto(principal, 1L, image("photo"), "  Cập nhật ảnh  ");
+        assertThat(child.getPhotoKey()).isEqualTo("new");
+        var entry = org.mockito.ArgumentCaptor.forClass(com.carenest.entity.child.ChildHistory.class);
+        verify(history).save(entry.capture());
+        assertThat(entry.getValue().getNote()).isEqualTo("Cập nhật ảnh");
+        assertThat(entry.getValue().getChanges()).contains("Ảnh của trẻ");
+        verify(storage, never()).removeQuietly(any(), any());
+        for (var callback : TransactionSynchronizationManager.getSynchronizations()) {
+            if (committed) callback.afterCommit();
+            callback.afterCompletion(committed ? TransactionSynchronization.STATUS_COMMITTED
+                    : TransactionSynchronization.STATUS_ROLLED_BACK);
+        }
+        verify(storage).removeQuietly(FileCategory.CHILD_AVATAR, committed ? "old" : "new");
+        verify(storage, never()).removeQuietly(FileCategory.CHILD_AVATAR, committed ? "new" : "old");
     }
 
     private static ChildViewResponse profileWithAccountDetails() {

@@ -24,5 +24,9 @@ public interface ChildPhotoService {
     /** Liên kết xem có hạn, cùng điều kiện quyền với {@link #getGuardianPhoto}. */
     FileUrlResponse getGuardianPhotoUrl(CurrentUser actor, Long childId, Long guardianId);
 
+    ChildViewResponse replaceChildPhoto(CurrentUser actor, Long childId, MultipartFile photo, String reason);
+
+    ChildViewResponse replaceGuardianPhoto(CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason);
+
     ChildViewResponse getProfile(CurrentUser actor, Long childId);
 }

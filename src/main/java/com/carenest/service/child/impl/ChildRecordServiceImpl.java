@@ -1628,6 +1628,22 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 .findById(childId)
                 .orElseThrow(
                         () -> GlobalException.of(wholeSchool ? ApiCode.CHILD_NOT_FOUND : ApiCode.CHILD_ACCESS_DENIED));
+        return requireCampusScope(actor, child, today, wholeSchool);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Child lockForPhotoEdit(CurrentUser actor, Long childId) {
+        if (ChildEditRoles.teacherOnly(actor)) throw GlobalException.of(ApiCode.FORBIDDEN);
+        boolean wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
+        Child child = childRepository.findLockedById(childId).orElseThrow(
+                () -> GlobalException.of(wholeSchool ? ApiCode.CHILD_NOT_FOUND : ApiCode.CHILD_ACCESS_DENIED));
+        requireCampusScope(actor, child, LocalDate.now(clock), wholeSchool);
+        if (child.getStatus() == ChildStatus.LEFT) throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+        return child;
+    }
+
+    private Child requireCampusScope(CurrentUser actor, Child child, LocalDate today, boolean wholeSchool) {
         Long campusId = campusOf(child, today);
         boolean inScope = wholeSchool
                 || (campusId != null

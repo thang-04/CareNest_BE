@@ -11,6 +11,7 @@ import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
+import com.carenest.entity.child.Child;
 import com.carenest.security.CurrentUser;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -23,6 +24,8 @@ import java.util.Optional;
  * đổi SĐT) do feature account điều phối; feature này chỉ ghi dữ liệu trẻ.
  */
 public interface ChildRecordService {
+
+    Child lockForPhotoEdit(CurrentUser actor, Long childId);
 
     /**
      * CHD-03 (user chốt 2026-11-25): {@code leftAt} là ngày bất kỳ từ hôm nay tới hết năm học đang hoạt động; hôm nay chỉ
