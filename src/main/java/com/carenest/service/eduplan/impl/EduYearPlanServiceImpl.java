@@ -955,12 +955,17 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         log.info("{}|START", logPrefix);
         try {
             EduPlan plan = loadPlanForUpdate(currentUser, planId);
-            // EDU-07: chỉ Phó HT xóa, và chỉ khi Nháp (kể cả đang do chính mình sửa)
-            if (plan.getPlanLevel() == EduPlanLevel.TEAM || !canDeleteAsVicePrincipal(currentUser)) {
-                throw GlobalException.of(ApiCode.VICE_PRINCIPAL_ONLY, "xóa");
+            if (plan.getVersionNo() > 1) {
+                // EDU-116: phiên bản điều chỉnh (năm, tổ) chỉ người tạo xóa; bản tổ hệ thống tự mở không ai xóa
+                if (!isVersionCreator(currentUser, plan)) throw GlobalException.of(ApiCode.FORBIDDEN);
+            } else {
+                // EDU-07: chỉ Phó HT xóa, và chỉ khi Nháp (kể cả đang do chính mình sửa)
+                if (plan.getPlanLevel() == EduPlanLevel.TEAM || !canDeleteAsVicePrincipal(currentUser)) {
+                    throw GlobalException.of(ApiCode.VICE_PRINCIPAL_ONLY, "xóa");
+                }
+                // EDU-07 (Tiền 25/11/2026): chỉ người có quyền soạn được xóa (PHT dinh dưỡng không)
+                if (!isEditor(currentUser, plan)) throw GlobalException.of(ApiCode.FORBIDDEN);
             }
-            // EDU-07 (Tiền 25/11/2026): chỉ người có quyền soạn được xóa (PHT dinh dưỡng không)
-            if (!isEditor(currentUser, plan)) throw GlobalException.of(ApiCode.FORBIDDEN);
             if (plan.publicStatus() != EduPlanStatus.DRAFT) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_DELETE_DRAFT_ONLY);
             }
@@ -1449,6 +1454,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private boolean canDeleteAsVicePrincipal(CurrentUser user) {
         return accessPolicy.isVicePrincipal(user)
                 && accessPolicy.hasPermission(user, Permission.EDU_SCHOOL_YEAR_PLAN_EDIT);
+    }
+
+    // Người bấm "Tạo phiên bản điều chỉnh"; bản do hệ thống tự mở không có sự kiện này
+    private boolean isVersionCreator(CurrentUser user, EduPlan plan) {
+        return eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(plan.getId()).stream()
+                .anyMatch(e ->
+                        ACTION_CREATE_VERSION.equals(e.getAction()) && Objects.equals(e.getActorId(), user.userId()));
     }
 
     // Nháp / bị trả lại, kể cả khi đang có người sửa
@@ -2364,9 +2376,11 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 canReturn,
                 yearOpen
                         && isDraft
-                        && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
-                        && canDeleteAsVicePrincipal(user)
-                        && author,
+                        && (plan.getVersionNo() > 1
+                                ? isVersionCreator(user, plan)
+                                : plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
+                                        && canDeleteAsVicePrincipal(user)
+                                        && author),
                 yearOpen
                         && plan.getId().equals(currentId)
                         && chain.stream().allMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED)

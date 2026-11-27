@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
- * Gửi / duyệt / trả lại kế hoạch giáo dục chủ đề hoặc kế hoạch giáo dục ngày (EDU-18). action: submit | approve | reject | extend; trả lại và
+ * Gửi / duyệt / trả lại kế hoạch giáo dục chủ đề hoặc kế hoạch giáo dục ngày (EDU-18). action: submit | approve | reject | extend | revise | discard_revision; trả lại và
  * mở hạn bắt buộc ghi chú; mở hạn cần deadline mới (spec 003 FR-004a).
  */
 public record ClassDocActionRequest(

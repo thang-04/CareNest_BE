@@ -118,6 +118,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private static final String ACTION_REOPEN_REVIEW_DEADLINE = "reopen_review_deadline";
     // Spec 004 (Q2, Q3): tạo phiên bản điều chỉnh của gói/hồ sơ đã ban hành, trước ngày bắt đầu
     private static final String ACTION_REVISE = "revise";
+    private static final String ACTION_DISCARD_REVISION = "discard_revision";
+    private static final String EVENT_REVISE = "revise_future";
     private static final String ROLE_TEAM_LEADER = "TEAM_LEADER";
     private static final String ROLE_VICE_PRINCIPAL = "VICE_PRINCIPAL";
     private static final String ROLE_PRINCIPAL = "PRINCIPAL";
@@ -1609,6 +1611,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             int round = doc.getReviewRound();
             EduWorkflowPolicy.Role actingRole = evaluation.waitingRole();
             EduClassDocStatus next = EduClassDocStatus.REVIEW;
+            if (ACTION_DISCARD_REVISION.equals(request.action())) {
+                discardRevision(currentUser, doc, all, at);
+                ObjectNode response = toNode(currentUser, doc);
+                log.info("{}|END", logPrefix);
+                return response;
+            }
             if (ACTION_PUBLISH.equals(request.action())) {
                 if (!accessPolicy.isPrincipal(currentUser)
                         || !policy.creators().equals(List.of(EduWorkflowPolicy.Role.PRINCIPAL))
@@ -2696,6 +2704,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 "reviewDeadline",
                 "canExtend",
                 "canRevise",
+                "canDiscardRevision",
                 "missing",
                 "blockedReason",
                 "deadlineState",
@@ -3024,6 +3033,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             node.put(
                     "canRevise",
                     yearOpen && author && activeVersion && doc.getStatus() == EduClassDocStatus.APPROVED && !locked);
+            node.put("canDiscardRevision", yearOpen && canDiscardRevision(currentUser, doc));
             if (EduClassDoc.SEMESTER.equals(doc.getKind()) && author)
                 node.set("missing", missingParts(doc, planDocs, year));
             if (!author) node.putNull("blockedReason");
@@ -3471,6 +3481,79 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (!created.isEmpty()) classDocRepository.saveAllAndFlush(created);
     }
 
+    // EDU-116: sự kiện mở phiên bản điều chỉnh đang dở (sau lần ban hành gần nhất); không có thì null
+    static JsonNode openRevision(JsonNode history, Instant releasedAt) {
+        JsonNode found = null;
+        for (JsonNode e : history)
+            if (EVENT_REVISE.equals(e.path("action").asString(""))
+                    && Instant.parse(e.path("at").asString("")).isAfter(releasedAt)) found = e;
+        return found;
+    }
+
+    // EDU-116: chỉ người tạo phiên bản điều chỉnh, khi gói/hồ sơ đang Nháp hoặc bị trả lại
+    private boolean canDiscardRevision(CurrentUser user, EduClassDoc root) {
+        if (!EduClassDoc.isRoot(root.getKind())
+                || !root.getStatus().editable()
+                || root.getHistory() == null
+                || !root.getHistory().contains(EVENT_REVISE)) return false;
+        List<EduClassDocRelease> releases = releasesOfRoot(root);
+        if (releases.isEmpty()) return false;
+        JsonNode revision =
+                openRevision(readArray(root.getHistory()), releases.getLast().getReleasedAt());
+        return revision != null && revision.path("actorId").asLong(-1) == user.userId();
+    }
+
+    /**
+     * EDU-116: bỏ phiên bản điều chỉnh: trả nội dung tài liệu về bản chụp ban hành gần nhất và trạng thái Đã ban hành; tài
+     * liệu lập mới trong lúc điều chỉnh bị xóa.
+     */
+    private void discardRevision(CurrentUser user, EduClassDoc root, List<EduClassDoc> all, Instant at) {
+        if (!canDiscardRevision(user, root)) throw GlobalException.of(ApiCode.FORBIDDEN);
+        EduClassDocRelease release = releasesOfRoot(root).getLast();
+        Map<String, JsonNode> published = new HashMap<>();
+        for (JsonNode m : readObject(release.getPrintSnapshot()).path("members"))
+            if (m.path("content").isObject()) published.put(m.path("docKey").asString(""), m.path("content"));
+        List<EduClassDoc> restored = new ArrayList<>();
+        List<EduClassDoc> removed = new ArrayList<>();
+        for (EduClassDoc member : all) {
+            boolean isRoot = member.getId().equals(root.getId());
+            JsonNode content = published.get(member.getDocKey());
+            JsonNode revision = openRevision(readArray(member.getHistory()), release.getReleasedAt());
+            if (!isRoot && content == null && revision == null) {
+                if (member.getCreatedAt() != null && member.getCreatedAt().isAfter(release.getReleasedAt()))
+                    removed.add(member);
+                continue;
+            }
+            if (content != null) member.changeContent(content.toString(), user.userId());
+            ArrayNode history = readArray(member.getHistory());
+            ObjectNode event = history.addObject();
+            event.put("action", ACTION_DISCARD_REVISION);
+            event.put("actorId", user.userId());
+            event.put("by", user.fullName());
+            event.put("at", at.toString());
+            event.put("round", member.getReviewRound());
+            JsonNode approvals = revision == null ? null : revision.get("previousApprovals");
+            JsonNode snapshot = revision == null ? null : revision.get("previousPrintSnapshot");
+            member.updateWorkflowState(
+                    EduClassDocStatus.APPROVED,
+                    revision == null
+                            ? member.getReviewRound()
+                            : revision.path("round").asInt(member.getReviewRound()),
+                    approvals == null ? "[]" : approvals.toString(),
+                    history.toString(),
+                    member.getAppliedPolicyRevision(),
+                    null,
+                    snapshot == null ? null : snapshot.toString(),
+                    "HUMAN_APPROVAL",
+                    release.getReleasedAt(),
+                    user.userId());
+            member.touchDossier(at);
+            restored.add(member);
+        }
+        if (!removed.isEmpty()) classDocRepository.deleteAll(removed);
+        classDocRepository.saveAllAndFlush(restored);
+    }
+
     /** EDU-64 + FR-002c: sửa phần tương lai của gói/hồ sơ đã ban hành ⇒ gốc và thành viên về Nháp, giữ bản ban hành. */
     private void reopenRoot(
             String rootKey, Long classId, Long planId, SchoolYearDetailResponse year, CurrentUser user) {
@@ -3485,7 +3568,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (member.getStatus() != EduClassDocStatus.APPROVED) continue;
             ArrayNode history = readArray(member.getHistory());
             ObjectNode event = history.addObject();
-            event.put("action", "revise_future");
+            event.put("action", EVENT_REVISE);
             event.put("actorId", user.userId());
             event.put("by", user.fullName());
             event.put("at", clock.instant().toString());
