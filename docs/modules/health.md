@@ -1,5 +1,12 @@
 # Module — health
 
+## Đối chiếu BR ngày 26/11/2026
+
+- HLT-06 của bản BR ngoài repo bổ sung chế độ xem phiếu đã có của trẻ nghỉ học hoặc chuyển điểm trường. GET phiếu trả `canEdit=false`, `locked=true`, dùng lớp lưu trên kết quả để đọc lịch sử. Người không có quyền xem trẻ và trẻ chưa có phiếu vẫn nhận lỗi không tìm thấy. PUT phiếu chỉ đọc trả `HEALTH_MEASUREMENT_ACCESS_DENIED`.
+- Lưu nháp kiểm khoảng cho giá trị đã nhập ở mạch, nhịp thở, SD theo tuổi và vòng cánh tay, dùng chung giới hạn và câu lỗi với validator phiếu. Trường tùy chọn bỏ trống được giữ trống.
+- HLT-11 của bản BR ngoài repo mở rộng kiểm từ ngữ chẩn đoán/điều trị tới nội dung giáo viên sửa khi duyệt diễn giải xu hướng. Lỗi gắn vào từng trường `content`, gồm tổng quan, điểm chú ý, điểm tích cực, theo dõi và giới hạn.
+- Lỗi ngày ngoài năm học dùng “Ngày khám” cho EXAM và “Ngày cân đo” cho MEASUREMENT. Thông báo kết quả hướng phụ huynh mở “Sổ sức khỏe”.
+
 Feature: `health` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt khám/kỳ cân đo, số đo trong kỳ, phiếu khám Phụ lục II, mức theo dõi đã có (2026-10-31); cảnh báo ở sổ sức khỏe, mức BMI theo tuổi WHO của kỳ cân đo đã có, phiếu theo dõi đã bỏ, kỳ cân đo bỏ vòng đầu, ngày đo/ngày khám do hệ thống ghi, báo cáo tăng trưởng mẫu 5.1 với cân nặng/tuổi, chiều cao/tuổi WHO (2026-11-04); phụ huynh xem kết quả đã công bố + biểu đồ tăng trưởng, cảnh báo xu hướng xác định, giải thích AI nháp ⇒ duyệt, thông báo công bố/cập nhật kết quả và mở đợt/kỳ (2026-11-10)
 
 ## Mục đích

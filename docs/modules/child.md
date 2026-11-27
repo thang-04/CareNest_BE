@@ -1,5 +1,13 @@
 # Module — child
 
+## Đối chiếu BR ngày 26/11/2026
+
+- CP-06/CP-13 của bản BR ngoài repo được kiểm tại tiếp nhận và nhập file. Hồ sơ trùng trẻ đã nghỉ trả 409 `CHILD_DUPLICATE_LEFT`; preview nhập file xếp dòng đó vào lỗi và hướng dẫn mở lại hồ sơ cũ.
+- CP-17 bổ sung `PUT /children/{childId}/photo` và `PUT /children/{childId}/guardian-photos/{guardianId}`, multipart `photo` và `reason`. Cần `CHILD_PROFILE_EDIT`, phạm vi quản lý trẻ và lý do tối đa 300 ký tự. Giáo viên phải qua luồng yêu cầu sửa hồ sơ, trẻ đã nghỉ bị chặn. Response là `ChildViewResponse`.
+- Thay ảnh dùng khóa dòng trẻ trong cùng giao dịch với metadata và lịch sử UPDATED. Lịch sử ghi “Ảnh của trẻ” hoặc “Ảnh phụ huynh n”. Object mới được dọn khi rollback, object cũ được dọn sau commit. Danh sách trẻ thêm `photoMissing` khi thiếu ảnh trẻ hoặc bất kỳ phụ huynh nào.
+- Kết quả tiếp nhận và kích hoạt tài khoản thêm `credential`, nhận `ACTIVATION_CODE`, `TEMPORARY_PASSWORD` hoặc null khi chỉ liên kết tài khoản đã có. FE dùng trường này để hiển thị đúng loại thông tin đã gửi.
+- Lỗi ngày sinh khi sửa hồ sơ ghi ngày đầu tiên đi học theo định dạng dd/MM/yyyy.
+
 Feature: `child` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đang làm (bảng scope)
 
 ## Mục đích

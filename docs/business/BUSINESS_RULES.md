@@ -2,6 +2,17 @@
 
 Mỗi rule có **ID** (dùng trong code comment, test name, PR) và **Status**. Agent chỉ implement rule `CONFIRMED`/`ACCEPTED`. Rule `PENDING` ⇒ làm cấu hình được hoặc hỏi; không tự quyết.
 
+## Đối chiếu bản BR ngày 26/11/2026
+
+Các mã trong bảng dưới thuộc bản BR Hồ sơ trẻ, Sức khỏe, Phụ huynh, Đón trẻ ngày 26/11/2026. Mã cùng tên trong các nhóm cũ phía dưới vẫn giữ nghĩa theo nguồn đã ghi. Kế hoạch G94-180 triển khai các điểm sau.
+
+| Mã trong BR 26/11 | Hành vi đã thực thi |
+|---|---|
+| CP-06, CP-13 | Hồ sơ trùng trẻ đã nghỉ bị chặn tạo mới với `CHILD_DUPLICATE_LEFT`. Nhập file coi dòng đó là lỗi và hướng dẫn mở lại hồ sơ cũ. |
+| CP-17 | HT/PHT có quyền sửa hồ sơ và đúng phạm vi được thay ảnh trẻ, ảnh phụ huynh với lý do. Lịch sử UPDATED ghi đối tượng đổi ảnh, ảnh cũ được dọn sau commit. Trẻ đã nghỉ và giáo viên sửa trực tiếp bị chặn. Danh sách trả cờ thiếu ảnh. |
+| HLT-06 | Phiếu khám đã lưu của trẻ nghỉ hoặc chuyển điểm trường được xem chỉ đọc trong phạm vi nhân sự của lớp/điểm trường lần khám. Người ngoài phạm vi nhận 404. Lưu nháp kiểm khoảng giá trị sinh tồn, SD và vòng cánh tay đã nhập. |
+| HLT-11 | Bộ lọc từ ngữ chẩn đoán/điều trị áp dụng cho nội dung diễn giải xu hướng do giáo viên sửa trước khi duyệt, trả lỗi theo từng trường nội dung. |
+
 Status: `CONFIRMED` (khảo sát/Report 1) · `ACCEPTED` (quyết định dự án/ADR đã chấp nhận) · `PROPOSED` · `PENDING` · `OPEN` (ADR chưa chốt) · `REMOVED` (đã bỏ, giữ dòng để truy vết; không implement).
 
 Nguồn "Khảo sát team 27/10 (XXX-nn)" là mã câu trong bộ khảo sát nghiệp vụ của team (file `CareNest_CODE/docs/survey/carenest-business-survey.html`, ngoài repo).
