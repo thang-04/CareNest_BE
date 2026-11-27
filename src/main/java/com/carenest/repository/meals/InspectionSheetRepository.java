@@ -1,6 +1,7 @@
 package com.carenest.repository.meals;
 
 import com.carenest.entity.meals.InspectionSheet;
+import com.carenest.utils.enums.InspectionStatus;
 import com.carenest.utils.enums.InspectionTab;
 import java.time.LocalDate;
 import java.util.List;
@@ -13,7 +14,12 @@ public interface InspectionSheetRepository extends JpaRepository<InspectionSheet
 
     List<InspectionSheet> findByCampusIdAndSheetDate(Long campusId, LocalDate sheetDate);
 
+    List<InspectionSheet> findByCampusIdAndSheetDateBetween(Long campusId, LocalDate from, LocalDate to);
+
     Optional<InspectionSheet> findByCampusIdAndSheetDateAndTab(Long campusId, LocalDate sheetDate, InspectionTab tab);
+
+    boolean existsByCampusIdAndSheetDateAndTabAndStatus(
+            Long campusId, LocalDate sheetDate, InspectionTab tab, InspectionStatus status);
 
     /**
      * Khóa dòng điểm trường tới hết transaction: hai người cùng lưu, ký hoặc sửa lại một mẫu chạy tuần tự, người sau

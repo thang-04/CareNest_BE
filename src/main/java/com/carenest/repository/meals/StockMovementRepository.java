@@ -20,11 +20,21 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
             + " where m.lotId in :lotIds group by m.lotId")
     List<LotBalance> sumByLotIds(@Param("lotIds") Collection<Long> lotIds);
 
-    /** Mọi bút toán theo suất của một ngày ăn ở điểm trường (M1 khô: lô đã dùng trong ngày). */
-    List<StockMovement> findByCampusIdAndMealDate(Long campusId, LocalDate mealDate);
+    /**
+     * Mọi bút toán theo suất của một ngày ăn ở điểm trường (M1 khô: lô đã dùng trong ngày). Đọc theo ngày hiệu lực:
+     * bút toán điều chỉnh sau khi ký (correction_for) tính cho ngày ăn được điều chỉnh, không cho ngày thực hiện.
+     */
+    @Query("select m from StockMovement m where m.campusId = :campusId"
+            + " and ((m.mealDate = :mealDate and m.correctionFor is null) or m.correctionFor = :mealDate)")
+    List<StockMovement> findByCampusIdAndEffectiveMealDate(
+            @Param("campusId") Long campusId, @Param("mealDate") LocalDate mealDate);
 
-    /** Bút toán theo suất của một ngày ăn, mới nhất trước (trả lại lô khi suất giảm). */
-    List<StockMovement> findByCampusIdAndMealDateAndFoodIdOrderByIdDesc(Long campusId, LocalDate mealDate, Long foodId);
+    /** Bút toán theo suất của một ngày ăn (ngày hiệu lực), mới nhất trước (trả lại lô khi suất giảm). */
+    @Query("select m from StockMovement m where m.campusId = :campusId and m.foodId = :foodId"
+            + " and ((m.mealDate = :mealDate and m.correctionFor is null) or m.correctionFor = :mealDate)"
+            + " order by m.id desc")
+    List<StockMovement> findByCampusIdAndEffectiveMealDateAndFoodIdOrderByIdDesc(
+            @Param("campusId") Long campusId, @Param("mealDate") LocalDate mealDate, @Param("foodId") Long foodId);
 
     @Query("select m from StockMovement m where m.campusId = :campusId"
             + " and m.createdAt >= :from and m.createdAt < :to"

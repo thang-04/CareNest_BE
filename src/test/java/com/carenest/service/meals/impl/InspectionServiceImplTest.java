@@ -24,6 +24,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.account.UserSignatureService;
+import com.carenest.service.meals.InspectionGrantService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FileCategory;
@@ -77,6 +78,9 @@ class InspectionServiceImplTest {
     @Mock
     private FileStorage imageStorage;
 
+    @Mock
+    private InspectionGrantService grantService;
+
     private final AtomicReference<InspectionSheet> stored = new AtomicReference<>();
     private InspectionServiceImpl service;
 
@@ -89,6 +93,7 @@ class InspectionServiceImplTest {
                 campusAccessPolicy,
                 userSignatureService,
                 imageStorage,
+                grantService,
                 Clock.fixed(NOW, ZoneOffset.UTC));
         lenient().when(campusLookup.campusExists(CAMPUS)).thenReturn(true);
         lenient()
@@ -224,6 +229,50 @@ class InspectionServiceImplTest {
         assertThatThrownBy(() ->
                         service.save(PHT, CAMPUS, DAY.plusDays(1), InspectionTab.PROCESS, save(0, row("a", null))))
                 .satisfies(ex -> assertApiCode(ex, ApiCode.INSPECTION_DATE_FUTURE));
+    }
+
+    @Test
+    @DisplayName("INS-05: ngày cũ chưa có quyền mở của HT ⇒ lưu, ký, sửa lại đều bị từ chối, không ghi gì")
+    void oldDayWithoutGrantIsRejectedEverywhere() {
+        savedAndSignable();
+        InspectionSheet before = stored.get();
+        org.mockito.Mockito.doThrow(GlobalException.of(ApiCode.INSPECTION_APPROVAL_REQUIRED))
+                .when(grantService)
+                .requireOpenDay(CAMPUS, DAY, InspectionTab.PROCESS);
+
+        assertThatThrownBy(() -> service.save(PHT, CAMPUS, DAY, InspectionTab.PROCESS, save(1, row("a", "PASS"))))
+                .satisfies(ex -> assertApiCode(ex, ApiCode.INSPECTION_APPROVAL_REQUIRED));
+        assertThatThrownBy(() -> service.sign(PHT, CAMPUS, DAY, InspectionTab.PROCESS, null))
+                .satisfies(ex -> assertApiCode(ex, ApiCode.INSPECTION_APPROVAL_REQUIRED));
+        assertThatThrownBy(() ->
+                        service.reopen(PHT, CAMPUS, DAY, InspectionTab.PROCESS, new InspectionReopenRequest("sửa số")))
+                .satisfies(ex -> assertApiCode(ex, ApiCode.INSPECTION_APPROVAL_REQUIRED));
+        assertThat(stored.get()).isSameAs(before);
+        assertThat(before.getDocVersion()).isEqualTo(1);
+        verify(grantService, never()).consume(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("INS-05: ký thành công đóng quyền mở của mẫu đó")
+    void signConsumesGrant() {
+        savedAndSignable();
+
+        service.sign(PHT, CAMPUS, DAY, InspectionTab.PROCESS, null);
+
+        verify(grantService).consume(CAMPUS, DAY, InspectionTab.PROCESS);
+    }
+
+    @Test
+    @DisplayName("INS-05: xem ngày trả trạng thái mở ghi từng mẫu từ BE")
+    void dayCarriesApprovals() {
+        when(grantService.dayApprovals(eq(PHT), eq(CAMPUS), eq(DAY), any()))
+                .thenReturn(List.of(new InspectionDayResponse.TabApproval(
+                        InspectionTab.FRESH, true, null, null, null, null, null, null, true, false)));
+
+        InspectionDayResponse day = service.getDay(PHT, CAMPUS, DAY);
+
+        assertThat(day.approvals()).hasSize(1);
+        assertThat(day.approvals().get(0).locked()).isTrue();
     }
 
     @Test

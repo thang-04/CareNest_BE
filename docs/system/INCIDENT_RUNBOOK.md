@@ -43,8 +43,8 @@ docker exec carenest-be-postgres-1 pg_isready -h 127.0.0.1
 curl -fsS -o /dev/null -w 'web %{http_code}\n' http://127.0.0.1:18300/
 
 # Từ ngoài vào (qua Caddy)
-curl -sI https://web.carenest.edu.vn/ | head -1
-curl -s https://web.carenest.edu.vn/api/auth/csrf | head -c 200; echo
+curl -sI https://thuonghong.carenest.edu.vn/ | head -1
+curl -s https://thuonghong.carenest.edu.vn/api/auth/csrf | head -c 200; echo
 curl -s https://auth.carenest.edu.vn/realms/carenest/.well-known/openid-configuration | head -c 120; echo
 
 # Log 100 dòng cuối

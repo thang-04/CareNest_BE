@@ -31,7 +31,7 @@ class EduWorkflowConcurrencyIntegrationTest {
     @Container
     @ServiceConnection
     static org.testcontainers.postgresql.PostgreSQLContainer postgres =
-            new org.testcontainers.postgresql.PostgreSQLContainer("postgres:17-alpine");
+            new org.testcontainers.postgresql.PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -107,7 +107,7 @@ class EduWorkflowConcurrencyIntegrationTest {
                 plan);
         String rootKey = "ds_" + classroom + "_" + theme;
         String weekKey = "wp_" + classroom + "_2026-09-07";
-        // Spec 003: hồ sơ chủ đề là gốc duyệt; kế hoạch chủ đề là thành viên
+        // Spec 003: kế hoạch giáo dục ngày là gốc duyệt; kế hoạch chủ đề là thành viên
         jdbc.update(
                 "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,team_plan_id,theme_id,status,created_by,updated_by,review_round) VALUES (?,'theme',?,?,?,'REVIEW',?,?,1)",
                 "tp_" + classroom + "_" + theme,
@@ -210,20 +210,22 @@ class EduWorkflowConcurrencyIntegrationTest {
                 entityManagerFactory.unwrap(org.hibernate.SessionFactory.class).getStatistics();
         statistics.clear();
         var listing = classDocs.getClassDocs(principal, year);
-        assertThat(listing.branchPlans()).hasSize(24);
+        // EDU-111 (5): người xem được lớp đọc lịch nhánh hiện tại ở mọi trạng thái, chỉ xem (không quyền sửa, không
+        // lịch sử)
+        assertThat(listing.branchPlans()).hasSize(24).allSatisfy(node -> {
+            assertThat(node.path("releasedView").asBoolean()).isTrue();
+            assertThat(node.path("permissions").path("canEdit").asBoolean(false))
+                    .isFalse();
+            assertThat(node.has("history")).isFalse();
+        });
         long listingStatements = statistics.getPrepareStatementCount();
         System.out.println("EDU_LIST_MEASURE documents=24 statements=" + listingStatements);
-        var permissions = listing.branchPlans().getFirst().path("permissions");
-        assertThat(listing.branchPlans().getFirst().path("superseded").asBoolean())
-                .isFalse();
-        assertThat(permissions.has("canReject")).isTrue();
-        // Spec 005 FR-012: đã bỏ ô "Kế hoạch điều chỉnh và bổ sung"
-        assertThat(permissions.has("canEditAdjustments")).isFalse();
-        assertThat(permissions.has("canAdjust")).isFalse();
-        assertThat(listing.branchPlans().getFirst().has("adjustments")).isFalse();
-        assertThat(permissions.path("canReject").asBoolean())
-                .isEqualTo(permissions.path("canReturn").asBoolean());
         assertThat(listingStatements).isLessThan(100);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM edu_class_docs WHERE team_plan_id=? AND status='REVIEW'",
+                        Long.class,
+                        plan))
+                .isEqualTo(24L);
         statistics.clear();
         clearInvocations(assignments, accounts);
         long started = System.nanoTime();
@@ -277,7 +279,14 @@ class EduWorkflowConcurrencyIntegrationTest {
                 username,
                 username,
                 "Synthetic");
-        return new CurrentUser(id, username, username, "Synthetic", null, Set.of(role));
+        return new CurrentUser(
+                id,
+                username,
+                username,
+                "Synthetic",
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long id(String sql, Object... values) {

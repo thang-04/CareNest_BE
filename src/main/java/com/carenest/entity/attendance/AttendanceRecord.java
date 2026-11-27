@@ -2,6 +2,7 @@ package com.carenest.entity.attendance;
 
 import com.carenest.entity.organization.MealSessionListConverter;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.DayPart;
 import com.carenest.utils.enums.MealSession;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -52,6 +53,15 @@ public class AttendanceRecord {
     @Column(nullable = false, length = 40)
     private List<MealSession> meals;
 
+    /** ATT-13: buổi vắng có phép theo đơn nghỉ nửa buổi; trạng thái status là của buổi còn lại. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "absent_part", length = 10)
+    private DayPart absentPart;
+
+    /** ATT-03/B2: chỉ có nghĩa khi absentPart=MORNING; phân biệt sáng vắng không phép với đơn nghỉ sáng. */
+    @Column(name = "absent_part_unexcused", nullable = false)
+    private boolean absentPartUnexcused;
+
     @Column(name = "recorded_by", nullable = false)
     private Long recordedBy;
 
@@ -86,6 +96,45 @@ public class AttendanceRecord {
 
     public boolean differsFrom(AttendanceStatus newStatus, List<MealSession> newMeals) {
         return status != newStatus || !meals.equals(newMeals);
+    }
+
+    public boolean differsFrom(AttendanceStatus newStatus, List<MealSession> newMeals, DayPart newAbsentPart) {
+        return differsFrom(newStatus, newMeals) || absentPart != newAbsentPart;
+    }
+
+    /** Trẻ chuyển lớp sau khi bản ghi được tạo (đơn nghỉ gửi trước): bản ghi theo lớp trẻ học ngày đó. */
+    public void moveToClass(Long classroomId, Long campusId) {
+        this.classroomId = classroomId;
+        this.campusId = campusId;
+    }
+
+    public void markAbsentPart(DayPart part) {
+        this.absentPart = part;
+        this.absentPartUnexcused = false;
+    }
+
+    public void markAbsentPart(DayPart part, boolean unexcused) {
+        this.absentPart = part;
+        this.absentPartUnexcused = part == DayPart.MORNING && unexcused;
+    }
+
+    /** Số ngày có mặt quy đổi (ATT-14): mỗi buổi 0,5. */
+    public double presentDays() {
+        if (status != AttendanceStatus.PRESENT) {
+            return 0;
+        }
+        return absentPart == null ? 1 : 0.5;
+    }
+
+    /** Số ngày vắng có phép quy đổi: buổi nghỉ theo đơn luôn có phép, buổi còn lại theo status. */
+    public double excusedDays() {
+        double own = status == AttendanceStatus.EXCUSED ? 1 : 0;
+        return absentPart == null ? own : (absentPartUnexcused ? 0 : 0.5) + own * 0.5;
+    }
+
+    public double unexcusedDays() {
+        double own = status == AttendanceStatus.UNEXCUSED ? 1 : 0;
+        return absentPart == null ? own : (absentPartUnexcused ? 0.5 : 0) + own * 0.5;
     }
 
     public void update(AttendanceStatus status, List<MealSession> meals, Long userId, Instant at) {

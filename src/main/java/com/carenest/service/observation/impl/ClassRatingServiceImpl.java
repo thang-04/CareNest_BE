@@ -259,9 +259,7 @@ public class ClassRatingServiceImpl implements ClassRatingService {
     // từng dạy ở năm đã kết thúc; tổ trưởng thêm các lớp
     // nhóm tuổi mình (xem ở listOf, Cần chốt 04/11)
     private boolean canRead(CurrentUser user, ClassroomInfoResponse cls) {
-        return rules.readsCampus(user, cls.campusId())
-                || rules.canRecord(user, cls)
-                || rules.taughtClosedYear(user, cls);
+        return rules.readsCampus(user, cls.campusId()) || rules.canRecord(user, cls) || rules.canView(user, cls);
     }
 
     private static String blankToNull(String text) {

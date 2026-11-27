@@ -99,6 +99,9 @@ public interface StaffAssignmentService {
     /** PHT đang được phân công ở điểm trường tại ngày đó (không thay bằng HT khi trống). */
     Set<Long> findCampusVicePrincipalIds(Long campusId, LocalDate date);
 
+    /** Tài khoản bếp đang phân công tại điểm trường (AUTH-22: mỗi cơ sở một tài khoản dùng chung). */
+    Set<Long> findCampusKitchenIds(Long campusId, LocalDate date);
+
     /** HT đang có phân công tại ngày đó. */
     Set<Long> findPrincipalIds(LocalDate date);
 
@@ -123,4 +126,18 @@ public interface StaffAssignmentService {
     /** Đổi ngày năm học: phân công theo ngày đầu / cuối năm cũ chuyển theo ngày mới, phân công vượt năm mới bị cắt. */
     void realignYearAssignments(
             Long schoolYearId, LocalDate oldStart, LocalDate oldEnd, LocalDate newStart, LocalDate newEnd);
+
+    /** Cơ sở công tác của GV (AUTH-15): điểm trường phải tồn tại và đang hoạt động; đã có thì chuyển sang. */
+    void saveTeacherWorkCampus(Long userId, Long campusId, Long updatedBy);
+
+    /** Thôi làm GV (đổi/thu hồi vai trò) ⇒ bỏ cơ sở công tác. */
+    void clearTeacherWorkCampus(Long userId);
+
+    Optional<Long> findTeacherWorkCampusId(Long userId);
+
+    /** GV có cơ sở công tác thuộc các điểm trường này, kể cả GV chưa có lớp. */
+    Set<Long> findTeacherIdsByWorkCampus(Collection<Long> campusIds);
+
+    /** userId → cơ sở công tác; người chưa có không nằm trong map. */
+    Map<Long, Long> findTeacherWorkCampusIds(Collection<Long> userIds);
 }

@@ -2,6 +2,7 @@ package com.carenest.service.child;
 
 import com.carenest.dto.child.EnrollChildRequest;
 import com.carenest.security.CurrentUser;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,7 +22,12 @@ public interface ChildEnrollmentImportService {
             String selectionError,
             List<String> notes) {}
 
-    record ImportRequest(List<EnrollChildRequest> rows, Long campusId) {}
+    /** CHD-11: schoolYearId/startDate để trống = nhập vào năm hiện hành như cũ. */
+    record ImportRequest(List<EnrollChildRequest> rows, Long campusId, Long schoolYearId, LocalDate startDate) {
+        public ImportRequest(List<EnrollChildRequest> rows, Long campusId) {
+            this(rows, campusId, null, null);
+        }
+    }
 
     record ImportResult(int created, List<Long> ids) {}
 }

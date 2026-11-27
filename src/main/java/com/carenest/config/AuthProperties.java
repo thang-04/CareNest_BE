@@ -12,9 +12,12 @@ public record AuthProperties(
         @DefaultValue("carenest-auth-gateway") String clientId,
         @DefaultValue("") String clientSecret,
         @DefaultValue("true") boolean secureCookies,
-        @DefaultValue("http://localhost:5173") List<String> allowedOrigins) {
+        @DefaultValue("http://localhost:5173") List<String> allowedOrigins,
+        // AUTH-28: tắt chỉ để nhiều người test dùng chung tài khoản; production luôn bật
+        @DefaultValue("true") boolean singleWebSession) {
     @Override
     public String toString() {
-        return "AuthProperties[enabled=" + enabled + ", secureCookies=" + secureCookies + "]";
+        return "AuthProperties[enabled=" + enabled + ", secureCookies=" + secureCookies + ", singleWebSession="
+                + singleWebSession + "]";
     }
 }

@@ -338,6 +338,11 @@ ALTER TABLE _e_yp ADD COLUMN plan_id bigint, ADD COLUMN fresh boolean;
 UPDATE _e_yp y SET plan_id = p.id
 FROM edu_year_plans p, _e_ctx c
 WHERE p.school_year_id = c.sy_id AND p.age_group_id = y.ag_id AND p.version_no = y.version_no AND NOT p.disabled;
+-- Bản chờ mẫu bị bỏ qua do đã có bản đang mở khác không có cây/lịch sử để seed (EDU-25).
+DELETE FROM _e_yp y USING _e_ctx c
+WHERE y.plan_id IS NULL AND y.review
+  AND EXISTS (SELECT 1 FROM edu_year_plans p WHERE p.school_year_id = c.sy_id AND p.age_group_id = y.ag_id
+              AND p.status <> 'APPROVED' AND NOT p.disabled);
 -- Chỉ dựng cây cho kế hoạch chưa có dòng nào (lần chạy đầu); chạy lại không chạm cây đã có
 UPDATE _e_yp y SET fresh = NOT EXISTS (SELECT 1 FROM edu_themes t WHERE t.school_year_plan_id = y.plan_id)
                        AND NOT EXISTS (SELECT 1 FROM edu_plan_goals g WHERE g.school_year_plan_id = y.plan_id);
@@ -776,6 +781,7 @@ SELECT cl.class_id, cl.team_id, w.theme_id, tt.sort, w.week_start, w.wk, w.week_
        tt.state, tt.sem_no, tt.sem_state, abs(hashtext(cl.class_id || ':' || w.week_start)) % 3 AS v
 FROM _e_cls cl JOIN _e_tw w ON w.team_id = cl.team_id JOIN _e_tt tt ON tt.theme_id = w.theme_id;
 
+
 -- Lượt xếp thẻ vào ô kế hoạch tuần: học xoay vòng 5 ngày, ngoài trời mỗi ngày, chiều Thứ 3 và Thứ 5, cả tuần cho thể dục
 -- sáng, trò chuyện, góc. Ngày nghỉ lễ không xếp.
 CREATE TEMP TABLE _e_cell AS
@@ -827,7 +833,14 @@ JOIN LATERAL (SELECT max(sem_state) AS sem_state FROM _e_tt WHERE team_id = cl.t
 
 INSERT INTO _e_root
 SELECT cl.class_id, 'dossier', 'ds_' || cl.class_id || '_' || tt.theme_id, tt.theme_id, NULL,
-       CASE WHEN tt.state = 'PAST' AND cl.class_name = 'Lớp Mầm 1' AND tt.sort = 3 AND NOT cl.tl_is_hr THEN 'APPROVED_R2'
+       -- Đã gửi (ban hành/chờ duyệt/trả lại) chỉ khi đủ tiêu chí gửi như BE (requireCanSubmit, EDU-14/75): gói học kỳ chứa chủ
+       -- đề đã ban hành, chủ đề có tuần nhánh và mọi tuần có tên (giáo án ngày sinh cho đúng các tuần đó). Chưa đủ (vd. tổ chưa
+       -- có mẫu nhánh) ⇒ giữ Nháp, không gửi duyệt (Tiền 18/11/2026)
+       CASE WHEN tt.sem_state IS DISTINCT FROM 'APPROVED'
+                 OR NOT EXISTS (SELECT 1 FROM _e_wk w WHERE w.class_id = cl.class_id AND w.theme_id = tt.theme_id)
+                 OR EXISTS (SELECT 1 FROM _e_wk w WHERE w.class_id = cl.class_id AND w.theme_id = tt.theme_id
+                                                    AND COALESCE(trim(w.branch_name), '') = '') THEN 'DRAFT'
+            WHEN tt.state = 'PAST' AND cl.class_name = 'Lớp Mầm 1' AND tt.sort = 3 AND NOT cl.tl_is_hr THEN 'APPROVED_R2'
             WHEN tt.state = 'PAST' THEN 'APPROVED'
             WHEN tt.state = 'NEXT' THEN cl.next_state ELSE 'DRAFT' END,
        CASE WHEN tt.sem_state = 'APPROVED' AND tt.sem_no = 1 THEN timestamptz '2026-08-24 09:00+07'

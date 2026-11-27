@@ -22,6 +22,7 @@ import com.carenest.dto.health.HealthExamReviewPoints;
 import com.carenest.dto.health.HealthExamReviewPoints.HealthExamOtherPoint;
 import com.carenest.dto.health.HealthExamReviewPoints.HealthExamVitalPoint;
 import com.carenest.dto.health.HealthMeasurementResponse.HealthMeasurementChange;
+import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.HealthConclusionMode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -42,7 +43,7 @@ class HealthExamLogicTest {
     // 40 tháng tuổi: nhóm "trẻ 3–5 tuổi", còn đo vòng đầu, không hỏi tự kỷ
     private static final LocalDate EXAM_DATE = LocalDate.of(2026, 10, 20);
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 25);
-    private static final HealthExamReference AT_40_MONTHS = HealthExamReview.reference(DOB, EXAM_DATE);
+    private static final HealthExamReference AT_40_MONTHS = HealthExamReview.reference(DOB, Gender.MALE, EXAM_DATE);
 
     // ---------- Kiểm khi lưu kết luận ----------
 
@@ -385,12 +386,12 @@ class HealthExamLogicTest {
         d.headStatus = "LARGE";
         d.autismRisk = "YES";
         HealthExamForm at61 = HealthExamNormalizer.normalize(
-                d.build(), STANDARD, HealthExamReview.reference(DOB, DOB.plusMonths(61)), false);
+                d.build(), STANDARD, HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(61)), false);
         assertThat(at61.nutrition().headStatus()).isEmpty();
         assertThat(at61.development().autismRisk()).isEmpty();
 
         HealthExamForm at24 = HealthExamNormalizer.normalize(
-                d.build(), STANDARD, HealthExamReview.reference(DOB, DOB.plusMonths(24)), false);
+                d.build(), STANDARD, HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(24)), false);
         assertThat(at24.nutrition().headStatus()).isEqualTo("LARGE");
         assertThat(at24.development().autismRisk()).isEqualTo("YES");
     }
@@ -414,7 +415,7 @@ class HealthExamLogicTest {
 
         HealthExamForm exam = normalize(d, STANDARD, false);
 
-        assertThat(exam.vitals().temperatureC()).isEqualTo(new BigDecimal("37.5"));
+        assertThat(exam.vitals().temperatureC()).isEqualTo(new BigDecimal("37.45"));
         assertThat(exam.vitals().temperatureStatus()).isEmpty();
         assertThat(exam.vitals().pulse()).isEqualTo(new BigDecimal("100"));
         assertThat(exam.vitals().respiratoryRate()).isEqualTo(new BigDecimal("24"));
@@ -481,7 +482,7 @@ class HealthExamLogicTest {
     })
     @DisplayName("Nhóm tuổi của khoảng mạch, nhịp thở")
     void vitalBands(int months, String label, int pulseMin, int pulseMax, int respMin, int respMax) {
-        HealthExamReference ref = HealthExamReview.reference(DOB, DOB.plusMonths(months));
+        HealthExamReference ref = HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(months));
         assertThat(ref.ageMonths()).isEqualTo(months);
         assertThat(ref.vitals().label()).isEqualTo(label);
         assertThat(ref.vitals().pulse().min()).isEqualTo(pulseMin);
@@ -505,21 +506,33 @@ class HealthExamLogicTest {
         assertThat(HealthExamReview.ageMonths(DOB, DOB.plusMonths(12).minusDays(1)))
                 .isEqualTo(11);
 
-        HealthExamReference at60 = HealthExamReview.reference(DOB, DOB.plusMonths(60));
+        // Vòng đầu theo bảng WHO 2006 của đúng giới tính, tháng tuổi (−2SD..+2SD, user chốt 2026-11-22)
+        HealthExamReference at60 = HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(60));
         assertThat(at60.headApplies()).isTrue();
-        assertThat(at60.head().low()).isEqualByComparingTo("47.66");
-        assertThat(at60.head().high()).isEqualByComparingTo("53.16");
-        HealthExamReference at61 = HealthExamReview.reference(DOB, DOB.plusMonths(61));
+        assertThat(at60.head().low()).isEqualByComparingTo("47.7");
+        assertThat(at60.head().high()).isEqualByComparingTo("53.7");
+        HealthExamReference girlAt24 = HealthExamReview.reference(DOB, Gender.FEMALE, DOB.plusMonths(24));
+        assertThat(girlAt24.head().low()).isEqualByComparingTo("44.4");
+        assertThat(girlAt24.head().high()).isEqualByComparingTo("50.0");
+        // Thiếu giới tính: vẫn đo vòng đầu nhưng không có khoảng tham khảo
+        HealthExamReference noGender = HealthExamReview.reference(DOB, null, DOB.plusMonths(24));
+        assertThat(noGender.headApplies()).isTrue();
+        assertThat(noGender.head()).isNull();
+        HealthExamReference at61 = HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(61));
         assertThat(at61.headApplies()).isFalse();
         assertThat(at61.head()).isNull();
 
-        assertThat(HealthExamReview.reference(DOB, DOB.plusMonths(15)).autismQuestion())
+        assertThat(HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(15))
+                        .autismQuestion())
                 .isFalse();
-        assertThat(HealthExamReview.reference(DOB, DOB.plusMonths(16)).autismQuestion())
+        assertThat(HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(16))
+                        .autismQuestion())
                 .isTrue();
-        assertThat(HealthExamReview.reference(DOB, DOB.plusMonths(30)).autismQuestion())
+        assertThat(HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(30))
+                        .autismQuestion())
                 .isTrue();
-        assertThat(HealthExamReview.reference(DOB, DOB.plusMonths(31)).autismQuestion())
+        assertThat(HealthExamReview.reference(DOB, Gender.MALE, DOB.plusMonths(31))
+                        .autismQuestion())
                 .isFalse();
     }
 
@@ -584,7 +597,7 @@ class HealthExamLogicTest {
     @DisplayName("Mục khác theo thứ tự: tiền sử, dinh dưỡng, tự kỷ, tiêm chủng, lâm sàng, ghi chú hành vi")
     void otherPointsOrder() {
         LocalDate dob = EXAM_DATE.minusMonths(24);
-        HealthExamReference at24 = HealthExamReview.reference(dob, EXAM_DATE);
+        HealthExamReference at24 = HealthExamReview.reference(dob, Gender.MALE, EXAM_DATE);
         Draft d = new Draft();
         d.self = "YES";
         d.selfText = " Hen phế quản ";
@@ -616,6 +629,48 @@ class HealthExamLogicTest {
     }
 
     // ---------- Lịch sử sửa ----------
+
+    @Test
+    @DisplayName("HLT-08: nhiệt độ lưu 2 số lẻ nên sửa 36,5 ⇒ 36,54 vẫn ghi vào lịch sử, điểm xem lại hiện 35,96")
+    void temperatureTwoDecimalsInDiffAndReview() {
+        Draft d = new Draft();
+        d.temperature = new BigDecimal("36.5");
+        HealthExamForm before = normalize(d, STANDARD, false);
+        d.temperature = new BigDecimal("36.54");
+        HealthExamForm after = normalize(d, STANDARD, false);
+
+        assertThat(HealthExamDiff.changes(snapshot(before), snapshot(after)))
+                .extracting(HealthMeasurementChange::field, HealthMeasurementChange::from, HealthMeasurementChange::to)
+                .containsExactly(tuple("exam.vitals.temperatureC", "36,5", "36,54"));
+
+        d.temperature = new BigDecimal("35.96");
+        d.temperatureStatus = "HYPOTHERMIA";
+        assertThat(HealthExamReview.points(normalize(d, STANDARD, false), AT_40_MONTHS)
+                        .vitals())
+                .extracting(HealthExamVitalPoint::text)
+                .contains("Nhiệt độ 35,96 °C: hạ thân nhiệt (dưới 36 °C)");
+    }
+
+    @Test
+    @DisplayName("HLT-08: định dạng nhiệt độ kiểm bằng cách đếm chữ số, số mũ cực lớn bị từ chối ngay")
+    void temperatureFormatRejectsHugeExponentsFast() {
+        org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(2), () -> {
+            assertThat(HealthExamValidator.temperatureFormatError(new BigDecimal("1e999999999")))
+                    .isNotNull();
+            assertThat(HealthExamValidator.temperatureFormatError(new BigDecimal("1e-999999999")))
+                    .isNotNull();
+        });
+        for (String ok : List.of("40", "36.500", "36.55", "99.99")) {
+            assertThat(HealthExamValidator.temperatureFormatError(new BigDecimal(ok)))
+                    .as(ok)
+                    .isNull();
+        }
+        for (String bad : List.of("0.5", "0", "-36.5", "100", "36.555")) {
+            assertThat(HealthExamValidator.temperatureFormatError(new BigDecimal(bad)))
+                    .as(bad)
+                    .isNotNull();
+        }
+    }
 
     @Test
     @DisplayName("HLT-13: sửa nhiệt độ và số định danh ⇒ ghi ô đổi, giá trị hiển thị, CCCD che còn 3 số cuối")
@@ -771,7 +826,8 @@ class HealthExamLogicTest {
         boolean keepsIssueKind;
 
         Map<String, String> errors() {
-            HealthExamReference reference = HealthExamReview.reference(dob, date == null ? EXAM_DATE : date);
+            HealthExamReference reference =
+                    HealthExamReview.reference(dob, Gender.MALE, date == null ? EXAM_DATE : date);
             HealthExamForm exam = HealthExamNormalizer.normalize(draft.build(), mode, reference, keepsIssueKind);
             List<FieldErrorResponse> errors = HealthExamValidator.validate(new HealthExamValidator.Input(
                     exam, date, height, weight, head, reason, alreadyConcluded, mode, reference, TODAY, dob, 2));

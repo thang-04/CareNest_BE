@@ -23,6 +23,7 @@ import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.RoomType;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -52,7 +53,7 @@ class ClassStructureIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -74,6 +75,9 @@ class ClassStructureIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private CurrentUser principal;
     private CurrentUser vicePrincipal;
@@ -100,6 +104,14 @@ class ClassStructureIntegrationTest {
                 campusA);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                year);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                year);
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         principal = new CurrentUser(
                 principalId,
@@ -140,13 +152,146 @@ class ClassStructureIntegrationTest {
 
     @Test
     void createAgeGroupOutsideExistingRanges() {
+        plannedYear();
         AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
                 principal,
                 new AgeGroupRequest(
-                        "Nhà trẻ nhỏ", "NT nhỏ", 12, 24, List.of(MealSession.LUNCH, MealSession.MORNING), 15, ""));
+                        "Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH, MealSession.MORNING), 15, ""));
 
         assertThat(created.code()).startsWith("ag-");
         assertThat(created.mealSessions()).containsExactly(MealSession.MORNING, MealSession.LUNCH);
+    }
+
+    @Test
+    @DisplayName("Lỗi xóa nhóm tuổi nêu năm học và tổ trưởng đang giữ nhóm (nhóm tuổi dùng chung mọi năm)")
+    void deleteAgeGroupNamesYearAndLeader() {
+        plannedYear();
+        AgeGroupDetailResponse created = ageGroupService.createAgeGroup(
+                principal, new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH), 15, ""));
+        long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-leader', 'leader.it', 'Cô Tổ Trưởng') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
+                        + "VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-09-01')",
+                leaderId,
+                created.id(),
+                year);
+
+        assertThatThrownBy(() -> ageGroupService.deleteAgeGroup(principal, created.id()))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Nhóm tuổi đã có tổ trưởng Cô Tổ Trưởng ở năm học 2026-2027, không xóa được");
+    }
+
+    @Test
+    @DisplayName("Cần chốt 22/10/2026: nhóm tuổi theo từng năm học, thêm / xóa ở năm nào chỉ năm đó đổi")
+    void ageGroupsArePerSchoolYear() {
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
+        long nextYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        ageGroupService.copyYearAgeGroups(year, nextYear);
+        long ag0 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-0'", Long.class);
+        jdbc.update(
+                "DELETE FROM school_year_age_group_members WHERE school_year_id IN (?, ?) AND age_group_id = ?",
+                year,
+                nextYear,
+                ag0);
+        long ag5 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-5'", Long.class);
+        long leaderId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-leader5', 'leader5.it', 'Cô Lớp Lớn') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
+                        + "VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-09-01')",
+                leaderId,
+                ag5,
+                year);
+
+        // Lỗi 2: thêm ở 2027-2028 không hiện ở 2026-2027
+        AgeGroupDetailResponse added = ageGroupService.createAgeGroup(
+                principal,
+                new AgeGroupRequest("Tên client", "Tên tắt client", 0, 1, List.of(MealSession.LUNCH), 15, "", ag0),
+                nextYear);
+        assertThat(ids(ageGroupService.getYearAgeGroups(nextYear))).contains(added.id());
+        assertThat(ids(ageGroupService.getYearAgeGroups(year))).doesNotContain(added.id());
+
+        // Lỗi 1: 2027-2028 chưa có tổ trưởng, lớp ⇒ xóa được; 2026-2027 vẫn giữ nhóm và tổ trưởng
+        ageGroupService.deleteAgeGroup(principal, ag5, nextYear);
+        assertThat(ids(ageGroupService.getYearAgeGroups(nextYear))).doesNotContain(ag5);
+        assertThat(ids(ageGroupService.getYearAgeGroups(year))).contains(ag5);
+        assertThatThrownBy(() -> ageGroupService.deleteAgeGroup(principal, ag5, year))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Nhóm tuổi đã có tổ trưởng Cô Lớp Lớn ở năm học 2026-2027, không xóa được");
+
+        // Thêm lại đúng tên nhóm đã có ở năm khác: dùng lại nhóm đó (giữ mã cho kế hoạch, thực đơn)
+        String ag5Name = jdbc.queryForObject("SELECT name FROM age_groups WHERE id = ?", String.class, ag5);
+        AgeGroupDetailResponse reused = ageGroupService.createAgeGroup(
+                principal,
+                new AgeGroupRequest(ag5Name, "x", 60, 72, List.of(MealSession.LUNCH), 30, "", ag5),
+                nextYear);
+        assertThat(reused.id()).isEqualTo(ag5);
+        expectError(
+                () -> ageGroupService.createAgeGroup(
+                        principal,
+                        new AgeGroupRequest(ag5Name, "x", 60, 72, List.of(MealSession.LUNCH), 30, "", ag5),
+                        nextYear),
+                ApiCode.CONFLICT);
+    }
+
+    private static List<Long> ids(List<AgeGroupDetailResponse> groups) {
+        return groups.stream().map(AgeGroupDetailResponse::id).toList();
+    }
+
+    @Test
+    @DisplayName("Cần chốt 18/11/2026: phụ trách bếp chỉ là nhân viên bếp, PHT của điểm trường hoặc Hiệu trưởng")
+    void kitchenManagerMustBeKitchenStaffViceOrPrincipal() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-t-k', 'teacher.k', 'GV Bếp') RETURNING id");
+        long kitchenClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
+                + campusA + ", " + year + ", 'Lớp bếp', " + ageGroup3 + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-01-01')",
+                teacherId,
+                kitchenClass);
+        long cookId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-cook', 'cook.k', 'Cô Bếp') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'KITCHEN_STAFF', ?, '2026-01-01')",
+                cookId,
+                campusA);
+
+        assertThatThrownBy(() -> roomService.createRoom(
+                        principal, new RoomRequest(campusA, "B.1", "Bếp 1", RoomType.KITCHEN, null, teacherId, null)))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ROOM_KITCHEN_MANAGER_INVALID);
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(campusA, "B.1", "Bếp 1", RoomType.KITCHEN, null, cookId, null))
+                        .id())
+                .isNotNull();
+        // PHT của điểm trường và Hiệu trưởng cũng được; phòng loại khác vẫn nhận GV của điểm trường
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(
+                                        campusA, "B.2", "Bếp 2", RoomType.KITCHEN, null, vicePrincipal.userId(), null))
+                        .id())
+                .isNotNull();
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(
+                                        campusA, "B.3", "Bếp 3", RoomType.KITCHEN, null, principal.userId(), null))
+                        .id())
+                .isNotNull();
+        assertThat(roomService
+                        .createRoom(
+                                principal,
+                                new RoomRequest(campusA, "K.1", "Kho 1", RoomType.STORAGE, null, teacherId, null))
+                        .id())
+                .isNotNull();
     }
 
     @Test
@@ -159,6 +304,27 @@ class ClassStructureIntegrationTest {
         ClassResponse created = classService.createClass(principal, classRequest("Lớp Mầm 1", campusA, room.id(), 20));
         assertThat(created.capacity()).isEqualTo(20);
         assertThat(created.missingTeachers()).isEqualTo(2);
+    }
+
+    @Test
+    void classNameDuplicateIgnoresSpacesAccentFormAndCaseWithinYearAndCampus() {
+        RoomResponse room = createRoom(campusA, "P.101", 25);
+        ClassResponse created =
+                classService.createClass(principal, classRequest("  Lớp   Mầm 1 ", campusA, room.id(), 25));
+        assertThat(created.name()).isEqualTo("Lớp Mầm 1");
+        String decomposed = java.text.Normalizer.normalize("LỚP MẦM 1", java.text.Normalizer.Form.NFD);
+        for (String name : List.of("Lớp  Mầm 1", decomposed)) {
+            assertThatThrownBy(() -> classService.createClass(principal, classRequest(name, campusA, room.id(), 25)))
+                    .isInstanceOf(GlobalException.class)
+                    .extracting(ex -> ((GlobalException) ex).getApiCode())
+                    .isEqualTo(ApiCode.CLASS_NAME_EXISTS);
+        }
+        // Điểm trường khác cùng năm vẫn được dùng tên này
+        RoomResponse roomB = createRoom(campusB, "P.201", 25);
+        assertThat(classService
+                        .createClass(principal, classRequest("Lớp Mầm 1", campusB, roomB.id(), 25))
+                        .name())
+                .isEqualTo("Lớp Mầm 1");
     }
 
     @Test
@@ -324,6 +490,19 @@ class ClassStructureIntegrationTest {
         long nextYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
                 + "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id");
         jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                nextYear);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                nextYear);
+        jdbc.update(
+                "INSERT INTO school_year_room_members (school_year_id, room_id, campus_id, code, name, room_type, capacity, manager_user_id, status, note) "
+                        + "SELECT ?, id, campus_id, code, name, room_type, capacity, manager_user_id, status, note FROM rooms "
+                        + "WHERE deleted_at IS NULL AND status <> 'DELETED'",
+                nextYear);
+        jdbc.update(
                 "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES (?, ?, 'Lớp B', ?, 20)",
                 campusA,
                 nextYear,
@@ -399,9 +578,63 @@ class ClassStructureIntegrationTest {
 
         jdbc.update("UPDATE school_years SET prep_date = '2026-10-20' WHERE id = ?", planned);
         jdbc.update("UPDATE staff_assignments SET valid_from = '2026-10-20' WHERE user_id = ?", teacherId);
+        entityManager.clear();
         assertThat(classService.getSchoolStructure(teacher, planned, null).classes())
                 .extracting(ClassResponse::id)
                 .containsExactly(cls);
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05, AUTH-03: GV năm cũ vẫn xem lớp mình đã dạy, cả sau khi HT đóng năm (Cần chốt 24/11/2026)")
+    void oldYearTeacherSeesOwnClassBeforeAndAfterYearClosed() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-old', 'old.it', 'GV cũ') RETURNING id");
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-old", "old.it", "GV", null, Set.of(CareNestRole.TEACHER), Set.of());
+        // Hôm nay 22/10/2026: năm 2025-2026 đã qua ngày kết thúc nhưng HT chưa đóng (năm 2026-2027 chưa kích hoạt)
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
+        long oldYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'ACTIVE') RETURNING id");
+        long cls = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
+                + campusA + ", " + oldYear + ", 'Lớp năm cũ', " + ageGroup3 + ", 25) RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to)"
+                        + " VALUES (?, 'TEACHER', ?, '2025-09-01', '2026-05-31')",
+                teacherId,
+                cls);
+
+        assertThat(classService.getSchoolStructure(teacher, oldYear, null).classes())
+                .extracting(ClassResponse::id)
+                .containsExactly(cls);
+
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", oldYear);
+        entityManager.clear();
+        assertThat(classService.getSchoolStructure(teacher, oldYear, null).classes())
+                .extracting(ClassResponse::id)
+                .containsExactly(cls);
+    }
+
+    // Thêm nhóm tuổi không kèm năm chỉ vào năm sắp diễn ra
+    private long plannedYear() {
+        return insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+    }
+
+    @Test
+    @DisplayName("GV chưa có lớp nào ở năm ACTIVE: cấu trúc trả lớp rỗng, không phải lỗi quyền (2101)")
+    void teacherWithoutActiveClassGetsEmptyStructure() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-noact', 'noact.it', 'GV không lớp') RETURNING id");
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-noact", "noact.it", "GV", null, Set.of(CareNestRole.TEACHER), Set.of());
+        assertThat(classService.getSchoolStructure(teacher, year, null).classes())
+                .isEmpty();
+        long parentId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-noactp', 'noactp.it', 'PH') RETURNING id");
+        CurrentUser parent =
+                new CurrentUser(parentId, "kc-noactp", "noactp.it", "PH", null, Set.of(CareNestRole.PARENT), Set.of());
+        assertThatThrownBy(() -> classService.getSchoolStructure(parent, year, null))
+                .isInstanceOf(GlobalException.class);
     }
 
     private RoomResponse createRoom(long campusId, String code, int capacity) {
@@ -410,7 +643,7 @@ class ClassStructureIntegrationTest {
 
     private RoomResponse createRoomAs(CurrentUser user, long campusId, String code, int capacity) {
         return roomService.createRoom(
-                user, new RoomRequest(campusId, code, "Phòng " + code, RoomType.CLASS, capacity, null, null));
+                user, new RoomRequest(campusId, code, "Phòng " + code, RoomType.CLASS, capacity, null, null), year);
     }
 
     private ClassRequest classRequest(String name, long campusId, long roomId, int capacity) {

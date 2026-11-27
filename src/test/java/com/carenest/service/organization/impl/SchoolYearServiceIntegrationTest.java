@@ -40,7 +40,7 @@ class SchoolYearServiceIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -181,6 +181,43 @@ class SchoolYearServiceIntegrationTest {
                 .extracting(SchoolYearDetailResponse::name)
                 .containsExactly("2026-2027");
         assertThatThrownBy(() -> service.getSchoolYear(other, next.id()))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
+    }
+
+    @Test
+    @DisplayName(
+            "CFG-YR-05: PHT còn phân công điểm trường thấy năm sắp diễn ra từ ngày mở chuẩn bị (Cần chốt 18/11/2026)")
+    void vicePrincipalSeesPlannedYearFromPrepDateWhileAssigned() {
+        SchoolYearDetailResponse next = service.createSchoolYear(principal, request(LocalDate.of(2027, 9, 1)));
+        long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-P', 'Campus P') RETURNING id");
+        long vpId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-vp', 'vp.it', 'VP') RETURNING id");
+        CurrentUser vp = new CurrentUser(vpId, "kc-vp", "vp.it", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-09-01')",
+                vpId,
+                campus);
+        // Chưa tới ngày mở chuẩn bị (01/09 > hôm nay 30/08) ⇒ PHT chưa thấy; HT vẫn thấy
+        assertThat(service.getSchoolYears(vp, null))
+                .extracting(SchoolYearDetailResponse::name)
+                .containsExactly("2026-2027");
+        assertThatThrownBy(() -> service.getSchoolYear(vp, next.id()))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
+        assertThat(service.getSchoolYears(principal, null)).hasSize(2);
+
+        service.updateSchoolYear(principal, next.id(), request(LocalDate.of(2027, 8, 30)));
+        assertThat(service.getSchoolYears(vp, null)).hasSize(2);
+        assertThat(service.getSchoolYear(vp, next.id()).id()).isEqualTo(next.id());
+
+        // Phân công PHT đã kết thúc ⇒ chỉ còn thấy năm không phải năm sắp diễn ra, như danh sách lớp
+        jdbc.update("UPDATE staff_assignments SET valid_to = '2027-08-01' WHERE user_id = ?", vpId);
+        assertThat(service.getSchoolYears(vp, null))
+                .extracting(SchoolYearDetailResponse::name)
+                .containsExactly("2026-2027");
+        assertThatThrownBy(() -> service.getSchoolYear(vp, next.id()))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
     }

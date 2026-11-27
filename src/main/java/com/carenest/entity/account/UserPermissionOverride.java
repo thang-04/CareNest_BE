@@ -48,6 +48,10 @@ public class UserPermissionOverride {
     @Column(length = 10)
     private PermissionScope scope;
 
+    // Điểm trường được giao cụ thể (chỉ GRANT phạm vi CAMPUS); null = điểm trường PHT đang phân công
+    @Column(name = "campus_id")
+    private Long campusId;
+
     @Column(nullable = false, length = 500)
     private String reason;
 
@@ -64,7 +68,7 @@ public class UserPermissionOverride {
 
     public static UserPermissionOverride create(
             Long userId, String permissionCode, PermissionEffect effect, String reason, Long createdBy) {
-        return create(userId, permissionCode, effect, defaultScope(effect), reason, createdBy);
+        return create(userId, permissionCode, effect, defaultScope(effect), null, reason, createdBy);
     }
 
     public static UserPermissionOverride create(
@@ -74,19 +78,33 @@ public class UserPermissionOverride {
             PermissionScope scope,
             String reason,
             Long createdBy) {
+        return create(userId, permissionCode, effect, scope, null, reason, createdBy);
+    }
+
+    public static UserPermissionOverride create(
+            Long userId,
+            String permissionCode,
+            PermissionEffect effect,
+            PermissionScope scope,
+            Long campusId,
+            String reason,
+            Long createdBy) {
         UserPermissionOverride override = new UserPermissionOverride();
         override.userId = userId;
         override.permissionCode = permissionCode;
         override.effect = effect;
         override.scope = scope;
+        override.campusId = campusId;
         override.reason = reason;
         override.createdBy = createdBy;
         return override;
     }
 
-    public void change(PermissionEffect newEffect, PermissionScope newScope, String newReason, Long changedBy) {
+    public void change(
+            PermissionEffect newEffect, PermissionScope newScope, Long newCampusId, String newReason, Long changedBy) {
         this.effect = newEffect;
         this.scope = newScope;
+        this.campusId = newCampusId;
         this.reason = newReason;
         this.createdBy = changedBy;
     }

@@ -25,7 +25,7 @@ class AttendanceDayRulesDevClockTest {
     // Giờ thật cố định sau ngày điểm danh: không giả lập thì ngày luôn khóa
     private final Clock clock = new RequestAwareClock(Clock.fixed(Instant.parse("2026-12-10T03:00:00Z"), VN));
     private final AttendanceDayRules rules =
-            new AttendanceDayRules(clock, null, null, null, null, null, null, null, null);
+            new AttendanceDayRules(clock, null, null, null, null, null, null, null, null, null);
 
     private boolean lockedWhenRequestAt(String devNow) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/api/attendance");

@@ -8,6 +8,7 @@ import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockResponse;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentViewRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.WeeklyCommentService;
 import com.carenest.utils.ApiCode;
@@ -70,6 +71,18 @@ public class WeeklyCommentController {
         WeeklyCommentBoardResponse response = weeklyCommentService.saveDraft(currentUser, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save weekly comment success", response);
+    }
+
+    @PostMapping("/assessment/weekly-comments/viewed")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
+    public ResponseEntity<ResponseJson<WeeklyCommentBoardResponse>> markViewed(
+            @Valid @RequestBody WeeklyCommentViewRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|markViewed|userId=" + currentUser.userId() + "|classId=" + request.classId()
+                + "|childId=" + request.childId();
+        log.info("{}|START", logPrefix);
+        WeeklyCommentBoardResponse response = weeklyCommentService.markViewed(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Mark weekly comment viewed success", response);
     }
 
     @PostMapping("/assessment/weekly-comments/send")

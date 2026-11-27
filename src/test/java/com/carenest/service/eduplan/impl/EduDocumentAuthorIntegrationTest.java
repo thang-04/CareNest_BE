@@ -49,7 +49,7 @@ class EduDocumentAuthorIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -273,7 +273,7 @@ class EduDocumentAuthorIntegrationTest {
 
         Long themeId = yearPlan.themes().getFirst().id();
 
-        // Spec 003: hồ sơ chủ đề (dossier) là gốc gửi/duyệt; dựng sẵn tài liệu lớp, teacher2 soạn tuần 1
+        // Spec 003: kế hoạch giáo dục ngày (dossier) là gốc gửi/duyệt; dựng sẵn tài liệu lớp, teacher2 soạn tuần 1
         String themeKey = "ds_" + classId + "_" + themeId;
         var branch = com.carenest.entity.eduplan.EduClassDoc.create(
                 "bp_" + classId + "_" + yearPlan.id(), "branch", classId, yearPlan.id(), null, null, teacher1.userId());
@@ -285,7 +285,7 @@ class EduDocumentAuthorIntegrationTest {
                 "tp_" + classId + "_" + themeId, "theme", classId, yearPlan.id(), themeId, null, teacher1.userId()));
         classDocRepository.saveAndFlush(com.carenest.entity.eduplan.EduClassDoc.create(
                 themeKey, "dossier", classId, yearPlan.id(), themeId, null, teacher1.userId()));
-        // EDU-80: hồ sơ chủ đề chỉ gửi được khi mọi MT của chủ đề được xếp vào ngày dạy
+        // EDU-80: kế hoạch giáo dục ngày chỉ gửi được khi mọi MT của chủ đề được xếp vào ngày dạy
         String goalIds = String.join(
                 ",",
                 jdbc.queryForList(
@@ -305,7 +305,7 @@ class EduDocumentAuthorIntegrationTest {
                     "dd_" + classId + "_" + monday, "day", classId, yearPlan.id(), themeId, monday, author));
         }
 
-        // teacher1 gửi duyệt hồ sơ chủ đề
+        // teacher1 gửi duyệt kế hoạch giáo dục ngày
         classDocService.actOnClassDoc(
                 teacher1, "dossier", themeKey, new ClassDocActionRequest("submit", null), versionOf(themeKey));
 
@@ -330,7 +330,7 @@ class EduDocumentAuthorIntegrationTest {
                 Set.of(CareNestRole.TEACHER, CareNestRole.VICE_PRINCIPAL));
 
         // teacher2 là Phó Hiệu trưởng, NHƯNG đã soạn tuần 1 trong dossier này
-        // teacher2 cố duyệt hồ sơ chủ đề ở bước PHT -> bị cấm do union authors!
+        // teacher2 cố duyệt kế hoạch giáo dục ngày ở bước PHT -> bị cấm do union authors!
         assertThatThrownBy(() -> classDocService.actOnClassDoc(
                         teacher2Vp,
                         "dossier",
@@ -380,7 +380,14 @@ class EduDocumentAuthorIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(roles));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(roles),
+                com.carenest.security.TestPermissions.eduDefaultsOf(roles));
     }
 
     private void insertAssignment(Long userId, String staffRole, Long campusId, Long ageGroupId, Long classroomId) {

@@ -6,6 +6,7 @@ import com.carenest.utils.enums.PermissionScope;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -14,7 +15,18 @@ public record UpdatePermissionOverridesRequest(
         @NotNull List<@NotNull @Valid OverrideItem> overrides,
         @NotBlank @Size(max = 500) String reason) {
 
-    /** scope chỉ cho GRANT mã sửa theo mảng; bỏ trống ⇒ CAMPUS (AUTH-20). */
+    /**
+     * scope chỉ cho GRANT mã sửa theo mảng; bỏ trống ⇒ CAMPUS (AUTH-20). campusId: điểm trường được giao cụ thể, chỉ đi
+     * với GRANT phạm vi CAMPUS của mã sửa theo mảng; bỏ trống ⇒ điểm trường PHT đang phân công.
+     */
     public record OverrideItem(
-            @NotNull Permission permission, @NotNull PermissionEffect effect, PermissionScope scope) {}
+            @NotNull Permission permission,
+            @NotNull PermissionEffect effect,
+            PermissionScope scope,
+            @Positive Long campusId) {
+
+        public OverrideItem(Permission permission, PermissionEffect effect, PermissionScope scope) {
+            this(permission, effect, scope, null);
+        }
+    }
 }

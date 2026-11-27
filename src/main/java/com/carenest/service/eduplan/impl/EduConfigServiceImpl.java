@@ -18,7 +18,6 @@ import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -95,7 +94,9 @@ public class EduConfigServiceImpl implements EduConfigService {
         String logPrefix = LOG_PREFIX + "|updateEduConfig|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
-            if (!accessPolicy.hasPermission(currentUser, EduPermission.PLAN_CONFIG)) {
+            // EDU-11/94/97: cấu hình kế hoạch giáo dục chỉ Hiệu trưởng có phân công hiệu lực được thay đổi.
+            // EDU-108: HT cố định; PHT khi được bật EDU_PLAN_CONFIG
+            if (!accessPolicy.canEditConfig(currentUser)) {
                 throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
             }
 
@@ -144,7 +145,7 @@ public class EduConfigServiceImpl implements EduConfigService {
 
         if (currentUser != null) {
             workflow = workflowService.getPolicy(currentUser);
-            canConfigure = accessPolicy.canConfigureWorkflow(currentUser);
+            canConfigure = accessPolicy.canEditConfig(currentUser);
             EduWorkflowPolicy.RolePolicy yearPolicy = workflowService.loadPolicy("year");
             yearCreationScopes = schoolStructureService.findAgeGroups().stream()
                     .filter(ag -> accessPolicy.canAuthorYearPlan(currentUser, yearPolicy, ag.id()))
@@ -152,6 +153,7 @@ public class EduConfigServiceImpl implements EduConfigService {
                     .toList();
         }
 
+        String defaults = settingsRepository.readPlanDefaults();
         return new EduConfigResponse(
                 domainRepository.findAllByActiveTrueOrderBySortOrderAsc().stream()
                         .map(mapper::toConfigDomain)
@@ -170,7 +172,9 @@ public class EduConfigServiceImpl implements EduConfigService {
                                 .filter(age -> accessPolicy.canAuthorYearPlan(
                                         currentUser, workflowService.loadPolicy("schoolYear"), age.id()))
                                 .map(AgeGroupResponse::id)
-                                .toList());
+                                .toList(),
+                canConfigure,
+                objectMapper.readTree(defaults == null ? "{}" : defaults));
     }
 
     // EDU-21: họ tên in dưới chỗ ký; Tổ trưởng của từng nhóm tuổi theo năm học (hôm nay nếu thuộc năm đó, không thì đầu
@@ -209,7 +213,7 @@ public class EduConfigServiceImpl implements EduConfigService {
                 teamLeaders);
     }
 
-    // EDU-11: kế hoạch năm luôn có Phó HT ký; chủ đề nhánh, hồ sơ chủ đề cần ít nhất một người duyệt
+    // EDU-11: kế hoạch năm luôn có Phó HT ký; chủ đề nhánh, kế hoạch giáo dục ngày cần ít nhất một người duyệt
     private static void requireSigners(EduConfigRequest.Signers signers) {
         for (List<String> chain : List.of(signers.year(), signers.branch(), signers.week())) {
             if (!SIGNER_ROLES.containsAll(chain) || new HashSet<>(chain).size() != chain.size()) {

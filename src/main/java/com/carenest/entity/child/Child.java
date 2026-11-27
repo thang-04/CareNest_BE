@@ -63,6 +63,20 @@ public class Child {
     @Column(name = "readmitted_on")
     private LocalDate readmittedOn;
 
+    // G94-180/CHD-03 (user chốt 2026-11-25): lịch nghỉ học — vẫn Đang học tới ngày này, job 00:05 ngày đó mới cho nghỉ
+    @Column(name = "scheduled_leave_on")
+    private LocalDate scheduledLeaveOn;
+
+    @Column(name = "scheduled_leave_reason", length = 300)
+    private String scheduledLeaveReason;
+
+    @Column(name = "scheduled_leave_by")
+    private Long scheduledLeaveBy;
+
+    // G94-180/CHD-14: ngày bắt đầu đi học chọn khi tiếp nhận / mở lại hồ sơ; null = hồ sơ cũ
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
     @Column(name = "photo_key", length = 255)
     private String photoKey;
 
@@ -72,8 +86,16 @@ public class Child {
     @Column(name = "photo_size_bytes")
     private Integer photoSizeBytes;
 
+    // CHD-13: trẻ ăn ở trường, mặc định có
+    @Column(name = "meal_registered", nullable = false)
+    private boolean mealRegistered = true;
+
     @Column(name = "photo_updated_at")
     private Instant photoUpdatedAt;
+
+    public void changeMealRegistration(boolean mealRegistered) {
+        this.mealRegistered = mealRegistered;
+    }
 
     public void assignEnrollmentPhoto(String key, String contentType, int size, Instant at) {
         this.photoKey = key;
@@ -101,7 +123,8 @@ public class Child {
             Gender gender,
             boolean placed,
             Long intakeCampusId,
-            LocalDate enrolledOn) {
+            LocalDate enrolledOn,
+            boolean mealRegistered) {
         Child child = new Child();
         child.code = code;
         child.fullName = fullName;
@@ -110,6 +133,7 @@ public class Child {
         child.status = placed ? ChildStatus.ACTIVE : ChildStatus.PENDING_PLACEMENT;
         child.intakeCampusId = placed ? null : intakeCampusId;
         child.enrolledOn = enrolledOn;
+        child.mealRegistered = mealRegistered;
         return child;
     }
 
@@ -128,6 +152,22 @@ public class Child {
         this.status = ChildStatus.LEFT;
         this.leftOn = leftOn;
         this.leftReason = reason;
+        // Đã nghỉ thì không còn lịch nghỉ (ck_children_scheduled_leave_not_left)
+        clearScheduledLeave();
+    }
+
+    /** Hẹn nghỉ học từ ngày sau hôm nay (G94-180/CHD-03): trẻ vẫn Đang học, lớp không đổi tới ngày {@code on}. */
+    public void scheduleLeave(LocalDate on, String reason, Long byUserId) {
+        this.scheduledLeaveOn = on;
+        this.scheduledLeaveReason = reason;
+        this.scheduledLeaveBy = byUserId;
+    }
+
+    /** Bỏ lịch nghỉ học: hủy lịch, hoặc lịch đã áp. */
+    public void clearScheduledLeave() {
+        this.scheduledLeaveOn = null;
+        this.scheduledLeaveReason = null;
+        this.scheduledLeaveBy = null;
     }
 
     /**
@@ -142,6 +182,22 @@ public class Child {
     /** Ghi điểm trường của trẻ khi bỏ lớp duy nhất (nghỉ ngay ngày vào lớp): hồ sơ đã nghỉ vẫn thuộc điểm trường đó. */
     public void keepCampus(Long campusId) {
         this.intakeCampusId = campusId;
+    }
+
+    /** Hủy lớp chưa bắt đầu khi trẻ chưa học lớp nào (G94-180/CHD-14): về Chờ xếp lớp ở điểm trường của lớp đó. */
+    public void awaitPlacement(Long campusId) {
+        this.status = ChildStatus.PENDING_PLACEMENT;
+        this.intakeCampusId = campusId;
+    }
+
+    /** G94-180/CHD-14: chờ xếp lớp mà đã tới ngày bắt đầu đi học (Web gắn nhãn, đưa lên đầu, nhắc HT / PHT). */
+    public boolean isStartDue(LocalDate today) {
+        return status == ChildStatus.PENDING_PLACEMENT && startDate != null && !startDate.isAfter(today);
+    }
+
+    /** Ngày bắt đầu đi học (G94-180/CHD-14), ghi khi tiếp nhận và khi mở lại hồ sơ. */
+    public void startOn(LocalDate startDate) {
+        this.startDate = startDate;
     }
 
     /** Mở lại hồ sơ trẻ đã nghỉ (CHD-03): về Chờ xếp lớp ở điểm trường cũ, bỏ ngày/lý do nghỉ, giữ mã và dữ liệu. */

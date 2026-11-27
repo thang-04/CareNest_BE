@@ -2,7 +2,7 @@
 
 > Server demo: `docs/system/DEPLOYMENT.md` (VPS, Docker Hub, CI `.github/workflows/deploy.yml`). Không suy đoán secret; giá trị thật chỉ ở `.env` trên VPS. Chạy local/dev: `README.md` (mục Chạy, Cấu hình).
 
-VPS demo tóm tắt (chi tiết + bảng cổng: `DEPLOYMENT.md`): push `main` (merge PR từ `release/*`; PR vào `main` chỉ verify) ⇒ CI verify ⇒ push `thangnd04/carenest-be:api-<hash>` + `:keycloak-<hash>` (private, tag theo nội dung; tag đã có ⇒ bỏ verify/build phần đó) ⇒ VPS `/data/thangnd/CAPSTONE/CareNest_BE` pull + `docker compose -f compose.vps.yaml up -d --no-build`. Cổng loopback: api 18310 · Keycloak 18320/18321 · Postgres 18330 · Mailpit 18340/18341 · FE 18300. Public: `web.carenest.edu.vn` (FE + `/api` ⇒ 18310), `auth.carenest.edu.vn` (Keycloak, chặn `/admin`).
+VPS demo tóm tắt (chi tiết + bảng cổng: `DEPLOYMENT.md`): push `main` (merge PR từ `release/*`; PR vào `main` chỉ verify) ⇒ CI verify ⇒ push `thangnd04/carenest-be:api-<hash>` + `:keycloak-<hash>` (private, tag theo nội dung; tag đã có ⇒ bỏ verify/build phần đó) ⇒ VPS `/data/thangnd/CAPSTONE/CareNest_BE` pull + `docker compose -f compose.vps.yaml up -d --no-build`. Cổng loopback: api 18310 · Keycloak 18320/18321 · Postgres 18330 · Mailpit 18340/18341 · FE 18300. Public: `thuonghong.carenest.edu.vn` (FE + `/api` ⇒ 18310), `auth.carenest.edu.vn` (Keycloak, chặn `/admin`).
 
 1. **Package:** `./mvnw -B package` (Windows: `mvnw.cmd`).
 2. **Test:** `node scripts/verify.mjs` (= `mvnw verify`: test + ArchUnit + snapshot OpenAPI + Spotless); không deploy khi fail hoặc test tích hợp/snapshot bị skip. Testcontainers cần Docker.

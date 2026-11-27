@@ -157,10 +157,10 @@ export function buildDataset(seed = 20260901) {
       reason: 'Hỗ trợ Phó hiệu trưởng cập nhật hồ sơ trẻ Cơ sở 2 đầu năm học', grantedBy: principal },
     { user: teacherFor.C2.second, permission: 'ASSESSMENT_CONFIRM', effect: 'REVOKE', scope: null,
       reason: 'Giáo viên tập sự, giáo viên chủ nhiệm xác nhận đánh giá thay', grantedBy: principal },
-    // AUTH-20: quyền bán trú mặc định tắt với PHT; HT cấp cho PHT dinh dưỡng (cả trường) và kho/lưu mẫu từng cơ sở
-    { user: vpA, permission: 'NUTRITION_MANAGE', effect: 'GRANT', scope: 'SCHOOL',
+    // AUTH-20: quyền bán trú mặc định tắt với PHT; HT cấp cho PHT dinh dưỡng, kho, lưu mẫu theo cơ sở (chỉ mã sửa theo mảng có phạm vi cả trường)
+    { user: vpA, permission: 'NUTRITION_MANAGE', effect: 'GRANT', scope: 'CAMPUS',
       reason: 'Phó hiệu trưởng phụ trách dinh dưỡng quản lý danh mục bán trú toàn trường', grantedBy: principal },
-    { user: vpA, permission: 'MENU_MANAGE', effect: 'GRANT', scope: 'SCHOOL',
+    { user: vpA, permission: 'MENU_MANAGE', effect: 'GRANT', scope: 'CAMPUS',
       reason: 'Phó hiệu trưởng phụ trách dinh dưỡng lập và công bố thực đơn chung hai cơ sở', grantedBy: principal },
     ...[vpA, vpB].flatMap((vp) => [
       { user: vp, permission: 'STOCK_MANAGE', effect: 'GRANT', scope: 'CAMPUS',

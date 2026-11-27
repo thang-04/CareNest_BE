@@ -18,6 +18,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.service.meals.FoodPriceService;
 import com.carenest.service.meals.FoodService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.CatalogStatus;
@@ -60,6 +61,9 @@ class NutritionFoodControllerTest {
 
     @MockitoBean
     private FoodService foodService;
+
+    @MockitoBean
+    private FoodPriceService foodPriceService;
 
     @Test
     @DisplayName("AUTH-20: PHT không có NUTRITION_MANAGE xem được nhưng không tạo được thực phẩm")
@@ -147,13 +151,17 @@ class NutritionFoodControllerTest {
                 null,
                 null,
                 null,
-                "Bảng thành phần thực phẩm Việt Nam",
                 null,
+                "Bảng thành phần thực phẩm Việt Nam",
                 BigDecimal.ZERO,
                 FoodStorage.DRY,
                 FoodOrigin.PLANT,
                 "",
                 CatalogStatus.ACTIVE,
-                List.of());
+                List.of(),
+                null,
+                null,
+                null,
+                false);
     }
 }

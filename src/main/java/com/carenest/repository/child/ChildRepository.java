@@ -1,10 +1,13 @@
 package com.carenest.repository.child;
 
 import com.carenest.entity.child.Child;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +19,10 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
      * hoặc lớp cuối của trẻ đã nghỉ; trẻ chờ xếp lớp không có lớp. Có năm học: trẻ không có lớp trong năm đó chỉ hiện khi
      * chờ xếp lớp và năm đang hoạt động, hoặc đã nghỉ và ngày nghỉ thuộc năm đó (năm gần nhất đã bắt đầu tính tới ngày
      * nghỉ). Điểm trường hiển thị = điểm trường của lớp, không có lớp ⇒ điểm trường tiếp nhận (CMR-04).
+     *
+     * <p>G94-180/CHD-14: lớp hiển thị ưu tiên lớp đã bắt đầu tới :today (lịch chuyển chưa tới ngày không đổi lớp
+     * hiển thị); trẻ chưa có lớp nào bắt đầu thì là lớp sắp vào. Trẻ chờ xếp lớp (mới tiếp nhận hoặc mở lại hồ sơ) không
+     * mang lớp đã đóng trước :today (kể cả khi có {@code yearId}); chỉ giữ lớp chưa đóng hoặc lớp dự kiến sắp vào.
      *
      * <p>Phạm vi: {@code wholeSchool}, hoặc điểm trường hiển thị thuộc {@code campusIds}, hoặc lớp hiển thị thuộc
      * {@code classIds}. Tập rỗng truyền {@code [-1]} (IN () không hợp lệ).
@@ -29,9 +36,10 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
                         JOIN classrooms k ON k.id = e.classroom_id
                         WHERE e.child_id = c.id
                           AND CASE WHEN CAST(:yearId AS BIGINT) IS NULL
-                                   THEN c.status <> 'PENDING_PLACEMENT' AND e.valid_from <= :today
+                                   THEN c.status <> 'PENDING_PLACEMENT'
                                    ELSE k.school_year_id = CAST(:yearId AS BIGINT) END
-                        ORDER BY e.valid_from DESC, e.id DESC
+                          AND (c.status <> 'PENDING_PLACEMENT' OR e.valid_to IS NULL OR e.valid_to >= :today)
+                        ORDER BY CASE WHEN e.valid_from <= :today THEN 0 ELSE 1 END, e.valid_from DESC, e.id DESC
                         LIMIT 1
                     ) yc ON TRUE
                     LEFT JOIN classrooms cl ON cl.id = yc.classroom_id
@@ -40,7 +48,14 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
                            OR yc.classroom_id IS NOT NULL
                            OR (c.status = 'PENDING_PLACEMENT' AND EXISTS (
                                 SELECT 1 FROM school_years y
-                                WHERE y.id = CAST(:yearId AS BIGINT) AND y.status = 'ACTIVE'))
+                                WHERE y.id = CAST(:yearId AS BIGINT) AND y.status = 'ACTIVE')
+                                AND NOT EXISTS (
+                                SELECT 1 FROM planned_admissions pa
+                                WHERE pa.child_id = c.id AND pa.status IN ('PENDING', 'PLACED')))
+                           OR (c.status = 'PENDING_PLACEMENT' AND EXISTS (
+                                SELECT 1 FROM planned_admissions pa
+                                WHERE pa.child_id = c.id AND pa.school_year_id = CAST(:yearId AS BIGINT)
+                                  AND pa.status IN ('PENDING', 'PLACED')))
                            OR (c.status = 'LEFT' AND (
                                 SELECT y.id FROM school_years y
                                 WHERE y.start_date <= c.left_on
@@ -78,6 +93,20 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
             @Param("dateOfBirth") LocalDate dateOfBirth,
             @Param("citizenIds") Collection<String> citizenIds,
             @Param("excludeId") Long excludeId);
+
+    // CHD-13: trẻ không báo ăn trong danh sách id
+    @Query("select c.id from Child c where c.id in :childIds and c.mealRegistered = false")
+    List<Long> findIdsWithoutMeals(@Param("childIds") Collection<Long> childIds);
+
+    // G94-180/CHD-03: trẻ có lịch nghỉ học đã tới ngày ⇒ job áp lịch (lịch lỡ lúc BE tắt còn nguyên, lần sau áp bù)
+    @Query("select c.id from Child c where c.scheduledLeaveOn <= :today"
+            + " and c.status <> com.carenest.utils.enums.ChildStatus.LEFT order by c.id")
+    List<Long> findIdsWithLeaveDue(@Param("today") LocalDate today);
+
+    // Job áp lịch nghỉ khóa dòng trẻ: hai lần chạy chồng nhau (00:05 và lúc khởi động) không áp một lịch hai lần
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Child c where c.id = :id")
+    Optional<Child> findLockedById(@Param("id") Long id);
 
     /** Một dòng danh sách trẻ: trẻ và lớp hiển thị (null khi không có lớp). */
     interface ChildListRow {

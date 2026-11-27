@@ -7,6 +7,8 @@ import com.carenest.dto.meals.SupplierResponse;
 import com.carenest.entity.meals.AgeGroupMealConfig;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.Supplier;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
+import com.carenest.utils.NutritionConversion;
 import com.carenest.utils.enums.Allergen;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -24,7 +26,7 @@ public class NutritionCatalogMapper {
         return allergens.stream().distinct().sorted().map(this::toResponse).toList();
     }
 
-    public FoodResponse toResponse(Food food) {
+    public FoodResponse toResponse(Food food, FoodPriceBook.PriceAt price, boolean unitsLocked) {
         return new FoodResponse(
                 food.getId(),
                 food.getCode(),
@@ -33,7 +35,7 @@ public class NutritionCatalogMapper {
                 food.getUnit(),
                 food.getPurchaseUnit(),
                 food.getPurchaseUnitSize(),
-                food.getUnitPrice(),
+                price.price(),
                 food.getKcal(),
                 food.getProtein(),
                 food.getLipid(),
@@ -46,22 +48,28 @@ public class NutritionCatalogMapper {
                 food.getVitaminB2(),
                 food.getVitaminPp(),
                 food.getVitaminC(),
+                food.getZinc(),
                 food.getNutrientSource(),
-                food.getNutrientSourceVersion(),
                 food.getWastePct(),
                 food.getStorage(),
                 food.getOrigin(),
                 food.getNote(),
                 food.getStatus(),
-                toAllergenResponses(food.getAllergens()));
+                toAllergenResponses(food.getAllergens()),
+                price.supplierId(),
+                price.supplierName(),
+                price.contractStatus(),
+                unitsLocked);
     }
 
-    public AgeGroupMealConfigResponse toResponse(AgeGroupMealConfig config, LocalDate today) {
+    public AgeGroupMealConfigResponse toResponse(
+            AgeGroupMealConfig config, LocalDate today, NutritionConversion conversion) {
         return new AgeGroupMealConfigResponse(
                 config.getId(),
                 config.getAgeGroupId(),
                 config.getEffectiveFrom(),
                 config.getMealPrice(),
+                config.getServiceFee(),
                 config.getKcalMin(),
                 config.getKcalMax(),
                 config.getProteinPctMin(),
@@ -86,7 +94,8 @@ public class NutritionCatalogMapper {
                 config.getLunchKcalPctMax(),
                 config.getAfternoonKcalPctMin(),
                 config.getAfternoonKcalPctMax(),
-                config.getDailyKcalNeed(),
+                config.getDailyKcalMin(),
+                config.getDailyKcalMax(),
                 config.getCalciumMin(),
                 config.getCalciumMax(),
                 config.getPhosphorusMin(),
@@ -103,11 +112,23 @@ public class NutritionCatalogMapper {
                 config.getVitaminPpMax(),
                 config.getVitaminCMin(),
                 config.getVitaminCMax(),
+                config.getZincMin(),
+                config.getZincMax(),
+                config.getAppliedProteinPct(),
+                config.getAppliedLipidPct(),
+                config.getAppliedGlucidPct(),
+                conversion.toResponse(
+                        config.getKcalMin(),
+                        config.getKcalMax(),
+                        config.getAppliedProteinPct(),
+                        config.getAppliedLipidPct(),
+                        config.getAppliedGlucidPct()),
                 config.getNormBasis(),
-                config.getEffectiveFrom().isAfter(today));
+                config.getEffectiveFrom().isAfter(today),
+                config.getBudgetTolerancePct());
     }
 
-    public SupplierResponse toResponse(Supplier supplier, boolean showIdCard) {
+    public SupplierResponse toResponse(Supplier supplier, boolean showIdCard, LocalDate today) {
         return new SupplierResponse(
                 supplier.getId(),
                 supplier.getName(),
@@ -115,6 +136,17 @@ public class NutritionCatalogMapper {
                 supplier.getAddress(),
                 showIdCard ? supplier.getIdCard() : null,
                 supplier.getDeliveryPerson(),
-                supplier.getStatus());
+                supplier.getStatus(),
+                supplier.getContractNo(),
+                supplier.getContractStart(),
+                supplier.getContractEnd(),
+                FoodPriceBook.contractStatus(
+                        new FoodPriceBook.SupplierInfo(
+                                supplier.getId(),
+                                supplier.getName(),
+                                supplier.getContractNo(),
+                                supplier.getContractStart(),
+                                supplier.getContractEnd()),
+                        today));
     }
 }

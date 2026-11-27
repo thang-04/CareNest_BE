@@ -1,5 +1,6 @@
 package com.carenest.controller.meals;
 
+// import com.carenest.dto.meals.DryIntakeRequest; // tạm tắt cùng endpoint dry-receipts
 import com.carenest.dto.meals.FreshCheckRequest;
 import com.carenest.dto.meals.FreshCheckResponse;
 import com.carenest.dto.meals.FreshForecastRequest;
@@ -126,4 +127,19 @@ public class FreshGoodsController {
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Record fresh check success", checks);
     }
+
+    // Tạm tắt: hàng khô nhập qua Phiếu nhập, màn Kiểm nhận hàng chỉ còn hàng tươi. Bỏ comment để bật lại.
+    // @PostMapping("/fresh-checks/dry-receipts")
+    // @PreAuthorize("@permissionGuard.has('STOCK_MANAGE')")
+    // public ResponseEntity<ResponseJson<FreshCheckResponse>> recordDryIntake(
+    //         @RequestParam Long campusId,
+    //         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+    //         @Valid @RequestBody DryIntakeRequest request,
+    //         CurrentUser currentUser) {
+    //     String logPrefix = LOG_PREFIX + "|recordDryIntake|userId=" + currentUser.userId() + "|campusId=" + campusId;
+    //     log.info("{}|START", logPrefix);
+    //     FreshCheckResponse checks = freshGoodsService.recordDryIntake(currentUser, campusId, date, request);
+    //     log.info("{}|END", logPrefix);
+    //     return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Record dry intake success", checks);
+    // }
 }

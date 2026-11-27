@@ -55,6 +55,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     private static final TypeReference<Map<Long, String>> COMMENTS = new TypeReference<>() {};
 
     private final ObservationDayRules rules;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final ChildEvaluationRepository evaluationRepository;
     private final ThemeEvaluationRepository themeRepository;
     private final ThemeEvaluationService themeEvaluationService;
@@ -78,6 +79,8 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
 
     private record Cell(Boolean met, boolean manual) {}
 
+    record Presentation(String ageGroupName, List<String> teachers, String principal, SheetMeasurement measurement) {}
+
     @Override
     @Transactional(readOnly = true)
     public YearEndSheetResponse get(CurrentUser currentUser, Long evaluationId) {
@@ -93,6 +96,26 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
             YearEndSheetResponse response = view(currentUser, ev, cls);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public YearEndSheetResponse getConfirmedSheet(Long evaluationId) {
+        String logPrefix = LOG_PREFIX + "|getConfirmedSheet|id=" + evaluationId;
+        log.info("{}|START", logPrefix);
+        try {
+            ChildEvaluation ev = findYearEnd(evaluationId);
+            if (!ev.isConfirmed()) {
+                throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
+            }
+            // Phiếu đã xác nhận không có thao tác sửa nên không cần người xem
+            YearEndSheetResponse response = view(null, ev, rules.findClass(ev.getClassroomId()));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -181,6 +204,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                         a == null || (c != null && c.manual()) ? null : source(a)));
             }
             evaluation.freezeGoals(objectMapper.writeValueAsString(all));
+            evaluation.freezeSheetPresentation(objectMapper.writeValueAsString(presentation(evaluation, cls)));
             log.info("{}|goals={}|END", logPrefix, all.size());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -299,12 +323,16 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                             a == null ? null : a.met(),
                             goal.source()));
         }
-        LocalDate at = ev.getPeriodEnd().isAfter(rules.today()) ? rules.today() : ev.getPeriodEnd();
-        SheetMeasurement measurement = healthMeasurementService
-                .findLatestMeasurement(ev.getChildId(), at)
-                .map(m -> new SheetMeasurement(m.date(), m.weightKg(), m.heightCm()))
-                .orElse(null);
-        boolean canEdit = !ev.isConfirmed()
+        Presentation presentation = ev.isConfirmed() && ev.getSheetPresentation() != null
+                ? objectMapper.readValue(ev.getSheetPresentation(), Presentation.class)
+                : presentation(ev, cls);
+        boolean canEdit = childClassHistoryService
+                        .statuses(
+                                cls.id(),
+                                List.of(ev.getChildId()),
+                                rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today())
+                        .isEmpty()
+                && !ev.isConfirmed()
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
                 && rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
@@ -312,10 +340,10 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         return new YearEndSheetResponse(
                 ev.getId(),
                 cls.id(),
-                ageGroupName(cls.ageGroupId()),
-                teacherNames(cls, at),
-                principalName(),
-                measurement,
+                presentation.ageGroupName(),
+                presentation.teachers(),
+                presentation.principal(),
+                presentation.measurement(),
                 List.copyOf(domains.values()),
                 met,
                 notMet,
@@ -332,7 +360,8 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         return r.className() == null ? summary : summary + " (lớp " + r.className() + ")";
     }
 
-    // Chỗ ký "Giáo viên": GV chủ nhiệm, lớp chưa có chủ nhiệm thì các GV lớp (như bản in cuối chủ đề)
+    // Cần chốt 17/11/2026: giữ mẫu phiếu cuối năm — chỗ ký "Giáo viên" là GV phụ trách chính; lớp chưa có thì các GV
+    // phụ trách lớp
     private List<String> teacherNames(ClassroomInfoResponse cls, LocalDate at) {
         Long homeroom = staffAssignmentService
                 .findHomeroomTeacherIds(List.of(cls.id()), at)
@@ -346,11 +375,20 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         return ids.stream().map(names::get).filter(Objects::nonNull).toList();
     }
 
-    private String ageGroupName(Long ageGroupId) {
-        return ageGroupId == null
+    private Presentation presentation(ChildEvaluation ev, ClassroomInfoResponse cls) {
+        LocalDate at = ev.getPeriodEnd().isAfter(rules.today()) ? rules.today() : ev.getPeriodEnd();
+        SheetMeasurement measurement = healthMeasurementService
+                .findLatestMeasurement(ev.getChildId(), at)
+                .map(m -> new SheetMeasurement(m.date(), m.weightKg(), m.heightCm()))
+                .orElse(null);
+        return new Presentation(ageGroupName(cls), teacherNames(cls, at), principalName(), measurement);
+    }
+
+    private String ageGroupName(ClassroomInfoResponse cls) {
+        return cls.ageGroupId() == null
                 ? null
-                : ageGroupService.getAgeGroups().stream()
-                        .filter(g -> ageGroupId.equals(g.id()))
+                : ageGroupService.getYearAgeGroups(cls.schoolYearId()).stream()
+                        .filter(g -> cls.ageGroupId().equals(g.id()))
                         .map(AgeGroupDetailResponse::name)
                         .findFirst()
                         .orElse(null);
@@ -369,7 +407,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
 
     // GV xem: đang dạy lớp hoặc từng dạy lớp của năm đã kết thúc (như đánh giá cuối năm)
     private boolean teaches(CurrentUser user, ClassroomInfoResponse cls) {
-        return user.hasRole(CareNestRole.TEACHER) && (rules.canRecord(user, cls) || rules.taughtClosedYear(user, cls));
+        return user.hasRole(CareNestRole.TEACHER) && rules.canView(user, cls);
     }
 
     // Trường chỉ có 1 Hiệu trưởng: điền sẵn tên ở bản in (Cần chốt 10/11/2026)
@@ -386,6 +424,12 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
             throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         }
+        if (!childClassHistoryService
+                .statuses(
+                        cls.id(),
+                        List.of(ev.getChildId()),
+                        rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today())
+                .isEmpty()) throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         if (ev.isConfirmed()) {
             throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
         }
@@ -436,6 +480,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         if (t.length() > NOTE_MAX) {
             throw GlobalException.of(ApiCode.YEAR_SHEET_NOTE_TOO_LONG, NOTE_MAX);
         }
+        DiagnosticTerms.requireClean(t);
         return t;
     }
 

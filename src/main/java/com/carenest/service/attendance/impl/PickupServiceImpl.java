@@ -12,8 +12,10 @@ import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
+import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.PickupRecord;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
@@ -30,6 +32,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.DayPart;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
@@ -71,6 +74,8 @@ public class PickupServiceImpl implements PickupService {
     private final AttendanceDayRules rules;
     private final PickupRecordRepository pickupRepository;
     private final AttendanceRecordRepository attendanceRepository;
+    private final AttendanceRecordHistoryRepository attendanceHistoryRepository;
+    private final EarlyPickupRule earlyPickupRule;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
     private final StaffAssignmentService staffAssignmentService;
@@ -217,6 +222,8 @@ public class PickupServiceImpl implements PickupService {
                     .recordedAt(now)
                     .build());
             if (handedOver) {
+                markHalfDayWhenPickedUpBeforeFullDayThreshold(
+                        attendance, cls, request.handoverTime(), currentUser, now);
                 record.markNotified(notifyParents(record));
             }
             PickupRecordResponse view =
@@ -226,6 +233,23 @@ public class PickupServiceImpl implements PickupService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    /** PCK-04: đã có mặt buổi sáng nhưng trả trước mốc giữa chiều chỉ tính 0,5 ngày; không đổi suất ăn đã ghi. */
+    private void markHalfDayWhenPickedUpBeforeFullDayThreshold(
+            AttendanceRecord attendance,
+            ClassroomInfoResponse cls,
+            LocalTime handoverTime,
+            CurrentUser currentUser,
+            Instant now) {
+        if (attendance.getAbsentPart() == null
+                && earlyPickupRule.beforeFullDay(cls.schoolYearId(), rules.today(), handoverTime)) {
+            attendance.update(attendance.getStatus(), attendance.getMeals(), currentUser.userId(), now);
+            attendance.markAbsentPart(DayPart.AFTERNOON);
+            attendanceRepository.save(attendance);
+            attendanceHistoryRepository.save(
+                    AttendanceRecordHistory.of(attendance, AttendanceRecordHistory.UPDATED, null));
         }
     }
 
@@ -357,12 +381,11 @@ public class PickupServiceImpl implements PickupService {
                 ? " Người đón: " + record.getPickupPersonName() + " ("
                         + relationLabel(record.getPickupPersonRelationship()) + ")."
                 : " Người đón đã được phụ huynh xác nhận qua điện thoại.";
-        String body = name + " đã được đón lúc " + time + " ngày " + DMY.format(record.getDate()) + "." + by;
-        notificationService.notifyUsers(
+        // Câu chữ theo quy tắc PCK-04 HT đã sửa hoặc mặc định (PAR-09)
+        notificationService.notifyEvent(
                 parentIds,
                 NotificationType.CHILD_PICKED_UP,
-                cut(name + " đã được đón", 150),
-                cut(body, 500),
+                Map.of("tenTre", name, "gio", time, "ngay", DMY.format(record.getDate()), "nguoiDon", by.trim()),
                 record.getChildId());
         return parentIds.size();
     }

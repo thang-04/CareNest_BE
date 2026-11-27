@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildListFilter;
 import com.carenest.dto.child.ChildListItemResponse;
+import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.child.Child;
@@ -24,7 +25,9 @@ import com.carenest.repository.child.ChildHealthDeclarationRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
+import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -62,7 +65,9 @@ class ChildListServiceImplTest {
     private final GuardianViews guardianViews = mock(GuardianViews.class);
     private final GuardianChildLinkService linkService = mock(GuardianChildLinkService.class);
     private final ClassroomService classroomService = mock(ClassroomService.class);
+    private final ChildIntakeService intakeService = mock(ChildIntakeService.class);
     private final StaffAccessPolicy policy = mock(StaffAccessPolicy.class);
+    private final CampusAccessPolicy campusAccessPolicy = mock(CampusAccessPolicy.class);
     private final StaffAssignmentService assignmentService = mock(StaffAssignmentService.class);
     private final ChildListServiceImpl service = new ChildListServiceImpl(
             childRepository,
@@ -71,7 +76,9 @@ class ChildListServiceImplTest {
             guardianViews,
             linkService,
             classroomService,
+            intakeService,
             policy,
+            campusAccessPolicy,
             assignmentService,
             CLOCK);
 
@@ -112,7 +119,8 @@ class ChildListServiceImplTest {
     }
 
     @Test
-    @DisplayName("AUTH-08: PHT lọc điểm trường / lớp ngoài phạm vi ⇒ 403; GV lọc lớp không dạy ⇒ 403")
+    @DisplayName(
+            "AUTH-08: PHT không còn phân công (không đọc cả trường) lọc ngoài phạm vi ⇒ 403; GV lọc lớp không dạy ⇒ 403")
     void filtersOutsideScopeAreDenied() {
         given(classroomService.findCampusId(21L)).willReturn(Optional.of(20L));
         expectCode(VICE, new ChildListFilter(null, 20L, null, null, null, 0, 20), ApiCode.CAMPUS_ACCESS_DENIED);
@@ -120,6 +128,49 @@ class ChildListServiceImplTest {
         expectCode(TEACHER, new ChildListFilter(null, null, 21L, null, null, 0, 20), ApiCode.CLASS_ACCESS_DENIED);
         verify(childRepository, never())
                 .findListRows(any(), any(), any(), anyBoolean(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("AUTH-20: PHT đọc cả trường xem được lớp cơ sở khác; canManage vẫn chỉ cơ sở được giao")
+    void vicePrincipalReadsOtherCampusClassWithoutManage() {
+        given(campusAccessPolicy.canReadAllCampuses(VICE)).willReturn(true);
+        ChildRepository.ChildListRow other = row(201L, 21L);
+        given(childRepository.findListRows(
+                        any(),
+                        any(),
+                        anyCollection(),
+                        eq(true),
+                        anyCollection(),
+                        anyCollection(),
+                        any(),
+                        eq(21L),
+                        any()))
+                .willReturn(List.of(other));
+        given(childRepository.findAllById(List.of(201L))).willReturn(List.of(child(201L, ChildStatus.ACTIVE, 20L)));
+        given(classroomService.findClassroomInfo(21L))
+                .willReturn(Optional.of(new ClassroomInfoResponse(
+                        21L,
+                        "Lớp Lá 3",
+                        20L,
+                        5L,
+                        SchoolYearStatus.ACTIVE,
+                        LocalDate.of(2026, 9, 1),
+                        LocalDate.of(2027, 5, 31),
+                        5L,
+                        List.of(),
+                        25,
+                        ClassroomStatus.ACTIVE)));
+        given(guardianViews.of(List.of(201L))).willReturn(Map.of());
+        given(declarationRepository.findDeclaredChildIds(List.of(201L))).willReturn(List.of());
+        given(linkService.countGuardiansByChildIds(List.of(201L))).willReturn(Map.of());
+
+        PageResponse<ChildListItemResponse> page =
+                service.browseChildren(VICE, new ChildListFilter(null, null, 21L, null, null, 0, 20));
+
+        assertThat(page.items()).singleElement().satisfies(item -> {
+            assertThat(item.campusId()).isEqualTo(20L);
+            assertThat(item.canManage()).isFalse();
+        });
     }
 
     @Test
@@ -140,6 +191,7 @@ class ChildListServiceImplTest {
                         any()))
                 .willReturn(List.of(first, second));
         Child pending = child(102L, ChildStatus.PENDING_PLACEMENT, 10L);
+        pending.scheduleLeave(LocalDate.of(2026, 12, 1), "Chuyển nhà", 5L);
         given(childRepository.findAllById(List.of(102L))).willReturn(List.of(pending));
         given(guardianViews.of(List.of(102L)))
                 .willReturn(Map.of(
@@ -171,6 +223,8 @@ class ChildListServiceImplTest {
             assertThat(item.hasDeclaration()).isTrue();
             assertThat(item.canManage()).isTrue();
             assertThat(item.guardianCount()).isEqualTo(1L);
+            // G94-180/CHD-03 (user chốt 2026-11-25): dòng danh sách mang ngày của lịch nghỉ chưa tới ngày
+            assertThat(item.scheduledLeaveOn()).isEqualTo(LocalDate.of(2026, 12, 1));
             assertThat(item.guardians()).singleElement().satisfies(g -> {
                 assertThat(g.idNumber()).isNull();
                 assertThat(g.email()).isNull();
@@ -224,6 +278,43 @@ class ChildListServiceImplTest {
     }
 
     @Test
+    @DisplayName("CHD-09, CHD-11: dòng danh sách kèm đăng ký năm sau, tải cả trang một lần")
+    void rowsCarryPlannedAdmissionLoadedInOneBatch() {
+        given(childRepository.findListRows(
+                        any(),
+                        any(),
+                        anyCollection(),
+                        anyBoolean(),
+                        anyCollection(),
+                        anyCollection(),
+                        any(),
+                        any(),
+                        any()))
+                .willReturn(List.of(row(102L, null), row(103L, null)));
+        given(childRepository.findAllById(List.of(102L, 103L)))
+                .willReturn(List.of(
+                        child(102L, ChildStatus.PENDING_PLACEMENT, 10L),
+                        child(103L, ChildStatus.PENDING_PLACEMENT, 10L)));
+        PlannedAdmissionResponse admission = new PlannedAdmissionResponse(
+                9L,
+                "2027-2028",
+                10L,
+                31L,
+                "Lớp A năm sau",
+                LocalDate.of(2027, 9, 5),
+                com.carenest.utils.enums.PlannedAdmissionStatus.PLACED);
+        given(intakeService.findOpenPlannedAdmissions(List.of(102L, 103L))).willReturn(Map.of(102L, admission));
+
+        PageResponse<ChildListItemResponse> page =
+                service.searchChildren(VICE, new ChildListFilter(null, null, null, null, null, 0, 20));
+
+        assertThat(page.items())
+                .extracting(ChildListItemResponse::plannedAdmission)
+                .containsExactly(admission, null);
+        verify(intakeService).findOpenPlannedAdmissions(List.of(102L, 103L));
+    }
+
+    @Test
     @DisplayName("AUTH-04: phụ huynh (có CHILD_PROFILE_VIEW) không dùng được danh sách toàn trường ⇒ 403")
     void parentIsForbidden() {
         CurrentUser parent = TestPermissions.userWithDefaults(40L, CareNestRole.PARENT);
@@ -261,7 +352,8 @@ class ChildListServiceImplTest {
                 Gender.FEMALE,
                 status != ChildStatus.PENDING_PLACEMENT,
                 intakeCampusId,
-                LocalDate.of(2026, 9, 1));
+                LocalDate.of(2026, 9, 1),
+                true);
         ReflectionTestUtils.setField(child, "id", id);
         return child;
     }

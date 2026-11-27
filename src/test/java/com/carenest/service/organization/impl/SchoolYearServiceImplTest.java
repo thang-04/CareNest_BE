@@ -58,6 +58,7 @@ class SchoolYearServiceImplTest {
     private final SchoolYearServiceImpl service = new SchoolYearServiceImpl(
             schoolYearRepository,
             classroomRepository,
+            mock(com.carenest.repository.organization.AgeGroupRepository.class),
             mock(AttendanceCutoffRepository.class),
             staffAssignmentService,
             new SchoolStructureMapper(),
@@ -67,7 +68,12 @@ class SchoolYearServiceImplTest {
             holidayRepository,
             List.of(dayUsage),
             mock(com.carenest.repository.organization.CampusRepository.class),
-            mock(com.carenest.service.notification.NotificationService.class));
+            mock(com.carenest.repository.organization.RoomRepository.class),
+            mock(com.carenest.service.notification.NotificationService.class),
+            new SchoolConfigAccess(
+                    staffAssignmentService,
+                    mock(com.carenest.security.authorization.CampusAccessPolicy.class),
+                    FIXED_CLOCK));
 
     @BeforeEach
     void principalHasActiveAssignment() {

@@ -5,12 +5,14 @@ import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.entity.eduplan.EduPlanEvent;
 import com.carenest.repository.eduplan.EduPlanEventRepository;
 import com.carenest.repository.eduplan.EduPlanRepository;
+import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,10 +26,13 @@ import org.springframework.stereotype.Component;
 @Component
 class EduPlanTimeLock {
     static final String ACTION_UNLOCK = "unlock";
+    static final String ACTION_RETURN = "RETURN";
+    static final String ACTION_REOPEN_REVIEW = "REOPEN_REVIEW_DEADLINE";
 
     private final SchoolStructureService schoolStructureService;
     private final EduPlanEventRepository eventRepository;
     private final EduPlanRepository planRepository;
+    private final EduSettingsRepository settingsRepository;
     private final Clock clock;
     private final boolean enabled;
 
@@ -36,11 +41,13 @@ class EduPlanTimeLock {
             SchoolStructureService schoolStructureService,
             EduPlanEventRepository eventRepository,
             EduPlanRepository planRepository,
+            EduSettingsRepository settingsRepository,
             Clock clock,
             @Value("${carenest.eduplan.plan-time-lock-enabled:true}") boolean enabled) {
         this.schoolStructureService = schoolStructureService;
         this.eventRepository = eventRepository;
         this.planRepository = planRepository;
+        this.settingsRepository = settingsRepository;
         this.clock = clock;
         this.enabled = enabled;
     }
@@ -61,27 +68,23 @@ class EduPlanTimeLock {
                 .map(EduPlan::getId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         chain.add(plan.getId());
-        LocalDate unlockedTo = chain.stream()
+        List<EduPlanEvent> events = chain.stream()
                 .filter(Objects::nonNull)
                 .flatMap(id -> eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(id).stream())
-                .filter(e -> ACTION_UNLOCK.equals(e.getAction()) && e.getDeadline() != null)
-                .max(Comparator.comparing(EduPlanEvent::getOccurredAt))
+                .sorted(Comparator.comparing(EduPlanEvent::getOccurredAt))
+                .toList();
+        LocalDate unlockedTo = events.stream()
+                // EDU-109 (9): một hạn hiệu lực = lần HT mở gần nhất, mở khóa gửi hay mở hạn duyệt
+                .filter(e -> (ACTION_UNLOCK.equals(e.getAction()) || ACTION_REOPEN_REVIEW.equals(e.getAction()))
+                        && e.getDeadline() != null)
+                .reduce((a, b) -> b)
                 .map(EduPlanEvent::getDeadline)
                 .orElse(null);
         LocalDate issued = plan.getIssuedAt() == null ? null : LocalDate.ofInstant(plan.getIssuedAt(), clock.getZone());
-        return EduDeadline.of(start, unlockedTo, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued, null);
+        return EduDeadline.of(start, unlockedTo, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued);
     }
 
     /** Spec 005 FR-021: chuỗi phiên bản đã có bản ban hành ⇒ không mở khóa nữa. */
-    boolean released(EduPlan plan) {
-        return plan.publicStatus() == EduPlanStatus.APPROVED
-                || planRepository
-                        .findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
-                                plan.getPlanLevel(), plan.getSchoolYearId(), plan.getAgeGroupId())
-                        .stream()
-                        .anyMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED);
-    }
-
     boolean locked(EduPlan plan) {
         if (!enabled) return false;
         LocalDate effective = info(plan).effective();

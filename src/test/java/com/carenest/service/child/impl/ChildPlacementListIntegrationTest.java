@@ -55,7 +55,7 @@ class ChildPlacementListIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -283,6 +283,45 @@ class ChildPlacementListIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "CHD-09: trẻ nghỉ rồi mở lại hồ sơ (chờ xếp lớp), lớp cũ trong năm đã đóng ⇒ danh sách năm không có lớp")
+    void readmittedChildDoesNotShowClosedClassOfYear() {
+        long nga = child("Tuệ Nga", "PENDING_PLACEMENT", "2026-09-01", campusA, null);
+        enroll(nga, classA1, "2026-09-01", "2026-10-19");
+
+        assertThat(listService
+                        .searchChildren(principal, filter(yearActive, null, ALL))
+                        .items())
+                .filteredOn(item -> item.id().equals(nga))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+                    assertThat(item.classId()).isNull();
+                    assertThat(item.className()).isNull();
+                });
+    }
+
+    @Test
+    @DisplayName("CHD-09: trẻ chờ xếp lớp có lớp dự kiến năm sau (chưa bắt đầu) ⇒ vẫn hiện lớp dự kiến")
+    void pendingChildKeepsPlannedClassOfNextYear() {
+        long yearNext = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        long plannedClass = classroom(campusA, yearNext, "Chồi A1 mới");
+        long nga = child("Tuệ Nga", "PENDING_PLACEMENT", "2026-09-01", campusA, null);
+        enroll(nga, plannedClass, "2027-09-06", null);
+
+        assertThat(listService
+                        .searchChildren(principal, filter(yearNext, null, ALL))
+                        .items())
+                .filteredOn(item -> item.id().equals(nga))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.classId()).isEqualTo(plannedClass);
+                    assertThat(item.className()).isEqualTo("Chồi A1 mới");
+                });
+    }
+
+    @Test
     @DisplayName("AUTH-08: GV chỉ thấy trẻ lớp mình; lọc lớp khác ⇒ 403; từ khóa theo mã trẻ")
     void teacherScopeAndKeyword() {
         assertThat(ids(listService.searchChildren(teacherA1, filter(null, null, null))))
@@ -309,8 +348,14 @@ class ChildPlacementListIntegrationTest {
     }
 
     private long classroom(long campusId, long yearId, String name) {
-        return insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusId + ", " + yearId
-                + ", '" + name + "') RETURNING id");
+        long ageGroup = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups WHERE id = ? ON CONFLICT DO NOTHING",
+                yearId,
+                ageGroup);
+        return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusId
+                + ", " + yearId + ", '" + name + "', " + ageGroup + ") RETURNING id");
     }
 
     private long child(String name, String status, String enrolledOn, Long intakeCampusId, String leftOn) {

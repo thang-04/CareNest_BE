@@ -76,6 +76,7 @@ class AuthServiceImplTest {
     private CurrentUser current;
     private MyAccountResponse profile;
     private final Clock clock = Clock.fixed(Instant.parse("2026-10-12T03:00:00Z"), ZoneOffset.UTC);
+    private final WebSessionTakeoverStore takeovers = new WebSessionTakeoverStore();
 
     @BeforeEach
     void setup() throws Exception {
@@ -86,7 +87,8 @@ class AuthServiceImplTest {
                 "carenest-auth-gateway",
                 "gateway-secret-at-least-32-characters",
                 false,
-                List.of("http://localhost:5173"));
+                List.of("http://localhost:5173"),
+                true);
         crypto = new AuthCrypto(properties);
         account = UserAccount.create("kc-user-1", "teacher.a", "teacher@example.test", "Giáo viên Demo");
         Field id = UserAccount.class.getDeclaredField("id");
@@ -106,7 +108,11 @@ class AuthServiceImplTest {
                 List.of(),
                 false,
                 false);
-        service = new AuthServiceImpl(
+        service = newService(true);
+    }
+
+    private AuthServiceImpl newService(boolean singleWebSession) {
+        return new AuthServiceImpl(
                 new AuthProperties(
                         true,
                         key(),
@@ -114,7 +120,8 @@ class AuthServiceImplTest {
                         "carenest-auth-gateway",
                         "gateway-secret-at-least-32-characters",
                         false,
-                        List.of("http://localhost:5173")),
+                        List.of("http://localhost:5173"),
+                        singleWebSession),
                 crypto,
                 keycloak,
                 userAccounts,
@@ -131,7 +138,8 @@ class AuthServiceImplTest {
                         false,
                         java.time.Duration.ofSeconds(3),
                         java.time.Duration.ofSeconds(5)),
-                new AuthRefreshCoalescer(clock));
+                new AuthRefreshCoalescer(clock),
+                takeovers);
     }
 
     private static String key() {
@@ -147,6 +155,9 @@ class AuthServiceImplTest {
         var unknown = service.forgot(new com.carenest.dto.account.AuthRequests.Forgot("unknown@example.test"));
         assertThat(known.expiresAt()).isEqualTo(unknown.expiresAt());
         assertThat(known.resendAvailableAt()).isEqualTo(unknown.resendAvailableAt());
+        // Client đếm ngược theo số giây tương đối, không so giờ máy với expiresAt (máy lệch giờ ⇒ báo hết hạn sai)
+        assertThat(known.expiresInSeconds()).isEqualTo(300);
+        assertThat(known.resendInSeconds()).isEqualTo(60);
         assertThat(known.requestId()).hasSize(43);
         assertThat(unknown.requestId()).hasSize(43).isNotEqualTo(known.requestId());
         var saved = ArgumentCaptor.forClass(com.carenest.entity.account.PasswordToken.class);
@@ -226,6 +237,46 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("Đúng mật khẩu nhưng tài khoản bị vô hiệu hóa ⇒ báo vô hiệu hóa, không báo sai mật khẩu")
+    void disabledAccountWithCorrectPasswordIsReportedAsInactive() {
+        given(keycloak.login("teacher.a", "correct-password")).willThrow(mock(AuthGatewayClient.AccountDisabled.class));
+
+        assertThatThrownBy(() -> service.login(
+                        new com.carenest.dto.account.AuthRequests.Login("teacher.a", "correct-password", false)))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.ACCOUNT_INACTIVE.getDefaultDesc());
+    }
+
+    @Test
+    @DisplayName("Keycloak đang khóa tạm sau 5 lần sai ⇒ 429 kèm thời gian chờ, không báo sai mật khẩu")
+    void temporarilyLockedLoginReportsRemainingWait() {
+        given(keycloak.login("0912345678", "any")).willThrow(mock(AuthGatewayClient.InvalidCredentials.class));
+        given(keycloak.loginBlockedUntil("0912345678"))
+                .willReturn(java.util.Optional.of(clock.instant().plusSeconds(45)));
+
+        assertThatThrownBy(() ->
+                        service.login(new com.carenest.dto.account.AuthRequests.Login("+84 912 345 678", "any", false)))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.LOGIN_TEMPORARILY_LOCKED.format("45 giây"))
+                .extracting(ex -> ((GlobalException) ex).getData())
+                .isEqualTo(java.util.Map.of(
+                        "retryAfterSeconds", 45L, "retryAt", clock.instant().plusSeconds(45)));
+    }
+
+    @Test
+    @DisplayName("Mốc khóa đã qua ⇒ vẫn là sai mật khẩu; chờ dài làm tròn lên theo phút")
+    void expiredLockIsPlainInvalidCredentialsAndLongWaitIsInMinutes() {
+        given(keycloak.login("teacher.a", "wrong")).willThrow(mock(AuthGatewayClient.InvalidCredentials.class));
+        given(keycloak.loginBlockedUntil("teacher.a"))
+                .willReturn(java.util.Optional.of(clock.instant().minusSeconds(1)))
+                .willReturn(java.util.Optional.of(clock.instant().plusSeconds(61)));
+        var login = new com.carenest.dto.account.AuthRequests.Login("teacher.a", "wrong", false);
+
+        assertThatThrownBy(() -> service.login(login)).hasMessage(ApiCode.INVALID_CREDENTIALS.getDefaultDesc());
+        assertThatThrownBy(() -> service.login(login)).hasMessage(ApiCode.LOGIN_TEMPORARILY_LOCKED.format("2 phút"));
+    }
+
+    @Test
     void provisionedInactiveAccountCannotAcquireAWebSession() {
         given(keycloak.login("teacher.a", "correct-password"))
                 .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 36000));
@@ -287,6 +338,82 @@ class AuthServiceImplTest {
         verify(state)
                 .finishPassword(
                         org.mockito.ArgumentMatchers.eq(hash), any(), any(), org.mockito.ArgumentMatchers.eq(true));
+        verify(state, never()).markPasswordChanged(any());
+    }
+
+    @Test
+    @DisplayName("Đặt lại mật khẩu thành công ⇒ ghi mốc đổi mật khẩu để token cũ hết hiệu lực")
+    void successfulPasswordResetMarksPasswordChanged() {
+        String token = crypto.randomToken();
+        String hash = crypto.hash(token);
+        var challenge = new AuthStateStore.PasswordTokenState(
+                hash,
+                91L,
+                "kc-user-1",
+                null,
+                crypto.seal("provider-proof", hash + ":provider"),
+                PasswordTokenPurpose.RESET,
+                clock.instant().plusSeconds(300),
+                clock.instant());
+        given(state.claimPassword(org.mockito.ArgumentMatchers.eq(hash), any(), any()))
+                .willReturn(new AuthStateStore.Claim<>(AuthStateStore.Status.CLAIMED, challenge));
+
+        service.setPassword(new AuthRequests.Reset(token, "New-password-123!", "New-password-123!"));
+
+        var order = org.mockito.Mockito.inOrder(keycloak, state);
+        order.verify(keycloak).changePassword("provider-proof", "New-password-123!", "New-password-123!");
+        order.verify(state).revokeAccountAuth(91L);
+        order.verify(state).markPasswordChanged(91L);
+    }
+
+    @Test
+    @DisplayName("Mã yêu cầu OTP sai dạng ⇒ 404/1004 ở mọi đường OTP và đặt mật khẩu")
+    void malformedRequestIdIsNotFoundNotInvalidSession() {
+        assertApiCode(() -> service.otpMetadata("khongcoid123"), ApiCode.AUTH_REQUEST_NOT_FOUND);
+        assertApiCode(() -> service.resend("khongcoid123"), ApiCode.AUTH_REQUEST_NOT_FOUND);
+        assertApiCode(
+                () -> service.verifyOtp(new AuthRequests.VerifyOtp("123456"), "khongcoid123"),
+                ApiCode.AUTH_REQUEST_NOT_FOUND);
+        assertApiCode(
+                () -> service.setPassword(new AuthRequests.Reset("short", "New-password-123!", "New-password-123!")),
+                ApiCode.AUTH_REQUEST_NOT_FOUND);
+        verifyNoInteractions(keycloak, state);
+    }
+
+    @Test
+    @DisplayName("Đổi mật khẩu trùng tên đăng nhập (khác hoa thường) ⇒ 1021, không gọi Keycloak")
+    void changePasswordEqualToUsernameIsRejectedBeforeProvider() {
+        assertApiCode(
+                () -> service.changePassword(
+                        current, new AuthRequests.ChangePassword("secret", "Teacher.A", "Teacher.A")),
+                ApiCode.PASSWORD_SAME_AS_USERNAME);
+        verifyNoInteractions(keycloak);
+    }
+
+    @Test
+    @DisplayName("Đặt lại mật khẩu trùng tên đăng nhập ⇒ 1021, trả lại token để nhập mật khẩu khác")
+    void setPasswordEqualToUsernameReleasesTheToken() {
+        String token = crypto.randomToken();
+        String hash = crypto.hash(token);
+        var challenge = new AuthStateStore.PasswordTokenState(
+                hash,
+                91L,
+                "kc-user-1",
+                null,
+                crypto.seal("provider-proof", hash + ":provider"),
+                PasswordTokenPurpose.RESET,
+                clock.instant().plusSeconds(300),
+                clock.instant());
+        given(state.claimPassword(org.mockito.ArgumentMatchers.eq(hash), any(), any()))
+                .willReturn(new AuthStateStore.Claim<>(AuthStateStore.Status.CLAIMED, challenge));
+        given(userAccounts.findById(91L)).willReturn(Optional.of(account));
+        assertApiCode(
+                () -> service.setPassword(new AuthRequests.Reset(token, "TEACHER.A", "TEACHER.A")),
+                ApiCode.PASSWORD_SAME_AS_USERNAME);
+        verify(state)
+                .finishPassword(
+                        org.mockito.ArgumentMatchers.eq(hash), any(), any(), org.mockito.ArgumentMatchers.eq(false));
+        verifyNoInteractions(keycloak);
     }
 
     @Test
@@ -367,6 +494,143 @@ class AuthServiceImplTest {
         verifyNoInteractions(state);
     }
 
+    private Jwt sessionJwt(String token, String sid) {
+        return Jwt.withTokenValue(token)
+                .header("alg", "RS256")
+                .subject("kc-user-1")
+                .claim("sid", sid)
+                .issuedAt(clock.instant())
+                .expiresAt(clock.instant().plusSeconds(300))
+                .build();
+    }
+
+    // Đăng nhập ở trình duyệt mới trong khi tài khoản còn phiên Web khác ⇒ lượt chờ xác nhận
+    private com.carenest.service.account.AuthService.LoginResult pendingLogin() {
+        given(keycloak.login("teacher.a", "current-secret"))
+                .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 1800));
+        given(decoder.decode("signed-access")).willReturn(sessionJwt("signed-access", "new-session"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(current);
+        given(accounts.getMyAccount(current)).willReturn(profile);
+        given(keycloak.hasOtherWebSessions("kc-user-1", "new-session")).willReturn(true);
+        return service.login(new AuthRequests.Login("teacher.a", "current-secret", true));
+    }
+
+    private static void assertApiCode(ThrowingCallable call, ApiCode code) {
+        assertThatThrownBy(call)
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(code);
+    }
+
+    @Test
+    @DisplayName(
+            "AUTH-28: còn phiên Web khác ⇒ chưa cấp phiên, chưa đá ai, refresh token chỉ nằm trong cookie niêm phong")
+    void loginWithOtherWebSessionWaitsForChoice() {
+        var result = pendingLogin();
+        assertThat(result.data().takeover()).isNotNull();
+        assertThat(result.data().accessToken()).isNull();
+        assertThat(result.cookie().value()).doesNotContain("private-refresh");
+        assertThat(crypto.open(result.cookie().value(), "takeover-cookie")).endsWith("|private-refresh");
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+        verify(keycloak, never()).logout(any());
+        verifyNoInteractions(state);
+    }
+
+    @Test
+    @DisplayName("AUTH-28: trình duyệt mới chọn 'Dùng ở đây' ⇒ cấp phiên, giờ mới hủy và chặn ngay phiên cũ")
+    void confirmTakeoverRevokesOtherSessions() {
+        String takeoverCookie = pendingLogin().cookie().value();
+        given(keycloak.refresh("private-refresh"))
+                .willReturn(new AuthGatewayClient.Tokens("fresh-access", "rotated-refresh", 300, 1800));
+        given(decoder.decode("fresh-access")).willReturn(sessionJwt("fresh-access", "new-session"));
+        given(keycloak.revokeOtherWebSessions("kc-user-1", "new-session")).willReturn(List.of("old-session"));
+
+        var result = service.confirmTakeover(takeoverCookie);
+
+        assertThat(result.data().accessToken()).isEqualTo("fresh-access");
+        assertThat(crypto.open(result.cookie().value(), "session-cookie")).endsWith("|true|rotated-refresh");
+        verify(state).revokeWebSessions("kc-user-1", List.of("old-session"));
+        // Lượt chờ dùng một lần
+        assertApiCode(() -> service.confirmTakeover(takeoverCookie), ApiCode.WEB_SESSION_TAKEOVER_EXPIRED);
+    }
+
+    @Test
+    @DisplayName("AUTH-28: phiên đang dùng thấy lượt chờ và chọn ở lại ⇒ trình duyệt mới bị từ chối, phiên chờ bị hủy")
+    void activeSessionKeepsItselfAndRejectsTakeover() {
+        String takeoverCookie = pendingLogin().cookie().value();
+        var pending = service.sessionStatus(current).pendingTakeover();
+        assertThat(pending).isNotNull();
+
+        service.rejectTakeover(current, pending.id());
+
+        verify(keycloak).revokeSession("new-session");
+        assertThat(service.sessionStatus(current).pendingTakeover()).isNull();
+        assertApiCode(() -> service.confirmTakeover(takeoverCookie), ApiCode.WEB_SESSION_TAKEOVER_REJECTED);
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+    }
+
+    @Test
+    @DisplayName("AUTH-28: không từ chối được lượt chờ của tài khoản khác (không tin id client gửi)")
+    void cannotRejectAnotherAccountsTakeover() {
+        pendingLogin();
+        String id = service.sessionStatus(current).pendingTakeover().id();
+        var other = new CurrentUser(
+                92L, "kc-user-2", "teacher.b", "Giáo viên B", "b@example.test", Set.of(CareNestRole.TEACHER));
+        assertThat(service.sessionStatus(other).pendingTakeover()).isNull();
+        assertApiCode(() -> service.rejectTakeover(other, id), ApiCode.WEB_SESSION_TAKEOVER_EXPIRED);
+        verify(keycloak, never()).revokeSession(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-28: trình duyệt mới chọn 'Hủy' ⇒ đăng xuất phiên chờ, phiên đang dùng không bị gì")
+    void cancelTakeoverLogsOutPendingSessionOnly() {
+        String takeoverCookie = pendingLogin().cookie().value();
+        service.cancelTakeover(takeoverCookie);
+        verify(keycloak).logout("private-refresh");
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+        assertThat(service.sessionStatus(current).pendingTakeover()).isNull();
+    }
+
+    @Test
+    @DisplayName("AUTH-28: không còn phiên Web khác ⇒ đăng nhập thẳng như cũ")
+    void loginWithoutOtherSessionsIssuesSessionDirectly() {
+        given(keycloak.login("teacher.a", "current-secret"))
+                .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 1800));
+        given(decoder.decode("signed-access")).willReturn(sessionJwt("signed-access", "new-session"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(current);
+        given(accounts.getMyAccount(current)).willReturn(profile);
+        var result = service.login(new AuthRequests.Login("teacher.a", "current-secret", false));
+        assertThat(result.data().takeover()).isNull();
+        assertThat(result.data().accessToken()).isEqualTo("signed-access");
+    }
+
+    @Test
+    @DisplayName("AUTH-28: tắt giới hạn (môi trường test dùng chung tài khoản) ⇒ đăng nhập thẳng, không hỏi, không hủy")
+    void loginWithLimitDisabledIgnoresOtherSessions() {
+        var unlimited = newService(false);
+        given(keycloak.login("teacher.a", "current-secret"))
+                .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 1800));
+        given(decoder.decode("signed-access")).willReturn(sessionJwt("signed-access", "new-session"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(current);
+        given(accounts.getMyAccount(current)).willReturn(profile);
+
+        var result = unlimited.login(new AuthRequests.Login("teacher.a", "current-secret", false));
+
+        assertThat(result.data().takeover()).isNull();
+        assertThat(result.data().accessToken()).isEqualTo("signed-access");
+        verify(keycloak, never()).hasOtherWebSessions(any(), any());
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+    }
+
+    @Test
+    @DisplayName("AUTH-28: token thiếu sid thì không hỏi, không hủy phiên nào (không đoán phiên mới)")
+    void loginWithoutSessionIdRevokesNothing() {
+        stubLogin("private-refresh");
+        service.login(new AuthRequests.Login("teacher.a", "current-secret", false));
+        verify(keycloak, never()).hasOtherWebSessions(any(), any());
+        verify(keycloak, never()).revokeOtherWebSessions(any(), any());
+    }
+
     @Test
     @DisplayName("AUTH-07: không chọn ghi nhớ thì cookie theo phiên trình duyệt")
     void unrememberedLoginUsesBrowserSessionCookie() {
@@ -405,7 +669,8 @@ class AuthServiceImplTest {
                 "carenest-auth-gateway",
                 "gateway-secret-at-least-32-characters",
                 false,
-                List.of("http://localhost:5173")));
+                List.of("http://localhost:5173"),
+                true));
         String foreign = other.seal("s1|" + clock.instant().getEpochSecond() + "|true|old-refresh", "session-cookie");
         for (String cookie : List.of(tampered, foreign, "not-a-cookie", crypto.seal("garbage", "session-cookie")))
             assertCode(() -> service.refresh(cookie), ApiCode.UNAUTHORIZED);
@@ -427,6 +692,30 @@ class AuthServiceImplTest {
         String cookie = sessionCookie(clock.instant(), false, "old-refresh");
         given(keycloak.refresh("old-refresh")).willThrow(mock(AuthGatewayClient.SessionRejected.class));
         assertCode(() -> service.refresh(cookie), ApiCode.UNAUTHORIZED);
+    }
+
+    @Test
+    @DisplayName("AUTH-28: phiên bị đăng nhập Web mới hơn thay thế thì refresh trả 401 mã 1016, không phải hết hạn")
+    void replacedSessionReportsWhyItEnded() {
+        String cookie = sessionCookie(clock.instant(), false, "old-refresh");
+        given(keycloak.refresh("old-refresh")).willThrow(mock(AuthGatewayClient.SessionRejected.class));
+        given(keycloak.replacedByNewerWebSession(org.mockito.ArgumentMatchers.eq("old-refresh"), any()))
+                .willReturn(true);
+        assertThatThrownBy(() -> service.refresh(cookie))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.WEB_SESSION_REPLACED);
+    }
+
+    @Test
+    @DisplayName("AUTH-28: phiên hết hạn thường (không có đăng nhập mới hơn) vẫn trả 1003")
+    void expiredSessionWithoutNewerLoginKeepsGenericCode() {
+        String cookie = sessionCookie(clock.instant(), false, "old-refresh");
+        given(keycloak.refresh("old-refresh")).willThrow(mock(AuthGatewayClient.SessionRejected.class));
+        assertThatThrownBy(() -> service.refresh(cookie))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.WEB_SESSION_INVALID);
     }
 
     @Test
@@ -571,9 +860,38 @@ class AuthServiceImplTest {
     @DisplayName("AUTH-07: logout thu hồi refresh token ở Keycloak; cookie hỏng không lỗi")
     void logoutRevokesProviderTokenAndIgnoresBrokenCookie() {
         service.logout(sessionCookie(clock.instant(), true, "old-refresh"));
+        verify(keycloak).sessionOf("old-refresh");
         verify(keycloak).logout("old-refresh");
+        verify(state, never()).endWebSession(any(), any());
         service.logout("not-a-cookie");
         service.logout(null);
         verifyNoMoreInteractions(keycloak);
+    }
+
+    @Test
+    @DisplayName("Đăng xuất chặn ngay access token của đúng phiên đó trước khi hủy phiên Keycloak")
+    void logoutEndsTheWebSessionBeforeProviderLogout() {
+        given(keycloak.sessionOf("old-refresh"))
+                .willReturn(Optional.of(new AuthGatewayClient.SessionRef("kc-user-1", "sid-1")));
+
+        service.logout(sessionCookie(clock.instant(), true, "old-refresh"));
+
+        var order = org.mockito.Mockito.inOrder(state, keycloak);
+        order.verify(state).endWebSession("kc-user-1", "sid-1");
+        order.verify(keycloak).logout("old-refresh");
+    }
+
+    @Test
+    @DisplayName("Ghi thu hồi phiên lỗi vẫn đăng xuất ở Keycloak")
+    void logoutStillRevokesProviderSessionWhenRecordingFails() {
+        given(keycloak.sessionOf("old-refresh"))
+                .willReturn(Optional.of(new AuthGatewayClient.SessionRef("kc-user-1", "sid-1")));
+        org.mockito.Mockito.doThrow(new IllegalStateException("db down"))
+                .when(state)
+                .endWebSession("kc-user-1", "sid-1");
+
+        service.logout(sessionCookie(clock.instant(), true, "old-refresh"));
+
+        verify(keycloak).logout("old-refresh");
     }
 }

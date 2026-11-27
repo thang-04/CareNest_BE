@@ -7,7 +7,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Danh mục quyền (ADR-0017). Chỉ khai quyền BE thực sự kiểm tra bằng {@code @permissionGuard}; module mới tự thêm
+ * Danh mục quyền (ADR-0
+ * 017). Chỉ khai quyền BE thực sự kiểm tra bằng {@code @permissionGuard}; module mới tự thêm
  * quyền của nó. Quyền chỉ trả lời "được làm hay không" — phạm vi campus/lớp/trẻ vẫn do policy kiểm (AUTH-13).
  *
  * <p>{@code defaultRoles}: role có quyền mặc định (role cố định lấy thẳng từ đây, role cấu hình được seed vào
@@ -26,11 +27,12 @@ public enum Permission {
             "Tiếp nhận trẻ, nhập Excel, mở lại hồ sơ trẻ đã nghỉ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // AUTH-10 (user chốt 2026-11-15): HT cấp thêm được cho GV, GV chỉ sửa trẻ lớp đang dạy
     CHILD_PROFILE_EDIT(
             "child",
             "Sửa hồ sơ trẻ, khai báo sức khỏe",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER)),
     CHILD_PLACEMENT(
             "child",
             "Xếp lớp, chuyển lớp, cho trẻ nghỉ học",
@@ -152,9 +154,15 @@ public enum Permission {
     // AUTH-20: danh mục bán trú dùng chung cả trường (SCH-06); PHT mặc định tắt, HT cấp cho PHT dinh dưỡng
     NUTRITION_MANAGE(
             "meals",
-            "Quản lý danh mục bán trú: thực phẩm, món, cấu hình nhóm tuổi, nhà cung cấp",
+            "Quản lý danh mục bán trú: thực phẩm, món, nhà cung cấp",
             EnumSet.of(CareNestRole.PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // NUT-17 (user chốt 2026-11-15): chỉ HT cấu hình bữa, chuẩn, giá suất theo nhóm tuổi; cố định, không giao được
+    MEAL_CONFIG_MANAGE(
+            "meals",
+            "Cấu hình bữa, chuẩn dinh dưỡng, giá suất theo nhóm tuổi",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.noneOf(CareNestRole.class)),
     // NUT-08 + AUTH-20: lập và công bố thực đơn tuần cả trường (công bố là duyệt); PHT mặc định tắt
     MENU_MANAGE(
             "meals",
@@ -181,13 +189,109 @@ public enum Permission {
             EnumSet.of(CareNestRole.PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL),
             true),
+    // EDU-108: mã theo loại hồ sơ × soạn/duyệt; ai soạn, ai duyệt, đến lượt ai vẫn theo policy EDU-54
+    EDU_SCHOOL_YEAR_PLAN_EDIT(
+            "education-plan",
+            "Soạn kế hoạch năm học",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER)),
+    EDU_SCHOOL_YEAR_PLAN_APPROVE(
+            "education-plan",
+            "Duyệt kế hoạch năm học",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
+    EDU_TEAM_PLAN_EDIT(
+            "education-plan",
+            "Soạn kế hoạch tổ",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER),
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER)),
+    EDU_TEAM_PLAN_APPROVE(
+            "education-plan",
+            "Duyệt kế hoạch tổ",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
+    EDU_SEMESTER_PACKAGE_EDIT(
+            "education-plan",
+            "Soạn gói học kỳ (chủ đề nhánh, kế hoạch chủ đề, kế hoạch tuần theo kỳ)",
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER),
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER)),
+    EDU_SEMESTER_PACKAGE_APPROVE(
+            "education-plan",
+            "Duyệt gói học kỳ",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
+    EDU_THEME_PLAN_EDIT(
+            "education-plan",
+            "Soạn hồ sơ chủ đề (kế hoạch tuần, kế hoạch ngày)",
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER),
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER)),
+    EDU_THEME_PLAN_APPROVE(
+            "education-plan",
+            "Duyệt hồ sơ chủ đề",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEAM_LEADER)),
+    // Quyết định 11/11/2026: cấu hình kế hoạch chỉ HT; PHT mặc định tắt, HT bật được
+    EDU_PLAN_CONFIG(
+            "education-plan",
+            "Sửa cấu hình lĩnh vực, dòng hoạt động kế hoạch giáo dục",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // Tiền 24/11/2026 (EDU-108, EDU-110 (7)): chỉ là ngoại lệ theo PHT, không có ô ở ma trận vai trò. PHT mặc định là
+    // chuyên môn; REVOKE (PHT dinh dưỡng) ⇒ mất mã soạn/duyệt, cấu hình KHGD, chỉ xem bản đã ban hành
+    EDU_ACADEMIC_DUTY(
+            "education-plan",
+            "Phụ trách chuyên môn kế hoạch giáo dục",
+            EnumSet.noneOf(CareNestRole.class),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
     // Không giao được cho ai: nếu giao, người được giao tự cấp thêm quyền cho mình (AUTH-11)
     PERMISSION_MANAGE(
             "account", "Quản lý phân quyền", EnumSet.of(CareNestRole.PRINCIPAL), EnumSet.noneOf(CareNestRole.class));
 
-    /** Role có hàng trong ma trận; quyền các role khác cố định trong code (AUTH-11). TEAM_LEADER theo AUTH-23. */
+    /**
+     * Role có hàng trong ma trận; quyền các role khác cố định trong code (AUTH-11). TEAM_LEADER theo AUTH-23.
+     * PRINCIPAL chỉ có ô cho 8 mã soạn/duyệt kế hoạch giáo dục (EDU-110), mã khác của HT vẫn cố định.
+     */
     public static final Set<CareNestRole> CONFIGURABLE_ROLES = Collections.unmodifiableSet(EnumSet.of(
-            CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF, CareNestRole.TEAM_LEADER));
+            CareNestRole.PRINCIPAL,
+            CareNestRole.VICE_PRINCIPAL,
+            CareNestRole.TEACHER,
+            CareNestRole.KITCHEN_STAFF,
+            CareNestRole.TEAM_LEADER));
+
+    /** EDU-110: 8 mã soạn/duyệt theo loại hồ sơ — chuỗi duyệt suy từ ma trận nên không có ngoại lệ theo người. */
+    public static final Set<Permission> EDU_WORKFLOW = Collections.unmodifiableSet(EnumSet.of(
+            EDU_SCHOOL_YEAR_PLAN_EDIT,
+            EDU_SCHOOL_YEAR_PLAN_APPROVE,
+            EDU_TEAM_PLAN_EDIT,
+            EDU_TEAM_PLAN_APPROVE,
+            EDU_SEMESTER_PACKAGE_EDIT,
+            EDU_SEMESTER_PACKAGE_APPROVE,
+            EDU_THEME_PLAN_EDIT,
+            EDU_THEME_PLAN_APPROVE));
 
     private final String module;
     private final String description;
@@ -237,6 +341,10 @@ public enum Permission {
         return configurableRoles.contains(role);
     }
 
+    public boolean overridable() {
+        return !EDU_WORKFLOW.contains(this);
+    }
+
     public static boolean isConfigurableRole(CareNestRole role) {
         return CONFIGURABLE_ROLES.contains(role);
     }
@@ -255,7 +363,7 @@ public enum Permission {
         return result;
     }
 
-    /** Quyền HT được bật/tắt cho role; role cố định ⇒ rỗng. */
+    /** Quyền HT được bật/tắt cho role (gồm cả mã chỉ là ngoại lệ theo người); role cố định ⇒ rỗng. */
     public static Set<Permission> configurablePermissionsOf(CareNestRole role) {
         EnumSet<Permission> result = EnumSet.noneOf(Permission.class);
         for (Permission permission : values()) {
@@ -265,6 +373,31 @@ public enum Permission {
         }
         return result;
     }
+
+    /** Mã có ô ở ma trận vai trò; `EDU_ACADEMIC_DUTY` chỉ là ngoại lệ theo PHT. */
+    public boolean inRoleMatrix() {
+        return this != EDU_ACADEMIC_DUTY;
+    }
+
+    public static Set<Permission> roleMatrixPermissionsOf(CareNestRole role) {
+        EnumSet<Permission> result = EnumSet.noneOf(Permission.class);
+        configurablePermissionsOf(role).stream()
+                .filter(Permission::inRoleMatrix)
+                .forEach(result::add);
+        return result;
+    }
+
+    /** Mã bị bỏ khi PHT bị REVOKE `EDU_ACADEMIC_DUTY` (PHT dinh dưỡng): soạn/duyệt và cấu hình KHGD. */
+    public static final Set<Permission> EDU_ACADEMIC_ONLY = Collections.unmodifiableSet(EnumSet.of(
+            EDU_SCHOOL_YEAR_PLAN_EDIT,
+            EDU_SCHOOL_YEAR_PLAN_APPROVE,
+            EDU_TEAM_PLAN_EDIT,
+            EDU_TEAM_PLAN_APPROVE,
+            EDU_SEMESTER_PACKAGE_EDIT,
+            EDU_SEMESTER_PACKAGE_APPROVE,
+            EDU_THEME_PLAN_EDIT,
+            EDU_THEME_PLAN_APPROVE,
+            EDU_PLAN_CONFIG));
 
     public static Optional<Permission> fromCode(String code) {
         return Arrays.stream(values())

@@ -46,7 +46,7 @@ class SchoolYearTeamPlanIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -146,7 +146,14 @@ class SchoolYearTeamPlanIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private void insertLeader(CurrentUser user, long ageGroupId) {

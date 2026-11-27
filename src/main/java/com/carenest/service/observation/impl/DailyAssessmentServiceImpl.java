@@ -73,12 +73,47 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
     private final ObservationDayRules rules;
     private final DailyObservationRepository observationRepository;
     private final DailyActivityResultRepository resultRepository;
+    private final com.carenest.service.attendance.ChildClassHistoryService childClassHistoryService;
     private final EnrollmentService enrollmentService;
     private final AttendanceService attendanceService;
     private final DailyHealthService dailyHealthService;
     private final EduLessonQueryService lessonQueryService;
     private final ObjectMapper objectMapper;
     private final ClassDailyCommentRepository classCommentRepository;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.carenest.dto.attendance.AttendanceClassResponse> listClasses(CurrentUser user, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|listClasses|userId=" + user.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            var classes = rules.yearClasses(schoolYearId).stream()
+                    .filter(c -> rules.canView(user, c)
+                            || rules.hasReadableHistory(user, c)
+                            || rules.canUnlockClass(user, c))
+                    .map(c -> {
+                        boolean teaches = c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(user, c);
+                        LocalDate last = rules.lastReadableDay(user, c);
+                        return new com.carenest.dto.attendance.AttendanceClassResponse(
+                                c.id(),
+                                c.name(),
+                                c.campusId(),
+                                c.ageGroupId(),
+                                c.mealSessions(),
+                                teaches,
+                                teaches && user.hasPermission(Permission.ASSESSMENT_RECORD),
+                                rules.canUnlockClass(user, c),
+                                !teaches && last != null,
+                                last);
+                    })
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return classes;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -94,6 +129,11 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             checkDate(cls, date);
             List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, date);
             Map<Long, AttendanceStatus> statuses = statusesOf(children, date);
+            var history = childClassHistoryService.statuses(
+                    classId,
+                    children.stream().map(ClassChildResponse::id).toList(),
+                    rules.today().isAfter(cls.yearEnd()) ? cls.yearEnd() : rules.today());
+            Map<Long, List<MealSession>> mealChoices = mealChoices(classId, date);
             List<ClassChildResponse> present = children.stream()
                     .filter(c -> statuses.get(c.id()) == AttendanceStatus.PRESENT)
                     .toList();
@@ -122,7 +162,9 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                             observations.get(c.id()),
                             results.getOrDefault(c.id(), List.of()),
                             health.get(c.id()),
-                            projected))
+                            projected,
+                            skippedMeals(cls.mealSessions(), mealChoices.get(c.id())),
+                            history.get(c.id())))
                     .toList();
             boolean yearReadOnly = cls.yearStatus() != SchoolYearStatus.ACTIVE;
             boolean baseLocked = rules.isBaseLocked(date);
@@ -154,7 +196,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                             : children.stream()
                                     .filter(c -> statuses.get(c.id()) != AttendanceStatus.PRESENT)
                                     .map(c -> new DailySheetResponse.AbsentChild(
-                                            c.id(), c.fullName(), statuses.get(c.id())))
+                                            c.id(), c.fullName(), statuses.get(c.id()), history.get(c.id())))
                                     .toList(),
                     classCommentRepository
                             .findByClassroomIdAndDate(classId, date)
@@ -186,7 +228,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                     throw GlobalException.of(ApiCode.CLASS_COMMENT_TOO_LONG);
                 }
                 String lower = text.toLowerCase(java.util.Locale.ROOT);
-                if (DIAGNOSTIC_TERMS.stream().anyMatch(lower::contains)) {
+                if (DiagnosticTerms.containsAny(text)) {
                     throw GlobalException.of(ApiCode.CLASS_COMMENT_DIAGNOSTIC_TERM);
                 }
                 ClassDailyComment comment = classCommentRepository
@@ -197,10 +239,18 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             }
             Map<Long, ClassChildResponse> present = presentChildren(classId, date);
             Map<Long, DailyObservation> existing = observationsOf(present.keySet(), date);
+            Map<Long, List<MealSession>> mealChoices = mealChoices(classId, date);
             Instant at = rules.now();
+            int skipped = 0;
             for (SaveDailyGeneralRequest.Entry e : request.entries()) {
                 ClassChildResponse child = requirePresent(present, e.childId());
                 checkText(e.comment(), e.healthNote(), e.behaviorNote());
+                // Cô khác đã ghi trẻ này sau lúc trang được mở: dòng "chỉ tạo mới" không đè (OBS-17, OBS-33)
+                DailyObservation already = existing.get(e.childId());
+                if (Boolean.TRUE.equals(e.createOnly()) && already != null && already.getNap() != null) {
+                    skipped++;
+                    continue;
+                }
                 DailyObservation o = existing.computeIfAbsent(
                         e.childId(),
                         id -> DailyObservation.start(id, classId, cls.campusId(), date, currentUser.userId(), at));
@@ -208,7 +258,10 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                         e.healthOverridden(),
                         orEmpty(e.healthSigns()),
                         trim(e.healthNote()),
-                        mealsJson(cls.mealSessions(), e.meals()),
+                        mealsJson(
+                                cls.mealSessions(),
+                                e.meals(),
+                                skippedMeals(cls.mealSessions(), mealChoices.get(e.childId()))),
                         e.nap(),
                         e.emotion(),
                         e.participation(),
@@ -221,8 +274,8 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                 log.debug("{}|childId={}|saved", logPrefix, child.id());
             }
             observationRepository.flush();
-            SaveDailyResponse response = new SaveDailyResponse(request.entries().size(), at);
-            log.info("{}|saved={}|END", logPrefix, response.saved());
+            SaveDailyResponse response = new SaveDailyResponse(request.entries().size() - skipped, at);
+            log.info("{}|saved={}|skipped={}|END", logPrefix, response.saved(), skipped);
             return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -386,8 +439,12 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, date);
         Map<Long, AttendanceStatus> statuses = statusesOf(children, date);
         Map<Long, ClassChildResponse> present = new LinkedHashMap<>();
+        // Trẻ đã chuyển lớp vẫn được lớp cũ đánh giá những ngày trẻ còn học ở lớp đó (cô dạy trẻ lúc ấy, user chốt
+        // 26/11/2026); trẻ đã nghỉ học hẳn thì không ghi thêm
+        Set<Long> left = enrollmentService.findChildIdsLeftSchool(
+                children.stream().map(ClassChildResponse::id).toList(), rules.today());
         children.stream()
-                .filter(c -> statuses.get(c.id()) == AttendanceStatus.PRESENT)
+                .filter(c -> !left.contains(c.id()) && statuses.get(c.id()) == AttendanceStatus.PRESENT)
                 .forEach(c -> present.put(c.id(), c));
         return present;
     }
@@ -424,17 +481,30 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
     }
 
     private static void checkText(String... texts) {
-        for (String text : texts) {
-            String lower = text == null ? "" : text.toLowerCase();
-            List<String> found =
-                    DIAGNOSTIC_TERMS.stream().filter(lower::contains).toList();
-            if (!found.isEmpty()) {
-                throw GlobalException.of(ApiCode.ASSESSMENT_DIAGNOSTIC_TERM, String.join("\", \"", found));
-            }
+        List<String> found = DiagnosticTerms.matches(String.join(
+                " ",
+                java.util.Arrays.stream(texts)
+                        .filter(java.util.Objects::nonNull)
+                        .toList()));
+        if (!found.isEmpty()) {
+            throw GlobalException.of(ApiCode.ASSESSMENT_DIAGNOSTIC_TERM, String.join("\", \"", found));
         }
     }
 
-    private String mealsJson(List<MealSession> sessions, Map<MealSession, EatingLevel> meals) {
+    private Map<Long, List<MealSession>> mealChoices(Long classId, LocalDate date) {
+        return attendanceService.findClassDays(List.of(classId), date, date).stream()
+                .collect(Collectors.toMap(
+                        AttendanceService.ClassChildDay::childId, AttendanceService.ClassChildDay::meals));
+    }
+
+    private List<MealSession> skippedMeals(List<MealSession> sessions, List<MealSession> participating) {
+        return sessions.stream()
+                .filter(s -> participating == null || !participating.contains(s))
+                .toList();
+    }
+
+    private String mealsJson(
+            List<MealSession> sessions, Map<MealSession, EatingLevel> meals, List<MealSession> skipped) {
         Map<MealSession, EatingLevel> kept = new EnumMap<>(MealSession.class);
         if (meals != null) {
             meals.forEach((session, level) -> {
@@ -443,6 +513,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                 }
             });
         }
+        skipped.forEach(session -> kept.put(session, EatingLevel.KHONG_AN));
         return objectMapper.writeValueAsString(kept);
     }
 
@@ -457,7 +528,9 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             DailyObservation o,
             List<DailyActivityResult> results,
             DailyHealthService.ChildDaySigns health,
-            Map<DailyActivityResult, ActivityResult> projected) {
+            Map<DailyActivityResult, ActivityResult> projected,
+            List<MealSession> skipped,
+            String historyStatus) {
         List<HealthSymptom> prefill = health == null ? List.of() : health.signs();
         boolean overridden = o != null && o.isHealthOverridden();
         Health h = new Health(
@@ -466,12 +539,17 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                 overridden,
                 prefill);
         List<ActivityResult> activities = results.stream().map(projected::get).toList();
+        Map<MealSession, EatingLevel> meals = new EnumMap<>(MealSession.class);
+        if (o != null) {
+            meals.putAll(mealsOf(o.getMeals()));
+            skipped.forEach(session -> meals.put(session, EatingLevel.KHONG_AN));
+        }
         return new Row(
                 child.id(),
                 child.fullName(),
                 AttendanceStatus.PRESENT,
                 h,
-                o == null ? Map.of() : mealsOf(o.getMeals()),
+                meals,
                 o == null ? null : o.getNap(),
                 o == null ? null : o.getEmotion(),
                 o == null ? null : o.getParticipation(),
@@ -486,7 +564,9 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                                 || o.getEmotion() != null
                                 || !mealsOf(o.getMeals()).isEmpty()),
                 !results.isEmpty(),
-                activities);
+                activities,
+                skipped,
+                historyStatus);
     }
 
     private static <T> List<T> orEmpty(List<T> list) {

@@ -22,8 +22,10 @@ import com.carenest.dto.health.PublishedHealthResponse.TrendWarning;
 import com.carenest.entity.health.HealthCheckCampaign;
 import com.carenest.entity.health.HealthInterpretation;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.ai.AiClient;
-import com.carenest.integration.ai.AiException;
+import com.carenest.integration.ai.AiClientException;
+import com.carenest.integration.ai.AiGateway;
+import com.carenest.integration.ai.AiRawResult;
+import com.carenest.integration.ai.AiRequest;
 import com.carenest.repository.health.HealthInterpretationRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
@@ -32,6 +34,8 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.AiErrorReason;
+import com.carenest.utils.enums.AiTask;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.HealthCheckKind;
@@ -67,7 +71,7 @@ class HealthTrendServiceImplTest {
     private final HealthCheckRules rules = mock(HealthCheckRules.class);
     private final HealthInterpretationRepository repository = mock(HealthInterpretationRepository.class);
     private final AccountService accountService = mock(AccountService.class);
-    private final AiClient aiClient = mock(AiClient.class);
+    private final AiGateway aiGateway = mock(AiGateway.class);
     private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
     private final HealthNotifier notifier = mock(HealthNotifier.class);
     private final HealthTrendServiceImpl service = new HealthTrendServiceImpl(
@@ -77,7 +81,7 @@ class HealthTrendServiceImplTest {
             rules,
             repository,
             accountService,
-            aiClient,
+            aiGateway,
             JsonMapper.builder().build(),
             enrollmentService,
             notifier);
@@ -86,6 +90,7 @@ class HealthTrendServiceImplTest {
     @BeforeEach
     void setUp() {
         given(policy.canViewChild(TEACHER, CHILD_ID)).willReturn(true);
+        given(policy.canReadChild(TEACHER, CHILD_ID)).willReturn(true);
         given(childService.findChildBriefs(any()))
                 .willReturn(Map.of(
                         CHILD_ID,
@@ -97,7 +102,7 @@ class HealthTrendServiceImplTest {
             ReflectionTestUtils.setField(i, "id", 90L);
             return i;
         });
-        given(aiClient.isEnabled()).willReturn(true);
+        given(aiGateway.isAvailable(AiTask.HEALTH_TREND)).willReturn(true);
         given(enrollmentService.findActiveClassroomIds(any(), any())).willReturn(List.of(10L));
         given(rules.teaches(TEACHER, 10L)).willReturn(true);
     }
@@ -110,7 +115,7 @@ class HealthTrendServiceImplTest {
         HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL);
 
         assertThat(response.status()).isEqualTo(HealthTrendAnalysisResponse.NOT_ENOUGH_DATA);
-        verify(aiClient, never()).complete(any());
+        verify(aiGateway, never()).complete(any());
         verify(repository, never()).save(any());
     }
 
@@ -119,7 +124,7 @@ class HealthTrendServiceImplTest {
     void savesAiDraftWithoutIdentity() {
         given(records.views(any(), any(), any(), any(), anyBoolean()))
                 .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
-        given(aiClient.complete(any())).willReturn(new AiClient.AiResult(AI_JSON, "gemini-x"));
+        given(aiGateway.complete(any())).willReturn(raw(AI_JSON, "gemini-x"));
 
         HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL);
 
@@ -130,10 +135,9 @@ class HealthTrendServiceImplTest {
                 .startsWith("Tổng quan: Trẻ tăng cân đều.")
                 .contains("Điểm tích cực:");
         assertThat(response.warnings()).isNotEmpty();
-        ArgumentCaptor<AiClient.AiRequest> request = ArgumentCaptor.forClass(AiClient.AiRequest.class);
-        verify(aiClient).complete(request.capture());
-        assertThat(request.getValue().jsonOutput()).isTrue();
-        assertThat(request.getValue().maxTokens()).isEqualTo(1200);
+        ArgumentCaptor<AiRequest> request = ArgumentCaptor.forClass(AiRequest.class);
+        verify(aiGateway).complete(request.capture());
+        assertThat(request.getValue().task()).isEqualTo(AiTask.HEALTH_TREND);
         // HLT-21: tổng quan mở đầu bằng khoảng phân tích; chỉ NORMAL mới "trẻ phát triển ổn định"
         assertThat(request.getValue().systemPrompt())
                 .contains("'Trong 6 tháng qua,'")
@@ -161,7 +165,7 @@ class HealthTrendServiceImplTest {
                         point(2L, "2026-11-01"),
                         point(1L, "2026-09-10"),
                         measurement(4L, "2026-01-10", "95.0", "14.0", null)));
-        given(aiClient.complete(any())).willReturn(new AiClient.AiResult(AI_JSON, "m"));
+        given(aiGateway.complete(any())).willReturn(raw(AI_JSON, "m"));
 
         HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.MONTHS_6);
 
@@ -184,7 +188,7 @@ class HealthTrendServiceImplTest {
 
         assertThat(response.status()).isEqualTo(HealthTrendAnalysisResponse.NOT_ENOUGH_DATA);
         assertThat(response.period()).isEqualTo(HealthTrendPeriod.MONTHS_6);
-        verify(aiClient, never()).complete(any());
+        verify(aiGateway, never()).complete(any());
     }
 
     @Test
@@ -229,11 +233,10 @@ class HealthTrendServiceImplTest {
     void blocksDiagnosticLanguage() {
         given(records.views(any(), any(), any(), any(), anyBoolean()))
                 .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
-        given(aiClient.complete(any()))
-                .willReturn(new AiClient.AiResult("{\"overview\": \"Có thể trẻ mắc bệnh tuyến giáp.\"}", "m"));
+        given(aiGateway.complete(any())).willReturn(raw("{\"overview\": \"Có thể trẻ mắc bệnh tuyến giáp.\"}", "m"));
         expectCode(() -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.AI_SERVICE_UNAVAILABLE);
 
-        given(aiClient.complete(any())).willReturn(new AiClient.AiResult("Trẻ tăng cân đều.", "m"));
+        given(aiGateway.complete(any())).willReturn(raw("Trẻ tăng cân đều.", "m"));
         expectCode(() -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.AI_SERVICE_UNAVAILABLE);
         verify(repository, never()).save(any());
     }
@@ -243,11 +246,11 @@ class HealthTrendServiceImplTest {
     void aiUnavailableOrTimeout() {
         given(records.views(any(), any(), any(), any(), anyBoolean()))
                 .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
-        given(aiClient.isEnabled()).willReturn(false);
+        given(aiGateway.isAvailable(AiTask.HEALTH_TREND)).willReturn(false);
         expectCode(() -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.AI_SERVICE_UNAVAILABLE);
 
-        given(aiClient.isEnabled()).willReturn(true);
-        given(aiClient.complete(any())).willThrow(new AiException(AiException.Reason.TIMEOUT, "slow", null));
+        given(aiGateway.isAvailable(AiTask.HEALTH_TREND)).willReturn(true);
+        given(aiGateway.complete(any())).willThrow(new AiClientException(AiErrorReason.TIMEOUT, "slow", null));
         expectCode(() -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.AI_TIMEOUT);
     }
 
@@ -386,6 +389,14 @@ class HealthTrendServiceImplTest {
     }
 
     @Test
+    @DisplayName("AUTH-20: xem kết quả mới nhất theo phạm vi đọc; ngoài phạm vi đọc ⇒ 403")
+    void latestUsesReadScope() {
+        given(policy.canReadChild(TEACHER, CHILD_ID)).willReturn(false);
+
+        expectCode(() -> service.latest(TEACHER, CHILD_ID), ApiCode.HEALTH_RECORD_ACCESS_DENIED);
+    }
+
+    @Test
     @DisplayName("HLT-02: cảnh báo xác định — sụt cân, chiều cao không tăng ≥3 tháng; bình thường ⇒ một dòng info")
     void deterministicWarnings() {
         List<GrowthPoint> drop = List.of(growth("2026-06-01", "100.0", "16.0"), growth("2026-09-15", "100.0", "15.5"));
@@ -489,12 +500,12 @@ class HealthTrendServiceImplTest {
         HealthCheckCampaign round = mock(HealthCheckCampaign.class);
         given(round.statusOn(any())).willReturn(status);
         given(snapshot.campaign(3L)).willReturn(round);
-        given(aiClient.complete(any())).willReturn(new AiClient.AiResult(AI_JSON, "m"));
+        given(aiGateway.complete(any())).willReturn(raw(AI_JSON, "m"));
     }
 
     private String lastPrompt() {
-        ArgumentCaptor<AiClient.AiRequest> request = ArgumentCaptor.forClass(AiClient.AiRequest.class);
-        verify(aiClient, org.mockito.Mockito.atLeastOnce()).complete(request.capture());
+        ArgumentCaptor<AiRequest> request = ArgumentCaptor.forClass(AiRequest.class);
+        verify(aiGateway, org.mockito.Mockito.atLeastOnce()).complete(request.capture());
         return request.getValue().userPrompt();
     }
 
@@ -569,5 +580,9 @@ class HealthTrendServiceImplTest {
         assertThatThrownBy(call)
                 .isInstanceOfSatisfying(
                         GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(code));
+    }
+
+    private static AiRawResult raw(String content, String model) {
+        return new AiRawResult(content, "groq", model, "health/trend_v1", null, null, 0L);
     }
 }

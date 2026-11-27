@@ -13,7 +13,7 @@ Hiện BE có: thực đơn công bố, suất đã xác nhận, kiểm nhận h
 **Trong phạm vi**
 - Thư viện chữ ký ảnh của tài khoản (tải, đặt mặc định, xóa, tối đa 5).
 - Biên bản kiểm thực theo ngày–điểm trường–mẫu: M1 tươi, M1 khô, M2, M3: khung dòng do hệ thống dựng, PHT nhập ô còn lại, lưu nháp, ký, khóa sau ký, sửa lại có lý do, lịch sử, bản chụp dòng lúc ký.
-- Mẫu M5 (soát sổ lưu mẫu) cùng cơ chế ký; bản in M3 gộp, M4 do client lập từ dữ liệu.
+- Mẫu M5 (soát sổ lưu mẫu) cùng cơ chế ký; bản in M3 gộp, M4 do client lập từ dữ liệu (M4 lấy bữa, món từ M3 — INS-01, sửa 25/11/2026).
 - Mở rộng bản ghi lưu mẫu: khối lượng/thể tích, dụng cụ chứa, nhiệt độ bảo quản theo từng món (bếp ghi trên App).
 
 **Ngoài phạm vi (V1)**

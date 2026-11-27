@@ -23,10 +23,10 @@ import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.account.ChangeStaffRoleRequest;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.dto.account.MyAccountResponse;
+import com.carenest.dto.account.MyAssignmentResponse;
 import com.carenest.dto.account.StaffAssignmentScopeRequest;
 import com.carenest.dto.account.UpdateAccountProfileRequest;
 import com.carenest.dto.common.PageResponse;
-import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
@@ -94,8 +94,17 @@ class AccountControllerTest {
                         List.of(CareNestRole.TEACHER, CareNestRole.PARENT),
                         List.of(Permission.CHILD_PROFILE_VIEW),
                         List.of(),
-                        List.of(new StaffAssignmentSummaryResponse(
-                                StaffRole.TEACHER, null, 11L, null, LocalDate.of(2026, 9, 1), null)),
+                        List.of(
+                                new MyAssignmentResponse(
+                                        StaffRole.TEACHER, null, null, 11L, null, LocalDate.of(2026, 9, 1), null),
+                                new MyAssignmentResponse(
+                                        StaffRole.KITCHEN_STAFF,
+                                        2L,
+                                        "Điểm trường A",
+                                        null,
+                                        null,
+                                        LocalDate.of(2026, 9, 1),
+                                        null)),
                         List.of(101L),
                         false,
                         false));
@@ -109,6 +118,7 @@ class AccountControllerTest {
                 .andExpect(jsonPath("$.data.assignments[0].staffRole").value("TEACHER"))
                 .andExpect(jsonPath("$.data.assignments[0].classroomId").value(11))
                 .andExpect(jsonPath("$.data.assignments[0].validFrom").value("2026-09-01"))
+                .andExpect(jsonPath("$.data.assignments[1].campusName").value("Điểm trường A"))
                 .andExpect(jsonPath("$.data.childIds[0]").value(101));
     }
 
@@ -331,7 +341,14 @@ class AccountControllerTest {
                 new ChangeStaffRoleRequest(CareNestRole.KITCHEN_STAFF, new StaffAssignmentScopeRequest(3L, null));
         given(accountProvisioningService.changeStaffRole(principal, 42L, request))
                 .willReturn(new AccountDetailResponse(
-                        42L, "0912345678", "GV A", null, CareNestRole.KITCHEN_STAFF, UserStatus.ACTIVE, List.of()));
+                        42L,
+                        "0912345678",
+                        "GV A",
+                        null,
+                        CareNestRole.KITCHEN_STAFF,
+                        UserStatus.ACTIVE,
+                        List.of(),
+                        null));
 
         mockMvc.perform(put("/api/accounts/42/staff-role")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))

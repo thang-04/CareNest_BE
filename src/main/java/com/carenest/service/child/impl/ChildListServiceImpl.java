@@ -3,7 +3,9 @@ package com.carenest.service.child.impl;
 import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildListFilter;
 import com.carenest.dto.child.ChildListItemResponse;
+import com.carenest.dto.child.ChildNextClassResponse;
 import com.carenest.dto.child.ParentAccountRowResponse;
+import com.carenest.dto.child.PlannedAdmissionResponse;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.child.Child;
@@ -13,7 +15,9 @@ import com.carenest.repository.child.ChildAllergyRepository;
 import com.carenest.repository.child.ChildHealthDeclarationRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
+import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildListService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.ClassroomService;
@@ -65,24 +69,46 @@ public class ChildListServiceImpl implements ChildListService {
     private final GuardianViews guardianViews;
     private final GuardianChildLinkService guardianChildLinkService;
     private final ClassroomService classroomService;
+    private final ChildIntakeService childIntakeService;
     private final StaffAccessPolicy staffAccessPolicy;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final StaffAssignmentService staffAssignmentService;
     private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ChildListItemResponse> searchChildren(CurrentUser actor, ChildListFilter filter) {
-        String logPrefix = LOG_PREFIX + "|searchChildren|userId=" + actor.userId() + "|schoolYearId="
+        return search("searchChildren", actor, filter, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ChildListItemResponse> browseChildren(CurrentUser actor, ChildListFilter filter) {
+        return search("browseChildren", actor, filter, true);
+    }
+
+    private PageResponse<ChildListItemResponse> search(
+            String method, CurrentUser actor, ChildListFilter filter, boolean schoolWideOnFilter) {
+        String logPrefix = LOG_PREFIX + "|" + method + "|userId=" + actor.userId() + "|schoolYearId="
                 + filter.schoolYearId() + "|campusId=" + filter.campusId() + "|classId=" + filter.classId() + "|page="
                 + filter.page() + "|size=" + filter.size();
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
             Scope scope = scopeOf(actor, today);
-            if (!scope.wholeSchool()) {
-                checkFilterScope(filter, scope.campusIds(), scope.classIds());
+            // AUTH-20 (2026-11-15): PHT chủ động lọc lớp/điểm trường khác thì xem được (cả trường); danh sách mặc định
+            // vẫn điểm trường mình; cờ quản lý từng dòng luôn theo `scope`
+            boolean filtered = filter.classId() != null || filter.campusId() != null;
+            Scope readScope = schoolWideOnFilter
+                            && filtered
+                            && !scope.wholeSchool()
+                            && campusAccessPolicy.canReadAllCampuses(actor)
+                    ? new Scope(true, scope.campusIds(), scope.classIds())
+                    : scope;
+            if (!readScope.wholeSchool()) {
+                checkFilterScope(filter, readScope.campusIds(), readScope.classIds());
             }
-            List<ChildRepository.ChildListRow> rows = rowsOf(scope, filter, today);
+            List<ChildRepository.ChildListRow> rows = rowsOf(readScope, filter, today);
             int total = rows.size();
             int from = (int) Math.min((long) filter.page() * filter.size(), total);
             int to = Math.min(from + filter.size(), total);
@@ -241,6 +267,11 @@ public class ChildListServiceImpl implements ChildListService {
         Map<Long, List<ChildGuardianResponse>> guardians = guardianViews.of(childIds);
         Map<Long, Long> accountCounts = guardianChildLinkService.countGuardiansByChildIds(childIds);
         boolean managesParents = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
+        // CHD-09, CHD-11: đăng ký năm sau của cả trang, một lần truy vấn
+        Map<Long, PlannedAdmissionResponse> admissions = childIntakeService.findOpenPlannedAdmissions(childIds);
+        // G94-180/CHD-14: lớp sắp vào (lịch chuyển / lớp chưa bắt đầu), nhãn tới ngày đi học
+        Map<Long, ChildNextClassResponse> nextClasses = childIntakeService.findNextClasses(childIds);
+        LocalDate today = LocalDate.now(clock);
 
         return rows.stream()
                 .map(row -> {
@@ -267,11 +298,17 @@ public class ChildListServiceImpl implements ChildListService {
                             child.getReadmittedOn(),
                             allergies.getOrDefault(child.getId(), List.of()),
                             declared.contains(child.getId()),
+                            child.isMealRegistered(),
                             minimized(guardians.getOrDefault(child.getId(), List.of())),
                             canManage,
                             child.getPhotoKey() == null ? null : "/children/" + child.getId() + "/photo",
                             cls == null ? null : cls.id(),
-                            accountCounts.getOrDefault(child.getId(), 0L));
+                            accountCounts.getOrDefault(child.getId(), 0L),
+                            admissions.get(child.getId()),
+                            child.getStartDate(),
+                            child.isStartDue(today),
+                            nextClasses.get(child.getId()),
+                            child.getScheduledLeaveOn());
                 })
                 .toList();
     }

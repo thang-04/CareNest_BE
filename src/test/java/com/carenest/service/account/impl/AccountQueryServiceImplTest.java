@@ -62,6 +62,8 @@ class AccountQueryServiceImplTest {
         service.searchAccounts(VICE, null, null, null, null, 0, 20);
 
         verify(assignments).findActiveStaffUserIds(Set.of(10L), TODAY);
+        // AUTH-15: GV có cơ sở công tác ở campus mình (chưa có lớp) cũng nằm trong danh sách
+        verify(assignments).findTeacherIdsByWorkCampus(Set.of(10L));
     }
 
     @Test
@@ -82,7 +84,7 @@ class AccountQueryServiceImplTest {
             new CurrentUser(1L, "kc-1", "admin", "Admin", null, Set.of(CareNestRole.ADMIN));
 
     @Test
-    @DisplayName("AUTH-17: HT chỉ liệt kê PHT/GV/bếp (không phụ huynh, Admin, HT); Admin liệt kê mọi tài khoản")
+    @DisplayName("AUTH-17: HT chỉ liệt kê PHT/GV/bếp (không phụ huynh, Admin, HT); Admin không lọc theo danh sách role")
     @SuppressWarnings({"unchecked", "rawtypes"})
     void principalListIsLimitedToStaffRoles() {
         given(policy.managesWholeSchool(PRINCIPAL)).willReturn(true);
@@ -93,6 +95,27 @@ class AccountQueryServiceImplTest {
                 .containsExactlyInAnyOrder(
                         CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF);
         verify(primaryRolePathFor(ADMIN), never()).in(any(Collection.class));
+    }
+
+    @Test
+    @DisplayName(
+            "AUTH-06/P-16: Admin không thấy phụ huynh nhưng vẫn thấy tài khoản chưa có primary_role (không dùng IN)")
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void adminListExcludesParentsButKeepsNullRole() {
+        given(accounts.findAll(any(Specification.class), any(Pageable.class))).willReturn(Page.empty());
+        service.searchAccounts(ADMIN, null, null, null, null, 0, 20);
+
+        ArgumentCaptor<Specification<UserAccount>> spec = ArgumentCaptor.forClass(Specification.class);
+        verify(accounts).findAll(spec.capture(), any(Pageable.class));
+        Root<UserAccount> root = mock(Root.class);
+        Path<Object> primaryRole = mock(Path.class);
+        given(root.get("primaryRole")).willReturn(primaryRole);
+        CriteriaBuilder cb = mock(CriteriaBuilder.class);
+        spec.getValue().toPredicate(root, mock(CriteriaQuery.class), cb);
+
+        verify(cb).isNull(primaryRole);
+        verify(cb).notEqual(primaryRole, CareNestRole.PARENT);
+        verify(primaryRole, never()).in(any(Collection.class));
     }
 
     // Chạy Specification đã gửi xuống repository; lọc role thể hiện qua primaryRole.in(...)

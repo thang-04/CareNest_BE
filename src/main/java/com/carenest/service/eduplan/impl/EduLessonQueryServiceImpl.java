@@ -54,7 +54,8 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
         try {
             // EDU-19 + spec 003 FR-008: chấm theo tuần có kế hoạch tuần và giáo án ngày đã ban hành (giáo án ngày duyệt
             // trong
-            // hồ sơ chủ đề); hồ sơ mở lại sửa phần tương lai vẫn giữ ngày đã dạy (phần đã qua khóa sửa, EDU-64)
+            // kế hoạch giáo dục ngày); hồ sơ mở lại sửa phần tương lai vẫn giữ ngày đã dạy (phần đã qua khóa sửa,
+            // EDU-64)
             List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdInOrderByIdAsc(List.of(classroomId));
             Map<String, String> releasedContents = releasedContents(docs);
             Map<String, EduClassDoc> releasedDays = docs.stream()
@@ -71,7 +72,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             if (!weeks.isEmpty()) {
                 List<EduConfigResponse.WeekRow> rows =
                         eduConfigService.getEduConfig().weekRows();
-                // EDU-79 (FR-029): giáo án ngày đã ban hành có bản tuần sửa theo hồ sơ chủ đề thì dùng bản đó
+                // EDU-79 (FR-029): giáo án ngày đã ban hành có bản tuần sửa theo kế hoạch giáo dục ngày thì dùng bản đó
                 List<JsonNode> contents = new ArrayList<>();
                 List<Map<String, JsonNode>> cards = new ArrayList<>();
                 for (EduClassDoc week : weeks) {
@@ -143,7 +144,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
         return releasedContents.getOrDefault(doc.getDocKey(), doc.getContent());
     }
 
-    /** docKey → nội dung thành viên trong lần ban hành gần nhất của gói học kỳ / hồ sơ chủ đề. */
+    /** docKey → nội dung thành viên trong lần ban hành gần nhất của kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày. */
     private Map<String, String> releasedContents(List<EduClassDoc> docs) {
         if (docs.stream().noneMatch(d -> d.getStatus() != EduClassDocStatus.APPROVED && released(d))) return Map.of();
         List<Long> rootIds = docs.stream()

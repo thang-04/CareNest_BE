@@ -10,6 +10,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,13 +40,16 @@ class InspectionConcurrencyIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     JdbcTemplate jdbc;
 
     @Autowired
     InspectionService inspectionService;
+
+    @Autowired
+    Clock clock;
 
     @Test
     void concurrentFirstSaveKeepsOneSheetAndRejectsTheLoser() throws Exception {
@@ -66,7 +70,9 @@ class InspectionConcurrencyIntegrationTest {
                 Set.of(CareNestRole.VICE_PRINCIPAL),
                 Set.of(Permission.FOOD_SAFETY_APPROVE),
                 Set.of());
-        LocalDate day = LocalDate.now().minusDays(1);
+        // INS-05: ngày đã qua cần HT duyệt mở; phép thử này nói về tranh chấp lưu lần đầu nên dùng ngày hôm nay của
+        // đồng hồ BE
+        LocalDate day = LocalDate.now(clock);
         InspectionSaveRequest request =
                 new InspectionSaveRequest(0, Map.of(), List.of(Map.of("key", "sample:1", "qualityNote", "Mẫu đạt")));
 

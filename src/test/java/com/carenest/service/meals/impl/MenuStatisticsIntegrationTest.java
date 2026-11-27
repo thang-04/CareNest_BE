@@ -8,9 +8,11 @@ import com.carenest.dto.meals.MenuStatisticsResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.MealPlanService;
+import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.MenuBlock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
@@ -36,10 +38,13 @@ class MenuStatisticsIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     private MealPlanService mealPlanService;
+
+    @Autowired
+    private ClassroomService classroomService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -144,6 +149,97 @@ class MenuStatisticsIntegrationTest {
     }
 
     @Test
+    @DisplayName("NUT-27: giá và NCC lấy tại ngày thống kê; ngày trước mức mới giữ giá cũ")
+    void priceAndSupplierFollowEffectiveDate() {
+        long supplier = jdbc.queryForObject(
+                "INSERT INTO suppliers (name, phone, contract_no, contract_start, contract_end)"
+                        + " VALUES ('NCC Gạo', '0900000001', 'HĐ-01', '2026-09-01', '2027-08-31') RETURNING id",
+                Long.class);
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, supplier_id, price, effective_from, reason)"
+                        + " SELECT id, ?, 20000, ?, 'Phụ lục 1' FROM foods WHERE code = 'GAO'",
+                supplier,
+                DAY);
+
+        MenuStatisticsResponse before = riceStats(DAY.minusDays(3), null);
+        MenuStatisticsResponse after = riceStats(DAY, null);
+
+        assertThat(before.ingredients()).singleElement().satisfies(rice -> {
+            assertThat(rice.unitPrice()).isEqualByComparingTo("18000");
+            assertThat(rice.cost()).isEqualByComparingTo("96000");
+            assertThat(rice.supplierName()).isNull();
+            assertThat(rice.priceSource()).isEqualTo("CATALOG");
+        });
+        // 5.333,33 g × 20.000 ÷ 1.000
+        assertThat(after.ingredients()).singleElement().satisfies(rice -> {
+            assertThat(rice.unitPrice()).isEqualByComparingTo("20000");
+            assertThat(rice.cost()).isEqualByComparingTo("106667");
+            assertThat(rice.supplierId()).isEqualTo(supplier);
+            assertThat(rice.supplierName()).isEqualTo("NCC Gạo");
+        });
+        assertThat(after.supplierCosts()).singleElement().satisfies(s -> {
+            assertThat(s.supplierName()).isEqualTo("NCC Gạo");
+            assertThat(s.cost()).isEqualByComparingTo("106667");
+        });
+    }
+
+    @Test
+    @DisplayName("NUT-27: hàng khô có điểm trường tính giá lô FEFO, phần thiếu kho theo giá danh mục và gắn cờ")
+    void dryStockUsesLotPriceThenCatalog() {
+        long campus = jdbc.queryForObject(
+                "INSERT INTO campuses (code, name, is_main) VALUES ('CS-L', 'L', TRUE) RETURNING id", Long.class);
+        long supplier = jdbc.queryForObject(
+                "INSERT INTO suppliers (name, phone) VALUES ('NCC kho', '0900000002') RETURNING id", Long.class);
+        long receipt = jdbc.queryForObject(
+                "INSERT INTO stock_receipts (campus_id, supplier_id, received_date, status)"
+                        + " VALUES (?, ?, '2026-11-02', 'CONFIRMED') RETURNING id",
+                Long.class,
+                campus,
+                supplier);
+        long rice = jdbc.queryForObject("SELECT id FROM foods WHERE code = 'GAO'", Long.class);
+        // Lô 3 kg giá 15.000đ/kg; lô hết hạn trước ngày thực đơn không được dùng
+        lot(receipt, campus, rice, "L1", "2027-03-01", "3000", "15000");
+        lot(receipt, campus, rice, "L0", "2026-11-01", "5000", "10000");
+
+        MenuStatisticsResponse stats = riceStats(DAY, campus);
+
+        // 3.000 g × 15.000 + 2.333,33 g × 18.000, chia 1.000
+        assertThat(stats.ingredients()).singleElement().satisfies(item -> {
+            assertThat(item.priceSource()).isEqualTo("MIXED");
+            assertThat(item.stockShortQty()).isEqualByComparingTo("2333.33");
+            assertThat(item.cost()).isEqualByComparingTo("87000");
+        });
+        assertThat(stats.dryCost()).isEqualByComparingTo("87000");
+    }
+
+    private MenuStatisticsResponse riceStats(LocalDate date, Long campusId) {
+        return mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        ag3, date, campusId, 80, List.of(new MenuStatisticsRequest.Item(MealSession.LUNCH, com))));
+    }
+
+    private void lot(long receipt, long campus, long food, String lotNo, String expiry, String grams, String price) {
+        long lot = jdbc.queryForObject(
+                "INSERT INTO stock_receipt_lines (receipt_id, food_id, lot_no, expiry_date, quantity, unit_price)"
+                        + " VALUES (?, ?, ?, ?::date, ?::numeric, ?::numeric) RETURNING id",
+                Long.class,
+                receipt,
+                food,
+                lotNo,
+                expiry,
+                grams,
+                price);
+        jdbc.update(
+                "INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity)"
+                        + " VALUES (?, ?, ?, 'RECEIPT', ?::numeric)",
+                lot,
+                campus,
+                food,
+                grams);
+    }
+
+    @Test
     @DisplayName("NUT-12: mua theo ĐVT đếm được làm tròn lên nguyên hộp; tiền ăn vẫn theo lượng thực dùng")
     void countablePurchaseQtyRoundsUp() {
         jdbc.update("UPDATE foods SET purchase_unit = 'hộp 110 ml', purchase_unit_size = 110 WHERE code = 'SUA'");
@@ -172,6 +268,47 @@ class MenuStatisticsIntegrationTest {
         assertThat(stats.ingredients())
                 .singleElement()
                 .satisfies(i -> assertThat(i.cost()).isEqualByComparingTo("0"));
+    }
+
+    @Test
+    @DisplayName("NUT-07/CHD-13: sĩ số mặc định không đếm trẻ không báo ăn, sĩ số lớp vẫn đủ")
+    void enrolledHeadcountSkipsChildrenWithoutMeals() {
+        long campus = jdbc.queryForObject(
+                "INSERT INTO campuses (code, name, is_main) VALUES ('CS-H', 'H', TRUE) RETURNING id", Long.class);
+        long year = jdbc.queryForObject(
+                "INSERT INTO school_years (name, start_date, end_date, status)"
+                        + " VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id",
+                Long.class);
+        long classroom = jdbc.queryForObject(
+                "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (?, ?, 'Lớp H', ?)"
+                        + " RETURNING id",
+                Long.class,
+                campus,
+                year,
+                ag3);
+        for (int i = 0; i < 3; i++) {
+            long child = jdbc.queryForObject(
+                    "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on, meal_registered)"
+                            + " VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ ' || ?, '2022-06-01',"
+                            + " 'MALE', 'ACTIVE', CURRENT_DATE, ?) RETURNING id",
+                    Long.class,
+                    String.valueOf(i),
+                    i != 2);
+            jdbc.update(
+                    "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
+                    child,
+                    classroom);
+        }
+
+        MenuStatisticsResponse stats = mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        ag3, DAY, campus, null, List.of(new MenuStatisticsRequest.Item(MealSession.LUNCH, com))));
+
+        assertThat(stats.childrenSource()).isEqualTo("ENROLLED");
+        assertThat(stats.children()).isEqualTo(2);
+        assertThat(classroomService.countActiveChildren(List.of(classroom), DAY))
+                .containsEntry(classroom, 3L);
     }
 
     @Test
@@ -213,6 +350,93 @@ class MenuStatisticsIntegrationTest {
         assertThat(stats.totalCost()).isEqualByComparingTo("0");
     }
 
+    @Test
+    @DisplayName("Tất cả nhóm tuổi chỉ lấy món đúng khối, cộng suất và chi phí từng nhóm")
+    void allAgeGroupsPreserveBlocksAndAggregate() {
+        long ag2 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-2'", Long.class);
+        long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child)"
+                        + " SELECT ?, id, ?, 100 FROM foods WHERE code = 'GAO'",
+                com,
+                ag4);
+        jdbc.update(
+                "INSERT INTO age_group_meal_configs (age_group_id, effective_from, meal_price)"
+                        + " VALUES (?, '2026-09-01', 35000)",
+                ag4);
+        long campus = jdbc.queryForObject(
+                "INSERT INTO campuses (code, name, is_main) VALUES ('CS-ALL', 'All', TRUE) RETURNING id", Long.class);
+        long year = jdbc.queryForObject(
+                "INSERT INTO school_years (name, start_date, end_date, status)"
+                        + " VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id",
+                Long.class);
+        long class3 = jdbc.queryForObject(
+                "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id)"
+                        + " VALUES (?, ?, 'Lớp 3', ?) RETURNING id",
+                Long.class,
+                campus,
+                year,
+                ag3);
+        long class4 = jdbc.queryForObject(
+                "INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id)"
+                        + " VALUES (?, ?, 'Lớp 4', ?) RETURNING id",
+                Long.class,
+                campus,
+                year,
+                ag4);
+        long count = jdbc.queryForObject(
+                "INSERT INTO meal_counts (campus_id, school_year_id, date, session, status, aggregated_at,"
+                        + " confirmed_at) VALUES (?, ?, ?, 'LUNCH', 'CONFIRMED', now(), now()) RETURNING id",
+                Long.class,
+                campus,
+                year,
+                DAY);
+        jdbc.update(
+                "INSERT INTO meal_count_lines (meal_count_id, classroom_id, pending, present, absent, missing,"
+                        + " normal, substitute) VALUES (?, ?, FALSE, ?, 0, 0, ?, 0)",
+                count,
+                class3,
+                2,
+                2);
+        jdbc.update(
+                "INSERT INTO meal_count_lines (meal_count_id, classroom_id, pending, present, absent, missing,"
+                        + " normal, substitute) VALUES (?, ?, FALSE, ?, 0, 0, ?, 0)",
+                count,
+                class4,
+                3,
+                3);
+
+        MenuStatisticsResponse stats = mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        null,
+                        DAY,
+                        campus,
+                        null,
+                        List.of(new MenuStatisticsRequest.Item(MealSession.LUNCH, MenuBlock.KINDERGARTEN, com))));
+
+        assertThat(stats.groups())
+                .extracting(MenuStatisticsResponse::ageGroupId)
+                .contains(ag3, ag4)
+                .doesNotContain(ag2);
+        assertThat(stats.groups()).extracting(MenuStatisticsResponse::children).contains(2, 3);
+        assertThat(stats.groups()).allSatisfy(group -> {
+            assertThat(group.childrenSource()).isEqualTo("CONFIRMED");
+            assertThat(group.dishes())
+                    .extracting(MenuStatisticsResponse.Dish::dishName)
+                    .containsExactly("Cơm");
+        });
+        assertThat(stats.children()).isEqualTo(5);
+        assertThat(stats.totalCost())
+                .isEqualByComparingTo(stats.groups().stream()
+                        .map(MenuStatisticsResponse::totalCost)
+                        .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add));
+        // Giá suất và ngân sách mỗi nhóm một mức: bản "tất cả nhóm" không gộp thành số toàn trường
+        assertThat(stats.mealPrice()).isNull();
+        assertThat(stats.foodBudget()).isNull();
+        assertThat(stats.costPerChild()).isEqualByComparingTo(stats.totalCost().divide(new java.math.BigDecimal(5)));
+    }
+
     private long food(
             String code,
             String name,
@@ -225,7 +449,7 @@ class MenuStatisticsIntegrationTest {
             String p,
             String l,
             String g) {
-        return jdbc.queryForObject(
+        long foodId = jdbc.queryForObject(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " waste_pct, kcal, protein, lipid, glucid, nutrient_source, storage, origin)"
                         + " VALUES (?, ?, 'OTHER', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'TEST', 'DRY', 'PLANT') RETURNING id",
@@ -241,6 +465,11 @@ class MenuStatisticsIntegrationTest {
                 new java.math.BigDecimal(p),
                 new java.math.BigDecimal(l),
                 new java.math.BigDecimal(g));
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private long dish(String code, String name, String type, long foodId, int grams) {

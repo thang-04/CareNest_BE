@@ -30,7 +30,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class MealCountConcurrencyIntegrationTest {
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     JdbcTemplate jdbc;
@@ -52,6 +52,7 @@ class MealCountConcurrencyIntegrationTest {
         long campus = id("INSERT INTO campuses(code,name,is_main) VALUES ('RACE','Race',true) RETURNING id");
         long year = id(
                 "INSERT INTO school_years(name,start_date,end_date,status) VALUES ('2026-2027','2026-09-01','2027-05-31','ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         long ag = jdbc.queryForObject("SELECT id FROM age_groups WHERE code='ag-3'", Long.class);
         long recorder = id(
                 "INSERT INTO user_accounts(keycloak_user_id,username,full_name) VALUES ('race','race','Race') RETURNING id");
@@ -74,8 +75,8 @@ class MealCountConcurrencyIntegrationTest {
         var tx = new TransactionTemplate(manager);
         long countId = tx.execute(s -> {
             var c = MealCount.aggregate(campus, year, date, MealSession.LUNCH, Instant.now());
-            c.addLine(a, 2, 0, 0, 2, 0);
-            c.addLine(b, 2, 0, 0, 2, 0);
+            c.addLine(a, 2, 0, 0, 2);
+            c.addLine(b, 2, 0, 0, 2);
             c.confirm(recorder, StaffRole.PRINCIPAL, Instant.now());
             em.persist(c);
             em.flush();
@@ -115,7 +116,8 @@ class MealCountConcurrencyIntegrationTest {
                             "SELECT normal FROM meal_count_lines WHERE meal_count_id=? AND pending ORDER BY classroom_id",
                             Integer.class,
                             countId))
-                    .containsExactly(1, 1);
+                    // ATT-07: sổ đã xác nhận khóa cứng, điểm danh đổi không tạo dòng chờ xác nhận lại
+                    .isEmpty();
         } finally {
             pool.shutdownNow();
         }

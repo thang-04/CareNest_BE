@@ -1,52 +1,61 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.attendance.DayInfoResponse;
+import com.carenest.dto.child.ClassChildResponse;
+import com.carenest.dto.child.GuardianLinkResponse;
+import com.carenest.dto.meals.MealPlanAmendRequest;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
+import com.carenest.dto.meals.MealPlanRevisionResponse;
 import com.carenest.dto.meals.MealPlanSummaryResponse;
 import com.carenest.dto.meals.MenuStatisticsRequest;
 import com.carenest.dto.meals.MenuStatisticsResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.CampusResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
-import com.carenest.entity.meals.AgeGroupMealConfig;
 import com.carenest.entity.meals.Dish;
-import com.carenest.entity.meals.DishIngredient;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.MealCount;
 import com.carenest.entity.meals.MealPlanDay;
+import com.carenest.entity.meals.MealPlanDayRevision;
 import com.carenest.entity.meals.MealPlanItem;
 import com.carenest.entity.meals.MealPlanWeek;
 import com.carenest.exception.GlobalException;
-import com.carenest.repository.meals.AgeGroupMealConfigRepository;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.MealCountRepository;
+import com.carenest.repository.meals.MealPlanDayRevisionRepository;
 import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AccountService;
+import com.carenest.service.attendance.AttendanceService;
+import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DayPlan;
-import com.carenest.service.meals.impl.MealPlanEvaluator.DishInfo;
-import com.carenest.service.meals.impl.MealPlanEvaluator.FoodInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.ItemPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Norm;
-import com.carenest.service.meals.impl.MealPlanEvaluator.Portion;
-import com.carenest.service.meals.impl.MealPlanEvaluator.Range;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
-import com.carenest.utils.enums.Micronutrient;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -63,6 +72,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,18 +84,36 @@ public class MealPlanServiceImpl implements MealPlanService {
     private static final String LOG_PREFIX = "[MealPlanServiceImpl]";
     private static final String NONE = "NONE";
     private static final int SCHOOL_DAYS = 5;
+    private static final int MIN_REASON_LENGTH = 10;
+    private static final int MAX_REASON_LENGTH = 500;
 
     private final MealPlanWeekRepository weekRepository;
     private final DishRepository dishRepository;
-    private final AgeGroupMealConfigRepository configRepository;
     private final MealCountRepository mealCountRepository;
     private final StockLedgerService stockLedgerService;
     private final AgeGroupService ageGroupService;
     private final ClassroomService classroomService;
     private final MealDemandCalculator demandCalculator;
     private final DryStockOutlook dryStockOutlook;
+    private final FoodPriceService foodPriceService;
     private final CampusService campusService;
+    private final MealPlanEvaluationSupport evaluationSupport;
+    private final EnrollmentService enrollmentService;
+    private final GuardianChildLinkService guardianChildLinkService;
+    private final NotificationService notificationService;
+    private final MealPlanDayRevisionRepository revisionRepository;
+    private final DayBalanceGate balanceGate;
+    private final DayDemand dayDemand;
+    private final DayBalanceReader balanceReader;
+    private final ApplicationEventPublisher events;
+    private final AttendanceService attendanceService;
+    private final StaffAssignmentService staffAssignmentService;
+    private final AccountService accountService;
     private final Clock clock;
+
+    private static final String PRICE_CATALOG = "CATALOG";
+    private static final String PRICE_LOT = "LOT";
+    private static final String PRICE_MIXED = "MIXED";
 
     @Override
     @Transactional(readOnly = true)
@@ -133,6 +161,7 @@ public class MealPlanServiceImpl implements MealPlanService {
         try {
             checkCanManage(currentUser);
             checkMonday(weekStart);
+            checkWeekNotPast(weekStart);
             MealPlanWeek week = weekRepository
                     .findForUpdateByWeekStart(weekStart)
                     .orElseGet(() -> MealPlanWeek.draft(weekStart, currentUser.userId()));
@@ -158,17 +187,18 @@ public class MealPlanServiceImpl implements MealPlanService {
         try {
             checkCanManage(currentUser);
             checkMonday(weekStart);
+            checkWeekNotPast(weekStart);
             MealPlanWeek week = weekRepository
                     .findForUpdateByWeekStart(weekStart)
                     .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PLAN_NOT_PUBLISHABLE, 1, "tuần chưa lập"));
             if (week.isPublished()) {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_PUBLISHED);
             }
-            // NUT-08: chưa đạt cân đối (hoặc chưa kiểm được) thì chặn công bố
-            MealPlanEvaluator.Result result = evaluate(weekStart, week);
-            List<MealPlanResponse.Issue> blocking = result.issues().stream()
-                    .filter(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()))
-                    .toList();
+            // NUT-08: ngày chưa cân đối đạt lượng, chất, tiền (hoặc chưa đủ món) thì chặn công bố
+            List<MealPlanResponse.Issue> blocking =
+                    balanceGate.weekIssues(week, evaluate(weekStart, week).issues()).stream()
+                            .filter(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()))
+                            .toList();
             if (!blocking.isEmpty()) {
                 throw GlobalException.of(
                         ApiCode.MEAL_PLAN_NOT_PUBLISHABLE,
@@ -177,7 +207,10 @@ public class MealPlanServiceImpl implements MealPlanService {
             }
             week.publish(currentUser.userId(), clock.instant());
             weekRepository.flush();
-            syncConfirmedDays(weekStart);
+            syncConfirmedDays(weekStart, weekStart.plusDays(SCHOOL_DAYS - 1));
+            notifyParents(weekStart);
+            // Bản dự trù lập sau khi công bố đã ghi xong; lỗi lập dự trù không hủy việc công bố
+            events.publishEvent(new MealPlanPublishedEvent(weekStart, currentUser.userId()));
             MealPlanResponse response = toResponse(currentUser, weekStart, week);
             log.info("{}|END", logPrefix);
             return response;
@@ -187,10 +220,208 @@ public class MealPlanServiceImpl implements MealPlanService {
         }
     }
 
-    // P-38: suất đã chốt trước khi tuần được công bố (hiếm) ⇒ trừ kho ngay khi công bố
-    private void syncConfirmedDays(LocalDate weekStart) {
+    @Override
+    public MealPlanResponse amendMealPlanDay(
+            CurrentUser currentUser, LocalDate weekStart, LocalDate date, MealPlanAmendRequest request) {
+        String logPrefix = LOG_PREFIX + "|amendMealPlanDay|userId=" + currentUser.userId() + "|weekStart=" + weekStart
+                + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            checkCanManage(currentUser);
+            checkMonday(weekStart);
+            checkInWeek(weekStart, date);
+            String reason = request.reason() == null ? "" : request.reason().trim();
+            if (reason.length() < MIN_REASON_LENGTH || reason.length() > MAX_REASON_LENGTH) {
+                throw GlobalException.of(ApiCode.MEAL_PLAN_REASON_REQUIRED);
+            }
+            MealPlanWeek week = weekRepository
+                    .findForUpdateByWeekStart(weekStart)
+                    .filter(MealPlanWeek::isPublished)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PLAN_NOT_PUBLISHED));
+            MealPlanDay before = week.day(date).orElse(MealPlanDay.of(date, false, "", List.of()));
+            // P-39: chỉ ngày chưa tới hoặc hôm nay trước giờ chốt; ngày nghỉ thuộc lịch năm học, không đổi ở đây
+            if (before.isOff() || !isAmendable(date)) {
+                throw GlobalException.of(ApiCode.MEAL_PLAN_DAY_LOCKED, dayLabel(date));
+            }
+            MealPlanDay wanted = toDays(
+                            weekStart,
+                            new MealPlanRequest(List.of(
+                                    new MealPlanRequest.DayInput(date, false, request.note(), request.items()))),
+                            false)
+                    .stream()
+                    .filter(d -> d.getMenuDate().equals(date))
+                    .findFirst()
+                    .orElseThrow();
+            if (sameContent(before, wanted)) {
+                throw GlobalException.of(ApiCode.MEAL_PLAN_AMEND_NO_CHANGE, dayLabel(date));
+            }
+            List<MealPlanDayRevision.Item> beforeItems = revisionItems(before.getItems());
+            week.amendPublishedDay(date, wanted.getNote(), wanted.getItems(), currentUser.userId());
+            weekRepository.saveAndFlush(week);
+            MealPlanDay after = week.day(date).orElseThrow();
+            // Cân đối chỉ cảnh báo khi sửa ngoại lệ (user chốt 18/11); giữ lại cảnh báo lúc sửa để tra cứu
+            List<MealPlanDayRevision.Issue> issues = evaluate(weekStart, week).issues().stream()
+                    .filter(i -> date.equals(i.date()))
+                    .map(i -> new MealPlanDayRevision.Issue(i.severity(), i.code(), i.message()))
+                    .toList();
+            revisionRepository.save(MealPlanDayRevision.of(
+                    week.getId(),
+                    date,
+                    before.getNote(),
+                    beforeItems,
+                    after.getNote(),
+                    revisionItems(after.getItems()),
+                    reason,
+                    issues,
+                    currentUser.userId(),
+                    clock.instant()));
+            syncConfirmedDays(date, date);
+            notifyMenuChanged(date, reason);
+            MealPlanResponse response = toResponse(currentUser, weekStart, week);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MealPlanRevisionResponse> getMealPlanRevisions(CurrentUser currentUser, LocalDate weekStart) {
+        String logPrefix =
+                LOG_PREFIX + "|getMealPlanRevisions|userId=" + currentUser.userId() + "|weekStart=" + weekStart;
+        log.info("{}|START", logPrefix);
+        try {
+            checkMonday(weekStart);
+            List<MealPlanDayRevision> revisions = weekRepository
+                    .findByWeekStart(weekStart)
+                    .map(w -> revisionRepository.findByWeekIdOrderByChangedAtDescIdDesc(w.getId()))
+                    .orElse(List.of());
+            Map<Long, String> names = accountService.findFullNames(
+                    revisions.stream().map(MealPlanDayRevision::getChangedBy).collect(Collectors.toSet()));
+            List<MealPlanRevisionResponse> response = revisions.stream()
+                    .map(r -> new MealPlanRevisionResponse(
+                            r.getId(),
+                            r.getMenuDate(),
+                            dayContent(r.getBeforeNote(), r.getBeforeItems()),
+                            dayContent(r.getAfterNote(), r.getAfterItems()),
+                            r.getReason(),
+                            r.getIssues().stream()
+                                    .map(i -> new MealPlanRevisionResponse.RevisionIssue(
+                                            i.severity(), i.code(), i.message()))
+                                    .toList(),
+                            r.getChangedBy(),
+                            names.get(r.getChangedBy()),
+                            r.getChangedAt()))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private static MealPlanRevisionResponse.RevisionDay dayContent(String note, List<MealPlanDayRevision.Item> items) {
+        return new MealPlanRevisionResponse.RevisionDay(
+                note,
+                items.stream()
+                        .map(i -> new MealPlanRevisionResponse.RevisionItem(
+                                i.session(), i.block(), i.dishId(), i.dishName()))
+                        .toList());
+    }
+
+    private static void checkInWeek(LocalDate weekStart, LocalDate date) {
+        long offset = date.toEpochDay() - weekStart.toEpochDay();
+        if (offset < 0 || offset >= SCHOOL_DAYS) {
+            throw GlobalException.of(ApiCode.MEAL_PLAN_DATE_INVALID, date);
+        }
+    }
+
+    /** P-39: ngày học chưa qua giờ chốt (ngày tới hoặc hôm nay trước giờ chốt) — cùng nguồn giờ chốt với sổ báo ăn. */
+    private boolean isAmendable(LocalDate date) {
+        if (date.isBefore(LocalDate.now(clock))) {
+            return false;
+        }
+        DayInfoResponse info = attendanceService.getActiveYearDayInfo(date);
+        return info != null && info.schoolDay() && !info.baseLocked();
+    }
+
+    private static boolean sameContent(MealPlanDay a, MealPlanDay b) {
+        return a.getNote().equals(b.getNote()) && slots(a).equals(slots(b));
+    }
+
+    private static List<String> slots(MealPlanDay day) {
+        return day.getItems().stream()
+                .map(i -> i.getSession() + "|" + i.getMenuBlock() + "|" + i.getDishId())
+                .toList();
+    }
+
+    private List<MealPlanDayRevision.Item> revisionItems(List<MealPlanItem> items) {
+        Map<Long, String> names =
+                dishRepository
+                        .findAllById(items.stream().map(MealPlanItem::getDishId).collect(Collectors.toSet()))
+                        .stream()
+                        .collect(Collectors.toMap(Dish::getId, Dish::getName));
+        return items.stream()
+                .map(i -> new MealPlanDayRevision.Item(
+                        i.getSession(), i.getMenuBlock(), i.getDishId(), names.get(i.getDishId())))
+                .toList();
+    }
+
+    /** P-39: sửa ngoại lệ ⇒ báo phụ huynh của trẻ đang học và bếp hai điểm trường. */
+    private void notifyMenuChanged(LocalDate date, String reason) {
+        LocalDate today = LocalDate.now(clock);
+        Set<Long> recipients = new LinkedHashSet<>(parentIds(today));
+        classroomService.findActiveYearClassrooms().stream()
+                .map(ClassroomInfoResponse::campusId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .forEach(campusId -> recipients.addAll(staffAssignmentService.findCampusKitchenIds(campusId, today)));
+        if (recipients.isEmpty()) {
+            return;
+        }
+        notificationService.notifyEvent(
+                recipients,
+                NotificationType.MENU_CHANGED,
+                Map.of("ngay", DateTimeFormatter.ofPattern("dd/MM").format(date), "lyDo", reason),
+                null);
+    }
+
+    private List<Long> parentIds(LocalDate today) {
+        Set<Long> childIds = new LinkedHashSet<>();
+        for (var cls : classroomService.findActiveYearClassrooms()) {
+            enrollmentService.findChildrenInClassroom(cls.id(), today).stream()
+                    .map(ClassChildResponse::id)
+                    .forEach(childIds::add);
+        }
+        if (childIds.isEmpty()) {
+            return List.of();
+        }
+        return guardianChildLinkService.findLinksOfChildren(childIds).stream()
+                .map(GuardianLinkResponse::userId)
+                .toList();
+    }
+
+    /** NUT-08: công bố thực đơn tuần ⇒ báo phụ huynh của trẻ đang học (HT tắt được — PAR-09). */
+    private void notifyParents(LocalDate weekStart) {
+        List<Long> parents = parentIds(LocalDate.now(clock));
+        if (parents.isEmpty()) {
+            return;
+        }
+        DateTimeFormatter dm = DateTimeFormatter.ofPattern("dd/MM");
+        notificationService.notifyEvent(
+                parents,
+                NotificationType.MENU_PUBLISHED,
+                Map.of("tuan", dm.format(weekStart) + " – " + dm.format(weekStart.plusDays(SCHOOL_DAYS - 1))),
+                null);
+    }
+
+    // P-38: suất đã chốt trước khi công bố (hiếm) hoặc trước khi sửa ngoại lệ ⇒ trừ kho lại theo thực đơn mới
+    private void syncConfirmedDays(LocalDate from, LocalDate to) {
         Set<String> done = new LinkedHashSet<>();
-        for (MealCount count : mealCountRepository.findByDateBetween(weekStart, weekStart.plusDays(SCHOOL_DAYS - 1))) {
+        for (MealCount count : mealCountRepository.findByDateBetween(from, to)) {
             if (count.isConfirmed() && done.add(count.getCampusId() + "|" + count.getDate())) {
                 stockLedgerService.syncDay(count.getCampusId(), count.getDate());
             }
@@ -201,6 +432,17 @@ public class MealPlanServiceImpl implements MealPlanService {
     private static void checkCanManage(CurrentUser currentUser) {
         if (!currentUser.hasPermission(Permission.MENU_MANAGE)) {
             throw GlobalException.of(ApiCode.FORBIDDEN);
+        }
+    }
+
+    // NUT-08: tuần đã ăn xong (qua thứ Sáu) không lưu hay công bố nữa; sửa ngày đã qua đi đường sửa ngoại lệ
+    private boolean isWeekPast(LocalDate weekStart) {
+        return weekStart.plusDays(SCHOOL_DAYS - 1L).isBefore(LocalDate.now(clock));
+    }
+
+    private void checkWeekNotPast(LocalDate weekStart) {
+        if (isWeekPast(weekStart)) {
+            throw GlobalException.of(ApiCode.MEAL_PLAN_WEEK_PAST, weekStart);
         }
     }
 
@@ -218,6 +460,76 @@ public class MealPlanServiceImpl implements MealPlanService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate date = request.date() == null ? LocalDate.now(clock) : request.date();
+            if (request.ageGroupId() == null) {
+                // Cùng danh sách nhóm tuổi với ô chọn nhóm (có lớp năm học hiện hành, chưa tắt định mức)
+                Set<Long> selectable = evaluationSupport.planningGroups().stream()
+                        .map(AgeGroupInfo::id)
+                        .collect(Collectors.toSet());
+                List<MenuStatisticsResponse> groups = ageGroupService.getAgeGroups().stream()
+                        .filter(group -> selectable.contains(group.id()))
+                        .map(group -> {
+                            MenuBlock block = MenuBlock.ofAgeGroup(group.ageToMonths());
+                            List<MenuStatisticsRequest.Item> groupItems = request.items().stream()
+                                    .filter(item -> (item.block() == null || item.block() == block)
+                                            && group.mealSessions() != null
+                                            && group.mealSessions().contains(item.session()))
+                                    .toList();
+                            if (groupItems.isEmpty()) return null;
+                            return getMenuStatistics(
+                                    currentUser,
+                                    new MenuStatisticsRequest(
+                                            group.id(),
+                                            date,
+                                            request.campusId(),
+                                            null,
+                                            groupItems,
+                                            request.useBalance()));
+                        })
+                        .filter(Objects::nonNull)
+                        .filter(group -> !group.dishes().isEmpty())
+                        .toList();
+                int children = groups.stream()
+                        .mapToInt(MenuStatisticsResponse::children)
+                        .sum();
+                BigDecimal totalCost =
+                        groups.stream().map(MenuStatisticsResponse::totalCost).reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal freshCost =
+                        groups.stream().map(MenuStatisticsResponse::freshCost).reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal dryCost =
+                        groups.stream().map(MenuStatisticsResponse::dryCost).reduce(BigDecimal.ZERO, BigDecimal::add);
+                // Giá suất và ngân sách mỗi nhóm một mức: không gộp thành số toàn trường (user chốt 25/11)
+                String childrenSource = groups.stream()
+                                        .map(MenuStatisticsResponse::childrenSource)
+                                        .distinct()
+                                        .count()
+                                == 1
+                        ? groups.getFirst().childrenSource()
+                        : "MIXED";
+                MenuStatisticsResponse response = new MenuStatisticsResponse(
+                        null,
+                        "Tất cả nhóm tuổi",
+                        date,
+                        children,
+                        childrenSource,
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        totalCost,
+                        freshCost,
+                        dryCost,
+                        List.of(),
+                        children == 0
+                                ? BigDecimal.ZERO
+                                : totalCost.divide(BigDecimal.valueOf(children), 0, RoundingMode.HALF_UP),
+                        null,
+                        null,
+                        null,
+                        null,
+                        groups,
+                        groups.getFirst().balanceRound());
+                log.info("{}|END", logPrefix);
+                return response;
+            }
             AgeGroupDetailResponse group = ageGroupService.getAgeGroups().stream()
                     .filter(g -> g.id().equals(request.ageGroupId()))
                     .findFirst()
@@ -233,28 +545,38 @@ public class MealPlanServiceImpl implements MealPlanService {
                     .collect(Collectors.toMap(Dish::getId, Function.identity()));
             // Chỉ bữa nhóm tuổi được phục vụ, mỗi món một lần trong bữa (như lưới kế hoạch tuần)
             List<ItemPlan> items = request.items().stream()
-                    .filter(i -> dishes.containsKey(i.dishId()) && sessions.contains(i.session()))
+                    .filter(i -> dishes.containsKey(i.dishId())
+                            && sessions.contains(i.session())
+                            && (i.block() == null || i.block() == info.block()))
                     .map(i -> new ItemPlan(i.session(), info.block(), i.dishId()))
                     .distinct()
                     .toList();
-            Norm norm = configRepository.findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(date).stream()
-                    .filter(c -> c.getAgeGroupId().equals(group.id()))
-                    .findFirst()
-                    .map(MealPlanServiceImpl::toNorm)
-                    .orElse(null);
+            Norm norm = evaluationSupport.normsUntil(date).apply(group.id(), date);
+            FoodPriceBook book = priceBook(dishes.values());
             MealPlanResponse.Evaluation evaluation = MealPlanEvaluator.evaluate(
                             List.of(new DayPlan(date, false, items)),
                             List.of(info),
-                            dishes.values().stream()
-                                    .collect(Collectors.toMap(Dish::getId, MealPlanServiceImpl::toDishInfo)),
-                            (ageGroupId, day) -> norm)
+                            MealPlanEvaluationSupport.dishInfos(dishes.values()),
+                            (ageGroupId, day) -> norm,
+                            book::price)
                     .evaluations()
                     .getFirst();
-            Headcount headcount = headcountOf(request, group.id(), date);
+            DayDemand.Balanced balanced = Boolean.TRUE.equals(request.useBalance())
+                    ? dayDemand.latest(date).orElse(null)
+                    : null;
+            Headcount headcount = headcountOf(request, group.id(), date, balanced);
+            Function<ItemPlan, List<Gram>> portions = portionsOf(dishes, group.id(), balanced);
+            if (balanced != null) {
+                // Dinh dưỡng và tiền theo đúng bản cân đối của ngày
+                evaluation = balanceReader.evaluate(balanced.source(), balanced.draft()).evaluations().stream()
+                        .filter(e -> e.ageGroupId().equals(group.id()))
+                        .findFirst()
+                        .orElse(evaluation);
+            }
             List<MenuStatisticsResponse.Ingredient> ingredients =
-                    ingredientsOf(items, dishes, group.id(), headcount.count());
+                    ingredientsOf(items, portions, headcount.count(), book, date, request.campusId(), balanced == null);
             List<MenuStatisticsResponse.DishIngredientLine> dishIngredients =
-                    dishIngredientsOf(items, dishes, group.id());
+                    dishIngredientsOf(items, portions, book, date);
             BigDecimal totalCost = ingredients.stream()
                     .map(MenuStatisticsResponse.Ingredient::cost)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -262,6 +584,7 @@ public class MealPlanServiceImpl implements MealPlanService {
             // bảng
             BigDecimal freshCost = costOf(ingredients, FoodStorage.FRESH);
             BigDecimal dryCost = costOf(ingredients, FoodStorage.DRY);
+            List<MenuStatisticsResponse.SupplierCost> supplierCosts = supplierCostsOf(ingredients);
             List<MenuStatisticsResponse.Dish> dishViews = items.stream()
                     .map(i -> {
                         Dish dish = dishes.get(i.dishId());
@@ -281,9 +604,14 @@ public class MealPlanServiceImpl implements MealPlanService {
                     totalCost,
                     freshCost,
                     dryCost,
+                    supplierCosts,
                     evaluation.cost(),
                     evaluation.mealPrice(),
-                    evaluation);
+                    evaluation.serviceFee(),
+                    evaluation.foodBudget(),
+                    evaluation,
+                    List.of(),
+                    balanced == null ? null : balanced.round());
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -301,10 +629,39 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    // Danh sách đặt hàng theo NCC: cộng tiền từng NCC để màn nhóm theo NCC không tự tính ở client
+    private static List<MenuStatisticsResponse.SupplierCost> supplierCostsOf(
+            List<MenuStatisticsResponse.Ingredient> ingredients) {
+        Map<Long, MenuStatisticsResponse.SupplierCost> bySupplier = new LinkedHashMap<>();
+        for (MenuStatisticsResponse.Ingredient i : ingredients) {
+            bySupplier.merge(
+                    i.supplierId(),
+                    new MenuStatisticsResponse.SupplierCost(
+                            i.supplierId(), i.supplierName(), i.contractStatus(), i.cost()),
+                    (a, b) -> new MenuStatisticsResponse.SupplierCost(
+                            a.supplierId(),
+                            a.supplierName(),
+                            a.contractStatus(),
+                            a.cost().add(b.cost())));
+        }
+        return List.copyOf(bySupplier.values());
+    }
+
     // N trẻ: người xem nhập > suất đã xác nhận của điểm trường–ngày (NUT-03) > sĩ số đang học của nhóm tuổi
-    private Headcount headcountOf(MenuStatisticsRequest request, Long ageGroupId, LocalDate date) {
+    private Headcount headcountOf(
+            MenuStatisticsRequest request, Long ageGroupId, LocalDate date, DayDemand.Balanced balanced) {
         if (request.children() != null) {
             return new Headcount(request.children(), "INPUT");
+        }
+        // Chưa chốt suất lần 2 thì dùng số trẻ của bản cân đối
+        if (balanced != null) {
+            int children = balanced.draft().counts().stream()
+                    .filter(c -> c.ageGroupId().equals(ageGroupId))
+                    .filter(c ->
+                            request.campusId() == null || request.campusId().equals(c.campusId()))
+                    .mapToInt(c -> c.children())
+                    .sum();
+            return new Headcount(children, "BALANCE");
         }
         if (request.campusId() != null) {
             List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(request.campusId(), date);
@@ -325,40 +682,105 @@ public class MealPlanServiceImpl implements MealPlanService {
                 .toList();
         long enrolled = classIds.isEmpty()
                 ? 0
-                : classroomService.countActiveChildren(classIds, date).values().stream()
+                : classroomService.countMealRegisteredChildren(classIds, date).values().stream()
                         .mapToLong(Long::longValue)
                         .sum();
         return new Headcount((int) enrolled, "ENROLLED");
     }
 
+    private FoodPriceBook priceBook(Collection<Dish> dishes) {
+        return foodPriceService.book(dishes.stream()
+                .flatMap(d -> d.getIngredients().stream())
+                .map(i -> i.getFood().getId())
+                .collect(Collectors.toSet()));
+    }
+
+    /** Gam một trẻ của một thực phẩm trong một món. */
+    private record Gram(Dish dish, Food food, BigDecimal grams) {}
+
+    // Định lượng của món cho nhóm tuổi: theo bản cân đối nếu món có trong đó, không thì theo công thức
+    private static Function<ItemPlan, List<Gram>> portionsOf(
+            Map<Long, Dish> dishes, Long ageGroupId, DayDemand.Balanced balanced) {
+        return item -> {
+            Dish dish = dishes.get(item.dishId());
+            if (balanced != null) {
+                List<Gram> saved = balanced.draft().lines().stream()
+                        .filter(l -> l.ageGroupId().equals(ageGroupId)
+                                && l.session() == item.session()
+                                && l.dishId().equals(item.dishId()))
+                        .filter(l -> balanced.source().foods().containsKey(l.foodId()))
+                        .map(l -> new Gram(dish, balanced.source().foods().get(l.foodId()), l.grams()))
+                        .toList();
+                if (!saved.isEmpty()) {
+                    return saved;
+                }
+            }
+            return dish.getIngredients().stream()
+                    .filter(i -> ageGroupId.equals(i.getAgeGroupId()))
+                    .map(i -> new Gram(dish, i.getFood(), i.getGramsPerChild()))
+                    .toList();
+        };
+    }
+
     // NUT-07: lượng ăn = gam/trẻ × N; lượng mua = ăn ÷ (1 − thải bỏ%); tiền = lượng mua theo đơn vị mua × đơn giá
-    private static List<MenuStatisticsResponse.Ingredient> ingredientsOf(
-            List<ItemPlan> items, Map<Long, Dish> dishes, Long ageGroupId, int children) {
+    // NUT-27: giá và NCC tại ngày thống kê; hàng khô có điểm trường thì giá lô FEFO, phần thiếu kho theo giá danh mục
+    private List<MenuStatisticsResponse.Ingredient> ingredientsOf(
+            List<ItemPlan> items,
+            Function<ItemPlan, List<Gram>> portions,
+            int children,
+            FoodPriceBook book,
+            LocalDate date,
+            Long campusId,
+            boolean roundCountable) {
         Map<Long, BigDecimal> grams = new LinkedHashMap<>();
         Map<Long, Food> foods = new HashMap<>();
         for (ItemPlan item : items) {
-            for (DishIngredient ingredient : dishes.get(item.dishId()).getIngredients()) {
-                if (!ageGroupId.equals(ingredient.getAgeGroupId())) {
-                    continue;
-                }
-                foods.put(ingredient.getFood().getId(), ingredient.getFood());
-                grams.merge(ingredient.getFood().getId(), ingredient.getGramsPerChild(), BigDecimal::add);
+            for (Gram gram : portions.apply(item)) {
+                foods.put(gram.food().getId(), gram.food());
+                grams.merge(gram.food().getId(), gram.grams(), BigDecimal::add);
             }
         }
         BigDecimal n = BigDecimal.valueOf(children);
+        Map<Long, BigDecimal> dryNeed = new HashMap<>();
+        if (campusId != null) {
+            grams.forEach((foodId, perChild) -> {
+                Food food = foods.get(foodId);
+                if (food.getStorage() == FoodStorage.DRY) {
+                    dryNeed.put(foodId, MealDemandCalculator.purchased(perChild.multiply(n), food.getWastePct()));
+                }
+            });
+        }
+        Map<Long, DryStockOutlook.LotTake> lots =
+                dryNeed.isEmpty() ? Map.of() : dryStockOutlook.lotPricing(campusId, dryNeed, date);
         List<MenuStatisticsResponse.Ingredient> rows = new ArrayList<>();
         grams.forEach((foodId, perChild) -> {
             Food food = foods.get(foodId);
+            FoodPriceBook.PriceAt price = book.at(foodId, date);
             BigDecimal eaten = perChild.multiply(n);
             BigDecimal purchase = MealDemandCalculator.purchased(eaten, food.getWastePct());
             BigDecimal size = food.getPurchaseUnitSize();
             boolean priced = size != null && size.signum() > 0;
             // NUT-12: số mua theo ĐVT làm tròn lên nguyên đơn vị khi đếm được; tiền ăn vẫn theo lượng thực dùng
-            BigDecimal qty =
-                    priced ? PurchaseUnits.roundUp(purchase, food).divide(size, 3, RoundingMode.HALF_UP) : null;
-            BigDecimal cost = priced && food.getUnitPrice() != null
-                    ? purchase.multiply(food.getUnitPrice()).divide(size, 0, RoundingMode.HALF_UP)
-                    : BigDecimal.ZERO;
+            // Số đã cân đối được làm tròn trên tổng toàn trường nên không làm tròn lại
+            BigDecimal ordered = roundCountable ? PurchaseUnits.roundUp(purchase, food) : purchase;
+            BigDecimal qty = priced ? ordered.divide(size, 3, RoundingMode.HALF_UP) : null;
+            DryStockOutlook.LotTake lot = lots.get(foodId);
+            BigDecimal cost = BigDecimal.ZERO;
+            String priceSource = PRICE_CATALOG;
+            BigDecimal stockShort = null;
+            if (priced && lot != null) {
+                BigDecimal value = lot.lotValue();
+                if (price.price() != null) {
+                    value = value.add(lot.catalogQty().multiply(price.price()));
+                }
+                cost = value.divide(size, 0, RoundingMode.HALF_UP);
+                priceSource = lot.lotQty().signum() == 0
+                        ? PRICE_CATALOG
+                        : lot.catalogQty().signum() == 0 ? PRICE_LOT : PRICE_MIXED;
+                stockShort = lot.shortQty().setScale(2, RoundingMode.HALF_UP);
+            } else if (priced && price.price() != null) {
+                cost = purchase.multiply(price.price()).divide(size, 0, RoundingMode.HALF_UP);
+            }
             rows.add(new MenuStatisticsResponse.Ingredient(
                     foodId,
                     food.getName(),
@@ -370,9 +792,14 @@ public class MealPlanServiceImpl implements MealPlanService {
                     food.getPurchaseUnit(),
                     size,
                     qty,
-                    food.getUnitPrice(),
+                    price.price(),
                     cost,
-                    food.getStorage()));
+                    food.getStorage(),
+                    price.supplierId(),
+                    price.supplierName(),
+                    price.contractStatus(),
+                    priceSource,
+                    stockShort));
         });
         rows.sort(Comparator.comparing(MenuStatisticsResponse.Ingredient::foodName));
         return rows;
@@ -380,32 +807,28 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     // Công thức từng món cho một trẻ: cùng công thức lượng mua và tiền với ingredientsOf nhưng không × N, không gộp
     private static List<MenuStatisticsResponse.DishIngredientLine> dishIngredientsOf(
-            List<ItemPlan> items, Map<Long, Dish> dishes, Long ageGroupId) {
+            List<ItemPlan> items, Function<ItemPlan, List<Gram>> portions, FoodPriceBook book, LocalDate date) {
         List<MenuStatisticsResponse.DishIngredientLine> lines = new ArrayList<>();
         for (ItemPlan item : items) {
-            Dish dish = dishes.get(item.dishId());
-            for (DishIngredient ingredient : dish.getIngredients()) {
-                if (!ageGroupId.equals(ingredient.getAgeGroupId())) {
-                    continue;
-                }
-                Food food = ingredient.getFood();
-                BigDecimal purchase = MealDemandCalculator.purchased(ingredient.getGramsPerChild(), food.getWastePct());
+            for (Gram gram : portions.apply(item)) {
+                Food food = gram.food();
+                BigDecimal purchase = MealDemandCalculator.purchased(gram.grams(), food.getWastePct());
                 BigDecimal size = food.getPurchaseUnitSize();
-                boolean priced = size != null && size.signum() > 0 && food.getUnitPrice() != null;
-                BigDecimal cost = priced
-                        ? purchase.multiply(food.getUnitPrice()).divide(size, 2, RoundingMode.HALF_UP)
-                        : BigDecimal.ZERO;
+                BigDecimal unitPrice = book.price(food.getId(), date);
+                boolean priced = size != null && size.signum() > 0 && unitPrice != null;
+                BigDecimal cost =
+                        priced ? purchase.multiply(unitPrice).divide(size, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
                 lines.add(new MenuStatisticsResponse.DishIngredientLine(
                         item.session(),
-                        dish.getId(),
-                        dish.getName(),
+                        gram.dish().getId(),
+                        gram.dish().getName(),
                         food.getId(),
                         food.getName(),
-                        ingredient.getGramsPerChild(),
+                        gram.grams(),
                         food.getWastePct(),
                         purchase.setScale(2, RoundingMode.HALF_UP),
                         food.getPurchaseUnit(),
-                        food.getUnitPrice(),
+                        unitPrice,
                         cost));
             }
         }
@@ -413,6 +836,10 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private List<MealPlanDay> toDays(LocalDate weekStart, MealPlanRequest request) {
+        return toDays(weekStart, request, true);
+    }
+
+    private List<MealPlanDay> toDays(LocalDate weekStart, MealPlanRequest request, boolean planning) {
         Map<LocalDate, MealPlanRequest.DayInput> byDate = new LinkedHashMap<>();
         for (MealPlanRequest.DayInput day : request.days()) {
             long offset = day.date().toEpochDay() - weekStart.toEpochDay();
@@ -420,7 +847,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_DATE_INVALID, day.date());
             }
         }
-        Map<MenuBlock, Set<MealSession>> served = servedSessions(ageGroupService.getAgeGroups());
+        Map<MenuBlock, Set<MealSession>> served = MealPlanEvaluationSupport.servedSessions(
+                planning ? evaluationSupport.planningAgeGroups() : ageGroupService.getAgeGroups());
         Set<Long> dishIds = request.days().stream()
                 .flatMap(d -> d.items().stream())
                 .map(MealPlanRequest.ItemInput::dishId)
@@ -462,7 +890,9 @@ public class MealPlanServiceImpl implements MealPlanService {
 
     private MealPlanResponse toResponse(CurrentUser currentUser, LocalDate weekStart, MealPlanWeek week) {
         // Lưới chỉ hiện khối có nhóm tuổi được kiểm (có lớp năm học hiện hành), cùng nguồn với bảng kiểm
-        List<AgeGroupInfo> groups = evaluatedGroups(ageGroupService.getAgeGroups());
+        List<AgeGroupInfo> groups = (week == null || (!week.isPublished() && !isWeekPast(weekStart)))
+                ? evaluationSupport.planningGroups()
+                : evaluationSupport.evaluatedGroups();
         Map<MenuBlock, Set<MealSession>> served = new EnumMap<>(MenuBlock.class);
         groups.forEach(
                 g -> served.computeIfAbsent(g.block(), b -> new TreeSet<>()).addAll(g.sessions()));
@@ -482,13 +912,17 @@ public class MealPlanServiceImpl implements MealPlanService {
                         .collect(Collectors.toSet()))
                 .stream()
                 .collect(Collectors.toMap(Dish::getId, Function.identity()));
+        boolean manage = currentUser.hasPermission(Permission.MENU_MANAGE);
+        boolean published = week != null && week.isPublished();
+        boolean weekOpen = !isWeekPast(weekStart);
         List<MealPlanResponse.Day> dayViews = new ArrayList<>();
         for (int i = 0; i < SCHOOL_DAYS; i++) {
             LocalDate date = weekStart.plusDays(i);
             MealPlanDay day = week == null ? null : week.day(date).orElse(null);
+            boolean canAmend = manage && published && (day == null || !day.isOff()) && isAmendable(date);
             dayViews.add(
                     day == null
-                            ? new MealPlanResponse.Day(date, false, "", List.of())
+                            ? new MealPlanResponse.Day(date, false, "", List.of(), canAmend)
                             : new MealPlanResponse.Day(
                                     date,
                                     day.isOff(),
@@ -503,28 +937,29 @@ public class MealPlanServiceImpl implements MealPlanService {
                                                         dish == null ? null : dish.getName(),
                                                         dish == null ? null : dish.getDishType());
                                             })
-                                            .toList()));
+                                            .toList(),
+                                    canAmend));
         }
         MealPlanEvaluator.Result result = evaluate(weekStart, week, groups, dishes);
-        List<MealPlanResponse.Issue> issues = new ArrayList<>(result.issues());
+        List<MealPlanResponse.Issue> issues = new ArrayList<>(balanceGate.weekIssues(week, result.issues()));
+        boolean publishable = issues.stream().noneMatch(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()));
         if (week != null) {
             issues.addAll(dryStockIssues(currentUser, weekStart));
         }
-        boolean manage = currentUser.hasPermission(Permission.MENU_MANAGE);
-        boolean published = week != null && week.isPublished();
         return new MealPlanResponse(
                 week == null ? null : week.getId(),
                 weekStart,
                 week == null ? NONE : week.getStatus().name(),
                 week == null ? null : week.getPublishedAt(),
                 week == null ? null : week.getPublishedBy(),
-                manage && !published,
-                manage && week != null && !published,
-                week != null && !published && result.publishable(),
+                manage && !published && weekOpen,
+                manage && week != null && !published && weekOpen,
+                week != null && !published && publishable,
                 blocks,
                 dayViews,
                 result.evaluations(),
-                issues);
+                issues,
+                week == null || week.getId() == null ? 0 : revisionRepository.countByWeekId(week.getId()));
     }
 
     /**
@@ -571,7 +1006,9 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private MealPlanEvaluator.Result evaluate(LocalDate weekStart, MealPlanWeek week) {
-        List<AgeGroupInfo> groups = evaluatedGroups(ageGroupService.getAgeGroups());
+        List<AgeGroupInfo> groups = (week == null || (!week.isPublished() && !isWeekPast(weekStart)))
+                ? evaluationSupport.planningGroups()
+                : evaluationSupport.evaluatedGroups();
         Map<Long, Dish> dishes = dishRepository
                 .findByIdIn(week.getDays().stream()
                         .flatMap(d -> d.getItems().stream())
@@ -598,104 +1035,13 @@ public class MealPlanServiceImpl implements MealPlanService {
                                             .map(it -> new ItemPlan(it.getSession(), it.getMenuBlock(), it.getDishId()))
                                             .toList()));
         }
-        Map<Long, List<AgeGroupMealConfig>> configs =
-                configRepository
-                        .findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(weekStart.plusDays(SCHOOL_DAYS - 1))
-                        .stream()
-                        .collect(Collectors.groupingBy(AgeGroupMealConfig::getAgeGroupId));
+        FoodPriceBook book = priceBook(dishes.values());
         return MealPlanEvaluator.evaluate(
                 days,
                 groups,
-                dishes.values().stream().collect(Collectors.toMap(Dish::getId, MealPlanServiceImpl::toDishInfo)),
-                (ageGroupId, date) -> configs.getOrDefault(ageGroupId, List.of()).stream()
-                        .filter(c -> !c.getEffectiveFrom().isAfter(date))
-                        .findFirst()
-                        .map(MealPlanServiceImpl::toNorm)
-                        .orElse(null));
-    }
-
-    /** Nhóm tuổi có lớp trong năm học hiện hành; chưa có lớp nào thì kiểm mọi nhóm tuổi. */
-    private List<AgeGroupInfo> evaluatedGroups(List<AgeGroupDetailResponse> ageGroups) {
-        Set<Long> withClasses = classroomService.findActiveYearClassrooms().stream()
-                .map(ClassroomInfoResponse::ageGroupId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        return ageGroups.stream()
-                .filter(g -> withClasses.isEmpty() || withClasses.contains(g.id()))
-                .filter(g -> g.mealSessions() != null && !g.mealSessions().isEmpty())
-                .map(g -> new AgeGroupInfo(
-                        g.id(), g.name(), MenuBlock.ofAgeGroup(g.ageToMonths()), List.copyOf(g.mealSessions())))
-                .toList();
-    }
-
-    private static Map<MenuBlock, Set<MealSession>> servedSessions(Collection<AgeGroupDetailResponse> ageGroups) {
-        Map<MenuBlock, Set<MealSession>> served = new EnumMap<>(MenuBlock.class);
-        for (MenuBlock block : MenuBlock.values()) {
-            Set<MealSession> sessions = new TreeSet<>();
-            ageGroups.stream()
-                    .filter(g -> MenuBlock.ofAgeGroup(g.ageToMonths()) == block && g.mealSessions() != null)
-                    .forEach(g -> sessions.addAll(g.mealSessions()));
-            if (!sessions.isEmpty()) {
-                served.put(block, sessions);
-            }
-        }
-        return served;
-    }
-
-    private static DishInfo toDishInfo(Dish dish) {
-        Map<Long, List<Portion>> byAgeGroup = new HashMap<>();
-        for (DishIngredient ingredient : dish.getIngredients()) {
-            Food food = ingredient.getFood();
-            FoodInfo info = new FoodInfo(
-                    food.getId(),
-                    food.getKcal(),
-                    food.getProtein(),
-                    food.getLipid(),
-                    food.getGlucid(),
-                    food.getOrigin(),
-                    food.getUnitPrice(),
-                    food.getPurchaseUnitSize(),
-                    food.getWastePct(),
-                    food.getAllergens().stream().map(a -> a.getName()).sorted().toList(),
-                    microOf(food));
-            byAgeGroup
-                    .computeIfAbsent(ingredient.getAgeGroupId(), id -> new ArrayList<>())
-                    .add(new Portion(info, ingredient.getGramsPerChild()));
-        }
-        return new DishInfo(dish.getId(), dish.getName(), dish.getDishType(), byAgeGroup);
-    }
-
-    private static Map<Micronutrient, BigDecimal> microOf(Food food) {
-        Map<Micronutrient, BigDecimal> micro = new EnumMap<>(Micronutrient.class);
-        for (Micronutrient nutrient : Micronutrient.values()) {
-            micro.put(nutrient, MicronutrientValues.of(food, nutrient));
-        }
-        return micro;
-    }
-
-    private static Norm toNorm(AgeGroupMealConfig c) {
-        Map<Micronutrient, Range> micro = new EnumMap<>(Micronutrient.class);
-        for (Micronutrient nutrient : Micronutrient.values()) {
-            micro.put(nutrient, new Range(MicronutrientValues.min(c, nutrient), MicronutrientValues.max(c, nutrient)));
-        }
-        Map<MealSession, Range> sessionKcalPct = new EnumMap<>(MealSession.class);
-        sessionKcalPct.put(MealSession.MORNING, new Range(c.getMorningKcalPctMin(), c.getMorningKcalPctMax()));
-        sessionKcalPct.put(MealSession.LUNCH, new Range(c.getLunchKcalPctMin(), c.getLunchKcalPctMax()));
-        sessionKcalPct.put(MealSession.AFTERNOON, new Range(c.getAfternoonKcalPctMin(), c.getAfternoonKcalPctMax()));
-        return new Norm(
-                c.getMealPrice(),
-                new Range(c.getKcalMin(), c.getKcalMax()),
-                new Range(c.getProteinPctMin(), c.getProteinPctMax()),
-                new Range(c.getLipidPctMin(), c.getLipidPctMax()),
-                new Range(c.getGlucidPctMin(), c.getGlucidPctMax()),
-                new Range(c.getAnimalProteinGMin(), c.getAnimalProteinGMax()),
-                new Range(c.getPlantProteinGMin(), c.getPlantProteinGMax()),
-                new Range(c.getAnimalLipidGMin(), c.getAnimalLipidGMax()),
-                new Range(c.getPlantLipidGMin(), c.getPlantLipidGMax()),
-                new Range(c.getGlucidGMin(), c.getGlucidGMax()),
-                sessionKcalPct,
-                c.getDailyKcalNeed(),
-                micro);
+                MealPlanEvaluationSupport.dishInfos(dishes.values()),
+                evaluationSupport.normsUntil(weekStart.plusDays(SCHOOL_DAYS - 1)),
+                book::price);
     }
 
     private static String blockLabel(MenuBlock block) {

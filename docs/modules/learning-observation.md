@@ -6,7 +6,7 @@ Feature: `observation` (trong `controller/`, `service/`, `repository/`, ... — 
 Hồ sơ phát triển liên tục của trẻ: đánh giá hằng ngày có cấu trúc, đánh giá hằng ngày theo MT của giáo án đã duyệt, nhận xét định kỳ, khen thưởng; nhận xét chung về lớp mỗi ngày cho báo cáo BGH (RPT-02).
 
 ## Owns
-ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ (tháng/học kỳ/năm — `EvaluationPeriodType` MONTH/SEMESTER/YEAR; học kỳ lấy ngày học kỳ của năm học; DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
+ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ theo trẻ (Cần chốt 24/11/2026: chỉ còn cuối năm `YEAR`; `MONTH`/`SEMESTER` giữ trong enum cho dữ liệu cũ, chỉ xem — không tạo nháp, nhắc hạn, tiến độ, AI, trả phụ huynh A6; sửa / xác nhận / tạo lại nháp ⇒ `EVALUATION_PERIOD_RETIRED` 7375; DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
 
 ## KHÔNG owns
 Kế hoạch giáo dục, giáo án và hoạt động, MT của chúng (module education-plan, ADR-0020 — chỉ đọc bản đã duyệt, OBS-07); dữ liệu sức khỏe/điểm danh/bữa ăn (chỉ đọc).
@@ -21,9 +21,11 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 
 ## API & bảng
 - `GET /classes/{classId}/daily-assessment?date=` (GV/PHT/HT), `PUT .../daily-assessment/general`, `PUT .../daily-assessment/skills` (GV lớp).
+- `GET /classes/{classId}/transferred-assessment-history?from&to` (≤62 ngày, OBS-35) — người đang phụ trách lớp xem chỉ đọc lịch sử ở lớp cũ cùng năm học của trẻ đang thuộc lớp: `days` (đánh giá ngày, `recordedByName`), `weeklyComments` (chỉ SENT), `attendance`, `health` (`DailyHealthService.findDayEntries`), `themeResults` (snapshot bảng cuối chủ đề đã xác nhận, `ThemeEvaluationService.confirmedChildThemes`); mỗi dòng ghi lớp + người ghi. Kèm theo: `EvaluationDay.recordedById/recordedByName/recordedAt` (hồ sơ phát triển), `TicketEvidence.issuedByNames`, `SemesterAssessmentGoal.sourceClassName` (kết quả lấy ở lớp cũ).
 - `GET|POST /assessment/day-unlocks`, `POST /assessment/day-unlocks/{id}/revoke` (PHT/HT).
 - `GET /assessment/overview?period=DAY|WEEK|MONTH`, `GET /assessment/overview/classes/{classId}` (PHT/HT).
 - `GET /assessment/theme-evaluations/classes?schoolYearId` (lớp mọi nhóm tuổi trong phạm vi xem, cờ `teaches`), `GET /assessment/theme-evaluations/themes?classId`, `GET|PUT /assessment/theme-evaluations`, `POST .../confirm` — đánh giá cuối chủ đề mọi nhóm tuổi (OBS-27), bảng `theme_evaluations` (V75, V76 khóa theo dòng gốc chủ đề); chủ đề/MT đọc từ kế hoạch năm học đã duyệt bằng truy vấn chỉ đọc trong `ThemeEvaluationRepository` (không gọi code module kế hoạch giáo dục ngoài `EduLessonQueryService.findGoalLineages`).
+- `POST /assessment/evaluations/{id}/redraft` (body tùy chọn `{ai}`) — tạo lại bản nháp nhận xét tháng / học kỳ / cuối năm; `ai=true` và AI bật (task `PERIOD_COMMENT`) thì AI viết nháp từ số liệu kỳ + nhận xét hằng ngày + nhận xét tuần đã gửi + nhận xét kỳ nhỏ hơn đã xác nhận (OBS-34); AI tắt / lỗi / đầu ra không qua `PeriodCommentGuard` thì giữ mẫu câu `EvaluationDraftWriter` (AI-03). Cả AI và mẫu câu viết ngắn, tự nhiên để GV rà trước khi công bố cho phụ huynh (AI-10); không đưa mã MT/chủ đề hoặc bảng đếm nội bộ vào lời nhận xét, phần căn cứ giữ số liệu chi tiết. `EvaluationRow.aiDraft.source` = TEMPLATE | AI, `EvaluationRow.aiEnabled`. Nhận xét tự do lọc họ tên, ngày sinh, số điện thoại của chính trẻ (`ChildTextScrubber`); tên bạn khác GV tự rà.
 - `GET|PUT /assessment/evaluations/{id}/year-sheet` — phiếu đánh giá sự phát triển cuối năm (OBS-28) gắn vào đánh giá cuối năm: MT kế hoạch năm theo lĩnh vực (`ThemeEvaluationRepository.findYearGoals`), kết quả tổng hợp từ cuối chủ đề (`ThemeEvaluationService.childThemeResults`), số đo từ `HealthMeasurementService.findLatestMeasurement`; cột `child_evaluations.goal_results`, `note_for_*` (V79); xác nhận đánh giá cuối năm gọi `YearEndSheetService.freeze`.
 - ~~`GET|PUT /assessment/class-monthly-comments`, `POST .../confirm`~~ — đã bỏ 14/11/2026 (OBS-26); bảng `class_monthly_comments` (V72) giữ dữ liệu cũ, không còn code dùng.
 - `GET|PUT /assessment/weekly-comments`, `POST .../drafts`, `POST .../send` — nhận xét tuần theo trẻ (tuần theo giáo án tuần đã duyệt qua `EduLessonQueryService`, chưa có giáo án thì thứ Hai–Sáu; mở từ ngày học cuối của tuần, mã 7398; 06:00 việc `createOpenWeekDrafts` tạo nháp mẫu câu còn thiếu cho mọi trẻ, trẻ nghỉ cả tuần có nháp hỏi thăm; GV viết, gửi phụ huynh, báo `WEEKLY_COMMENT_SENT`); bảng trả `week`, `weeks` (các tuần tới hiện tại, mới nhất trước); hạn khóa sau 23:59:59 của ngày học thứ 1 sau tuần (cố định ở `AssessmentDeadlines`, mã 7400 khi quá hạn), trong hạn GV sửa bản đã gửi (lịch sử `weekly_comment_revisions`, gửi lại báo "đã cập nhật"); `GET|POST /assessment/weekly-comments/unlocks`, `POST .../unlocks/{id}/revoke` — HT / PHT có quyền `ASSESSMENT_UNLOCK` ở điểm trường mở lại lớp – tuần đã khóa tới "Mở đến" (bảng `weekly_comment_unlocks`, như mở lại ngày đánh giá); `GET /assessment/weekly-comments/overview` — BGH xem đã gửi / tổng, lớp quá hạn; `GET /children/{childId}/weekly-comments` — phụ huynh đã liên kết xem bản đã gửi (`weekFrom`, `weekEnd`, `weekLabel` theo tuần giáo án như phía GV); bảng `weekly_comments` (V129), OBS-29.
@@ -41,6 +43,7 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng enum theo danh sách FE đã chốt với Cần, lệch OBS-02 cho tới khi có màn cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
 
 ## Known pitfalls
+- Kỳ học kỳ ở hạn / mở lại / nhắc (`EvaluationLockKind.SEMESTER`) dùng chung cho Đánh giá học kỳ theo lĩnh vực (`SemesterAssessmentServiceImpl`); tiến độ, quá hạn kỳ này tính theo `semester_assessments` đã xác nhận của lớp (Cần chốt 24/11/2026), không theo nhận xét học kỳ cá nhân.
 
 - OBS-28: freeze chốt cả kết quả và metadata MT (số, câu, lĩnh vực) — đã sửa, xem [lỗi phiếu cuối năm](../knowledge/incidents/BUG-261104-confirmed-year-sheet-live-goals.md). Khi client lưu/tải lại phiếu, cần giữ hoặc khóa nháp trong lúc chờ để tránh mất nội dung.
 
@@ -56,6 +59,12 @@ P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng e
 - Mẫu nhận xét nền phải chạy khi AI tắt (OBS-04).
 - Không lưu bản sao hoạt động/MT của giáo án; tham chiếu giáo án và MT bằng id, đọc qua service education-plan. Lớp chưa có giáo án duyệt thì khóa phần chấm theo MT (EDU-19).
 
+- API phụ huynh (OBS-36, AUTH-04, chỉ role PARENT, `ParentAssessmentController`; lỗi `4108` PARENT_CHILD_FORBIDDEN, `4109` PARENT_RANGE_INVALID — tối đa 62 ngày, một năm học):
+  - `GET /children/{childId}/daily-assessments?from&to` ⇒ `[{date, status ASSESSED|ABSENT|NOT_RECORDED, classId, className, teacherName, savedAt, symptoms[], healthNote, meals{}, nap, emotion, participation, behaviors[], behaviorNote, activities[{key,label,participation,goalsMet[],goalsEffort[],goalsNotMet[]}], flag, comment}]` — ngày lớp đang được mở lại và cô vừa sửa ⇒ NOT_RECORDED.
+  - `GET /children/{childId}/evaluations?schoolYearId` ⇒ `{childId, schoolYearId, themes[], semesters[], yearEnd}` — chỉ kết quả đã xác nhận của riêng trẻ (cuối chủ đề, học kỳ + nhận xét học kỳ đã xác nhận, phiếu cuối năm + lưu ý cho phụ huynh); không đánh giá tháng; `schoolYearId` bỏ trống = năm của lớp gần nhất.
+  - `GET /children/{childId}/rewards?from&to` ⇒ `{flags[{date,flag,classId,className}], tickets[{type,periodStart,periodEnd,presentDays,flagCount,weeklyTickets,issuedByName,issuedAt,classId,className}], yearEndTitles[{schoolYearId,classId,className,titles[],teacherNote}]}` — danh hiệu chỉ từ danh sách đã duyệt; `teacherNote` = ghi chú của dòng trẻ trong danh sách (lời cô).
+- Nhận xét tuần (OBS-29, V179 `weekly_comments.ai_reviewed_at`): `POST /assessment/weekly-comments/viewed {classId, weekStart, childId}` ghi cô đã mở xem nháp; lưu sửa (`PUT`) hoặc gửi riêng một trẻ cũng tính là đã xem; `POST .../send` không `childId` (Gửi tất cả) trả `7367` WEEKLY_COMMENT_AI_NOT_REVIEWED nêu tên trẻ còn nháp AI chưa xem; viết lại nháp đặt lại chưa xem. Dòng bảng có thêm `aiReviewed`.
+
 ## Related issues
 Chưa có.
 
@@ -65,3 +74,7 @@ Chưa có.
 - OBS-27 (user chốt lại 09/11/2026): từng MT cuối chủ đề Đạt khi có ít nhất một hoạt động Đạt; vắng/chưa có hoạt động Đạt là Chưa đạt. Tổng kết cả chủ đề 70% giữ nguyên. Bảng đã xác nhận không tính lại.
 
 - Học kỳ vẫn dùng bảng lớp/lĩnh vực, hai tầng 50% và kỳ II riêng. Riêng cuối năm, user chốt 09/11/2026: mỗi MT tổng hợp theo các chủ đề có gắn MT và Đạt khi ít nhất 50% chủ đề Đạt; bảng chủ đề/phiếu năm đã xác nhận giữ snapshot.
+
+## Nhắc điểm danh — OBS-30, Tiền điều chỉnh 17/11/2026
+
+AssessmentReminderServiceImpl.remindAttendanceCutoff chạy mỗi 5 phút từ 08:00–23:55 thứ Hai–Sáu, chỉ gửi khi ngày học, năm đang hoạt động, chưa baseLocked và thời điểm trong [08:00, giờ khóa cấu hình). Không còn giới hạn 30 phút trước khóa hoặc trần 12h. Chỉ lớp chưa điểm danh, gửi GV chính và dạy thay theo ngày. Link dedupe gồm lớp/ngày/khung 5 phút: chạy lại trong cùng slot không nhân tin, slot sau có thể nhắc lại tới khi điểm danh/khóa. Các lịch đánh giá/mở lại/nhắc BGH giữ nguyên.

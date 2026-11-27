@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.carenest.config.AuthProperties;
 import java.time.Duration;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -41,7 +42,8 @@ class KeycloakAuthGatewayClientTest {
             "carenest-auth-gateway",
             "gateway-secret-unit-test-32chars-min",
             false,
-            java.util.List.of("http://localhost:5173"));
+            java.util.List.of("http://localhost:5173"),
+            true);
     private final KeycloakProperties admin = new KeycloakProperties(
             BASE,
             "carenest",
@@ -111,6 +113,63 @@ class KeycloakAuthGatewayClientTest {
         assertThatThrownBy(() -> client.login("teacher.a", "wrong-value"))
                 .isInstanceOf(AuthGatewayClient.InvalidCredentials.class)
                 .hasMessage("Invalid credentials");
+        server.verify();
+    }
+
+    @Test
+    void disabledAccountIsDistinguishedOnlyByKeycloakDescription() {
+        server.expect(requestTo(TOKEN))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("""
+                    {"error":"invalid_grant","error_description":"Account disabled"}
+                    """));
+        assertThatThrownBy(() -> client.login("teacher.a", "correct-value"))
+                .isInstanceOf(AuthGatewayClient.AccountDisabled.class);
+        server.verify();
+    }
+
+    @Test
+    void reportsBruteForceLockUntilFromAttackDetection() {
+        expectAdminToken();
+        server.expect(requestTo(BASE
+                        + "/admin/realms/carenest/users?username=0912345678&exact=true&briefRepresentation=true&max=2"))
+                .andExpect(header("Authorization", "Bearer admin-access-unit"))
+                .andRespond(withSuccess("[{\"id\":\"kc-unit\"}]", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/admin/realms/carenest/attack-detection/brute-force/users/kc-unit"))
+                .andRespond(withSuccess("""
+                    {"failedLoginNotBefore":1794825532,"numFailures":5,"disabled":true}
+                    """, MediaType.APPLICATION_JSON));
+        assertThat(client.loginBlockedUntil("0912345678")).contains(Instant.ofEpochSecond(1794825532));
+        server.verify();
+    }
+
+    @Test
+    void emailFallbackNotLockedUnknownOrLookupFailureMeansNoLock() {
+        expectAdminToken();
+        server.expect(
+                        requestTo(
+                                BASE
+                                        + "/admin/realms/carenest/users?username=a%40example.test&exact=true&briefRepresentation=true&max=2"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+        server.expect(
+                        requestTo(
+                                BASE
+                                        + "/admin/realms/carenest/users?email=a%40example.test&exact=true&briefRepresentation=true&max=2"))
+                .andRespond(withSuccess("[{\"id\":\"kc-mail\"}]", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/admin/realms/carenest/attack-detection/brute-force/users/kc-mail"))
+                .andRespond(withSuccess("""
+                    {"failedLoginNotBefore":0,"numFailures":2,"disabled":false}
+                    """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE
+                        + "/admin/realms/carenest/users?username=nobody&exact=true&briefRepresentation=true&max=2"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE
+                        + "/admin/realms/carenest/users?username=teacher.a&exact=true&briefRepresentation=true&max=2"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+        assertThat(client.loginBlockedUntil("a@example.test")).isEmpty();
+        assertThat(client.loginBlockedUntil("nobody")).isEmpty();
+        assertThat(client.loginBlockedUntil("teacher.a")).isEmpty();
         server.verify();
     }
 
@@ -203,6 +262,98 @@ class KeycloakAuthGatewayClientTest {
         assertThatThrownBy(() -> client.changePassword("a".repeat(43), "new-unit-password", "new-unit-password"))
                 .isInstanceOf(AuthGatewayClient.CapabilityRejected.class);
         server.verify();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("AUTH-28: hủy phiên Web cũ, giữ phiên vừa đăng nhập và phiên Mobile")
+    void revokesOnlyOtherWebGatewaySessions() {
+        expectAdminToken();
+        server.expect(requestTo(BASE + "/admin/realms/carenest/users/kc-unit/sessions"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer admin-access-unit"))
+                .andRespond(withSuccess("""
+                    [{"id":"new-web","clients":{"c1":"carenest-auth-gateway"}},
+                     {"id":"old-web","clients":{"c1":"carenest-auth-gateway"}},
+                     {"id":"mobile","clients":{"c2":"carenest-mobile"}}]
+                    """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/admin/realms/carenest/sessions/old-web"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andExpect(header("Authorization", "Bearer admin-access-unit"))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+        assertThat(client.revokeOtherWebSessions("kc-unit", "new-web")).containsExactly("old-web");
+        server.verify();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "AUTH-28: chỉ phiên Web khác mới tính là xung đột; phiên Mobile không tính, lỗi tra cứu ⇒ không hỏi")
+    void detectsOtherWebSessionsIgnoringMobile() {
+        expectAdminToken();
+        server.expect(requestTo(BASE + "/admin/realms/carenest/users/kc-unit/sessions"))
+                .andRespond(withSuccess("""
+                    [{"id":"new-web","clients":{"c1":"carenest-auth-gateway"}},
+                     {"id":"mobile","clients":{"c2":"carenest-mobile"}}]
+                    """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/admin/realms/carenest/users/kc-unit/sessions"))
+                .andRespond(withSuccess("""
+                    [{"id":"new-web","clients":{"c1":"carenest-auth-gateway"}},
+                     {"id":"old-web","clients":{"c1":"carenest-auth-gateway"}}]
+                    """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/admin/realms/carenest/users/kc-unit/sessions"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+        assertThat(client.hasOtherWebSessions("kc-unit", "new-web")).isFalse();
+        assertThat(client.hasOtherWebSessions("kc-unit", "new-web")).isTrue();
+        assertThat(client.hasOtherWebSessions("kc-unit", "new-web")).isFalse();
+        server.verify();
+    }
+
+    @Test
+    void sessionRevokeFailureDoesNotFailTheLogin() {
+        expectAdminToken();
+        server.expect(requestTo(BASE + "/admin/realms/carenest/users/kc-unit/sessions"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+        assertThat(client.revokeOtherWebSessions("kc-unit", "new-web")).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("AUTH-28: có phiên Web mới hơn ⇒ phiên bị từ chối là do đăng nhập nơi khác")
+    void detectsNewerWebSessionForRejectedRefreshToken() {
+        expectAdminToken();
+        server.expect(requestTo(BASE + "/admin/realms/carenest/users/kc-unit/sessions"))
+                .andRespond(withSuccess("""
+                    [{"id":"new-web","start":2000000,"clients":{"c1":"carenest-auth-gateway"}}]
+                    """, MediaType.APPLICATION_JSON));
+        assertThat(client.replacedByNewerWebSession(refreshToken("kc-unit", "old-web"), Instant.ofEpochSecond(1000)))
+                .isTrue();
+        server.verify();
+    }
+
+    @Test
+    void onlyNewerMobileOrOlderSessionsDoNotCountAsReplacement() {
+        expectAdminToken();
+        server.expect(requestTo(BASE + "/admin/realms/carenest/users/kc-unit/sessions"))
+                .andRespond(withSuccess("""
+                    [{"id":"mobile","start":2000000,"clients":{"c2":"carenest-mobile"}},
+                     {"id":"older-web","start":500000,"clients":{"c1":"carenest-auth-gateway"}}]
+                    """, MediaType.APPLICATION_JSON));
+        assertThat(client.replacedByNewerWebSession(refreshToken("kc-unit", "old-web"), Instant.ofEpochSecond(1000)))
+                .isFalse();
+        server.verify();
+    }
+
+    @Test
+    void malformedRefreshTokenIsNeverReportedAsReplaced() {
+        assertThat(client.replacedByNewerWebSession("not-a-jwt", Instant.EPOCH)).isFalse();
+        assertThat(client.replacedByNewerWebSession("a.%%%.c", Instant.EPOCH)).isFalse();
+        server.verify();
+    }
+
+    private static String refreshToken(String sub, String sid) {
+        var encoder = java.util.Base64.getUrlEncoder().withoutPadding();
+        String payload = "{\"sub\":\"" + sub + "\",\"sid\":\"" + sid + "\",\"typ\":\"Refresh\"}";
+        return encoder.encodeToString("{\"alg\":\"HS512\"}".getBytes()) + "."
+                + encoder.encodeToString(payload.getBytes()) + ".signature";
     }
 
     private void expectAdminToken() {

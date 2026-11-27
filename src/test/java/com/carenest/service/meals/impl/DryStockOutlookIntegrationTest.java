@@ -52,7 +52,7 @@ class DryStockOutlookIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -95,6 +95,7 @@ class DryStockOutlookIntegrationTest {
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        attachCampusesToYear(year);
         classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
                 + ", " + year + ", 'Lớp K', " + ag3 + ") RETURNING id");
         for (String name : List.of("Trẻ A", "Trẻ B")) {
@@ -112,6 +113,10 @@ class DryStockOutlookIntegrationTest {
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('GAO',"
                         + " 'Gạo', 'OTHER', 'g', 'kg', 1000, 20000, 100, 5, 1, 10, 'TEST', 20, 'DRY', 'PLANT')"
                         + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                rice);
         long com = insertId("INSERT INTO dishes (code, name, dish_type) VALUES ('COM', 'Cơm', 'MAIN') RETURNING id");
         jdbc.update(
                 "INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child) VALUES (?, ?, ?, 60)",
@@ -120,12 +125,20 @@ class DryStockOutlookIntegrationTest {
                 ag3);
         week(MONDAY, "PUBLISHED", com);
         supplier = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC khô', '0900000009') RETURNING id");
+        jdbc.update("UPDATE food_prices SET supplier_id = ?", supplier);
         principal = user("principal", CareNestRole.PRINCIPAL);
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principal.userId());
         // Tồn 375 g ⇒ đủ thứ Hai (150), thứ Ba (150), thiếu từ thứ Tư
         receive("375", "2027-05-01");
+    }
+
+    private void attachCampusesToYear(long schoolYearId) {
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                schoolYearId);
     }
 
     @Test
@@ -244,7 +257,7 @@ class DryStockOutlookIntegrationTest {
         StockReceiptRequest request = new StockReceiptRequest(
                 campus,
                 supplier,
-                LocalDate.of(2026, 11, 2),
+                TODAY,
                 "",
                 List.of(new StockReceiptRequest.ReceiptLineInput(
                         rice,

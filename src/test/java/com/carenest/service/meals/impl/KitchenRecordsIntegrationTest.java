@@ -9,16 +9,20 @@ import com.carenest.dto.meals.FoodSampleRequest;
 import com.carenest.dto.meals.FoodSampleResponse;
 import com.carenest.dto.meals.KitchenDayResponse;
 import com.carenest.dto.meals.MealPhotoResponse;
+import com.carenest.dto.meals.MealPhotoWeekResponse;
 import com.carenest.dto.meals.MealPhotoWindowResponse;
 import com.carenest.dto.meals.MealPhotoWindowsRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.storage.InMemoryS3;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.service.account.AccountService;
 import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.FoodSampleService;
 import com.carenest.service.meals.KitchenDayService;
 import com.carenest.service.meals.MealPhotoService;
+import com.carenest.service.meals.MealPhotoWeekService;
+import com.carenest.support.MovableClock;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FoodSampleDisposalStatus;
@@ -26,7 +30,6 @@ import com.carenest.utils.enums.FoodSampleStatus;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.Permission;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -65,14 +68,17 @@ class KitchenRecordsIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
+    private static final MovableClock CLOCK = new MovableClock();
+
+    // Mặc định 10:30 thứ Hai; test hủy mẫu dời sang hôm sau vì lưu mẫu chỉ ghi trong ngày (NUT-21)
     @TestConfiguration
     static class FixedClockConfig {
         @Bean
         @Primary
         Clock kitchenTestClock() {
-            return Clock.fixed(NOW, ZONE);
+            return CLOCK;
         }
     }
 
@@ -90,7 +96,13 @@ class KitchenRecordsIntegrationTest {
     private MealPhotoService mealPhotoService;
 
     @Autowired
+    private MealPhotoWeekService mealPhotoWeekService;
+
+    @Autowired
     private DayBoardService dayBoardService;
+
+    @Autowired
+    private AccountService accountService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -112,12 +124,14 @@ class KitchenRecordsIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        CLOCK.set(NOW);
         campus = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-K', 'Cơ sở K', TRUE) RETURNING id");
         otherCampus =
                 insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-O', 'Cơ sở O', FALSE) RETURNING id");
         ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        attachCampusesToYear(year);
         classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
                 + ", " + year + ", 'Lớp K', " + ag3 + ") RETURNING id");
         long child = insertId(
@@ -140,6 +154,53 @@ class KitchenRecordsIntegrationTest {
         kitchen = user("kitchen", CareNestRole.KITCHEN_STAFF, campus);
         otherKitchen = user("kitchen-o", CareNestRole.KITCHEN_STAFF, otherCampus);
         InMemoryS3.install(s3);
+    }
+
+    /** Năm chèn tay chưa có danh sách nhóm tuổi: lớp cần nó để biết các bữa. */
+    private void seedYearAgeGroups() {
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name,"
+                        + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
+                        + " SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions,"
+                        + " max_class_size, nutrition_note FROM age_groups",
+                year);
+    }
+
+    private long insertClassroom(long campusId, String name, long ageGroupId) {
+        return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusId
+                + ", " + year + ", '" + name + "', " + ageGroupId + ") RETURNING id");
+    }
+
+    private long enrolledChild(long classroomId, String validFrom) {
+        long child = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ Dị Ứng', '2022-06-01', 'MALE', 'ACTIVE', CURRENT_DATE)"
+                        + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, ?::date)",
+                child,
+                classroomId,
+                validFrom);
+        return child;
+    }
+
+    private void allergies(long childId, String... names) {
+        jdbc.update(
+                "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
+                        + " self_history_state, family_history_state, tb_contact_state, declared_by)"
+                        + " VALUES (?, 'REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED',"
+                        + " 'NONE_REPORTED', 'NONE_REPORTED', ?)",
+                childId,
+                insertUserId("khai-" + childId));
+        for (String name : names) {
+            jdbc.update("INSERT INTO child_allergies (child_id, name) VALUES (?, ?)", childId, name);
+        }
+    }
+
+    private void attachCampusesToYear(long schoolYearId) {
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                schoolYearId);
     }
 
     @Test
@@ -201,6 +262,89 @@ class KitchenRecordsIntegrationTest {
                         .getKitchenDay(kitchen, MONDAY.plusDays(5), null)
                         .dayOff())
                 .isTrue();
+    }
+
+    @Test
+    @DisplayName("NUT-23, NUT-13, AUTH-05: món nêu chất gây dị ứng và số trẻ theo lớp đúng khối, không lộ trẻ")
+    void kitchenSeesAllergyWarningsPerDishAndClass() {
+        seedYearAgeGroups();
+        jdbc.update("UPDATE foods SET allergen_codes = 'SHRIMP' WHERE id = ?", pork);
+        long first = enrolledChild(classroom, "2026-09-01");
+        allergies(first, "Tôm", "Mực");
+        allergies(enrolledChild(classroom, "2026-09-01"), "  tôm ");
+        long nurseryGroup = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-2'", Long.class);
+        long nursery = insertClassroom(campus, "Nhà trẻ K", nurseryGroup);
+        allergies(enrolledChild(nursery, "2026-09-01"), "Tôm");
+        long farClass = insertClassroom(otherCampus, "Lớp O", ag3);
+        allergies(enrolledChild(farClass, "2026-09-01"), "Tôm", "Mực");
+
+        KitchenDayResponse day = kitchenDayService.getKitchenDay(kitchen, MONDAY, null);
+
+        List<KitchenDayResponse.MenuDish> dishes = day.menu().getFirst().dishes();
+        assertThat(dishes)
+                .filteredOn(d -> d.code().equals("COM"))
+                .singleElement()
+                .satisfies(d -> {
+                    assertThat(d.allergens()).isEmpty();
+                    assertThat(d.allergyWarnings()).isEmpty();
+                });
+        assertThat(dishes)
+                .filteredOn(d -> d.code().equals("THITRIM"))
+                .singleElement()
+                .satisfies(d -> {
+                    assertThat(d.allergens()).extracting(a -> a.code()).containsExactly("SHRIMP");
+                    assertThat(d.allergyWarnings()).singleElement().satisfies(w -> {
+                        assertThat(w.allergen().code()).isEqualTo("SHRIMP");
+                        assertThat(w.byClass())
+                                .containsExactly(new KitchenDayResponse.AllergyClassCount(classroom, "Lớp K", 2));
+                    });
+                });
+        assertThat(day.unmatchedAllergies()).singleElement().satisfies(u -> {
+            assertThat(u.name()).isEqualTo("Mực");
+            assertThat(u.byClass()).containsExactly(new KitchenDayResponse.AllergyClassCount(classroom, "Lớp K", 1));
+        });
+        assertThat(day.toString()).doesNotContain("Trẻ Dị Ứng").doesNotContain("childId");
+    }
+
+    @Test
+    @DisplayName("CHD-13: trẻ không báo ăn, chưa vào lớp không tính; trẻ vắng theo điểm danh vẫn tính")
+    void allergyCountFollowsMealRegisteredEnrollment() {
+        seedYearAgeGroups();
+        long absent = enrolledChild(classroom, "2026-09-01");
+        allergies(absent, "Mực");
+        jdbc.update(
+                "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, meals, recorded_by,"
+                        + " recorded_at) VALUES (?, ?, ?, ?, 'EXCUSED', '', ?, now())",
+                absent,
+                classroom,
+                campus,
+                MONDAY,
+                kitchen.userId());
+        long noMeal = enrolledChild(classroom, "2026-09-01");
+        allergies(noMeal, "Mực");
+        jdbc.update("UPDATE children SET meal_registered = FALSE WHERE id = ?", noMeal);
+        allergies(enrolledChild(classroom, MONDAY.plusDays(1).toString()), "Mực");
+
+        KitchenDayResponse day = kitchenDayService.getKitchenDay(kitchen, MONDAY, null);
+
+        assertThat(day.unmatchedAllergies())
+                .singleElement()
+                .satisfies(u -> assertThat(u.byClass())
+                        .containsExactly(new KitchenDayResponse.AllergyClassCount(classroom, "Lớp K", 1)));
+    }
+
+    @Test
+    @DisplayName("NUT-08: tuần chưa công bố hoặc ngày nghỉ ⇒ không trả cảnh báo dị ứng")
+    void noAllergyDataWithoutPublishedMenu() {
+        seedYearAgeGroups();
+        allergies(enrolledChild(classroom, "2026-09-01"), "Mực");
+
+        assertThat(kitchenDayService.getKitchenDay(kitchen, DRAFT_MONDAY, null).unmatchedAllergies())
+                .isEmpty();
+        assertThat(kitchenDayService
+                        .getKitchenDay(kitchen, MONDAY.plusDays(5), null)
+                        .unmatchedAllergies())
+                .isEmpty();
     }
 
     @Test
@@ -320,19 +464,22 @@ class KitchenRecordsIntegrationTest {
     @Test
     @DisplayName("NUT-21: hủy mẫu trước 24 giờ ⇒ 409; sau 24 giờ ⇒ RECORDED; PHT có mã duyệt ⇒ APPROVED")
     void disposeAfter24Hours() {
-        FoodSampleResponse fresh =
-                foodSampleService.createSample(kitchen, sampleRequest(NOW.minus(Duration.ofHours(23))));
+        // Lấy mẫu 06:00 và 08:00 thứ Hai; sang 07:00 thứ Ba bản 06:00 đủ 25 giờ, bản 08:00 mới 23 giờ
+        CLOCK.set(MONDAY, LocalTime.of(6, 0));
+        FoodSampleResponse old = foodSampleService.createSample(kitchen, sampleRequest(null));
+        CLOCK.set(MONDAY, LocalTime.of(8, 0));
+        FoodSampleResponse fresh = foodSampleService.createSample(kitchen, sampleRequest(null));
+        Instant tuesday = MONDAY.plusDays(1).atTime(7, 0).atZone(ZONE).toInstant();
+        CLOCK.set(tuesday);
         expectCode(
                 () -> foodSampleService.disposeSample(kitchen, fresh.id(), null),
                 ApiCode.FOOD_SAMPLE_DISPOSAL_TOO_EARLY);
         expectCode(() -> foodSampleService.approveDisposal(principal, fresh.id()), ApiCode.FOOD_SAMPLE_STATE_INVALID);
 
-        FoodSampleResponse old =
-                foodSampleService.createSample(kitchen, sampleRequest(NOW.minus(Duration.ofHours(25))));
         FoodSampleResponse disposed =
                 foodSampleService.disposeSample(kitchen, old.id(), new FoodSampleDisposeRequest(null));
         assertThat(disposed.disposalStatus()).isEqualTo(FoodSampleDisposalStatus.RECORDED);
-        assertThat(disposed.disposedAt()).isEqualTo(NOW);
+        assertThat(disposed.disposedAt()).isEqualTo(tuesday);
         // Đã ghi hủy ⇒ bếp không sửa, không ghi hủy lần hai
         expectCode(
                 () -> foodSampleService.updateSample(kitchen, old.id(), sampleRequest(null)),
@@ -357,9 +504,11 @@ class KitchenRecordsIntegrationTest {
     @Test
     @DisplayName("AUTH-20: PHT không có FOOD_SAFETY_APPROVE (hoặc ngoài điểm trường) không duyệt được; món lạ bị chặn")
     void approvalNeedsPermissionAndValidDishes() {
-        FoodSampleResponse sample =
-                foodSampleService.createSample(kitchen, sampleRequest(NOW.minus(Duration.ofHours(30))));
+        CLOCK.set(MONDAY, LocalTime.of(6, 0));
+        FoodSampleResponse sample = foodSampleService.createSample(kitchen, sampleRequest(null));
+        CLOCK.set(MONDAY.plusDays(1), LocalTime.of(12, 0));
         foodSampleService.disposeSample(kitchen, sample.id(), null);
+        CLOCK.set(NOW);
 
         expectCode(() -> foodSampleService.approveSample(vp, sample.id()), ApiCode.FOOD_SAFETY_ACCESS_DENIED);
         expectCode(() -> foodSampleService.approveDisposal(vp, sample.id()), ApiCode.FOOD_SAFETY_ACCESS_DENIED);
@@ -393,6 +542,113 @@ class KitchenRecordsIntegrationTest {
                         kitchen,
                         new FoodSampleRequest(MONDAY.plusDays(1), MealSession.LUNCH, List.of(com), null, null)),
                 ApiCode.INVALID_DATE_RANGE);
+    }
+
+    @Test
+    @DisplayName("NUT-21: lưu mẫu chỉ ghi/sửa cho hôm nay, giờ lấy mẫu cùng ngày, không dời ngày")
+    void sampleOnlyForToday() {
+        expectCode(
+                () -> foodSampleService.createSample(
+                        kitchen,
+                        new FoodSampleRequest(MONDAY.minusDays(1), MealSession.LUNCH, List.of(com, thit), null, null)),
+                ApiCode.FOOD_SAMPLE_DATE_NOT_TODAY);
+        // Giờ lấy mẫu rơi vào hôm qua dù ngày ghi là hôm nay
+        expectCode(
+                () -> foodSampleService.createSample(
+                        kitchen,
+                        sampleRequest(
+                                MONDAY.minusDays(1).atTime(22, 0).atZone(ZONE).toInstant())),
+                ApiCode.FOOD_SAMPLE_DATE_NOT_TODAY);
+
+        FoodSampleResponse sample = foodSampleService.createSample(kitchen, sampleRequest(null));
+        assertThat(sample.editable()).isTrue();
+        expectCode(
+                () -> foodSampleService.updateSample(
+                        kitchen,
+                        sample.id(),
+                        new FoodSampleRequest(MONDAY.plusDays(1), MealSession.LUNCH, List.of(com), null, null)),
+                ApiCode.FOOD_SAMPLE_DATE_CHANGED);
+
+        // Sang hôm sau: mẫu hôm qua chỉ xem
+        CLOCK.set(MONDAY.plusDays(1), LocalTime.of(9, 0));
+        expectCode(
+                () -> foodSampleService.updateSample(kitchen, sample.id(), sampleRequest(null)),
+                ApiCode.FOOD_SAMPLE_DATE_NOT_TODAY);
+        assertThat(foodSampleService.getSamples(kitchen, null, MONDAY, MONDAY))
+                .singleElement()
+                .satisfies(s -> assertThat(s.editable()).isFalse());
+    }
+
+    @Test
+    @DisplayName("INS-03: M5 đã ký ⇒ không thêm, sửa, ghi hủy mẫu của ngày; Sửa lại biên bản (về nháp) thì ghi được")
+    void signedSampleBookLocksSamples() {
+        CLOCK.set(MONDAY, LocalTime.of(6, 0));
+        FoodSampleResponse sample = foodSampleService.createSample(kitchen, sampleRequest(null));
+        CLOCK.set(NOW);
+        signSheet(MONDAY, "SAMPLE");
+
+        expectCode(
+                () -> foodSampleService.createSample(kitchen, sampleRequest(null)),
+                ApiCode.FOOD_SAMPLE_INSPECTION_SIGNED);
+        expectCode(
+                () -> foodSampleService.updateSample(kitchen, sample.id(), sampleRequest(null)),
+                ApiCode.FOOD_SAMPLE_INSPECTION_SIGNED);
+        assertThat(foodSampleService.getSamples(kitchen, null, MONDAY, MONDAY))
+                .singleElement()
+                .satisfies(s -> assertThat(s.editable()).isFalse());
+        CLOCK.set(MONDAY.plusDays(1), LocalTime.of(7, 0));
+        expectCode(
+                () -> foodSampleService.disposeSample(kitchen, sample.id(), null),
+                ApiCode.FOOD_SAMPLE_INSPECTION_SIGNED);
+
+        unsignSheet(MONDAY, "SAMPLE");
+        assertThat(foodSampleService.disposeSample(kitchen, sample.id(), null).disposalStatus())
+                .isEqualTo(FoodSampleDisposalStatus.RECORDED);
+    }
+
+    @Test
+    @DisplayName("AUTH-22: tài khoản bếp nhận tên điểm trường đang phân công hôm nay, bỏ phân công đã hết hạn")
+    void kitchenAccountCarriesTodayCampusName() {
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to)"
+                        + " VALUES (?, 'KITCHEN_STAFF', ?, '2025-01-01', '2025-12-31')",
+                kitchen.userId(),
+                otherCampus);
+
+        assertThat(accountService.getMyAccount(kitchen).assignments())
+                .singleElement()
+                .satisfies(a -> {
+                    assertThat(a.campusId()).isEqualTo(campus);
+                    assertThat(a.campusName()).isEqualTo("Cơ sở K");
+                });
+    }
+
+    @Test
+    @DisplayName("CFG-YR-01: mẫu thuộc năm học đã kết thúc ⇒ không ghi hủy, dữ liệu giữ nguyên")
+    void disposeRejectedWhenSchoolYearClosed() {
+        CLOCK.set(MONDAY, LocalTime.of(6, 0));
+        FoodSampleResponse sample = foodSampleService.createSample(kitchen, sampleRequest(null));
+        CLOCK.set(MONDAY.plusDays(1), LocalTime.of(7, 0));
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", year);
+
+        expectCode(() -> foodSampleService.disposeSample(kitchen, sample.id(), null), ApiCode.SCHOOL_YEAR_CLOSED);
+
+        assertThat(foodSampleService.getSamples(kitchen, null, MONDAY, MONDAY))
+                .singleElement()
+                .satisfies(s -> {
+                    assertThat(s.disposalStatus()).isEqualTo(FoodSampleDisposalStatus.NONE);
+                    assertThat(s.disposedAt()).isNull();
+                });
+    }
+
+    @Test
+    @DisplayName("NUT-16: ngày không học (thứ Bảy) ⇒ không đăng ảnh bữa ăn")
+    void photoOnlyOnSchoolDay() {
+        mealPhotoService.updateWindows(principal, windows(MealSession.LUNCH, "10:00", "11:00"));
+        CLOCK.set(MONDAY.plusDays(5), LocalTime.of(10, 30));
+        expectCode(
+                () -> mealPhotoService.uploadPhoto(kitchen, MealSession.LUNCH, jpeg()),
+                ApiCode.MEAL_PHOTO_NOT_SCHOOL_DAY);
     }
 
     @Test
@@ -476,6 +732,94 @@ class KitchenRecordsIntegrationTest {
         assertThat(mealPhotoService.getWindows(vp)).hasSize(2);
     }
 
+    @Test
+    @DisplayName("NUT-16, NUT-21, INS-03: tuần có ảnh ⇒ người đăng, đúng giờ, thực đơn, suất, lưu mẫu, biên bản")
+    void weekOverviewShowsPhotoAndCrossChecks() {
+        mealPhotoService.updateWindows(principal, windows(MealSession.LUNCH, "10:00", "11:00"));
+        addLine(insertCount(MONDAY, "LUNCH", "CONFIRMED"), false, 10);
+        mealPhotoService.uploadPhoto(kitchen, MealSession.LUNCH, jpeg());
+        foodSampleService.createSample(kitchen, sampleRequest(null));
+        signSheet(MONDAY, "PROCESS");
+
+        MealPhotoWeekResponse week = mealPhotoWeekService.getWeek(vp, campus, null);
+
+        assertThat(week.weekStart()).isEqualTo(MONDAY);
+        assertThat(week.days()).hasSize(5);
+        MealPhotoWeekResponse.WeekDay monday = week.days().get(0);
+        MealPhotoWeekResponse.WeekSession lunch = session(monday, MealSession.LUNCH);
+        assertThat(lunch.status()).isEqualTo("POSTED");
+        assertThat(lunch.photo().uploaderName()).isEqualTo("kitchen");
+        assertThat(lunch.photo().onTime()).isTrue();
+        assertThat(lunch.dishes()).containsExactlyInAnyOrder("Cơm", "Thịt rim");
+        assertThat(lunch.servingsNormal()).isEqualTo(10);
+        assertThat(lunch.servingsSubstitute()).isZero();
+        assertThat(lunch.sample()).isNotNull();
+        assertThat(session(monday, MealSession.MORNING).status()).isEqualTo("NOT_EXPECTED");
+        assertThat(monday.inspections()).singleElement().satisfies(i -> {
+            assertThat(i.status().name()).isEqualTo("SIGNED");
+            assertThat(i.signedByName()).isEqualTo("PHT");
+        });
+        // Ngày chưa tới không tính thiếu ảnh
+        MealPhotoWeekResponse.WeekDay tuesday = week.days().get(1);
+        assertThat(tuesday.upcoming()).isTrue();
+        assertThat(session(tuesday, MealSession.LUNCH).status()).isEqualTo("NOT_EXPECTED");
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-16: bữa có thực đơn mà quá hạn đăng ⇒ thiếu ảnh; hôm nay còn khung giờ hoặc chưa cấu hình ⇒ chờ đăng")
+    void weekOverviewMissingAndPending() {
+        mealPhotoService.updateWindows(principal, windows(MealSession.LUNCH, "10:00", "11:00"));
+        CLOCK.set(MONDAY.plusDays(2), LocalTime.of(10, 30));
+
+        MealPhotoWeekResponse inWindow = mealPhotoWeekService.getWeek(vp, campus, MONDAY);
+        assertThat(session(inWindow.days().get(0), MealSession.LUNCH).status()).isEqualTo("MISSING");
+        assertThat(session(inWindow.days().get(2), MealSession.LUNCH).status()).isEqualTo("PENDING");
+
+        CLOCK.set(MONDAY.plusDays(2), LocalTime.of(12, 0));
+        MealPhotoWeekResponse afterWindow = mealPhotoWeekService.getWeek(vp, campus, MONDAY);
+        assertThat(session(afterWindow.days().get(2), MealSession.LUNCH).status())
+                .isEqualTo("MISSING");
+        assertThat(session(afterWindow.days().get(3), MealSession.LUNCH).status())
+                .isEqualTo("NOT_EXPECTED");
+    }
+
+    @Test
+    @DisplayName("NUT-16: weekStart giữa tuần chuẩn hóa về thứ Hai; bếp điểm trường khác bị chặn")
+    void weekStartNormalizedAndScoped() {
+        assertThat(mealPhotoWeekService.getWeek(vp, campus, MONDAY.plusDays(2)).weekStart())
+                .isEqualTo(MONDAY);
+        expectCode(() -> mealPhotoWeekService.getWeek(otherKitchen, campus, MONDAY), ApiCode.KITCHEN_CAMPUS_DENIED);
+    }
+
+    private static MealPhotoWeekResponse.WeekSession session(MealPhotoWeekResponse.WeekDay day, MealSession session) {
+        return day.sessions().stream()
+                .filter(s -> s.session() == session)
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /** Biên bản đã ký giả (đủ trường chữ ký để entity đọc được). */
+    private void signSheet(LocalDate date, String tab) {
+        jdbc.update(
+                "INSERT INTO inspection_sheets (campus_id, sheet_date, tab, status, signature) VALUES (?, ?, ?, 'SIGNED',"
+                        + " '{\"signedBy\":1,\"signedByName\":\"PHT\",\"signedAt\":\"2026-11-09T03:00:00Z\","
+                        + "\"documentVersion\":1,\"imageKey\":\"sig.png\",\"contentType\":\"image/png\","
+                        + "\"sizeBytes\":10}'::jsonb)",
+                campus,
+                date,
+                tab);
+    }
+
+    private void unsignSheet(LocalDate date, String tab) {
+        jdbc.update(
+                "UPDATE inspection_sheets SET status = 'DRAFT', signature = NULL"
+                        + " WHERE campus_id = ? AND sheet_date = ? AND tab = ?",
+                campus,
+                date,
+                tab);
+    }
+
     private FoodSampleRequest sampleRequest(Instant sampledAt) {
         return new FoodSampleRequest(MONDAY, MealSession.LUNCH, List.of(com, thit), sampledAt, null);
     }
@@ -542,11 +886,16 @@ class KitchenRecordsIntegrationTest {
     }
 
     private long food(String code, String name, String storage, String origin) {
-        return insertId(
+        long foodId = insertId(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('" + code
                         + "', '" + name + "', 'OTHER', 'g', 'kg', 1000, 20000, 100, 5, 1, 10, 'TEST', 0, '" + storage
                         + "', '" + origin + "') RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private long dish(String code, String name, long foodId, int grams) {

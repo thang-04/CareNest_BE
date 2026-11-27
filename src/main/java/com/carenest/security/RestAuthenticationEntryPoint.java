@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -42,7 +43,14 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 request.getRequestURI(),
                 authException.getClass().getSimpleName());
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
-        SecurityResponseWriter.write(
-                response, objectMapper, ApiCode.UNAUTHENTICATED, ApiCode.UNAUTHENTICATED.getDefaultDesc());
+        // AUTH-28: báo riêng phiên bị đăng nhập ở trình duyệt khác để FE hiện đúng cảnh báo
+        ApiCode code = sessionReplaced(authException) ? ApiCode.WEB_SESSION_REPLACED : ApiCode.UNAUTHENTICATED;
+        SecurityResponseWriter.write(response, objectMapper, code, code.getDefaultDesc());
+    }
+
+    private static boolean sessionReplaced(AuthenticationException ex) {
+        return ex.getCause() instanceof JwtValidationException invalid
+                && invalid.getErrors().stream()
+                        .anyMatch(error -> WebSessionRevocations.ERROR_CODE.equals(error.getErrorCode()));
     }
 }

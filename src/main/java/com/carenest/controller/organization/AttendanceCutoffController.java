@@ -35,7 +35,7 @@ public class AttendanceCutoffController {
             @PathVariable Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getCutoff|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        CutoffResponse cutoff = attendanceCutoffService.getCutoff(schoolYearId);
+        CutoffResponse cutoff = attendanceCutoffService.getCutoff(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get cutoff success", cutoff);
     }

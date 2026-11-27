@@ -63,7 +63,7 @@ class EvaluationDeadlineIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class ClockConfig {
@@ -117,6 +117,9 @@ class EvaluationDeadlineIntegrationTest {
 
     @Autowired
     private ObservationDayRules rules;
+
+    @Autowired
+    private com.carenest.service.observation.SemesterAssessmentService semesterAssessments;
 
     @Autowired
     private jakarta.persistence.EntityManager entityManager;
@@ -222,6 +225,52 @@ class EvaluationDeadlineIntegrationTest {
     }
 
     @Test
+    @DisplayName("Cần chốt 18/11/2026: màn đánh giá học kỳ theo lớp quá hạn thì báo đỏ khi lưu, mở lại thì lưu được")
+    void semesterBoardLocksAfterDeadline() {
+        var req = new com.carenest.dto.observation.SemesterAssessmentDtos.Request(classA, 1, "Lưu ý");
+        semesterAssessments.save(teacherA, req);
+
+        CLOCK.set(at(LocalDate.of(2026, 11, 2), 8));
+        assertThatThrownBy(() -> semesterAssessments.save(teacherA, req))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Đánh giá học kỳ I đã khóa từ ngày 31/10/2026. Liên hệ PHT hoặc Hiệu trưởng để mở lại.");
+        expectCode(() -> semesterAssessments.confirm(teacherA, req), ApiCode.EVALUATION_LOCKED);
+
+        service.unlock(vpA, request(EvaluationLockKind.SEMESTER, "1", at(LocalDate.of(2026, 11, 3), 17)));
+        assertThat(semesterAssessments.save(teacherA, req).status()).isEqualTo("DRAFT");
+    }
+
+    @Test
+    @DisplayName("Đánh giá học kỳ: nút Xác nhận khóa thì trả lý do theo đúng thứ tự kiểm của lúc xác nhận")
+    void semesterBoardExplainsWhyConfirmIsBlocked() {
+        CLOCK.set(at(LocalDate.of(2026, 10, 10), 10));
+        var early = semesterAssessments.get(teacherA, classA, 1);
+        assertThat(early.canConfirm()).isFalse();
+        assertThat(early.confirmBlockedReason()).isEqualTo("NOT_ENDED");
+
+        CLOCK.set(at(LocalDate.of(2026, 10, 30), 10));
+        var ended = semesterAssessments.get(teacherA, classA, 1);
+        assertThat(ended.canConfirm()).isFalse();
+        assertThat(ended.confirmBlockedReason()).isEqualTo("INCOMPLETE");
+
+        var assistant = user("assistant", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-09-01', '2027-05-31', FALSE)",
+                assistant.userId(),
+                classA);
+        assertThat(semesterAssessments.get(assistant, classA, 1).confirmBlockedReason())
+                .isEqualTo("NOT_HOMEROOM");
+        var leaderView = semesterAssessments.get(vpA, classA, 1);
+        assertThat(leaderView.canConfirm()).isFalse();
+        assertThat(leaderView.confirmBlockedReason()).isEqualTo("NO_PERMISSION");
+
+        CLOCK.set(at(LocalDate.of(2026, 11, 2), 8));
+        assertThat(semesterAssessments.get(teacherA, classA, 1).confirmBlockedReason())
+                .isEqualTo("DEADLINE_LOCKED");
+    }
+
+    @Test
     @DisplayName("Mở lại lớp – kỳ: PHT điểm trường mở, GV được báo; kết thúc sớm thì khóa lại; quyền và lỗi")
     void reopenByClassAndPeriod() {
         Instant until = at(LocalDate.of(2026, 11, 3), 17);
@@ -314,6 +363,123 @@ class EvaluationDeadlineIntegrationTest {
         reminderService.remindDailyAssessment();
         assertThat(titles(teacherA).stream().filter("Chưa xong đánh giá hôm nay"::equals))
                 .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("OBS-30: nhắc đánh giá 20:00 không đếm trẻ có mặt nhưng đã chuyển sang lớp khác hôm nay")
+    void dailyReminderIgnoresPresentChildWhoLeftTheClass() {
+        long classB = jdbc.queryForObject("SELECT id FROM classrooms WHERE name = 'Lớp B'", Long.class);
+        long mover =
+                insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ("
+                        + "'ED' || substr(md5(random()::text), 1, 12), 'Cường', '2023-01-01', 'MALE', 'ACTIVE', '2026-09-01')"
+                        + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01', "
+                        + "'2026-11-01'), (?, ?, '2026-11-02', NULL)",
+                mover,
+                classA,
+                mover,
+                classB);
+        jdbc.update(
+                "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, recorded_by, recorded_at) "
+                        + "SELECT ?, id, campus_id, ?, 'PRESENT', ?, now() FROM classrooms WHERE id = ?",
+                mover,
+                LocalDate.of(2026, 11, 2),
+                principal.userId(),
+                classA);
+        CLOCK.set(at(LocalDate.of(2026, 11, 2), 20));
+        reminderService.remindDailyAssessment();
+        assertThat(titles(teacherA)).doesNotContain("Chưa xong đánh giá hôm nay");
+    }
+
+    @Test
+    @DisplayName("Cần chốt 26/11/2026: GV đang dạy chính lớp ghi được ngày mở lại, kể cả trước ngày nhận lớp")
+    void mainTeacherCanRecordDayBeforeAssignmentStarted() {
+        var newcomer = user("newcomer", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-10-20', FALSE)",
+                newcomer.userId(),
+                classA);
+        var cls = classroomService.findClassroomInfo(classA).orElseThrow();
+        assertThat(rules.canRecordDay(newcomer, cls, LocalDate.of(2026, 10, 15)))
+                .isTrue();
+        assertThat(rules.canRecordDay(newcomer, cls, LocalDate.of(2026, 10, 21)))
+                .isTrue();
+        assertThat(rules.canRecordDay(teacherA, cls, LocalDate.of(2026, 10, 15)))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName(
+            "Cần chốt 24/11/2026: tiến độ, quá hạn kỳ học kỳ theo Đánh giá học kỳ của lớp, không theo nhận xét cá nhân")
+    void semesterProgressFollowsClassSemesterAssessment() {
+        // Nhận xét học kỳ cá nhân cũ đã xác nhận không còn tính
+        jdbc.update(
+                "INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id, period_type, "
+                        + "period_start, period_end, status, final_content, confirmed_by, confirmed_at, created_at, "
+                        + "updated_at) SELECT ?, id, campus_id, school_year_id, 'SEMESTER', '2026-09-01', '2026-10-23', "
+                        + "'CONFIRMED', 'Đã xác nhận', ?, now(), now(), now() FROM classrooms WHERE id = ?",
+                child1,
+                teacherA.userId(),
+                classA);
+        CLOCK.set(at(LocalDate.of(2026, 11, 2), 7));
+        var cls = classroomService.findClassroomInfo(classA).orElseThrow();
+        var semester1 = service.periodsOf(cls).stream()
+                .filter(p ->
+                        p.kind() == com.carenest.utils.enums.EvaluationLockKind.SEMESTER && "1".equals(p.periodKey()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(service.progress(cls, semester1)).containsExactly(0, 1);
+        assertThat(service.overdueOf(List.of(cls)))
+                .extracting(OverdueClassItem::kind, OverdueClassItem::periodKey)
+                .contains(org.assertj.core.groups.Tuple.tuple("SEMESTER", "1"));
+
+        jdbc.update(
+                "INSERT INTO semester_assessments (classroom_id, campus_id, school_year_id, semester_no, period_start,"
+                        + " period_end, result_snapshot, confirmed_by, confirmed_at) SELECT id, campus_id,"
+                        + " school_year_id, 1, '2026-09-01', '2026-10-23', '{}', ?, now() FROM classrooms WHERE id = ?",
+                teacherA.userId(),
+                classA);
+
+        assertThat(service.progress(cls, semester1)).containsExactly(1, 1);
+        assertThat(service.overdueOf(List.of(cls)))
+                .extracting(OverdueClassItem::kind, OverdueClassItem::periodKey)
+                .doesNotContain(org.assertj.core.groups.Tuple.tuple("SEMESTER", "1"));
+    }
+
+    @Test
+    @DisplayName("Cần chốt 18/11/2026: hạn cuối năm sau ngày kết thúc năm vẫn nhắc GV, BGH tới khi HT đóng năm")
+    void remindsYearEndAfterYearEndUntilClosed() {
+        // HK II kết thúc 28/05, năm kết thúc 31/05 ⇒ hạn cuối năm 04/06/2027
+        CLOCK.set(at(LocalDate.of(2027, 6, 3), 7));
+        reminderService.remindEvaluationDeadlines();
+        assertThat(titles(teacherA)).contains("Đánh giá cuối năm sắp hết hạn");
+
+        CLOCK.set(at(LocalDate.of(2027, 6, 7), 7));
+        reminderService.remindEvaluationDeadlines();
+        assertThat(titles(teacherA)).contains("Đánh giá cuối năm đã khóa");
+        assertThat(service.getOverdue(vpA, null))
+                .extracting(OverdueClassItem::kind)
+                .contains("YEAR");
+        reminderService.remindLeadersOverdue();
+        assertThat(notifications(vpA, "LEADER_REMINDER")).isEqualTo(1);
+        // Lớp quá hạn theo năm học đang chọn: năm sắp diễn ra chưa có kỳ nào quá hạn
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        assertThat(service.getOverdue(vpA, null, planned)).isEmpty();
+        assertThat(service.getOverdue(vpA, null, year))
+                .extracting(OverdueClassItem::kind)
+                .contains("YEAR");
+
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", year);
+        entityManager.clear();
+        CLOCK.set(at(LocalDate.of(2027, 6, 8), 7));
+        long before = notifications(teacherA, "ASSESSMENT_REMINDER") + notifications(vpA, "LEADER_REMINDER");
+        reminderService.remindEvaluationDeadlines();
+        reminderService.remindLeadersOverdue();
+        assertThat(notifications(teacherA, "ASSESSMENT_REMINDER") + notifications(vpA, "LEADER_REMINDER"))
+                .isEqualTo(before);
     }
 
     @Test

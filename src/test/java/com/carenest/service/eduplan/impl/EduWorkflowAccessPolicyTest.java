@@ -44,16 +44,16 @@ class EduWorkflowAccessPolicyTest {
     }
 
     @Test
-    @DisplayName("EDU-54: PHT không duyệt lớp ngoài campus được phân công")
-    void vicePrincipalCannotReviewOtherCampus() {
+    @DisplayName("EDU-108 FR4.1: PHT có mã duyệt duyệt lớp mọi điểm trường; soạn vẫn theo campus phân công")
+    void vicePrincipalReviewsAnyCampusButAuthorsOwnCampus() {
         CurrentUser vp = user(25L, CareNestRole.VICE_PRINCIPAL);
         given(staffAssignmentService.findActiveCampusIds(25L, StaffRole.VICE_PRINCIPAL, TODAY))
                 .willReturn(Set.of(1L));
         given(classroomService.findCampusId(200L)).willReturn(java.util.Optional.of(2L));
         given(classroomService.findCampusId(100L)).willReturn(java.util.Optional.of(1L));
-        assertThat(accessPolicy.canReviewClassDoc(vp, Role.VICE_PRINCIPAL, 3L, 200L))
-                .isFalse();
-        assertThat(accessPolicy.canReviewClassDoc(vp, Role.VICE_PRINCIPAL, 3L, 100L))
+        assertThat(accessPolicy.canReviewClassDoc(vp, "theme", Role.VICE_PRINCIPAL, 3L, 200L))
+                .isTrue();
+        assertThat(accessPolicy.canReviewClassDoc(vp, "theme", Role.VICE_PRINCIPAL, 3L, 100L))
                 .isTrue();
         var policy = new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL));
         assertThat(accessPolicy.canAuthorClassDoc(vp, policy, 3L, 200L)).isFalse();
@@ -124,7 +124,13 @@ class EduWorkflowAccessPolicyTest {
 
     private static CurrentUser user(Long id, CareNestRole... roles) {
         return new CurrentUser(
-                id, "kc-" + id, "user" + id, "Người thử " + id, "user" + id + "@school.edu", Set.of(roles));
+                id,
+                "kc-" + id,
+                "user" + id,
+                "Người thử " + id,
+                "user" + id + "@school.edu",
+                Set.of(roles),
+                com.carenest.security.TestPermissions.eduDefaultsOf(roles));
     }
 
     @Test
@@ -150,9 +156,9 @@ class EduWorkflowAccessPolicyTest {
 
         assertThat(accessPolicy.canReviewYearPlan(tlUser, Role.TEAM_LEADER, 1L)).isTrue();
         assertThat(accessPolicy.canReviewYearPlan(tlUser, Role.TEAM_LEADER, 2L)).isFalse();
-        assertThat(accessPolicy.canReviewClassDoc(tlUser, Role.TEAM_LEADER, 1L, 101L))
+        assertThat(accessPolicy.canReviewClassDoc(tlUser, "theme", Role.TEAM_LEADER, 1L, 101L))
                 .isTrue();
-        assertThat(accessPolicy.canReviewClassDoc(tlUser, Role.TEAM_LEADER, 2L, 102L))
+        assertThat(accessPolicy.canReviewClassDoc(tlUser, "theme", Role.TEAM_LEADER, 2L, 102L))
                 .isFalse();
     }
 
@@ -169,7 +175,7 @@ class EduWorkflowAccessPolicyTest {
                 .isTrue();
         assertThat(accessPolicy.canReviewYearPlan(tlUser, Role.TEAM_LEADER, 1L, 1L))
                 .isFalse();
-        assertThat(accessPolicy.canReviewClassDoc(tlUser, Role.TEAM_LEADER, 1L, 1L, 101L))
+        assertThat(accessPolicy.canReviewClassDoc(tlUser, "theme", Role.TEAM_LEADER, 1L, 1L, 101L))
                 .isFalse();
     }
 

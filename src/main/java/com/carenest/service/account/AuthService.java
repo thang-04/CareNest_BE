@@ -14,6 +14,7 @@ public interface AuthService {
         }
     }
 
+    /** {@code data.takeover() != null} ⇒ {@code cookie} là cookie lượt chờ xác nhận (AUTH-28), chưa phải cookie phiên. */
     record LoginResult(AuthResponses.LoginData data, SessionCookie cookie) {
         @Override
         public String toString() {
@@ -31,6 +32,21 @@ public interface AuthService {
     AuthResponses.Csrf csrf(String token);
 
     LoginResult login(AuthRequests.Login request);
+
+    /** AUTH-28: trình duyệt mới chọn "Dùng ở đây" ⇒ cấp phiên và hủy phiên Web khác. */
+    LoginResult confirmTakeover(String takeoverCookie);
+
+    /** AUTH-28: trình duyệt mới chọn "Hủy" ⇒ bỏ lượt chờ, phiên đang dùng giữ nguyên. */
+    void cancelTakeover(String takeoverCookie);
+
+    /** AUTH-28: phiên đang dùng hỏi có lượt đăng nhập nào ở nơi khác chờ quyết định không. */
+    AuthResponses.SessionStatus sessionStatus(CurrentUser current);
+
+    /** AUTH-28: phiên đang dùng chọn "Tiếp tục dùng ở đây" ⇒ hủy lượt chờ ở trình duyệt kia. */
+    void rejectTakeover(CurrentUser current, String takeoverId);
+
+    /** Dọn lượt chờ hết hạn và hủy phiên Keycloak chưa dùng của chúng. */
+    void expireTakeovers();
 
     RefreshResult refresh(String cookie);
 

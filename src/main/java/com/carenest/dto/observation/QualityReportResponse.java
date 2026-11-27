@@ -28,7 +28,7 @@ public record QualityReportResponse(
             int children,
             int schoolDays,
             Integer avgPresent,
-            int presentDays,
+            double presentDays,
             int possibleDays,
             Integer attendanceRate,
             int leftChildren,

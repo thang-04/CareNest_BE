@@ -34,5 +34,40 @@ public record SaveDailyGeneralRequest(
             List<ObservedBehavior> behaviors,
             @Size(max = 500) String behaviorNote,
             Boolean flag,
-            @Size(max = 500) String comment) {}
+            @Size(max = 500) String comment,
+            /**
+             * true: dòng này chỉ tạo mới. Trang của cô chưa thấy ghi nhận nào lúc mở; nếu cô khác đã ghi trong lúc đó
+             * thì bỏ qua, không đè (OBS-17, OBS-33). Không gửi hoặc false: ghi đè như cô đã sửa.
+             */
+            Boolean createOnly) {
+
+        public Entry(
+                Long childId,
+                boolean healthOverridden,
+                List<HealthSymptom> healthSigns,
+                String healthNote,
+                Map<MealSession, EatingLevel> meals,
+                NapLevel nap,
+                Emotion emotion,
+                Participation participation,
+                List<ObservedBehavior> behaviors,
+                String behaviorNote,
+                Boolean flag,
+                String comment) {
+            this(
+                    childId,
+                    healthOverridden,
+                    healthSigns,
+                    healthNote,
+                    meals,
+                    nap,
+                    emotion,
+                    participation,
+                    behaviors,
+                    behaviorNote,
+                    flag,
+                    comment,
+                    null);
+        }
+    }
 }

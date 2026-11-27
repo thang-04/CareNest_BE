@@ -4,7 +4,10 @@ import com.carenest.config.AttendanceProperties;
 import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.DayUnlockResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.entity.attendance.AttendanceDayUnlock;
+import com.carenest.entity.organization.AttendanceCutoff;
+import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceDayUnlockRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
@@ -13,6 +16,8 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
+import com.carenest.service.organization.TeacherReadAccessService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -47,6 +52,11 @@ class AttendanceDayRules {
     private final CampusAccessPolicy campusAccessPolicy;
     private final AccountService accountService;
     private final SchoolYearService schoolYearService;
+    private final TeacherReadAccessService teacherReadAccessService;
+
+    java.time.ZoneId zone() {
+        return clock.getZone();
+    }
 
     LocalDate today() {
         return LocalDate.now(clock);
@@ -61,8 +71,52 @@ class AttendanceDayRules {
         return schoolYearService.isSchoolDay(date);
     }
 
+    /** Ngày bắt đầu / kết thúc học kỳ (1 | 2) của năm học; chưa cấu hình hoặc số học kỳ sai thì báo chọn học kỳ. */
+    LocalDate[] semesterRange(Long schoolYearId, Integer semester) {
+        var year = schoolYearService.findSchoolYearDetail(schoolYearId).orElse(null);
+        LocalDate start = year == null || semester == null
+                ? null
+                : semester == 1 ? year.semester1Start() : semester == 2 ? year.semester2Start() : null;
+        LocalDate end = year == null || semester == null
+                ? null
+                : semester == 1 ? year.semester1End() : semester == 2 ? year.semester2End() : null;
+        if (start == null || end == null) {
+            throw GlobalException.of(
+                    ApiCode.SEMESTER_DATE_REQUIRED, "học kỳ I hoặc học kỳ II đã có ngày bắt đầu, kết thúc");
+        }
+        return new LocalDate[] {start, end};
+    }
+
+    /** Ngày cuối được xin nghỉ: hết học kỳ II nếu đã đặt (không quá ngày kết thúc năm), chưa đặt thì hết năm học. */
+    LocalDate lastLeaveDay(Long schoolYearId, LocalDate yearEnd) {
+        LocalDate semester2End = schoolYearService
+                .findSchoolYearDetail(schoolYearId)
+                .map(com.carenest.dto.organization.SchoolYearDetailResponse::semester2End)
+                .orElse(null);
+        return semester2End == null || semester2End.isAfter(yearEnd) ? yearEnd : semester2End;
+    }
+
     LocalTime cutoff(Long schoolYearId, LocalDate date) {
         return attendanceCutoffService.findCutoffTime(schoolYearId, date).orElse(properties.defaultCutoff());
+    }
+
+    /** ATT-13: giờ đến muộn nhất buổi chiều của trẻ nghỉ sáng. */
+    LocalTime latestArrival(Long schoolYearId, LocalDate date) {
+        return attendanceCutoffService
+                .findLatestAfternoonArrival(schoolYearId, date)
+                .orElse(AttendanceCutoff.DEFAULT_LATEST_ARRIVAL);
+    }
+
+    /** ATT-05b: giờ bắt đầu buổi chiều theo lịch sinh hoạt ngày. */
+    LocalTime afternoonStart(Long schoolYearId, LocalDate date) {
+        return attendanceCutoffService
+                .findAfternoonStart(schoolYearId, date)
+                .orElse(AttendanceCutoff.DEFAULT_AFTERNOON_START);
+    }
+
+    /** Hôm nay đã tới giờ time chưa (giờ trường). */
+    boolean reachedToday(LocalTime time) {
+        return !LocalTime.now(clock).isBefore(time);
     }
 
     /** ATT-06: ngày đã qua, hoặc hôm nay từ giờ chốt trở đi. */
@@ -106,27 +160,86 @@ class AttendanceDayRules {
 
     // Quyền xem của BGH theo đúng scope HT cấp; GV/tổ trưởng vẫn theo lớp/nhóm tuổi được phân công.
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
+        return canView(user, cls, null);
+    }
+
+    /** Lớp GV đang được phân công hôm nay, đọc một lần cho cả danh sách lớp (thay vì tra phân công từng lớp). */
+    Set<Long> activeTeacherClassIds(CurrentUser user) {
+        return user.hasRole(CareNestRole.TEACHER)
+                ? staffAssignmentService.findCurrentTeacherClassroomIds(user.userId(), today())
+                : Set.of();
+    }
+
+    /** active: kết quả activeTeacherClassIds đã đọc sẵn; null = tra theo từng lớp. */
+    boolean canView(CurrentUser user, ClassroomInfoResponse cls, Set<Long> active) {
         // GV có quyền ghi điểm danh / sức khỏe luôn xem được lớp đang dạy, kể cả khi HT thu hồi quyền Xem (chỉ bớt xem
         // tổng hợp), để quyền ghi không bị mất theo
+        // Người dạy thay chỉ xem đúng ngày mình dạy thay (canViewDay / canViewRange), không xem cả lớp (Cần chốt
+        // 24/11/2026)
+        boolean substituteOnly = (active == null || active.contains(cls.id())) && substituteOnly(user, cls);
         if ((user.hasPermission(Permission.ATTENDANCE_RECORD) || user.hasPermission(Permission.DAILY_HEALTH_RECORD))
-                && canRecord(user, cls)) {
+                && !yearEnded(cls)
+                && !substituteOnly
+                && canRecord(user, cls, active)) {
             return true;
         }
-        if (!user.hasPermission(Permission.ATTENDANCE_VIEW)) {
+        if (!user.hasPermission(Permission.ATTENDANCE_VIEW) || substituteOnly) {
             return false;
         }
         if (user.hasRole(CareNestRole.PRINCIPAL) || user.hasRole(CareNestRole.VICE_PRINCIPAL)) {
             return campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, cls.campusId())
                     || ledClosedYear(user, cls, Permission.ATTENDANCE_VIEW);
         }
-        return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
+        // Như ClassroomAccessPolicy.canReadClassroom: GV đang dạy lớp, hoặc đọc được điểm trường của lớp
+        boolean readsClass = active == null
+                ? classroomAccessPolicy.canReadClassroom(user, cls.id())
+                : active.contains(cls.id()) || campusAccessPolicy.canReadCampus(user, cls.campusId());
+        return (!yearEnded(cls) && readsClass) || canReadHistoryRange(user, cls, cls.yearStart(), cls.yearEnd());
+    }
+
+    // GV chỉ có đợt dạy thay đang hiệu lực ở lớp, không dạy chính (BGH xem theo điểm trường như thường)
+    private boolean substituteOnly(CurrentUser user, ClassroomInfoResponse cls) {
+        return user.hasRole(CareNestRole.TEACHER)
+                && !user.hasRole(CareNestRole.PRINCIPAL)
+                && !user.hasRole(CareNestRole.VICE_PRINCIPAL)
+                && !yearEnded(cls)
+                && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), today())
+                && !staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), today());
     }
 
     /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
-        return canView(user, cls)
-                || (user.hasRole(CareNestRole.TEACHER)
-                        && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+        if (yearEnded(cls)
+                && user.hasRole(CareNestRole.TEACHER)
+                && !user.hasRole(CareNestRole.PRINCIPAL)
+                && !user.hasRole(CareNestRole.VICE_PRINCIPAL)) return canReadHistoryRange(user, cls, date, date);
+        return canView(user, cls) || canReadHistoryRange(user, cls, date, date);
+    }
+
+    boolean canReadHistoryRange(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+        return from != null
+                && to != null
+                && cls.yearStart() != null
+                && cls.yearEnd() != null
+                && !from.isBefore(cls.yearStart())
+                && !to.isAfter(cls.yearEnd())
+                && user.hasRole(CareNestRole.TEACHER)
+                && user.hasPermission(Permission.ATTENDANCE_VIEW)
+                && teacherReadAccessService.covers(user.userId(), cls.id(), from, to);
+    }
+
+    LocalDate lastReadableDay(CurrentUser user, ClassroomInfoResponse cls) {
+        if (!user.hasRole(CareNestRole.TEACHER) || !user.hasPermission(Permission.ATTENDANCE_VIEW)) return null;
+        LocalDate end = cls.yearEnd() == null || cls.yearEnd().isAfter(today()) ? today() : cls.yearEnd();
+        return teacherReadAccessService.latestDay(user.userId(), cls.id(), cls.yearStart(), end);
+    }
+
+    boolean canViewRange(CurrentUser user, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+        if (yearEnded(cls)
+                && user.hasRole(CareNestRole.TEACHER)
+                && !user.hasRole(CareNestRole.PRINCIPAL)
+                && !user.hasRole(CareNestRole.VICE_PRINCIPAL)) return canReadHistoryRange(user, cls, from, to);
+        return canView(user, cls) || canReadHistoryRange(user, cls, from, to);
     }
 
     /** Người dạy thay có đợt trong năm của lớp: lớp vẫn có trong danh sách để mở lại đúng ngày mình dạy thay. */
@@ -150,6 +263,10 @@ class AttendanceDayRules {
         if (user.hasRole(CareNestRole.PRINCIPAL)
                 && staffAssignmentService.hadRoleInYear(user.userId(), StaffRole.PRINCIPAL, null, cls.schoolYearId())) {
             return true;
+        }
+        Long pinnedCampus = user.pinnedCampusId(permission);
+        if (pinnedCampus != null && !pinnedCampus.equals(cls.campusId())) {
+            return false;
         }
         return user.hasRole(CareNestRole.VICE_PRINCIPAL)
                 && staffAssignmentService.hadRoleInYear(
@@ -196,8 +313,14 @@ class AttendanceDayRules {
     /** AUTH-03: ghi điểm danh = giáo viên đang được phân công lớp. */
     // GV đang dạy lớp; sau ngày kết thúc năm mà HT chưa đóng năm, GV từng dạy ghi được ngày BGH mở lại (ATT-08)
     boolean canRecord(CurrentUser user, ClassroomInfoResponse cls) {
+        return canRecord(user, cls, null);
+    }
+
+    boolean canRecord(CurrentUser user, ClassroomInfoResponse cls, Set<Long> active) {
         return user.hasRole(CareNestRole.TEACHER)
-                && (staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today())
+                && ((active == null
+                                ? staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today())
+                                : active.contains(cls.id()))
                         || (cls.yearStatus() == SchoolYearStatus.ACTIVE && taughtClosedYear(user, cls)));
     }
 
@@ -211,7 +334,9 @@ class AttendanceDayRules {
      */
     boolean canRecordDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return user.hasRole(CareNestRole.TEACHER)
+                // User chốt 26/11/2026: GV được phân công lớp (hiện tại hoặc đúng ngày được ghi) đều ghi được
                 && (staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), today())
+                        || staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), date)
                         || staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date)
                         || (cls.yearStatus() == SchoolYearStatus.ACTIVE && taughtClosedYear(user, cls)));
     }
@@ -220,20 +345,46 @@ class AttendanceDayRules {
         return user.hasPermission(Permission.ATTENDANCE_RECORD) && canRecordDay(user, cls, date);
     }
 
+    /** Phân công giáo viên (dạy chính, dạy thay) của người dùng, đọc một lần; không phải GV ⇒ rỗng. */
+    List<StaffAssignmentResponse> teacherAssignments(CurrentUser user) {
+        return user.hasRole(CareNestRole.TEACHER)
+                ? staffAssignmentService.findAssignments(user.userId()).stream()
+                        .filter(a -> a.staffRole() == StaffRole.TEACHER)
+                        .toList()
+                : List.of();
+    }
+
+    /** Người dùng là GV của lớp (dạy chính hoặc dạy thay) ít nhất một ngày trong from..to. */
+    static boolean teachesDuring(
+            List<StaffAssignmentResponse> assignments, Long classId, LocalDate from, LocalDate to) {
+        return assignments.stream()
+                .anyMatch(a -> classId.equals(a.classroomId())
+                        && a.validFrom() != null
+                        && !a.validFrom().isAfter(to)
+                        && (a.validTo() == null
+                                || (!a.validTo().isBefore(from) && !a.validTo().isBefore(a.validFrom()))));
+    }
+
     /** Người nhận thông báo việc theo ngày: GV dạy chính hiện tại và người dạy thay ngày đó. */
     List<Long> dayTeacherIds(ClassroomInfoResponse cls, LocalDate date) {
         Long id = cls.id();
         // Đã qua ngày kết thúc năm: GV dạy chính năm đó (ngày mở lại vẫn trong năm)
         LocalDate at = cls.yearEnd() != null && today().isAfter(cls.yearEnd()) ? cls.yearEnd() : today();
-        return Stream.concat(
+        return Stream.of(
                         staffAssignmentService
                                 .findCurrentMainTeacherIds(List.of(id), at)
+                                .getOrDefault(id, List.of())
+                                .stream(),
+                        // GV chính đang dạy đúng ngày được mở lại cũng được báo (có thể đã chuyển lớp sau đó)
+                        staffAssignmentService
+                                .findCurrentMainTeacherIds(List.of(id), date)
                                 .getOrDefault(id, List.of())
                                 .stream(),
                         staffAssignmentService
                                 .findSubstituteTeacherIdsOn(List.of(id), date)
                                 .getOrDefault(id, List.of())
                                 .stream())
+                .flatMap(java.util.function.Function.identity())
                 .distinct()
                 .toList();
     }

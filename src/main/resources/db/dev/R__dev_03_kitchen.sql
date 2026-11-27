@@ -349,6 +349,65 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Xuất kho khô (NUT-29, NUT-30): mỗi cơ sở một phiếu trả NCC trên lô còn hạn có tồn; phiếu xuất hủy chỉ khi có lô đã hết hạn
+-- còn tồn. Bút toán không có meal_date nên không lẫn với trừ kho theo suất. Chạy lại không nhân đôi (khóa theo mã phiếu).
+DO $$
+DECLARE
+    c record;
+    lot record;
+    today date := (SELECT x.today FROM k3_ctx x);
+    did bigint;
+    qty numeric;
+    v_code text;
+BEGIN
+    FOR c IN SELECT * FROM k3_staff ORDER BY campus_id LOOP
+        v_code := 'XT-' || to_char(today, 'YYYYMMDD') || '-' || c.campus_id || '-01';
+        IF NOT EXISTS (SELECT 1 FROM stock_disposals sd WHERE sd.code = v_code) THEN
+            SELECT l.id, l.food_id, r.supplier_id, coalesce(sum(m.quantity), 0) AS bal INTO lot
+            FROM stock_receipt_lines l
+            JOIN stock_receipts r ON r.id = l.receipt_id AND r.status = 'CONFIRMED' AND r.campus_id = c.campus_id
+            LEFT JOIN stock_movements m ON m.lot_id = l.id
+            WHERE l.expiry_date >= today
+            GROUP BY l.id, l.food_id, r.supplier_id
+            HAVING coalesce(sum(m.quantity), 0) > 0
+            ORDER BY bal DESC, l.id
+            LIMIT 1;
+            IF FOUND THEN
+                qty := LEAST(lot.bal, GREATEST(round(lot.bal * 0.1, 2), 0.01));
+                INSERT INTO stock_disposals (code, campus_id, kind, supplier_id, disposal_date, reason, created_by, created_at)
+                VALUES (v_code, c.campus_id, 'SUPPLIER_RETURN', lot.supplier_id, today, 'Giao thừa so với đơn đặt',
+                        c.vp_id, now())
+                RETURNING id INTO did;
+                INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity, disposal_id, reason,
+                                             created_by, created_at)
+                VALUES (lot.id, c.campus_id, lot.food_id, 'SUPPLIER_RETURN', -qty, did, 'Giao thừa so với đơn đặt',
+                        c.vp_id, now());
+            END IF;
+        END IF;
+
+        v_code := 'XH-' || to_char(today, 'YYYYMMDD') || '-' || c.campus_id || '-01';
+        IF NOT EXISTS (SELECT 1 FROM stock_disposals sd WHERE sd.code = v_code) THEN
+            SELECT l.id, l.food_id, coalesce(sum(m.quantity), 0) AS bal INTO lot
+            FROM stock_receipt_lines l
+            JOIN stock_receipts r ON r.id = l.receipt_id AND r.status = 'CONFIRMED' AND r.campus_id = c.campus_id
+            LEFT JOIN stock_movements m ON m.lot_id = l.id
+            WHERE l.expiry_date < today
+            GROUP BY l.id, l.food_id
+            HAVING coalesce(sum(m.quantity), 0) > 0
+            ORDER BY l.expiry_date, l.id
+            LIMIT 1;
+            IF FOUND THEN
+                INSERT INTO stock_disposals (code, campus_id, kind, supplier_id, disposal_date, reason, created_by, created_at)
+                VALUES (v_code, c.campus_id, 'WRITE_OFF', NULL, today, 'Hết hạn sử dụng', c.vp_id, now())
+                RETURNING id INTO did;
+                INSERT INTO stock_movements (lot_id, campus_id, food_id, movement_type, quantity, disposal_id, reason,
+                                             created_by, created_at)
+                VALUES (lot.id, c.campus_id, lot.food_id, 'WRITE_OFF', -lot.bal, did, 'Hết hạn sử dụng', c.vp_id, now());
+            END IF;
+        END IF;
+    END LOOP;
+END $$;
+
 -- Phiếu nháp kỳ nhập tới của cơ sở chính (PHT lập trước, chờ hàng về mới xác nhận)
 INSERT INTO stock_receipts (campus_id, supplier_id, received_date, status, note, created_by, updated_by, created_at, updated_at)
 SELECT st.campus_id, s.id, nx.day, 'DRAFT', 'Hàng khô kỳ tới, chờ nhà cung cấp báo giá và giao hàng', st.vp_id, st.vp_id,
@@ -534,7 +593,81 @@ WHERE s.sampled_at <= now()
   AND NOT EXISTS (SELECT 1 FROM food_samples f
                   WHERE f.campus_id = s.campus_id AND f.sample_date = s.day AND f.session = s.session);
 
+-- Lịch sử sửa ngoại lệ thực đơn đã công bố (P-39): tuần trước, PHT đổi món mặn bữa trưa mẫu giáo của một ngày vì nhà
+-- cung cấp hết hàng. "Sau" = món đang có của ngày đó; "trước" = cùng ngày với món mặn cũ. Chỉ tạo khi tuần chưa có lần sửa.
+WITH target AS (
+    SELECT w.id AS week_id, i.menu_date, i.dish_id AS new_dish
+    FROM k3_ctx x
+    JOIN meal_plan_weeks w ON w.week_start = x.this_monday - 7 AND w.status = 'PUBLISHED'
+    JOIN meal_plan_items i ON i.week_id = w.id AND i.menu_block = 'KINDERGARTEN' AND i.session = 'LUNCH'
+    JOIN dishes d ON d.id = i.dish_id AND d.dish_type = 'MAIN'
+    WHERE NOT EXISTS (SELECT 1 FROM meal_plan_day_revisions r WHERE r.week_id = w.id)
+    ORDER BY i.menu_date, i.sort_order
+    LIMIT 1),
+old_dish AS (
+    SELECT d.id, d.name
+    FROM dishes d CROSS JOIN target t
+    WHERE d.dish_type = 'MAIN' AND d.status = 'ACTIVE' AND d.id <> t.new_dish
+    ORDER BY d.id
+    LIMIT 1),
+day_items AS (
+    SELECT i.session, i.menu_block, i.dish_id, d.name, i.sort_order,
+           (i.menu_block = 'KINDERGARTEN' AND i.session = 'LUNCH' AND i.dish_id = t.new_dish) AS swapped
+    FROM target t
+    JOIN meal_plan_items i ON i.week_id = t.week_id AND i.menu_date = t.menu_date
+    JOIN dishes d ON d.id = i.dish_id)
+INSERT INTO meal_plan_day_revisions (week_id, menu_date, before_items, after_items, reason, changed_by, changed_at)
+SELECT t.week_id, t.menu_date,
+       (SELECT jsonb_agg(jsonb_build_object('session', di.session, 'block', di.menu_block,
+                                            'dishId', CASE WHEN di.swapped THEN o.id ELSE di.dish_id END,
+                                            'dishName', CASE WHEN di.swapped THEN o.name ELSE di.name END)
+                         ORDER BY di.menu_block, di.session, di.sort_order)
+        FROM day_items di),
+       (SELECT jsonb_agg(jsonb_build_object('session', di.session, 'block', di.menu_block,
+                                            'dishId', di.dish_id, 'dishName', di.name)
+                         ORDER BY di.menu_block, di.session, di.sort_order)
+        FROM day_items di),
+       'Nhà cung cấp báo hết nguyên liệu món mặn, đổi sang món mặn khác cùng nhóm',
+       coalesce(x.pht_main, x.principal_id),
+       ((t.menu_date - 1) + TIME '14:00') AT TIME ZONE 'Asia/Ho_Chi_Minh'
+FROM target t
+CROSS JOIN old_dish o
+CROSS JOIN k3_ctx x;
+
 DROP TABLE k3_sample_state;
+-- 9. Cân đối khẩu phần lần 1 (NUT-31): các ngày sau hôm nay của tuần đã có món, gam mỗi trẻ lấy đúng công thức món (chưa
+-- làm tròn), số trẻ = sĩ số đang học của điểm trường theo nhóm tuổi. Ngày đã qua và hôm nay không seed để kho, kiểm nhận
+-- theo suất đã chốt vẫn tính theo công thức như trên. Không đè bản người dùng đã lưu (khóa ngày + lần).
+INSERT INTO day_balances (balance_date, round, rounding_step, row_version, saved_by, saved_at)
+SELECT DISTINCT i.menu_date, 1, NULL::numeric, 0, x.pht_main, now() - INTERVAL '1 hour'
+FROM meal_plan_items i
+JOIN meal_plan_weeks w ON w.id = i.week_id
+CROSS JOIN k3_ctx x
+WHERE i.menu_date > x.today
+ON CONFLICT (balance_date, round) DO NOTHING;
+
+INSERT INTO day_balance_counts (day_balance_id, campus_id, age_group_id, children)
+SELECT b.id, c.campus_id, c.age_group_id, c.enrolled
+FROM day_balances b
+JOIN k3_fc_counts c ON c.week_start = b.balance_date - (EXTRACT(ISODOW FROM b.balance_date)::int - 1)
+WHERE b.round = 1
+  AND NOT EXISTS (SELECT 1 FROM day_balance_counts x WHERE x.day_balance_id = b.id)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO day_balance_lines (day_balance_id, age_group_id, session, dish_id, food_id, base_grams, grams, waste_pct,
+                               unit_price, purchase_unit, purchase_unit_size)
+SELECT b.id, di.age_group_id, i.session, i.dish_id, di.food_id, di.grams_per_child, di.grams_per_child, f.waste_pct,
+       f.unit_price, f.purchase_unit, f.purchase_unit_size
+FROM day_balances b
+JOIN meal_plan_weeks w ON w.week_start = b.balance_date - (EXTRACT(ISODOW FROM b.balance_date)::int - 1)
+JOIN meal_plan_items i ON i.week_id = w.id AND i.menu_date = b.balance_date
+JOIN age_groups g ON i.menu_block = CASE WHEN g.age_to_months <= 36 THEN 'NURSERY' ELSE 'KINDERGARTEN' END
+JOIN dish_ingredients di ON di.dish_id = i.dish_id AND di.age_group_id = g.id
+JOIN foods f ON f.id = di.food_id
+WHERE b.round = 1
+  AND NOT EXISTS (SELECT 1 FROM day_balance_lines x WHERE x.day_balance_id = b.id)
+ON CONFLICT DO NOTHING;
+
 DROP TABLE k3_sample;
 DROP TABLE k3_fresh_check;
 DROP TABLE k3_stock_days;

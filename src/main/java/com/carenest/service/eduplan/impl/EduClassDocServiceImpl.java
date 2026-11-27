@@ -1,9 +1,12 @@
 package com.carenest.service.eduplan.impl;
 
+import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.BranchFilePreviewResponse;
 import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
 import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
+import com.carenest.dto.eduplan.ClassDocContextResponse;
+import com.carenest.dto.eduplan.ClassDocSummaryFilter;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.dto.eduplan.EduDurationPolicyResponse;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
@@ -34,7 +37,6 @@ import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduClassDocStatus;
 import com.carenest.utils.enums.EduPlanLevel;
@@ -78,6 +80,15 @@ import tools.jackson.databind.node.ObjectNode;
 public class EduClassDocServiceImpl implements EduClassDocService {
     private static final String LOG_PREFIX = "[EduClassDocServiceImpl]";
 
+    // ponytail: như EduPlanTimeLock — cờ chỉ để bộ test cũ (lớp tạo sau hạn, đồng hồ cố định) tắt hạn; ứng dụng luôn
+    // bật
+    private boolean deadlineEnabled = true;
+
+    @org.springframework.beans.factory.annotation.Value("${carenest.eduplan.plan-time-lock-enabled:true}")
+    void setDeadlineEnabled(boolean deadlineEnabled) {
+        this.deadlineEnabled = deadlineEnabled;
+    }
+
     private record ClassListContext(
             Map<Long, ClassroomInfoResponse> classes,
             Map<String, EduWorkflowPolicy.RolePolicy> policies,
@@ -91,13 +102,18 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Map<Long, SchoolYearDetailResponse> years,
             Map<Long, LocalDate> opened,
             // EDU-90: vai trò người tạo theo (người tạo, ngày tạo), tránh truy vấn lặp cho cả danh sách
-            Map<String, Optional<EduWorkflowPolicy.Role>> creatorRoles) {}
+            Map<String, Optional<EduWorkflowPolicy.Role>> creatorRoles,
+            // GV chủ nhiệm hiện hành theo lớp, nạp một lần cho cả danh sách (tránh truy vấn mỗi hồ sơ)
+            Map<Long, Long> homerooms) {}
 
     private static final String ACTION_SUBMIT = "submit";
     private static final String ACTION_APPROVE = "approve";
     private static final String ACTION_REJECT = "reject";
+    // EDU-110 BR6.2/(10): HT soạn, chuỗi duyệt rỗng ⇒ ban hành thẳng
+    private static final String ACTION_PUBLISH = "principal_publish";
     // Spec 003: HT/PHT mở hạn gói/hồ sơ quá hạn
     private static final String ACTION_EXTEND = "extend";
+    private static final String ACTION_REOPEN_REVIEW_DEADLINE = "reopen_review_deadline";
     // Spec 004 (Q2, Q3): tạo phiên bản điều chỉnh của gói/hồ sơ đã ban hành, trước ngày bắt đầu
     private static final String ACTION_REVISE = "revise";
     private static final String ROLE_TEAM_LEADER = "TEAM_LEADER";
@@ -126,6 +142,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             "status",
             "approvals",
             "history",
+            "returned",
             "sourceDocKey",
             "adjustments",
             "yearPlanVersion",
@@ -186,7 +203,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             requireView(currentUser);
             Long classId = request.classId();
             ClassroomInfoResponse cls = requireClass(classId);
-            requireClassDocAuthor(currentUser, cls);
+            requireClassDocAuthor(currentUser, cls, EduClassDoc.BRANCH);
             EduPlan plan = requireIssuedPlan(request.yearPlanId(), cls);
             if (isSuperseded(plan.getId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
             var currentBranch =
@@ -369,11 +386,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         try {
             LocalDate today = LocalDate.now(clock);
             ClassroomInfoResponse authorClass = requireClass(classId);
-            requireClassDocAuthor(currentUser, authorClass);
+            requireClassDocAuthor(currentUser, authorClass, EduClassDoc.BRANCH);
             ClassroomInfoResponse cls = requireClass(classId);
             EduPlan plan = requireIssuedPlan(yearPlanId, cls);
             if (isSuperseded(plan.getId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
-            // Spec 003: lịch nhánh khóa khi có gói học kỳ đang Chờ duyệt
+            // Spec 003: lịch nhánh khóa khi có kế hoạch giáo dục chủ đề đang Chờ duyệt
             if (semesterInReview(classId, plan.getId())) throw GlobalException.of(ApiCode.CLASS_DOC_SUBMITTED);
             if (file == null || file.isEmpty()) throw GlobalException.of(ApiCode.BRANCH_FILE_UNSUPPORTED);
             if (file.getSize() > 2L * 1024 * 1024) throw GlobalException.of(ApiCode.BRANCH_FILE_TOO_LARGE);
@@ -454,10 +471,15 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             LocalDate today = LocalDate.now(clock);
             if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            if (!write && !isClassDocAuthor(currentUser, cls, EduClassDoc.DOSSIER)) {
+                EduClassDoc root = dossierOf(doc).orElse(null);
+                if (root == null || !canReadLiveRoot(currentUser, cls, root))
+                    throw GlobalException.of(ApiCode.EDU_PLAN_NOT_RELEASED);
+            }
             if (write) {
                 schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
-                requireClassDocAuthor(currentUser, cls);
-                // Như lưu giáo án ngày: hồ sơ chủ đề chứa nó phải còn Nháp (chờ duyệt/ban hành ⇒ khóa)
+                requireClassDocAuthor(currentUser, cls, doc.getKind());
+                // Như lưu giáo án ngày: kế hoạch giáo dục ngày chứa nó phải còn Nháp (chờ duyệt/ban hành ⇒ khóa)
                 boolean dossierDraft =
                         dossierOf(doc).map(r -> r.getStatus().editable()).orElse(false);
                 if (doc.getStatus() == EduClassDocStatus.REVIEW || !dossierDraft)
@@ -474,6 +496,94 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ObjectNode getClassDocChecks(CurrentUser currentUser, String kind, String docKey) {
+        String logPrefix = LOG_PREFIX + "|getClassDocChecks|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            requireView(currentUser);
+            requireKind(kind);
+            if (!EduClassDoc.isRoot(kind)) throw GlobalException.of(ApiCode.WEEKLY_LESSON_VIA_THEME);
+            EduClassDoc doc = classDocRepository
+                    .findByDocKey(docKey)
+                    .filter(d -> d.getKind().equals(kind))
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
+            ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
+            LocalDate today = LocalDate.now(clock);
+            if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            if (!canReadLiveRoot(currentUser, cls, doc)) throw GlobalException.of(ApiCode.EDU_PLAN_NOT_RELEASED);
+            SchoolYearDetailResponse year = yearOf(cls);
+            List<EduClassDoc> planDocs =
+                    classDocRepository.findAllByClassroomIdAndYearPlanId(cls.id(), doc.getYearPlanId());
+            RootInfo info = rootInfo(doc, planDocs, year, openedOn(cls.id()), today);
+            ObjectNode node = objectMapper.createObjectNode();
+            ArrayNode items = node.putArray("items");
+            // EDU-96: cùng tiêu chí với lúc gửi, thêm hạn và phần cần sửa theo phiên bản tổ
+            for (SubmitCheck check : submitChecks(doc, planDocs, year)) {
+                ObjectNode item = items.addObject().put("key", check.key()).put("label", check.label());
+                try {
+                    check.run().run();
+                    item.put("ok", true);
+                } catch (GlobalException ex) {
+                    item.put("ok", false).put("message", ex.getMessage());
+                    if (ex.getData() != null) item.set("data", objectMapper.valueToTree(ex.getData()));
+                }
+            }
+            boolean overdue = EduDeadline.OVERDUE.equals(info.deadline().state());
+            ObjectNode deadline = items.addObject()
+                    .put("key", "deadline")
+                    .put("label", "Còn trong hạn gửi duyệt")
+                    .put("ok", !overdue || !doc.getStatus().editable());
+            if (overdue && doc.getStatus().editable())
+                deadline.put("message", ApiCode.CLASS_DOC_DEADLINE_PASSED.format());
+            long unresolved = membersOf(doc, planDocs, year).stream()
+                            .mapToLong(d -> unresolvedVersionFixes(d, today))
+                            .sum()
+                    + unresolvedVersionFixes(doc, today);
+            ObjectNode fixes = items.addObject()
+                    .put("key", "versionFixes")
+                    .put("label", "Không còn phần cần sửa theo phiên bản tổ")
+                    .put("ok", unresolved == 0);
+            if (unresolved > 0) fixes.put("message", ApiCode.CLASS_DOC_VERSION_FIX_REQUIRED.format(unresolved));
+            node.put("passed", (int) java.util.stream.StreamSupport.stream(items.spliterator(), false)
+                    .filter(i -> i.path("ok").asBoolean())
+                    .count());
+            node.put("total", items.size());
+            log.info("{}|END", logPrefix);
+            return node;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public EduClassDoc requireDayReviewAccess(CurrentUser currentUser, String docKey) {
+        String logPrefix = LOG_PREFIX + "|requireDayReviewAccess|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            EduClassDoc day = requireDayAccess(currentUser, docKey, false);
+            ClassroomInfoResponse cls = requireClass(day.getClassroomId());
+            // EDU-96: tóm tắt AI chỉ cho người soạn và người đang có lượt duyệt kế hoạch giáo dục ngày chứa ngày đó
+            boolean reviewer = dossierOf(day)
+                    .map(root -> toNode(currentUser, root)
+                            .path("permissions")
+                            .path("canApprove")
+                            .asBoolean(false))
+                    .orElse(false);
+            if (!isClassDocAuthor(currentUser, cls, EduClassDoc.DOSSIER) && !reviewer)
+                throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP);
+            log.info("{}|END", logPrefix);
+            return day;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public EduClassDocStatus dayStatus(EduClassDoc day) {
         if (day.getStatus() == EduClassDocStatus.REVIEW) return EduClassDocStatus.REVIEW;
         return dossierOf(day).map(EduClassDoc::getStatus).orElse(day.getStatus());
@@ -483,16 +593,428 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return classDocRepository.findByDocKey(dossierKey(day.getClassroomId(), day.getThemeId()));
     }
 
+    private boolean canReadLiveRoot(CurrentUser user, ClassroomInfoResponse cls, EduClassDoc root) {
+        if (isClassDocAuthor(user, cls, root.getKind()) || root.getStatus() == EduClassDocStatus.APPROVED) return true;
+        return root.getStatus() == EduClassDocStatus.REVIEW
+                && eduWorkflowService.loadPolicy(EduClassDoc.policyType(root.getKind())).reviewers().stream()
+                        .anyMatch(role -> accessPolicy.canReviewClassDoc(
+                                user,
+                                EduClassDoc.policyType(root.getKind()),
+                                role,
+                                cls.schoolYearId(),
+                                cls.ageGroupId(),
+                                cls.id()));
+    }
+
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId) {
+        return getClassDocs(currentUser, schoolYearId, false, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ClassDocsResponse getClassDocsForReview(CurrentUser currentUser, Long schoolYearId) {
+        return getClassDocs(currentUser, schoolYearId, false, true);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ClassDocsResponse getClassDocsOfClass(
+            CurrentUser currentUser, Long schoolYearId, boolean reviewView, Long classId) {
+        String logPrefix = LOG_PREFIX + "|getClassDocsOfClass|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        try {
+            // Trang của một lớp chỉ cần tài liệu lớp đó (Tiền 25/11/2026); danh sách lớp, nhân sự giữ đủ cho ô chọn lớp
+            ClassDocsResponse docs = getClassDocs(currentUser, schoolYearId, false, reviewView, classId);
+            ClassDocsResponse all =
+                    getClassDocs(currentUser, schoolYearId, false, false, null, ids -> List.of(), Set.of());
+            var result = new ClassDocsResponse(
+                    docs.branchPlans(),
+                    docs.classThemePlans(),
+                    docs.weekPlans(),
+                    all.classes(),
+                    all.staff(),
+                    docs.creationCapabilities(),
+                    docs.semesterPackages(),
+                    docs.themeDossiers(),
+                    docs.dayPlans(),
+                    docs.semesterConfigMissing());
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ClassDocsResponse getOverdueClassDocs(CurrentUser currentUser, Long schoolYearId) {
+        requireOverdueRead(currentUser, schoolYearId);
+        // edu-list-paging: bảng quá hạn chỉ cần gói/hồ sơ chưa ban hành ⇒ nạp chúng + thành phần, không nạp cả trường
+        return getClassDocs(currentUser, schoolYearId, true, false, null, this::unreleasedRootsWithMembers, null);
+    }
+
+    private List<EduClassDoc> unreleasedRootsWithMembers(List<Long> classIds) {
+        List<EduClassDoc> roots = classDocRepository.findSummaryCandidates(
+                classIds,
+                false,
+                List.of(EduClassDoc.SEMESTER, EduClassDoc.DOSSIER),
+                false,
+                List.of(EduClassDocStatus.DRAFT, EduClassDocStatus.REVIEW),
+                null,
+                null);
+        return withMembers(roots, null);
+    }
+
+    private static final Set<String> SUMMARY_MEMBER_KINDS =
+            Set.of(EduClassDoc.SEMESTER, EduClassDoc.DOSSIER, EduClassDoc.BRANCH);
+
+    /**
+     * Hồ sơ + thành phần cùng lớp và cùng kế hoạch tổ (để hạn, mục thiếu, khóa tính đúng như danh sách đầy đủ).
+     * memberKinds: chỉ nạp các loại này (null = mọi loại).
+     */
+    private List<EduClassDoc> withMembers(List<EduClassDoc> roots, Set<String> memberKinds) {
+        if (roots.isEmpty()) return List.of();
+        Set<String> pairs = roots.stream()
+                .map(d -> d.getClassroomId() + ":" + d.getYearPlanId())
+                .collect(Collectors.toSet());
+        Map<Long, EduClassDoc> loaded = new LinkedHashMap<>();
+        roots.forEach(d -> loaded.put(d.getId(), d));
+        Set<Long> classIds = roots.stream().map(EduClassDoc::getClassroomId).collect(Collectors.toSet());
+        Set<Long> planIds = roots.stream()
+                .map(EduClassDoc::getYearPlanId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        (planIds.isEmpty()
+                        ? List.<EduClassDoc>of()
+                        : memberKinds == null
+                                ? classDocRepository.findAllByClassroomIdInAndYearPlanIdIn(classIds, planIds)
+                                : classDocRepository.findAllByClassroomIdInAndYearPlanIdInAndKindIn(
+                                        classIds, planIds, memberKinds))
+                .stream()
+                        .filter(d -> pairs.contains(d.getClassroomId() + ":" + d.getYearPlanId()))
+                        .forEach(d -> loaded.putIfAbsent(d.getId(), d));
+        return loaded.values().stream()
+                .sorted(java.util.Comparator.comparing(EduClassDoc::getId))
+                .toList();
+    }
+
+    // Danh sách gọn (edu-list-paging, Tiền 25/11/2026): chỉ giữ trường nhận diện, trạng thái, hạn, quyền; bỏ nội dung
+    // soạn
+    private static final List<String> SUMMARY_FIELDS = List.of(
+            "id",
+            "kind",
+            "classId",
+            "yearPlanId",
+            "themeId",
+            "themeIds",
+            "semesterNo",
+            "weekStart",
+            "date",
+            "status",
+            "waitingRole",
+            "version",
+            "dossierVersion",
+            "yearPlanVersion",
+            "superseded",
+            "returned",
+            "unreleased",
+            "canRevise",
+            "containerKey",
+            "containerStatus",
+            "deadline",
+            "reviewDeadline",
+            "extendedTo",
+            "blockedReason",
+            // "missing" (mục còn thiếu) cần kế hoạch tuần/giáo án ngày ⇒ không có ở bản gọn, trang soạn tự tính
+            "completedAt",
+            // EDU-112 (4)–(5): các lần ban hành (bản cũ, mới) cho trang danh sách phiên bản
+            "releases",
+            "everReleased",
+            "review",
+            "approvals",
+            "permissions",
+            // Tên nhánh theo tuần của chủ đề nhánh (nhỏ): trang toàn trường đếm tuần đã đặt tên
+            "names");
+    // Lịch sử chỉ giữ vài mục cuối (người gửi, ghi chú gửi, trả lại)
+    private static final int SUMMARY_HISTORY = 5;
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public PageResponse<ObjectNode> getClassDocSummaries(
+            CurrentUser currentUser, Long schoolYearId, boolean reviewView, ClassDocSummaryFilter filter) {
+        String logPrefix = LOG_PREFIX + "|getClassDocSummaries|userId=" + currentUser.userId() + "|schoolYearId="
+                + schoolYearId + "|classId=" + filter.classId();
+        log.info("{}|START", logPrefix);
+        try {
+            requireView(currentUser);
+            int size = Math.max(1, Math.min(filter.size(), 100));
+            int page = Math.max(0, filter.page());
+            // Lớp trong phạm vi người xem (rẻ), lọc theo lớp/nhóm lớp yêu cầu; tài liệu lọc + phân trang ở truy vấn DB
+            List<ClassroomInfoResponse> classes =
+                    visibleClasses(currentUser, schoolYearId, LocalDate.now(clock)).stream()
+                            .filter(c ->
+                                    filter.classId() == null || filter.classId().equals(c.id()))
+                            .filter(c -> filter.classIds() == null
+                                    || filter.classIds().isEmpty()
+                                    || filter.classIds().contains(String.valueOf(c.id())))
+                            .toList();
+            List<Long> classIds =
+                    classes.stream().map(ClassroomInfoResponse::id).toList();
+            if (classIds.isEmpty()) {
+                log.info("{}|END", logPrefix);
+                return new PageResponse<>(List.of(), page, size, 0, 0);
+            }
+            boolean allKinds = filter.kinds() == null || filter.kinds().isEmpty();
+            List<EduClassDocStatus> statuses = filter.myTurn()
+                    ? List.of(EduClassDocStatus.REVIEW)
+                    : filter.statuses() == null
+                            ? List.of()
+                            : filter.statuses().stream()
+                                    .map(s -> {
+                                        try {
+                                            return EduClassDocStatus.valueOf(s);
+                                        } catch (IllegalArgumentException ex) {
+                                            throw GlobalException.of(ApiCode.INVALID_VALUE, "trạng thái");
+                                        }
+                                    })
+                                    .toList();
+            // Danh sách rỗng trong IN không hợp lệ ⇒ giá trị giả khi không lọc trường đó
+            List<String> kinds = allKinds ? List.of("-") : List.copyOf(filter.kinds());
+            List<EduClassDocStatus> statusArg = statuses.isEmpty() ? List.of(EduClassDocStatus.DRAFT) : statuses;
+            Long themeId = filter.themeId() == null ? null : Long.valueOf(filter.themeId());
+
+            List<EduClassDoc> pageDocs;
+            long total;
+            if (filter.myTurn()) {
+                // Hồ sơ Chờ duyệt (ít) trong phạm vi; dựng node gọn chỉ cho chúng để giữ đúng luật hàng chờ cũ (EDU-93)
+                List<EduClassDoc> candidates = classDocRepository.findSummaryCandidates(
+                        classIds, allKinds, kinds, false, statusArg, filter.semesterNo(), themeId);
+                Set<Long> candidateIds =
+                        candidates.stream().map(EduClassDoc::getId).collect(Collectors.toSet());
+                ClassDocsResponse first =
+                        getClassDocs(currentUser, schoolYearId, false, true, null, ids -> candidates, candidateIds);
+                Map<Long, ClassroomInfoResponse> byId =
+                        classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, c -> c, (a, b) -> a));
+                var scope = accessPolicy.classScopeSnapshot(currentUser, schoolYearId);
+                Set<String> inQueue = nodesOf(first)
+                        .filter(n -> inReviewQueue(n, scope, byId))
+                        .map(n -> n.path("id").asString(""))
+                        .collect(Collectors.toSet());
+                List<EduClassDoc> eligible = candidates.stream()
+                        .filter(d -> inQueue.contains(d.getDocKey()))
+                        .toList();
+                total = eligible.size();
+                int from = Math.min(page * size, eligible.size());
+                pageDocs = eligible.subList(from, Math.min(from + size, eligible.size()));
+            } else {
+                var found = classDocRepository.findSummaryPage(
+                        classIds,
+                        allKinds,
+                        kinds,
+                        statuses.isEmpty(),
+                        statusArg,
+                        filter.semesterNo(),
+                        themeId,
+                        !filter.currentOnly(),
+                        supersededTeamPlanIds(classIds),
+                        reviewView,
+                        authorClassIds(currentUser, classes, kinds),
+                        org.springframework.data.domain.PageRequest.of(
+                                page, size, org.springframework.data.domain.Sort.by("id")));
+                total = found.getTotalElements();
+                pageDocs = found.getContent();
+            }
+            List<ObjectNode> items = List.of();
+            if (!pageDocs.isEmpty()) {
+                // Chỉ dựng node cho hồ sơ của trang; nạp kèm thành phần (cùng lớp + kế hoạch tổ) để hạn, mục thiếu đúng
+                Set<Long> pageIds = pageDocs.stream().map(EduClassDoc::getId).collect(Collectors.toSet());
+                // Danh sách chỉ hiện tiêu đề/trạng thái/hạn (Tiền 25/11/2026): nạp kèm lịch nhánh (cho hạn theo ngày
+                // chủ
+                // đề), không nạp kế hoạch tuần/giáo án ngày
+                List<EduClassDoc> loaded = withMembers(pageDocs, SUMMARY_MEMBER_KINDS);
+                ClassDocsResponse built = getClassDocs(
+                        currentUser, schoolYearId, false, reviewView || filter.myTurn(), null, ids -> loaded, pageIds);
+                Map<String, ObjectNode> byKey = nodesOf(built)
+                        .collect(Collectors.toMap(n -> n.path("id").asString(""), n -> n, (a, b) -> a));
+                items = pageDocs.stream()
+                        .map(d -> byKey.get(d.getDocKey()))
+                        .filter(Objects::nonNull)
+                        .map(this::summaryOf)
+                        .toList();
+                putThemeNames(items);
+            }
+            var result = new PageResponse<>(items, page, size, total, (int) ((total + size - 1) / size));
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ObjectNode getClassDoc(CurrentUser currentUser, String kind, String docKey) {
+        String logPrefix = LOG_PREFIX + "|getClassDoc|userId=" + currentUser.userId() + "|kind=" + kind;
+        log.info("{}|START", logPrefix);
+        try {
+            EduClassDoc doc = classDocRepository
+                    .findByDocKey(docKey)
+                    .filter(d -> kind.equals(d.getKind()))
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
+            ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
+            // Cùng đường dựng như danh sách (một lớp) ⇒ cùng luật xem EDU-73, G94-442 và cờ can*
+            ClassDocsResponse one = getClassDocs(currentUser, cls.schoolYearId(), false, false, cls.id());
+            ObjectNode node = java.util.stream.Stream.of(
+                            one.semesterPackages(),
+                            one.themeDossiers(),
+                            one.branchPlans(),
+                            one.classThemePlans(),
+                            one.weekPlans(),
+                            one.dayPlans())
+                    .flatMap(List::stream)
+                    .filter(n -> docKey.equals(n.path("id").asString(""))
+                            && kind.equals(n.path("kind").asString("")))
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
+            log.info("{}|END", logPrefix);
+            return node;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ClassDocContextResponse getClassDocContext(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|getClassDocContext|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            // Không nạp tài liệu: trang danh sách chỉ cần lớp, nhân sự (quyền tạo hồ sơ cần tài liệu ⇒ để trang soạn
+            // tải)
+            ClassDocsResponse all =
+                    getClassDocs(currentUser, schoolYearId, false, false, null, ids -> List.of(), Set.of());
+            var result =
+                    new ClassDocContextResponse(all.classes(), all.staff(), List.of(), all.semesterConfigMissing());
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private static java.util.stream.Stream<ObjectNode> nodesOf(ClassDocsResponse docs) {
+        return java.util.stream.Stream.of(
+                        docs.semesterPackages(),
+                        docs.themeDossiers(),
+                        docs.branchPlans(),
+                        docs.classThemePlans(),
+                        docs.weekPlans(),
+                        docs.dayPlans())
+                .flatMap(List::stream);
+    }
+
+    /**
+     * Cùng điều kiện hàng chờ cũ của Web (EDU-93): hồ sơ Chờ duyệt mà người xem đúng lượt (có quyền duyệt/trả lại) hoặc
+     * giữ một vai trò trong chuỗi duyệt; Tổ trưởng chỉ nhóm tuổi mình phụ trách.
+     */
+    private static boolean inReviewQueue(
+            ObjectNode node, EduPlanAccessPolicy.ClassScopeSnapshot scope, Map<Long, ClassroomInfoResponse> classes) {
+        if (!EduClassDocStatus.REVIEW.name().equals(node.path("status").asString(""))) return false;
+        JsonNode p = node.path("permissions");
+        if (p.path("canApprove").asBoolean(false)
+                || p.path("canIssue").asBoolean(false)
+                || p.path("canReject").asBoolean(false)
+                || p.path("canReturn").asBoolean(false)) return true;
+        ClassroomInfoResponse cls =
+                classes.get(Long.valueOf(node.path("classId").asString("0")));
+        if (cls == null) return false;
+        for (JsonNode role : node.path("review").path("roles")) {
+            EduWorkflowPolicy.Role r;
+            try {
+                r = EduWorkflowPolicy.Role.valueOf(role.asString(""));
+            } catch (IllegalArgumentException ex) {
+                continue;
+            }
+            if (!scope.roles().contains(r)) continue;
+            if (r != EduWorkflowPolicy.Role.TEAM_LEADER || scope.leaderAges().contains(cls.ageGroupId())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Bản gọn kèm tên + số thứ tự chủ đề (thứ tự theo ngày bắt đầu, chủ đề chưa có ngày không đánh số) để trang danh
+     * sách không phải tải chi tiết kế hoạch tổ chỉ để lấy tên.
+     */
+    void putThemeNames(List<ObjectNode> items) {
+        Map<String, List<EduTheme>> themesByPlan = new HashMap<>();
+        for (ObjectNode item : items) {
+            String themeId = item.path("themeId").asString("");
+            String planId = item.path("yearPlanId").asString("");
+            if (themeId.isEmpty() || planId.isEmpty() || "null".equals(planId)) continue;
+            List<EduTheme> themes = themesByPlan.computeIfAbsent(
+                    planId,
+                    id -> themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(Long.valueOf(id)).stream()
+                            .filter(t -> t.getStartDate() != null && t.getEndDate() != null)
+                            .sorted(Comparator.comparing(EduTheme::getStartDate))
+                            .toList());
+            for (int i = 0; i < themes.size(); i++) {
+                if (!themeId.equals(String.valueOf(themes.get(i).getId()))) continue;
+                item.put("themeName", themes.get(i).getName());
+                item.put("themeNo", i + 1);
+            }
+        }
+    }
+
+    private ObjectNode summaryOf(ObjectNode node) {
+        ObjectNode summary = objectMapper.createObjectNode();
+        for (String field : SUMMARY_FIELDS) if (node.has(field)) summary.set(field, node.get(field));
+        JsonNode history = node.path("history");
+        if (history.isArray()) {
+            ArrayNode tail = summary.putArray("history");
+            for (int i = Math.max(0, history.size() - SUMMARY_HISTORY); i < history.size(); i++)
+                tail.add(history.get(i));
+        }
+        return summary;
+    }
+
+    private ClassDocsResponse getClassDocs(
+            CurrentUser currentUser, Long schoolYearId, boolean deadlineBoard, boolean reviewView) {
+        return getClassDocs(currentUser, schoolYearId, deadlineBoard, reviewView, null);
+    }
+
+    private ClassDocsResponse getClassDocs(
+            CurrentUser currentUser, Long schoolYearId, boolean deadlineBoard, boolean reviewView, Long onlyClassId) {
+        return getClassDocs(currentUser, schoolYearId, deadlineBoard, reviewView, onlyClassId, null, null);
+    }
+
+    /**
+     * onlyClassId: chỉ dựng tài liệu của một lớp (chi tiết, lọc theo lớp) để không phải đọc cả trường.
+     * loadDocs: thay cách nạp tài liệu (theo id lớp trong phạm vi) để chỉ nạp hồ sơ của một trang + thành phần của chúng;
+     * outputIds: chỉ dựng node cho các id này (null = mọi tài liệu đã nạp). Edu-list-paging, Tiền 25/11/2026.
+     */
+    private ClassDocsResponse getClassDocs(
+            CurrentUser currentUser,
+            Long schoolYearId,
+            boolean deadlineBoard,
+            boolean reviewView,
+            Long onlyClassId,
+            java.util.function.Function<List<Long>, List<EduClassDoc>> loadDocs,
+            Set<Long> outputIds) {
         String logPrefix =
                 LOG_PREFIX + "|getClassDocs|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             requireView(currentUser);
             LocalDate today = LocalDate.now(clock);
-            List<ClassroomInfoResponse> classes = visibleClasses(currentUser, schoolYearId, today);
+            List<ClassroomInfoResponse> classes = visibleClasses(currentUser, schoolYearId, today).stream()
+                    .filter(c -> onlyClassId == null || onlyClassId.equals(c.id()))
+                    .toList();
             List<Long> classIds =
                     classes.stream().map(ClassroomInfoResponse::id).toList();
             Map<Long, List<Long>> teachers = staffAssignmentService.findCurrentTeacherIds(classIds, today);
@@ -534,8 +1056,14 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             homerooms.get(c.id())))
                     .toList();
 
-            List<EduClassDoc> docs =
-                    classIds.isEmpty() ? List.of() : classDocRepository.findAllByClassroomIdInOrderByIdAsc(classIds);
+            List<EduClassDoc> docs = classIds.isEmpty()
+                    ? List.of()
+                    : loadDocs != null
+                            ? loadDocs.apply(classIds)
+                            : classDocRepository.findAllByClassroomIdInOrderByIdAsc(classIds);
+            List<EduClassDoc> shownDocs = outputIds == null
+                    ? docs
+                    : docs.stream().filter(d -> outputIds.contains(d.getId())).toList();
             Map<Long, EduWorkflowPolicy.Evaluation> evaluations = eduWorkflowService.evaluateClassDocs(docs, today);
             Map<Long, ClassroomInfoResponse> classInfoById =
                     classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, c -> c, (a, b) -> a));
@@ -592,17 +1120,30 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     docsByKey,
                     years,
                     classroomService.findOpenedDates(classIds),
-                    new HashMap<>());
+                    new HashMap<>(),
+                    homerooms);
             ClassDocsResponse response = new ClassDocsResponse(
-                    toNodes(currentUser, docs, EduClassDoc.BRANCH, evaluations, context),
-                    toNodes(currentUser, docs, EduClassDoc.THEME, evaluations, context),
-                    toNodes(currentUser, docs, EduClassDoc.WEEK, evaluations, context),
+                    deadlineBoard
+                            ? List.of()
+                            : toNodes(currentUser, shownDocs, EduClassDoc.BRANCH, evaluations, context, reviewView),
+                    deadlineBoard
+                            ? List.of()
+                            : toNodes(currentUser, shownDocs, EduClassDoc.THEME, evaluations, context, reviewView),
+                    deadlineBoard
+                            ? List.of()
+                            : toNodes(currentUser, shownDocs, EduClassDoc.WEEK, evaluations, context, reviewView),
                     classItems,
                     List.copyOf(staff.values()),
-                    buildCreationCapabilities(classItems, context),
-                    toNodes(currentUser, docs, EduClassDoc.SEMESTER, evaluations, context),
-                    toNodes(currentUser, docs, EduClassDoc.DOSSIER, evaluations, context),
-                    toNodes(currentUser, docs, EduClassDoc.DAY, evaluations, context),
+                    deadlineBoard ? List.of() : buildCreationCapabilities(currentUser, classItems, context),
+                    deadlineBoard
+                            ? overdueNodes(currentUser, shownDocs, EduClassDoc.SEMESTER, context)
+                            : toNodes(currentUser, shownDocs, EduClassDoc.SEMESTER, evaluations, context, reviewView),
+                    deadlineBoard
+                            ? overdueNodes(currentUser, shownDocs, EduClassDoc.DOSSIER, context)
+                            : toNodes(currentUser, shownDocs, EduClassDoc.DOSSIER, evaluations, context, reviewView),
+                    deadlineBoard
+                            ? List.of()
+                            : toNodes(currentUser, shownDocs, EduClassDoc.DAY, evaluations, context, reviewView),
                     !classes.isEmpty() && yearsById.values().stream().anyMatch(y -> !EduSemesters.configured(y)));
             log.info("{}|END", logPrefix);
             return response;
@@ -612,25 +1153,74 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ObjectNode getOverdueClassDoc(CurrentUser user, Long schoolYearId, String kind, String docKey) {
+        String logPrefix = LOG_PREFIX + "|getOverdueClassDoc|userId=" + user.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            requireOverdueRead(user, schoolYearId);
+            if (!EduClassDoc.isRoot(kind)) throw GlobalException.of(ApiCode.INVALID_VALUE, "loại tài liệu");
+            EduClassDoc doc = classDocRepository
+                    .findByDocKey(docKey)
+                    .filter(d -> kind.equals(d.getKind()))
+                    .filter(d ->
+                            schoolYearId.equals(requireClass(d.getClassroomId()).schoolYearId()))
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
+            ObjectNode result = overdueNode(user, doc, null);
+            if (result == null) throw GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND);
+            var year = yearOf(requireClass(doc.getClassroomId()));
+            var docs = classDocRepository.findAllByClassroomIdAndYearPlanId(doc.getClassroomId(), doc.getYearPlanId());
+            ArrayNode members = result.putArray("members");
+            for (EduClassDoc member : membersOf(doc, docs, year)) {
+                if (member.getId().equals(doc.getId()) || EduClassDoc.BRANCH.equals(member.getKind())) continue;
+                ObjectNode content = readObject(member.getContent());
+                content.remove(META_FIELDS);
+                content.put("id", member.getDocKey());
+                content.put("kind", member.getKind());
+                if (member.getWeekStart() != null)
+                    content.put("weekStart", member.getWeekStart().toString());
+                members.add(content);
+            }
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private void requireOverdueRead(CurrentUser user, Long schoolYearId) {
+        if (schoolYearId == null) throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "năm học");
+        if (!accessPolicy.isPrincipal(user)) throw GlobalException.of(ApiCode.FORBIDDEN);
+    }
+
     // EDU-89: năm đang hoạt động, hoặc năm sắp tới đã tới ngày mở chuẩn bị (CFG-YR-05)
     private static boolean planYearOpen(SchoolYearDetailResponse year) {
         return year == null || year.status() == SchoolYearStatus.ACTIVE || year.preparing();
     }
 
     private List<ClassDocsResponse.CreationCapability> buildCreationCapabilities(
-            List<ClassDocsResponse.ClassItem> classItems, ClassListContext context) {
+            CurrentUser user, List<ClassDocsResponse.ClassItem> classItems, ClassListContext context) {
         List<ClassDocsResponse.CreationCapability> list = new ArrayList<>();
         for (ClassDocsResponse.ClassItem cls : classItems) {
             Long classId = Long.parseLong(cls.id());
             // EDU-89: năm của lớp chỉ xem ⇒ không tạo
             boolean yearOpen = planYearOpen(context.years().get(classId));
-            boolean canAuthor = yearOpen && context.scope().canAuthor(classId);
-            String reason = canAuthor ? null : yearOpen ? "AUTHOR_FORBIDDEN" : "YEAR_READ_ONLY";
-            list.add(
-                    new ClassDocsResponse.CreationCapability(classId, "branch", canAuthor, "ISSUED_YEAR_PLAN", reason));
-            list.add(new ClassDocsResponse.CreationCapability(classId, "theme", canAuthor, "ISSUED_TEAM_PLAN", reason));
-            list.add(new ClassDocsResponse.CreationCapability(classId, "week", canAuthor, "THEME_DOSSIER", reason));
-            list.add(new ClassDocsResponse.CreationCapability(classId, "day", canAuthor, "THEME_DOSSIER", reason));
+            ClassroomInfoResponse info = context.classes().get(classId);
+            // EDU-110 (12): lịch nhánh theo người soạn gói học kỳ; chủ đề, tuần, ngày theo người soạn hồ sơ chủ đề
+            boolean semesterAuthor = yearOpen && info != null && authorIn(user, info, EduClassDoc.SEMESTER, context);
+            boolean dossierAuthor = yearOpen && info != null && authorIn(user, info, EduClassDoc.DOSSIER, context);
+            String semesterReason = semesterAuthor ? null : yearOpen ? "AUTHOR_FORBIDDEN" : "YEAR_READ_ONLY";
+            String dossierReason = dossierAuthor ? null : yearOpen ? "AUTHOR_FORBIDDEN" : "YEAR_READ_ONLY";
+            list.add(new ClassDocsResponse.CreationCapability(
+                    classId, "branch", semesterAuthor, "ISSUED_YEAR_PLAN", semesterReason));
+            list.add(new ClassDocsResponse.CreationCapability(
+                    classId, "theme", dossierAuthor, "ISSUED_TEAM_PLAN", dossierReason));
+            list.add(new ClassDocsResponse.CreationCapability(
+                    classId, "week", dossierAuthor, "THEME_DOSSIER", dossierReason));
+            list.add(new ClassDocsResponse.CreationCapability(
+                    classId, "day", dossierAuthor, "THEME_DOSSIER", dossierReason));
         }
         return list;
     }
@@ -664,7 +1254,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
             LocalDate today = LocalDate.now(clock);
             // EDU-12: author eligibility according to policy and reviewer precedence
-            requireClassDocAuthor(currentUser, cls);
+            requireClassDocAuthor(currentUser, cls, kind);
             EduPlan plan = requireIssuedPlan(yearPlanId, cls);
             if (!expectedKey(kind, classId, plan, themeId, weekStart).equals(docKey)) {
                 throw GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH);
@@ -689,7 +1279,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             yearPlanRepository.findForUpdateById(plan.getId()).orElseThrow();
             SchoolYearDetailResponse year = yearOf(cls);
             List<EduClassDoc> planDocs = classDocRepository.findAllByClassroomIdAndYearPlanId(classId, plan.getId());
-            // Spec 003: tài liệu thuộc một gốc (gói học kỳ / hồ sơ chủ đề); gốc đang Chờ duyệt thì khóa
+            // Spec 003: tài liệu thuộc một gốc (kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày); gốc đang Chờ duyệt
+            // thì khóa
             EduClassDoc root = null;
             if (!EduClassDoc.BRANCH.equals(kind)) {
                 root = classDocRepository
@@ -713,7 +1304,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (EduClassDoc.DAY.equals(kind)) {
                 ObjectNode dayOnly = objectMapper.createObjectNode();
                 contentOf(doc).properties().forEach(e -> {
-                    // EDU-79: day.content.week = kế hoạch tuần sửa theo hồ sơ chủ đề
+                    // EDU-79: day.content.week = kế hoạch tuần sửa theo kế hoạch giáo dục ngày
                     if (!Set.of("days", "dayGoals", "week").contains(e.getKey()))
                         throw GlobalException.of(ApiCode.INVALID_VALUE, e.getKey());
                     dayOnly.set(e.getKey(), e.getValue());
@@ -839,7 +1430,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (EduClassDoc.DAY.equals(kind) && nextContent.has("week")) {
                 if (!(nextContent.path("week") instanceof ObjectNode dayWeek))
                     throw GlobalException.of(ApiCode.INVALID_VALUE, "kế hoạch tuần");
-                // EDU-79: chỉ sửa theo hồ sơ chủ đề sau khi gói học kỳ chứa chủ đề đã ban hành
+                // EDU-79: chỉ sửa theo kế hoạch giáo dục ngày sau khi kế hoạch giáo dục chủ đề chứa chủ đề đã ban hành
                 if (!previousContent.path("week").equals(dayWeek)
                         && !semesterReleased(classId, plan.getId(), themeId, planDocs, year, true))
                     throw GlobalException.of(ApiCode.SEMESTER_PACKAGE_NOT_RELEASED);
@@ -859,7 +1450,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (!previousContent.equals(nextContent)) {
                 Set<String> rootKeys = new LinkedHashSet<>();
                 if (EduClassDoc.BRANCH.equals(kind)) {
-                    // Tuần đổi tên/ghi chú ⇒ kiểm gói học kỳ chứa tuần đó
+                    // Tuần đổi tên/ghi chú ⇒ kiểm kế hoạch giáo dục chủ đề chứa tuần đó
                     Map<LocalDate, Long> weekThemes = weeks.stream()
                             .collect(Collectors.toMap(
                                     TeachingWeek::start, TeachingWeek::themeId, (first, second) -> first));
@@ -879,12 +1470,15 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                                         .ifPresent(no -> rootKeys.add(semesterKey(classId, plan.getId(), no)));
                         }
                     }
+                    Set<LocalDate> dropped = requireBranchesEditable(
+                            previousContent, nextContent, rootKeys, planDocs, year, classId, plan.getId(), today);
+                    deleteDraftWeekDocs(dropped, planDocs);
                 } else {
                     if (EduClassDoc.WEEK.equals(kind) || EduClassDoc.DAY.equals(kind))
                         EduClassDocFutureEdit.validateWeek(previousContent, nextContent, weekStart, today, false);
                     if (root != null) rootKeys.add(root.getDocKey());
+                    requireRootsEditable(rootKeys, planDocs, year, classId, today);
                 }
-                requireRootsEditable(rootKeys, planDocs, year, classId, today);
             }
             entity.changeContent(objectMapper.writeValueAsString(nextContent), currentUser.userId());
             if (root != null) root.touchDossier(clock.instant());
@@ -914,7 +1508,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         try {
             settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
             requireKind(kind);
-            // Spec 003: chỉ gửi/duyệt theo gói học kỳ (lịch nhánh + chủ đề "theo kỳ") hoặc hồ sơ chủ đề
+            // Spec 003: chỉ gửi/duyệt theo kế hoạch giáo dục chủ đề (lịch nhánh + chủ đề "theo kỳ") hoặc kế hoạch giáo
+            // dục ngày
             if (EduClassDoc.BRANCH.equals(kind))
                 throw GlobalException.of(ApiCode.INVALID_VALUE, "chủ đề nhánh gửi theo học kỳ");
             if (!EduClassDoc.isRoot(kind)) throw GlobalException.of(ApiCode.WEEKLY_LESSON_VIA_THEME);
@@ -952,9 +1547,15 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 log.info("{}|END", logPrefix);
                 return response;
             }
+            if (ACTION_REOPEN_REVIEW_DEADLINE.equals(request.action())) {
+                ObjectNode response =
+                        reopenReviewDeadline(currentUser, doc, info, all, note, request.deadline(), today, at);
+                log.info("{}|END", logPrefix);
+                return response;
+            }
             if (ACTION_REVISE.equals(request.action())) {
                 // Spec 004 (Q2, Q3): bản đã ban hành giữ hiệu lực tới khi phiên bản mới ban hành (bảng releases)
-                requireClassDocAuthor(currentUser, cls);
+                requireClassDocAuthor(currentUser, cls, kind);
                 if (doc.getStatus() != EduClassDocStatus.APPROVED) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 if (timeLocked(doc, info, today)) throw GlobalException.of(ApiCode.CLASS_DOC_TIME_LOCKED);
                 reopenRoot(doc.getDocKey(), cls.id(), doc.getYearPlanId(), year, currentUser);
@@ -965,8 +1566,35 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             int round = doc.getReviewRound();
             EduWorkflowPolicy.Role actingRole = evaluation.waitingRole();
             EduClassDocStatus next = EduClassDocStatus.REVIEW;
-            if (ACTION_SUBMIT.equals(request.action())) {
-                requireClassDocAuthor(currentUser, cls);
+            if (ACTION_PUBLISH.equals(request.action())) {
+                if (!accessPolicy.isPrincipal(currentUser)
+                        || !policy.creators().equals(List.of(EduWorkflowPolicy.Role.PRINCIPAL))
+                        || !policy.reviewers().isEmpty()) {
+                    throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, request.action());
+                }
+                if (doc.getStatus().editable()) {
+                    // Nháp: HT là người soạn, qua cùng kiểm tra trước khi gửi
+                    requireClassDocAuthor(currentUser, cls, kind);
+                    if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
+                    if (EduDeadline.OVERDUE.equals(info.deadline().state()))
+                        throw GlobalException.of(ApiCode.CLASS_DOC_DEADLINE_PASSED);
+                    requireCanSubmit(doc, planDocs, year);
+                    long unresolved = all.stream()
+                            .mapToLong(d -> unresolvedVersionFixes(d, today))
+                            .sum();
+                    if (unresolved > 0) throw GlobalException.of(ApiCode.CLASS_DOC_VERSION_FIX_REQUIRED, unresolved);
+                    round++;
+                    approvals.clear();
+                } else if (doc.getStatus() == EduClassDocStatus.REVIEW) {
+                    // EDU-110 (10): hồ sơ chờ theo chuỗi cũ, chuỗi loại này nay rỗng ⇒ HT ban hành
+                    if (reviewDeadlineOf(info).locked()) throw GlobalException.of(ApiCode.EDU_REVIEW_DEADLINE_PASSED);
+                } else throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                actingRole = EduWorkflowPolicy.Role.PRINCIPAL;
+                approvals.add(new EduWorkflowPolicy.Approval(
+                        currentUser.userId(), currentUser.fullName(), actingRole, at, note, round));
+                next = EduClassDocStatus.APPROVED;
+            } else if (ACTION_SUBMIT.equals(request.action())) {
+                requireClassDocAuthor(currentUser, cls, kind);
                 if (!doc.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
                 if (EduDeadline.OVERDUE.equals(info.deadline().state()))
@@ -980,13 +1608,19 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 approvals.clear();
                 actingRole = null;
             } else {
+                if (reviewDeadlineOf(info).locked()) throw GlobalException.of(ApiCode.EDU_REVIEW_DEADLINE_PASSED);
                 if (doc.getStatus() != EduClassDocStatus.REVIEW
                         || actingRole == null
                         || eduWorkflowService
                                 .getUnionAuthorUserIdsForDossier(doc)
                                 .contains(currentUser.userId())
                         || !accessPolicy.canReviewClassDoc(
-                                currentUser, actingRole, cls.schoolYearId(), cls.ageGroupId(), cls.id())) {
+                                currentUser,
+                                policy.docType(),
+                                actingRole,
+                                cls.schoolYearId(),
+                                cls.ageGroupId(),
+                                cls.id())) {
                     throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, request.action());
                 }
                 if (ACTION_APPROVE.equals(request.action())) {
@@ -1034,7 +1668,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         "tone",
                         ACTION_REJECT.equals(request.action())
                                 ? TONE_ERR
-                                : ACTION_APPROVE.equals(request.action()) ? TONE_OK : TONE_NONE);
+                                : next == EduClassDocStatus.APPROVED || ACTION_APPROVE.equals(request.action())
+                                        ? TONE_OK
+                                        : TONE_NONE);
                 history.add(event);
                 member.snapshotSignChain(objectMapper.writeValueAsString(policy.reviewers()));
                 member.updateWorkflowState(
@@ -1059,7 +1695,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 releaseRepository.save(EduClassDocRelease.create(
                         doc.getId(),
                         doc.getVersion(),
-                        releaseSnapshot(snapshot, all, semesterBranchNames(doc, planDocs, year)),
+                        releaseSnapshot(
+                                snapshot,
+                                all,
+                                semesterBranchNames(doc, planDocs, year),
+                                semesterCalendar(doc, planDocs, year)),
                         currentUser.userId(),
                         at));
             notifyAfterAction(currentUser, doc, cls, request.action(), next, note, today);
@@ -1083,6 +1723,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Map<String, List<EduClassDoc>> planDocs = new HashMap<>();
             Map<Long, Optional<ClassroomInfoResponse>> classes = new HashMap<>();
             int reminded = 0;
+            List<String> overdue = new ArrayList<>();
             for (EduClassDoc root : classDocRepository.findAllByKindInAndStatusIn(
                     List.of(EduClassDoc.SEMESTER, EduClassDoc.DOSSIER),
                     List.of(EduClassDocStatus.DRAFT, EduClassDocStatus.REVIEW))) {
@@ -1094,6 +1735,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         k -> classDocRepository.findAllByClassroomIdAndYearPlanId(
                                 root.getClassroomId(), root.getYearPlanId()));
                 RootInfo info = rootInfo(root, docs, yearOf(cls.get()), openedOn(root.getClassroomId()), today);
+                if (EduDeadline.OVERDUE.equals(info.deadline().state()) && !info.everReleased()) {
+                    overdue.add(labelOf(root, cls.get()));
+                    continue;
+                }
+                // EDU-109: còn 1–7 ngày ⇒ nhắc mỗi ngày một lần (mốc 7 ngày là lần đầu)
                 if (!EduDeadline.NEAR.equals(info.deadline().state())) continue;
                 boolean waiting = root.getStatus() == EduClassDocStatus.REVIEW;
                 Set<Long> to = waiting ? waitingReviewers(root, cls.get(), today) : Set.of();
@@ -1111,16 +1757,36 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         com.carenest.utils.enums.NotificationType.EDU_DEADLINE_NEAR,
                         "Gần đến hạn: " + labelOf(root, cls.get()),
                         body,
-                        linkOf(root),
-                        true);
+                        dailyLink(linkOf(root), today),
+                        true,
+                        scopeOf(cls.get()));
                 reminded++;
             }
-            log.info("{}|reminded={}|END", logPrefix, reminded);
+            overdue.addAll(yearPlanService.remindPlanDeadlines(today));
+            if (!overdue.isEmpty()) {
+                // EDU-109: báo Hiệu trưởng danh sách quá hạn mỗi ngày
+                notificationService.notifyUsers(
+                        staffAssignmentService.findPrincipalIds(today),
+                        com.carenest.utils.enums.NotificationType.EDU_OVERDUE_DIGEST,
+                        "Kế hoạch quá hạn: " + overdue.size() + " hồ sơ",
+                        String.join("; ", overdue),
+                        dailyLink(OVERDUE_LINK, today),
+                        true,
+                        null);
+            }
+            log.info("{}|reminded={}|overdue={}|END", logPrefix, reminded, overdue.size());
             return reminded;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    static final String OVERDUE_LINK = "/education/overdue";
+
+    /** Thêm ngày vào đường dẫn: notifyUsers(once) chặn trùng theo người + loại + đường dẫn ⇒ mỗi ngày một lần (NFR2). */
+    static String dailyLink(String link, LocalDate day) {
+        return link + (link.contains("?") ? "&" : "?") + "d=" + day;
     }
 
     // Khóa Web: giáo án tuần phiên bản ≥2 thêm id kế hoạch để không trùng tuần của phiên bản cũ (spec 004 A4)
@@ -1225,6 +1891,24 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     // EDU-26/62: chỉ tổ ban hành mới thay nguồn lớp; năm ban hành hoặc tổ nháp không khóa hồ sơ cũ.
+    // EDU-73: lớp người xem được soạn (thấy mọi trạng thái); rỗng thì trả id giả để truy vấn "in" hợp lệ
+    private List<Long> authorClassIds(CurrentUser user, List<ClassroomInfoResponse> classes, List<String> kinds) {
+        List<String> rootKinds = kinds.contains("-") ? List.of(EduClassDoc.SEMESTER, EduClassDoc.DOSSIER) : kinds;
+        List<Long> ids = classes.stream()
+                .filter(c -> rootKinds.stream().anyMatch(k -> isClassDocAuthor(user, c, k)))
+                .map(ClassroomInfoResponse::id)
+                .toList();
+        return ids.isEmpty() ? List.of(-1L) : ids;
+    }
+
+    /** EDU-112 (4): kế hoạch tổ (của các lớp) đã có bản ban hành mới hơn; rỗng thì trả id giả để truy vấn "not in" hợp lệ. */
+    private List<Long> supersededTeamPlanIds(java.util.Collection<Long> classIds) {
+        Set<Long> ids = classDocRepository.findDistinctYearPlanIds(classIds).stream()
+                .filter(this::isSuperseded)
+                .collect(Collectors.toSet());
+        return ids.isEmpty() ? List.of(-1L) : List.copyOf(ids);
+    }
+
     private boolean isSuperseded(Long yearPlanId) {
         return yearPlanRepository
                 .findById(yearPlanId)
@@ -1339,7 +2023,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     private void requireView(CurrentUser user) {
-        if (!accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW)) {
+        if (!accessPolicy.canView(user)) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_ACCESS_DENIED);
         }
     }
@@ -1383,8 +2067,51 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return Objects.equals(homeroomId, user.userId());
     }
 
-    private void requireClassDocAuthor(CurrentUser user, ClassroomInfoResponse classroom) {
-        if (!isHomeroomAuthor(user, classroom)) throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+    private void requireClassDocAuthor(CurrentUser user, ClassroomInfoResponse classroom, String kind) {
+        if (!isClassDocAuthor(user, classroom, kind)) throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+    }
+
+    /**
+     * EDU-110 (11): loại hồ sơ có HT là người soạn ⇒ chỉ HT có phân công hiệu lực (có mã soạn) soạn hồ sơ của mọi
+     * lớp, GV chủ nhiệm không soạn; loại khác giữ luật cũ (GV chủ nhiệm của lớp).
+     */
+    /** Người soạn theo chính sách đã nạp sẵn của danh sách. */
+    private boolean authorIn(CurrentUser user, ClassroomInfoResponse cls, String kind, ClassListContext context) {
+        var policy = context.policies().get(EduClassDoc.policyType(kind));
+        return policy == null
+                ? isClassDocAuthor(user, cls, kind)
+                : isClassDocAuthor(user, cls, kind, policy, context.homerooms());
+    }
+
+    private boolean isClassDocAuthor(CurrentUser user, ClassroomInfoResponse classroom, String kind) {
+        return isClassDocAuthor(user, classroom, kind, eduWorkflowService.loadPolicy(kind), null);
+    }
+
+    /** homerooms: GV chủ nhiệm theo lớp đã nạp sẵn của danh sách; null ⇒ tra riêng lớp này. */
+    private boolean isClassDocAuthor(
+            CurrentUser user,
+            ClassroomInfoResponse classroom,
+            String kind,
+            EduWorkflowPolicy.RolePolicy policy,
+            Map<Long, Long> homerooms) {
+        // EDU-110 (12): mỗi loại hồ sơ đúng một vai trò soạn; người soạn theo vai trò đó, kèm phạm vi
+        String docKey = EduClassDoc.policyType(kind);
+        EduWorkflowPolicy.Role creator = policy.creators().isEmpty()
+                ? EduWorkflowPolicy.Role.TEACHER
+                : policy.creators().getFirst();
+        return switch (creator) {
+            case PRINCIPAL -> accessPolicy.isPrincipal(user) && accessPolicy.canAuthorDoc(user, docKey);
+            // PHT chuyên môn có mã soạn, mọi điểm trường
+            case VICE_PRINCIPAL -> accessPolicy.isVicePrincipal(user) && accessPolicy.canAuthorDoc(user, docKey);
+            case TEAM_LEADER ->
+                accessPolicy.isTeamLeaderOf(user, classroom.schoolYearId(), classroom.ageGroupId())
+                        && accessPolicy.canAuthorDoc(user, docKey);
+            case TEACHER ->
+                homerooms == null
+                        ? isHomeroomAuthor(user, classroom)
+                        : user.hasRole(CareNestRole.TEACHER)
+                                && Objects.equals(homerooms.get(classroom.id()), user.userId());
+        };
     }
 
     /** EDU-12: tài liệu lớp chỉ nhận tổ đã ban hành đúng nhóm tuổi, năm học của lớp. */
@@ -1403,7 +2130,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return plan;
     }
 
-    /** EDU-64: nhánh và hồ sơ chủ đề được soạn song song; giáo án cần hồ sơ chủ đề đã lưu. */
+    /** EDU-64: nhánh và kế hoạch giáo dục ngày được soạn song song; giáo án cần kế hoạch giáo dục ngày đã lưu. */
     private void requireCanCreate(String kind, Long classId, Long yearPlanId, Long themeId, LocalDate weekStart) {
         if (EduClassDoc.BRANCH.equals(kind)) {
             return;
@@ -1429,68 +2156,114 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /**
-     * Spec 003 FR-002/005: gói học kỳ cần tên nhánh mọi tuần của kỳ + kế hoạch chủ đề/tuần của chủ đề "theo kỳ"; hồ sơ
-     * chủ đề cần gói học kỳ đã từng ban hành, giáo án ngày mọi tuần (+ kế hoạch chủ đề/tuần nếu "theo chủ đề").
+     * Spec 003 FR-002/005: kế hoạch giáo dục chủ đề cần tên nhánh mọi tuần của kỳ + kế hoạch chủ đề/tuần của chủ đề "theo kỳ"; hồ sơ
+     * chủ đề cần kế hoạch giáo dục chủ đề đã từng ban hành, giáo án ngày mọi tuần (+ kế hoạch chủ đề/tuần nếu "theo chủ đề").
      */
     private void requireCanSubmit(EduClassDoc root, List<EduClassDoc> docs, SchoolYearDetailResponse year) {
+        submitChecks(root, docs, year).forEach(c -> c.run().run());
+    }
+
+    /** Một tiêu chí gửi duyệt: chạy ném GlobalException khi chưa đạt (EDU-96 dùng chung cho khung Kiểm tra). */
+    private record SubmitCheck(String key, String label, Runnable run) {}
+
+    /**
+     * Spec 004 FR-003, EDU-75, EDU-80, EDU-95: tiêu chí gửi theo thứ tự; gửi duyệt dừng ở tiêu chí đầu tiên chưa đạt, khung
+     * Kiểm tra chạy hết.
+     */
+    private List<SubmitCheck> submitChecks(EduClassDoc root, List<EduClassDoc> docs, SchoolYearDetailResponse year) {
         Long classId = root.getClassroomId();
         Long planId = root.getYearPlanId();
-        boolean semester = EduClassDoc.SEMESTER.equals(root.getKind());
-        if (semester && !EduSemesters.configured(year))
-            throw GlobalException.of(ApiCode.INVALID_VALUE, "năm học chưa cấu hình học kỳ");
-        if (semester) {
-            // Spec 004 FR-003: gói học kỳ chỉ gửi khi đủ tên nhánh, kế hoạch chủ đề, kế hoạch tuần của mọi chủ đề trong
-            // kỳ
-            ArrayNode missing = missingParts(root, docs, year);
-            if (!missing.isEmpty())
-                throw GlobalException.withData(
-                        ApiCode.SEMESTER_PACKAGE_INCOMPLETE,
-                        objectMapper.createObjectNode().set("details", missing));
-            requireGoalsCovered(root, docs, year);
-            return;
+        if (EduClassDoc.SEMESTER.equals(root.getKind())) {
+            return List.of(
+                    new SubmitCheck("semesterConfigured", "Năm học đã cấu hình học kỳ", () -> {
+                        if (!EduSemesters.configured(year))
+                            throw GlobalException.of(ApiCode.INVALID_VALUE, "năm học chưa cấu hình học kỳ");
+                    }),
+                    // Spec 004 FR-003: đủ tên nhánh, kế hoạch chủ đề, kế hoạch tuần của mọi chủ đề trong kỳ
+                    new SubmitCheck(
+                            "semesterParts", "Đủ tên nhánh, kế hoạch chủ đề và kế hoạch tuần của học kỳ", () -> {
+                                if (!EduSemesters.configured(year)) return;
+                                ArrayNode missing = missingParts(root, docs, year);
+                                if (!missing.isEmpty())
+                                    throw GlobalException.withData(
+                                            ApiCode.SEMESTER_PACKAGE_INCOMPLETE,
+                                            objectMapper.createObjectNode().set("details", missing));
+                            }),
+                    new SubmitCheck(
+                            "goalsCovered",
+                            "Mọi mục tiêu được dạy trong kế hoạch tuần",
+                            () -> requireGoalsCovered(root, docs, year)));
         }
-        if (!semesterReleased(classId, planId, root.getThemeId(), docs, year, true))
-            throw GlobalException.of(ApiCode.SEMESTER_PACKAGE_NOT_RELEASED);
-        List<Long> themes =
-                semester ? semesterThemes(planId, root.getSemesterNo(), docs, year) : List.of(root.getThemeId());
-        JsonNode names = docs.stream()
-                .filter(d -> EduClassDoc.BRANCH.equals(d.getKind()))
-                .findFirst()
-                .map(d -> (JsonNode) readObject(d.getContent()).path("names"))
-                .orElseThrow(() -> GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, 1));
-        List<TeachingWeek> weeks = teachingWeeks(classId, planId, true).stream()
-                .filter(w -> themes.contains(w.themeId()))
+        Long themeId = root.getThemeId();
+        java.util.function.Supplier<List<TeachingWeek>> weeks = () -> teachingWeeks(classId, planId, true).stream()
+                .filter(w -> themeId.equals(w.themeId()))
                 .toList();
-        long empty = weeks.stream()
-                .filter(w -> names.path(w.start().toString()).asString("").isBlank())
-                .count();
-        if (empty > 0) throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, empty);
-        List<String> missing = new ArrayList<>();
-        for (Long themeId : themes) {
-            // Năm chưa cấu hình học kỳ: kế hoạch chủ đề/tuần tạm nằm trong hồ sơ chủ đề
-            boolean planParts = EduSemesters.of(year, themeStart(themeId, docs)).isEmpty();
-            if (planParts
-                    && docs.stream()
-                            .noneMatch(d -> EduClassDoc.THEME.equals(d.getKind()) && themeId.equals(d.getThemeId())))
-                throw GlobalException.of(ApiCode.THEME_PLAN_NOT_SAVED);
-            List<TeachingWeek> themeWeeks =
-                    weeks.stream().filter(w -> w.themeId().equals(themeId)).toList();
-            for (int i = 0; i < themeWeeks.size(); i++) {
-                LocalDate start = themeWeeks.get(i).start();
-                boolean hasWeek = docs.stream()
-                        .anyMatch(d -> EduClassDoc.WEEK.equals(d.getKind()) && start.equals(d.getWeekStart()));
-                boolean hasDay = docs.stream()
-                        .anyMatch(d -> EduClassDoc.DAY.equals(d.getKind()) && start.equals(d.getWeekStart()));
-                if ((planParts && !hasWeek) || (!semester && !hasDay)) missing.add("nhánh " + (i + 1));
-            }
-        }
-        if (!missing.isEmpty()) throw GlobalException.of(ApiCode.WEEKLY_LESSONS_MISSING, String.join(", ", missing));
-        if (!semester) requireDaySections(planId, weeks, docs);
-        requireGoalsCovered(root, docs, year);
+        return List.of(
+                new SubmitCheck("semesterReleased", "Kế hoạch giáo dục chủ đề chứa chủ đề đã ban hành", () -> {
+                    if (!semesterReleased(classId, planId, themeId, docs, year, true))
+                        throw GlobalException.of(ApiCode.SEMESTER_PACKAGE_NOT_RELEASED);
+                }),
+                new SubmitCheck("branchNames", "Mọi tuần của chủ đề đã đặt tên chủ đề nhánh", () -> {
+                    JsonNode names = docs.stream()
+                            .filter(d -> EduClassDoc.BRANCH.equals(d.getKind()))
+                            .findFirst()
+                            .map(d -> (JsonNode) readObject(d.getContent()).path("names"))
+                            .orElseThrow(() -> GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, 1));
+                    long empty = weeks.get().stream()
+                            .filter(w -> names.path(w.start().toString())
+                                    .asString("")
+                                    .isBlank())
+                            .count();
+                    if (empty > 0) throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, empty);
+                }),
+                new SubmitCheck("weeklyLessons", "Đủ giáo án ngày cho mọi tuần của chủ đề", () -> {
+                    // Năm chưa cấu hình học kỳ: kế hoạch chủ đề/tuần tạm nằm trong kế hoạch giáo dục ngày
+                    boolean planParts =
+                            EduSemesters.of(year, themeStart(themeId, docs)).isEmpty();
+                    if (planParts
+                            && docs.stream()
+                                    .noneMatch(d ->
+                                            EduClassDoc.THEME.equals(d.getKind()) && themeId.equals(d.getThemeId())))
+                        throw GlobalException.of(ApiCode.THEME_PLAN_NOT_SAVED);
+                    List<TeachingWeek> themeWeeks = weeks.get();
+                    List<String> missing = new ArrayList<>();
+                    for (int i = 0; i < themeWeeks.size(); i++) {
+                        LocalDate start = themeWeeks.get(i).start();
+                        boolean hasWeek = docs.stream()
+                                .anyMatch(d -> EduClassDoc.WEEK.equals(d.getKind()) && start.equals(d.getWeekStart()));
+                        boolean hasDay = docs.stream()
+                                .anyMatch(d -> EduClassDoc.DAY.equals(d.getKind()) && start.equals(d.getWeekStart()));
+                        if ((planParts && !hasWeek) || !hasDay) missing.add("nhánh " + (i + 1));
+                    }
+                    if (!missing.isEmpty())
+                        throw GlobalException.of(ApiCode.WEEKLY_LESSONS_MISSING, String.join(", ", missing));
+                }),
+                new SubmitCheck(
+                        "daySections",
+                        "Mỗi ngày học đủ 4 mục có nội dung",
+                        () -> requireDaySections(planId, weeks.get(), docs)),
+                new SubmitCheck(
+                        "goalsCovered",
+                        "Mọi mục tiêu của chủ đề được dạy",
+                        () -> requireGoalsCovered(root, docs, year)),
+                new SubmitCheck("aiSettled", "Không còn phần AI gợi ý chưa Giữ / Bỏ", () -> {
+                    Set<LocalDate> starts =
+                            weeks.get().stream().map(TeachingWeek::start).collect(Collectors.toSet());
+                    long pending = docs.stream()
+                            .filter(d -> EduClassDoc.DAY.equals(d.getKind()) && starts.contains(d.getWeekStart()))
+                            .flatMap(d -> {
+                                List<JsonNode> days = new ArrayList<>();
+                                readObject(d.getContent()).path("days").forEach(days::add);
+                                return days.stream();
+                            })
+                            .filter(day -> !day.path("aiSteps").isEmpty())
+                            .count();
+                    if (pending > 0) throw GlobalException.of(ApiCode.AI_DRAFT_PENDING, pending);
+                }));
     }
 
     /**
-     * EDU-80: gửi hồ sơ chủ đề thiếu MT của chủ đề ⇒ 7396; gửi gói học kỳ cuối hoặc hồ sơ của chủ đề bắt đầu muộn nhất thiếu MT
+     * EDU-80: gửi kế hoạch giáo dục ngày thiếu MT của chủ đề ⇒ 7396; gửi kế hoạch giáo dục chủ đề cuối hoặc hồ sơ của chủ đề bắt đầu muộn nhất thiếu MT
      * của năm ⇒ 7397. MT đã dạy = MT của thẻ xếp vào ngày dạy (bỏ ngày nghỉ); hoạt động gõ tay không tính (FR-030, FR-031).
      */
     private void requireGoalsCovered(EduClassDoc root, List<EduClassDoc> docs, SchoolYearDetailResponse year) {
@@ -1634,7 +2407,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .collect(Collectors.toSet());
     }
 
-    /** R4/FR-018: bản tuần hiệu lực = bản sửa theo hồ sơ chủ đề khi giáo án ngày đã ban hành, không thì bản theo kỳ. */
+    /** R4/FR-018: bản tuần hiệu lực = bản sửa theo kế hoạch giáo dục ngày khi giáo án ngày đã ban hành, không thì bản theo kỳ. */
     private static boolean dossierWeekEffective(EduClassDoc dayDoc, JsonNode dayContent) {
         return dayDoc != null
                 && dayContent.path("week").isObject()
@@ -1700,7 +2473,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return false;
     }
 
-    /** Spec 004 FR-003: phần còn thiếu của gói học kỳ; tuần nghỉ cả tuần không nằm trong danh sách tuần học. */
+    /** Spec 004 FR-003: phần còn thiếu của kế hoạch giáo dục chủ đề; tuần nghỉ cả tuần không nằm trong danh sách tuần học. */
     private ArrayNode missingParts(EduClassDoc root, List<EduClassDoc> docs, SchoolYearDetailResponse year) {
         ArrayNode out = objectMapper.createArrayNode();
         if (!EduSemesters.configured(year)) return out;
@@ -1777,15 +2550,13 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             List<EduClassDoc> docs,
             String kind,
             Map<Long, EduWorkflowPolicy.Evaluation> evaluations,
-            ClassListContext context) {
+            ClassListContext context,
+            boolean reviewView) {
         return docs.stream()
                 .filter(d -> kind.equals(d.getKind()))
-                // Tiền 11/11/2026: "Dự kiến chủ đề - chủ đề nhánh" là bản dự kiến ⇒ mọi người xem được lớp đều thấy đủ
-                // lịch nhánh,
-                // không cần chờ ban hành (thay phần "người chỉ xem" của EDU-73/74)
-                .map(d -> visibleInList(d, context)
+                .map(d -> visibleInList(currentUser, d, context, reviewView)
                         ? toNode(currentUser, d, evaluations.get(d.getId()), context)
-                        : overdueRootNode(currentUser, d, context))
+                        : publishedOrFrame(currentUser, d, context))
                 .filter(Objects::nonNull)
                 .toList();
     }
@@ -1802,19 +2573,32 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                                 doc, planDocsOf(doc, context), context.years().get(doc.getClassroomId())));
         if (root == null) return null;
         var releases = releaseRepository.findAllByClassDocIdInOrderByReleasedAtAscIdAsc(List.of(root.getId()));
-        if (releases.isEmpty()) return null;
+        if (releases.isEmpty()) {
+            if (doc.getStatus() != EduClassDocStatus.APPROVED || root.getStatus() != EduClassDocStatus.APPROVED)
+                return null;
+            ObjectNode legacy = toNode(currentUser, doc, null, context);
+            // Bản ban hành cũ chưa lưu lịch: người chỉ xem dùng lịch hiện hành (Tiền chốt 23/11)
+            legacy.remove("branchNames");
+            return publishedMetadata(legacy);
+        }
         ObjectNode snapshot = readObject(releases.getLast().getPrintSnapshot());
         JsonNode member = null;
         for (JsonNode m : snapshot.path("members"))
             if (doc.getDocKey().equals(m.path("docKey").asString(""))) member = m.path("content");
-        if (member == null || !member.isObject()) return null;
+        // Bản chụp chỉ chứa tài liệu con; chính gói/hồ sơ gốc đã ban hành thì giữ nội dung hiện hành
+        boolean isRootDoc = root.getId().equals(doc.getId());
+        if (!isRootDoc && (member == null || !member.isObject())) return null;
         ObjectNode node = toNode(currentUser, doc, null, context);
-        readObject(doc.getContent()).propertyNames().forEach(key -> {
-            if (!META_FIELDS.contains(key)) node.remove(key);
-        });
-        member.properties().forEach(e -> {
-            if (!META_FIELDS.contains(e.getKey())) node.set(e.getKey(), e.getValue());
-        });
+        node.remove("effectiveCalendar");
+        if (member != null && member.isObject()) {
+            JsonNode content = member;
+            readObject(doc.getContent()).propertyNames().forEach(key -> {
+                if (!META_FIELDS.contains(key)) node.remove(key);
+            });
+            content.properties().forEach(e -> {
+                if (!META_FIELDS.contains(e.getKey())) node.set(e.getKey(), e.getValue());
+            });
+        }
         if (EduClassDoc.THEME.equals(doc.getKind()) && !member.has("activities")) {
             node.remove("activities");
             if (hasLegacyActivities(node))
@@ -1825,28 +2609,62 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
         if (EduClassDoc.DAY.equals(doc.getKind()))
             node.put("effectiveWeek", member.path("week").isObject() ? "dossier" : "semester");
-        if (EduClassDoc.SEMESTER.equals(doc.getKind()))
-            for (JsonNode m : snapshot.path("members"))
-                if (EduClassDoc.BRANCH.equals(m.path("kind").asString(""))) node.set("branchNames", m.path("names"));
+        if (EduClassDoc.SEMESTER.equals(doc.getKind())) {
+            node.remove("branchNames");
+            for (JsonNode m : snapshot.path("members")) {
+                if (EduClassDoc.BRANCH.equals(m.path("kind").asString(""))) {
+                    node.set("branchNames", m.path("names"));
+                    // Snapshot cũ không có lịch nhánh ⇒ dùng lịch hiện hành (Tiền chốt 23/11)
+                    // EDU-111 (8): gói đã duyệt bất biến; snapshot cũ thiếu lịch thì chỉ còn tên nhánh lúc ban hành
+                    JsonNode calendar = m.path("content").isObject() ? m.path("content") : null;
+                    if (calendar != null) node.set("effectiveCalendar", calendar);
+                }
+            }
+        }
         node.put("status", EduClassDocStatus.APPROVED.name());
+        if (node.has("containerStatus")) node.put("containerStatus", EduClassDocStatus.APPROVED.name());
+        node.put("version", releases.getLast().getDossierVersion());
+        node.put("dossierVersion", releases.getLast().getDossierVersion());
+        return publishedMetadata(node);
+    }
+
+    private ObjectNode publishedMetadata(ObjectNode node) {
+        node.put("returned", false);
         node.put("releasedView", true);
+        boolean canExport = node.path("permissions").path("canExport").asBoolean(false);
+        node.putObject("permissions").put("canExport", canExport);
+        node.remove(List.of(
+                "approvals",
+                "history",
+                "review",
+                "reviewDeadline",
+                "canExtend",
+                "canRevise",
+                "missing",
+                "blockedReason",
+                "deadlineState",
+                "extendedTo",
+                "daysLeft",
+                "timeLocked"));
         return node;
     }
 
-    /**
-     * Tiền 11/11/2026 (spec 005): người chỉ xem chỉ thấy bản đã ban hành; riêng Hiệu trưởng thấy thêm gói/hồ sơ chưa ban
-     * hành đang quá hạn hoặc đã được mở hạn (để mở hạn ở màn Kế hoạch quá hạn). Bản Nháp khác không ai ngoài người soạn,
-     * người duyệt thấy.
-     */
-    private ObjectNode overdueRootNode(CurrentUser currentUser, EduClassDoc doc, ClassListContext context) {
-        if (EduClassDoc.isRoot(doc.getKind()) && accessPolicy.isPrincipal(currentUser)) {
-            ObjectNode node = boardRootNode(currentUser, doc, context);
-            if (node.path("canExtend").asBoolean(false) || !node.path("history").isEmpty()) return node;
-        }
+    private ObjectNode publishedOrFrame(CurrentUser currentUser, EduClassDoc doc, ClassListContext context) {
+        // EDU-111 (5): người xem được lớp đọc lịch nhánh hiện tại ở mọi trạng thái, chỉ xem
+        if (EduClassDoc.BRANCH.equals(doc.getKind())) return publishedMetadata(toNode(currentUser, doc, null, context));
         ObjectNode released = releasedNode(currentUser, doc, context);
         return released == null && EduClassDoc.SEMESTER.equals(doc.getKind())
                 ? semesterFrameNode(currentUser, doc, context)
                 : released;
+    }
+
+    private List<ObjectNode> overdueNodes(
+            CurrentUser user, List<EduClassDoc> docs, String kind, ClassListContext context) {
+        return docs.stream()
+                .filter(d -> kind.equals(d.getKind()))
+                .map(d -> overdueNode(user, d, context))
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     /**
@@ -1865,24 +2683,22 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /**
-     * Hiệu trưởng thấy trạng thái, hạn của gói/hồ sơ quá hạn hoặc đã mở hạn (xem overdueRootNode); tên nhánh
-     * chỉ lấy từ bản đã ban hành, không lộ bản đang soạn (FR-015).
+     * Hiệu trưởng xem trạng thái, hạn và lịch sử mở của hồ sơ đủ điều kiện trên màn Kế hoạch quá hạn.
      */
-    private ObjectNode boardRootNode(CurrentUser currentUser, EduClassDoc root, ClassListContext context) {
+    private ObjectNode overdueNode(CurrentUser currentUser, EduClassDoc root, ClassListContext context) {
+        if (root.getStatus() == EduClassDocStatus.APPROVED) return null;
         ObjectNode node = toNode(currentUser, root, null, context);
-        ObjectNode names = objectMapper.createObjectNode();
-        var releases = releasesOfRoot(root);
-        if (!releases.isEmpty())
-            for (JsonNode m : readObject(releases.getLast().getPrintSnapshot()).path("members"))
-                if (EduClassDoc.BRANCH.equals(m.path("kind").asString("")) && m.path("names") instanceof ObjectNode n)
-                    names.setAll(n);
-        if (node.has("branchNames")) node.set("branchNames", names);
-        // Spec 005 FR-021a: màn Kế hoạch quá hạn cần người mở, lý do, hạn mới — chỉ giữ sự kiện mở hạn, bỏ ghi chú
-        // duyệt
         ArrayNode kept = objectMapper.createArrayNode();
-        for (JsonNode e : readArray(root.getHistory()))
-            if (ACTION_EXTEND.equals(e.path("action").asString(""))) kept.add(e);
+        for (JsonNode e : readArray(root.getHistory())) {
+            String action = e.path("action").asString("");
+            if (ACTION_EXTEND.equals(action) || ACTION_REOPEN_REVIEW_DEADLINE.equals(action)) kept.add(e);
+        }
+        if (!node.path("canExtend").asBoolean(false)
+                && !node.path("reviewDeadline").path("canReopen").asBoolean(false)
+                && kept.isEmpty()) return null;
         node.set("history", kept);
+        node.remove(List.of("approvals", "blockedReason", "effectiveCalendar", "branchNames", "missing", "review"));
+        node.putObject("permissions");
         return node;
     }
 
@@ -1890,11 +2706,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
      * GVCN thấy mọi trạng thái hồ sơ lớp mình; người duyệt của lớp thấy bản Chờ duyệt; người khác chỉ thấy bản đã ban
      * hành (spec 002 FR-007, FR-016c).
      */
-    private boolean visibleInList(EduClassDoc doc, ClassListContext context) {
-        if (EduClassDoc.BRANCH.equals(doc.getKind())) return true;
-        if (doc.getStatus() == EduClassDocStatus.APPROVED) return true;
-        if (context.scope().canAuthor(doc.getClassroomId())) return true;
-        if (doc.getStatus() != EduClassDocStatus.REVIEW) return false;
+    private boolean visibleInList(CurrentUser user, EduClassDoc doc, ClassListContext context, boolean reviewView) {
+        ClassroomInfoResponse owner = context.classes().get(doc.getClassroomId());
+        if (owner != null && authorIn(user, owner, doc.getKind(), context)) return true;
+        if (!reviewView || doc.getStatus() != EduClassDocStatus.REVIEW || EduClassDoc.BRANCH.equals(doc.getKind()))
+            return false;
         ClassroomInfoResponse cls = context.classes().get(doc.getClassroomId());
         String type =
                 policyTypeOf(doc, planDocsOf(doc, context), context.years().get(doc.getClassroomId()));
@@ -1902,10 +2718,19 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return cls != null
                 && policy != null
                 && policy.reviewers().stream()
-                        .anyMatch(role -> context.scope().canReview(role, cls.ageGroupId(), cls.campusId()));
+                        .anyMatch(role -> context.scope().canReview(type, role, cls.ageGroupId(), cls.campusId()));
     }
 
     /** Dạng tài liệu của Web: nội dung soạn + id, lớp, kế hoạch năm, chủ đề, tuần, trạng thái, người duyệt, lịch sử. */
+    private static boolean lastClassReviewWasReturned(ArrayNode history) {
+        for (int i = history.size() - 1; i >= 0; i--) {
+            String action = history.get(i).path("action").asString("");
+            if (ACTION_REJECT.equals(action)) return true;
+            if (ACTION_SUBMIT.equals(action) || ACTION_APPROVE.equals(action)) return false;
+        }
+        return false;
+    }
+
     private ObjectNode toNode(CurrentUser currentUser, EduClassDoc doc) {
         var cls = requireClass(doc.getClassroomId());
         var evaluation = doc.getStatus() == EduClassDocStatus.REVIEW
@@ -2033,8 +2858,17 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             node.put("containerKey", containerKey);
             node.put("containerStatus", root.getStatus().name());
         }
+        node.put(
+                "returned",
+                doc.publicStatus() == EduClassDocStatus.DRAFT
+                        && lastClassReviewWasReturned(readArray(root.getHistory())));
         node.put("dossierVersion", root.getVersion() == null ? 0L : root.getVersion());
-        boolean author = isHomeroomAuthor(currentUser, cls);
+        // Danh sách dùng policy đã nạp một lần trong context, không đọc lại cài đặt cho từng hồ sơ
+        EduWorkflowPolicy.RolePolicy authorPolicy =
+                context == null ? null : context.policies().get(EduClassDoc.policyType(doc.getKind()));
+        boolean author = authorPolicy == null
+                ? isClassDocAuthor(currentUser, cls, doc.getKind())
+                : isClassDocAuthor(currentUser, cls, doc.getKind(), authorPolicy, context.homerooms());
         // EDU-89: năm đã kết thúc / năm sắp tới chưa tới ngày mở chuẩn bị ⇒ chỉ xem
         boolean yearOpen = planYearOpen(year);
         boolean activeVersion = context == null
@@ -2048,8 +2882,13 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         .contains(currentUser.userId())
                 && (context == null
                         ? accessPolicy.canReviewClassDoc(
-                                currentUser, evaluation.waitingRole(), cls.schoolYearId(), cls.ageGroupId(), cls.id())
-                        : context.scope().canReview(evaluation.waitingRole(), cls.ageGroupId(), cls.campusId()));
+                                currentUser,
+                                type,
+                                evaluation.waitingRole(),
+                                cls.schoolYearId(),
+                                cls.ageGroupId(),
+                                cls.id())
+                        : context.scope().canReview(type, evaluation.waitingRole(), cls.ageGroupId(), cls.campusId()));
         // Lịch sử duyệt (ghi chú gửi, lý do trả lại) chỉ cho người soạn và người duyệt (FR-019)
         boolean seesHistory = author
                 || reviewable
@@ -2059,6 +2898,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (!seesHistory) node.set("history", objectMapper.createArrayNode());
         node.set("releases", releasesOf(doc));
         String blocked = null;
+        boolean reviewDeadlineLocked = false;
         if (EduClassDoc.isRoot(doc.getKind())) {
             RootInfo info = rootInfo(
                     doc,
@@ -2085,8 +2925,10 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             ArrayNode themeIds = node.putArray("themeIds");
             info.themeIds().forEach(id -> themeIds.add(String.valueOf(id)));
             if (doc.getSemesterNo() != null) node.put("semesterNo", doc.getSemesterNo());
-            if (EduClassDoc.SEMESTER.equals(doc.getKind()))
+            if (EduClassDoc.SEMESTER.equals(doc.getKind())) {
                 node.set("branchNames", semesterBranchNames(doc, planDocs, year));
+                if (doc.getStatus() == EduClassDocStatus.APPROVED) applyReleasedBranches(doc, node);
+            }
             blocked = !doc.getStatus().editable()
                     ? "NOT_DRAFT"
                     : EduDeadline.OVERDUE.equals(info.deadline().state())
@@ -2104,14 +2946,25 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             node.put("blockedReason", blocked);
             boolean locked = timeLocked(doc, info, LocalDate.now(clock));
             node.put("timeLocked", locked);
-            node.put(
-                    "canExtend",
-                    yearOpen
-                            && accessPolicy.isPrincipal(currentUser)
-                            && doc.getStatus() != EduClassDocStatus.REVIEW
-                            && doc.getStatus() != EduClassDocStatus.APPROVED
-                            && !info.everReleased()
-                            && locked);
+            EduReviewDeadline.Info reviewDeadline = reviewDeadlineOf(info);
+            reviewDeadlineLocked = reviewDeadline.locked();
+            ObjectNode reviewDeadlineNode = node.putObject("reviewDeadline");
+            reviewDeadlineNode.put(
+                    "lockFrom",
+                    reviewDeadline.lockFrom() == null
+                            ? null
+                            : reviewDeadline.lockFrom().toString());
+            reviewDeadlineNode.put(
+                    "reopenUntil",
+                    reviewDeadline.reopenUntil() == null
+                            ? null
+                            : reviewDeadline.reopenUntil().toString());
+            reviewDeadlineNode.put("locked", reviewDeadline.locked());
+            reviewDeadlineNode.put("isCurrentReviewer", reviewable);
+            reviewDeadlineNode.put(
+                    "canReopen", yearOpen && accessPolicy.isPrincipal(currentUser) && reopenable(doc, info));
+            reviewDeadlineNode.put("reason", reviewDeadlineReasonOf(doc));
+            node.put("canExtend", yearOpen && accessPolicy.isPrincipal(currentUser) && reopenable(doc, info));
             node.put(
                     "canRevise",
                     yearOpen && author && activeVersion && doc.getStatus() == EduClassDocStatus.APPROVED && !locked);
@@ -2133,9 +2986,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         permissions.put(
                 "canSubmit",
                 yearOpen && author && activeVersion && doc.getStatus().editable() && rootKind && blocked == null);
-        permissions.put("canApprove", yearOpen && reviewable && rootKind);
-        permissions.put("canReturn", yearOpen && reviewable && rootKind);
-        permissions.put("canReject", yearOpen && reviewable && rootKind);
+        permissions.put("canApprove", yearOpen && reviewable && rootKind && !reviewDeadlineLocked);
+        permissions.put("canReturn", yearOpen && reviewable && rootKind && !reviewDeadlineLocked);
+        permissions.put("canReject", yearOpen && reviewable && rootKind && !reviewDeadlineLocked);
         // EDU-90: mỗi tài liệu (cả gói/hồ sơ) xét theo người tạo của chính nó
         permissions.put(
                 "canExport",
@@ -2162,12 +3015,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     // Nội dung kế hoạch chủ đề + giáo án tuần lúc ban hành, kèm chuỗi ký
-    private String releaseSnapshot(String signatures, List<EduClassDoc> members, ObjectNode branchNames) {
+    private String releaseSnapshot(
+            String signatures, List<EduClassDoc> members, ObjectNode branchNames, ObjectNode calendar) {
         ObjectNode root = objectMapper.createObjectNode();
         root.set("signatures", signatures == null ? objectMapper.nullNode() : readObject(signatures));
         ArrayNode list = root.putArray("members");
-        if (branchNames != null)
-            list.addObject().put("kind", EduClassDoc.BRANCH).set("names", branchNames);
+        if (branchNames != null) {
+            ObjectNode branch = list.addObject().put("kind", EduClassDoc.BRANCH);
+            branch.set("names", branchNames);
+            if (calendar != null) branch.set("content", calendar);
+        }
         members.stream()
                 .sorted(java.util.Comparator.comparing(EduClassDoc::getId))
                 .forEach(m -> {
@@ -2226,8 +3083,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /**
-     * Spec 004: sửa được khi gốc chứa (gói học kỳ / hồ sơ chủ đề) còn Nháp và chưa khóa theo thời gian; lịch nhánh sửa được
-     * khi còn ít nhất một gói học kỳ như vậy (hoặc năm chưa cấu hình học kỳ).
+     * Spec 004: sửa được khi gốc chứa (kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày) còn Nháp và chưa khóa theo thời gian; lịch nhánh sửa được
+     * khi còn ít nhất một kế hoạch giáo dục chủ đề như vậy (hoặc năm chưa cấu hình học kỳ).
      */
     private boolean memberEditable(
             EduClassDoc doc,
@@ -2250,7 +3107,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return root == doc || open.test(root);
     }
 
-    // ===== Spec 003: gói học kỳ / hồ sơ chủ đề =====
+    // ===== Spec 003: kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày =====
 
     private record RootInfo(EduDeadline.Info deadline, List<Long> themeIds, boolean everReleased, LocalDate opened) {}
 
@@ -2300,8 +3157,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /**
-     * Spec 004 (cố định): giáo án ngày ⇒ hồ sơ chủ đề; kế hoạch chủ đề/tuần ⇒ gói học kỳ của chủ đề.
-     * Năm chưa cấu hình học kỳ thì chưa có gói ⇒ kế hoạch chủ đề/tuần tạm đi theo hồ sơ chủ đề.
+     * Spec 004 (cố định): giáo án ngày ⇒ kế hoạch giáo dục ngày; kế hoạch chủ đề/tuần ⇒ kế hoạch giáo dục chủ đề của chủ đề.
+     * Năm chưa cấu hình học kỳ thì chưa có gói ⇒ kế hoạch chủ đề/tuần tạm đi theo kế hoạch giáo dục ngày.
      */
     private String containerKey(
             String kind,
@@ -2345,7 +3202,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 : releaseRepository.findAllByClassDocIdInOrderByReleasedAtAscIdAsc(List.of(root.getId()));
     }
 
-    /** Gói học kỳ chứa chủ đề: đã từng ban hành? Năm chưa cấu hình học kỳ thì không có gói để chờ. */
+    /** Kế hoạch giáo dục chủ đề chứa chủ đề: đã từng ban hành? Năm chưa cấu hình học kỳ thì không có gói để chờ. */
     private boolean semesterReleased(
             Long classId,
             Long planId,
@@ -2363,6 +3220,80 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .orElse(false);
     }
 
+    private static EduReviewDeadline.Info reviewDeadlineOf(RootInfo info) {
+        return EduReviewDeadline.of(info.deadline());
+    }
+
+    /** EDU-109 (9): dùng cho reconcile (EduWorkflowServiceImpl) — cùng phép tính Quá hạn với màn hình. */
+    boolean reviewDeadlineLocked(EduClassDoc root) {
+        // Hồ sơ cũ không phải gốc (vd. chủ đề nhánh) không có hạn duyệt riêng, không có chủ đề ⇒ không khóa
+        if (!EduClassDoc.isRoot(root.getKind())) return false;
+        var cls = classroomService.findClassroomInfo(root.getClassroomId());
+        if (cls.isEmpty()) return false;
+        RootInfo info = rootInfo(
+                root,
+                classDocRepository.findAllByClassroomIdAndYearPlanId(root.getClassroomId(), root.getYearPlanId()),
+                yearOf(cls.get()),
+                null,
+                LocalDate.now(clock));
+        return reviewDeadlineOf(info).locked();
+    }
+
+    /** EDU-109 (9): HT mở hạn khi quá hạn: Chờ duyệt, hoặc Nháp/Trả lại chưa từng ban hành (spec 005 khóa cứng). */
+    private static boolean reopenable(EduClassDoc root, RootInfo info) {
+        return EduDeadline.OVERDUE.equals(info.deadline().state())
+                && (root.getStatus() == EduClassDocStatus.REVIEW || !info.everReleased());
+    }
+
+    private String reviewDeadlineReasonOf(EduClassDoc root) {
+        JsonNode latest = null;
+        for (JsonNode event : readArray(root.getHistory())) {
+            String action = event.path("action").asString("");
+            if (ACTION_EXTEND.equals(action) || ACTION_REOPEN_REVIEW_DEADLINE.equals(action)) latest = event;
+        }
+        return latest == null ? null : latest.path("note").asText(null);
+    }
+
+    private ObjectNode reopenReviewDeadline(
+            CurrentUser user,
+            EduClassDoc root,
+            RootInfo info,
+            List<EduClassDoc> members,
+            String note,
+            LocalDate deadline,
+            LocalDate today,
+            Instant at) {
+        if (!accessPolicy.isPrincipal(user)) throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
+        if (note.isBlank() || deadline == null || !deadline.isAfter(today))
+            throw GlobalException.of(ApiCode.INVALID_VALUE, "lý do hoặc hạn mở lại");
+        // EDU-109 (9): giữ action cũ cho tương thích; cùng điều kiện và cùng tác dụng (lùi hạn chung) với extend
+        if (!reopenable(root, info)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
+        for (EduClassDoc member : members) {
+            ArrayNode history = readArray(member.getHistory());
+            ObjectNode event = history.addObject();
+            event.put("action", ACTION_REOPEN_REVIEW_DEADLINE);
+            event.put("deadline", deadline.toString());
+            event.put("note", note);
+            event.put("by", user.fullName());
+            event.put("actorId", user.userId());
+            event.put("at", at.toString());
+            event.put("round", member.getReviewRound());
+            member.updateWorkflowState(
+                    member.getStatus(),
+                    member.getReviewRound(),
+                    member.getApprovals(),
+                    history.toString(),
+                    member.getAppliedPolicyRevision(),
+                    member.getCompletionPolicy(),
+                    member.getPrintSnapshot(),
+                    member.getCompletionMode(),
+                    member.getCompletedAt(),
+                    user.userId());
+        }
+        classDocRepository.saveAllAndFlush(members);
+        return toNode(user, root);
+    }
+
     private RootInfo rootInfo(
             EduClassDoc root,
             List<EduClassDoc> docs,
@@ -2373,30 +3304,41 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         boolean semester = EduClassDoc.SEMESTER.equals(root.getKind());
         LocalDate deadline =
                 semester ? EduSemesters.start(year, root.getSemesterNo()) : themeStart(root.getThemeId(), docs);
+        if (!deadlineEnabled) deadline = null;
         List<Long> themeIds = semester
                 ? semesterThemes(root.getYearPlanId(), root.getSemesterNo(), docs, year)
                 : List.of(root.getThemeId());
         LocalDate extended = null;
-        for (JsonNode e : readArray(root.getHistory()))
-            if (ACTION_EXTEND.equals(e.path("action").asString("")))
+        for (JsonNode e : readArray(root.getHistory())) {
+            // EDU-109 (9): một hạn hiệu lực = lần HT mở gần nhất, mở hạn gửi (extend) hay mở hạn duyệt
+            String action = e.path("action").asString("");
+            if ((ACTION_EXTEND.equals(action) || ACTION_REOPEN_REVIEW_DEADLINE.equals(action))
+                    && !e.path("deadline").asString("").isBlank())
                 extended = LocalDate.parse(e.path("deadline").asString(""));
+        }
         LocalDate firstRelease = releases.isEmpty()
                 ? null
                 : LocalDate.ofInstant(releases.getFirst().getReleasedAt(), SCHOOL_ZONE);
         return new RootInfo(
-                EduDeadline.of(
-                        deadline,
-                        extended,
-                        today,
-                        root.getStatus() == EduClassDocStatus.APPROVED,
-                        firstRelease,
-                        opened),
+                EduDeadline.of(deadline, extended, today, root.getStatus() == EduClassDocStatus.APPROVED, firstRelease),
                 themeIds,
                 !releases.isEmpty(),
                 opened);
     }
 
     /** Tên nhánh các tuần thuộc học kỳ của gói (chụp vào bản ban hành, FR-015). */
+    /** EDU-111 (8): gói học kỳ đã duyệt giữ tên nhánh, lịch như lúc ban hành; sửa nhánh sau đó không đổi gói. */
+    private void applyReleasedBranches(EduClassDoc doc, ObjectNode node) {
+        var releases = releaseRepository.findAllByClassDocIdInOrderByReleasedAtAscIdAsc(List.of(doc.getId()));
+        if (releases.isEmpty()) return;
+        for (JsonNode m : readObject(releases.getLast().getPrintSnapshot()).path("members")) {
+            if (!EduClassDoc.BRANCH.equals(m.path("kind").asString(""))) continue;
+            node.set("branchNames", m.path("names"));
+            if (m.path("content").isObject()) node.set("effectiveCalendar", m.path("content"));
+            else node.remove("effectiveCalendar");
+        }
+    }
+
     private ObjectNode semesterBranchNames(EduClassDoc root, List<EduClassDoc> docs, SchoolYearDetailResponse year) {
         if (!EduClassDoc.SEMESTER.equals(root.getKind())) return null;
         ObjectNode names = objectMapper.createObjectNode();
@@ -2420,7 +3362,37 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return names;
     }
 
-    /** Tạo gốc còn thiếu: hồ sơ chủ đề cho mỗi kế hoạch chủ đề, gói học kỳ khi năm đã cấu hình học kỳ. */
+    private ObjectNode semesterCalendar(EduClassDoc root, List<EduClassDoc> docs, SchoolYearDetailResponse year) {
+        if (!EduClassDoc.SEMESTER.equals(root.getKind())) return null;
+        LocalDate from = EduSemesters.start(year, root.getSemesterNo());
+        LocalDate to = EduSemesters.end(year, root.getSemesterNo());
+        if (from == null || to == null) return null;
+        return docs.stream()
+                .filter(d -> EduClassDoc.BRANCH.equals(d.getKind()))
+                .findFirst()
+                .map(d -> readObject(d.getContent()))
+                .filter(calendar -> calendar.path("schemaVersion").asInt() == 2)
+                .map(calendar -> {
+                    ObjectNode scoped = objectMapper.createObjectNode().put("schemaVersion", 2);
+                    for (String field : List.of("themeSchedules", "branches")) {
+                        ArrayNode entries = scoped.putArray(field);
+                        for (JsonNode entry : calendar.path(field)) {
+                            String start = entry.path("startDate").asString("");
+                            String end = entry.path("endDate").asString("");
+                            if (!start.isBlank()
+                                    && !end.isBlank()
+                                    && start.compareTo(to.toString()) <= 0
+                                    && end.compareTo(from.toString()) >= 0) {
+                                entries.add(entry);
+                            }
+                        }
+                    }
+                    return scoped;
+                })
+                .orElse(null);
+    }
+
+    /** Tạo gốc còn thiếu: kế hoạch giáo dục ngày cho mỗi kế hoạch chủ đề, kế hoạch giáo dục chủ đề khi năm đã cấu hình học kỳ. */
     private void ensureRoots(Long classId, Long planId, SchoolYearDetailResponse year, Long userId) {
         List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdAndYearPlanId(classId, planId);
         Set<String> keys = docs.stream().map(EduClassDoc::getDocKey).collect(Collectors.toSet());
@@ -2493,12 +3465,111 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private static boolean timeLocked(EduClassDoc root, RootInfo info, LocalDate today) {
         if (EduDeadline.OVERDUE.equals(info.deadline().state())) return true;
         LocalDate effective = info.deadline().effective();
-        // Hạn trước ngày mở lớp (lớp mở giữa năm) không khóa — như spec 003
-        if (effective == null || info.opened() != null && effective.isBefore(info.opened())) return false;
+        if (effective == null) return false;
         return root.getStatus() == EduClassDocStatus.APPROVED && !today.isBefore(effective);
     }
 
-    /** Spec 004 (Q2, Q3, Q5): gói/hồ sơ đã ban hành phải tạo phiên bản trước khi sửa; qua hạn hiệu lực thì khóa. */
+    /**
+     * EDU-100: lịch nhánh của lớp sửa theo kế hoạch giáo dục chủ đề (học kỳ) và kế hoạch giáo dục ngày (chủ đề).
+     * Trả các tuần của nhánh bị xóa để xóa kế hoạch tuần, giáo án ngày soạn cho nhánh đó.
+     */
+    private Set<LocalDate> requireBranchesEditable(
+            ObjectNode previous,
+            ObjectNode next,
+            Set<String> rootKeys,
+            List<EduClassDoc> docs,
+            SchoolYearDetailResponse year,
+            Long classId,
+            Long planId,
+            LocalDate today) {
+        Map<String, JsonNode> before = branchesByKey(previous);
+        Map<String, JsonNode> after = branchesByKey(next);
+        Set<Long> touched = new HashSet<>();
+        Set<String> keys = new HashSet<>(before.keySet());
+        keys.addAll(after.keySet());
+        for (String key : keys) {
+            JsonNode b = before.get(key);
+            JsonNode a = after.get(key);
+            if (Objects.equals(b, a)) continue;
+            if (b != null) touched.add(b.path("themeId").asLong());
+            if (a != null) touched.add(a.path("themeId").asLong());
+        }
+        for (Long themeId : touched) {
+            EduClassDoc dossier = docs.stream()
+                    .filter(d -> EduClassDoc.DOSSIER.equals(d.getKind()) && themeId.equals(d.getThemeId()))
+                    .findFirst()
+                    .orElse(null);
+            // EDU-111 (1): hồ sơ chủ đề đã gửi hoặc đã duyệt ⇒ nhánh của chủ đề khóa hoàn toàn; phiên bản điều chỉnh
+            // (về Nháp) sửa như Nháp
+            if (dossier != null
+                    && (dossier.getStatus() == EduClassDocStatus.APPROVED
+                            || dossier.getStatus() == EduClassDocStatus.REVIEW))
+                throw GlobalException.of(
+                        ApiCode.EDUCATION_CALENDAR_INVALID,
+                        "kế hoạch giáo dục ngày của chủ đề đã gửi hoặc đã duyệt, nhánh của chủ đề này không sửa được");
+            Optional<Integer> no = EduSemesters.of(year, themeStart(themeId, docs));
+            if (no.isEmpty()) continue;
+            String key = semesterKey(classId, planId, no.get());
+            rootKeys.add(key);
+        }
+        for (String key : rootKeys) {
+            EduClassDoc root = docs.stream()
+                    .filter(d -> key.equals(d.getDocKey()))
+                    .findFirst()
+                    .orElse(null);
+            if (root == null) continue;
+            // EDU-111 (6): gói học kỳ đang chờ duyệt ⇒ khóa mọi nhánh của học kỳ
+            if (root.getStatus() == EduClassDocStatus.REVIEW) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+            // EDU-111 (2): học kỳ đã ban hành vẫn thêm/sửa/xóa nhánh; bản ban hành giữ nguyên (EDU-102)
+            if (root.getStatus() != EduClassDocStatus.APPROVED
+                    && timeLocked(root, rootInfo(root, docs, year, openedOn(classId), today), today)) {
+                throw GlobalException.of(ApiCode.CLASS_DOC_TIME_LOCKED);
+            }
+        }
+        Set<LocalDate> dropped = new HashSet<>();
+        // (3) kế hoạch tuần, giáo án soạn cho nhánh bị xóa thì xóa theo, kể cả khi nhánh khác kéo dài phủ lại tuần đó
+        before.forEach((key, branch) -> {
+            if (!after.containsKey(key)) dropped.addAll(branchWeeks(branch));
+        });
+        return dropped;
+    }
+
+    private static Map<String, JsonNode> branchesByKey(ObjectNode content) {
+        Map<String, JsonNode> byKey = new LinkedHashMap<>();
+        content.path("branches").forEach(b -> byKey.put(b.path("key").asString(""), b));
+        return byKey;
+    }
+
+    private static Set<LocalDate> branchWeeks(JsonNode branch) {
+        LocalDate start = parseWeek(branch.path("startDate").asString(""));
+        LocalDate end = parseWeek(branch.path("endDate").asString(""));
+        Set<LocalDate> weeks = new HashSet<>();
+        if (start == null || end == null) return weeks;
+        for (LocalDate d = start.with(java.time.DayOfWeek.MONDAY); !d.isAfter(end); d = d.plusWeeks(1)) weeks.add(d);
+        return weeks;
+    }
+
+    /**
+     * EDU-111 (3): xóa nhánh ⇒ xóa kế hoạch tuần, giáo án ngày đang soạn (Nháp) của các tuần không còn nhánh; bản đã
+     * ban hành giữ nguyên (EDU-102), tuần không còn nhánh nên không hiện ở trang soạn.
+     */
+    private void deleteDraftWeekDocs(Set<LocalDate> weeks, List<EduClassDoc> docs) {
+        if (weeks.isEmpty()) return;
+        List<EduClassDoc> drop = docs.stream()
+                .filter(d -> (EduClassDoc.WEEK.equals(d.getKind()) || EduClassDoc.DAY.equals(d.getKind()))
+                        && weeks.contains(d.getWeekStart())
+                        && d.getStatus() == EduClassDocStatus.DRAFT)
+                .toList();
+        if (drop.isEmpty()) return;
+        if (classDocRepository.hasActivityResults(
+                drop.stream().map(EduClassDoc::getId).toList()))
+            throw GlobalException.of(
+                    ApiCode.EDUCATION_CALENDAR_INVALID,
+                    "tuần của nhánh đã ghi kết quả hoạt động, không xóa nhánh được");
+        classDocRepository.deleteAll(drop);
+    }
+
+    /** Spec 004 (Q2, Q3, Q5): bản đã ban hành phải tạo phiên bản trước khi sửa; qua hạn hiệu lực thì khóa. */
     private void requireRootsEditable(
             Set<String> rootKeys,
             List<EduClassDoc> docs,
@@ -2529,7 +3600,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /**
-     * Spec 004 Q7 + spec 005 FR-017a: phiên bản mới của gói học kỳ đổi bảng tuần/MT/bảng góc ⇒ giáo án ngày đã duyệt của đúng tuần đó và hồ sơ chủ
+     * Spec 004 Q7 + spec 005 FR-017a: phiên bản mới của kế hoạch giáo dục chủ đề đổi bảng tuần/MT/bảng góc ⇒ giáo án ngày đã duyệt của đúng tuần đó và hồ sơ chủ
      * đề chứa nó về Nháp để soạn/gửi lại; tuần không đổi giữ nguyên. Báo GVCN.
      */
     private void resetDaysOfChangedWeeks(
@@ -2600,7 +3671,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             .findFirst()
                             .map(EduClassDocServiceImpl::linkOf)
                             .orElse(null),
-                    false);
+                    false,
+                    scopeOf(cls));
     }
 
     /**
@@ -2619,10 +3691,10 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (note.isBlank()) throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "lý do mở hạn");
         if (deadline == null || !deadline.isAfter(today)) throw GlobalException.of(ApiCode.INVALID_VALUE, "hạn mới");
         // Spec 005 khóa cứng: đã từng ban hành (kể cả đang Nháp điều chỉnh) thì không mở hạn
-        if (root.getStatus() == EduClassDocStatus.APPROVED || info.everReleased())
+        if (root.getStatus() == EduClassDocStatus.APPROVED
+                || (info.everReleased() && root.getStatus() != EduClassDocStatus.REVIEW))
             throw GlobalException.of(ApiCode.INVALID_VALUE, "tài liệu đã ban hành không mở khóa");
-        if (root.getStatus() == EduClassDocStatus.REVIEW || !timeLocked(root, info, today))
-            throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
+        if (!reopenable(root, info)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
         ArrayNode history = readArray(root.getHistory());
         ObjectNode event = history.addObject();
         event.put("action", ACTION_EXTEND);
@@ -2645,7 +3717,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     "Đã mở khóa: " + labelOf(root, requireClass(root.getClassroomId())),
                     user.fullName() + " mở khóa tới " + deadline.format(DAY_FORMAT) + ". Lý do: " + note,
                     linkOf(root),
-                    false);
+                    false,
+                    scopeOf(requireClass(root.getClassroomId())));
         return toNode(user, root);
     }
 
@@ -2658,10 +3731,31 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 : "/education/class/" + root.getClassroomId() + "/themes/" + root.getThemeId();
     }
 
+    private static String reviewLinkOf(EduClassDoc root) {
+        String route = EduClassDoc.SEMESTER.equals(root.getKind())
+                ? "/education/theme-plans/" + root.getClassroomId() + "?hk=" + root.getSemesterNo()
+                : "/education/day-plans/" + root.getClassroomId() + "?theme=" + root.getThemeId();
+        return route + "&plan=" + root.getYearPlanId() + "&review=1";
+    }
+
+    // Phạm vi hiện trong email thông báo (G94-386)
+    private String scopeOf(ClassroomInfoResponse cls) {
+        return EduYearPlanServiceImpl.emailScope(
+                schoolStructureService
+                        .findSchoolYear(cls.schoolYearId())
+                        .map(com.carenest.dto.organization.SchoolYearResponse::name)
+                        .orElse(null),
+                schoolStructureService
+                        .findAgeGroup(cls.ageGroupId())
+                        .map(com.carenest.dto.organization.AgeGroupResponse::name)
+                        .orElse(null),
+                cls.name());
+    }
+
     private String labelOf(EduClassDoc root, ClassroomInfoResponse cls) {
         String what = EduClassDoc.SEMESTER.equals(root.getKind())
                 ? "Học kỳ " + root.getSemesterNo()
-                : "Hồ sơ chủ đề "
+                : "Kế hoạch giáo dục ngày "
                         + themeRepository
                                 .findById(root.getThemeId())
                                 .map(EduTheme::getName)
@@ -2706,8 +3800,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             : com.carenest.utils.enums.NotificationType.EDU_STEP_APPROVED,
                     (submit ? "Chờ bạn duyệt: " : "Chuyển bạn duyệt tiếp: ") + what,
                     user.fullName() + (submit ? " gửi duyệt" : " đã duyệt bước trước") + noteText,
-                    linkOf(root),
-                    false);
+                    reviewLinkOf(root),
+                    false,
+                    scopeOf(cls));
             return;
         }
         Long homeroom = homeroomOf(cls.id(), today);
@@ -2719,7 +3814,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     "Đã ban hành: " + what,
                     user.fullName() + " đã duyệt ban hành" + noteText,
                     linkOf(root),
-                    false);
+                    false,
+                    scopeOf(cls));
         else if (ACTION_REJECT.equals(action))
             notificationService.notifyUsers(
                     Set.of(homeroom),
@@ -2727,7 +3823,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     "Bị trả lại: " + what,
                     user.fullName() + " trả lại. Lý do: " + note,
                     linkOf(root),
-                    false);
+                    false,
+                    scopeOf(cls));
     }
 
     private ObjectNode readObject(String json) {

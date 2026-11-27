@@ -1,11 +1,13 @@
 package com.carenest.service.meals.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.carenest.dto.attendance.DayUnlockRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest.Entry;
 import com.carenest.dto.meals.MealCountResponse;
+import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
@@ -47,7 +49,7 @@ class MealCountListenerIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class ClockConfig {
@@ -71,11 +73,12 @@ class MealCountListenerIntegrationTest {
     private JdbcTemplate jdbc;
 
     @Test
-    void savingAttendanceAfterConfirmationMarksCountForReconfirmation() {
+    void savingAttendanceAfterConfirmationIsRejected() {
         long campus = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-L', 'L', TRUE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
                 + campus + ", " + year + ", 'Lớp L', " + ag3 + ") RETURNING id");
         long child1 = insertId(
@@ -108,15 +111,18 @@ class MealCountListenerIntegrationTest {
         MealCountResponse lunch = lunch(vp);
         service.confirm(vp, lunch.id());
 
-        // Trẻ đến muộn: lưu lại trong lần mở lại ⇒ sau commit, sổ đã xác nhận chuyển chờ xác nhận lại
-        attendanceService.saveClassAttendance(teacher, classroom, request(present(child1), present(child2)));
+        // ATT-07: sổ đã xác nhận khóa cứng, lưu lại trong lần mở lại bị từ chối, sổ không đổi
+        assertThatThrownBy(() -> attendanceService.saveClassAttendance(
+                        teacher, classroom, request(present(child1), present(child2))))
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("đã được xác nhận");
 
         MealCountResponse review = lunch(vp);
-        assertThat(review.needsReconfirmation()).isTrue();
-        assertThat(review.totals().normal()).isEqualTo(2);
+        assertThat(review.needsReconfirmation()).isFalse();
+        assertThat(review.totals().normal()).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM meal_count_history WHERE action = 'ATTENDANCE_CHANGED'", Long.class))
-                .isPositive();
+                .isZero();
     }
 
     private MealCountResponse lunch(CurrentUser user) {

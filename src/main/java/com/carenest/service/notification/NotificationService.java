@@ -6,16 +6,14 @@ import com.carenest.dto.notification.NotificationResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.NotificationType;
 import java.util.Collection;
-import java.util.List;
+import java.util.Map;
 
 /**
- * Thông báo cho người dùng (phụ huynh trên App): lưu để App hiện danh sách, đánh dấu đã đọc; đẩy tới thiết bị đã đăng ký
- * sau khi giao dịch tạo thông báo lưu xong. Module khác gọi {@link #notifyUsers} trong giao dịch của mình.
+ * Thông báo cho người dùng: lưu để App/Web hiện danh sách, đánh dấu đã đọc. Mỗi dòng lưu ở trạng thái chờ đẩy; worker
+ * hàng chờ đẩy tới thiết bị sau khi giao dịch tạo đã lưu (spec 019). Module khác gọi {@link #notifyUsers} trong giao dịch
+ * của mình.
  */
 public interface NotificationService {
-
-    /** Thông báo vừa lưu, để đẩy tới thiết bị sau khi giao dịch tạo chúng đã lưu. */
-    record NotificationsCreatedEvent(List<Long> notificationIds) {}
 
     /** Tạo thông báo cho các người dùng (bỏ trùng); chạy trong giao dịch của người gọi. */
     void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body, Long childId);
@@ -27,7 +25,38 @@ public interface NotificationService {
     void notifyUsers(
             Collection<Long> userIds, NotificationType type, String title, String body, String link, boolean once);
 
+    /**
+     * Như trên, kèm phạm vi hồ sơ cho email (G94-386): thông báo kế hoạch giáo dục ({@code EDU_*}) có đường dẫn ⇒ mỗi
+     * người nhận thêm một email, gửi sau khi giao dịch của người gọi đã lưu.
+     */
+    void notifyUsers(
+            Collection<Long> userIds,
+            NotificationType type,
+            String title,
+            String body,
+            String link,
+            boolean once,
+            String scope);
+
+    /**
+     * Thông báo tự động theo quy tắc (PAR-09): loại đang tắt thì bỏ; câu chữ theo mẫu HT đã sửa hoặc mặc định, điền
+     * {@code values} vào các biến. Chạy trong giao dịch của người gọi.
+     */
+    void notifyEvent(Collection<Long> userIds, NotificationType type, Map<String, String> values, Long childId);
+
+    /**
+     * Thông báo của trường cho từng người nhận; bỏ người đã có dòng của thông báo này (chạy lại sau khi máy chết an toàn).
+     * Trả số người nhận.
+     */
+    int notifyAnnouncement(Long announcementId, Collection<Long> userIds, String title, String body);
+
+    /** Người dùng có nhận thông báo trường này không (quyền đọc nội dung, tải tệp — FR-016). */
+    boolean isAnnouncementRecipient(Long userId, Long announcementId);
+
     NotificationListResponse listMyNotifications(CurrentUser currentUser, int limit);
+
+    /** Một thông báo của chính người dùng (mở từ banner); của người khác ⇒ NOTIFICATION_NOT_FOUND. */
+    NotificationResponse getMyNotification(CurrentUser currentUser, Long notificationId);
 
     NotificationResponse markRead(CurrentUser currentUser, Long notificationId);
 

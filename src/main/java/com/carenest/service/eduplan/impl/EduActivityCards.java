@@ -147,7 +147,7 @@ final class EduActivityCards {
         }
     }
 
-    /** Thẻ dùng để giải MT: thẻ của kế hoạch chủ đề cộng thẻ bổ sung theo hồ sơ chủ đề ({@code day.content.week.cards}). */
+    /** Thẻ dùng để giải MT: thẻ của kế hoạch chủ đề cộng thẻ bổ sung theo kế hoạch giáo dục ngày ({@code day.content.week.cards}). */
     static Map<String, JsonNode> cards(JsonNode themeCards, JsonNode dayWeek) {
         Map<String, JsonNode> byId = new LinkedHashMap<>();
         if (themeCards != null) themeCards.forEach(c -> byId.put(c.path("id").asString(""), c));

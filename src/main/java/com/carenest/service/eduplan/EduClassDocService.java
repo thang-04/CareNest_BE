@@ -19,11 +19,38 @@ public interface EduClassDocService {
 
     com.carenest.entity.eduplan.EduClassDoc requireDayAccess(CurrentUser currentUser, String docKey, boolean write);
 
-    /** Trạng thái hiệu lực của giáo án ngày: Chờ duyệt nếu ngày hoặc hồ sơ chủ đề chứa nó Chờ duyệt; ban hành theo hồ sơ. */
+    /** EDU-96: tiêu chí gửi duyệt của kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày (đạt / chưa đạt từng dòng), cho ai xem được tài liệu. */
+    ObjectNode getClassDocChecks(CurrentUser currentUser, String kind, String docKey);
+
+    /** EDU-96: giáo án ngày mà người dùng là người soạn hoặc đang có lượt duyệt kế hoạch giáo dục ngày chứa nó. */
+    com.carenest.entity.eduplan.EduClassDoc requireDayReviewAccess(CurrentUser currentUser, String docKey);
+
+    /** Trạng thái hiệu lực của giáo án ngày: Chờ duyệt nếu ngày hoặc kế hoạch giáo dục ngày chứa nó Chờ duyệt; ban hành theo hồ sơ. */
     com.carenest.utils.enums.EduClassDocStatus dayStatus(com.carenest.entity.eduplan.EduClassDoc day);
 
     /** Tài liệu, lớp và giáo viên của năm học (null = năm đang hoạt động) trong phạm vi người xem. */
     ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId);
+
+    ClassDocsResponse getClassDocsForReview(CurrentUser currentUser, Long schoolYearId);
+
+    /** Tài liệu (đủ nội dung) của đúng một lớp; classes/staff vẫn đủ phạm vi người xem. Lớp ngoài phạm vi ⇒ rỗng. */
+    ClassDocsResponse getClassDocsOfClass(CurrentUser currentUser, Long schoolYearId, boolean reviewView, Long classId);
+
+    /** Danh sách gọn có phân trang (không nội dung soạn); reviewView = hàng chờ duyệt. Cùng luật xem như getClassDocs. */
+    com.carenest.dto.common.PageResponse<ObjectNode> getClassDocSummaries(
+            CurrentUser currentUser,
+            Long schoolYearId,
+            boolean reviewView,
+            com.carenest.dto.eduplan.ClassDocSummaryFilter filter);
+
+    /** Một tài liệu đầy đủ theo khóa, cùng luật xem và cờ can* như danh sách. */
+    ObjectNode getClassDoc(CurrentUser currentUser, String kind, String docKey);
+
+    com.carenest.dto.eduplan.ClassDocContextResponse getClassDocContext(CurrentUser currentUser, Long schoolYearId);
+
+    ClassDocsResponse getOverdueClassDocs(CurrentUser currentUser, Long schoolYearId);
+
+    ObjectNode getOverdueClassDoc(CurrentUser currentUser, Long schoolYearId, String kind, String docKey);
 
     /** Lưu nội dung (tạo mới nếu chưa có); chỉ giáo viên của lớp, khi tài liệu còn Nháp / Bị trả lại. */
     ObjectNode saveClassDoc(
@@ -34,13 +61,13 @@ public interface EduClassDocService {
             Long expectedVersion,
             Long expectedRootVersion);
 
-    /** Gửi / duyệt / trả lại chủ đề nhánh hoặc hồ sơ chủ đề theo chuỗi người ký đã cấu hình. */
+    /** Gửi / duyệt / trả lại chủ đề nhánh hoặc kế hoạch giáo dục ngày theo chuỗi người ký đã cấu hình. */
     ObjectNode actOnClassDoc(
             CurrentUser currentUser, String kind, String docKey, ClassDocActionRequest request, Long expectedVersion);
 
-    /** Một bản hồ sơ chủ đề đã ban hành trước đây (nội dung + chuỗi ký), chỉ đọc. */
+    /** Một bản kế hoạch giáo dục ngày đã ban hành trước đây (nội dung + chuỗi ký), chỉ đọc. */
     ObjectNode getClassDocRelease(CurrentUser currentUser, Long releaseId);
 
-    /** Spec 003 FR-013: nhắc một lần khi gói học kỳ / hồ sơ chủ đề chưa ban hành vào "Gần đến hạn"; trả số gốc đã nhắc. */
+    /** Spec 003 FR-013: nhắc một lần khi kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày chưa ban hành vào "Gần đến hạn"; trả số gốc đã nhắc. */
     int remindNearDeadlines();
 }

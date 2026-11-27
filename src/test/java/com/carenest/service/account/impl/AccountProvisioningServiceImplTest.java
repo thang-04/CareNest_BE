@@ -346,7 +346,10 @@ class AccountProvisioningServiceImplTest {
     }
 
     private static CreateAccountRequest request(String username, String email, CareNestRole role, String password) {
-        return new CreateAccountRequest(username, "Giáo viên Demo", email, role, password, null, null);
+        // AUTH-15: GV luôn kèm cơ sở công tác
+        StaffAssignmentScopeRequest assignment =
+                role == CareNestRole.TEACHER ? new StaffAssignmentScopeRequest(5L, null) : null;
+        return new CreateAccountRequest(username, "Giáo viên Demo", email, role, password, assignment, null);
     }
 
     private static UserAccount existingAccount() {
@@ -411,7 +414,7 @@ class AccountProvisioningServiceImplTest {
     }
 
     @Test
-    @DisplayName("AUTH-15: tạo GV không kèm lớp ⇒ campus chỉ dùng kiểm quyền người tạo, không tạo phân công")
+    @DisplayName("AUTH-15: tạo GV không kèm lớp ⇒ lưu cơ sở công tác, kiểm quyền người tạo, không tạo phân công")
     void createsTeacherWithoutClassroomAssignment() {
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
 
@@ -429,10 +432,74 @@ class AccountProvisioningServiceImplTest {
         verify(staffAccessPolicy).checkCanCreate(PRINCIPAL, CareNestRole.TEACHER, 5L);
         verify(staffAssignmentService, never()).resolveCampusId(any(), any(), any());
         verify(staffAssignmentService, never()).createAssignment(any());
+        verify(staffAssignmentService).saveTeacherWorkCampus(any(), eq(5L), eq(PRINCIPAL.userId()));
         assertThat(response.assignment()).isNull();
         ArgumentCaptor<UserAccount> saved = ArgumentCaptor.forClass(UserAccount.class);
         verify(userAccountRepository).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getPrimaryRole()).isEqualTo(CareNestRole.TEACHER);
+    }
+
+    @Test
+    @DisplayName("AUTH-15: tạo GV thiếu cơ sở công tác ⇒ 400 gắn ô campusId, không gọi Keycloak")
+    void teacherWithoutWorkCampusIsRejected() {
+        assertThatThrownBy(() -> service.createAccount(
+                        PRINCIPAL,
+                        new CreateAccountRequest(
+                                "0912000001",
+                                "GV C",
+                                "gv.c@carenest.test",
+                                CareNestRole.TEACHER,
+                                "Temp-Pass-1",
+                                null,
+                                null)))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                    assertThat(ex.getFieldErrors())
+                            .extracting(FieldErrorResponse::field)
+                            .containsExactly("campusId");
+                });
+        verifyNoInteractions(identityProviderClient);
+        verify(staffAssignmentService, never()).saveTeacherWorkCampus(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName(
+            "AUTH-15: sửa hồ sơ GV đổi cơ sở công tác ⇒ kiểm phạm vi cơ sở mới rồi lưu; GV chưa có cơ sở phải chọn")
+    void updateProfileMovesTeacherWorkCampus() {
+        givenStaff(42L, CareNestRole.TEACHER);
+
+        service.updateProfile(PRINCIPAL, 42L, new UpdateAccountProfileRequest("GV A", null, 6L));
+
+        verify(staffAccessPolicy).checkCanCreate(PRINCIPAL, CareNestRole.TEACHER, 6L);
+        verify(staffAssignmentService).saveTeacherWorkCampus(42L, 6L, PRINCIPAL.userId());
+
+        given(staffAssignmentService.findActiveCampusIds(42L, StaffRole.TEACHER, TODAY))
+                .willReturn(Set.of(5L));
+        assertThatThrownBy(
+                        () -> service.updateProfile(PRINCIPAL, 42L, new UpdateAccountProfileRequest("GV A", null, 7L)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.TEACHER_WORK_CAMPUS_HAS_CLASS);
+        verify(staffAssignmentService, never()).saveTeacherWorkCampus(42L, 7L, PRINCIPAL.userId());
+
+        given(staffAssignmentService.findTeacherWorkCampusId(42L)).willReturn(Optional.empty());
+        assertThatThrownBy(() -> service.updateProfile(PRINCIPAL, 42L, new UpdateAccountProfileRequest("GV A", null)))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(FieldErrorResponse::field)
+                                .containsExactly("workCampusId"));
+    }
+
+    @Test
+    @DisplayName("AUTH-15: vai trò khác GV không gửi cơ sở công tác riêng")
+    void workCampusOnlyForTeachers() {
+        givenStaff(42L, CareNestRole.KITCHEN_STAFF);
+
+        assertThatThrownBy(
+                        () -> service.updateProfile(PRINCIPAL, 42L, new UpdateAccountProfileRequest("Bếp", null, 6L)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.WORK_CAMPUS_TEACHER_ONLY);
+        verify(staffAssignmentService, never()).saveTeacherWorkCampus(any(), any(), any());
     }
 
     @Test
@@ -516,6 +583,8 @@ class AccountProvisioningServiceImplTest {
         InOrder order = inOrder(identityProviderClient, authState);
         order.verify(identityProviderClient).resetTemporaryPassword("kc-t", "New-Temp-1");
         order.verify(authState).revokeAccountAuth(42L);
+        // Cấp lại mật khẩu tạm cũng là một lần đổi: token cũ hết hiệu lực, hồ sơ hiện mốc đổi
+        order.verify(authState).markPasswordChanged(42L);
         order.verify(identityProviderClient).logoutUser("kc-t");
     }
 
@@ -578,7 +647,14 @@ class AccountProvisioningServiceImplTest {
 
         assertThatThrownBy(() -> service.createAccount(
                         PRINCIPAL,
-                        new CreateAccountRequest("0912000006", "PH", null, CareNestRole.TEACHER, null, null, 46L)))
+                        new CreateAccountRequest(
+                                "0912000006",
+                                "PH",
+                                null,
+                                CareNestRole.TEACHER,
+                                null,
+                                new StaffAssignmentScopeRequest(5L, null),
+                                46L)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.ACCOUNT_MANAGE_DENIED);
         verifyNoInteractions(identityProviderClient);
@@ -761,6 +837,7 @@ class AccountProvisioningServiceImplTest {
         UserAccount account = UserAccount.create("kc-s", "0912000042", null, "Nhân sự A", role);
         ReflectionTestUtils.setField(account, "id", id);
         given(userAccountRepository.findById(id)).willReturn(Optional.of(account));
+        given(staffAssignmentService.findTeacherWorkCampusId(id)).willReturn(Optional.of(5L));
         return account;
     }
 
@@ -815,6 +892,7 @@ class AccountProvisioningServiceImplTest {
         verify(staffAccessPolicy).checkCanCreate(VICE_PRINCIPAL, CareNestRole.TEACHER, 5L);
         verify(staffAssignmentService, never()).createAssignment(any());
         verify(userAccountRepository).updatePrimaryRole(42L, "TEACHER");
+        verify(staffAssignmentService).saveTeacherWorkCampus(42L, 5L, VICE_PRINCIPAL.userId());
     }
 
     @Test

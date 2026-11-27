@@ -59,6 +59,20 @@ class EnrollmentFormValidatorTest {
     }
 
     @Test
+    @DisplayName("CHD-06: thiếu cả phần khai báo ⇒ \"Khai báo ăn và sức khỏe còn thiếu\" ở ô dị ứng")
+    void missingDeclarationUsesMealAndHealthName() {
+        EnrollChildRequest noDeclaration = new EnrollChildRequest(
+                new EnrollmentChildInput(
+                        null, null, null, List.of(new GuardianInput(null, null, null, null, null)), null),
+                null,
+                null,
+                null);
+
+        assertThat(errors(EnrollmentFormValidator.validate(noDeclaration, TODAY)))
+                .containsEntry("declaration.allergies", "Khai báo ăn và sức khỏe còn thiếu");
+    }
+
+    @Test
     @DisplayName("C-5: thiếu thông tin ⇒ lỗi theo đường dẫn ô của FE (không tiền tố child.)")
     void missingFieldsUseFrontendPaths() {
         EnrollChildRequest empty = new EnrollChildRequest(
@@ -239,6 +253,15 @@ class EnrollmentFormValidatorTest {
                 .isNotEqualTo(EnrollmentFormValidator.nameKey("Minh Ánh"));
     }
 
+    @Test
+    @DisplayName("G94-180/CHD-13: tiếp nhận trẻ chưa đủ 3 tháng tuổi ⇒ lỗi ngày sinh; vừa đủ 3 tháng ⇒ nhận")
+    void intakeRequiresThreeMonthsOfAge() {
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-07-30"), okDeclaration()), TODAY)))
+                .containsEntry("dateOfBirth", "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận");
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-07-29"), okDeclaration()), TODAY)))
+                .doesNotContainKey("dateOfBirth");
+    }
+
     private static Map<String, String> errors(EnrollmentFormValidator.Result result) {
         return result.errors().stream()
                 .collect(Collectors.toMap(FieldErrorResponse::field, FieldErrorResponse::message, (a, b) -> a));
@@ -274,6 +297,49 @@ class EnrollmentFormValidatorTest {
                 "Không",
                 null,
                 new ChildAddressInput("Hà Nội", "Cầu Giấy", "1 Láng"));
+    }
+
+    @Test
+    @DisplayName("CHD-13: không báo ăn thì không kiểm dị ứng, chế độ ăn")
+    void mealNotRegisteredSkipsAllergyAndDiet() {
+        HealthDeclarationInput input = new HealthDeclarationInput(
+                new AllergiesInput("REPORTED", List.of()),
+                new DeclarationAnswerInput("REPORTED", " "),
+                null,
+                new MedicalHistoryInput(
+                        new DeclarationAnswerInput("NONE_REPORTED", null),
+                        new DeclarationAnswerInput("NONE_REPORTED", null),
+                        new TbContactInput("NONE_REPORTED", null)),
+                false);
+
+        var result = EnrollmentFormValidator.validate(request(child(List.of(guardian())), input), TODAY);
+
+        assertThat(result.errors()).isEmpty();
+        var d = result.draft().declaration();
+        assertThat(d.allergiesState()).isEqualTo(DeclarationState.NOT_PROVIDED);
+        assertThat(d.allergies()).isEmpty();
+        assertThat(d.diet().state()).isEqualTo(DeclarationState.NOT_PROVIDED);
+        assertThat(d.mealRegistered()).isFalse();
+    }
+
+    @Test
+    @DisplayName("CHD-13: thiếu cờ báo ăn được hiểu là có báo ăn")
+    void missingMealFlagMeansRegistered() {
+        HealthDeclarationInput missingAllergy = new HealthDeclarationInput(
+                new AllergiesInput(null, null),
+                new DeclarationAnswerInput("NONE_REPORTED", null),
+                null,
+                new MedicalHistoryInput(
+                        new DeclarationAnswerInput("NONE_REPORTED", null),
+                        new DeclarationAnswerInput("NONE_REPORTED", null),
+                        new TbContactInput("NONE_REPORTED", null)),
+                null);
+
+        assertThat(errors(EnrollmentFormValidator.validate(request(child(List.of(guardian())), missingAllergy), TODAY)))
+                .containsEntry("declaration.allergies", "Chọn tình trạng dị ứng");
+        var ok = EnrollmentFormValidator.validate(request(child(List.of(guardian())), okDeclaration()), TODAY);
+        assertThat(ok.errors()).isEmpty();
+        assertThat(ok.draft().declaration().mealRegistered()).isTrue();
     }
 
     private static HealthDeclarationInput okDeclaration() {

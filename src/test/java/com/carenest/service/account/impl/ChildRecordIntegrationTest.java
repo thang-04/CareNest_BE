@@ -11,11 +11,15 @@ import com.carenest.dto.account.GuardianPhoneChangeCreateRequest;
 import com.carenest.dto.account.GuardianPhoneChangeResponse;
 import com.carenest.dto.account.PhoneChangeDecisionRequest;
 import com.carenest.dto.child.ChildAddressInput;
+import com.carenest.dto.child.ChildProfileChangeCreateRequest;
+import com.carenest.dto.child.ChildProfileChangeResponse;
 import com.carenest.dto.child.ChildProfileInput;
 import com.carenest.dto.child.ChildUpdateResponse;
 import com.carenest.dto.child.ChildViewResponse;
+import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.EnrollmentChildInput;
 import com.carenest.dto.child.GuardianInput;
+import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.exception.GlobalException;
@@ -26,16 +30,19 @@ import com.carenest.security.TestPermissions;
 import com.carenest.service.account.ChildProfileEditService;
 import com.carenest.service.account.GuardianPhoneChangeService;
 import com.carenest.service.child.ChildRecordService;
+import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.child.YearTransitionService;
+import com.carenest.support.MovableClock;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PhoneChangeStatus;
+import com.carenest.utils.enums.ProfileChangeKind;
+import com.carenest.utils.enums.ProfileChangeStatus;
 import com.carenest.utils.enums.SmsStatus;
-import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,6 +57,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -57,28 +66,34 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Cho nghỉ học, Sửa hồ sơ, duyệt đổi SĐT phụ huynh trên PostgreSQL thật (V87 + ràng buộc V63): trạng thái, lớp, lịch sử
- * JSONB, thông báo, yêu cầu đổi SĐT, tên đăng nhập. Keycloak, SMS giả lập. Hôm nay = 10/11/2026.
+ * JSONB, thông báo, yêu cầu đổi SĐT, tên đăng nhập. Keycloak, SMS giả lập. Hôm nay = thứ 3 10/11/2026 (test dời ngày
+ * bằng {@link MovableClock}).
  */
 @SpringBootTest
 @Transactional
+@RecordApplicationEvents
 @Testcontainers(disabledWithoutDocker = true)
 class ChildRecordIntegrationTest {
     private static final AtomicInteger ROOM_SEQ = new AtomicInteger();
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
+    private static final LocalDate YEAR_END = LocalDate.of(2027, 5, 31);
     private static final String OLD_PHONE = "0902000001";
     private static final String NEW_PHONE = "0902000099";
     private static final String CITIZEN = "001190000101";
+    // Câu chặn dữ liệu trong ngày của withdraw (G94-180/CHD-03)
+    private static final String SAME_DAY_DATA =
+            "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Thực hiện nghỉ học từ ngày học tiếp theo.";
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
-    static class FixedClockConfig {
+    static class ClockConfig {
         @Bean
         @Primary
-        Clock fixedClock() {
-            return Clock.fixed(Instant.parse("2026-11-10T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh"));
+        MovableClock movableClock() {
+            return new MovableClock();
         }
     }
 
@@ -89,6 +104,15 @@ class ChildRecordIntegrationTest {
     private SmsGateway smsGateway;
 
     @Autowired
+    private MovableClock clock;
+
+    @Autowired
+    private ApplicationEvents events;
+
+    @Autowired
+    private EnrollmentService enrollmentService;
+
+    @Autowired
     private ChildRecordService recordService;
 
     @Autowired
@@ -96,6 +120,9 @@ class ChildRecordIntegrationTest {
 
     @Autowired
     private GuardianPhoneChangeService phoneChangeService;
+
+    @Autowired
+    private com.carenest.service.account.ChildProfileChangeRequestService changeRequestService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -109,6 +136,8 @@ class ChildRecordIntegrationTest {
     private long teacher;
     private long vicePrincipalId;
     private long principalId;
+    private long campusA;
+    private long year;
     private long classA;
     private long parent;
     private long childA;
@@ -116,13 +145,13 @@ class ChildRecordIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        clock.set(TODAY, LocalTime.of(10, 0));
         principalId = staff("ht.record", "PRINCIPAL");
         vicePrincipalId = staff("pht.record", "VICE_PRINCIPAL");
         teacher = staff("gv.record", "TEACHER");
-        long campusA =
-                insertId("INSERT INTO campuses (code, name, is_main) VALUES ('RC-A', 'Cơ sở A', TRUE) RETURNING id");
+        campusA = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('RC-A', 'Cơ sở A', TRUE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+        year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         classA = classroom(campusA, year, "Lớp RC1", ag3);
         jdbc.update(
@@ -181,6 +210,169 @@ class ChildRecordIntegrationTest {
                         recordService.withdraw(principal, childA, new WithdrawChildRequest(TODAY.toString(), "x")))
                 .isInstanceOfSatisfying(
                         GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-24): ngày nghỉ học trước hôm nay ⇒ lỗi ô leftAt")
+    void withdrawRejectsPastDate() {
+        expectFieldMessage(
+                () -> recordService.withdraw(
+                        vicePrincipal,
+                        childA,
+                        new WithdrawChildRequest(TODAY.minusDays(1).toString(), "Chuyển nhà")),
+                "leftAt",
+                "Ngày nghỉ học không được trước hôm nay");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): ngày nghỉ học sau ngày kết thúc năm học đang hoạt động ⇒ lỗi ô"
+            + " leftAt")
+    void withdrawRejectsDateAfterSchoolYear() {
+        expectFieldMessage(
+                () -> recordService.withdraw(
+                        vicePrincipal, childA, new WithdrawChildRequest("2027-06-01", "Chuyển nhà")),
+                "leftAt",
+                "Ngày nghỉ học phải trong năm học (tới 31/05/2027)");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): đã điểm danh hôm nay, nghỉ từ ngày mai ⇒ lịch nghỉ: trẻ vẫn"
+            + " Đang học, lớp không đổi (còn trong lớp ngày mai tới khi job áp), lịch sử LEAVE_SCHEDULED, báo GV, chưa"
+            + " phát sự kiện khóa tài khoản phụ huynh (CHECK V189 qua)")
+    void withdrawFromLaterDayKeepsChildStudying() {
+        long onlyChild = child("Lê Bé Một");
+        enroll(onlyChild);
+        long soleParent = parentAccount("kc-parent-only", "0903000001", "001190000201");
+        guardian(onlyChild, 0, "Lê Thị Mẹ", "MOTHER", "0903000001", "001190000201", soleParent, true);
+        attendance(onlyChild, TODAY);
+        LocalDate next = TODAY.plusDays(1);
+
+        ChildViewResponse view = recordService.withdraw(
+                vicePrincipal, onlyChild, new WithdrawChildRequest(next.toString(), "Chuyển trường"));
+        entityManager.flush();
+
+        assertThat(view.status()).isEqualTo(ChildStatus.ACTIVE);
+        assertThat(view.leftAt()).isNull();
+        assertThat(jdbc.queryForObject(
+                        "SELECT scheduled_leave_on || '|' || scheduled_leave_reason || '|' || scheduled_leave_by"
+                                + " FROM children WHERE id = ?",
+                        String.class,
+                        onlyChild))
+                .isEqualTo(next + "|Chuyển trường|" + vicePrincipalId);
+        assertThat(validTo(onlyChild)).isNull();
+        assertThat(enrollmentService.findChildrenInClassroom(classA, next))
+                .extracting(ClassChildResponse::id)
+                .contains(onlyChild);
+        assertThat(count(
+                        "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_SCHEDULED'"
+                                + " AND note = 'Chuyển trường' AND user_id = ?",
+                        onlyChild,
+                        vicePrincipalId))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'WITHDRAWN'", onlyChild))
+                .isZero();
+        assertThat(jdbc.queryForObject(
+                        "SELECT body FROM notifications WHERE user_id = ? AND type = 'CHILD_WITHDRAWN' AND child_id = ?",
+                        String.class,
+                        teacher,
+                        onlyChild))
+                .isEqualTo("Lê Bé Một sẽ nghỉ học từ ngày 11/11/2026.");
+        // Khóa phụ huynh để job 00:05 ngày nghỉ (ScheduledLeaveJob); hôm nay không phát sự kiện
+        assertThat(events.stream(YearTransitionService.ChildrenLeftSchoolEvent.class))
+                .isEmpty();
+        assertThat(enrollmentService.findChildIdsLeftSchool(List.of(onlyChild), next))
+                .isEmpty();
+        assertThat(jdbc.queryForObject("SELECT status FROM user_accounts WHERE id = ?", String.class, soleParent))
+                .isEqualTo("ACTIVE");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): ngày nghỉ không bắt buộc là ngày học — thứ Bảy, ngày nghỉ của"
+            + " trường cách 3 tuần đều đặt được lịch; trẻ vẫn Đang học, lớp không đổi; đặt lịch lần 2 ⇒ lỗi ô leftAt")
+    void withdrawSchedulesSaturdayAndHolidayWeeksAhead() {
+        jdbc.update(
+                "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) "
+                        + "VALUES (?, '2026-12-01', '2026-12-01', 'Nghỉ thử')",
+                year);
+
+        recordService.withdraw(vicePrincipal, childA, new WithdrawChildRequest("2026-11-14", "Chuyển nhà"));
+        recordService.withdraw(vicePrincipal, sibling, new WithdrawChildRequest("2026-12-01", "Chuyển nhà"));
+        entityManager.flush();
+
+        for (long child : List.of(childA, sibling)) {
+            assertThat(jdbc.queryForObject("SELECT status FROM children WHERE id = ?", String.class, child))
+                    .isEqualTo("ACTIVE");
+            assertThat(validTo(child)).isNull();
+            assertThat(count(
+                            "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'LEAVE_SCHEDULED'",
+                            child))
+                    .isEqualTo(1);
+        }
+        assertThat(jdbc.queryForObject(
+                        "SELECT scheduled_leave_on FROM children WHERE id = ?", LocalDate.class, sibling))
+                .isEqualTo(LocalDate.of(2026, 12, 1));
+        expectFieldMessage(
+                () -> recordService.withdraw(
+                        vicePrincipal, childA, new WithdrawChildRequest("2026-11-20", "Chuyển nhà")),
+                "leftAt",
+                "Trẻ đã có lịch nghỉ học từ 14/11/2026. Hủy lịch nghỉ trước khi chọn ngày khác");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): leave-options — trẻ đã điểm danh hôm nay ⇒ không chọn hôm nay"
+            + " (cùng câu chặn của withdraw), chọn từ ngày mai; trẻ chưa có dữ liệu trong ngày ⇒ từ hôm nay; tới ngày kết"
+            + " thúc năm học")
+    void leaveOptionsBlockTodayAfterAttendance() {
+        attendance(childA, TODAY);
+
+        LeaveOptionsResponse blocked = recordService.leaveOptions(vicePrincipal, childA);
+
+        assertThat(blocked)
+                .isEqualTo(new LeaveOptionsResponse(TODAY, false, SAME_DAY_DATA, TODAY.plusDays(1), YEAR_END));
+        expectFieldMessage(
+                () -> recordService.withdraw(vicePrincipal, childA, new WithdrawChildRequest(TODAY.toString(), "x")),
+                "leftAt",
+                blocked.todayBlockedReason());
+        assertThat(recordService.leaveOptions(vicePrincipal, sibling))
+                .isEqualTo(new LeaveOptionsResponse(TODAY, true, null, TODAY, YEAR_END));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): hôm nay có số đo kỳ cân đo hoặc phiếu khám nháp (không điểm"
+            + " danh) ⇒ leave-options không chọn hôm nay; withdraw hôm nay ⇒ lỗi ô leftAt")
+    void healthDataTodayBlocksLeavingToday() {
+        long campaign = insertId("INSERT INTO health_check_campaigns (kind, campus_id, name, start_date, end_date,"
+                + " created_by) VALUES ('MEASUREMENT', " + campusA + ", 'Cân đo thử', '2026-11-01', '2026-11-30', "
+                + principalId + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, height_cm, weight_kg,"
+                        + " note, measured_by, published_at, published_by, created_at, updated_at) VALUES (?, ?, ?, ?,"
+                        + " 98.5, 15.2, '', ?, now(), ?, now(), now())",
+                childA,
+                campaign,
+                classA,
+                TODAY,
+                teacher,
+                teacher);
+        jdbc.update(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, note, measured_by, exam,"
+                        + " exam_status, created_at, updated_at) VALUES (?, ?, ?, ?, '', ?, '{}'::jsonb, 'DRAFT', now(),"
+                        + " now())",
+                sibling,
+                campaign,
+                classA,
+                TODAY,
+                teacher);
+
+        for (long child : List.of(childA, sibling)) {
+            assertThat(recordService.leaveOptions(vicePrincipal, child))
+                    .isEqualTo(new LeaveOptionsResponse(TODAY, false, SAME_DAY_DATA, TODAY.plusDays(1), YEAR_END));
+            expectFieldMessage(
+                    () -> recordService.withdraw(
+                            vicePrincipal, child, new WithdrawChildRequest(TODAY.toString(), "Chuyển nhà")),
+                    "leftAt",
+                    SAME_DAY_DATA);
+        }
     }
 
     @Test
@@ -376,6 +568,156 @@ class ChildRecordIntegrationTest {
         verify(identityProviderClient).replaceProfile("kc-parent-rc", "Trần Thị Mẹ Mới", null);
     }
 
+    @Test
+    @DisplayName(
+            "CHD-11 (V153): GV được cấp CHILD_PROFILE_EDIT sửa ⇒ chờ duyệt, hồ sơ chưa đổi, báo HT; HT duyệt ⇒ đổi")
+    void teacherChangeWaitsForPrincipalApproval() {
+        Set<Permission> granted = new java.util.HashSet<>(TestPermissions.defaultsOf(CareNestRole.TEACHER));
+        granted.add(Permission.CHILD_PROFILE_EDIT);
+        CurrentUser grantedTeacher = user(teacher, CareNestRole.TEACHER, granted);
+        assertThatThrownBy(() ->
+                        editService.update(grantedTeacher, childA, edit("Trần Bé An Nhiên", OLD_PHONE, "0902000002")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL));
+
+        ChildProfileChangeResponse submitted = changeRequestService.submit(
+                grantedTeacher,
+                childA,
+                new ChildProfileChangeCreateRequest(
+                        ProfileChangeKind.PROFILE, edit("Trần Bé An Nhiên", OLD_PHONE, "0902000002"), null));
+        entityManager.flush();
+
+        assertThat(submitted.status()).isEqualTo(ProfileChangeStatus.PENDING);
+        assertThat(jdbc.queryForObject("SELECT full_name FROM children WHERE id = ?", String.class, childA))
+                .isEqualTo("Trần Bé An");
+        assertThat(count(
+                        "SELECT count(*) FROM notifications WHERE user_id = ? AND type = 'CHILD_PROFILE_CHANGE_REQUESTED'",
+                        principalId))
+                .isEqualTo(1);
+
+        ChildProfileChangeResponse approved = changeRequestService.approve(principal, submitted.id());
+        entityManager.flush();
+
+        assertThat(approved.status()).isEqualTo(ProfileChangeStatus.APPROVED);
+        assertThat(jdbc.queryForObject("SELECT full_name FROM children WHERE id = ?", String.class, childA))
+                .isEqualTo("Trần Bé An Nhiên");
+        assertThat(count(
+                        "SELECT count(*) FROM notifications WHERE user_id = ? AND type = 'CHILD_PROFILE_CHANGE_DECIDED'",
+                        teacher))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CHD-13: bỏ báo ăn giữ dị ứng đã khai; báo ăn lại ⇒ cờ true, dị ứng như cũ")
+    void unregisterKeepsAllergiesAndReregisterShowsThem() {
+        var none = new com.carenest.dto.child.DeclarationAnswerInput("NONE_REPORTED", null);
+        var history = new com.carenest.dto.child.MedicalHistoryInput(
+                none, none, new com.carenest.dto.child.TbContactInput("NONE_REPORTED", null));
+        var notProvided = new com.carenest.dto.child.DeclarationAnswerInput("NOT_PROVIDED", null);
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(
+                                new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Sữa")),
+                                none,
+                                notProvided,
+                                history),
+                        null));
+
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(
+                                new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Tôm")),
+                                none,
+                                notProvided,
+                                history,
+                                false),
+                        "Ngừng ăn bán trú"));
+        entityManager.flush();
+
+        var kept = recordService.findDeclaration(childA);
+        assertThat(kept.allergies().state()).isEqualTo(com.carenest.utils.enums.DeclarationState.REPORTED);
+        assertThat(kept.allergies().items()).containsExactly("Sữa");
+        assertThat(kept.diet().state()).isEqualTo(com.carenest.utils.enums.DeclarationState.NONE_REPORTED);
+        assertThat(jdbc.queryForObject("SELECT meal_registered FROM children WHERE id = ?", Boolean.class, childA))
+                .isFalse();
+
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(
+                                new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Sữa")),
+                                none,
+                                notProvided,
+                                history,
+                                true),
+                        "Báo ăn lại"));
+        entityManager.flush();
+
+        assertThat(jdbc.queryForObject("SELECT meal_registered FROM children WHERE id = ?", Boolean.class, childA))
+                .isTrue();
+        assertThat(recordService.findDeclaration(childA).allergies().items()).containsExactly("Sữa");
+    }
+
+    @Test
+    @DisplayName(
+            "CHD-13: đổi Báo ăn ⇒ lịch sử hồ sơ có dòng sửa \"Báo ăn: Có → Không\"; lưu lại không đổi cờ ⇒ không thêm")
+    void mealRegistrationChangeIsRecordedInChildHistory() {
+        var none = new com.carenest.dto.child.DeclarationAnswerInput("NONE_REPORTED", null);
+        var history = new com.carenest.dto.child.MedicalHistoryInput(
+                none, none, new com.carenest.dto.child.TbContactInput("NONE_REPORTED", null));
+        var notProvided = new com.carenest.dto.child.DeclarationAnswerInput("NOT_PROVIDED", null);
+        var allergies = new com.carenest.dto.child.AllergiesInput("REPORTED", List.of("Sữa"));
+        String updated = "SELECT count(*) FROM child_history WHERE child_id = ? AND action = 'UPDATED'";
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(allergies, none, notProvided, history, true),
+                        null));
+        entityManager.flush();
+        assertThat(count(updated, childA)).isZero();
+
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(allergies, none, notProvided, history, false),
+                        "Ngừng ăn bán trú"));
+        entityManager.flush();
+
+        assertThat(count(updated, childA)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT note FROM child_history WHERE child_id = ? AND action = 'UPDATED'",
+                        String.class,
+                        childA))
+                .isEqualTo("Ngừng ăn bán trú");
+        String changes = jdbc.queryForObject(
+                "SELECT changes::text FROM child_history WHERE child_id = ? AND action = 'UPDATED'",
+                String.class,
+                childA);
+        assertThat(changes)
+                .contains(
+                        "\"field\": \"mealRegistered\"",
+                        "\"label\": \"Báo ăn\"",
+                        "\"from\": \"Có\"",
+                        "\"to\": \"Không\"");
+
+        recordService.saveDeclaration(
+                principal,
+                childA,
+                new com.carenest.dto.child.HealthDeclarationRequest(
+                        new com.carenest.dto.child.HealthDeclarationInput(allergies, none, notProvided, history, false),
+                        "Sửa dị ứng"));
+        entityManager.flush();
+        assertThat(count(updated, childA)).isEqualTo(1);
+    }
+
     // ---------- dữ liệu ----------
 
     private static UpdateChildRequest edit(String childName, String motherPhone, String fatherPhone) {
@@ -418,6 +760,41 @@ class ChildRecordIntegrationTest {
             assertThat(ex.getApiCode()).isEqualTo(code);
             assertThat(ex.getFieldErrors()).extracting(e -> e.field()).contains(field);
         });
+    }
+
+    private static void expectFieldMessage(Runnable call, String field, String message) {
+        assertThatThrownBy(call::run).isInstanceOfSatisfying(GlobalException.class, ex -> {
+            assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+            assertThat(ex.getFieldErrors())
+                    .filteredOn(e -> e.field().equals(field))
+                    .extracting(e -> e.message())
+                    .containsExactly(message);
+        });
+    }
+
+    private LocalDate validTo(long childId) {
+        return jdbc.queryForObject("SELECT valid_to FROM enrollments WHERE child_id = ?", LocalDate.class, childId);
+    }
+
+    private void attendance(long childId, LocalDate date) {
+        jdbc.update(
+                "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, meals, recorded_by,"
+                        + " recorded_at) VALUES (?, ?, ?, ?, 'PRESENT', 'LUNCH', ?, now())",
+                childId,
+                classA,
+                campusA,
+                date,
+                teacher);
+    }
+
+    private long parentAccount(String keycloakId, String phone, String citizenId) {
+        return jdbc.queryForObject(
+                "INSERT INTO user_accounts (keycloak_user_id, username, full_name, primary_role, citizen_id) "
+                        + "VALUES (?, ?, 'Phụ huynh giả', 'PARENT', ?) RETURNING id",
+                Long.class,
+                keycloakId,
+                phone,
+                citizenId);
     }
 
     private static ChildProfileInput profile() {

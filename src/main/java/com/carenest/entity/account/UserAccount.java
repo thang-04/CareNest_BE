@@ -70,6 +70,12 @@ public class UserAccount {
     @Column(name = "photo_updated_at")
     private Instant photoUpdatedAt;
 
+    // Lần đổi/đặt lại mật khẩu gần nhất; token cấp trước mốc này bị từ chối (AUTH_CONTRACT). Không updatable: merge
+    // entity
+    // đọc trước đó không xóa mốc mới; ghi qua UserAccountRepository.markPasswordChanged
+    @Column(name = "password_changed_at", updatable = false)
+    private Instant passwordChangedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -159,6 +165,13 @@ public class UserAccount {
     /** Thu hồi vai trò nhân sự của người vẫn là phụ huynh (chỉ bản trong bộ nhớ, DB ghi bằng updatePrimaryRole). */
     public void becomeParentOnly() {
         this.primaryRole = CareNestRole.PARENT;
+    }
+
+    /** Token cấp trước giây đổi mật khẩu gần nhất không còn dùng được (iat của JWT tính theo giây). */
+    public boolean issuedBeforePasswordChange(Instant issuedAt) {
+        return passwordChangedAt != null
+                && issuedAt != null
+                && issuedAt.isBefore(passwordChangedAt.truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
     }
 
     public boolean hasPhoto() {

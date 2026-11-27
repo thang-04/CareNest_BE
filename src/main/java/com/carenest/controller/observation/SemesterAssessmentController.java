@@ -19,7 +19,7 @@ public class SemesterAssessmentController {
     private final SemesterAssessmentService service;
 
     @GetMapping("/assessment/semester-evaluations")
-    @PreAuthorize("hasAnyRole('PRINCIPAL','VICE_PRINCIPAL','TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<Response>> getSemesterAssessment(
             @RequestParam Long classId, @RequestParam int semester, CurrentUser user) {
         String logPrefix = LOG_PREFIX + "|get|classId=" + classId;
