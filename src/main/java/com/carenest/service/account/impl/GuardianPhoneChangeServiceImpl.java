@@ -171,12 +171,6 @@ public class GuardianPhoneChangeServiceImpl implements GuardianPhoneChangeServic
                 childRecordService.changeGuardianPhone(account.getId(), locked.getNewPhone());
                 locked.approve(actor.userId(), clock.instant());
                 requestRepository.save(locked);
-                notifyRequester(
-                        actor,
-                        locked,
-                        "Đã duyệt đổi số điện thoại phụ huynh",
-                        actor.fullName() + " đã duyệt đổi số điện thoại đăng nhập của " + account.getFullName()
-                                + ". Tài khoản mới đã gửi qua SMS tới số mới.");
                 return null;
             });
 
@@ -190,6 +184,14 @@ public class GuardianPhoneChangeServiceImpl implements GuardianPhoneChangeServic
                         .findById(requestId)
                         .orElseThrow(() -> GlobalException.of(ApiCode.PHONE_CHANGE_REQUEST_NOT_FOUND));
                 r.recordSms(sms);
+                notifyRequester(
+                        actor,
+                        r,
+                        "Đã duyệt đổi số điện thoại phụ huynh",
+                        actor.fullName() + " đã duyệt đổi số điện thoại đăng nhập của " + account.getFullName()
+                                + (sms == SmsStatus.SENT
+                                        ? ". Đã gửi SMS tới số mới."
+                                        : ". Chưa gửi được SMS tới số mới. Cấp lại mật khẩu tạm ở màn Tài khoản phụ huynh."));
                 return requestRepository.save(r);
             });
             GuardianPhoneChangeResponse response = toResponse(actor, approved);

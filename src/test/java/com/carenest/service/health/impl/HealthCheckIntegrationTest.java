@@ -177,14 +177,15 @@ class HealthCheckIntegrationTest {
 
         assertThat(checks.listHealthChecks(vpA, null, null, null, null))
                 .extracting(HealthCheckResponse::id)
-                .containsExactly(round.id());
+                .containsExactlyInAnyOrder(round.id(), exam.id());
         assertThat(checks.listHealthChecks(teacherA, null, null, null, null))
                 .extracting(HealthCheckResponse::id)
                 .containsExactly(round.id());
         assertThat(checks.listHealthChecks(principal, null, HealthCheckKind.EXAM, null, null))
                 .extracting(HealthCheckResponse::id)
                 .containsExactly(exam.id());
-        expectError(() -> checks.getHealthCheck(vpB, round.id()), ApiCode.HEALTH_CHECK_NOT_FOUND);
+        assertThat(checks.getHealthCheck(vpB, round.id()).campaign().id()).isEqualTo(round.id());
+        expectError(() -> checks.cancelHealthCheck(vpB, round.id()), ApiCode.HEALTH_CHECK_ACCESS_DENIED);
         expectError(() -> checks.cancelHealthCheck(teacherA, round.id()), ApiCode.HEALTH_CHECK_ACCESS_DENIED);
 
         HealthCheckResponse renamed = checks.updateHealthCheck(

@@ -11,6 +11,7 @@ import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -46,14 +47,18 @@ class PlacementRules {
     }
 
     String classProblem(CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from, Long childId) {
+        return classProblem(actor, classroom, from, childId, Permission.CHILD_PLACEMENT);
+    }
+
+    String classProblem(
+            CurrentUser actor, ClassroomInfoResponse classroom, LocalDate from, Long childId, Permission permission) {
         if (classroom == null || classroom.status() != ClassroomStatus.ACTIVE) {
             return "Lớp không tồn tại hoặc đã ngừng hoạt động";
         }
         if (classroom.yearStatus() != SchoolYearStatus.ACTIVE) {
             return "Chỉ xếp vào lớp của năm học đang hoạt động. Xếp lớp cho năm học sau ở màn Xếp lớp năm học mới.";
         }
-        if (!staffAccessPolicy.managesWholeSchool(actor)
-                && !staffAccessPolicy.managedCampusIds(actor).contains(classroom.campusId())) {
+        if (!staffAccessPolicy.canEditCampus(actor, permission, classroom.campusId())) {
             return "Chỉ xếp được vào lớp thuộc điểm trường bạn được giao";
         }
         // Trẻ đang xếp không tính (đổi ngày / lớp của lịch cũ); -1 = không trừ ai

@@ -44,6 +44,21 @@ public class StaffAccessPolicy {
     private final ClassroomService classroomService;
     private final GuardianChildLinkService guardianChildLinkService;
     private final Clock clock;
+    private final CampusAccessPolicy campusAccessPolicy;
+
+    public boolean canReadAllCampuses(CurrentUser actor) {
+        return campusAccessPolicy.canReadAllCampuses(actor);
+    }
+
+    public boolean canEditCampus(CurrentUser actor, Permission permission, Long campusId) {
+        return campusAccessPolicy.canEditCampus(actor, permission, campusId);
+    }
+
+    public void checkCanReadChildGuardians(CurrentUser actor, Long childId) {
+        if (!canReadAllCampuses(actor)) {
+            checkCanManageChildGuardians(actor, childId);
+        }
+    }
 
     /** HT có phân công PRINCIPAL đang hiệu lực (AUTH-01). */
     public boolean managesWholeSchool(CurrentUser actor) {
@@ -128,7 +143,8 @@ public class StaffAccessPolicy {
     /** AUTH-18: HT mọi trẻ; PHT chỉ trẻ đang học trong campus mình (trẻ chưa có lớp chỉ HT). */
     public void checkCanManageChildGuardians(CurrentUser actor, Long childId) {
         if (!managesWholeSchool(actor)
-                && Collections.disjoint(managedCampusIds(actor), currentCampusesOfChildren(Set.of(childId)))) {
+                && currentCampusesOfChildren(Set.of(childId)).stream()
+                        .noneMatch(campusId -> canEditCampus(actor, Permission.PARENT_ACCOUNT_MANAGE, campusId))) {
             deny("checkCanManageChildGuardians", actor, ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
         }
     }
@@ -140,7 +156,8 @@ public class StaffAccessPolicy {
         }
         Set<Long> childCampuses =
                 currentCampusesOfChildren(guardianChildLinkService.findChildIdsOfGuardian(parentUserId));
-        if (Collections.disjoint(managedCampusIds(actor), childCampuses)) {
+        if (childCampuses.stream()
+                .noneMatch(campusId -> canEditCampus(actor, Permission.PARENT_ACCOUNT_MANAGE, campusId))) {
             deny("checkCanManageParent", actor, ApiCode.ACCOUNT_MANAGE_DENIED);
         }
     }

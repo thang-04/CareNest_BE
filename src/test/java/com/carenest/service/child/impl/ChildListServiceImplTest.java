@@ -38,6 +38,7 @@ import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.GuardianAccountStatus;
 import com.carenest.utils.enums.GuardianRelationship;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -85,6 +86,7 @@ class ChildListServiceImplTest {
     @BeforeEach
     void setUp() {
         given(policy.managedCampusIds(VICE)).willReturn(Set.of(10L));
+        given(policy.canEditCampus(VICE, Permission.PARENT_ACCOUNT_MANAGE, 10L)).willReturn(true);
         given(assignmentService.findCurrentTeacherClassroomIds(7L, TODAY)).willReturn(Set.of(11L));
     }
 
@@ -174,6 +176,43 @@ class ChildListServiceImplTest {
             assertThat(item.photoMissing()).isFalse();
             assertThat(item.canManage()).isFalse();
         });
+    }
+
+    @Test
+    @DisplayName("CP-22/GEN-01: danh sách mặc định của PHT đọc toàn trường khi chưa chọn bộ lọc")
+    void vicePrincipalDefaultListReadsWholeSchool() {
+        given(campusAccessPolicy.canReadAllCampuses(VICE)).willReturn(true);
+        service.searchChildren(VICE, new ChildListFilter(null, null, null, null, null, 0, 20));
+        verify(childRepository)
+                .findListRows(
+                        any(),
+                        eq(TODAY),
+                        anyCollection(),
+                        eq(true),
+                        anyCollection(),
+                        anyCollection(),
+                        isNull(),
+                        isNull(),
+                        any());
+    }
+
+    @Test
+    @DisplayName("CP-22: giáo viên không đọc bảng tài khoản PH dù được cấp quyền API")
+    void teacherCannotReadParentAccountOverview() {
+        CurrentUser teacherWithParentPermission = new CurrentUser(
+                7L,
+                "kc-teacher",
+                "teacher.test",
+                "GV giả",
+                null,
+                Set.of(CareNestRole.TEACHER),
+                Set.of(Permission.PARENT_ACCOUNT_MANAGE));
+        assertThatThrownBy(() -> service.listParentAccounts(teacherWithParentPermission, null, null))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED));
+        verify(childRepository, never())
+                .findListRows(any(), any(), any(), anyBoolean(), any(), any(), any(), any(), any());
     }
 
     @Test

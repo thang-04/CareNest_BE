@@ -271,7 +271,7 @@ public class HealthExamServiceImpl implements HealthExamService {
         HealthCheckCampaign campaign = campaignRepository
                 .findById(campaignId)
                 .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_EXAM_NOT_FOUND));
-        boolean canView = childAccessPolicy.canViewChild(user, childId);
+        boolean canView = childAccessPolicy.canReadChild(user, childId);
         ClassroomInfoResponse cls = enrollmentService.findActiveClassroomIds(childId, rules.today()).stream()
                 .findFirst()
                 .flatMap(classroomService::findClassroomInfo)

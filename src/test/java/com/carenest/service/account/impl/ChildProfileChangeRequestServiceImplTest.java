@@ -22,11 +22,9 @@ import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.account.ChildProfileEditService;
-import com.carenest.service.account.PermissionService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.notification.NotificationService;
-import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
@@ -72,8 +70,7 @@ class ChildProfileChangeRequestServiceImplTest {
     private final ChildProfileEditService profileEditService = mock(ChildProfileEditService.class);
     private final ChildIntakeService intakeService = mock(ChildIntakeService.class);
     private final StaffAccessPolicy staffAccessPolicy = mock(StaffAccessPolicy.class);
-    private final StaffAssignmentService assignmentService = mock(StaffAssignmentService.class);
-    private final PermissionService permissionService = mock(PermissionService.class);
+    private final CampusPermissionRecipients permissionRecipients = mock(CampusPermissionRecipients.class);
     private final AccountService accountService = mock(AccountService.class);
     private final NotificationService notificationService = mock(NotificationService.class);
     private final ChildProfileChangeRequestServiceImpl service = new ChildProfileChangeRequestServiceImpl(
@@ -82,8 +79,7 @@ class ChildProfileChangeRequestServiceImplTest {
             profileEditService,
             intakeService,
             staffAccessPolicy,
-            assignmentService,
-            permissionService,
+            permissionRecipients,
             accountService,
             notificationService,
             JsonMapper.builder().build(),
@@ -95,8 +91,10 @@ class ChildProfileChangeRequestServiceImplTest {
                 .willReturn(List.of(new GuardianChildSummary(
                         CHILD_ID, "HS26001", "Bé An", ChildStatus.ACTIVE, "Lớp Chồi 1", CAMPUS_ID)));
         given(accountService.findFullNames(anyCollection())).willReturn(Map.of(20L, "Cô Lan"));
-        given(staffAccessPolicy.managesWholeSchool(PRINCIPAL)).willReturn(true);
-        given(staffAccessPolicy.managedCampusIds(VICE)).willReturn(Set.of(CAMPUS_ID));
+        given(staffAccessPolicy.canEditCampus(PRINCIPAL, Permission.CHILD_PROFILE_EDIT, CAMPUS_ID))
+                .willReturn(true);
+        given(staffAccessPolicy.canEditCampus(VICE, Permission.CHILD_PROFILE_EDIT, CAMPUS_ID))
+                .willReturn(true);
         given(repository.save(any(ChildProfileChangeRequest.class))).willAnswer(invocation -> {
             ChildProfileChangeRequest saved = invocation.getArgument(0);
             if (saved.getId() == null) {
@@ -113,10 +111,8 @@ class ChildProfileChangeRequestServiceImplTest {
         given(repository.findByChildIdAndKindAndStatus(
                         CHILD_ID, ProfileChangeKind.PROFILE, ProfileChangeStatus.PENDING))
                 .willReturn(Optional.of(old));
-        given(assignmentService.findPrincipalIds(TODAY)).willReturn(Set.of(9L));
-        given(assignmentService.findCampusVicePrincipalIds(CAMPUS_ID, TODAY)).willReturn(Set.of(3L, 4L));
-        given(permissionService.hasEffectivePermission(3L, CareNestRole.VICE_PRINCIPAL, Permission.CHILD_PROFILE_EDIT))
-                .willReturn(true);
+        given(permissionRecipients.approverIds(Permission.CHILD_PROFILE_EDIT, CAMPUS_ID))
+                .willReturn(Set.of(9L, 3L));
         UpdateChildRequest profile = new UpdateChildRequest(null, "Phụ huynh báo đổi địa chỉ");
 
         ChildProfileChangeResponse response = service.submit(
@@ -139,7 +135,8 @@ class ChildProfileChangeRequestServiceImplTest {
     @Test
     @DisplayName("CHD-11: GV gửi sửa khai báo ⇒ thông báo ghi \"đề nghị sửa khai báo ăn và sức khỏe\"")
     void declarationRequestNotificationUsesMealAndHealthName() {
-        given(assignmentService.findPrincipalIds(TODAY)).willReturn(Set.of(9L));
+        given(permissionRecipients.approverIds(Permission.CHILD_PROFILE_EDIT, CAMPUS_ID))
+                .willReturn(Set.of(9L));
         var declaration = new com.carenest.dto.child.HealthDeclarationRequest(null, "Phụ huynh báo dị ứng");
 
         service.submit(
@@ -190,7 +187,8 @@ class ChildProfileChangeRequestServiceImplTest {
     @Test
     @DisplayName("CHD-11, AUTH-13: PHT điểm trường khác duyệt ⇒ 403, hồ sơ không đổi")
     void vicePrincipalOfOtherCampusIsDenied() {
-        given(staffAccessPolicy.managedCampusIds(VICE)).willReturn(Set.of(99L));
+        given(staffAccessPolicy.canEditCampus(VICE, Permission.CHILD_PROFILE_EDIT, CAMPUS_ID))
+                .willReturn(false);
         given(repository.lockById(100L)).willReturn(Optional.of(pending(100L, TEACHER.userId())));
 
         expectCode(() -> service.approve(VICE, 100L), ApiCode.CHILD_PROFILE_CHANGE_DECIDE_DENIED);

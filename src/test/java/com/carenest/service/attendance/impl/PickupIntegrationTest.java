@@ -195,7 +195,7 @@ class PickupIntegrationTest {
                         teacherA, request(present, PickupVerification.PHOTO_MATCH, 5, LocalTime.of(15, 30), "")),
                 ApiCode.INVALID_REQUEST_DATA);
         PickupRecordResponse handed = pickups.recordResult(
-                teacherA, request(present, PickupVerification.PHOTO_MATCH, 0, LocalTime.of(15, 30), ""));
+                teacherA, request(present, PickupVerification.PHOTO_MATCH, 0, LocalTime.of(23, 59), ""));
         assertThat(handed.outcome()).isEqualTo(PickupOutcome.HANDED_OVER);
         assertThat(handed.pickupPersonName()).isEqualTo("Mẹ An (giả)");
         assertThat(handed.pickupPersonRelationship()).isEqualTo(GuardianRelationship.MOTHER);

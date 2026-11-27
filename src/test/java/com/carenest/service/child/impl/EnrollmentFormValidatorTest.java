@@ -235,12 +235,14 @@ class EnrollmentFormValidatorTest {
     }
 
     @Test
-    @DisplayName("CHD-08: ngày sinh không ở tương lai, từ 2018-01-01")
+    @DisplayName("CP-03: ngày sinh không ở tương lai, tiếp nhận trong độ tuổi mầm non")
     void birthDateRules() {
         assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-10-30"), okDeclaration()), TODAY)))
                 .containsEntry("dateOfBirth", "Ngày sinh không được ở tương lai");
         assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2017-12-31"), okDeclaration()), TODAY)))
-                .containsEntry("dateOfBirth", "Nhập ngày sinh hợp lệ cho trẻ mầm non");
+                .containsEntry(
+                        "dateOfBirth",
+                        "Chỉ tiếp nhận trẻ từ đủ 3 tháng đến 6 tuổi (không quá 72 tháng tròn) tại ngày tiếp nhận");
         assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("01/03/2023"), okDeclaration()), TODAY)))
                 .containsEntry("dateOfBirth", "Chọn ngày sinh của trẻ");
     }
@@ -257,9 +259,35 @@ class EnrollmentFormValidatorTest {
     @DisplayName("G94-180/CHD-13: tiếp nhận trẻ chưa đủ 3 tháng tuổi ⇒ lỗi ngày sinh; vừa đủ 3 tháng ⇒ nhận")
     void intakeRequiresThreeMonthsOfAge() {
         assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-07-30"), okDeclaration()), TODAY)))
-                .containsEntry("dateOfBirth", "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận");
+                .containsEntry(
+                        "dateOfBirth",
+                        "Chỉ tiếp nhận trẻ từ đủ 3 tháng đến 6 tuổi (không quá 72 tháng tròn) tại ngày tiếp nhận");
         assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2026-07-29"), okDeclaration()), TODAY)))
                 .doesNotContainKey("dateOfBirth");
+    }
+
+    @Test
+    void intakeAccepts72CompletedMonthsButRejects73AndEditHasNoAgeLimit() {
+        for (String birth : List.of("2020-10-29", "2020-09-30")) {
+            assertThat(errors(EnrollmentFormValidator.validate(request(childBorn(birth), okDeclaration()), TODAY)))
+                    .doesNotContainKey("dateOfBirth");
+        }
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2020-09-29"), okDeclaration()), TODAY)))
+                .containsEntry(
+                        "dateOfBirth",
+                        "Chỉ tiếp nhận trẻ từ đủ 3 tháng đến 6 tuổi (không quá 72 tháng tròn) tại ngày tiếp nhận");
+        Map<String, String> errors = new java.util.LinkedHashMap<>();
+        EnrollmentFormValidator.validateEdit(childBorn("2017-12-31"), TODAY, errors);
+        assertThat(errors).doesNotContainKey("dateOfBirth");
+    }
+
+    @Test
+    void intakeMonthEndUsesCompletedMonthsWithoutClampingBirthday() {
+        LocalDate intake = LocalDate.of(2026, 2, 28);
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2020-01-31"), okDeclaration()), intake)))
+                .doesNotContainKey("dateOfBirth");
+        assertThat(errors(EnrollmentFormValidator.validate(request(childBorn("2025-11-30"), okDeclaration()), intake)))
+                .containsKey("dateOfBirth");
     }
 
     private static Map<String, String> errors(EnrollmentFormValidator.Result result) {

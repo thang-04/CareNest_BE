@@ -71,7 +71,10 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
         String logPrefix = LOG_PREFIX + "|listGuardians|actorUserId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
-            checkChild(actor, childId);
+            staffAccessPolicy.checkCanReadChildGuardians(actor, childId);
+            if (!childService.childExists(childId)) {
+                throw GlobalException.of(ApiCode.CHILD_NOT_FOUND);
+            }
             Long selectedAccountId = selectedParentAccountService.selectedAccountId(actor, childId);
             List<GuardianLinkResponse> links = guardianChildLinkService.findLinksOfChild(childId);
             Map<Long, UserAccount> accounts =
@@ -101,12 +104,12 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                 + filter.campusId() + "|page=" + filter.page() + "|size=" + filter.size();
         log.info("{}|START", logPrefix);
         try {
+            if (!staffAccessPolicy.canReadAllCampuses(actor)) {
+                throw GlobalException.of(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+            }
             PageResponse<ChildListItemResponse> page = childListService.searchChildren(actor, filter);
-            // Cùng điều kiện với /children/{id}/guardians: trẻ người xem không quản lý được thì không lộ tài khoản
-            Map<Long, GuardianResponse> accounts = recipientAccounts(page.items().stream()
-                    .filter(ChildListItemResponse::canManage)
-                    .map(ChildListItemResponse::id)
-                    .toList());
+            Map<Long, GuardianResponse> accounts = recipientAccounts(
+                    page.items().stream().map(ChildListItemResponse::id).toList());
             List<ChildGuardianOverviewResponse> items = page.items().stream()
                     .map(child -> new ChildGuardianOverviewResponse(child, accounts.get(child.id())))
                     .toList();
@@ -280,8 +283,9 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             UserAccount parent = loadManageableParent(actor, userId);
             String temporaryPassword = passwordGenerator.generate(); // carenest:allow-secret
             accountLifecycle.resetTemporaryPassword(logPrefix, parent, temporaryPassword);
-            log.info("{}|END", logPrefix);
-            return new ParentPasswordResponse(parent.getId(), parent.getUsername(), temporaryPassword);
+            SmsStatus smsStatus = smsSender.sendPasswordReset(parent, temporaryPassword);
+            log.info("{}|smsStatus={}|END", logPrefix, smsStatus);
+            return new ParentPasswordResponse(parent.getId(), parent.getUsername(), smsStatus);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -296,15 +300,8 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             UserAccount parent = loadManageableParent(actor, userId);
             ParentActivationCodes.Issued issued = activationCodes.reissue(parent.getId());
             SmsStatus smsStatus = smsSender.sendActivationCode(parent, issued.code());
-            // AUTH-18: không gửi được SMS thật (cổng giả hoặc lỗi) ⇒ trả mã để in phiếu, không in mật khẩu
-            boolean printable = !smsSender.activationCodeMode() || smsStatus != SmsStatus.SENT;
             log.info("{}|smsStatus={}|END", logPrefix, smsStatus);
-            return new ActivationCodeResponse(
-                    parent.getId(),
-                    parent.getUsername(),
-                    smsStatus,
-                    issued.expiresAt(),
-                    printable ? issued.code() : null);
+            return new ActivationCodeResponse(parent.getId(), parent.getUsername(), smsStatus, issued.expiresAt());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -348,6 +345,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
 
     // Kiểm phạm vi trước: với PHT, trẻ không tồn tại và trẻ ngoài campus cùng 403 (không dò được id)
     private void checkChild(CurrentUser actor, Long childId) {
+        selectedParentAccountService.checkManageScope(actor, childId);
         selectedParentAccountService.candidates(actor, childId);
         if (!childService.childExists(childId)) {
             throw GlobalException.of(ApiCode.CHILD_NOT_FOUND);

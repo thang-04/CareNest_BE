@@ -49,6 +49,9 @@ public class ChildAccessPolicy {
 
     // Chỉ đọc: nhân sự theo phạm vi đọc của lớp (AUTH-20); phụ huynh giữ nguyên AUTH-04
     public boolean canReadChild(CurrentUser user, Long childId) {
+        if (campusAccessPolicy.canReadAllCampuses(user)) {
+            return true;
+        }
         return canAccessChild(
                 user, childId, classroomAccessPolicy::canReadClassroom, campusAccessPolicy::canReadCampus);
     }

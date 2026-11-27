@@ -95,7 +95,7 @@ class ChildPhotoReplaceIntegrationTest {
                         "SELECT changes->0->>'label' FROM child_history WHERE child_id=? AND action='UPDATED'",
                         String.class,
                         childId))
-                .isEqualTo("Ảnh phụ huynh 1");
+                .isEqualTo("Đổi ảnh phụ huynh 1");
     }
 
     @Test

@@ -1,5 +1,11 @@
 # Module — health
 
+## Đồng bộ BR bổ sung 27/11/2026
+
+- GEN-01, mục 33–34 trong file BR yêu cầu ngoài repo: PHT còn phân công đọc đợt khám/kỳ cân đo, danh sách lớp và báo cáo tăng trưởng ở mọi điểm trường, lọc được từng điểm trường. `visibleCampusIds` tách biệt `canManage`; quyền tạo/sửa/hủy/đóng/mở lại không mở rộng theo quyền đọc.
+- Phiếu khám dùng `canReadChild` để mở dữ liệu, còn quyền nhập/sửa vẫn qua kiểm tra giáo viên/lớp và cờ `canEdit` từng dòng.
+- Xem [plan 27/11](../plans/active/2026-11-27-br-read-scope-parent-password.md).
+
 ## Đối chiếu BR ngày 26/11/2026
 
 - HLT-06 của bản BR ngoài repo bổ sung chế độ xem phiếu đã có của trẻ nghỉ học hoặc chuyển điểm trường. GET phiếu trả `canEdit=false`, `locked=true`, dùng lớp lưu trên kết quả để đọc lịch sử. Người không có quyền xem trẻ và trẻ chưa có phiếu vẫn nhận lỗi không tìm thấy. PUT phiếu chỉ đọc trả `HEALTH_MEASUREMENT_ACCESS_DENIED`.
@@ -85,3 +91,10 @@ Chưa có.
 Đụng AI ⇒ card ai-assistance. Đụng hiển thị phụ huynh ⇒ ADR-0010.
 
 - 25/11/2026 (TBD-4): `GET /children/{childId}/health/published?schoolYearId=` tùy chọn — chỉ kết quả có ngày trong năm trẻ có học (`ChildSchoolYearService.findChildYear`), biểu đồ, `latestExam`, `latestBmi` tính trên các kết quả đó; năm trẻ không học ⇒ 404 2001; không tham số ⇒ như cũ. Test `HealthRecordIntegrationTest#parentSeesPublishedOfOneYear`.
+
+
+## Đối chiếu BR bổ sung ngày 27/11/2026
+
+- Nút Phân tích chỉ hiện trong phạm vi quản lý/class đang dạy; PHT xem ngoài campus vẫn đọc được lịch sử nhưng không gọi phân tích.
+- Trẻ vắng: chỉ khóa tạo phiếu khám mới/nhập số đo mới; phiếu khám nháp vẫn tiếp tục, giữ kiểm quyền, năm học và tải danh sách. Sổ sức khỏe có nhãn Vắng hôm nay.
+- Danh mục campus cho báo cáo dùng SchoolStructureService.findCampusOptions, caller lọc theo quyền đọc. listCampuses cho nhân sự giữ phạm vi quản lý.

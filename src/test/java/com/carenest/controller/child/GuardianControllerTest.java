@@ -161,11 +161,12 @@ class GuardianControllerTest {
     void principalResetsParentPassword() throws Exception {
         CurrentUser principal = authenticate(CareNestRole.PRINCIPAL);
         given(guardianAccountService.resetParentPassword(principal, 50L))
-                .willReturn(new ParentPasswordResponse(50L, "0912345678", "N3wTempPass"));
+                .willReturn(new ParentPasswordResponse(50L, "0912345678", com.carenest.utils.enums.SmsStatus.SENT));
 
         mockMvc.perform(post("/api/parent-accounts/50/temporary-password").with(token(CareNestRole.PRINCIPAL)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.temporaryPassword").value("N3wTempPass"));
+                .andExpect(jsonPath("$.data.smsStatus").value("SENT"))
+                .andExpect(jsonPath("$.data.temporaryPassword").doesNotExist());
     }
 
     @Test

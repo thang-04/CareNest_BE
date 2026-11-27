@@ -60,6 +60,23 @@ class ChildAccessPolicyTest {
     }
 
     @Test
+    @DisplayName("CP-22/GEN-01: PHT đọc trẻ ở điểm trường khác nhưng không có phạm vi ghi")
+    void vicePrincipalReadsAllCampusesWithoutWriteAccess() {
+        CurrentUser vice = user(CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.findActiveCampusIds(vice.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+        assertThat(policy.canReadChild(vice, CHILD_IN_B1)).isTrue();
+        assertThat(policy.canViewChild(vice, CHILD_IN_B1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("CP-22/GEN-01: PHT hết phân công không đọc được trẻ ngoài điểm trường")
+    void expiredVicePrincipalCannotReadAllCampuses() {
+        assertThat(policy.canReadChild(user(CareNestRole.VICE_PRINCIPAL), CHILD_IN_B1))
+                .isFalse();
+    }
+
+    @Test
     void teacherCanViewChildInAssignedClass() {
         CurrentUser teacher = teacherOf(CLASS_A1);
 

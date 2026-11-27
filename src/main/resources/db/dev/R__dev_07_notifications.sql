@@ -93,7 +93,7 @@ WHERE c.cancelled_at IS NULL;
 -- 3. Kết quả cân đo/khám được công bố lần đầu trong mỗi đợt ⇒ phụ huynh có tài khoản
 INSERT INTO n7
 SELECT g.user_id, 'HEALTH_RESULT_PUBLISHED', 'Kết quả sức khỏe mới',
-       'Đã có kết quả cân đo, khám sức khỏe mới của ' || ch.full_name || '. Mở mục Sức khỏe để xem.', ch.id, NULL, m.at, false
+       'Đã có kết quả cân đo, khám sức khỏe mới của ' || ch.full_name || '. Mở Sổ sức khỏe để xem.', ch.id, NULL, m.at, false
 FROM (SELECT child_id, campaign_id, min(published_at) AS at FROM health_measurements
       WHERE published_at IS NOT NULL GROUP BY child_id, campaign_id) m
 JOIN children ch ON ch.id = m.child_id

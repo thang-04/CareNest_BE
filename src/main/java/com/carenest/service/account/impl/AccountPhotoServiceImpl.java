@@ -210,7 +210,7 @@ public class AccountPhotoServiceImpl implements AccountPhotoService {
 
     private void checkGuardianPhotoAccess(CurrentUser currentUser, Long childId, Long guardianUserId) {
         // Nhân sự trong phạm vi lớp trẻ đang học, phụ huynh có liên kết với trẻ; ngoài phạm vi trả 404
-        if (!childAccessPolicy.canViewChild(currentUser, childId)) {
+        if (!childAccessPolicy.canReadChild(currentUser, childId)) {
             throw GlobalException.of(ApiCode.ACCOUNT_PHOTO_NOT_FOUND);
         }
         // Chỉ phụ huynh có trên hồ sơ của trẻ này

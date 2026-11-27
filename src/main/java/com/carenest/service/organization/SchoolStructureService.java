@@ -29,6 +29,9 @@ public interface SchoolStructureService {
 
     List<CampusOptionResponse> listCampuses(CurrentUser actor);
 
+    /** Danh mục nội bộ; nơi gọi phải kiểm phạm vi đọc trước. */
+    List<CampusOptionResponse> findCampusOptions();
+
     /** Lớp của năm học đang diễn ra tại campus. */
     List<ClassroomResponse> listCurrentClassrooms(CurrentUser actor, Long campusId);
 }

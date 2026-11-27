@@ -1,5 +1,15 @@
 # Verification — bằng chứng trước khi báo xong
 
+## BR bổ sung 31–35 — 27/11/2026
+
+- Nguồn: người dùng yêu cầu sửa theo `../report/sua_sau/CODE-can-sua-theo-BR-2026-11-26.md`, mục 31–35. Thay đổi trên BE/FE worktree G94-180.
+- Native Maven chạy nhóm policy, list/profile/photo, tài khoản PH/SMS, health rules/controller và tích hợp PostgreSQL: `ChildAccessPolicyTest,StaffAccessPolicyTest,AccountPhotoAccessPolicyTest,ChildListServiceImplTest,ChildPhotoServiceImplTest,GuardianAccountServiceImplTest,ParentSmsSenderTest,Gen01HealthReadScopeTest,HealthCheckServiceImplTest,HealthGrowthReportControllerTest,GuardianControllerTest,HealthGrowthReportIntegrationTest,HealthCheckIntegrationTest,HealthExamIntegrationTest,ChildRecordIntegrationTest,ChildPhotoReplaceIntegrationTest,OpenApiSnapshotTest` qua `mvnw.cmd -q -Dtest=... test`.
+- Lượt đầu 206 test có 3 assertion cũ phủ nhận quyền đọc PHT ngoài điểm trường. Đổi regression theo GEN-01: GET được, ghi vẫn bị từ chối, GV ngoài phạm vi vẫn bị chặn. Chạy lại `HealthCheckIntegrationTest,HealthExamIntegrationTest,ArchitectureRulesTest`: các báo cáo hiện tại đạt. Tổng hợp 18 class: **220 test, 0 failure, 0 error, 0 skip**, bao gồm OpenAPI 4/4 và kiến trúc 14/14. Tổng hợp JSON ở `../report/br-be-test-summary.json`.
+- `spotless:apply` và `spotless:check` chỉ trên các Java file sửa/new, dùng `spotlessFiles` dạng regex: đạt. Không chạy harness wrapper theo chỉ đạo trực tiếp trong AGENTS.
+- FE: 588 test children/health + guardian API/quyền trẻ; 127 test auth; ESLint các source sửa và `npm run build`: đạt. Không cộng hai lượt thành số test duy nhất vì có test auth trùng.
+- Review độc lập đã kiểm tra tách scope đọc/ghi và đường SMS, không còn blocker. Kiểm chứng SMS dùng mock provider, không gửi tin thật, chưa deploy.
+- Kiểm cuối: `mvnw.cmd -q -Dtest=ParentSmsSenderTest,ArchitectureRulesTest test` exit 0; `mvnw.cmd -q -Dtest=HealthCheckIntegrationTest,HealthExamIntegrationTest surefire:test` exit 0, 55/55 test. Lệnh sau dùng test classes đã biên dịch bởi lượt `test` vừa trước. `git diff --check` BE/FE đạt.
+
 ## N+1 tiếp nhận trẻ và danh sách đợt khám — 27/11/2026
 
 - Hoàn thành bốn hạng mục trong `../N+1-ke-hoach-sua-code-G94-180-2026-11-26.md`, đo trên PostgreSQL Testcontainers bằng Hibernate Statistics và StatementInspector.

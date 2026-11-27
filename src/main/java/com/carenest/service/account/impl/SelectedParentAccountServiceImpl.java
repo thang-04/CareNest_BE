@@ -12,6 +12,7 @@ import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,11 +35,24 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
     private final TransactionTemplate transactionTemplate;
 
     @Override
+    public void checkManageScope(CurrentUser actor, Long childId) {
+        String logPrefix = LOG_PREFIX + "|checkManageScope|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            checkScope(actor, childId);
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Long selectedAccountId(CurrentUser actor, Long childId) {
         String logPrefix = LOG_PREFIX + "|selectedAccountId|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
-            checkScope(actor, childId);
+            staffAccessPolicy.checkCanReadChildGuardians(actor, childId);
             Long result = childIntakeService.findRecipientAccountId(childId).orElse(null);
             log.info("{}|END", logPrefix);
             return result;
@@ -54,14 +68,14 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
         log.info("{}|START", logPrefix);
         try {
             if (!staffAccessPolicy.managesWholeSchool(actor)) {
-                var managed = staffAccessPolicy.managedCampusIds(actor);
                 boolean allowed =
                         childIntakeService
                                 .findChildSummaries(guardianChildLinkService.findChildIdsOfGuardian(userId))
                                 .stream()
                                 .anyMatch(c -> c.status() != com.carenest.utils.enums.ChildStatus.LEFT
                                         && c.campusId() != null
-                                        && managed.contains(c.campusId()));
+                                        && staffAccessPolicy.canEditCampus(
+                                                actor, Permission.PARENT_ACCOUNT_MANAGE, c.campusId()));
                 if (!allowed) throw GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED);
             }
             log.info("{}|END", logPrefix);
@@ -76,7 +90,7 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
         String logPrefix = LOG_PREFIX + "|candidates|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
-            checkScope(actor, childId);
+            staffAccessPolicy.checkCanReadChildGuardians(actor, childId);
             List<ChildGuardianResponse> result = childIntakeService.accountCandidates(childId);
             log.info("{}|END", logPrefix);
             return result;
@@ -120,6 +134,7 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
         String logPrefix = LOG_PREFIX + "|activate|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
+            checkScope(actor, childId);
             ChildGuardianResponse chosen = candidates(actor, childId).stream()
                     .filter(g -> g.accountRecipient() && g.id().equals(guardianId))
                     .findFirst()
@@ -193,9 +208,10 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
         if (summary.isEmpty()
                 || summary.getFirst().status() == com.carenest.utils.enums.ChildStatus.LEFT
                 || summary.getFirst().campusId() == null
-                || !staffAccessPolicy
-                        .managedCampusIds(actor)
-                        .contains(summary.getFirst().campusId())) {
+                || !staffAccessPolicy.canEditCampus(
+                        actor,
+                        Permission.PARENT_ACCOUNT_MANAGE,
+                        summary.getFirst().campusId())) {
             throw GlobalException.of(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
         }
     }

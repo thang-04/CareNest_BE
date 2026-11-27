@@ -62,6 +62,7 @@ import com.carenest.utils.enums.DeclarationState;
 import com.carenest.utils.enums.DuplicateChildKind;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PlannedAdmissionStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
@@ -181,8 +182,6 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
-            boolean wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
-            Set<Long> managed = wholeSchool ? Set.of() : staffAccessPolicy.managedCampusIds(actor);
             SchoolYearDetailResponse requestedYear = schoolYearId == null
                     ? null
                     : schoolYearService
@@ -202,7 +201,9 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                             : classroomService.findYearClassrooms(schoolYearId))
                     .stream()
                             .filter(c -> c.status() == ClassroomStatus.ACTIVE)
-                            .filter(c -> wholeSchool || managed.contains(c.campusId()))
+                            .filter(c -> staffAccessPolicy.canEditCampus(
+                                            actor, Permission.CHILD_PLACEMENT, c.campusId())
+                                    || staffAccessPolicy.canEditCampus(actor, Permission.CHILD_ENROLL, c.campusId()))
                             .toList();
             List<Long> ids = classes.stream().map(ClassroomInfoResponse::id).toList();
             Map<Long, Long> enrolled = requestedYear != null && requestedYear.status() == SchoolYearStatus.PLANNED
@@ -749,6 +750,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     private static final class PlaceLookups {
         private final Map<YearStart, IntakeTarget> targets = new HashMap<>();
         private final Set<CampusYear> campuses = new HashSet<>();
+        private final Map<Long, Boolean> editableCampuses = new HashMap<>();
         private Boolean wholeSchool;
         private Set<Long> managed;
     }
@@ -788,7 +790,6 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             lookups.wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
             lookups.managed = lookups.wholeSchool ? Set.of() : staffAccessPolicy.managedCampusIds(actor);
         }
-        boolean wholeSchool = lookups.wholeSchool;
         Set<Long> managed = lookups.managed;
         IntakeTarget intake = lookups.targets.computeIfAbsent(
                 new YearStart(schoolYearId, requestedStartDate),
@@ -803,7 +804,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             // nhận, cả năm sau (G94-180/CHD-13, user chốt 2026-11-22)
             String problem = planned
                     ? plannedClassProblem(actor, classroom, targetYear.id())
-                    : placementRules.classProblem(actor, classroom, startDate);
+                    : placementRules.classProblem(actor, classroom, startDate, null, Permission.CHILD_ENROLL);
             if (problem != null) {
                 throw fieldError("classId", problem);
             }
@@ -813,9 +814,12 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             EnrollmentDraft placed = draft.withPlacement(classroom.id(), classroom.campusId());
             return planned ? placed.withAdmission(targetYear.id(), startDate) : placed.withStartDate(startDate);
         }
+        Long pinnedCampus = actor.pinnedCampusId(Permission.CHILD_ENROLL);
         Long target = campusId != null
                 ? campusId
-                : (managed.size() == 1 ? managed.iterator().next() : null);
+                : pinnedCampus != null
+                        ? pinnedCampus
+                        : (managed.size() == 1 ? managed.iterator().next() : null);
         if (target == null) {
             throw fieldError("campusId", "Chọn điểm trường tiếp nhận trẻ");
         }
@@ -824,7 +828,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                 && campusService.findCampusStatus(target).orElse(null) != CampusStatus.ACTIVE) {
             throw fieldError("campusId", "Điểm trường không tồn tại hoặc đã ngừng hoạt động");
         }
-        if (!wholeSchool && !managed.contains(target)) {
+        if (!lookups.editableCampuses.computeIfAbsent(
+                target, id -> staffAccessPolicy.canEditCampus(actor, Permission.CHILD_ENROLL, id))) {
             throw fieldError("campusId", "Chỉ tiếp nhận trẻ vào điểm trường bạn được giao");
         }
         if (!lookups.campuses.contains(campusKey)) {
@@ -924,8 +929,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (!schoolYearId.equals(classroom.schoolYearId()) || classroom.yearStatus() != SchoolYearStatus.PLANNED) {
             return "Lớp không thuộc năm học sắp diễn ra đã chọn";
         }
-        if (!staffAccessPolicy.managesWholeSchool(actor)
-                && !staffAccessPolicy.managedCampusIds(actor).contains(classroom.campusId())) {
+        if (!staffAccessPolicy.canEditCampus(actor, Permission.CHILD_ENROLL, classroom.campusId())) {
             return "Chỉ xếp được vào lớp thuộc điểm trường bạn được giao";
         }
         long taken = plannedCount(classroom.id(), schoolYearId);
@@ -960,9 +964,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     }
 
     private boolean inScope(CurrentUser actor, Long campusId) {
-        return staffAccessPolicy.managesWholeSchool(actor)
-                || (campusId != null
-                        && staffAccessPolicy.managedCampusIds(actor).contains(campusId));
+        return staffAccessPolicy.canEditCampus(actor, Permission.CHILD_ENROLL, campusId);
     }
 
     /** Điểm trường hiện tại: theo lớp đang học, không có lớp thì điểm trường tiếp nhận, rồi lớp cuối cùng. */

@@ -50,13 +50,24 @@ class StaffAccessPolicyTest {
             enrollments,
             classrooms,
             guardianLinks,
-            Clock.fixed(Instant.parse("2026-10-17T03:00:00Z"), ZoneOffset.UTC));
+            Clock.fixed(Instant.parse("2026-10-17T03:00:00Z"), ZoneOffset.UTC),
+            new CampusAccessPolicy(assignments, Clock.fixed(Instant.parse("2026-10-17T03:00:00Z"), ZoneOffset.UTC)));
 
     @BeforeEach
     void setUp() {
         given(assignments.hasActivePrincipalAssignment(2L, TODAY)).willReturn(true);
         given(assignments.findActiveCampusIds(3L, StaffRole.VICE_PRINCIPAL, TODAY))
                 .willReturn(Set.of(CAMPUS_A));
+        given(assignments.hasActiveCampusAssignment(3L, StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+    }
+
+    @Test
+    @DisplayName("CP-22/GEN-01: PHT đọc phụ huynh toàn trường nhưng không quản lý trẻ ngoài phạm vi")
+    void guardianReadScopeDoesNotGrantWriteAccess() {
+        assertThatCode(() -> policy.checkCanReadChildGuardians(VICE, 201L)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> policy.checkCanManageChildGuardians(VICE, 201L))
+                .isInstanceOf(GlobalException.class);
     }
 
     @Test
@@ -245,6 +256,6 @@ class StaffAccessPolicyTest {
     }
 
     private static CurrentUser user(Long id, CareNestRole role) {
-        return new CurrentUser(id, "kc-" + id, "u" + id, "U", null, Set.of(role));
+        return com.carenest.security.TestPermissions.userWithDefaults(id, role);
     }
 }

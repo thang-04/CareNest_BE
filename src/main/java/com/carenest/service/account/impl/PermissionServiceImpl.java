@@ -520,6 +520,11 @@ public class PermissionServiceImpl implements PermissionService {
             if (!item.permission().overridable()) {
                 throw GlobalException.of(ApiCode.PERMISSIONS_NOT_OVERRIDABLE);
             }
+            if (item.permission() == Permission.CHILD_PROFILE_EDIT
+                    && !roles.contains(CareNestRole.VICE_PRINCIPAL)
+                    && (item.scope() == PermissionScope.SCHOOL || item.campusId() != null)) {
+                throw GlobalException.of(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
+            }
             PermissionScope scope = scopeOf(item);
             if (requested.put(item.permission(), new Requested(item.effect(), scope, campusOf(item, scope))) != null) {
                 throw GlobalException.of(ApiCode.PERMISSION_DUPLICATED, item.permission());

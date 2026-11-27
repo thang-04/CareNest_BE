@@ -78,17 +78,16 @@ public class ChildListServiceImpl implements ChildListService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ChildListItemResponse> searchChildren(CurrentUser actor, ChildListFilter filter) {
-        return search("searchChildren", actor, filter, false);
+        return search("searchChildren", actor, filter);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ChildListItemResponse> browseChildren(CurrentUser actor, ChildListFilter filter) {
-        return search("browseChildren", actor, filter, true);
+        return search("browseChildren", actor, filter);
     }
 
-    private PageResponse<ChildListItemResponse> search(
-            String method, CurrentUser actor, ChildListFilter filter, boolean schoolWideOnFilter) {
+    private PageResponse<ChildListItemResponse> search(String method, CurrentUser actor, ChildListFilter filter) {
         String logPrefix = LOG_PREFIX + "|" + method + "|userId=" + actor.userId() + "|schoolYearId="
                 + filter.schoolYearId() + "|campusId=" + filter.campusId() + "|classId=" + filter.classId() + "|page="
                 + filter.page() + "|size=" + filter.size();
@@ -96,13 +95,8 @@ public class ChildListServiceImpl implements ChildListService {
         try {
             LocalDate today = LocalDate.now(clock);
             Scope scope = scopeOf(actor, today);
-            // AUTH-20 (2026-11-15): PHT chủ động lọc lớp/điểm trường khác thì xem được (cả trường); danh sách mặc định
-            // vẫn điểm trường mình; cờ quản lý từng dòng luôn theo `scope`
-            boolean filtered = filter.classId() != null || filter.campusId() != null;
-            Scope readScope = schoolWideOnFilter
-                            && filtered
-                            && !scope.wholeSchool()
-                            && campusAccessPolicy.canReadAllCampuses(actor)
+            // GEN-01/CP-22: đọc toàn trường; cờ thao tác vẫn theo phạm vi quản lý.
+            Scope readScope = campusAccessPolicy.canReadAllCampuses(actor)
                     ? new Scope(true, scope.campusIds(), scope.classIds())
                     : scope;
             if (!readScope.wholeSchool()) {
@@ -131,20 +125,21 @@ public class ChildListServiceImpl implements ChildListService {
         String logPrefix = LOG_PREFIX + "|listParentAccounts|userId=" + actor.userId() + "|status=" + status;
         log.info("{}|START", logPrefix);
         try {
+            if (!campusAccessPolicy.canReadAllCampuses(actor)) {
+                throw GlobalException.of(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+            }
             LocalDate today = LocalDate.now(clock);
             Scope scope = scopeOf(actor, today);
             // Tài khoản phụ huynh không theo năm học (Y-5): trẻ Đang học, Chờ xếp lớp hiện tại trong phạm vi
+            Scope readScope = new Scope(true, scope.campusIds(), scope.classIds());
             List<ChildListItemResponse> children =
-                    items(actor, rowsOf(scope, CURRENT_CHILDREN, today), scope.wholeSchool(), scope.campusIds());
+                    items(actor, rowsOf(readScope, CURRENT_CHILDREN, today), scope.wholeSchool(), scope.campusIds());
             Map<Long, String> usernames = guardianViews.usernames(
                     children.stream().map(ChildListItemResponse::id).toList());
             String needle = searchKey(keyword);
 
             List<ParentAccountRowResponse> rows = new ArrayList<>();
             for (ChildListItemResponse child : children) {
-                if (!child.canManage()) {
-                    continue;
-                }
                 List<ChildGuardianResponse> guardians = child.guardians();
                 for (int index = 0; index < guardians.size(); index++) {
                     ChildGuardianResponse guardian = guardians.get(index);
@@ -158,7 +153,8 @@ public class ChildListServiceImpl implements ChildListService {
                                 child.className(),
                                 index,
                                 guardian,
-                                usernames.get(guardian.id())));
+                                usernames.get(guardian.id()),
+                                child.canManage()));
                     }
                 }
             }
@@ -280,7 +276,7 @@ public class ChildListServiceImpl implements ChildListService {
                     Long campusId = cls != null ? cls.campusId() : child.getIntakeCampusId();
                     boolean canManage = managesParents
                             && child.getStatus() != ChildStatus.LEFT
-                            && (wholeSchool || campusIds.contains(campusId));
+                            && staffAccessPolicy.canEditCampus(actor, Permission.PARENT_ACCOUNT_MANAGE, campusId);
                     return new ChildListItemResponse(
                             child.getId(),
                             child.getCode(),

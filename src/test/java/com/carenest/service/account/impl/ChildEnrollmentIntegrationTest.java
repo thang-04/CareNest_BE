@@ -1137,7 +1137,7 @@ class ChildEnrollmentIntegrationTest {
                                 List.of(row), campusB, null, TODAY))
                 .ids()
                 .getFirst();
-        expectCode(() -> selectedAccounts.candidates(vicePrincipal, childId), ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        assertThat(selectedAccounts.candidates(vicePrincipal, childId)).isNotEmpty();
         var candidates = selectedAccounts.candidates(principal, childId);
         expectCode(
                 () -> selectedAccounts.select(
@@ -1359,7 +1359,7 @@ class ChildEnrollmentIntegrationTest {
                 TODAY,
                 childId);
         entityManager.clear();
-        expectCode(() -> selectedAccounts.candidates(vicePrincipal, childId), ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        assertThat(selectedAccounts.candidates(vicePrincipal, childId)).isNotEmpty();
         expectCode(() -> selectedAccounts.checkParentScope(vicePrincipal, accountId), ApiCode.ACCOUNT_MANAGE_DENIED);
     }
 
@@ -1591,7 +1591,7 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("CHD-11, AUTH-02: PHT điểm trường B không thấy trẻ năm sau của A")
+    @DisplayName("CHD-11, GEN-01: PHT điểm trường B xem trẻ năm sau của A, không quản lý tài khoản")
     void plannedListFollowsCampusScope() {
         long childId = enrollPlannedAn();
 
@@ -1600,7 +1600,8 @@ class ChildEnrollmentIntegrationTest {
                         vicePrincipalOfB,
                         new com.carenest.dto.child.ChildListFilter(plannedYear, null, null, null, null, 0, 100))
                 .items();
-        assertThat(items).extracting(i -> i.id()).doesNotContain(childId);
+        assertThat(items).extracting(i -> i.id()).contains(childId);
+        assertThat(items).filteredOn(i -> i.id().equals(childId)).allMatch(i -> !i.canManage());
     }
 
     @Autowired
@@ -1887,7 +1888,7 @@ class ChildEnrollmentIntegrationTest {
                 () -> importService.importRows(principal, body),
                 ApiCode.INVALID_REQUEST_DATA,
                 "dateOfBirth",
-                "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận");
+                "Chỉ tiếp nhận trẻ từ đủ 3 tháng đến 6 tuổi (không quá 72 tháng tròn) tại ngày tiếp nhận");
         assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
     }
 
@@ -2084,25 +2085,30 @@ class ChildEnrollmentIntegrationTest {
                                 TODAY))
                 .child()
                 .id();
-        // 74 tháng tại 01/09/2026: không thuộc nhóm nào của năm
-        long noGroup = enrollmentService
-                .enroll(
-                        principal,
-                        withStartDate(
-                                request(
-                                        "Bé Ngoài Nhóm Tuổi",
-                                        "2020-06-20",
-                                        classB,
-                                        campusB,
-                                        newGuardian("0915000066", "001500000066")),
-                                TODAY))
-                .child()
-                .id();
-
         assertThat(jdbc.queryForObject("SELECT classroom_id FROM enrollments WHERE child_id = ?", Long.class, older))
                 .isEqualTo(classA);
-        assertThat(jdbc.queryForObject("SELECT classroom_id FROM enrollments WHERE child_id = ?", Long.class, noGroup))
-                .isEqualTo(classB);
+    }
+
+    @Test
+    void intakeOver72CompletedMonthsRejectedForFormImportAndPlannedYear() {
+        var row = withStartDate(
+                request("Bé Quá Tuổi", "2020-06-20", null, campusA, newGuardian("0915000066", "001500000066")), TODAY);
+        String message = "Chỉ tiếp nhận trẻ từ đủ 3 tháng đến 6 tuổi (không quá 72 tháng tròn) tại ngày tiếp nhận";
+        expectField(
+                () -> enrollmentService.enroll(principal, row), ApiCode.INVALID_REQUEST_DATA, "dateOfBirth", message);
+        var imported = new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                List.of(row), campusA, null, TODAY);
+        expectField(
+                () -> importService.importRows(principal, imported),
+                ApiCode.INVALID_REQUEST_DATA,
+                "dateOfBirth",
+                message);
+        var planned = new EnrollChildRequest(row.child(), row.declaration(), null, campusA, plannedYear, null);
+        expectField(
+                () -> enrollmentService.enroll(principal, planned),
+                ApiCode.INVALID_REQUEST_DATA,
+                "dateOfBirth",
+                message);
     }
 
     private static EnrollChildRequest withStartDate(EnrollChildRequest base, LocalDate startDate) {

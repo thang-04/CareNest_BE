@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
@@ -390,9 +391,10 @@ class GuardianAccountServiceImplTest {
     }
 
     @Test
-    @DisplayName("AUTH-19: cấp lại mật khẩu phụ huynh ⇒ mật khẩu mới hệ thống sinh, hủy phiên, trả 1 lần")
+    @DisplayName("CP-21: cấp lại mật khẩu phụ huynh qua SMS, hủy phiên và chỉ trả trạng thái gửi")
     void resetParentPasswordGeneratesNewPassword() {
         given(accounts.findById(60L)).willReturn(Optional.of(account(60L, CareNestRole.PARENT)));
+        given(smsSender.sendPasswordReset(any(), eq("Gen3rated7k"))).willReturn(SmsStatus.SENT);
 
         ParentPasswordResponse response = service.resetParentPassword(VICE, 60L);
 
@@ -401,7 +403,38 @@ class GuardianAccountServiceImplTest {
         verify(authState).revokeAccountAuth(60L);
         verify(authState).markPasswordChanged(60L);
         verify(identity).logoutUser("kc-60");
-        assertThat(response.temporaryPassword()).isEqualTo("Gen3rated7k");
+        verify(smsSender).sendPasswordReset(any(), eq("Gen3rated7k"));
+        assertThat(response.smsStatus()).isEqualTo(SmsStatus.SENT);
+    }
+
+    @Test
+    @DisplayName("CP-21: cấp lại thành công nhưng SMS lỗi chỉ trả FAILED, không trả mật khẩu")
+    void resetParentPasswordReportsSmsFailure() {
+        given(accounts.findById(60L)).willReturn(Optional.of(account(60L, CareNestRole.PARENT)));
+        given(smsSender.sendPasswordReset(any(), anyString())).willReturn(SmsStatus.FAILED);
+        ParentPasswordResponse response = service.resetParentPassword(VICE, 60L);
+        assertThat(response.smsStatus()).isEqualTo(SmsStatus.FAILED);
+        assertThat(ParentPasswordResponse.class.getRecordComponents())
+                .extracting(java.lang.reflect.RecordComponent::getName)
+                .containsExactly("userId", "username", "smsStatus");
+    }
+
+    @Test
+    @DisplayName("CP-22: quyền quản lý PH được cấp cho GV không mở bảng tài khoản PH")
+    void guardianOverviewRequiresActiveManagementRole() {
+        CurrentUser teacher = new CurrentUser(
+                7L,
+                "kc-teacher",
+                "teacher.test",
+                "GV giả",
+                null,
+                Set.of(CareNestRole.TEACHER),
+                Set.of(com.carenest.utils.enums.Permission.PARENT_ACCOUNT_MANAGE));
+        assertThatThrownBy(() -> service.guardianOverview(
+                        teacher, new com.carenest.dto.child.ChildListFilter(null, null, null, null, null, 0, 20)))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED));
     }
 
     @Test
@@ -412,27 +445,30 @@ class GuardianAccountServiceImplTest {
         Instant expires = Instant.parse("2026-11-14T03:00:00Z");
         given(activationCodes.reissue(60L)).willReturn(new ParentActivationCodes.Issued("654321", expires));
         given(smsSender.sendActivationCode(parent, "654321")).willReturn(SmsStatus.SENT);
-        given(smsSender.activationCodeMode()).willReturn(true);
 
         ActivationCodeResponse response = service.resendActivationCode(VICE, 60L);
 
         verify(selected).checkParentScope(VICE, 60L);
         assertThat(response.smsStatus()).isEqualTo(SmsStatus.SENT);
         assertThat(response.expiresAt()).isEqualTo(expires);
-        assertThat(response.activationCode()).isNull();
+        assertThat(ActivationCodeResponse.class.getRecordComponents())
+                .extracting(java.lang.reflect.RecordComponent::getName)
+                .doesNotContain("activationCode");
     }
 
     @Test
-    @DisplayName("AUTH-18: SMS lỗi hoặc cổng giả ⇒ trả mã để in phiếu")
-    void resendActivationCodeReturnsCodeForPrintWhenSmsNotDelivered() {
+    @DisplayName("CP-21: SMS lỗi vẫn không trả mã kích hoạt cho người quản lý")
+    void resendActivationCodeDoesNotReturnCodeWhenSmsNotDelivered() {
         UserAccount parent = account(60L, CareNestRole.PARENT);
         given(accounts.findById(60L)).willReturn(Optional.of(parent));
         given(activationCodes.reissue(60L))
                 .willReturn(new ParentActivationCodes.Issued("654321", Instant.parse("2026-11-14T03:00:00Z")));
         given(smsSender.sendActivationCode(parent, "654321")).willReturn(SmsStatus.FAILED);
-        given(smsSender.activationCodeMode()).willReturn(true);
 
-        assertThat(service.resendActivationCode(VICE, 60L).activationCode()).isEqualTo("654321");
+        assertThat(service.resendActivationCode(VICE, 60L).smsStatus()).isEqualTo(SmsStatus.FAILED);
+        assertThat(ActivationCodeResponse.class.getRecordComponents())
+                .extracting(java.lang.reflect.RecordComponent::getName)
+                .doesNotContain("activationCode");
     }
 
     @Test

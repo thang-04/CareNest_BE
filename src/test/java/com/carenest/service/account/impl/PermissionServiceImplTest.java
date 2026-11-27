@@ -122,6 +122,19 @@ class PermissionServiceImplTest {
     }
 
     @Test
+    void teacherProfileGrantCannotUseSchoolOrPinnedScope() {
+        givenTarget(TEACHER_ID, "TEACHER");
+        for (var item : List.of(
+                new OverrideItem(Permission.CHILD_PROFILE_EDIT, PermissionEffect.GRANT, PermissionScope.SCHOOL),
+                new OverrideItem(Permission.CHILD_PROFILE_EDIT, PermissionEffect.GRANT, PermissionScope.CAMPUS, 10L))) {
+            assertThatThrownBy(() -> permissionService.updatePermissionOverrides(
+                            principal, TEACHER_ID, new UpdatePermissionOverridesRequest(List.of(item), "Test")))
+                    .extracting("apiCode")
+                    .isEqualTo(ApiCode.PERMISSION_SCOPE_NOT_ALLOWED);
+        }
+    }
+
+    @Test
     @DisplayName("EDU-110 BR2.1: HT chỉ cấu hình được 8 mã soạn/duyệt, mã khác ⇒ 1118")
     void principalOnlyEduCodes() {
         assertThatThrownBy(() -> permissionService.updateRolePermissionsBulk(
@@ -532,7 +545,8 @@ class PermissionServiceImplTest {
                         Permission.FOOD_SAFETY_APPROVE, PermissionEffect.GRANT, PermissionScope.SCHOOL, 3L)),
                 "sai phạm vi");
         var notScoped = new UpdatePermissionOverridesRequest(
-                List.of(new OverrideItem(Permission.CHILD_ENROLL, PermissionEffect.GRANT, PermissionScope.CAMPUS, 3L)),
+                List.of(new OverrideItem(
+                        Permission.CHILD_PROFILE_VIEW, PermissionEffect.GRANT, PermissionScope.CAMPUS, 3L)),
                 "sai phạm vi");
 
         assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, schoolScope))

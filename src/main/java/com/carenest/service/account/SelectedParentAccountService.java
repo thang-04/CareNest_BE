@@ -5,6 +5,8 @@ import com.carenest.security.CurrentUser;
 import java.util.List;
 
 public interface SelectedParentAccountService {
+    void checkManageScope(CurrentUser actor, Long childId);
+
     List<ChildGuardianResponse> candidates(CurrentUser actor, Long childId);
 
     Long selectedAccountId(CurrentUser actor, Long childId);

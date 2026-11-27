@@ -147,6 +147,22 @@ public class SchoolStructureServiceImpl implements SchoolStructureService {
     }
 
     @Override
+    public List<CampusOptionResponse> findCampusOptions() {
+        String logPrefix = LOG_PREFIX + "|findCampusOptions";
+        log.info("{}|START", logPrefix);
+        try {
+            List<CampusOptionResponse> result = campusRepository.findAllByOrderByMainDescCodeAsc().stream()
+                    .map(staffAssignmentMapper::toCampusOptionResponse)
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public List<ClassroomResponse> listCurrentClassrooms(CurrentUser actor, Long campusId) {
         String logPrefix = LOG_PREFIX + "|listCurrentClassrooms|userId=" + actor.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);

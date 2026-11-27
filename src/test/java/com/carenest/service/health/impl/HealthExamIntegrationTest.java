@@ -160,7 +160,10 @@ class HealthExamIntegrationTest {
         assertThat(fresh.reference().headApplies()).isTrue();
         assertThat(fresh.canEdit()).isTrue();
         assertThat(exams.getExam(vpA, campaign, child1).canEdit()).isFalse();
-        expectError(() -> exams.getExam(vpB, campaign, child1), ApiCode.HEALTH_EXAM_NOT_FOUND);
+        assertThat(exams.getExam(vpB, campaign, child1).canEdit()).isFalse();
+        expectError(
+                () -> exams.saveExam(vpB, campaign, child1, save(exam("NO", null, normal()), false, "")),
+                ApiCode.HEALTH_EXAM_ACCESS_DENIED);
         expectError(
                 () -> exams.saveExam(vpA, campaign, child1, save(exam("NO", null, normal()), false, "")),
                 ApiCode.HEALTH_EXAM_ACCESS_DENIED);
@@ -756,7 +759,7 @@ class HealthExamIntegrationTest {
                     ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
         }
         assertThat(rowOf(campaign, child4).canEdit()).isTrue();
-        expectError(() -> exams.getExam(vpB, campaign, child2), ApiCode.HEALTH_EXAM_NOT_FOUND);
+        assertThat(exams.getExam(vpB, campaign, child2).locked()).isTrue();
         expectError(() -> exams.getExam(teacherB, campaign, child2), ApiCode.HEALTH_EXAM_NOT_FOUND);
         entityManager.flush();
         jdbc.update("UPDATE enrollments SET valid_to = '2026-11-11' WHERE child_id = ?", child4);

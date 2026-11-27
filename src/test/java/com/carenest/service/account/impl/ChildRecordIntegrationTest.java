@@ -189,6 +189,52 @@ class ChildRecordIntegrationTest {
     }
 
     @Test
+    void profileEditingUsesGrantedScopeBeyondAssignedCampus() {
+        long campusB = insertId("INSERT INTO campuses (code, name) VALUES ('RC-B', 'Test B') RETURNING id");
+        jdbc.update(
+                "UPDATE staff_assignments SET campus_id = ? WHERE user_id = ? AND staff_role = 'VICE_PRINCIPAL'",
+                campusB,
+                vicePrincipalId);
+        var permissions = Set.of(Permission.CHILD_PROFILE_EDIT, Permission.PARENT_ACCOUNT_MANAGE);
+        var request = edit("Trần Bé An", OLD_PHONE, "0902000002");
+        assertThatThrownBy(() -> recordService.prepareEdit(vicePrincipal, childA, request))
+                .isInstanceOf(GlobalException.class);
+        CurrentUser school = new CurrentUser(
+                vicePrincipalId,
+                "test",
+                "test",
+                "Test",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                permissions,
+                permissions);
+        recordService.prepareEdit(school, childA, request);
+        CurrentUser pinned = new CurrentUser(
+                vicePrincipalId,
+                "test",
+                "test",
+                "Test",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                permissions,
+                Set.of(),
+                java.util.Map.of(Permission.CHILD_PROFILE_EDIT, campusA, Permission.PARENT_ACCOUNT_MANAGE, campusA));
+        recordService.prepareEdit(pinned, childA, request);
+        CurrentUser outside = new CurrentUser(
+                vicePrincipalId,
+                "test",
+                "test",
+                "Test",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                permissions,
+                Set.of(),
+                java.util.Map.of(Permission.CHILD_PROFILE_EDIT, campusB));
+        assertThatThrownBy(() -> recordService.prepareEdit(outside, childA, request))
+                .isInstanceOf(GlobalException.class);
+    }
+
+    @Test
     @DisplayName("G94-180/CHD-03: nghỉ học ⇒ LEFT, lớp kết thúc hôm qua, lịch sử, thông báo GV lớp (CHECK V63/V87 qua)")
     void withdrawWritesStatusEnrollmentHistoryAndNotification() {
         ChildViewResponse view =

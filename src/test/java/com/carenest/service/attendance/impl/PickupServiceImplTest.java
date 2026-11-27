@@ -203,6 +203,7 @@ class PickupServiceImplTest {
 
     @Test
     void pickupBeforeFullDayThresholdCountsAsHalfDayWithoutChangingMeals() {
+        when(attendanceCutoffService.findFullDayPickupFrom(1L, TODAY)).thenReturn(Optional.of(LocalTime.of(17, 0)));
         AttendanceRecord attendance = AttendanceRecord.create(
                 CHILD_ID,
                 CLASS_ID,
@@ -221,8 +222,10 @@ class PickupServiceImplTest {
         when(guardianChildLinkService.findLinksOfChild(CHILD_ID)).thenReturn(List.of());
         when(attendanceCutoffService.findFullDayPickupFrom(1L, TODAY)).thenReturn(Optional.of(LocalTime.of(16, 30)));
 
-        service.recordResult(
-                teacher, new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, null, "Mẹ đón"));
+        var response = service.recordResult(
+                teacher,
+                new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, LocalTime.of(23, 59), "Mẹ đón"));
+        assertThat(response.handedOverAt()).isEqualTo(CLOCK.instant());
 
         assertThat(attendance.presentDays()).isEqualTo(0.5);
         assertThat(attendance.getMeals()).containsExactly(com.carenest.utils.enums.MealSession.LUNCH);
@@ -232,6 +235,7 @@ class PickupServiceImplTest {
 
     @Test
     void pickupAtFullDayThresholdKeepsAFullAttendanceDay() {
+        when(attendanceCutoffService.findFullDayPickupFrom(1L, TODAY)).thenReturn(Optional.of(LocalTime.of(16, 0)));
         AttendanceRecord attendance = AttendanceRecord.create(
                 CHILD_ID,
                 CLASS_ID,
@@ -250,8 +254,7 @@ class PickupServiceImplTest {
         when(guardianChildLinkService.findLinksOfChild(CHILD_ID)).thenReturn(List.of());
 
         service.recordResult(
-                teacher,
-                new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, LocalTime.of(15, 0), "Mẹ đón"));
+                teacher, new PickupRequest(CHILD_ID, PickupVerification.PHONE_CONFIRMED, null, null, "Mẹ đón"));
 
         assertThat(attendance.presentDays()).isEqualTo(1);
     }

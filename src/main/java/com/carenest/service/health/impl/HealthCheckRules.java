@@ -94,11 +94,10 @@ class HealthCheckRules {
                 && campusAccessPolicy.canViewCampus(user, campusId);
     }
 
-    /** Điểm trường người dùng xem được đợt/kỳ; null = mọi điểm trường (HT). GV: điểm trường của lớp mình. */
+    /** GEN-01: HT/PHT còn phân công đọc toàn trường; GV theo lớp được giao. */
     Set<Long> visibleCampusIds(CurrentUser user) {
         LocalDate today = today();
-        if (user.hasRole(CareNestRole.PRINCIPAL)
-                && staffAssignmentService.hasActivePrincipalAssignment(user.userId(), today)) {
+        if (campusAccessPolicy.canReadAllCampuses(user)) {
             return null;
         }
         Set<Long> campusIds = new HashSet<>();
@@ -220,7 +219,7 @@ class HealthCheckRules {
 
     List<ClassroomInfoResponse> visibleClassesOf(CurrentUser user, HealthCheckCampaign campaign) {
         return classesOf(campaign).stream()
-                .filter(c -> classroomAccessPolicy.canViewClassroom(user, c.id()))
+                .filter(c -> classroomAccessPolicy.canReadClassroom(user, c.id()))
                 .toList();
     }
 

@@ -64,6 +64,7 @@ import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
@@ -1621,17 +1622,21 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             }
             return childRepository.findById(childId).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_ACCESS_DENIED));
         }
-        return loadInScope(actor, childId, today);
+        return loadInScope(actor, childId, today, Permission.CHILD_PROFILE_EDIT);
     }
 
     /** Như mở lại hồ sơ: với PHT, trẻ không tồn tại và trẻ ngoài điểm trường cùng 403 (không dò được id). */
     private Child loadInScope(CurrentUser actor, Long childId, LocalDate today) {
+        return loadInScope(actor, childId, today, Permission.CHILD_PLACEMENT);
+    }
+
+    private Child loadInScope(CurrentUser actor, Long childId, LocalDate today, Permission permission) {
         boolean wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
         Child child = childRepository
                 .findById(childId)
                 .orElseThrow(
                         () -> GlobalException.of(wholeSchool ? ApiCode.CHILD_NOT_FOUND : ApiCode.CHILD_ACCESS_DENIED));
-        return requireCampusScope(actor, child, today, wholeSchool);
+        return requireCampusScope(actor, child, today, permission);
     }
 
     @Override
@@ -1646,7 +1651,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                     .findLockedById(childId)
                     .orElseThrow(() ->
                             GlobalException.of(wholeSchool ? ApiCode.CHILD_NOT_FOUND : ApiCode.CHILD_ACCESS_DENIED));
-            requireCampusScope(actor, child, LocalDate.now(clock), wholeSchool);
+            requireCampusScope(actor, child, LocalDate.now(clock), Permission.CHILD_PROFILE_EDIT);
             if (child.getStatus() == ChildStatus.LEFT) throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
             log.info("{}|END", logPrefix);
             return child;
@@ -1656,11 +1661,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         }
     }
 
-    private Child requireCampusScope(CurrentUser actor, Child child, LocalDate today, boolean wholeSchool) {
+    private Child requireCampusScope(CurrentUser actor, Child child, LocalDate today, Permission permission) {
         Long campusId = campusOf(child, today);
-        boolean inScope = wholeSchool
-                || (campusId != null
-                        && staffAccessPolicy.managedCampusIds(actor).contains(campusId));
+        boolean inScope = staffAccessPolicy.canEditCampus(actor, permission, campusId);
         if (!inScope) {
             throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
         }

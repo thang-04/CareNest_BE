@@ -1,7 +1,9 @@
 package com.carenest.dto.child;
 
-/** Mật khẩu tạm mới hệ thống sinh cho phụ huynh; chỉ trả một lần (AUTH-19). */
-public record ParentPasswordResponse(Long userId, String username, String temporaryPassword) {
+import com.carenest.utils.enums.SmsStatus;
+
+/** CP-21: mật khẩu tạm chỉ gửi qua SMS, người quản lý nhận trạng thái gửi. */
+public record ParentPasswordResponse(Long userId, String username, SmsStatus smsStatus) {
 
     @Override
     public String toString() {

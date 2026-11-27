@@ -112,6 +112,22 @@ class GuardianPhoneChangeServiceImplTest {
     }
 
     @Test
+    void failedSmsNotifiesRequesterOnlyAfterDeliveryResult() {
+        given(sms.sendUsernameChanged(any(), eq("Tmp9pass"))).willReturn(SmsStatus.FAILED);
+        service.approve(VICE, REQUEST_ID);
+        assertThat(request.getSmsStatus()).isEqualTo(SmsStatus.FAILED);
+        InOrder order = inOrder(sms, notifications);
+        order.verify(sms).sendUsernameChanged(any(), eq("Tmp9pass"));
+        order.verify(notifications)
+                .notifyUsers(
+                        eq(Set.of(REQUESTER)),
+                        eq(NotificationType.GUARDIAN_PHONE_CHANGE_DECIDED),
+                        any(),
+                        org.mockito.ArgumentMatchers.contains("Chưa gửi được SMS tới số mới"),
+                        eq(CHILD_ID));
+    }
+
+    @Test
     @DisplayName("G94-180/AUTH-21: duyệt ⇒ đổi username + mật khẩu tạm Keycloak, rồi DB, SĐT mọi hồ sơ, SMS sau commit")
     void approveChangesUsernameThenSendsSms() {
         service.approve(VICE, REQUEST_ID);

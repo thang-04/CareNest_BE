@@ -13,4 +13,5 @@ public record ParentAccountRowResponse(
         String className,
         int guardianIndex,
         ChildGuardianResponse guardian,
-        String username) {}
+        String username,
+        boolean canManage) {}

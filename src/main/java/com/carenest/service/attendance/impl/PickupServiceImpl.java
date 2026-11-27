@@ -210,7 +210,6 @@ public class PickupServiceImpl implements PickupService {
             }
             Instant now = clock.instant();
             // PCK-04: giờ trả là giờ bấm ghi nhận, không cho nhập tay
-            LocalTime handoverTime = LocalTime.now(clock).truncatedTo(ChronoUnit.MINUTES);
             boolean handedOver = verification.outcome() == PickupOutcome.HANDED_OVER;
             PickupRecord record = pickupRepository.save(PickupRecord.builder()
                     .childId(request.childId())
@@ -222,18 +221,14 @@ public class PickupServiceImpl implements PickupService {
                     .pickupPersonName(guardian == null ? "" : guardian.fullName())
                     .pickupPersonRelationship(guardian == null ? null : guardian.relationship())
                     .pickupPersonPhone(guardian == null ? "" : guardian.phone())
-                    .handedOverAt(
-                            handedOver
-                                    ? today.atTime(handoverTime)
-                                            .atZone(clock.getZone())
-                                            .toInstant()
-                                    : null)
+                    .handedOverAt(handedOver ? now : null)
                     .note(note)
                     .recordedBy(currentUser.userId())
                     .recordedAt(now)
                     .build());
             if (handedOver) {
-                markHalfDayWhenPickedUpBeforeFullDayThreshold(attendance, cls, handoverTime, currentUser, now);
+                markHalfDayWhenPickedUpBeforeFullDayThreshold(
+                        attendance, cls, now.atZone(clock.getZone()).toLocalTime(), currentUser, now);
                 record.markNotified(notifyParents(record));
             }
             PickupRecordResponse view =

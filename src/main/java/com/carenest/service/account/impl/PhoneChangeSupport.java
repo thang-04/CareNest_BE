@@ -6,22 +6,16 @@ import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.entity.account.GuardianPhoneChangeRequest;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.repository.account.GuardianPhoneChangeRequestRepository;
-import com.carenest.repository.account.RolePermissionRepository;
 import com.carenest.repository.account.UserAccountRepository;
-import com.carenest.repository.account.UserPermissionOverrideRepository;
 import com.carenest.security.CurrentUser;
-import com.carenest.security.authorization.EffectivePermissionResolver;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.notification.NotificationService;
-import com.carenest.service.organization.StaffAssignmentService;
-import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PhoneChangeStatus;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -44,11 +38,9 @@ class PhoneChangeSupport {
 
     private final GuardianPhoneChangeRequestRepository requestRepository;
     private final UserAccountRepository userAccountRepository;
-    private final RolePermissionRepository rolePermissionRepository;
-    private final UserPermissionOverrideRepository overrideRepository;
     private final ChildIntakeService childIntakeService;
     private final ChildRecordService childRecordService;
-    private final StaffAssignmentService staffAssignmentService;
+    private final CampusPermissionRecipients permissionRecipients;
     private final StaffAccessPolicy staffAccessPolicy;
     private final NotificationService notificationService;
     private final Clock clock;
@@ -96,32 +88,12 @@ class PhoneChangeSupport {
         requestRepository.saveAndFlush(pending);
     }
 
-    /**
-     * Người duyệt được báo: PHT đang phân công ở điểm trường có quyền quản lý tài khoản phụ huynh (ma trận + ghi đè), và
-     * HT (luôn có quyền).
-     */
     Set<Long> approverIds(Long campusId) {
-        LocalDate today = LocalDate.now(clock);
-        Set<Long> ids = new HashSet<>(staffAssignmentService.findPrincipalIds(today));
-        if (campusId == null) {
-            return ids;
-        }
-        var matrix = rolePermissionRepository.findByRole(CareNestRole.VICE_PRINCIPAL);
-        for (Long userId : staffAssignmentService.findCampusVicePrincipalIds(campusId, today)) {
-            Set<Permission> effective = EffectivePermissionResolver.resolve(
-                    Set.of(CareNestRole.VICE_PRINCIPAL), matrix, overrideRepository.findByUserId(userId));
-            if (effective.contains(Permission.PARENT_ACCOUNT_MANAGE)) {
-                ids.add(userId);
-            }
-        }
-        return ids;
+        return permissionRecipients.approverIds(Permission.PARENT_ACCOUNT_MANAGE, campusId);
     }
 
-    /** Như hồ sơ trẻ: HT toàn trường, PHT điểm trường được phân công. */
     boolean inScope(CurrentUser actor, Long campusId) {
-        return staffAccessPolicy.managesWholeSchool(actor)
-                || (campusId != null
-                        && staffAccessPolicy.managedCampusIds(actor).contains(campusId));
+        return staffAccessPolicy.canEditCampus(actor, Permission.PARENT_ACCOUNT_MANAGE, campusId);
     }
 
     Map<Long, GuardianChildSummary> childrenOf(Collection<GuardianPhoneChangeRequest> requests) {

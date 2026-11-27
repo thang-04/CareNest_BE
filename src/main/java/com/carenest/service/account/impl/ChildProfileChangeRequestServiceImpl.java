@@ -14,21 +14,17 @@ import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.account.ChildProfileChangeRequestService;
 import com.carenest.service.account.ChildProfileEditService;
-import com.carenest.service.account.PermissionService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.notification.NotificationService;
-import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ChildEditRoles;
-import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.ProfileChangeKind;
 import com.carenest.utils.enums.ProfileChangeStatus;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -62,8 +58,7 @@ public class ChildProfileChangeRequestServiceImpl implements ChildProfileChangeR
     private final ChildProfileEditService childProfileEditService;
     private final ChildIntakeService childIntakeService;
     private final StaffAccessPolicy staffAccessPolicy;
-    private final StaffAssignmentService staffAssignmentService;
-    private final PermissionService permissionService;
+    private final CampusPermissionRecipients permissionRecipients;
     private final AccountService accountService;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
@@ -98,7 +93,7 @@ public class ChildProfileChangeRequestServiceImpl implements ChildProfileChangeR
                     childId, kind, objectMapper.writeValueAsString(body), actor.userId(), clock.instant()));
 
             GuardianChildSummary child = summaries(List.of(childId)).get(childId);
-            Set<Long> approvers = approverIds(child == null ? null : child.campusId());
+            Set<Long> approvers = new HashSet<>(approverIds(child == null ? null : child.campusId()));
             approvers.remove(actor.userId());
             String what = kind == ProfileChangeKind.PROFILE ? "sửa hồ sơ" : "sửa khai báo ăn và sức khỏe";
             notificationService.notifyUsers(
@@ -274,27 +269,11 @@ public class ChildProfileChangeRequestServiceImpl implements ChildProfileChangeR
         if (ChildEditRoles.teacherOnly(actor) || !actor.hasPermission(Permission.CHILD_PROFILE_EDIT)) {
             return false;
         }
-        if (staffAccessPolicy.managesWholeSchool(actor)) {
-            return true;
-        }
-        return child != null
-                && child.campusId() != null
-                && staffAccessPolicy.managedCampusIds(actor).contains(child.campusId());
+        return child != null && staffAccessPolicy.canEditCampus(actor, Permission.CHILD_PROFILE_EDIT, child.campusId());
     }
 
-    // Người được báo: HT đang phân công, PHT đang phân công ở điểm trường của trẻ có CHILD_PROFILE_EDIT
     private Set<Long> approverIds(Long campusId) {
-        LocalDate today = LocalDate.now(clock);
-        Set<Long> ids = new HashSet<>(staffAssignmentService.findPrincipalIds(today));
-        if (campusId != null) {
-            for (Long userId : staffAssignmentService.findCampusVicePrincipalIds(campusId, today)) {
-                if (permissionService.hasEffectivePermission(
-                        userId, CareNestRole.VICE_PRINCIPAL, Permission.CHILD_PROFILE_EDIT)) {
-                    ids.add(userId);
-                }
-            }
-        }
-        return ids;
+        return permissionRecipients.approverIds(Permission.CHILD_PROFILE_EDIT, campusId);
     }
 
     private void notifyRequester(CurrentUser actor, ChildProfileChangeRequest request, String title, String body) {

@@ -87,19 +87,20 @@ public class HealthGrowthReportServiceImpl implements HealthGrowthReportService 
                 + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            // HT mọi điểm trường, PHT điểm trường được phân công (AUTH-02); vai trò khác không xem
+            // GEN-01/HLT-12: báo cáo chỉ đọc theo phạm vi xem, không theo phạm vi quản lý.
             if (!currentUser.hasRole(CareNestRole.PRINCIPAL) && !currentUser.hasRole(CareNestRole.VICE_PRINCIPAL)) {
                 throw GlobalException.of(ApiCode.HEALTH_CHECK_ACCESS_DENIED);
             }
             if (month == null) {
                 throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "tháng");
             }
-            if (campusId != null && !rules.canManage(currentUser, campusId)) {
+            Set<Long> visible = rules.visibleCampusIds(currentUser);
+            if (campusId != null && visible != null && !visible.contains(campusId)) {
                 throw GlobalException.of(ApiCode.HEALTH_CHECK_ACCESS_DENIED);
             }
-            List<CampusOptionResponse> inScope = schoolStructureService.listCampuses(currentUser).stream()
+            List<CampusOptionResponse> inScope = schoolStructureService.findCampusOptions().stream()
                     .filter(c -> campusId == null || c.id().equals(campusId))
-                    .filter(c -> rules.canManage(currentUser, c.id()))
+                    .filter(c -> visible == null || visible.contains(c.id()))
                     .toList();
             if (campusId != null && inScope.isEmpty()) {
                 throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);

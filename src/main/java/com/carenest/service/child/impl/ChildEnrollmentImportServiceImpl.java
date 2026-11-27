@@ -120,9 +120,7 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                                 .map(GuardianInput::idNumber)
                                 .toList(),
                         null);
-                // G94-180/CHD-04, như BE giả FE: trùng trẻ đang học/chờ xếp lớp chặn; trùng trẻ đã nghỉ chỉ gợi ý mở
-                // lại
-                // hồ sơ cũ (lúc lưu cũng chỉ chặn trẻ chưa nghỉ)
+                // CP-13: trùng hồ sơ ở mọi trạng thái đều là dòng lỗi; trẻ đã nghỉ phải mở lại hồ sơ cũ.
                 List<String> notes = new ArrayList<>();
                 if (zerosAdded) notes.add(ZEROS_NOTE);
                 // CHD-13: trẻ không báo ăn thì bỏ qua dị ứng và chế độ ăn trong file

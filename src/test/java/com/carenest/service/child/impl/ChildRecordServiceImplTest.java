@@ -175,6 +175,7 @@ class ChildRecordServiceImplTest {
         enrollment = Enrollment.start(CHILD_ID, CLASS_ID, LocalDate.of(2026, 9, 1));
         given(childRepository.findById(CHILD_ID)).willReturn(Optional.of(child));
         given(policy.managesWholeSchool(PRINCIPAL)).willReturn(true);
+        given(policy.canEditCampus(eq(PRINCIPAL), any(), eq(CAMPUS_ID))).willReturn(true);
         given(enrollmentRepository.findActiveByChildIdIn(List.of(CHILD_ID), TODAY))
                 .willReturn(List.of(enrollment));
         given(enrollmentRepository.findOpenByChildId(CHILD_ID, TODAY)).willReturn(List.of(enrollment));

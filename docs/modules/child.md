@@ -1,5 +1,12 @@
 # Module — child
 
+## Đồng bộ BR bổ sung 27/11/2026
+
+- CP-22/GEN-01 theo file yêu cầu ngoài repo: HT/PHT còn phân công đọc danh sách, hồ sơ, khai báo, lịch sử, ảnh trẻ/PH và tài khoản PH toàn trường. Đọc dùng `CampusAccessPolicy.canReadAllCampuses`, ghi vẫn theo campus quản lý; không tái sử dụng cờ đọc làm cờ ghi.
+- Tổng quan tài khoản PH yêu cầu vai trò quản lý đang có phân công; GV được cấp thêm mã API vẫn không được đọc bảng tài khoản. `canManage` của từng trẻ giữ phạm vi ghi cũ.
+- CP-21: `POST /parent-accounts/{userId}/temporary-password` trả `userId`, `username`, `smsStatus`; mật khẩu chỉ gửi qua SMS đang cấu hình với purpose `PASSWORD_RESET`. Không trả mật khẩu; lỗi SMS trả FAILED, không báo đã gửi thành công.
+- Xem [plan 27/11](../plans/active/2026-11-27-br-read-scope-parent-password.md) để đối chiếu nguồn và kiểm chứng.
+
 ## Đối chiếu BR ngày 26/11/2026
 
 - CP-06/CP-13 của bản BR ngoài repo được kiểm tại tiếp nhận và nhập file. Hồ sơ trùng trẻ đã nghỉ trả 409 `CHILD_DUPLICATE_LEFT`; preview nhập file xếp dòng đó vào lỗi và hướng dẫn mở lại hồ sơ cũ.
@@ -140,3 +147,13 @@ Plan `docs/plans/completed/2026-11-25-test-log-round-2.md` (G94-180/CHD-03, user
 
 - `GET /children/{childId}/school-years` (TBD-4, `ChildSchoolYearController` → `ChildSchoolYearService`, `hasRole('PARENT')`): các năm trẻ có học lớp, mới trước, `{ schoolYearId, name, startDate, endDate, status, className }`. Chỉ phụ huynh liên kết (AUTH-04, khác ⇒ 403 `4108`). Lớp theo năm = lớp vào sau cùng trong năm (enrollment), rồi lớp xếp năm mới (`class_placements` PROMOTE/STAY), rồi lớp của `planned_admissions` PENDING/PLACED. Năm PLANNED chỉ hiện từ ngày mở chuẩn bị (CFG-YR-05); không có lớp đích (ra trường, nghỉ) ⇒ không có năm đó.
 - `requireChildYear` (dùng ở module khác để lọc dữ liệu phụ huynh theo năm): năm không thấy được ⇒ 404 `SCHOOL_YEAR_NOT_FOUND` (2001). Test: `ChildSchoolYearIntegrationTest`.
+
+
+## Đối chiếu BR bổ sung 36–78 ngày 27/11/2026
+
+- GEN-02: CHILD_ENROLL, CHILD_PROFILE_EDIT, CHILD_PLACEMENT và PARENT_ACCOUNT_MANAGE hỗ trợ SCHOOL, campus được chỉ định, hoặc phân công mặc định qua CampusAccessPolicy.canEditCampus. Vẫn cần phân công đang hiệu lực; giáo viên chỉ gửi đề xuất trong lớp mình, không nhận phạm vi SCHOOL/pinned cho CHILD_PROFILE_EDIT.
+- Người nhận thông báo yêu cầu sửa hồ sơ/đổi số dùng cùng quyền và phạm vi với quyền duyệt (CampusPermissionRecipients), kể cả PHT được giao sang campus khác. ParentAccountRowResponse có canManage cho dashboard; quyền đọc toàn trường không cấp thêm quyền ghi.
+- CP-03: tiếp nhận form/import/năm sau kiểm từ đủ3 tới72 tháng tròn tại ngày tiếp nhận bằng ChronoUnit.MONTHS. Không giữ mốc2018; sửa/mở lại không kiểm giới hạn tuổi. Ngày sinh vẫn không sau hôm nay.
+- CP-21: gửi lại mã cần xác nhận; ActivationCodeResponse chỉ có userId, username, smsStatus, expiresAt. Mã chỉ gửi SMS, không trả API, không có phiếu/in. SMS đổi số được gửi qua gateway đang cấu hình; thông báo người gửi sau kết quả SMS, không báo thành công trước khi gửi.
+- CP-17: thay ảnh giữ hành động UPDATED, nội dung ghi Đổi ảnh của trẻ/phụ huynh. FE thêm nhãn Thiếu ảnh.
+- Chi tiết và kiểm chứng: docs/plans/active/2026-11-27-br-follow-up-36-75.md.

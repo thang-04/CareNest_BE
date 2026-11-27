@@ -257,16 +257,17 @@ class HealthGrowthReportIntegrationTest {
     }
 
     @Test
-    @DisplayName("HLT-20: PHT chỉ thấy điểm trường được phân công; điểm trường khác, vai trò khác ⇒ 403")
-    void vicePrincipalSeesOnlyAssignedCampus() {
+    @DisplayName("GEN-01/HLT-12: PHT thấy báo cáo toàn trường và lọc từng điểm trường; GV bị từ chối")
+    void vicePrincipalSeesAllCampuses() {
         HealthGrowthReportResponse report = reports.getGrowthReport(vpA, SEPTEMBER, null);
-        assertThat(report.campuses()).extracting(HealthGrowthCampus::campusId).containsExactly(campusA);
-        assertThat(report.total()).isEqualTo(counts(11, 9, 7, 1, 7, 1, 4, 2, 1, 1, 1));
+        assertThat(report.campuses()).extracting(HealthGrowthCampus::campusId).contains(campusA, campusB);
+        assertThat(report).isEqualTo(reports.getGrowthReport(principal, SEPTEMBER, null));
         assertThat(reports.getGrowthReport(vpA, SEPTEMBER, campusA).campuses()).hasSize(1);
 
-        expectError(() -> reports.getGrowthReport(vpA, SEPTEMBER, campusB), ApiCode.HEALTH_CHECK_ACCESS_DENIED);
-        // PHT hỏi điểm trường không tồn tại cũng 403 như ngoài phạm vi (không lộ điểm trường có hay không)
-        expectError(() -> reports.getGrowthReport(vpA, SEPTEMBER, 9_999_999L), ApiCode.HEALTH_CHECK_ACCESS_DENIED);
+        assertThat(reports.getGrowthReport(vpA, SEPTEMBER, campusB).campuses())
+                .extracting(HealthGrowthCampus::campusId)
+                .containsExactly(campusB);
+        expectError(() -> reports.getGrowthReport(vpA, SEPTEMBER, 9_999_999L), ApiCode.CAMPUS_NOT_FOUND);
         expectError(() -> reports.getGrowthReport(teacher, SEPTEMBER, null), ApiCode.HEALTH_CHECK_ACCESS_DENIED);
     }
 

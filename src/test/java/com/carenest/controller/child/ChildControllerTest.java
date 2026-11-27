@@ -196,7 +196,8 @@ class ChildControllerTest {
                                 null,
                                 null,
                                 null),
-                        null)));
+                        null,
+                        true)));
 
         mockMvc.perform(get("/api/children/parent-accounts")
                         .param("status", "NOT_ACTIVATED")

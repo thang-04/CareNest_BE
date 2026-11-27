@@ -42,7 +42,7 @@ final class NotificationRuleCatalog {
                 true,
                 List.of("tenTre", "ngay"),
                 "Thông tin sức khỏe trong ngày",
-                "{tenTre} có ghi nhận sức khỏe trong ngày {ngay}. Mở mục Sức khỏe để xem chi tiết.");
+                "{tenTre} có ghi nhận sức khỏe trong ngày {ngay}. Mở Sổ sức khỏe để xem chi tiết.");
         editable(
                 NotificationType.MEAL_COUNT_RECONFIRM,
                 "NUT-03",

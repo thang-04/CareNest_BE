@@ -119,7 +119,7 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
                 }
             });
         }
-        String label = guardian == null ? "Ảnh của trẻ" : "Ảnh phụ huynh " + (guardian.getPosition() + 1);
+        String label = guardian == null ? "Đổi ảnh của trẻ" : "Đổi ảnh phụ huynh " + (guardian.getPosition() + 1);
         String changes = "[{\"field\":\"photo\",\"label\":\"" + label + "\"}]";
         history.save(ChildHistory.record(childId, ChildHistoryAction.UPDATED, actor.userId(), note, changes, at));
         return getProfile(actor, childId);
@@ -294,11 +294,9 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
         log.info("{}|START", logPrefix);
         try {
             ChildViewResponse view = readableProfile(actor, childId);
-            boolean manageAccounts = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE)
-                    && (staffAccess.managesWholeSchool(actor)
-                            || (view.campusId() != null
-                                    && staffAccess.managedCampusIds(actor).contains(view.campusId())));
-            if (!manageAccounts) view = view.withoutGuardianAccounts();
+            boolean readAccounts =
+                    actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE) && campusAccess.canReadAllCampuses(actor);
+            if (!readAccounts) view = view.withoutGuardianAccounts();
             log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {

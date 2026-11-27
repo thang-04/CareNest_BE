@@ -41,7 +41,14 @@ class ParentSmsSender {
     SmsStatus sendUsernameChanged(UserAccount account, String temporaryPassword) {
         String text = "CareNest: So dien thoai dang nhap da doi. Ten dang nhap moi: " + account.getUsername()
                 + ". Mat khau tam: " + temporaryPassword + ". Doi mat khau o lan dang nhap dau.";
-        return send(passwordGateway(), account, SmsPurpose.USERNAME_CHANGED, text);
+        return send(smsGateway, account, SmsPurpose.USERNAME_CHANGED, text);
+    }
+
+    // CP-21: cấp lại mật khẩu là luồng riêng, gửi thật qua nhà cung cấp đang cấu hình.
+    SmsStatus sendPasswordReset(UserAccount account, String temporaryPassword) {
+        String text = "CareNest: Mat khau tam moi: " + temporaryPassword + ". Ten dang nhap: " + account.getUsername()
+                + ". Doi mat khau o lan dang nhap dau.";
+        return send(smsGateway, account, SmsPurpose.PASSWORD_RESET, text);
     }
 
     /** AUTH-18: tin chứa mã kích hoạt có hạn (không có mật khẩu) ⇒ đi qua nhà cung cấp đang cấu hình. */
@@ -56,7 +63,7 @@ class ParentSmsSender {
         return smsProperties.usesRealProvider();
     }
 
-    // AUTH-18: tin chứa mật khẩu không bao giờ đi qua nhà cung cấp thật (luồng đó dùng mã kích hoạt)
+    // AUTH-18: tài khoản mới dùng mã kích hoạt khi bật SMS thật; cấp lại và đổi số có luồng gửi riêng.
     private SmsGateway passwordGateway() {
         return smsProperties.usesRealProvider() ? PASSWORD_SAFE_GATEWAY : smsGateway;
     }

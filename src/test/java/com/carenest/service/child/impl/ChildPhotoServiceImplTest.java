@@ -38,7 +38,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -254,14 +253,14 @@ class ChildPhotoServiceImplTest {
     }
 
     @Test
-    @DisplayName("AUTH-20: PHT đọc trẻ chờ xếp lớp khác campus nhưng không xem quản trị tài khoản campus đó")
-    void crossCampusProfileRetainsPhotoWithoutAccountDetails() {
+    @DisplayName("CP-22: PHT đọc ảnh và trạng thái tài khoản ở điểm trường khác")
+    void crossCampusProfileIncludesAccountDetailsReadOnly() {
         CurrentUser vp = TestPermissions.userWithDefaults(3L, CareNestRole.VICE_PRINCIPAL);
         when(campus.canReadAllCampuses(vp)).thenReturn(true);
-        when(staff.managedCampusIds(vp)).thenReturn(Set.of(9L));
         when(intake.getChildView(1L)).thenReturn(profileWithAccountDetails());
         var result = service.getProfile(vp, 1L);
-        assertThat(result.guardians().getFirst().accountStatus()).isNull();
+        assertThat(result.guardians().getFirst().accountStatus())
+                .isEqualTo(profileWithAccountDetails().guardians().getFirst().accountStatus());
         assertThat(result.photoUrl()).isEqualTo("/children/1/photo");
     }
 
@@ -285,7 +284,6 @@ class ChildPhotoServiceImplTest {
         child.assignEnrollmentPhoto("old", "image/png", 3, NOW);
         when(records.lockForPhotoEdit(principal, 1L)).thenReturn(child);
         when(campus.canReadAllCampuses(principal)).thenReturn(true);
-        when(staff.managesWholeSchool(principal)).thenReturn(true);
         when(intake.getChildView(1L)).thenReturn(view);
         when(storage.store(eq(FileCategory.CHILD_AVATAR), eq(1L), any(byte[].class)))
                 .thenReturn(new FileStorage.StoredFile("new", "image/png", 3));
@@ -295,7 +293,7 @@ class ChildPhotoServiceImplTest {
         var entry = org.mockito.ArgumentCaptor.forClass(com.carenest.entity.child.ChildHistory.class);
         verify(history).save(entry.capture());
         assertThat(entry.getValue().getNote()).isEqualTo("Cập nhật ảnh");
-        assertThat(entry.getValue().getChanges()).contains("Ảnh của trẻ");
+        assertThat(entry.getValue().getChanges()).contains("Đổi ảnh của trẻ");
         verify(storage, never()).removeQuietly(any(), any());
         for (var callback : TransactionSynchronizationManager.getSynchronizations()) {
             if (committed) callback.afterCommit();

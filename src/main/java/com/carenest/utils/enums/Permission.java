@@ -26,18 +26,21 @@ public enum Permission {
             "child",
             "Tiếp nhận trẻ, nhập Excel, mở lại hồ sơ trẻ đã nghỉ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
     // AUTH-10 (user chốt 2026-11-15): HT cấp thêm được cho GV, GV chỉ sửa trẻ lớp đang dạy
     CHILD_PROFILE_EDIT(
             "child",
             "Sửa hồ sơ trẻ, khai báo sức khỏe",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER)),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER),
+            true),
     CHILD_PLACEMENT(
             "child",
             "Xếp lớp, chuyển lớp, cho trẻ nghỉ học",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
     // AUTH-06: HT cấp tài khoản nghiệp vụ; PHT chỉ khi HT bật, và chỉ GV/bếp trong campus mình (StaffAccessPolicy)
     ACCOUNT_MANAGE(
             "account",
@@ -61,7 +64,8 @@ public enum Permission {
             "child",
             "Cấp, khóa/mở tài khoản phụ huynh và liên kết với trẻ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
     YEAR_PLACEMENT_MANAGE(
             "school",
             "Xếp lớp năm học mới cho trẻ trong điểm trường phụ trách",

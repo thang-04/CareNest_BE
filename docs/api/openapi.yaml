@@ -11472,8 +11472,6 @@ components:
     ActivationCodeResponse:
       type: object
       properties:
-        activationCode:
-          type: string
         expiresAt:
           type: string
           format: date-time
@@ -22184,6 +22182,8 @@ components:
         campusId:
           type: integer
           format: int64
+        canManage:
+          type: boolean
         childCode:
           type: string
         childId:
@@ -22686,8 +22686,11 @@ components:
     ParentPasswordResponse:
       type: object
       properties:
-        temporaryPassword:
+        smsStatus:
           type: string
+          enum:
+          - SENT
+          - FAILED
         userId:
           type: integer
           format: int64
