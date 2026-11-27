@@ -6,6 +6,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.integration.ai.EmbeddingClient;
 import com.carenest.repository.eduplan.EduRagChunkRepository;
 import com.carenest.repository.eduplan.EduRagChunkRepository.SimilarRow;
+import com.carenest.service.eduplan.impl.match.EduTextMatch;
 import com.carenest.utils.ApiCode;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -119,26 +120,24 @@ public class EduRagRetriever {
         }
     }
 
-    // ponytail: quét ~1.000 đoạn trong bộ nhớ; chuyển sang pg_trgm/full-text nếu kho lớn lên nhiều
+    // ponytail: quét ~1.000 đoạn trong bộ nhớ; chuyển sang pg_trgm/full-text nếu kho lớn lên nhiều.
+    // BM25 (từ hiếm nặng hơn từ phổ biến như "trẻ", "các"), chia cho điểm cao nhất để cùng thang 0–1 với ngưỡng minSim
     List<Hit> byKeyword(String query, Collection<String> types) {
-        Set<String> grams = grams(normalize(query));
-        if (grams.isEmpty()) {
-            return List.of();
-        }
+        List<EduRagChunk> chunks = repository.findByStatusAndChunkTypeIn("ACTIVE", types);
+        double[] scores = EduTextMatch.bm25(
+                query, chunks.stream().map(EduRagChunk::getContent).toList());
+        double max = java.util.Arrays.stream(scores).max().orElse(0);
         List<Hit> hits = new ArrayList<>();
-        for (EduRagChunk chunk : repository.findByStatusAndChunkTypeIn("ACTIVE", types)) {
-            String content = " " + normalize(chunk.getContent()) + " ";
-            long matched =
-                    grams.stream().filter(g -> content.contains(" " + g + " ")).count();
-            if (matched > 0) {
-                hits.add(new Hit(
-                        chunk.getId(),
-                        chunk.getChunkType(),
-                        chunk.getSource(),
-                        chunk.getContent(),
-                        (double) matched / grams.size(),
-                        meta(chunk.getMeta())));
-            }
+        for (int i = 0; i < chunks.size() && max > 0; i++) {
+            if (scores[i] <= 0) continue;
+            EduRagChunk chunk = chunks.get(i);
+            hits.add(new Hit(
+                    chunk.getId(),
+                    chunk.getChunkType(),
+                    chunk.getSource(),
+                    chunk.getContent(),
+                    scores[i] / max,
+                    meta(chunk.getMeta())));
         }
         return hits;
     }
@@ -193,20 +192,6 @@ public class EduRagRetriever {
             codes.add(m.group());
         }
         return codes;
-    }
-
-    /** Từ đơn + cặp từ liền nhau của câu hỏi; điểm từ khóa = tỉ lệ số gram có trong đoạn. */
-    static Set<String> grams(String normalized) {
-        String[] words = normalized.isEmpty() ? new String[0] : normalized.split(" ");
-        Set<String> grams = new LinkedHashSet<>(List.of(words));
-        for (int i = 0; i + 1 < words.length; i++) {
-            grams.add(words[i] + " " + words[i + 1]);
-        }
-        return grams;
-    }
-
-    static String normalize(String text) {
-        return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]+", " ").strip();
     }
 
     private JsonNode meta(String json) {
