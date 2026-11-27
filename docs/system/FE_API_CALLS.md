@@ -133,7 +133,6 @@ GET /education-plans/config · src/services/education-plan/api/educationPlanApi.
 GET /education-plans/curriculum/sources · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduCurriculumController.java#getSources
 GET /education-plans/curriculum/{x} · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → (BE chưa có — pending)
 GET /education-plans/duration-policy · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduDurationPolicyController.java#get
-GET /education-plans/goals/{x}/previous-year-ticks · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getPreviousYearTicks
 GET /education-plans/workflow-policy · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#getWorkflowPolicy
 GET /health-checks · src/services/children/api/healthCheckApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthCheckController.java#listHealthChecks
 GET /health-checks/growth-report · src/services/children/api/healthCheckApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthCheckController.java#getGrowthReport
@@ -328,6 +327,7 @@ POST /classes/{x}/attendance/children/{x}/meal-participation · src/services/att
 POST /daily-health-entries · src/services/daily-health/api/dailyHealthApi.js [daily-health: api] → src/main/java/com/carenest/controller/attendance/DailyHealthController.java#addEntry
 POST /daily-health-entries/{x}/parent-notifications · src/services/daily-health/api/dailyHealthApi.js [daily-health: api] → (BE chưa có — pending)
 POST /education-plans/ai/activities · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestActivities
+POST /education-plans/ai/class-contents · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#rewriteClassContents
 POST /education-plans/ai/class-docs/day/{x}/edit · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#editDay
 POST /education-plans/ai/feedback · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#logFeedback
 POST /education-plans/ai/lesson-steps · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestLessonSteps
