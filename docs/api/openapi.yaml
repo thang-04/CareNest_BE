@@ -3472,7 +3472,7 @@ paths:
       - parent-assessment-controller
   /api/children/{childId}/guardian-photos/{guardianId}:
     get:
-      operationId: getGuardianPhoto_1
+      operationId: getGuardianPhoto
       parameters:
       - in: path
         name: childId
@@ -3493,6 +3493,46 @@ paths:
               schema:
                 type: string
                 format: byte
+          description: OK
+      tags:
+      - child-photo-controller
+    put:
+      operationId: replaceGuardianPhoto
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: guardianId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: reason
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+              required:
+              - photo
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
           description: OK
       tags:
       - child-photo-controller
@@ -3691,7 +3731,7 @@ paths:
       - guardian-controller
   /api/children/{childId}/guardians/{userId}/photo:
     get:
-      operationId: getGuardianPhoto
+      operationId: getGuardianPhoto_1
       parameters:
       - in: path
         name: childId
@@ -4079,6 +4119,40 @@ paths:
               schema:
                 type: string
                 format: byte
+          description: OK
+      tags:
+      - child-photo-controller
+    put:
+      operationId: replaceChildPhoto
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: reason
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: binary
+              required:
+              - photo
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
           description: OK
       tags:
       - child-photo-controller
@@ -11493,6 +11567,8 @@ components:
     ActivationResult:
       type: object
       properties:
+        credential:
+          type: string
         fullName:
           type: string
         newAccount:
@@ -13540,6 +13616,8 @@ components:
           type: boolean
         nextClass:
           $ref: "#/components/schemas/ChildNextClassResponse"
+        photoMissing:
+          type: boolean
         photoUrl:
           type: string
         plannedAdmission:
@@ -18260,6 +18338,8 @@ components:
     GuardianAccountResultResponse:
       type: object
       properties:
+        credential:
+          type: string
         fullName:
           type: string
         phone:
@@ -22511,6 +22591,9 @@ components:
             - MORNING
             - LUNCH
             - AFTERNOON
+        pickedUpAt:
+          type: string
+          format: date-time
         pickedUpByName:
           type: string
         status:

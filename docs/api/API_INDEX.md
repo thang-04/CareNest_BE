@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 460 endpoint.
+Tổng: 462 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -143,6 +143,7 @@ GET /children/{childId}/daily-health · src/main/java/com/carenest/controller/at
 GET /children/{childId}/daily-health/parent · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getDailyHealth
 GET /children/{childId}/evaluations · src/main/java/com/carenest/controller/observation/ParentAssessmentController.java#getEvaluations
 GET /children/{childId}/guardian-photos/{guardianId} · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getGuardianPhoto
+PUT /children/{childId}/guardian-photos/{guardianId} · src/main/java/com/carenest/controller/child/ChildPhotoController.java#replaceGuardianPhoto
 GET /children/{childId}/guardian-photos/{guardianId}/url · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getGuardianPhotoUrl
 GET /children/{childId}/guardians · src/main/java/com/carenest/controller/child/GuardianController.java#listGuardians
 POST /children/{childId}/guardians · src/main/java/com/carenest/controller/child/GuardianController.java#addGuardian
@@ -167,6 +168,7 @@ GET /children/{childId}/meal-photos/{photoId}/content · src/main/java/com/caren
 GET /children/{childId}/meal-photos/{photoId}/url · src/main/java/com/carenest/controller/meals/ParentMenuController.java#getPhotoUrl
 GET /children/{childId}/menu · src/main/java/com/carenest/controller/meals/ParentMenuController.java#getWeek
 GET /children/{childId}/photo · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhoto
+PUT /children/{childId}/photo · src/main/java/com/carenest/controller/child/ChildPhotoController.java#replaceChildPhoto
 GET /children/{childId}/photo/url · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhotoUrl
 POST /children/{childId}/placement · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
 DELETE /children/{childId}/placement/scheduled · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#cancelScheduledPlacement
