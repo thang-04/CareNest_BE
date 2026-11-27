@@ -586,8 +586,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     }
 
     private List<HealthCheckResponse> toViews(CurrentUser user, List<HealthCheckCampaign> campaigns) {
-        Map<Long, List<HealthCheckCampaign>> linked = new HashMap<>();
-        campaigns.forEach(c -> linked.put(c.getId(), rules.linkedCampaigns(c)));
+        Map<Long, List<HealthCheckCampaign>> linked = rules.linkedCampaigns(campaigns);
         Results all = results(
                 Stream.concat(campaigns.stream(), linked.values().stream().flatMap(List::stream))
                         .map(HealthCheckCampaign::getId)

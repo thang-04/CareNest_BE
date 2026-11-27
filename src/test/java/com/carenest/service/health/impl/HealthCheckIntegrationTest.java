@@ -33,11 +33,15 @@ import com.carenest.utils.enums.HealthCheckResult;
 import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.HealthScheduleWarning;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Set;
+import java.util.List;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,7 +62,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Đợt khám, kỳ cân đo, số đo trong kỳ (plan docs/plans/completed/2026-10-31-health-check-rounds.md). Dữ liệu giả. */
-@SpringBootTest
+@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class HealthCheckIntegrationTest {
@@ -100,6 +104,12 @@ class HealthCheckIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    private HealthCheckRules rules;
 
     private CurrentUser principal;
     private CurrentUser vpA;
@@ -1151,6 +1161,60 @@ class HealthCheckIntegrationTest {
     }
 
     // Đợt lịch sử là dữ liệu đã có; API tạo mới chỉ nhận ngày từ hôm nay.
+    @Test
+    void linkedCampaignBatchMatchesSingleLookupAndUsesOneQuery() {
+        long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
+        HealthCheckCampaign a = batchCampaign(HealthCheckKind.MEASUREMENT, campusA, year, "2026-11-01", "2026-11-15", false);
+        HealthCheckCampaign overlap = batchCampaign(HealthCheckKind.MEASUREMENT, campusB, year, "2026-11-15", "2026-11-25", false);
+        HealthCheckCampaign legacy = batchCampaign(HealthCheckKind.MEASUREMENT, campusB, null, "2026-11-03", "2026-11-05", false);
+        batchCampaign(HealthCheckKind.MEASUREMENT, campusA, year, "2026-11-01", "2026-11-15", false);
+        batchCampaign(HealthCheckKind.MEASUREMENT, campusB, year, "2026-11-01", "2026-11-15", true);
+        batchCampaign(HealthCheckKind.EXAM, campusB, year, "2026-11-01", "2026-11-15", false);
+        batchCampaign(HealthCheckKind.MEASUREMENT, campusB, year, "2026-12-01", "2026-12-05", false);
+        long nextYear = insertId("INSERT INTO school_years (name, start_date, end_date) VALUES ('2027-2028', '2027-09-01', '2028-05-31') RETURNING id");
+        batchCampaign(HealthCheckKind.MEASUREMENT, campusB, nextYear, "2026-11-01", "2026-11-15", false);
+        entityManager.flush();
+        var sources = List.of(a, overlap, legacy);
+        var batched = rules.linkedCampaigns(sources);
+        for (HealthCheckCampaign source : sources) {
+            assertThat(batched.get(source.getId())).extracting(HealthCheckCampaign::getId)
+                    .containsExactlyInAnyOrderElementsOf(rules.linkedCampaigns(source).stream().map(HealthCheckCampaign::getId).toList());
+        }
+        assertThat(batched.get(a.getId())).extracting(HealthCheckCampaign::getId).containsExactlyInAnyOrder(overlap.getId(), legacy.getId());
+    }
+
+    @Test
+    void linkedCampaignCandidateQueryCountDoesNotGrowWithSourceRounds() {
+        long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
+        var rounds = new java.util.ArrayList<HealthCheckCampaign>();
+        for (int i = 0; i < 8; i++) {
+            rounds.add(batchCampaign(HealthCheckKind.MEASUREMENT, i % 2 == 0 ? campusA : campusB, year, "2026-11-01", "2026-11-20", false));
+        }
+        entityManager.flush();
+        Statistics stats = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        entityManager.clear();
+        stats.clear();
+        rules.linkedCampaigns(rounds.subList(0, 1));
+        long one = stats.getPrepareStatementCount();
+        entityManager.clear();
+        stats.clear();
+        rules.linkedCampaigns(rounds);
+        assertThat(one).isEqualTo(1);
+        assertThat(stats.getPrepareStatementCount()).isEqualTo(one);
+        stats.clear();
+        rules.linkedCampaigns(List.<HealthCheckCampaign>of());
+        assertThat(stats.getPrepareStatementCount()).isZero();
+    }
+
+    private HealthCheckCampaign batchCampaign(HealthCheckKind kind, long campus, Long year, String start, String end, boolean cancelled) {
+        HealthCheckCampaign c = HealthCheckCampaign.builder().kind(kind).campusId(campus).schoolYearId(year)
+                .name("Đợt kiểm thử lô").startDate(LocalDate.parse(start)).endDate(LocalDate.parse(end))
+                .examiner("").note("").createdBy(principal.userId()).createdAt(testClock.instant()).build();
+        if (cancelled) c.cancel(testClock.instant());
+        else c.close(principal.userId(), testClock.instant());
+        return campaignRepository.save(c);
+    }
+
     private HealthCheckResponse historicalCampaign(CurrentUser creator, HealthCheckRequest request) {
         Instant createdAt =
                 request.startDate().atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();

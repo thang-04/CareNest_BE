@@ -30,6 +30,11 @@ public interface HealthCheckCampaignRepository extends JpaRepository<HealthCheck
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
+    @Query("select c from HealthCheckCampaign c where c.kind = :kind"
+            + " and c.cancelledAt is null and c.startDate <= :to and c.endDate >= :from")
+    List<HealthCheckCampaign> findLinkableCandidates(
+            @Param("kind") HealthCheckKind kind, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
     /** Đợt khám và kỳ cân đo chưa đóng, chưa hủy đã qua ngày kết thúc: hệ thống tự đóng (HLT-17). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<HealthCheckCampaign> findByClosedAtIsNullAndCancelledAtIsNullAndEndDateBefore(LocalDate date);

@@ -277,6 +277,31 @@ class HealthCheckRules {
                 .toList();
     }
 
+    Map<Long, List<HealthCheckCampaign>> linkedCampaigns(List<HealthCheckCampaign> campaigns) {
+        List<HealthCheckCampaign> rounds = campaigns.stream()
+                .filter(c -> c.getKind() == HealthCheckKind.MEASUREMENT)
+                .toList();
+        List<HealthCheckCampaign> candidates = rounds.isEmpty() ? List.of()
+                : campaignRepository.findLinkableCandidates(HealthCheckKind.MEASUREMENT,
+                        rounds.stream().map(HealthCheckCampaign::getStartDate).min(LocalDate::compareTo).orElseThrow(),
+                        rounds.stream().map(HealthCheckCampaign::getEndDate).max(LocalDate::compareTo).orElseThrow());
+        Map<Long, List<HealthCheckCampaign>> linked = new HashMap<>();
+        for (HealthCheckCampaign campaign : campaigns) {
+            if (campaign.getKind() != HealthCheckKind.MEASUREMENT) {
+                linked.put(campaign.getId(), List.of());
+                continue;
+            }
+            Long yearId = yearOf(campaign);
+            linked.put(campaign.getId(), candidates.stream()
+                    .filter(c -> !c.getCampusId().equals(campaign.getCampusId())
+                            && !c.getStartDate().isAfter(campaign.getEndDate())
+                            && !c.getEndDate().isBefore(campaign.getStartDate()))
+                    .filter(c -> Objects.equals(yearOf(c), yearId))
+                    .toList());
+        }
+        return linked;
+    }
+
     /** Lần đo của trẻ ở kỳ liên quan có ngày đo trong khoảng của đợt/kỳ (mới nhất); rỗng khi không có. */
     Optional<HealthMeasurement> linkedResultOf(
             HealthCheckCampaign campaign, List<HealthCheckCampaign> linked, List<HealthMeasurement> childMeasurements) {
