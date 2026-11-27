@@ -61,12 +61,15 @@ class OpenAiCompatibleProvider {
         return config.mayTrainOnData();
     }
 
-    Completion complete(String systemPrompt, String userPrompt, Duration remaining) {
+    Completion complete(String systemPrompt, String userPrompt, boolean jsonOutput, Duration remaining) {
         Duration readTimeout = remaining.compareTo(config.readTimeout()) < 0 ? remaining : config.readTimeout();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", config.model());
         body.put("temperature", TEMPERATURE);
-        body.put("response_format", Map.of("type", "json_object"));
+        // Chế độ JSON bắt prompt phải nhắc "JSON" (Groq trả 400), nên chỉ bật cho tác vụ đọc output dạng JSON
+        if (jsonOutput) {
+            body.put("response_format", Map.of("type", "json_object"));
+        }
         // Model suy luận (gpt-oss, Gemini 2.5) tốn ít token/quota hơn với "low"; chỉ gửi khi cấu hình
         if (StringUtils.hasText(config.reasoningEffort())) {
             body.put("reasoning_effort", config.reasoningEffort());
