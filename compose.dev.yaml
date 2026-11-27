@@ -111,7 +111,6 @@ services:
       CARENEST_AI_ENABLED: ${CARENEST_AI_ENABLED:-true}
       # AI (ADR-0007): tên biến khớp application.yml carenest.ai; AI_ENABLED=false hoặc thiếu model/key ⇒ phương án không AI (AI-03)
       AI_ENABLED: ${AI_ENABLED:-false}
-      AI_MENU_WEEKLY_DEADLINE: ${AI_MENU_WEEKLY_DEADLINE:-30s}
       AI_GEMINI_MODEL: ${AI_GEMINI_MODEL:-}
       AI_GEMINI_API_KEY: ${AI_GEMINI_API_KEY:-}
       AI_GEMINI_REASONING_EFFORT: ${AI_GEMINI_REASONING_EFFORT:-}

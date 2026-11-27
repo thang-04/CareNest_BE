@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 458 endpoint.
+Tổng: 451 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -382,13 +382,6 @@ PUT /nutrition/meal-plans/{weekStart} · src/main/java/com/carenest/controller/m
 PUT /nutrition/meal-plans/{weekStart}/days/{date}/amend · src/main/java/com/carenest/controller/meals/MealPlanController.java#amendMealPlanDay
 POST /nutrition/meal-plans/{weekStart}/publish · src/main/java/com/carenest/controller/meals/MealPlanController.java#publishMealPlan
 GET /nutrition/meal-plans/{weekStart}/revisions · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMealPlanRevisions
-POST /nutrition/menu-ai-drafts · src/main/java/com/carenest/controller/meals/MenuAiDraftController.java#createDraft
-GET /nutrition/menu-ai-drafts/{id} · src/main/java/com/carenest/controller/meals/MenuAiDraftController.java#getDraft
-POST /nutrition/menu-ai-drafts/{id}/apply · src/main/java/com/carenest/controller/meals/MenuAiDraftController.java#applyDraft
-GET /nutrition/menu-ai-drafts/{id}/candidates · src/main/java/com/carenest/controller/meals/MenuAiDraftController.java#getCandidates
-POST /nutrition/menu-ai-drafts/{id}/dismiss · src/main/java/com/carenest/controller/meals/MenuAiDraftController.java#dismissDraft
-POST /nutrition/menu-ai-drafts/{id}/evaluate · src/main/java/com/carenest/controller/meals/MenuAiDraftController.java#evaluateDraft
-POST /nutrition/menu-ai-drafts/{id}/mark-used · src/main/java/com/carenest/controller/meals/MenuAiDraftController.java#markDailyUsed
 POST /nutrition/menu-statistics · src/main/java/com/carenest/controller/meals/MealPlanController.java#getMenuStatistics
 GET /nutrition/menu-templates · src/main/java/com/carenest/controller/meals/MenuTemplateController.java#getTemplates
 POST /nutrition/menu-templates · src/main/java/com/carenest/controller/meals/MenuTemplateController.java#createTemplate
