@@ -8,12 +8,10 @@ import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildGuardian;
 import com.carenest.entity.child.ChildHistory;
-import com.carenest.repository.child.ChildHistoryRepository;
-import com.carenest.service.child.ChildRecordService;
-import com.carenest.utils.enums.ChildHistoryAction;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.child.ChildGuardianRepository;
+import com.carenest.repository.child.ChildHistoryRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
@@ -21,8 +19,10 @@ import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildPhotoService;
+import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ImageFiles;
+import com.carenest.utils.enums.ChildHistoryAction;
 import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.Permission;
 import java.awt.image.BufferedImage;
@@ -68,37 +68,52 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
 
     @Override
     @Transactional
-    public ChildViewResponse replaceGuardianPhoto(CurrentUser actor, Long childId, Long guardianId,
-            MultipartFile photo, String reason) {
+    public ChildViewResponse replaceGuardianPhoto(
+            CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason) {
         return replacePhoto(actor, childId, guardianId, photo, reason);
     }
 
-    private ChildViewResponse replacePhoto(CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason) {
-        Child child = records.lockForPhotoEdit(actor, childId);
-        String note = reason == null ? "" : reason.strip();
-        if (note.isEmpty()) invalid("reason", "Nhập lý do chỉnh sửa hồ sơ");
-        if (note.length() > 300) invalid("reason", "Lý do tối đa 300 ký tự");
-        ChildGuardian guardian = guardianId == null ? null : guardianRepository.findById(guardianId)
-                .filter(g -> childId.equals(g.getChildId()))
-                .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_GUARDIAN_NOT_FOUND));
-        ImageContent image = inspect(photo, guardian == null ? "photo" : "guardians." + guardian.getPosition() + ".photo");
-        String key = store(childId, image);
-        var at = clock.instant();
-        String oldKey = guardian == null
-                ? child.replacePhoto(key, image.contentType(), image.content().length, at)
-                : guardian.replacePhoto(key, image.contentType(), image.content().length, at);
-        if (oldKey != null && !oldKey.equals(key)) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    storage.removeQuietly(FileCategory.CHILD_AVATAR, oldKey);
-                }
-            });
+    private ChildViewResponse replacePhoto(
+            CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason) {
+        String logPrefix = LOG_PREFIX + "|replacePhoto|childId=" + childId + "|guardianId=" + guardianId + "|userId="
+                + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            Child child = records.lockForPhotoEdit(actor, childId);
+            String note = reason == null ? "" : reason.strip();
+            if (note.isEmpty()) invalid("reason", "Nhập lý do chỉnh sửa hồ sơ");
+            if (note.length() > 300) invalid("reason", "Lý do tối đa 300 ký tự");
+            ChildGuardian guardian = guardianId == null
+                    ? null
+                    : guardianRepository
+                            .findById(guardianId)
+                            .filter(g -> childId.equals(g.getChildId()))
+                            .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_GUARDIAN_NOT_FOUND));
+            ImageContent image =
+                    inspect(photo, guardian == null ? "photo" : "guardians." + guardian.getPosition() + ".photo");
+            String key = store(childId, image);
+            var at = clock.instant();
+            String oldKey = guardian == null
+                    ? child.replacePhoto(key, image.contentType(), image.content().length, at)
+                    : guardian.replacePhoto(key, image.contentType(), image.content().length, at);
+            if (oldKey != null && !oldKey.equals(key)) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        storage.removeQuietly(FileCategory.CHILD_AVATAR, oldKey);
+                    }
+                });
+            }
+            String label = guardian == null ? "Ảnh của trẻ" : "Ảnh phụ huynh " + (guardian.getPosition() + 1);
+            String changes = "[{\"field\":\"photo\",\"label\":\"" + label + "\"}]";
+            history.save(ChildHistory.record(childId, ChildHistoryAction.UPDATED, actor.userId(), note, changes, at));
+            ChildViewResponse result = getProfile(actor, childId);
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
         }
-        String label = guardian == null ? "Ảnh của trẻ" : "Ảnh phụ huynh " + (guardian.getPosition() + 1);
-        String changes = "[{\"field\":\"photo\",\"label\":\"" + label + "\"}]";
-        history.save(ChildHistory.record(childId, ChildHistoryAction.UPDATED, actor.userId(), note, changes, at));
-        return getProfile(actor, childId);
     }
 
     @Override

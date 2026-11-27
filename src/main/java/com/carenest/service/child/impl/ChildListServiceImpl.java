@@ -309,8 +309,9 @@ public class ChildListServiceImpl implements ChildListService {
                             child.isStartDue(today),
                             nextClasses.get(child.getId()),
                             child.getScheduledLeaveOn(),
-                            child.getPhotoKey() == null || guardians.getOrDefault(child.getId(), List.of()).stream()
-                                    .anyMatch(g -> g.photoUrl() == null));
+                            child.getPhotoKey() == null
+                                    || guardians.getOrDefault(child.getId(), List.of()).stream()
+                                            .anyMatch(g -> g.photoUrl() == null));
                 })
                 .toList();
     }

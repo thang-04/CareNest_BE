@@ -26,7 +26,8 @@ public interface ChildPhotoService {
 
     ChildViewResponse replaceChildPhoto(CurrentUser actor, Long childId, MultipartFile photo, String reason);
 
-    ChildViewResponse replaceGuardianPhoto(CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason);
+    ChildViewResponse replaceGuardianPhoto(
+            CurrentUser actor, Long childId, Long guardianId, MultipartFile photo, String reason);
 
     ChildViewResponse getProfile(CurrentUser actor, Long childId);
 }

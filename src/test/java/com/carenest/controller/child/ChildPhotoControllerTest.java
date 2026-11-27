@@ -93,11 +93,12 @@ class ChildPhotoControllerTest {
     void replacesGuardianPhotoWithEditReason() throws Exception {
         CurrentUser principal = TestPermissions.userWithDefaults(3L, CareNestRole.PRINCIPAL);
         given(users.getCurrentUser()).willReturn(principal);
-        var file = new org.springframework.mock.web.MockMultipartFile("photo", "p.png", "image/png", new byte[]{1});
+        var file = new org.springframework.mock.web.MockMultipartFile("photo", "p.png", "image/png", new byte[] {1});
         given(photos.replaceGuardianPhoto(principal, 1L, 11L, file, "Cập nhật")).willReturn(view());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
-                        org.springframework.http.HttpMethod.PUT, "/api/children/1/guardian-photos/11")
-                        .file(file).param("reason", "Cập nhật")
+                                org.springframework.http.HttpMethod.PUT, "/api/children/1/guardian-photos/11")
+                        .file(file)
+                        .param("reason", "Cập nhật")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(1));

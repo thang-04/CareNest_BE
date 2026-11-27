@@ -63,7 +63,9 @@ class ChildPhotoReplaceIntegrationTest {
                 VALUES ('kc-photo', 'ht.photo', 'Kiểm thử', 'PRINCIPAL') RETURNING id
                 """, Long.class);
         principal = TestPermissions.userWithDefaults(userId, CareNestRole.PRINCIPAL);
-        jdbc.update("INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2020-01-01')", userId);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2020-01-01')",
+                userId);
         long campusId = jdbc.queryForObject(
                 "INSERT INTO campuses (code, name) VALUES ('PHOTO', 'Điểm trường giả') RETURNING id", Long.class);
         childId = jdbc.queryForObject("""
@@ -89,18 +91,25 @@ class ChildPhotoReplaceIntegrationTest {
         entities.flush();
         assertThat(jdbc.queryForObject("SELECT photo_key FROM child_guardians WHERE id=?", String.class, guardianId))
                 .isEqualTo("new-photo");
-        assertThat(jdbc.queryForObject("SELECT changes->0->>'label' FROM child_history WHERE child_id=? AND action='UPDATED'", String.class, childId))
+        assertThat(jdbc.queryForObject(
+                        "SELECT changes->0->>'label' FROM child_history WHERE child_id=? AND action='UPDATED'",
+                        String.class,
+                        childId))
                 .isEqualTo("Ảnh phụ huynh 1");
     }
 
     @Test
     void rejectsUnrelatedGuardian() {
-        assertCode(() -> photos.replaceGuardianPhoto(principal, childId, -1L, file, "Lý do"), ApiCode.CHILD_GUARDIAN_NOT_FOUND);
+        assertCode(
+                () -> photos.replaceGuardianPhoto(principal, childId, -1L, file, "Lý do"),
+                ApiCode.CHILD_GUARDIAN_NOT_FOUND);
     }
 
     @Test
     void rejectsLeftChild() {
-        jdbc.update("UPDATE children SET status='LEFT', left_on='2026-10-10', left_reason='Chuyển nhà' WHERE id=?", childId);
+        jdbc.update(
+                "UPDATE children SET status='LEFT', left_on='2026-10-10', left_reason='Chuyển nhà' WHERE id=?",
+                childId);
         assertCode(() -> photos.replaceChildPhoto(principal, childId, file, "Lý do"), ApiCode.CHILD_ALREADY_LEFT);
     }
 
@@ -117,7 +126,8 @@ class ChildPhotoReplaceIntegrationTest {
     }
 
     private static void assertCode(Runnable operation, ApiCode expected) {
-        assertThatThrownBy(operation::run).isInstanceOfSatisfying(GlobalException.class,
-                ex -> assertThat(ex.getApiCode()).isEqualTo(expected));
+        assertThatThrownBy(operation::run)
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(expected));
     }
 }

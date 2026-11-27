@@ -16,13 +16,13 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/children")
@@ -35,19 +35,28 @@ public class ChildPhotoController {
 
     @PutMapping(value = "/{childId}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_EDIT')")
-    public ResponseEntity<ResponseJson<ChildViewResponse>> replaceChildPhoto(@PathVariable Long childId,
-            @RequestPart("photo") MultipartFile photo, @RequestParam(value = "reason", required = false) String reason,
+    public ResponseEntity<ResponseJson<ChildViewResponse>> replaceChildPhoto(
+            @PathVariable Long childId,
+            @RequestPart("photo") MultipartFile photo,
+            @RequestParam(value = "reason", required = false) String reason,
             CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Replace child photo success",
+        return ResponseJson.toJsonWithData(
+                ApiCode.SUCCESSFUL,
+                "Replace child photo success",
                 photoService.replaceChildPhoto(currentUser, childId, photo, reason));
     }
 
     @PutMapping(value = "/{childId}/guardian-photos/{guardianId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_EDIT')")
-    public ResponseEntity<ResponseJson<ChildViewResponse>> replaceGuardianPhoto(@PathVariable Long childId,
-            @PathVariable Long guardianId, @RequestPart("photo") MultipartFile photo,
-            @RequestParam(value = "reason", required = false) String reason, CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Replace guardian photo success",
+    public ResponseEntity<ResponseJson<ChildViewResponse>> replaceGuardianPhoto(
+            @PathVariable Long childId,
+            @PathVariable Long guardianId,
+            @RequestPart("photo") MultipartFile photo,
+            @RequestParam(value = "reason", required = false) String reason,
+            CurrentUser currentUser) {
+        return ResponseJson.toJsonWithData(
+                ApiCode.SUCCESSFUL,
+                "Replace guardian photo success",
                 photoService.replaceGuardianPhoto(currentUser, childId, guardianId, photo, reason));
     }
 

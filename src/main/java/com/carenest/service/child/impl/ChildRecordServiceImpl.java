@@ -1149,7 +1149,8 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             // Health dựa vào điều này: ngày đo/khám không kiểm ngày sinh (module card child, Known pitfalls)
             LocalDate firstDay = firstStudyDay(child);
             if (draft != null && draft.dateOfBirth().isAfter(firstDay)) {
-                errors.put("dateOfBirth", "Ngày sinh không được sau ngày đầu tiên đi học (" + DAY.format(firstDay) + ")");
+                errors.put(
+                        "dateOfBirth", "Ngày sinh không được sau ngày đầu tiên đi học (" + DAY.format(firstDay) + ")");
             }
 
             List<ChildGuardian> existing = childGuardianRepository.findAllByChildIdOrderByPositionAsc(childId);
@@ -1634,13 +1635,23 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public Child lockForPhotoEdit(CurrentUser actor, Long childId) {
-        if (ChildEditRoles.teacherOnly(actor)) throw GlobalException.of(ApiCode.FORBIDDEN);
-        boolean wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
-        Child child = childRepository.findLockedById(childId).orElseThrow(
-                () -> GlobalException.of(wholeSchool ? ApiCode.CHILD_NOT_FOUND : ApiCode.CHILD_ACCESS_DENIED));
-        requireCampusScope(actor, child, LocalDate.now(clock), wholeSchool);
-        if (child.getStatus() == ChildStatus.LEFT) throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
-        return child;
+        String logPrefix = LOG_PREFIX + "|lockForPhotoEdit|childId=" + childId + "|userId=" + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            if (ChildEditRoles.teacherOnly(actor)) throw GlobalException.of(ApiCode.FORBIDDEN);
+            boolean wholeSchool = staffAccessPolicy.managesWholeSchool(actor);
+            Child child = childRepository
+                    .findLockedById(childId)
+                    .orElseThrow(() ->
+                            GlobalException.of(wholeSchool ? ApiCode.CHILD_NOT_FOUND : ApiCode.CHILD_ACCESS_DENIED));
+            requireCampusScope(actor, child, LocalDate.now(clock), wholeSchool);
+            if (child.getStatus() == ChildStatus.LEFT) throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            log.info("{}|END", logPrefix);
+            return child;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     private Child requireCampusScope(CurrentUser actor, Child child, LocalDate today, boolean wholeSchool) {
