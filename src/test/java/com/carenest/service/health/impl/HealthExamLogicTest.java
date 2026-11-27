@@ -45,6 +45,28 @@ class HealthExamLogicTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 25);
     private static final HealthExamReference AT_40_MONTHS = HealthExamReview.reference(DOB, Gender.MALE, EXAM_DATE);
 
+    @Test
+    void draftRejectsOutOfRangeOptionalValues() {
+        Draft draft = new Draft();
+        draft.pulse = new BigDecimal("300");
+        draft.respiratory = new BigDecimal("100");
+        draft.lengthSd = new BigDecimal("-7");
+        draft.arm = new BigDecimal("400");
+        assertThat(HealthExamValidator.draftRanges(draft.build()))
+                .containsExactly(
+                        new FieldErrorResponse("exam.vitals.pulse", "Nhập mạch từ 40 đến 220 lần/phút"),
+                        new FieldErrorResponse("exam.vitals.respiratoryRate", "Nhập nhịp thở từ 10 đến 90 lần/phút"),
+                        new FieldErrorResponse("exam.nutrition.lengthForAgeSd", "Nhập chiều dài/tuổi (SD) từ -6 đến 6"),
+                        new FieldErrorResponse(
+                                "exam.nutrition.armCircumferenceMm", "Nhập chu vi vòng cánh tay từ 50 đến 300 mm"));
+    }
+
+    @Test
+    void draftAcceptsBlankOptionalValues() {
+        assertThat(HealthExamValidator.draftRanges(HealthExamNormalizer.blank()))
+                .isEmpty();
+    }
+
     // ---------- Kiểm khi lưu kết luận ----------
 
     @Test

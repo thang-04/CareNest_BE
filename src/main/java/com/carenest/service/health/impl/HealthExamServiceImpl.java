@@ -154,7 +154,7 @@ public class HealthExamServiceImpl implements HealthExamService {
                                     rules.today(),
                                     child.dateOfBirth(),
                                     child.guardians().size()))
-                            : draftErrors(height, weight, head));
+                            : draftErrors(exam, height, weight, head));
             // Kiểm định dạng nhiệt độ trên số gửi lên (chưa làm tròn), cả nháp lẫn kết luận.
             // Lỗi định dạng thay lỗi khoảng của cùng ô.
             FieldErrorResponse temperatureError = HealthExamValidator.temperatureFormatError(
@@ -514,8 +514,9 @@ public class HealthExamServiceImpl implements HealthExamService {
     }
 
     /** Nháp không kiểm đủ phiếu, chỉ kiểm khoảng số đo (ràng buộc DB). */
-    private static List<FieldErrorResponse> draftErrors(BigDecimal height, BigDecimal weight, BigDecimal head) {
-        List<FieldErrorResponse> errors = new ArrayList<>();
+    private static List<FieldErrorResponse> draftErrors(
+            HealthExamForm exam, BigDecimal height, BigDecimal weight, BigDecimal head) {
+        List<FieldErrorResponse> errors = new ArrayList<>(HealthExamValidator.draftRanges(exam));
         if (outside(height, 40, 150)) {
             errors.add(new FieldErrorResponse("heightCm", "Nhập chiều cao/chiều dài từ 40 đến 150 cm"));
         }

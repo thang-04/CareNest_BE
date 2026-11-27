@@ -118,19 +118,7 @@ final class HealthExamValidator {
                     HEAD_STATUS_OPTIONS,
                     "Chọn trạng thái vòng đầu");
         }
-        checkNumber(
-                errors, "exam.nutrition.lengthForAgeSd", n.lengthForAgeSd(), false, "chiều dài/tuổi (SD)", -6, 6, "");
-        checkNumber(
-                errors, "exam.nutrition.weightForAgeSd", n.weightForAgeSd(), false, "cân nặng/tuổi (SD)", -6, 6, "");
-        checkNumber(
-                errors,
-                "exam.nutrition.armCircumferenceMm",
-                n.armCircumferenceMm(),
-                false,
-                "chu vi vòng cánh tay",
-                50,
-                300,
-                "mm");
+        checkOptionalNutrition(errors, n);
         checkStatuses(errors, n.statuses());
 
         // IV–V. Phát triển, tiêm chủng; câu tự kỷ chỉ hỏi trẻ 16–30 tháng
@@ -202,6 +190,43 @@ final class HealthExamValidator {
         return errors.entrySet().stream()
                 .map(e -> new FieldErrorResponse(e.getKey(), e.getValue()))
                 .toList();
+    }
+
+    static List<FieldErrorResponse> draftRanges(HealthExamForm exam) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        for (VitalItem item : VITAL_ITEMS) {
+            if (!item.key().equals(TEMPERATURE)) {
+                checkNumber(
+                        errors,
+                        "exam.vitals." + item.key(),
+                        item.value().apply(exam.vitals()),
+                        false,
+                        item.name().toLowerCase(Locale.ROOT),
+                        item.min(),
+                        item.max(),
+                        item.unit());
+            }
+        }
+        checkOptionalNutrition(errors, exam.nutrition());
+        return errors.entrySet().stream()
+                .map(e -> new FieldErrorResponse(e.getKey(), e.getValue()))
+                .toList();
+    }
+
+    private static void checkOptionalNutrition(Map<String, String> errors, HealthExamNutrition n) {
+        checkNumber(
+                errors, "exam.nutrition.lengthForAgeSd", n.lengthForAgeSd(), false, "chiều dài/tuổi (SD)", -6, 6, "");
+        checkNumber(
+                errors, "exam.nutrition.weightForAgeSd", n.weightForAgeSd(), false, "cân nặng/tuổi (SD)", -6, 6, "");
+        checkNumber(
+                errors,
+                "exam.nutrition.armCircumferenceMm",
+                n.armCircumferenceMm(),
+                false,
+                "chu vi vòng cánh tay",
+                50,
+                300,
+                "mm");
     }
 
     // Người đi cùng chọn trong danh sách phụ huynh của hồ sơ trẻ (guardianIndex)
