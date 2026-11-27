@@ -62,6 +62,16 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
             @Param("date") LocalDate date,
             @Param("excludeChildId") Long excludeChildId);
 
+    /** Như {@link #countOccupyingFrom} cho nhiều lớp trong một truy vấn: mỗi dòng [classroomId, số trẻ]. */
+    @Query("select e.classroomId, count(e) from Enrollment e where e.classroomId in :classroomIds"
+            + " and (e.validTo is null or e.validTo >= :date) and e.childId <> :excludeChildId"
+            + " and not exists (select c.id from Child c where c.id = e.childId and c.scheduledLeaveOn <= :date)"
+            + " group by e.classroomId")
+    List<Object[]> countOccupyingFromByClassroomIds(
+            @Param("classroomIds") Collection<Long> classroomIds,
+            @Param("date") LocalDate date,
+            @Param("excludeChildId") Long excludeChildId);
+
     /** Enrollment gần nhất của trẻ (kể cả đã đóng): điểm trường của trẻ đã nghỉ học là điểm trường lớp cuối. */
     Optional<Enrollment> findFirstByChildIdOrderByValidFromDescIdDesc(Long childId);
 

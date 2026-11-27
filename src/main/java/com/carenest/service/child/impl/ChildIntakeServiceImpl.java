@@ -916,8 +916,15 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
 
     private Map<Long, Long> occupiedCounts(List<Long> classroomIds, LocalDate from, Long childId) {
         Map<Long, Long> counts = new HashMap<>();
+        classroomIds.forEach(id -> counts.put(id, 0L));
+        if (classroomIds.isEmpty()) {
+            return counts;
+        }
+        // Một truy vấn cho mọi lớp (tránh N+1 khi mở danh sách lớp xếp trẻ)
         long exclude = childId == null ? -1L : childId;
-        classroomIds.forEach(id -> counts.put(id, enrollmentRepository.countOccupyingFrom(id, from, exclude)));
+        for (Object[] row : enrollmentRepository.countOccupyingFromByClassroomIds(classroomIds, from, exclude)) {
+            counts.put((Long) row[0], (Long) row[1]);
+        }
         return counts;
     }
 
