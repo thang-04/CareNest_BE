@@ -144,7 +144,7 @@ final class HealthTrendContentRules {
 
     /**
      * Kiểm bản nhân sự sửa (AI-02, HLT-21): cùng giới hạn độ dài như bản AI; điểm cần chú ý chỉ gắn mã có trong cảnh báo
-     * của lần phân tích, mỗi mã một mục; mỗi loại gợi ý một mục. Không kiểm từ cấm — nhân sự chịu trách nhiệm nội dung.
+     * của lần phân tích, mỗi mã một mục; mỗi loại gợi ý một mục. Không dùng ngôn ngữ chẩn đoán hoặc điều trị.
      */
     static List<FieldErrorResponse> checkEdited(HealthTrendContent c, List<TrendWarning> warnings) {
         List<FieldErrorResponse> errors = new ArrayList<>();
@@ -152,6 +152,8 @@ final class HealthTrendContentRules {
             errors.add(new FieldErrorResponse("content.overview", "Tổng quan không được để trống"));
         } else if (c.overview().length() > MAX_OVERVIEW) {
             errors.add(new FieldErrorResponse("content.overview", "Tổng quan tối đa " + MAX_OVERVIEW + " ký tự"));
+        } else if (containsForbidden(c.overview())) {
+            errors.add(new FieldErrorResponse("content.overview", "Không dùng từ ngữ chẩn đoán hoặc điều trị"));
         }
         Set<HealthTrendWarningCode> warned = warnings.stream()
                 .map(TrendWarning::code)
@@ -183,6 +185,8 @@ final class HealthTrendContentRules {
         }
         if (c.limitations() != null && c.limitations().length() > MAX_ITEM) {
             errors.add(new FieldErrorResponse("content.limitations", "Tối đa " + MAX_ITEM + " ký tự"));
+        } else if (c.limitations() != null && containsForbidden(c.limitations())) {
+            errors.add(new FieldErrorResponse("content.limitations", "Không dùng từ ngữ chẩn đoán hoặc điều trị"));
         }
         return errors;
     }
@@ -192,6 +196,8 @@ final class HealthTrendContentRules {
             errors.add(new FieldErrorResponse(field, "Không được để trống"));
         } else if (text.length() > MAX_ITEM) {
             errors.add(new FieldErrorResponse(field, "Tối đa " + MAX_ITEM + " ký tự"));
+        } else if (containsForbidden(text)) {
+            errors.add(new FieldErrorResponse(field, "Không dùng từ ngữ chẩn đoán hoặc điều trị"));
         }
     }
 

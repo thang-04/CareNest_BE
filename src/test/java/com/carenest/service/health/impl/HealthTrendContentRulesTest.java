@@ -193,6 +193,34 @@ class HealthTrendContentRulesTest {
         assertThat(HealthTrendContentRules.render(c.forParent())).doesNotContain("Gợi ý theo dõi");
     }
 
+    @Test
+    void editedContentRejectsDiagnosisAndTreatmentInEveryTextField() {
+        HealthTrendContent content = new HealthTrendContent(
+                "Cần chẩn đoán thêm.",
+                List.of(new AttentionPoint(HealthTrendWarningCode.WEIGHT_DROP, "Cần điều trị.")),
+                List.of("Không dùng thuốc."),
+                List.of(new FollowUp(HealthTrendFollowUpType.TALK_TO_PARENT, "Cần kê đơn.")),
+                "Có bệnh lý.");
+        assertThat(HealthTrendContentRules.checkEdited(content, List.of(DROP)))
+                .extracting(e -> e.field())
+                .containsExactly(
+                        "content.overview",
+                        "content.attentionPoints.0.text",
+                        "content.positives.0",
+                        "content.followUps.0.text",
+                        "content.limitations");
+        assertThat(HealthTrendContentRules.checkEdited(content, List.of(DROP)))
+                .allMatch(e -> e.message().equals("Không dùng từ ngữ chẩn đoán hoặc điều trị"));
+    }
+
+    @Test
+    void editedContentAcceptsCleanContent() {
+        assertThat(HealthTrendContentRules.checkEdited(
+                        new HealthTrendContent("Theo dõi tăng trưởng.", List.of(), List.of("Ăn tốt."), List.of(), null),
+                        List.of()))
+                .isEmpty();
+    }
+
     private static Optional<HealthTrendContent> parse(String raw, List<TrendWarning> warnings) {
         return HealthTrendContentRules.fromAi(raw, warnings, ALLOWED);
     }
