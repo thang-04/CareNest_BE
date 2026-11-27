@@ -130,4 +130,29 @@ class EduClassDocControllerTest {
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(service);
     }
+
+    @Test
+    @DisplayName("Xem quá hạn của Hiệu trưởng: view=OVERDUE đọc theo lớp, thiếu classId bị chặn trước service")
+    void overdueViewNeedsClassId() throws Exception {
+        var principal = new CurrentUser(7L, "kc-7", "principal", "Demo", null, Set.of(CareNestRole.PRINCIPAL));
+        given(currentUserService.getCurrentUser()).willReturn(principal);
+        var jwtPrincipal = jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"));
+        mvc.perform(get("/api/education-plans/class-docs")
+                        .param("schoolYearId", "12")
+                        .param("view", "OVERDUE")
+                        .with(jwtPrincipal))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+        var empty = new com.carenest.dto.eduplan.ClassDocsResponse(
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                false);
+        given(service.getClassDocsOverdueView(principal, 12L, 5L)).willReturn(empty);
+        mvc.perform(get("/api/education-plans/class-docs")
+                        .param("schoolYearId", "12")
+                        .param("view", "OVERDUE")
+                        .param("classId", "5")
+                        .with(jwtPrincipal))
+                .andExpect(status().isOk());
+        verify(service).getClassDocsOverdueView(principal, 12L, 5L);
+    }
 }
