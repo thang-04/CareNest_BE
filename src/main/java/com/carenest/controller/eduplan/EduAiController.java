@@ -85,10 +85,13 @@ public class EduAiController {
     @PostMapping("/year-plans/{planId}/goal-content-map")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<EduAiResponse.GoalContentMap>> matchGoalContents(
-            @PathVariable Long planId, CurrentUser currentUser) {
+            @PathVariable Long planId,
+            @RequestBody(required = false) EduAiRequest.GoalContents request,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|matchGoalContents|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        EduAiResponse.GoalContentMap result = eduAiService.matchGoalContents(currentUser, planId);
+        EduAiResponse.GoalContentMap result =
+                eduAiService.matchGoalContents(currentUser, planId, request == null ? null : request.goalId());
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Match goal contents success", result);
     }

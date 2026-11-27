@@ -75,6 +75,13 @@ public class EduRagRetriever {
                 .toList();
     }
 
+    /** Mọi đoạn ACTIVE của các loại cho bộ ghép dùng chung (EDU-106), không có điểm. */
+    public List<Hit> active(Collection<String> types) {
+        return repository.findByStatusAndChunkTypeIn("ACTIVE", types).stream()
+                .map(c -> new Hit(c.getId(), c.getChunkType(), c.getSource(), c.getContent(), 0, meta(c.getMeta())))
+                .toList();
+    }
+
     public List<Hit> retrieve(String query, Collection<String> types, int k, double minSim) {
         String q = query == null ? "" : query.strip();
         if (q.length() > QUERY_MAX) {

@@ -97,6 +97,29 @@ class EduPreviousYearTickServiceImplTest {
     }
 
     @Test
+    @DisplayName("EDU-106: nội dung kế hoạch năm học APPROVED mới nhất năm liền trước; không có ⇒ rỗng")
+    void previousYearContentsReadsLatestApprovedSchoolYearPlan() {
+        EduPlan v1 = plan(61L, EduPlanStatus.APPROVED, 1);
+        EduPlan v2 = plan(62L, EduPlanStatus.APPROVED, 2);
+        EduPlan draft = plan(63L, EduPlanStatus.DRAFT, 3);
+        when(plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(EduPlanLevel.SCHOOL_YEAR, 2L, 5L))
+                .thenReturn(List.of(v1, v2, draft));
+        EduPlanGoal row = mock(EduPlanGoal.class);
+        when(row.getId()).thenReturn(30L);
+        when(row.getDomainId()).thenReturn(4L);
+        when(row.getText()).thenReturn("Trẻ hát");
+        when(goals.findAllByYearPlanIdOrderBySortOrderAsc(62L)).thenReturn(List.of(row));
+        List<EduGoalContent> rows = List.of(content(70L, 30L, " Hát dân ca "), content(71L, 30L, " "));
+        when(contents.findAllByGoalRowIdInOrderBySortOrderAsc(any())).thenReturn(rows);
+
+        assertThat(service.previousYearContents(3L, 5L))
+                .containsExactly(new com.carenest.service.eduplan.EduPreviousYearTickService.PreviousContent(
+                        4L, "Trẻ hát", "Hát dân ca"));
+        // Năm đầu tiên không có năm trước
+        assertThat(service.previousYearContents(1L, 5L)).isEmpty();
+    }
+
+    @Test
     @DisplayName(
             "EDU-104: lấy bản APPROVED versionNo lớn nhất của năm liền trước, tick chỉ của chủ đề nguồn, bỏ chữ trống")
     void readsLatestApprovedOfPreviousYear() {

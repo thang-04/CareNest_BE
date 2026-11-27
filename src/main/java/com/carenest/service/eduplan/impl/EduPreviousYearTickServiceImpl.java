@@ -8,6 +8,7 @@ import com.carenest.entity.eduplan.EduContentThemeTick;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduPlan;
+import com.carenest.entity.eduplan.EduPlanGoal;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduContentThemeTickRepository;
@@ -69,8 +70,8 @@ public class EduPreviousYearTickServiceImpl implements EduPreviousYearTickServic
                 return PreviousYearTicksResponse.none(PreviousYearTicksResponse.NO_PREVIOUS_YEAR);
             }
             SchoolYearResponse year = previous.get();
-            Optional<EduPlan> source = latestApproved(year.id(), plan.ageGroupId());
-            if (source.isEmpty()) source = sameAgeRange(year.id(), plan.ageGroupId());
+            Optional<EduPlan> source = latestApproved(EduPlanLevel.TEAM, year.id(), plan.ageGroupId());
+            if (source.isEmpty()) source = sameAgeRange(EduPlanLevel.TEAM, year.id(), plan.ageGroupId());
             if (source.isEmpty()) {
                 log.info("{}|END|reason={}", logPrefix, PreviousYearTicksResponse.NO_APPROVED_PLAN);
                 return PreviousYearTicksResponse.none(PreviousYearTicksResponse.NO_APPROVED_PLAN);
@@ -100,17 +101,16 @@ public class EduPreviousYearTickServiceImpl implements EduPreviousYearTickServic
                         .max(Comparator.comparing(SchoolYearResponse::startDate)));
     }
 
-    private Optional<EduPlan> latestApproved(Long schoolYearId, Long ageGroupId) {
+    private Optional<EduPlan> latestApproved(EduPlanLevel level, Long schoolYearId, Long ageGroupId) {
         return planRepository
-                .findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
-                        EduPlanLevel.TEAM, schoolYearId, ageGroupId)
+                .findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(level, schoolYearId, ageGroupId)
                 .stream()
                 .filter(p -> p.getStatus() == EduPlanStatus.APPROVED)
                 .max(Comparator.comparingInt(EduPlan::getVersionNo));
     }
 
     // Nhóm tuổi năm trước có thể là bản ghi khác nhưng cùng khoảng tháng tuổi
-    private Optional<EduPlan> sameAgeRange(Long schoolYearId, Long ageGroupId) {
+    private Optional<EduPlan> sameAgeRange(EduPlanLevel level, Long schoolYearId, Long ageGroupId) {
         Optional<AgeGroupResponse> current = schoolStructureService.findAgeGroup(ageGroupId);
         if (current.isEmpty()
                 || current.get().ageFromMonths() == null
@@ -120,9 +120,46 @@ public class EduPreviousYearTickServiceImpl implements EduPreviousYearTickServic
                 .filter(g -> !Objects.equals(g.id(), ageGroupId)
                         && Objects.equals(g.ageFromMonths(), age.ageFromMonths())
                         && Objects.equals(g.ageToMonths(), age.ageToMonths()))
-                .map(g -> latestApproved(schoolYearId, g.id()))
+                .map(g -> latestApproved(level, schoolYearId, g.id()))
                 .flatMap(Optional::stream)
                 .max(Comparator.comparingInt(EduPlan::getVersionNo));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PreviousContent> previousYearContents(Long schoolYearId, Long ageGroupId) {
+        String logPrefix = LOG_PREFIX + "|previousYearContents|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<EduPlan> source = previousYear(schoolYearId)
+                    .flatMap(y -> latestApproved(EduPlanLevel.SCHOOL_YEAR, y.id(), ageGroupId)
+                            .or(() -> sameAgeRange(EduPlanLevel.SCHOOL_YEAR, y.id(), ageGroupId)));
+            if (source.isEmpty()) {
+                log.info("{}|END|contents=0", logPrefix);
+                return List.of();
+            }
+            Map<Long, EduPlanGoal> goals = new HashMap<>();
+            goalRepository
+                    .findAllByYearPlanIdOrderBySortOrderAsc(source.get().getId())
+                    .forEach(g -> goals.put(g.getId(), g));
+            List<PreviousContent> result = new ArrayList<>();
+            if (!goals.isEmpty())
+                for (EduGoalContent c : goalContentRepository.findAllByGoalRowIdInOrderBySortOrderAsc(goals.keySet())) {
+                    EduPlanGoal g = goals.get(c.getGoalRowId());
+                    if (g == null || c.getText() == null || c.getText().isBlank()) continue;
+                    result.add(new PreviousContent(
+                            g.getDomainId(), g.getText(), c.getText().trim()));
+                }
+            log.info(
+                    "{}|END|sourcePlanId={}|contents={}",
+                    logPrefix,
+                    source.get().getId(),
+                    result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     private PreviousYearTicksResponse read(EduPlan source, SchoolYearResponse year) {

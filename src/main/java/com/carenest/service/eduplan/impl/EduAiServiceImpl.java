@@ -1,6 +1,5 @@
 package com.carenest.service.eduplan.impl;
 
-import com.carenest.dto.eduplan.CurriculumContentResponse;
 import com.carenest.dto.eduplan.EduAiRequest;
 import com.carenest.dto.eduplan.EduAiResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
@@ -15,8 +14,8 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduAiService;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
-import com.carenest.service.eduplan.EduCurriculumService;
 import com.carenest.service.eduplan.EduYearPlanService;
+import com.carenest.service.eduplan.impl.match.EduGoalContentMatcher;
 import com.carenest.service.eduplan.impl.rag.EduRagRetriever;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AiErrorReason;
@@ -98,8 +97,8 @@ public class EduAiServiceImpl implements EduAiService {
     private final EduConfigService eduConfigService;
     private final EduClassDocService classDocService;
     private final EduYearPlanService yearPlanService;
-    private final EduCurriculumService curriculumService;
     private final EduRagRetriever ragRetriever;
+    private final EduGoalContentMatcher goalContentMatcher;
 
     @Override
     public EduAiResponse.LessonSteps suggestLessonSteps(CurrentUser currentUser, EduAiRequest.LessonSteps request) {
@@ -370,122 +369,89 @@ public class EduAiServiceImpl implements EduAiService {
         }
     }
 
-    private static final String GOAL_MATCHER = "Bạn là chuyên gia giáo dục mầm non Việt Nam. Chọn nội dung mục C"
-            + " phù hợp trực tiếp với từng mục tiêu trống cùng lĩnh vực. Chỉ dùng goalId và curriculumContentId"
-            + " trong dữ liệu; không viết nội dung mới. Không có nội dung phù hợp thì bỏ qua. Một mục tiêu có thể"
-            + " chọn nhiều nội dung. from là cụm từ NGUYÊN VĂN trong câu mục tiêu làm căn cứ. Chỉ trả JSON"
-            + " {\"matches\":[{\"goalId\":1,\"curriculumContentId\":2,\"from\":\"cụm nguyên văn\"}]}.";
-
     @Override
-    public EduAiResponse.GoalContentMap matchGoalContents(CurrentUser currentUser, Long planId) {
-        String logPrefix = LOG_PREFIX + "|matchGoalContents|userId=" + currentUser.userId() + "|planId=" + planId;
+    public EduAiResponse.GoalContentMap matchGoalContents(CurrentUser currentUser, Long planId, Long goalId) {
+        String logPrefix = LOG_PREFIX + "|matchGoalContents|userId=" + currentUser.userId() + "|planId=" + planId
+                + "|goalId=" + goalId;
         log.info("{}|START", logPrefix);
         try {
             YearPlanDetailResponse plan = yearPlanService.getYearPlan(currentUser, planId);
             if (plan.planLevel() != EduPlanLevel.SCHOOL_YEAR || !plan.canEditCurriculum())
                 throw GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
-            List<CurriculumContentResponse> catalog = curriculumService.getContents(plan.ageGroupId());
-            List<GoalAsk> asks = new ArrayList<>();
-            for (var domain : nullSafe(plan.domains())) {
-                Map<Long, String> goals = new LinkedHashMap<>();
+            List<EduGoalContentMatcher.Goal> goals = new ArrayList<>();
+            for (var domain : nullSafe(plan.domains()))
                 for (var row : nullSafe(domain.rows())) {
                     if (row.id() == null
                             || !"goal".equalsIgnoreCase(row.kind())
                             || row.text() == null
-                            || row.text().isBlank()
-                            || nullSafe(row.contents()).stream()
-                                    .anyMatch(c -> c.text() != null && !c.text().isBlank())) continue;
-                    goals.put(row.id(), row.text());
+                            || row.text().isBlank()) continue;
+                    List<String> have = nullSafe(row.contents()).stream()
+                            .map(YearPlanDetailResponse.Content::text)
+                            .filter(t -> t != null && !t.isBlank())
+                            .toList();
+                    // EDU-106: nút chung chỉ mục tiêu chưa có nội dung; nút từng mục tiêu nhận cả mục tiêu đã có
+                    boolean wanted = goalId == null ? have.isEmpty() : goalId.equals(row.id());
+                    if (wanted)
+                        goals.add(new EduGoalContentMatcher.Goal(
+                                row.id(), domain.domainId(), domain.name(), row.text(), have));
                 }
-                Map<Long, String> candidates = new LinkedHashMap<>();
-                for (var c : catalog)
-                    if (c.id() != null
-                            && java.util.Objects.equals(domain.domainId(), c.domainId())
-                            && c.text() != null
-                            && !c.text().isBlank()) candidates.put(c.id(), c.text());
-                if (goals.isEmpty() || candidates.isEmpty()) continue;
-                Map<String, Object> body = new LinkedHashMap<>();
-                body.put("domain", nz(domain.name()));
-                body.put(
-                        "goals",
-                        goals.entrySet().stream()
-                                .map(e -> Map.of("goalId", e.getKey(), "text", e.getValue()))
-                                .toList());
-                body.put(
-                        "contents",
-                        candidates.entrySet().stream()
-                                .map(e -> Map.of("curriculumContentId", e.getKey(), "text", e.getValue()))
-                                .toList());
-                asks.add(new GoalAsk(
-                        domain.domainId(),
-                        nz(domain.name()),
-                        goals,
-                        candidates,
-                        objectMapper.writeValueAsString(body)));
-            }
-            if (asks.isEmpty()) {
-                log.info("{}|END|matches=0", logPrefix);
-                return new EduAiResponse.GoalContentMap(List.of(), List.of());
-            }
-            if (!aiGateway.isAvailable(AiTask.EDU_MATCH)) throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
-            long started = System.nanoTime();
-            Instant until = deadline(AiTask.EDU_MATCH);
-            List<EduAiResponse.GoalContentMatch> matches = new ArrayList<>();
-            List<EduAiResponse.FailedDomain> failed = new ArrayList<>();
-            RuntimeException firstError = null;
-            try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
-                List<Future<AiRawResult>> calls = asks.stream()
-                        .map(a -> pool.submit(
-                                () -> complete(AiTask.EDU_MATCH, GOAL_MATCHER, "goal-content-map", a.prompt(), until)))
-                        .toList();
-                for (int i = 0; i < asks.size(); i++) {
-                    GoalAsk ask = asks.get(i);
-                    try {
-                        JsonNode out = parseJson(calls.get(i).get().content()).path("matches");
-                        Set<String> seen = new HashSet<>();
-                        for (JsonNode m : out) {
-                            long goalId = m.path("goalId").asLong(-1),
-                                    contentId = m.path("curriculumContentId").asLong(-1);
-                            String goal = ask.goals().get(goalId),
-                                    text = ask.candidates().get(contentId);
-                            String from = m.path("from").asString("").trim();
-                            if (goal == null
-                                    || text == null
-                                    || from.isBlank()
-                                    || !goal.toLowerCase(Locale.ROOT).contains(from.toLowerCase(Locale.ROOT))
-                                    || !seen.add(goalId + ":" + contentId)) continue;
-                            matches.add(
-                                    new EduAiResponse.GoalContentMatch(goalId, contentId, text, clip(from, FROM_MAX)));
-                        }
-                    } catch (InterruptedException ex) {
-                        Thread.currentThread().interrupt();
-                        throw GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, ex);
-                    } catch (ExecutionException | RuntimeException ex) {
-                        Throwable cause = ex instanceof ExecutionException ? ex.getCause() : ex;
-                        if (firstError == null)
-                            firstError = cause instanceof RuntimeException rt
-                                    ? rt
-                                    : GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, cause);
-                        failed.add(new EduAiResponse.FailedDomain(ask.domainId(), ask.name()));
-                    }
-                }
-            }
-            if (failed.size() == asks.size()) throw firstError;
+            if (goalId != null && goals.isEmpty()) throw GlobalException.of(ApiCode.BAD_REQUEST);
+            EduAiResponse.GoalContentMap result = matchContents(goals, plan.ageGroupId(), plan.schoolYearId(), null);
             log.info(
-                    "{}|END|matches={}|failed={}|ms={}",
+                    "{}|END|matches={}|failed={}",
                     logPrefix,
-                    matches.size(),
-                    failed.size(),
-                    (System.nanoTime() - started) / 1_000_000);
-            return new EduAiResponse.GoalContentMap(matches, failed);
+                    result.matches().size(),
+                    result.failedDomains().size());
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
     }
 
-    private record GoalAsk(
-            Long domainId, String name, Map<Long, String> goals, Map<Long, String> candidates, String prompt) {}
+    /**
+     * Luồng ghép nội dung dùng chung EDU-106/115: ứng viên 4 nguồn → top K mỗi mục tiêu → AI chấm (song song theo lĩnh vực)
+     * → lọc. Lĩnh vực lỗi vào failedDomains; mọi lĩnh vực lỗi ⇒ ném lỗi AI đầu tiên.
+     */
+    EduAiResponse.GoalContentMap matchContents(
+            List<EduGoalContentMatcher.Goal> goals, Long ageGroupId, Long schoolYearId, String situation) {
+        if (goals.isEmpty()) return new EduAiResponse.GoalContentMap(List.of(), List.of());
+        if (!aiGateway.isAvailable(AiTask.EDU_MATCH)) throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
+        List<EduGoalContentMatcher.Ask> asks =
+                goalContentMatcher.asks(goals, goalContentMatcher.candidates(ageGroupId, schoolYearId), situation);
+        Instant until = deadline(AiTask.EDU_MATCH);
+        List<EduAiResponse.GoalContentMatch> matches = new ArrayList<>();
+        List<EduAiResponse.FailedDomain> failed = new ArrayList<>();
+        RuntimeException firstError = null;
+        int failedCalls = 0;
+        try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<Future<AiRawResult>> calls = asks.stream()
+                    .map(a -> pool.submit(() -> complete(
+                            AiTask.EDU_MATCH, EduGoalContentMatcher.SYSTEM, "goal-content-map", a.prompt(), until)))
+                    .toList();
+            for (int i = 0; i < asks.size(); i++) {
+                EduGoalContentMatcher.Ask ask = asks.get(i);
+                try {
+                    matches.addAll(goalContentMatcher.verify(
+                            ask, parseJson(calls.get(i).get().content())));
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, ex);
+                } catch (ExecutionException | RuntimeException ex) {
+                    Throwable cause = ex instanceof ExecutionException ? ex.getCause() : ex;
+                    if (firstError == null)
+                        firstError = cause instanceof RuntimeException rt
+                                ? rt
+                                : GlobalException.withCause(ApiCode.AI_SERVICE_UNAVAILABLE, cause);
+                    failedCalls++;
+                    EduAiResponse.FailedDomain f = new EduAiResponse.FailedDomain(ask.domainId(), ask.domainName());
+                    if (!failed.contains(f)) failed.add(f);
+                }
+            }
+        }
+        if (!asks.isEmpty() && failedCalls == asks.size()) throw firstError;
+        return new EduAiResponse.GoalContentMap(matches, failed);
+    }
 
     @Override
     public void logFeedback(CurrentUser currentUser, EduAiRequest.Feedback request) {

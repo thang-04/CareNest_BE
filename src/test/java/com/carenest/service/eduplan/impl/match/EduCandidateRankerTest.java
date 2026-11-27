@@ -38,7 +38,8 @@ class EduCandidateRankerTest {
     void aiOffRanksByKeywordOnly() {
         when(client.isAvailable()).thenReturn(false);
         List<List<Integer>> top = ranker.topEach(List.of("bắt bóng"), docs, 5);
-        assertThat(top.getFirst()).containsExactly(0);
+        // Khớp chữ lên đầu, phần còn lại điền theo thứ tự gốc
+        assertThat(top.getFirst()).containsExactly(0, 1, 2);
         verify(client, never()).embed(anyList(), any());
     }
 
@@ -67,6 +68,6 @@ class EduCandidateRankerTest {
         when(client.modelName()).thenReturn("m");
         when(client.budget()).thenReturn(Duration.ofSeconds(5));
         when(client.embed(anyList(), any())).thenThrow(new AiClientException(AiErrorReason.TIMEOUT, "slow", null));
-        assertThat(ranker.topEach(List.of("nhún chân"), docs, 5).getFirst()).containsExactly(1);
+        assertThat(ranker.topEach(List.of("nhún chân"), docs, 5).getFirst()).containsExactly(1, 0, 2);
     }
 }

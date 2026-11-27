@@ -37,8 +37,12 @@ public final class EduAiResponse {
     @Schema(name = "EduAiGoalContentMapResponse")
     public record GoalContentMap(List<GoalContentMatch> matches, List<FailedDomain> failedDomains) {}
 
+    /**
+     * EDU-106/115: source CURRICULUM_C | CURRICULUM_D | PREVIOUS_YEAR | RAG (chữ chép từ nguồn) | AI (AI tự viết khi không
+     * khớp nguồn nào); ref chỉ có với RAG.
+     */
     @Schema(name = "EduAiGoalContentMatchResponse")
-    public record GoalContentMatch(Long goalId, Long curriculumContentId, String text, String from) {}
+    public record GoalContentMatch(Long goalId, String text, String source, RagRef ref, String from) {}
 
     /** Đoạn tham khảo RAG (thử tìm kiếm): sim là điểm đã xếp hạng (WEB ×0,8, cộng thưởng khớp tuổi/mã). */
     @Schema(name = "EduAiRagHitResponse")

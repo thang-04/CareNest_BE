@@ -2,6 +2,7 @@ package com.carenest.controller.eduplan;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -82,19 +83,31 @@ class EduAiControllerTest {
     @Test
     void annualEndpointReturnsVerifiedCatalogText() throws Exception {
         user();
-        given(ai.matchGoalContents(any(), eq(9L)))
+        given(ai.matchGoalContents(any(), eq(9L), isNull()))
                 .willReturn(new EduAiResponse.GoalContentMap(
-                        List.of(new EduAiResponse.GoalContentMatch(1L, 2L, "Hát theo giai điệu", "hát")), List.of()));
+                        List.of(new EduAiResponse.GoalContentMatch(
+                                1L, "Hát theo giai điệu", "CURRICULUM_C", null, "hát")),
+                        List.of()));
         mvc.perform(post("/api/education-plans/ai/year-plans/9/goal-content-map")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.matches[0].text").value("Hát theo giai điệu"));
+                .andExpect(jsonPath("$.data.matches[0].text").value("Hát theo giai điệu"))
+                .andExpect(jsonPath("$.data.matches[0].source").value("CURRICULUM_C"));
+        given(ai.matchGoalContents(any(), eq(9L), eq(5L)))
+                .willReturn(new EduAiResponse.GoalContentMap(List.of(), List.of()));
+        mvc.perform(post("/api/education-plans/ai/year-plans/9/goal-content-map")
+                        .contentType("application/json")
+                        .content("{\"goalId\":5}")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+                .andExpect(status().isOk());
+        org.mockito.Mockito.verify(ai).matchGoalContents(any(), eq(9L), eq(5L));
     }
 
     @Test
     void annualEndpointRelaysServicePermissionFailure() throws Exception {
         user();
-        given(ai.matchGoalContents(any(), any())).willThrow(GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN));
+        given(ai.matchGoalContents(any(), any(), any()))
+                .willThrow(GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN));
         mvc.perform(post("/api/education-plans/ai/year-plans/9/goal-content-map")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
                 .andExpect(status().isForbidden());

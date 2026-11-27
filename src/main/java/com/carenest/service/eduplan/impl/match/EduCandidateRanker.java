@@ -50,7 +50,11 @@ public class EduCandidateRanker {
         for (int i = 0; i < queries.size(); i++) {
             double[] lexical = EduTextMatch.bm25(queries.get(i), docs);
             double[] semantic = qv == null ? null : EduTextMatch.cosine(qv.get(i), dv);
-            out.add(EduTextMatch.fuse(k, java.util.Arrays.asList(lexical, semantic)));
+            List<Integer> top = new ArrayList<>(EduTextMatch.fuse(k, java.util.Arrays.asList(lexical, semantic)));
+            // Không có vector thì câu khớp nghĩa nhưng khác chữ bị điểm 0: điền thêm theo thứ tự gốc cho đủ K để AI vẫn
+            // thấy
+            for (int d = 0; d < docs.size() && top.size() < k; d++) if (!top.contains(d)) top.add(d);
+            out.add(top);
         }
         return out;
     }

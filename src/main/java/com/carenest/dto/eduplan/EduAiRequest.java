@@ -48,6 +48,9 @@ public final class EduAiRequest {
             @Size(max = 20) List<@Size(max = 1000) String> lines) {}
 
     /** Sửa theo yêu cầu: một câu giáo viên gõ. */
+    /** EDU-106: goalId null ⇒ mọi mục tiêu chưa có nội dung; có ⇒ đúng mục tiêu đó, kể cả đã có nội dung. */
+    public record GoalContents(Long goalId) {}
+
     public record EditDay(@NotBlank @Size(max = 500) String prompt) {}
 
     /** EDU-103: yêu cầu tổ trưởng gõ cho từng chủ đề (không bắt buộc); nội dung BE tự đọc từ kế hoạch. */
