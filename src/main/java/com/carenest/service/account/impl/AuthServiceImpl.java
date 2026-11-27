@@ -1,6 +1,7 @@
 package com.carenest.service.account.impl;
 
 import com.carenest.config.AuthProperties;
+import com.carenest.config.ClockConfig;
 import com.carenest.dto.account.AuthRequests;
 import com.carenest.dto.account.AuthResponses;
 import com.carenest.dto.account.MyAccountResponse;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.stereotype.Service;
@@ -68,7 +70,7 @@ public class AuthServiceImpl implements AuthService {
             JwtDecoder jwtDecoder,
             CurrentUserService currentUsers,
             AccountService accountService,
-            Clock clock,
+            @Qualifier(ClockConfig.SYSTEM_CLOCK) Clock clock,
             KeycloakProperties identity,
             AuthRefreshCoalescer refreshes,
             WebSessionTakeoverStore takeovers) {

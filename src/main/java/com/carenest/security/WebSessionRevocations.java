@@ -1,5 +1,6 @@
 package com.carenest.security;
 
+import com.carenest.config.ClockConfig;
 import com.carenest.entity.account.RevokedWebSession;
 import com.carenest.repository.account.RevokedWebSessionRepository;
 import java.time.Clock;
@@ -9,7 +10,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -24,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
  * hạn. Kiểm bằng bộ nhớ (không gọi Keycloak/DB mỗi request); DB chỉ để nạp lại sau khi khởi động (API 1 instance).
  */
 @Component
-@RequiredArgsConstructor
 public class WebSessionRevocations implements OAuth2TokenValidator<Jwt> {
     public static final String ERROR_CODE = "web_session_replaced";
     public static final String ENDED_ERROR_CODE = "web_session_ended";
@@ -37,6 +37,13 @@ public class WebSessionRevocations implements OAuth2TokenValidator<Jwt> {
     private final RevokedWebSessionRepository repository;
     private final Clock clock;
     private final Map<String, Revoked> revoked = new ConcurrentHashMap<>();
+
+    // So với hạn access token thật nên luôn theo giờ thật, kể cả khi Dev Mode giả lập giờ
+    public WebSessionRevocations(
+            RevokedWebSessionRepository repository, @Qualifier(ClockConfig.SYSTEM_CLOCK) Clock clock) {
+        this.repository = repository;
+        this.clock = clock;
+    }
 
     /** REPLACED: đăng nhập mới hơn thay thế (FE báo 1016); ENDED: người dùng đã đăng xuất (401 thường). */
     public enum Reason {
