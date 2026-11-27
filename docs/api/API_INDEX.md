@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 451 endpoint.
+Tổng: 454 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -438,6 +438,7 @@ POST /school-years/{schoolYearId}/activate · src/main/java/com/carenest/control
 POST /school-years/{schoolYearId}/classes/copy · src/main/java/com/carenest/controller/organization/ClassController.java#copyClasses
 POST /school-years/{schoolYearId}/close · src/main/java/com/carenest/controller/organization/SchoolYearController.java#closeSchoolYear
 POST /school-years/{schoolYearId}/copy · src/main/java/com/carenest/controller/organization/SchoolYearController.java#copyYear
+DELETE /school-years/{schoolYearId}/cutoff · src/main/java/com/carenest/controller/organization/AttendanceCutoffController.java#cancelScheduledCutoff
 GET /school-years/{schoolYearId}/cutoff · src/main/java/com/carenest/controller/organization/AttendanceCutoffController.java#getCutoff
 PUT /school-years/{schoolYearId}/cutoff · src/main/java/com/carenest/controller/organization/AttendanceCutoffController.java#saveCutoff
 GET /school-years/{schoolYearId}/holidays · src/main/java/com/carenest/controller/organization/SchoolYearController.java#getHolidays

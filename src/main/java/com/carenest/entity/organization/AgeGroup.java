@@ -69,13 +69,6 @@ public class AgeGroup {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public static AgeGroup create(String code, short sortOrder) {
-        AgeGroup ageGroup = new AgeGroup();
-        ageGroup.code = code;
-        ageGroup.sortOrder = sortOrder;
-        return ageGroup;
-    }
-
     public void changeInfo(
             String name,
             String shortName,

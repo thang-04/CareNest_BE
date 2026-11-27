@@ -301,7 +301,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             // Ngày ngoài năm học của lớp không ghi điểm danh (sau ngày kết thúc chỉ ghi ngày trong năm được mở lại)
             if ((cls.yearStart() != null && date.isBefore(cls.yearStart()))
                     || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
-                throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
+                throw GlobalException.of(ApiCode.ATTENDANCE_DATE_OUT_OF_YEAR);
             }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
             // Ngày khác hôm nay chỉ ghi được khi lớp/ngày đang được mở lại
@@ -448,7 +448,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                         && record.getStatus() == AttendanceStatus.EXCUSED
                         && fullDayTag != null
                         && !fullDayTag.noticeOnly()
-                        && fullDayTag.part() == LeavePart.FULL_DAY) {
+                        && fullDayTag.part() == LeavePart.FULL_DAY
+                        && !wasPresentBefore(record)) {
                     presentDespiteLeave.add(entry.childId());
                 }
                 DayPart absentPart = absentParts.containsKey(entry.childId())
@@ -507,6 +508,12 @@ public class AttendanceServiceImpl implements AttendanceService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // Đã từng ghi Có mặt trong ngày thì phụ huynh đã được báo, đổi qua lại không báo nữa
+    private boolean wasPresentBefore(AttendanceRecord record) {
+        return historyRepository.findByRecordIdOrderByIdAsc(record.getId()).stream()
+                .anyMatch(h -> h.getStatus() == AttendanceStatus.PRESENT);
     }
 
     private void notifyGuardiansPresent(List<Long> childIds, LocalDate date) {

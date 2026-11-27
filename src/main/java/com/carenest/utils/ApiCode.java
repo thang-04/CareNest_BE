@@ -294,6 +294,8 @@ public enum ApiCode {
     AGE_GROUP_STANDARD_INVALID(2221, HttpStatus.BAD_REQUEST, "Nhóm tuổi chuẩn không hợp lệ"),
     AGE_GROUP_MAX_EXCEEDS_STANDARD(
             2222, HttpStatus.BAD_REQUEST, "Sĩ số tối đa của {0} không được vượt quá {1} trẻ/lớp"),
+    AGE_GROUP_RANGE_LOCKED(
+            2225, HttpStatus.CONFLICT, "Nhóm tuổi đã có trẻ ở năm đang hoạt động, không đổi được độ tuổi"),
     AGE_GROUP_MEMBERSHIP_YEAR_NOT_PLANNED(
             2223,
             HttpStatus.CONFLICT,
@@ -455,9 +457,15 @@ public enum ApiCode {
             "Đã tới giờ bắt đầu buổi chiều ({0}), không gửi hoặc hủy báo nghỉ chiều hôm nay"),
     LEAVE_OUTSIDE_SCHOOL_YEAR(4034, HttpStatus.BAD_REQUEST, "Đơn nghỉ phải nằm trong năm học ({0} – {1})"),
     LEAVE_CHILD_ABSENT_TODAY(4033, HttpStatus.CONFLICT, "Trẻ đã được điểm danh vắng hôm nay, không cần báo nghỉ chiều"),
+    ATTENDANCE_DATE_OUT_OF_YEAR(4043, HttpStatus.BAD_REQUEST, "Ngày điểm danh phải nằm trong năm học của lớp"),
     LEAVE_CHILD_LEAVING(4035, HttpStatus.CONFLICT, "Trẻ nghỉ học từ {0}, không gửi đơn nghỉ cho các ngày từ ngày này"),
     CUTOFF_FIRST_FROM_YEAR_START(
             4040, HttpStatus.BAD_REQUEST, "Giờ chốt đầu tiên của năm học phải áp dụng từ ngày bắt đầu năm học {0}"),
+    CUTOFF_NOT_SCHEDULED(4041, HttpStatus.CONFLICT, "Chỉ hủy được lịch giờ chốt chưa tới ngày áp dụng"),
+    CUTOFF_FIRST_NOT_CANCELLABLE(
+            4042,
+            HttpStatus.CONFLICT,
+            "Không hủy được giờ chốt đầu tiên của năm học; muốn đổi thì lưu giờ khác cho ngày đó"),
     CUTOFF_CHANGE_TOO_LATE(
             4039,
             HttpStatus.CONFLICT,

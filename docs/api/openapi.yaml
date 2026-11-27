@@ -10578,6 +10578,30 @@ paths:
       tags:
       - school-year-controller
   /api/school-years/{schoolYearId}/cutoff:
+    delete:
+      operationId: cancelScheduledCutoff
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: effectiveFrom
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCutoffResponse"
+          description: OK
+      tags:
+      - attendance-cutoff-controller
     get:
       operationId: getCutoff
       parameters:
@@ -14323,6 +14347,11 @@ components:
         id:
           type: integer
           format: int64
+        lockedTeacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
         name:
           type: string
         teacherIds:

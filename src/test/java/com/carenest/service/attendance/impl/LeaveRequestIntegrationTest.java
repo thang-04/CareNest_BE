@@ -835,6 +835,18 @@ class LeaveRequestIntegrationTest {
         assertThat(row.record().absentPart()).isNull();
         assertThat(row.leave()).isNotNull();
         assertThat(attendedDays(child1)).isEqualTo(1.0);
+
+        // Đổi qua lại trong ngày: phụ huynh chỉ nhận "Cô đã ghi con có mặt" một lần
+        String sent = "SELECT count(*) FROM notifications WHERE title = 'Cô đã ghi con có mặt'";
+        Long first = jdbc.queryForObject(sent, Long.class);
+        for (AttendanceStatus status : List.of(AttendanceStatus.EXCUSED, AttendanceStatus.PRESENT)) {
+            attendanceService.saveClassAttendance(
+                    teacherA,
+                    classA,
+                    new SaveAttendanceRequest(TODAY, List.of(new SaveAttendanceRequest.Entry(child1, status, null))));
+        }
+        assertThat(first).isPositive();
+        assertThat(jdbc.queryForObject(sent, Long.class)).isEqualTo(first);
     }
 
     private void reopenToday() {

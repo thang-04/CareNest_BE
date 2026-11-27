@@ -140,9 +140,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
                         teacherIds,
                         NotificationType.ATTENDANCE_DAY_UNLOCKED,
                         "Mở lại điểm danh " + cls.name(),
-                        "Điểm danh ngày " + DMY.format(date)
-                                + " được mở lại để kiểm tra, sửa (đánh giá ngày đó cũng được mở lại nếu đã khóa). Lý do: "
-                                + reason,
+                        "Điểm danh ngày " + DMY.format(date) + " được mở lại để kiểm tra, sửa. Lý do: " + reason,
                         null);
             }
             eventPublisher.publishEvent(new AttendanceDayUnlockedEvent(
@@ -160,6 +158,8 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
         String logPrefix = LOG_PREFIX + "|revokeUnlock|userId=" + currentUser.userId() + "|unlockId=" + unlockId;
         log.info("{}|START", logPrefix);
         try {
+            // Khóa lớp trước khi đọc lượt mở: không thu hồi giữa lúc giáo viên đang lưu điểm danh
+            unlockRepository.findClassroomIdById(unlockId).ifPresent(classroomService::lockForUpdate);
             AttendanceDayUnlock unlock = unlockRepository
                     .findById(unlockId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.ATTENDANCE_UNLOCK_NOT_FOUND));
@@ -170,7 +170,10 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             if (!unlock.isActiveAt(now)) {
                 throw GlobalException.of(ApiCode.UNLOCK_ALREADY_ENDED);
             }
+            Instant previousUntil = unlock.getValidUntil();
             unlock.revoke(currentUser.userId(), now);
+            eventPublisher.publishEvent(new AttendanceDayUnlockRevokedEvent(
+                    unlock.getClassroomId(), unlock.getDate(), previousUntil, currentUser.userId()));
             String className = classroomService
                     .findClassroomInfo(unlock.getClassroomId())
                     .map(ClassroomInfoResponse::name)

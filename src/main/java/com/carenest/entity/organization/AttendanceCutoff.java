@@ -13,11 +13,13 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLRestriction;
 
-/** Một lần đặt giờ chốt; không sửa dòng cũ (lịch sử). */
+/** Một lần đặt giờ chốt; không sửa dòng cũ (lịch sử). Lịch đã hủy giữ trong bảng nhưng không đọc lên. */
 @Getter
 @Entity
 @Table(name = "attendance_cutoffs")
+@SQLRestriction("cancelled_at is null")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AttendanceCutoff {
 
@@ -77,6 +79,17 @@ public class AttendanceCutoff {
 
     @Column(name = "created_by")
     private Long createdBy;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(name = "cancelled_by")
+    private Long cancelledBy;
+
+    public void cancel(Long userId, Instant at) {
+        this.cancelledAt = at;
+        this.cancelledBy = userId;
+    }
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

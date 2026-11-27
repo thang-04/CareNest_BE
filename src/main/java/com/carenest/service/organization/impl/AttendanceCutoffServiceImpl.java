@@ -154,18 +154,22 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             if (!violations.isEmpty()) {
                 throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, violations);
             }
-            if (!history.isEmpty()
-                    && history.getFirst().getCutoffTime().equals(time)
-                    && history.getFirst().getEffectiveFrom().equals(request.effectiveFrom())
-                    && history.getFirst().getLatestAfternoonArrival().equals(latestArrival)
-                    && history.getFirst().getDropoffOpenFrom().equals(dropoffOpenFrom)
-                    && history.getFirst().getMorningStart().equals(morningStart)
-                    && history.getFirst().getMorningEnd().equals(morningEnd)
-                    && history.getFirst().getAfternoonStart().equals(afternoonStart)
-                    && history.getFirst().getPickupStart().equals(pickupStart)
-                    && history.getFirst().getFullDayPickupFrom().equals(fullDayPickupFrom)
-                    && history.getFirst().getPickupEnd().equals(pickupEnd)
-                    && history.getFirst().getAfternoonEnd().equals(afternoonEnd)) {
+            // So với bản đang giữ cho đúng ngày áp dụng đó, không phải lần lưu cuối (có thể là ngày khác)
+            AttendanceCutoff sameDate = history.stream()
+                    .filter(c -> c.getEffectiveFrom().equals(request.effectiveFrom()))
+                    .findFirst()
+                    .orElse(null);
+            if (sameDate != null
+                    && sameDate.getCutoffTime().equals(time)
+                    && sameDate.getLatestAfternoonArrival().equals(latestArrival)
+                    && sameDate.getDropoffOpenFrom().equals(dropoffOpenFrom)
+                    && sameDate.getMorningStart().equals(morningStart)
+                    && sameDate.getMorningEnd().equals(morningEnd)
+                    && sameDate.getAfternoonStart().equals(afternoonStart)
+                    && sameDate.getPickupStart().equals(pickupStart)
+                    && sameDate.getFullDayPickupFrom().equals(fullDayPickupFrom)
+                    && sameDate.getPickupEnd().equals(pickupEnd)
+                    && sameDate.getAfternoonEnd().equals(afternoonEnd)) {
                 throw GlobalException.of(ApiCode.CUTOFF_UNCHANGED);
             }
             // Đổi giờ chốt lùi ngày làm đổi lại đơn nghỉ đã tính theo giờ chốt cũ (ATT-04): lần đặt sau chỉ áp dụng từ
@@ -216,6 +220,57 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public CutoffResponse cancelScheduledCutoff(CurrentUser currentUser, Long schoolYearId, LocalDate effectiveFrom) {
+        String logPrefix =
+                LOG_PREFIX + "|cancelScheduledCutoff|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            schoolConfigAccess.checkPrincipal(currentUser);
+            SchoolYear year = findYear(schoolYearId);
+            SchoolYearRules.checkOpen(year);
+            List<AttendanceCutoff> history =
+                    attendanceCutoffRepository.findAllBySchoolYearIdOrderByIdDesc(schoolYearId);
+            List<AttendanceCutoff> scheduled = history.stream()
+                    .filter(c -> c.getEffectiveFrom().equals(effectiveFrom))
+                    .toList();
+            // Hôm nay trở về trước đã áp dụng cho điểm danh và suất ăn
+            if (scheduled.isEmpty() || !effectiveFrom.isAfter(LocalDate.now(clock))) {
+                throw GlobalException.of(ApiCode.CUTOFF_NOT_SCHEDULED);
+            }
+            // Bỏ mốc sớm nhất sẽ để trống giờ chốt đầu năm học
+            if (history.stream().noneMatch(c -> c.getEffectiveFrom().isBefore(effectiveFrom))) {
+                throw GlobalException.of(ApiCode.CUTOFF_FIRST_NOT_CANCELLABLE);
+            }
+            scheduled.forEach(c -> c.cancel(currentUser.userId(), clock.instant()));
+            attendanceCutoffRepository.flush();
+            notifyCutoffCancelled(year, effectiveFrom);
+            CutoffResponse response = toResponse(year);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private void notifyCutoffCancelled(SchoolYear year, LocalDate from) {
+        List<Long> campusIds = campusRepository.findYearCampusIds(year.getId());
+        Set<Long> staff = staffAssignmentService.findActiveStaffUserIds(campusIds, LocalDate.now(clock));
+        if (staff.isEmpty()) {
+            return;
+        }
+        notificationService.notifyUsers(
+                staff,
+                NotificationType.CUTOFF_CHANGED,
+                "Hủy lịch đổi giờ điểm danh và báo ăn",
+                "Lịch đổi giờ chốt và lịch sinh hoạt từ ngày "
+                        + DateTimeFormatter.ofPattern("dd/MM/yyyy").format(from) + " của năm học " + year.getName()
+                        + " đã được hủy.",
+                "/attendance",
+                false);
     }
 
     private void notifyCutoffChanged(SchoolYear year, LocalTime time, LocalDate from) {

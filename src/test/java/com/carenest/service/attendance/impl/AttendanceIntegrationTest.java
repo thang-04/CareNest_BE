@@ -172,6 +172,16 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Ghi điểm danh ngày ngoài năm học báo đúng lý do, không báo \"chỉ hôm nay\"")
+    void dateOutsideSchoolYearHasOwnError() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.saveClassAttendance(
+                        teacherA, classA, request(LocalDate.of(2027, 7, 1), present(child1))))
+                .isInstanceOf(com.carenest.exception.GlobalException.class)
+                .extracting(ex -> ((com.carenest.exception.GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ATTENDANCE_DATE_OUT_OF_YEAR);
+    }
+
+    @Test
     @DisplayName("Năm đã kết thúc: PHT năm đó xem lại lớp điểm trường mình, dạy thay chỉ xem đúng ngày mình dạy")
     void closedYearReadsFollowThatYearsAssignments() {
         // PHT điểm trường A năm 2025-2026, năm nay không còn phân công

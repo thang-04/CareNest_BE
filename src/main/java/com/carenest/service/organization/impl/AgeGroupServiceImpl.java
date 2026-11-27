@@ -31,9 +31,6 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class AgeGroupServiceImpl implements AgeGroupService {
-    /** Sĩ số tối đa theo luật của nhóm lớn nhất (mẫu giáo 5–6 tuổi, V176). */
-    private static final int LEGAL_MAX_CLASS_SIZE = 35;
-
     private static final String LOG_PREFIX = "[AgeGroupServiceImpl]";
 
     private final AgeGroupRepository ageGroupRepository;
@@ -118,15 +115,7 @@ public class AgeGroupServiceImpl implements AgeGroupService {
             }
             AgeGroup ageGroup = standardGroup(request.standardAgeGroupId());
             AgeGroupRequest normalized = standardRequest(ageGroup, request);
-            List<AgeGroupDetailResponse> inYear = yearDetails(schoolYearId);
-            if (ageGroupRepository.isInYear(schoolYearId, ageGroup.getId())) {
-                throw GlobalException.of(ApiCode.AGE_GROUP_NAME_EXISTS);
-            }
-            checkNameInYear(inYear, normalized.name().trim(), null);
-            checkOverlapInYear(inYear, normalized.ageFromMonths(), normalized.ageToMonths(), null);
-            ageGroupRepository.addToYear(schoolYearId, ageGroup.getId());
-            saveYearInfo(year, ageGroup, normalized);
-            ageGroupRepository.flush();
+            addStandardGroup(year, ageGroup, normalized);
             AgeGroupDetailResponse response = detailInYear(schoolYearId, ageGroup.getId());
             log.info("{}|ageGroupId={}|END", logPrefix, ageGroup.getId());
             return response;
@@ -194,14 +183,8 @@ public class AgeGroupServiceImpl implements AgeGroupService {
         log.info("{}|START", logPrefix);
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
-            validate(request, null);
-            // API cũ không kèm năm học: vẫn không được vượt sĩ số tối đa theo luật của nhóm lớn nhất (Điều lệ GDMN)
-            if (request.maxClassSize() != null && request.maxClassSize() > LEGAL_MAX_CLASS_SIZE) {
-                throw GlobalException.of(ApiCode.AGE_GROUP_MAX_EXCEEDS_STANDARD, request.name(), LEGAL_MAX_CLASS_SIZE);
-            }
-            short sortOrder = (short) (ageGroupRepository.findMaxSortOrder() + 1);
-            AgeGroup ageGroup = AgeGroup.create(nextCode(sortOrder), sortOrder);
-            applyRequest(ageGroup, request);
+            AgeGroup ageGroup = standardGroup(request.standardAgeGroupId());
+            AgeGroupRequest normalized = standardRequest(ageGroup, request);
             // Gọi không kèm năm học (client cũ): như API theo năm, chỉ thêm vào năm sắp diễn ra; năm đang hoạt động /
             // đã
             // kết thúc không đổi
@@ -215,12 +198,16 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                         latest.getName(),
                         latest.getStatus().name());
             }
-            ageGroup = ageGroupRepository.save(ageGroup);
-            for (SchoolYear year : plannedYears) {
-                ageGroupRepository.addToYear(year.getId(), ageGroup.getId());
+            List<SchoolYear> targets = plannedYears.stream()
+                    .filter(y -> !ageGroupRepository.isInYear(y.getId(), ageGroup.getId()))
+                    .toList();
+            if (targets.isEmpty()) {
+                throw GlobalException.of(ApiCode.AGE_GROUP_NAME_EXISTS);
             }
+            targets.forEach(year -> addStandardGroup(year, ageGroup, normalized));
+            AgeGroupDetailResponse response = detailInYear(targets.get(0).getId(), ageGroup.getId());
             log.info("{}|ageGroupId={}|END", logPrefix, ageGroup.getId());
-            return schoolStructureMapper.toDetailResponse(ageGroup);
+            return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -251,6 +238,7 @@ public class AgeGroupServiceImpl implements AgeGroupService {
             checkNameInYear(inYear, normalized.name().trim(), ageGroupId);
             checkOverlapInYear(inYear, normalized.ageFromMonths(), normalized.ageToMonths(), ageGroupId);
             checkMaxClassSize(ageGroupId, normalized.maxClassSize(), schoolYearId);
+            checkRangeUnchangedWhenInUse(year, ageGroupId, inYear, normalized);
             saveYearInfo(year, ageGroup, normalized);
             ageGroupRepository.flush();
             AgeGroupDetailResponse response = detailInYear(schoolYearId, ageGroupId);
@@ -461,6 +449,19 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                 standard.getId());
     }
 
+    // SCH: chỉ thêm được nhóm trong danh mục chuẩn của Bộ (Cần chốt 27/11/2026)
+    private void addStandardGroup(SchoolYear year, AgeGroup standard, AgeGroupRequest request) {
+        if (ageGroupRepository.isInYear(year.getId(), standard.getId())) {
+            throw GlobalException.of(ApiCode.AGE_GROUP_NAME_EXISTS);
+        }
+        List<AgeGroupDetailResponse> inYear = yearDetails(year.getId());
+        checkNameInYear(inYear, request.name().trim(), null);
+        checkOverlapInYear(inYear, request.ageFromMonths(), request.ageToMonths(), null);
+        ageGroupRepository.addToYear(year.getId(), standard.getId());
+        saveYearInfo(year, standard, request);
+        ageGroupRepository.flush();
+    }
+
     private String inYear(Long schoolYearId) {
         return schoolYearId == null
                 ? ""
@@ -468,27 +469,6 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                         .findById(schoolYearId)
                         .map(y -> " ở năm học " + y.getName())
                         .orElse("");
-    }
-
-    private void validate(AgeGroupRequest request, Long excludeId) {
-        if (request.ageToMonths() <= request.ageFromMonths()) {
-            throw GlobalException.of(ApiCode.AGE_RANGE_INVALID);
-        }
-        if (ageGroupRepository.existsName(request.name().trim(), excludeId)) {
-            throw GlobalException.of(ApiCode.AGE_GROUP_NAME_EXISTS);
-        }
-        // Khoảng [from, to): hai nhóm trùng khi from1 < to2 và from2 < to1
-        ageGroupRepository.findAll().stream()
-                .filter(g -> excludeId == null || !g.getId().equals(excludeId))
-                .filter(g -> g.getAgeFromMonths() != null && g.getAgeToMonths() != null)
-                .filter(g ->
-                        request.ageFromMonths() < g.getAgeToMonths() && g.getAgeFromMonths() < request.ageToMonths())
-                .findFirst()
-                .ifPresent(g -> {
-                    throw GlobalException.of(
-                            ApiCode.AGE_RANGE_OVERLAP,
-                            g.getShortName() + " (" + g.getAgeFromMonths() + "–" + g.getAgeToMonths() + " tháng)");
-                });
     }
 
     // Không hạ sĩ số tối đa xuống dưới sĩ số/số trẻ của lớp năm đó thuộc nhóm tuổi
@@ -516,6 +496,31 @@ public class AgeGroupServiceImpl implements AgeGroupService {
         }
     }
 
+    // Nhóm đã có trẻ ở năm đang hoạt động thì giữ độ tuổi: lớp và kế hoạch giáo dục ghép theo khoảng tháng
+    private void checkRangeUnchangedWhenInUse(
+            SchoolYear year, Long ageGroupId, List<AgeGroupDetailResponse> inYear, AgeGroupRequest request) {
+        if (year.getStatus() != SchoolYearStatus.ACTIVE) {
+            return;
+        }
+        boolean changed = inYear.stream()
+                .anyMatch(g -> g.id().equals(ageGroupId)
+                        && (!request.ageFromMonths().equals(g.ageFromMonths())
+                                || !request.ageToMonths().equals(g.ageToMonths())));
+        if (!changed) {
+            return;
+        }
+        List<Long> classIds = classroomRepository.findOpenYearClassesByAgeGroupId(ageGroupId).stream()
+                .filter(c -> year.getId().equals(c.getSchoolYearId()))
+                .map(Classroom::getId)
+                .toList();
+        if (!classIds.isEmpty()
+                && !classroomRepository
+                        .countActiveChildren(classIds, schoolConfigAccess.today())
+                        .isEmpty()) {
+            throw GlobalException.of(ApiCode.AGE_GROUP_RANGE_LOCKED);
+        }
+    }
+
     private static void applyRequest(AgeGroup ageGroup, AgeGroupRequest request) {
         ageGroup.changeInfo(
                 request.name().trim(),
@@ -525,15 +530,6 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                 request.mealSessions(),
                 request.maxClassSize().shortValue(),
                 request.nutritionNote() == null ? "" : request.nutritionNote().trim());
-    }
-
-    private String nextCode(short sortOrder) {
-        String code = "ag-" + sortOrder;
-        int suffix = 1;
-        while (ageGroupRepository.existsByCode(code)) {
-            code = "ag-" + sortOrder + "-" + suffix++;
-        }
-        return code;
     }
 
     private static Comparator<AgeGroup> ageOrder() {

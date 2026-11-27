@@ -17,6 +17,9 @@ public interface AttendanceCutoffService {
 
     CutoffResponse saveCutoff(CurrentUser currentUser, Long schoolYearId, CutoffRequest request);
 
+    /** Hủy lịch giờ chốt của một ngày chưa tới (mọi bản lưu cho ngày đó). */
+    CutoffResponse cancelScheduledCutoff(CurrentUser currentUser, Long schoolYearId, LocalDate effectiveFrom);
+
     Optional<LocalTime> findCutoffTime(Long schoolYearId, LocalDate date);
 
     /** Lịch sinh hoạt đang hiệu lực của năm học tại :date; rỗng khi chưa cấu hình. */
