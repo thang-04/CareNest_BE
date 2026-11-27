@@ -194,6 +194,13 @@ public class ChildEvaluation {
         this.finalContent = content;
     }
 
+    /** Sửa lại bản đã xác nhận: mở lại trong cùng giao dịch, chỉ giữ ô cô đã sửa tay (OBS-30). */
+    public void reopenForRevision(String manualGoalResults) {
+        this.status = EvaluationStatus.AWAITING_REVIEW;
+        this.goalResults = manualGoalResults;
+        this.sheetPresentation = null;
+    }
+
     public void confirm(String content, Long userId, Instant at) {
         this.finalContent = content;
         this.status = EvaluationStatus.CONFIRMED;

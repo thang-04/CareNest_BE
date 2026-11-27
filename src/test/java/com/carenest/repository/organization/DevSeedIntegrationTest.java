@@ -64,7 +64,9 @@ class DevSeedIntegrationTest {
             // cách cũ (revertLegacy)
             "leave_attendance_effects",
             // Lịch sử sửa giờ trả trẻ chỉ ghi khi GV sửa lúc chạy (V207)
-            "pickup_time_changes");
+            "pickup_time_changes",
+            // Bản đánh giá đã thay chỉ ghi khi GV xác nhận lại (V210)
+            "evaluation_revisions");
 
     @Container
     @ServiceConnection

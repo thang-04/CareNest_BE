@@ -1931,6 +1931,31 @@ paths:
           description: OK
       tags:
       - semester-assessment-controller
+  /api/assessment/semester-evaluations/revision:
+    get:
+      operationId: getSemesterRevision
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: semester
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
+          description: OK
+      tags:
+      - semester-assessment-controller
   /api/assessment/theme-evaluations:
     get:
       operationId: getEvaluation
@@ -2001,6 +2026,31 @@ paths:
             schema:
               $ref: "#/components/schemas/ThemeEvaluationRequest"
         required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonThemeEvaluationResponse"
+          description: OK
+      tags:
+      - theme-evaluation-controller
+  /api/assessment/theme-evaluations/revision:
+    get:
+      operationId: getRevision
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: themeId
+        required: true
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -16719,6 +16769,10 @@ components:
       properties:
         content:
           type: string
+        programCompleted:
+          type: boolean
+        sheet:
+          $ref: "#/components/schemas/YearEndSheetRequest"
     EvaluationDay:
       type: object
       properties:
@@ -28444,6 +28498,8 @@ components:
           type: boolean
         canEdit:
           type: boolean
+        canRevise:
+          type: boolean
         classId:
           type: integer
           format: int64
@@ -29526,6 +29582,8 @@ components:
         canConfirm:
           type: boolean
         canEdit:
+          type: boolean
+        canRevise:
           type: boolean
         classId:
           type: integer
@@ -30841,6 +30899,8 @@ components:
         ageGroupName:
           type: string
         canEdit:
+          type: boolean
+        canRevise:
           type: boolean
         classId:
           type: integer

@@ -1098,3 +1098,6 @@ Mục đích: yêu cầu và quyền mở ghi biên bản kiểm thực / sổ l
 | consumed_at | TIMESTAMPTZ | có | Lúc ký thành công đóng quyền mở | INS-05 |
 Index: `uk_inspection_day_grants_open` unique một phần `(campus_id, sheet_date, tab)` khi `status IN ('PENDING','APPROVED')` (mỗi phạm vi chỉ một dòng đang mở); `idx_inspection_day_grants_day (campus_id, sheet_date)`; `idx_inspection_day_grants_queue (status, requested_at)` cho hàng chờ HT.
 Quá hạn tính lười: dòng `APPROVED` quá `expires_at` vẫn nằm trong bảng, API trả `EXPIRED`; yêu cầu mới của cùng phạm vi đóng dòng cũ thành `EXPIRED` rồi mới tạo dòng mới.
+
+## evaluation_revisions  (module: learning-observation, scope: CHILD)
+Mục đích: bản đánh giá đã xác nhận bị thay bằng bản sửa lại (OBS-30). Migration: `V210__evaluation_revisions.sql`. Cột: id, kind (`THEME`/`SEMESTER`/`YEAR`), evaluation_id (bảng theo kind, không FK), snapshot (nội dung bản cũ), replaced_by (FK `user_accounts`), replaced_at. Chỉ thêm, không sửa, không xóa.

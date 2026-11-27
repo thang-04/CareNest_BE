@@ -66,5 +66,68 @@ public final class SemesterAssessmentDtos {
             Instant confirmedAt,
             String confirmedByName,
             // Họ tên in ở chỗ ký: GV chủ nhiệm, tổ trưởng chuyên môn, PHT (như bản in cuối chủ đề)
-            ThemeEvaluationDtos.ThemeSigners signers) {}
+            ThemeEvaluationDtos.ThemeSigners signers,
+            Boolean canRevise) {
+
+        public Response(
+                Long classId,
+                String className,
+                Long schoolYearId,
+                String yearName,
+                int semester,
+                LocalDate startDate,
+                LocalDate endDate,
+                String status,
+                String note,
+                List<Domain> domains,
+                List<Child> rows,
+                boolean canEdit,
+                boolean canConfirm,
+                String confirmBlockedReason,
+                Instant confirmedAt,
+                String confirmedByName,
+                ThemeEvaluationDtos.ThemeSigners signers) {
+            this(
+                    classId,
+                    className,
+                    schoolYearId,
+                    yearName,
+                    semester,
+                    startDate,
+                    endDate,
+                    status,
+                    note,
+                    domains,
+                    rows,
+                    canEdit,
+                    canConfirm,
+                    confirmBlockedReason,
+                    confirmedAt,
+                    confirmedByName,
+                    signers,
+                    null);
+        }
+
+        public Response withCanRevise(boolean value) {
+            return new Response(
+                    classId,
+                    className,
+                    schoolYearId,
+                    yearName,
+                    semester,
+                    startDate,
+                    endDate,
+                    status,
+                    note,
+                    domains,
+                    rows,
+                    canEdit,
+                    canConfirm,
+                    confirmBlockedReason,
+                    confirmedAt,
+                    confirmedByName,
+                    signers,
+                    value);
+        }
+    }
 }

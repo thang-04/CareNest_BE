@@ -41,7 +41,11 @@ class EvaluationLockOrderTest {
                 mock(EvaluationNotifier.class),
                 mock(com.carenest.service.observation.EvaluationDeadlineService.class),
                 mock(AiPeriodCommentDraftGenerator.class),
-                mock(PeriodCommentFactsBuilder.class));
+                mock(PeriodCommentFactsBuilder.class),
+                mock(com.carenest.repository.observation.RewardListRepository.class),
+                mock(com.carenest.repository.observation.RewardListItemRepository.class),
+                mock(com.carenest.repository.observation.EvaluationRevisionRepository.class),
+                new tools.jackson.databind.ObjectMapper());
         var user = new CurrentUser(
                 1L,
                 "demo",

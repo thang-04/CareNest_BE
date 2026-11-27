@@ -1040,6 +1040,10 @@ public enum ApiCode {
     EVALUATION_UNLOCK_NOT_FOUND(7407, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại đánh giá"),
     EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
     SUBMIT_HOMEROOM_ONLY(7409, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được gửi duyệt"),
+    EVALUATION_PROGRAM_REWARD_LOCKED(
+            7413,
+            HttpStatus.CONFLICT,
+            "Đề xuất khen thưởng của trẻ đã gửi hoặc đã duyệt; cần trả lại danh sách trước khi đổi kết quả hoàn thành chương trình"),
     CONFIRM_HOMEROOM_ONLY(7410, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được xác nhận đánh giá"),
     // EDU-95: còn phần AI gợi ý chưa Giữ / Bỏ thì chưa gửi duyệt
     AI_DRAFT_PENDING(7411, HttpStatus.CONFLICT, "Còn {0} ngày có phần AI gợi ý chưa Giữ / Bỏ"),

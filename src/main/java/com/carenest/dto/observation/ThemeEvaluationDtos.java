@@ -66,7 +66,35 @@ public final class ThemeEvaluationDtos {
             boolean canConfirm,
             String confirmedByName,
             Instant confirmedAt,
-            ThemeSigners signers) {}
+            ThemeSigners signers,
+            // Bản đã xác nhận mà người xem được sửa lại (còn hạn hoặc đang mở lại)
+            Boolean canRevise) {
+
+        public ThemeEvaluationResponse withCanRevise(boolean value) {
+            return new ThemeEvaluationResponse(
+                    classId,
+                    className,
+                    themeId,
+                    themeName,
+                    startDate,
+                    endDate,
+                    period,
+                    status,
+                    note,
+                    goals,
+                    rows,
+                    assessedChildren,
+                    passedChildren,
+                    notPassedChildren,
+                    passPercent,
+                    canEdit,
+                    canConfirm,
+                    confirmedByName,
+                    confirmedAt,
+                    signers,
+                    value);
+        }
+    }
 
     /**
      * Họ tên in dưới chỗ ký của bản in (không phải bước duyệt): GV chủ nhiệm (chưa có thì các GV lớp), tổ trưởng nhóm tuổi, PHT ban hành kế hoạch năm

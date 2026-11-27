@@ -201,29 +201,30 @@ class WeeklyCommentIntegrationTest {
     }
 
     @Test
-    void transferKeepsOldDraftAndAllowsIndependentReceivingClassComment() {
+    @DisplayName("Chuyển lớp: cô lớp cũ vẫn viết, gửi nhận xét tuần trẻ học ở lớp mình; lớp mới viết bản riêng")
+    void transferredChildKeepsOldClassCommentAndReceivingClassWritesItsOwn() {
         service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Nháp lớp cũ"));
         jdbc.update("UPDATE enrollments SET valid_to = '2026-10-28' WHERE child_id = ?", child1);
         jdbc.update(
                 "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-10-29')",
                 child1,
                 classB);
-        assertThatThrownBy(() -> service.saveDraft(
-                        teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Không được sửa")))
-                .isInstanceOf(GlobalException.class);
+
+        var old =
+                service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Cô lớp cũ viết thêm"));
+        assertThat(row(old, child1).historical()).isFalse();
         var received =
                 service.saveDraft(teacherB, new WeeklyCommentSaveRequest(classB, WEEK, child1, "Nhận xét lớp mới"));
         assertThat(row(received, child1).content()).isEqualTo("Nhận xét lớp mới");
-        assertThat(row(received, child1).historical()).isFalse();
+
+        var sent = service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Gửi từ lớp cũ"));
+        assertThat(row(sent, child1).status()).isEqualTo("SENT");
         assertThat(jdbc.queryForObject(
                         "SELECT content FROM weekly_comments WHERE child_id = ? AND classroom_id = ?",
                         String.class,
                         child1,
-                        classA))
-                .isEqualTo("Nháp lớp cũ");
-        assertThatThrownBy(() ->
-                        service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Không được gửi")))
-                .isInstanceOf(GlobalException.class);
+                        classB))
+                .isEqualTo("Nhận xét lớp mới");
     }
 
     @Test
