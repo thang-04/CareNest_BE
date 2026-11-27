@@ -2,6 +2,7 @@ package com.carenest.service.organization.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.carenest.dto.organization.CampusDetailResponse;
 import com.carenest.dto.organization.CampusRequest;
@@ -53,6 +54,9 @@ class CampusServiceIntegrationTest {
 
     @Autowired
     private CampusService service;
+
+    @Autowired
+    private com.carenest.service.organization.YearSetupService yearSetupService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -463,6 +467,154 @@ class CampusServiceIntegrationTest {
         assertThat(service.changeCampusStatus(principal, campusB, CampusStatus.ACTIVE)
                         .status())
                 .isEqualTo(CampusStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("Ngừng điểm trường trong năm sắp diễn ra: PHT của năm trước không hiện ở danh sách thì không chặn")
+    void carriedOverVicePrincipalDoesNotBlockPlannedYear() {
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                planned);
+        long vpB = insertVicePrincipal("kc-vpb", "PHT năm trước", "2026-09-01");
+
+        assertThat(service.getCampuses(principal, planned))
+                .filteredOn(c -> c.id() == campusB)
+                .singleElement()
+                .satisfies(c -> assertThat(c.vicePrincipals()).isEmpty());
+        assertThat(service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE, planned)
+                        .status())
+                .isEqualTo(CampusStatus.INACTIVE);
+
+        // Phân công của chính năm đó vẫn chặn và nêu tên
+        service.changeCampusStatus(principal, campusB, CampusStatus.ACTIVE, planned);
+        jdbc.update("UPDATE staff_assignments SET valid_from = '2027-08-02' WHERE user_id = ?", vpB);
+        assertThatThrownBy(() -> service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE, planned))
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("PHT năm trước");
+    }
+
+    @Test
+    @DisplayName("Ngừng điểm trường: phân công PHT của năm đã kết thúc không còn hiện thì không chặn")
+    void endedYearVicePrincipalDoesNotBlockDeactivation() {
+        insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
+        insertVicePrincipal("kc-vpb", "PHT năm đã qua", "2025-09-01");
+
+        assertThat(service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE)
+                        .status())
+                .isEqualTo(CampusStatus.INACTIVE);
+    }
+
+    @Test
+    @DisplayName("Phó hiệu trưởng bị khóa tài khoản vẫn hiện ở điểm trường, kèm cờ locked")
+    void lockedVicePrincipalIsFlagged() {
+        assertThat(service.getCampuses(principal, null).getFirst().vicePrincipals())
+                .extracting("locked")
+                .containsExactly(false);
+
+        jdbc.update("UPDATE user_accounts SET status = 'INACTIVE' WHERE id = ?", vicePrincipal.userId());
+
+        assertThat(service.getCampuses(principal, null).getFirst().vicePrincipals())
+                .extracting("fullName", "locked")
+                .containsExactly(tuple("Phó HT IT", true));
+        assertThat(service.getCampusDetail(principal, campusA, null).vicePrincipals())
+                .extracting("locked")
+                .containsExactly(true);
+    }
+
+    @Test
+    @DisplayName("Bỏ điểm trường khỏi năm sắp diễn ra: PHT của năm trước không hiện thì không chặn")
+    void carriedOverVicePrincipalDoesNotBlockRemovalFromYear() {
+        long planned = insertPlannedYearWithCampuses();
+        long vpB = insertVicePrincipal("kc-vpb", "PHT năm trước", "2026-09-01");
+        jdbc.update("UPDATE staff_assignments SET valid_from = '2027-08-02' WHERE user_id = ?", vpB);
+
+        // Phân công của chính năm đó vẫn chặn và nêu tên
+        assertThatThrownBy(() -> service.deleteCampus(principal, campusB, planned))
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("PHT năm trước");
+
+        jdbc.update("UPDATE staff_assignments SET valid_from = '2026-09-01' WHERE user_id = ?", vpB);
+        service.deleteCampus(principal, campusB, planned);
+
+        assertThat(service.getCampuses(principal, planned))
+                .extracting(CampusResponse::id)
+                .doesNotContain(campusB);
+        assertThat(service.getCampuses(principal, null))
+                .extracting(CampusResponse::id)
+                .contains(campusB);
+    }
+
+    @Test
+    @DisplayName("Chi tiết điểm trường năm sắp diễn ra hiện giáo viên đã phân công cho năm đó")
+    void plannedYearDetailListsAssignedTeachers() {
+        long planned = insertPlannedYearWithCampuses();
+        long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusA + ", "
+                + planned + ", 'Lớp A2') RETURNING id");
+        insertTeacher("kc-gv1", "GV từ ngày chuẩn bị", classroom, "2027-08-02");
+        insertTeacher("kc-gv2", "GV từ đầu năm", classroom, "2027-09-01");
+
+        assertThat(service.getCampusDetail(principal, campusA, planned).teachers())
+                .extracting("fullName")
+                .containsExactlyInAnyOrder("GV từ ngày chuẩn bị", "GV từ đầu năm");
+    }
+
+    @Test
+    @DisplayName("SCH-04: giáo viên bị khóa tài khoản không tính là đủ giáo viên khi kiểm tra chuẩn bị năm")
+    void lockedTeacherIsNotCountedInYearSetup() {
+        long planned = insertPlannedYearWithCampuses();
+        long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusA + ", "
+                + planned + ", 'Lớp A2') RETURNING id");
+        insertTeacher("kc-gv1", "GV chủ nhiệm", classroom, "2027-08-02");
+        insertTeacher("kc-gv2", "GV thứ hai", classroom, "2027-08-02");
+        jdbc.update("UPDATE staff_assignments SET is_homeroom = TRUE WHERE user_id ="
+                + " (SELECT id FROM user_accounts WHERE username = 'kc-gv1')");
+
+        assertThat(yearSetupService.getYearSetup(planned).classes())
+                .extracting("teacherCount", "hasHomeroom")
+                .containsExactly(tuple(2, true));
+
+        jdbc.update("UPDATE user_accounts SET status = 'INACTIVE' WHERE username = 'kc-gv1'");
+
+        assertThat(yearSetupService.getYearSetup(planned).classes())
+                .extracting("teacherCount", "hasHomeroom")
+                .containsExactly(tuple(1, false));
+    }
+
+    private long insertPlannedYearWithCampuses() {
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                planned);
+        return planned;
+    }
+
+    private void insertTeacher(String keycloakId, String fullName, long classroomId, String validFrom) {
+        long userId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('"
+                + keycloakId + "', '" + keycloakId + "', '" + fullName + "') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to) "
+                        + "VALUES (?, 'TEACHER', ?, ?::date, '2028-05-31')",
+                userId,
+                classroomId,
+                validFrom);
+    }
+
+    private long insertVicePrincipal(String keycloakId, String fullName, String validFrom) {
+        long userId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('"
+                + keycloakId + "', '" + keycloakId + "', '" + fullName + "') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, ?::date)",
+                userId,
+                campusB,
+                validFrom);
+        return userId;
     }
 
     private long insertId(String sql) {

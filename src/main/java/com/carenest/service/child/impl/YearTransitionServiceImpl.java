@@ -789,8 +789,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                         ? "Chưa có lớp"
                         : (groupsWithClasses.size() - leaderMissing) + "/" + groupsWithClasses.size()
                                 + " nhóm tuổi có tổ trưởng (toàn trường)"));
-        // Lớp chưa có giáo viên hoặc chưa có chủ nhiệm chặn kích hoạt; lớp thiếu 1 GV chỉ cảnh báo (Cần chốt
-        // 22/10/2026)
+        // SCH-04 (Cần chốt 28/11/2026): mỗi lớp đủ 2 GV và có GV phụ trách chính mới kích hoạt được
         long noTeacher = classes.stream().filter(c -> c.teacherCount() == 0).count();
         long shortOne = classes.stream()
                 .filter(c -> c.teacherCount() > 0 && c.teacherCount() < TEACHERS_PER_CLASS)
@@ -798,22 +797,21 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         long noHomeroom = classes.stream()
                 .filter(c -> c.teacherCount() > 0 && !c.hasHomeroom())
                 .count();
-        boolean teachersOk = hasClasses && noTeacher == 0 && noHomeroom == 0;
+        boolean teachersOk = hasClasses && noTeacher == 0 && shortOne == 0 && noHomeroom == 0;
         String teachersDetail;
         if (!hasClasses) {
             teachersDetail = "Chưa có lớp";
         } else if (!teachersOk) {
             teachersDetail = Stream.of(
                             noTeacher > 0 ? noTeacher + " lớp chưa có giáo viên" : null,
+                            shortOne > 0 ? shortOne + " lớp thiếu 1 GV" : null,
                             noHomeroom > 0 ? noHomeroom + " lớp chưa có GV phụ trách chính" : null)
                     .filter(Objects::nonNull)
                     .collect(Collectors.joining(" · "));
         } else {
-            teachersDetail = "Tất cả lớp có GV và GV phụ trách chính"
-                    + (shortOne > 0 ? " · " + shortOne + " lớp thiếu 1 GV" : "");
+            teachersDetail = "Tất cả lớp đủ GV và có GV phụ trách chính";
         }
-        steps.add(new YearReadinessResponse.Step(
-                "teachers", STEP_LABELS.get("teachers"), true, teachersOk, teachersOk && shortOne > 0, teachersDetail));
+        steps.add(step("teachers", true, teachersOk, teachersDetail));
         long toPlace = board.childClass.size();
         long placed = board.childClass.keySet().stream()
                 .filter(board.placements::containsKey)
