@@ -673,7 +673,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     ? cls.mealSessions()
                     : record.getAbsentPart().other().mealsOf(cls.mealSessions());
             ensureMealChangeAllowed(cls, request.date(), new LinkedHashSet<>(served));
-            List<MealSession> meals = request.participates() ? served : List.of();
+            List<MealSession> meals = correctedMeals(request, served);
             if (record.getMeals().equals(meals)) return new SaveAttendanceResponse(rules.now(), 1, 0);
             Instant at = rules.now();
             record.update(AttendanceStatus.PRESENT, meals, currentUser.userId(), at);
@@ -1016,6 +1016,22 @@ public class AttendanceServiceImpl implements AttendanceService {
                         && early.test(java.time.LocalTime.ofInstant(p.getHandedOverAt(), rules.zone())))
                 .map(com.carenest.entity.attendance.PickupRecord::getChildId)
                 .collect(Collectors.toSet());
+    }
+
+    // ATT-02a: sửa nhầm theo từng bữa; chỉ nhận bữa trẻ còn được ăn trong ngày
+    private static List<MealSession> correctedMeals(CorrectMealParticipationRequest request, List<MealSession> served) {
+        if (request.meals() == null) {
+            return request.participates() ? served : List.of();
+        }
+        List<MealSession> taken = request.meals().entrySet().stream()
+                .filter(e -> e.getKey() != null && Boolean.TRUE.equals(e.getValue()))
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+        if (!served.containsAll(taken)) {
+            throw GlobalException.of(ApiCode.MEAL_SESSION_NOT_SERVED);
+        }
+        return taken;
     }
 
     private static List<MealSession> mealsOf(

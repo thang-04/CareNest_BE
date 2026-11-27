@@ -14505,6 +14505,10 @@ components:
         date:
           type: string
           format: date
+        meals:
+          type: object
+          additionalProperties:
+            type: boolean
         participates:
           type: boolean
       required:
