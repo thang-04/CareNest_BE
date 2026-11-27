@@ -4865,6 +4865,24 @@ paths:
           description: OK
       tags:
       - edu-ai-controller
+  /api/education-plans/ai/class-contents:
+    post:
+      operationId: rewriteClassContents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassContents"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduAiGoalContentMapResponse"
+          description: OK
+      tags:
+      - edu-ai-controller
   /api/education-plans/ai/class-docs/day/{docKey}/edit:
     post:
       operationId: editDay
@@ -4989,6 +5007,11 @@ paths:
         schema:
           type: integer
           format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalContents"
       responses:
         "200":
           content:
@@ -13908,6 +13931,29 @@ components:
         updatedAt:
           type: string
           format: date-time
+    ClassContents:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassGoal"
+          maxItems: 60
+          minItems: 1
+        situation:
+          type: string
+          maxLength: 500
+          minLength: 0
+        yearPlanId:
+          type: integer
+          format: int64
+      required:
+      - classId
+      - goals
+      - yearPlanId
     ClassDocActionRequest:
       type: object
       properties:
@@ -13940,6 +13986,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StaffItem"
+    ClassGoal:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        lineIndex:
+          type: integer
+          format: int32
+        lines:
+          type: array
+          items:
+            type: string
+            maxLength: 1000
+            minLength: 0
+          maxItems: 20
+          minItems: 0
+      required:
+      - id
     ClassItem:
       type: object
       properties:
@@ -16274,14 +16339,15 @@ components:
     EduAiGoalContentMatchResponse:
       type: object
       properties:
-        curriculumContentId:
-          type: integer
-          format: int64
         from:
           type: string
         goalId:
           type: integer
           format: int64
+        ref:
+          $ref: "#/components/schemas/RagRef"
+        source:
+          type: string
         text:
           type: string
     EduAiRagHitResponse:
@@ -17828,6 +17894,12 @@ components:
           format: int32
         text:
           type: string
+    GoalContents:
+      type: object
+      properties:
+        goalId:
+          type: integer
+          format: int64
     GoalCount:
       type: object
       properties:
@@ -23726,6 +23798,15 @@ components:
         mealRate:
           type: integer
           format: int32
+    RagRef:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        url:
+          type: string
     ReadmitChildRequest:
       type: object
       properties:
