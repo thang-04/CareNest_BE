@@ -1,5 +1,12 @@
 # Verification — bằng chứng trước khi báo xong
 
+## BR hồ sơ trẻ, sức khỏe và đón trẻ — 27/11/2026
+
+- Đã chạy `./mvnw.cmd -q verify` với Docker. Surefire chạy 2.805 test, 0 assertion failure, 15 error, 3 skip. Toàn bộ 15 error nằm trong `EduYearPlanServiceIntegrationTest`, cùng lỗi dữ liệu thử nghiệm vượt `varchar(20)`. Đây là nhóm lỗi cũ được kế hoạch yêu cầu ghi nhận.
+- Các test tích hợp mục tiêu cho tiếp nhận, phiếu khám, điểm danh phụ huynh và controller đạt 168/168. Thay ảnh có 5 ca tích hợp PostgreSQL đạt cùng các test service/controller/danh sách. `OpenApiSnapshotTest` đạt 4/4 khi cập nhật snapshot.
+- FE đạt 2.007/2.007 test, lint và build. App đạt 11/11 test `live_my_child_source_test.dart` và `flutter analyze lib/features/parent/my_child`.
+- Log lần verify đầy đủ ở thư mục TEMP, tên `br-final-verify.log`. Plan hoàn tất ở `docs/plans/completed/2026-11-26-br-code-alignment.md`.
+
 ## Iron Law
 
 ## Bằng chứng theo làn

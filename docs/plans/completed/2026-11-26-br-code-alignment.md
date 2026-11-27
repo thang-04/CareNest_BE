@@ -185,6 +185,8 @@ status: done
 
 ### Task 10: Docs and final verification
 
+Final verification on 27/11/2026 ran 2,805 tests with zero assertion failures, 15 errors and three skips. All 15 errors were in the known `EduYearPlanServiceIntegrationTest` fixture failure, with values exceeding `varchar(20)`. Targeted integration tests passed 168/168, photo replacement integration tests passed 5/5, and OpenAPI tests passed 4/4. FE passed all 2,007 tests plus lint/build. App passed 11 tests plus analysis. The full verification result is recorded in `docs/quality/VERIFICATION.md`.
+
 - [x] Update `docs/business/BUSINESS_RULES.md` (CP-06, CP-17, HLT-06, HLT-11 rows say what is now enforced) and `docs/modules/child.md`, `docs/modules/health.md` (new endpoints, read-only exam, draft checks).
 - [x] Run `.\mvnw.cmd -q verify` (Docker on). Known flake: `EduYearPlanServiceIntegrationTest` (memory be-edu-nanotime-flake) — report, do not fix.
 - [x] Commit — `G94-180: Document BR code alignment`; set plan `status: completed`, move to `docs/plans/completed/`.
