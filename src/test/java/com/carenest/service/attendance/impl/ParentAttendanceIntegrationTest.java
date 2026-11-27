@@ -134,6 +134,69 @@ class ParentAttendanceIntegrationTest {
     }
 
     @Test
+    void attendanceIncludesOnlySuccessfulPickupWithNameRelationshipAndTime() {
+        record(classB, TODAY, "PRESENT", "LUNCH", null);
+        long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
+        jdbc.update(
+                "INSERT INTO pickup_records (child_id, classroom_id, campus_id, date, outcome, verification,"
+                        + " guardian_position, pickup_person_name, pickup_person_relationship, pickup_person_phone, handed_over_at, note,"
+                        + " recorded_by, recorded_at) VALUES (?, ?, ?, ?, 'HANDED_OVER', 'PHOTO_MATCH',"
+                        + " 0, 'Mẹ kiểm thử', 'MOTHER', '', ?, '', ?, ?)",
+                child,
+                classB,
+                campus,
+                TODAY,
+                java.sql.Timestamp.from(NOW),
+                teacher.userId(),
+                java.sql.Timestamp.from(NOW));
+        ParentAttendanceDay day =
+                service.getAttendance(parent, child, TODAY, TODAY).days().getFirst();
+        assertThat(day.pickedUpByName()).isEqualTo("Mẹ kiểm thử (Mẹ)");
+        assertThat(day.pickedUpAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void attendanceDoesNotExposeUnsuccessfulPickup() {
+        record(classB, TODAY, "PRESENT", "LUNCH", null);
+        long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
+        jdbc.update(
+                "INSERT INTO pickup_records (child_id, classroom_id, campus_id, date, outcome, verification,"
+                        + " pickup_person_name, pickup_person_phone, note, recorded_by, recorded_at)"
+                        + " VALUES (?, ?, ?, ?, 'NOT_HANDED_OVER', 'PHONE_DECLINED', 'Người gọi', '', '', ?, ?)",
+                child,
+                classB,
+                campus,
+                TODAY,
+                teacher.userId(),
+                java.sql.Timestamp.from(NOW));
+        ParentAttendanceDay day =
+                service.getAttendance(parent, child, TODAY, TODAY).days().getFirst();
+        assertThat(day.pickedUpByName()).isNull();
+        assertThat(day.pickedUpAt()).isNull();
+    }
+
+    @Test
+    void attendanceUsesPhoneConfirmationDescriptionWhenPickupNameIsBlank() {
+        record(classB, TODAY, "PRESENT", "LUNCH", null);
+        long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classB);
+        jdbc.update(
+                "INSERT INTO pickup_records (child_id, classroom_id, campus_id, date, outcome, verification,"
+                        + " pickup_person_name, pickup_person_phone, handed_over_at, note, recorded_by, recorded_at)"
+                        + " VALUES (?, ?, ?, ?, 'HANDED_OVER', 'PHONE_CONFIRMED', '', '', ?, '', ?, ?)",
+                child,
+                classB,
+                campus,
+                TODAY,
+                java.sql.Timestamp.from(NOW),
+                teacher.userId(),
+                java.sql.Timestamp.from(NOW));
+        ParentAttendanceDay day =
+                service.getAttendance(parent, child, TODAY, TODAY).days().getFirst();
+        assertThat(day.pickedUpByName()).isEqualTo("Người đón đã được phụ huynh xác nhận qua điện thoại");
+        assertThat(day.pickedUpAt()).isEqualTo(NOW);
+    }
+
+    @Test
     @DisplayName("Trẻ chuyển lớp: mỗi ngày mang lớp của ngày đó; nghỉ lễ, cuối tuần là NO_SCHOOL; tổng nửa buổi 0,5")
     void transferredChildShowsClassPerDay() {
         record(classA, LocalDate.of(2026, 10, 15), "PRESENT", "LUNCH,AFTERNOON", null);
@@ -153,6 +216,8 @@ class ParentAttendanceIntegrationTest {
                         tuple(LocalDate.of(2026, 10, 20), ParentAttendanceStatus.PRESENT, "Lớp B"),
                         tuple(TODAY, ParentAttendanceStatus.NOT_RECORDED, "Lớp B"));
         ParentAttendanceDay halfDay = month.days().get(5);
+        assertThat(halfDay.pickedUpByName()).isNull();
+        assertThat(halfDay.pickedUpAt()).isNull();
         assertThat(halfDay.mealsEaten()).containsExactly(MealSession.LUNCH);
         assertThat(halfDay.cancelledMeals()).containsExactly(MealSession.AFTERNOON);
         assertThat(halfDay.arrivedAt()).isNotNull();

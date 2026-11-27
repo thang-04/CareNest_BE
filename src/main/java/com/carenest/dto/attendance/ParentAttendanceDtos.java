@@ -28,8 +28,8 @@ public final class ParentAttendanceDtos {
             String className) {}
 
     /**
-     * mealsEaten: bữa trẻ ăn; cancelledMeals: bữa của nhóm tuổi không ăn vì vắng / nghỉ buổi; pickedUpByName: người đón
-     * (chưa có nguồn cho phụ huynh, luôn null).
+     * mealsEaten: bữa trẻ ăn; cancelledMeals: bữa của nhóm tuổi không ăn vì vắng / nghỉ buổi;
+     * pickedUpByName và pickedUpAt: người đón và thời điểm trả trẻ thành công.
      */
     public record ParentAttendanceDay(
             LocalDate date,
@@ -41,7 +41,8 @@ public final class ParentAttendanceDtos {
             List<MealSession> cancelledMeals,
             String pickedUpByName,
             Long classId,
-            String className) {}
+            String className,
+            Instant pickedUpAt) {}
 
     /** Ngày học trẻ đang học tới hôm nay; present / excused / absent quy đổi nửa buổi 0,5 (ATT-14). */
     public record ParentAttendanceTotals(int schoolDays, double present, double excused, double absent) {}

@@ -10,11 +10,13 @@ import com.carenest.entity.attendance.AttendanceDayUnlock;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.DailyHealthEntry;
+import com.carenest.entity.attendance.PickupRecord;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceDayUnlockRepository;
 import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
+import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.ParentAttendanceService;
@@ -60,6 +62,7 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
     private final AttendanceRecordHistoryRepository historyRepository;
     private final AttendanceDayUnlockRepository unlockRepository;
     private final DailyHealthEntryRepository healthEntryRepository;
+    private final PickupRecordRepository pickupRecordRepository;
     private final AttendanceDayRules rules;
     private final GuardianChildLinkService guardianChildLinkService;
     private final EnrollmentService enrollmentService;
@@ -225,9 +228,16 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
         private final Map<Long, ClassroomInfoResponse> classes = new HashMap<>();
         private final Map<LocalDate, AttendanceRecord> records;
         private final Map<String, AttendanceDayUnlock> unlocks;
+        private final Map<LocalDate, PickupRecord> pickups;
 
         ChildDays(Long childId, LocalDate from, LocalDate to) {
             stays = enrollmentService.findChildStays(childId, from, to);
+            pickups =
+                    pickupRecordRepository
+                            .findByChildIdInAndDateBetweenOrderByRecordedAtAscIdAsc(List.of(childId), from, to)
+                            .stream()
+                            .filter(PickupRecord::isHandedOver)
+                            .collect(Collectors.toMap(PickupRecord::getDate, Function.identity(), (a, b) -> b));
             records = recordRepository.findByChildIdInAndDateBetween(List.of(childId), from, to).stream()
                     .collect(Collectors.toMap(AttendanceRecord::getDate, Function.identity(), (a, b) -> a));
             List<Long> classIds = stays.stream()
@@ -296,6 +306,7 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                         List.of(),
                         null,
                         null,
+                        null,
                         null);
             }
             if (!rules.isSchoolDay(date)) {
@@ -309,7 +320,8 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                         List.of(),
                         null,
                         cls.id(),
-                        cls.name());
+                        cls.name(),
+                        null);
             }
             Snapshot s = snapshot(date);
             if (s == null) {
@@ -323,7 +335,8 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                         List.of(),
                         null,
                         cls.id(),
-                        cls.name());
+                        cls.name(),
+                        null);
             }
             List<MealSession> eaten = s.meals().stream().sorted().toList();
             boolean missedPart = s.status() != AttendanceStatus.PRESENT || s.absentPart() != null;
@@ -345,9 +358,32 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                     s.status() == AttendanceStatus.PRESENT ? s.at() : null,
                     eaten,
                     cancelled,
-                    null,
+                    pickupName(pickups.get(date)),
                     cls.id(),
-                    cls.name());
+                    cls.name(),
+                    pickups.containsKey(date) ? pickups.get(date).getHandedOverAt() : null);
         }
+    }
+
+    private static String pickupName(PickupRecord pickup) {
+        if (pickup == null) return null;
+        String name = pickup.getPickupPersonName();
+        if (name == null || name.isBlank()) {
+            return pickup.getVerification() == com.carenest.utils.enums.PickupVerification.PHONE_CONFIRMED
+                    ? "Người đón đã được phụ huynh xác nhận qua điện thoại"
+                    : null;
+        }
+        if (pickup.getPickupPersonRelationship() == null) return name;
+        String label =
+                switch (pickup.getPickupPersonRelationship()) {
+                    case FATHER -> "Bố";
+                    case MOTHER -> "Mẹ";
+                    case GRANDFATHER -> "Ông";
+                    case GRANDMOTHER -> "Bà";
+                    case SIBLING -> "Anh/chị";
+                    case GUARDIAN -> "Người giám hộ";
+                    case OTHER -> "Khác";
+                };
+        return name + " (" + label + ")";
     }
 }

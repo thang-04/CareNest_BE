@@ -11,6 +11,9 @@ public interface PickupRecordRepository extends JpaRepository<PickupRecord, Long
 
     List<PickupRecord> findByChildIdInAndDateOrderByRecordedAtAscIdAsc(Collection<Long> childIds, LocalDate date);
 
+    List<PickupRecord> findByChildIdInAndDateBetweenOrderByRecordedAtAscIdAsc(
+            Collection<Long> childIds, LocalDate from, LocalDate to);
+
     List<PickupRecord> findByClassroomIdInAndDateOrderByRecordedAtDescIdDesc(
             Collection<Long> classroomIds, LocalDate date);
 
