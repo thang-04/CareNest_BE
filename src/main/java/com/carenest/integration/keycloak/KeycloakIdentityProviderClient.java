@@ -1,5 +1,6 @@
 package com.carenest.integration.keycloak;
 
+import com.carenest.config.ClockConfig;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -15,6 +16,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -49,7 +51,8 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
     private Instant adminTokenExpiresAt = Instant.EPOCH;
 
     @Autowired
-    public KeycloakIdentityProviderClient(KeycloakProperties properties, Clock clock) {
+    public KeycloakIdentityProviderClient(
+            KeycloakProperties properties, @Qualifier(ClockConfig.SYSTEM_CLOCK) Clock clock) {
         this(properties, clock, RestClient.builder().requestFactory(requestFactory(properties)));
     }
 
