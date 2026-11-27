@@ -43,8 +43,8 @@ class EduAiServiceImplTest {
             mock(com.carenest.service.eduplan.EduCurriculumService.class);
     private final com.carenest.service.eduplan.impl.rag.EduRagRetriever rag =
             mock(com.carenest.service.eduplan.impl.rag.EduRagRetriever.class);
-    private final com.carenest.service.eduplan.EduPreviousYearTickService previous =
-            mock(com.carenest.service.eduplan.EduPreviousYearTickService.class);
+    private final com.carenest.service.eduplan.EduPreviousYearContentService previous =
+            mock(com.carenest.service.eduplan.EduPreviousYearContentService.class);
     private final com.carenest.integration.ai.EmbeddingClient embedding =
             mock(com.carenest.integration.ai.EmbeddingClient.class);
     private final CurrentUser user = mock(CurrentUser.class);
@@ -371,7 +371,7 @@ class EduAiServiceImplTest {
                 .thenReturn(List.of(new com.carenest.dto.eduplan.CurriculumGoalResponse(
                         40L, 1L, 100L, "", null, "", null, "", "", "", "", "", 1, List.of("Hát cùng cô"))));
         when(previous.previousYearContents(any(), any()))
-                .thenReturn(List.of(new com.carenest.service.eduplan.EduPreviousYearTickService.PreviousContent(
+                .thenReturn(List.of(new com.carenest.service.eduplan.EduPreviousYearContentService.PreviousContent(
                         100L, "g", "Hát dân ca")));
         when(rag.active(any()))
                 .thenReturn(List.of(new com.carenest.service.eduplan.impl.rag.EduRagRetriever.Hit(

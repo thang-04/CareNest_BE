@@ -4,7 +4,7 @@ import com.carenest.dto.eduplan.CurriculumContentResponse;
 import com.carenest.dto.eduplan.CurriculumGoalResponse;
 import com.carenest.dto.eduplan.EduAiResponse;
 import com.carenest.service.eduplan.EduCurriculumService;
-import com.carenest.service.eduplan.EduPreviousYearTickService;
+import com.carenest.service.eduplan.EduPreviousYearContentService;
 import com.carenest.service.eduplan.impl.rag.EduRagRetriever;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -59,7 +59,7 @@ public class EduGoalContentMatcher {
                     + "\"written\":[{\"goalId\":1,\"text\":\"câu mới\",\"from\":\"cụm nguyên văn\"}]}";
 
     private final EduCurriculumService curriculumService;
-    private final EduPreviousYearTickService previousYearService;
+    private final EduPreviousYearContentService previousYearService;
     private final EduRagRetriever ragRetriever;
     private final EduCandidateRanker ranker;
     private final ObjectMapper objectMapper;
