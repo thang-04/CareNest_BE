@@ -906,8 +906,11 @@ class ChildRecordServiceImplTest {
                                 .extracting(FieldErrorResponse::field)
                                 .contains("dateOfBirth", "guardians"));
         assertThatThrownBy(() -> service.prepareEdit(PRINCIPAL, CHILD_ID, request))
-                .isInstanceOfSatisfying(GlobalException.class, ex -> assertThat(ex.getFieldErrors()).contains(
-                        new FieldErrorResponse("dateOfBirth", "Ngày sinh không được sau ngày đầu tiên đi học (01/09/2026)")));
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .contains(new FieldErrorResponse(
+                                        "dateOfBirth", "Ngày sinh không được sau ngày đầu tiên đi học (01/09/2026)")));
     }
 
     @Test
