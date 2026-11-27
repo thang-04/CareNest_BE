@@ -198,6 +198,51 @@ class YearConfigPerYearIntegrationTest {
     }
 
     @Test
+    @DisplayName("Nhóm tự đặt cũ đã có trẻ ở năm đang hoạt động: không đổi độ tuổi, vẫn đổi được sĩ số")
+    void customGroupWithChildrenKeepsAgeRange() {
+        long custom = insertId("INSERT INTO age_groups (code, name, short_name, sort_order, age_from_months,"
+                + " age_to_months, meal_sessions, max_class_size, nutrition_note, standard_group, regulation_ref,"
+                + " created_at, updated_at) VALUES ('ag-it', 'Nhóm cũ', 'Cũ', 90, 60, 70, 'LUNCH', 20, '', FALSE, '',"
+                + " now(), now()) RETURNING id");
+        jdbc.update(
+                "DELETE FROM school_year_age_group_members WHERE school_year_id = ? AND age_group_id IN"
+                        + " (SELECT id FROM age_groups WHERE code = 'ag-5')",
+                active);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name,"
+                        + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
+                        + " SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions,"
+                        + " max_class_size, nutrition_note FROM age_groups WHERE id = ?",
+                active,
+                custom);
+        long classId = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
+                + campusA + ", " + active + ", 'Lớp cũ', " + custom + ") RETURNING id");
+        long child = insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on)"
+                + " VALUES ('IT-AG-1', 'Trẻ IT', '2021-01-01', 'MALE', 'ACTIVE', '2026-09-01') RETURNING id");
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
+                child,
+                classId);
+
+        assertThatThrownBy(() -> ageGroupService.updateAgeGroup(
+                        principal,
+                        custom,
+                        new AgeGroupRequest("Nhóm cũ", "Cũ", 60, 72, List.of(MealSession.LUNCH), 20, ""),
+                        active))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.AGE_GROUP_RANGE_LOCKED);
+        assertThat(ageGroupService
+                        .updateAgeGroup(
+                                principal,
+                                custom,
+                                new AgeGroupRequest("Nhóm cũ", "Cũ", 60, 70, List.of(MealSession.LUNCH), 22, ""),
+                                active)
+                        .maxClassSize())
+                .isEqualTo(22);
+    }
+
+    @Test
     @DisplayName("Ngừng điểm trường ở năm này, năm sau vẫn hoạt động; bật lại năm sau không đổi năm này")
     void campusStatusIsPerYear() {
         campusService.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE, active);
@@ -370,6 +415,32 @@ class YearConfigPerYearIntegrationTest {
                 .filteredOn(r -> r.id().equals(room.id()))
                 .extracting(RoomResponse::name, RoomResponse::capacity)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("Phòng năm nay", 25));
+    }
+
+    @Test
+    @DisplayName("Lớp năm cũ không khóa sửa sức chứa phòng của năm mới")
+    void oldYearClassDoesNotBlockRoomCapacityInNewYear() {
+        RoomResponse room = roomService.createRoom(
+                principal, new RoomRequest(campusA, "P501", "Phòng dùng lại", RoomType.CLASS, 25, null, ""), active);
+        insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, room_id,"
+                + " capacity, status) VALUES (" + campusA + ", " + active + ", 'Lớp năm cũ', " + group + ", "
+                + room.id() + ", 25, 'ACTIVE') RETURNING id");
+        roomRepository.addToYear(planned, room.id());
+
+        RoomResponse roomInPlannedYear = rooms(planned).stream()
+                .filter(item -> item.id().equals(room.id()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(roomInPlannedYear.yearClasses()).isEmpty();
+        assertThat(roomInPlannedYear.usage()).isEmpty();
+        assertThat(roomInPlannedYear.minCapacity()).isZero();
+
+        RoomResponse updated = roomService.updateRoom(
+                principal,
+                room.id(),
+                new RoomRequest(campusA, "P501", "Phòng dùng lại", RoomType.CLASS, 10, null, ""),
+                planned);
+        assertThat(updated.capacity()).isEqualTo(10);
     }
 
     private List<RoomResponse> rooms(long yearId) {

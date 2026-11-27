@@ -87,6 +87,15 @@ class AttendanceDayRules {
         return new LocalDate[] {start, end};
     }
 
+    /** Ngày cuối được xin nghỉ: hết học kỳ II nếu đã đặt (không quá ngày kết thúc năm), chưa đặt thì hết năm học. */
+    LocalDate lastLeaveDay(Long schoolYearId, LocalDate yearEnd) {
+        LocalDate semester2End = schoolYearService
+                .findSchoolYearDetail(schoolYearId)
+                .map(com.carenest.dto.organization.SchoolYearDetailResponse::semester2End)
+                .orElse(null);
+        return semester2End == null || semester2End.isAfter(yearEnd) ? yearEnd : semester2End;
+    }
+
     LocalTime cutoff(Long schoolYearId, LocalDate date) {
         return attendanceCutoffService.findCutoffTime(schoolYearId, date).orElse(properties.defaultCutoff());
     }

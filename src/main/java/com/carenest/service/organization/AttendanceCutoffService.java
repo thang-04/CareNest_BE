@@ -17,7 +17,25 @@ public interface AttendanceCutoffService {
 
     CutoffResponse saveCutoff(CurrentUser currentUser, Long schoolYearId, CutoffRequest request);
 
+    /** Hủy lịch giờ chốt của một ngày chưa tới (mọi bản lưu cho ngày đó). */
+    CutoffResponse cancelScheduledCutoff(CurrentUser currentUser, Long schoolYearId, LocalDate effectiveFrom);
+
     Optional<LocalTime> findCutoffTime(Long schoolYearId, LocalDate date);
+
+    /** Lịch sinh hoạt đang hiệu lực của năm học tại :date; rỗng khi chưa cấu hình. */
+    Optional<DailySchedule> findDailySchedule(Long schoolYearId, LocalDate date);
+
+    record DailySchedule(
+            LocalTime dropoffOpenFrom,
+            LocalTime morningStart,
+            LocalTime morningEnd,
+            LocalTime afternoonStart,
+            LocalTime latestAfternoonArrival,
+            LocalTime pickupStart,
+            LocalTime fullDayPickupFrom,
+            LocalTime pickupEnd,
+            LocalTime afternoonEnd,
+            LocalTime cutoffTime) {}
 
     /** ATT-13: giờ đến muộn nhất buổi chiều của trẻ nghỉ sáng áp dụng ngày date. */
     Optional<LocalTime> findLatestAfternoonArrival(Long schoolYearId, LocalDate date);

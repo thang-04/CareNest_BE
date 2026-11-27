@@ -7,11 +7,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface AttendanceDayUnlockRepository extends JpaRepository<AttendanceDayUnlock, Long> {
 
     Optional<AttendanceDayUnlock> findFirstByClassroomIdAndDateAndValidUntilAfterOrderByIdDesc(
             Long classroomId, LocalDate date, Instant now);
+
+    @Query("select u.classroomId from AttendanceDayUnlock u where u.id = :id")
+    Optional<Long> findClassroomIdById(@Param("id") Long id);
 
     /** Lần mở lại còn hạn của các lớp trong khoảng ngày (phụ huynh không thấy số đang sửa dở). */
     List<AttendanceDayUnlock> findByClassroomIdInAndDateBetweenAndValidUntilAfter(

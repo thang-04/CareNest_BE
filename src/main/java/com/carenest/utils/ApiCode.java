@@ -210,6 +210,7 @@ public enum ApiCode {
     SCHOOL_YEAR_START_LOCKED(2028, HttpStatus.CONFLICT, "Năm học đang hoạt động, không đổi được ngày bắt đầu"),
     SCHOOL_YEAR_END_BEFORE_TODAY(
             2029, HttpStatus.BAD_REQUEST, "Ngày kết thúc năm học đang hoạt động không được trước hôm nay"),
+    SCHOOL_YEAR_END_HAS_DATA(2041, HttpStatus.CONFLICT, "Sau ngày {0} còn {1}. Xử lý trước khi rút ngắn năm học"),
     HOLIDAY_OUT_OF_YEAR(2030, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" phải nằm trong năm học ({1} – {2})"),
     HOLIDAY_OVERLAP(2031, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" trùng ngày với đợt \"{1}\""),
     HOLIDAY_RANGE_INVALID(2032, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\": ngày bắt đầu không được sau ngày kết thúc"),
@@ -253,6 +254,7 @@ public enum ApiCode {
             2112,
             HttpStatus.CONFLICT,
             "Điểm trường còn PHT phụ trách: {0}. Gỡ phân công PHT trước khi ngừng hoạt động"),
+    CAMPUS_HAS_PEOPLE(2127, HttpStatus.CONFLICT, "Điểm trường còn {0}. Chuyển hoặc kết thúc trước khi ngừng hoạt động"),
     CAMPUS_INACTIVE(2113, HttpStatus.CONFLICT, "Điểm trường đã ngừng hoạt động, chọn điểm trường khác"),
     ROOM_CODE_EXISTS(2114, HttpStatus.CONFLICT, "Điểm trường đã có phòng cùng mã"),
     ROOM_NAME_EXISTS(2115, HttpStatus.CONFLICT, "Điểm trường đã có phòng cùng tên"),
@@ -292,6 +294,8 @@ public enum ApiCode {
     AGE_GROUP_STANDARD_INVALID(2221, HttpStatus.BAD_REQUEST, "Nhóm tuổi chuẩn không hợp lệ"),
     AGE_GROUP_MAX_EXCEEDS_STANDARD(
             2222, HttpStatus.BAD_REQUEST, "Sĩ số tối đa của {0} không được vượt quá {1} trẻ/lớp"),
+    AGE_GROUP_RANGE_LOCKED(
+            2225, HttpStatus.CONFLICT, "Nhóm tuổi đã có trẻ ở năm đang hoạt động, không đổi được độ tuổi"),
     AGE_GROUP_MEMBERSHIP_YEAR_NOT_PLANNED(
             2223,
             HttpStatus.CONFLICT,
@@ -361,6 +365,8 @@ public enum ApiCode {
     PREP_YEAR_NOT_OPEN(2412, HttpStatus.CONFLICT, "Năm học {0} chưa tới ngày mở chuẩn bị ({1})"),
     NO_ACTIVE_YEAR_TO_MOVE_FROM(2410, HttpStatus.CONFLICT, "Không có năm học đang hoạt động để chuyển trẻ"),
     PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
+    PLACEMENT_CHILD_LEAVING(
+            2418, HttpStatus.CONFLICT, "{0} nghỉ học từ {1}, không học năm học mới nên chỉ chọn Nghỉ học"),
     PLACEMENT_NOT_OPEN(2417, HttpStatus.CONFLICT, "Xếp lớp năm học mới mở từ {0} (kết thúc học kỳ II năm học {1})"),
     PLACEMENT_CHILD_ALREADY_ENROLLED(
             2413, HttpStatus.CONFLICT, "{0} đang có lớp, không vào lớp năm học mới theo đăng ký tiếp nhận được"),
@@ -437,7 +443,7 @@ public enum ApiCode {
             4014, HttpStatus.BAD_REQUEST, "Chọn hạn mở lại sau thời điểm hiện tại và không quá ngày kết thúc năm học"),
     UNLOCK_ALREADY_ACTIVE(4015, HttpStatus.CONFLICT, "Lớp/ngày này đang có lần mở lại còn hiệu lực"),
     UNLOCK_ALREADY_ENDED(4016, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
-    LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, báo nghỉ cần xác nhận lại số suất"),
+    LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, hôm nay chỉ báo nghỉ được buổi chiều"),
     LEAVE_TOO_LONG(4028, HttpStatus.BAD_REQUEST, "Một đơn nghỉ tối đa {0} ngày, hãy chia thành nhiều đơn"),
     LEAVE_ATTENDANCE_LOCKED(4027, HttpStatus.CONFLICT, "Phụ huynh cần hủy đơn nghỉ trước giờ chốt để điểm danh lại"),
     LEAVE_NOT_GUARDIAN(4026, HttpStatus.FORBIDDEN, "Bạn chỉ báo nghỉ được cho con mình"),
@@ -449,16 +455,21 @@ public enum ApiCode {
     LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
     LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
     // ATT-12, ATT-13 (Cần chốt 18/11/2026): nghỉ nửa buổi
-    LEAVE_HALF_DAY_SINGLE_DAY(4031, HttpStatus.BAD_REQUEST, "Nghỉ buổi sáng hoặc buổi chiều chỉ chọn cho một ngày"),
     LEAVE_AFTERNOON_NOTICE_CLOSED(
             4032,
             HttpStatus.CONFLICT,
             "Đã tới giờ bắt đầu buổi chiều ({0}), không gửi hoặc hủy báo nghỉ chiều hôm nay"),
     LEAVE_OUTSIDE_SCHOOL_YEAR(4034, HttpStatus.BAD_REQUEST, "Đơn nghỉ phải nằm trong năm học ({0} – {1})"),
     LEAVE_CHILD_ABSENT_TODAY(4033, HttpStatus.CONFLICT, "Trẻ đã được điểm danh vắng hôm nay, không cần báo nghỉ chiều"),
+    ATTENDANCE_DATE_OUT_OF_YEAR(4043, HttpStatus.BAD_REQUEST, "Ngày điểm danh phải nằm trong năm học của lớp"),
     LEAVE_CHILD_LEAVING(4035, HttpStatus.CONFLICT, "Trẻ nghỉ học từ {0}, không gửi đơn nghỉ cho các ngày từ ngày này"),
     CUTOFF_FIRST_FROM_YEAR_START(
             4040, HttpStatus.BAD_REQUEST, "Giờ chốt đầu tiên của năm học phải áp dụng từ ngày bắt đầu năm học {0}"),
+    CUTOFF_NOT_SCHEDULED(4041, HttpStatus.CONFLICT, "Chỉ hủy được lịch giờ chốt chưa tới ngày áp dụng"),
+    CUTOFF_FIRST_NOT_CANCELLABLE(
+            4042,
+            HttpStatus.CONFLICT,
+            "Không hủy được giờ chốt đầu tiên của năm học; muốn đổi thì lưu giờ khác cho ngày đó"),
     CUTOFF_CHANGE_TOO_LATE(
             4039,
             HttpStatus.CONFLICT,
@@ -491,6 +502,7 @@ public enum ApiCode {
     PICKUP_CHILD_ABSENT(4106, HttpStatus.CONFLICT, "Trẻ được điểm danh vắng hôm nay"),
     PICKUP_ALREADY_HANDED_OVER(4107, HttpStatus.CONFLICT, "Trẻ đã được trả cho người đón hôm nay"),
     // AUTH-04 (Cần chốt 24/11/2026): API phụ huynh xem điểm danh, sức khỏe đầu ngày của con
+    PICKUP_CORRECTION_TODAY_ONLY(4110, HttpStatus.CONFLICT, "Chỉ sửa được giờ trả trẻ đã ghi trong hôm nay"),
     PARENT_CHILD_FORBIDDEN(4108, HttpStatus.FORBIDDEN, "Bạn chỉ xem được thông tin của con mình"),
     PARENT_RANGE_INVALID(4109, HttpStatus.BAD_REQUEST, "Chọn khoảng ngày trong một năm học, tối đa {0} ngày"),
 
@@ -713,18 +725,7 @@ public enum ApiCode {
     SUPPLIER_CONTRACT_RANGE_INVALID(
             6102, HttpStatus.BAD_REQUEST, "Ngày kết thúc hợp đồng không được trước ngày bắt đầu"),
     // NUT-28: cơ cấu áp dụng định mức (6115)
-    // AI-07: nháp gợi ý thực đơn (6111–6114; 6091–6107 của dev dành cho sửa ngoại lệ thực đơn, giá thực phẩm, kiểm
-    // nhận, phí dịch vụ)
-    MENU_AI_DRAFT_NOT_FOUND(6111, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
-    MENU_AI_DRAFT_NOT_PENDING(
-            6112,
-            HttpStatus.CONFLICT,
-            "Gợi ý thực đơn đã dùng, đã bỏ hoặc không có phương án, không thao tác tiếp được"),
-    MENU_AI_DRAFT_STALE(
-            6113,
-            HttpStatus.CONFLICT,
-            "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
-    MENU_AI_DRAFT_KIND_INVALID(6114, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
+    // 6111–6114 từng thuộc nháp AI gợi ý thực đơn (đã gỡ); không cấp lại để client cũ không hiểu nhầm mã
     // INS-05: mở ghi biên bản kiểm thực ngày cũ cần HT duyệt (6116–6124)
     INSPECTION_APPROVAL_REQUIRED(
             6116,
@@ -1043,6 +1044,10 @@ public enum ApiCode {
     EVALUATION_UNLOCK_NOT_FOUND(7407, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại đánh giá"),
     EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
     SUBMIT_HOMEROOM_ONLY(7409, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được gửi duyệt"),
+    EVALUATION_PROGRAM_REWARD_LOCKED(
+            7413,
+            HttpStatus.CONFLICT,
+            "Đề xuất khen thưởng của trẻ đã gửi hoặc đã duyệt; cần trả lại danh sách trước khi đổi kết quả hoàn thành chương trình"),
     CONFIRM_HOMEROOM_ONLY(7410, HttpStatus.FORBIDDEN, "Chỉ GV phụ trách chính được xác nhận đánh giá"),
     // EDU-95: còn phần AI gợi ý chưa Giữ / Bỏ thì chưa gửi duyệt
     AI_DRAFT_PENDING(7411, HttpStatus.CONFLICT, "Còn {0} ngày có phần AI gợi ý chưa Giữ / Bỏ"),

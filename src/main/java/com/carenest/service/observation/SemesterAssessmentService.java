@@ -8,5 +8,8 @@ public interface SemesterAssessmentService {
 
     Response save(CurrentUser user, Request request);
 
+    /** Bảng tính lại để sửa bản đã xác nhận; chưa ghi gì cho tới khi xác nhận lại. */
+    Response revision(CurrentUser user, Long classId, int semester);
+
     Response confirm(CurrentUser user, Request request);
 }

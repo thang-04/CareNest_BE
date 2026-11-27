@@ -22,4 +22,15 @@ public interface WeeklyCommentRepository extends JpaRepository<WeeklyComment, Lo
 
     List<WeeklyComment> findByChildIdAndStatusAndWeekStartBetweenOrderByWeekStartAsc(
             Long childId, WeeklyCommentStatus status, LocalDate from, LocalDate to);
+
+    /** Trẻ mà lần viết nháp sẽ không đụng tới: đã gửi (viết cả lớp), hoặc đã có chữ / đã gửi khi không viết lại. */
+    @org.springframework.data.jpa.repository.Query("select c.childId from WeeklyComment c"
+            + " where c.classroomId = :classroomId and c.weekStart = :weekStart and ((:overwrite = false"
+            + " and (trim(c.content) <> '' or c.status = com.carenest.utils.enums.WeeklyCommentStatus.SENT))"
+            + " or (:wholeClass = true and c.status = com.carenest.utils.enums.WeeklyCommentStatus.SENT))")
+    java.util.List<Long> findChildIdsKeptByDrafting(
+            @org.springframework.data.repository.query.Param("classroomId") Long classroomId,
+            @org.springframework.data.repository.query.Param("weekStart") java.time.LocalDate weekStart,
+            @org.springframework.data.repository.query.Param("overwrite") boolean overwrite,
+            @org.springframework.data.repository.query.Param("wholeClass") boolean wholeClass);
 }

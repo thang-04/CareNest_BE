@@ -20,7 +20,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 ```text
 [S] Thực đơn mẫu: bộ 4 tuần có nhãn mùa, theo khối nhà trẻ / mẫu giáo                 (NUT-13)
       ↓
-[S] Kế hoạch tuần (DRAFT): lập tay | sao chép một tuần của bộ mẫu (xoay vòng) | AI gợi ý (AI-07)
+[S] Kế hoạch tuần (DRAFT): lập tay | sao chép một tuần của bộ mẫu (xoay vòng)
       ↓
 [S] Kiểm tra xác định từng ngày trong tuần
     cân đối theo nhu cầu của Bộ — chưa đạt ⇒ chặn công bố                             (NUT-08, NUT-18)
@@ -89,16 +89,6 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 
 Đã chốt 09–10/11: mẫu sổ lưu mẫu theo Mẫu 4, 5 (P-26) và kiểm thực ba bước do PHT điền, ký ảnh (P-27) — INS-01..04, SIG-01; chưa cài đặt, xem `docs/plans/active/2026-11-10-inspection-records-signatures.md`.
 
-## AI gợi ý thực đơn (tùy chọn, không bắt buộc)
+## AI gợi ý thực đơn (đã bỏ)
 
-Bắt buộc: gợi ý kế hoạch tuần. Tùy chọn, làm nếu kịp: gợi ý thực đơn mẫu, gợi ý điều chỉnh thực đơn dự kiến ngày (AI-07). Nháp lưu ở `menu_ai_drafts` thuộc nutrition (ADR-0024); chỉ mang nhãn AI khi qua cổng cứng và không thua phương án theo quy tắc. Tiêu chí và căn cứ: `docs/quality/ai-menu-quality-criteria.md`.
-
-```text
-Input tối thiểu: food/nutrition data, nhóm tuổi, thực đơn gần đây, mùa, khẩu vị vùng,
-thời tiết, dị ứng/lưu ý sức khỏe tạm thời DẠNG TỔNG HỢP (không tên trẻ — AI-04)
-      ↓ ai-assistance (port AiClient)
-Nháp (source=AI) → kiểm tra xác định như trên (NUT-09)
-      ↓
-PHT nhận và sửa → lưu DRAFT | bỏ gợi ý
-AI tắt/lỗi → lập thực đơn thủ công như bình thường (AI-03)
-```
+Đã gỡ 27/11/2026 (user chốt, AI-07 mục 4): PHT lập kế hoạch tuần tay hoặc sao chép bộ mẫu. Bảng `menu_ai_drafts`, `dish_embeddings` drop ở V206; ADR-0024 SUPERSEDED.

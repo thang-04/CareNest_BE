@@ -7,15 +7,19 @@ import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Cấu hình trường › Giờ chốt điểm danh của một năm học. */
@@ -49,5 +53,19 @@ public class AttendanceCutoffController {
         CutoffResponse cutoff = attendanceCutoffService.saveCutoff(currentUser, schoolYearId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save cutoff success", cutoff);
+    }
+
+    @DeleteMapping
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<CutoffResponse>> cancelScheduledCutoff(
+            @PathVariable Long schoolYearId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate effectiveFrom,
+            CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|cancelScheduledCutoff|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        CutoffResponse cutoff = attendanceCutoffService.cancelScheduledCutoff(currentUser, schoolYearId, effectiveFrom);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Cancel scheduled cutoff success", cutoff);
     }
 }

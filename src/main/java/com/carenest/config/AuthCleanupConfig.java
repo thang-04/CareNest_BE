@@ -3,6 +3,7 @@ package com.carenest.config;
 import com.carenest.service.account.AuthService;
 import com.carenest.service.account.AuthStateStore;
 import java.time.Clock;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -15,7 +16,11 @@ public class AuthCleanupConfig {
     private final AuthService authService;
     private final Clock clock;
 
-    public AuthCleanupConfig(AuthProperties properties, AuthStateStore state, AuthService authService, Clock clock) {
+    public AuthCleanupConfig(
+            AuthProperties properties,
+            AuthStateStore state,
+            AuthService authService,
+            @Qualifier(ClockConfig.SYSTEM_CLOCK) Clock clock) {
         this.properties = properties;
         this.state = state;
         this.authService = authService;

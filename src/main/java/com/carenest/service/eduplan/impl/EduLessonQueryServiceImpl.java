@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -44,6 +45,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
     private final EduClassDocReleaseRepository releaseRepository;
     private final EduPlanGoalRepository goalRepository;
     private final EduConfigService eduConfigService;
+    private final EduThemeGoals themeGoals;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -202,6 +204,40 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<List<ThemeGoal>> findClassThemeGoals(Long classroomId, Long themeId) {
+        String logPrefix = LOG_PREFIX + "|findClassThemeGoals|classId=" + classroomId + "|themeId=" + themeId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdInOrderByIdAsc(List.of(classroomId));
+            Map<String, String> releasedContents = releasedContents(docs);
+            Optional<List<ThemeGoal>> result = docs.stream()
+                    .filter(d -> EduClassDoc.THEME.equals(d.getKind()) && themeId.equals(d.getThemeId()) && released(d))
+                    .reduce((first, second) -> second)
+                    .map(d -> goalsOfTheme(
+                            d,
+                            readContent(effectiveContent(d, releasedContents)).path("customTicks")));
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private List<ThemeGoal> goalsOfTheme(EduClassDoc doc, JsonNode customTicks) {
+        List<Long> ids = themeGoals.ofTheme(doc.getYearPlanId(), doc.getThemeId(), customTicks).stream()
+                .map(EduThemeGoals.GoalRef::goalId)
+                .toList();
+        Map<Long, EduPlanGoal> goals = goalRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(EduGoalRow::getId, Function.identity()));
+        return ids.stream()
+                .map(goals::get)
+                .map(g -> new ThemeGoal(g.getId(), g.lineage(), g.getGoalNo(), g.getText()))
+                .toList();
     }
 
     private JsonNode readContent(String json) {

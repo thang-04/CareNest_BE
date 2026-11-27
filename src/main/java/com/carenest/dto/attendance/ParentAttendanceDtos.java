@@ -7,6 +7,7 @@ import com.carenest.utils.enums.ParentAttendanceStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 /**
@@ -46,6 +47,22 @@ public final class ParentAttendanceDtos {
 
     /** Ngày học trẻ đang học tới hôm nay; present / excused / absent quy đổi nửa buổi 0,5 (ATT-14). */
     public record ParentAttendanceTotals(int schoolDays, double present, double excused, double absent) {}
+
+    /** Lịch sinh hoạt đang áp dụng trong ngày để phụ huynh chủ động giờ đưa, đón trẻ; không kèm lịch sử cấu hình. */
+    public record ParentAttendanceSchedule(
+            LocalDate date,
+            Long schoolYearId,
+            String schoolYearName,
+            LocalTime dropoffOpenFrom,
+            LocalTime morningStart,
+            LocalTime morningEnd,
+            LocalTime afternoonStart,
+            LocalTime latestAfternoonArrival,
+            LocalTime pickupStart,
+            LocalTime fullDayPickupFrom,
+            LocalTime pickupEnd,
+            LocalTime afternoonEnd,
+            LocalTime attendanceCutoff) {}
 
     public record ParentAttendanceResponse(
             Long childId,

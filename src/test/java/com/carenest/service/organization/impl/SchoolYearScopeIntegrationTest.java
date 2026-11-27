@@ -254,14 +254,17 @@ class SchoolYearScopeIntegrationTest {
         assertThat(cutoffService.getCutoff(principal, plannedYear)).isNotNull();
     }
 
+    // ag-0 không có sẵn trong năm của test nên thêm được vào năm sắp diễn ra
+    private AgeGroupRequest standardRequest() {
+        long ag0 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-0'", Long.class);
+        jdbc.update("DELETE FROM school_year_age_group_members WHERE age_group_id = ?", ag0);
+        return new AgeGroupRequest("Nhóm", "N", 3, 13, List.of(MealSession.LUNCH), 15, "", ag0);
+    }
+
     @Test
     @DisplayName("Thêm nhóm tuổi không kèm năm (client cũ) chỉ vào năm sắp diễn ra, không đụng năm đang hoạt động")
     void legacyCreateAgeGroupOnlyTouchesPlannedYears() {
-        long id = ageGroupService
-                .createAgeGroup(
-                        principal,
-                        new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH), 15, ""))
-                .id();
+        long id = ageGroupService.createAgeGroup(principal, standardRequest()).id();
 
         assertThat(inYear(plannedYear, id)).isTrue();
         assertThat(inYear(activeYear, id)).isFalse();
@@ -273,9 +276,7 @@ class SchoolYearScopeIntegrationTest {
         jdbc.update("DELETE FROM school_years WHERE id = ?", plannedYear);
 
         expectCode(
-                () -> ageGroupService.createAgeGroup(
-                        principal,
-                        new AgeGroupRequest("Nhà trẻ nhỏ", "NT nhỏ", 0, 3, List.of(MealSession.LUNCH), 15, "")),
+                () -> ageGroupService.createAgeGroup(principal, standardRequest()),
                 ApiCode.AGE_GROUP_CREATE_YEAR_NOT_PLANNED);
     }
 

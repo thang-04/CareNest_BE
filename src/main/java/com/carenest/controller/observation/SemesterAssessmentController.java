@@ -29,6 +29,17 @@ public class SemesterAssessmentController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get semester assessment success", response);
     }
 
+    @GetMapping("/assessment/semester-evaluations/revision")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_CONFIRM')")
+    public ResponseEntity<ResponseJson<Response>> getSemesterRevision(
+            @RequestParam Long classId, @RequestParam int semester, CurrentUser user) {
+        String logPrefix = LOG_PREFIX + "|revision|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        var response = service.revision(user, classId, semester);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get semester revision success", response);
+    }
+
     @PutMapping("/assessment/semester-evaluations")
     @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<Response>> saveSemesterAssessment(

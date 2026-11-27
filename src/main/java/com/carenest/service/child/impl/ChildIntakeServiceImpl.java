@@ -465,9 +465,15 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             if (placed) {
                 // CHD-10, mục 6.2, G94-180/CHD-14: lớp từ ngày bắt đầu đi học, ghi lịch sử xếp lớp, báo GV lớp
                 // (tiếp nhận form và nhập Excel)
+                // Khóa lớp rồi kiểm lại sĩ số: lần kiểm lúc lập bản nháp có thể đã cũ (Điều 15 Điều lệ)
+                classroomService.lockForUpdate(draft.classroomId());
                 ClassroomInfoResponse classroom = classroomService
                         .findClassroomInfo(draft.classroomId())
                         .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
+                String problem = placementRules.classProblem(actor, classroom, startDate);
+                if (problem != null) {
+                    throw fieldError("classId", problem);
+                }
                 placementRules.startEnrollment(childId, classroom, actor.userId(), startDate);
                 placementRules.recordPlacement(
                         childId, draft.fullName(), null, classroom, actor.userId(), null, now, startDate, today);

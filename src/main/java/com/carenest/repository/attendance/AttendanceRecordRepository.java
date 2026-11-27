@@ -31,6 +31,12 @@ public interface AttendanceRecordRepository extends JpaRepository<AttendanceReco
             + " AND r.status = com.carenest.utils.enums.AttendanceStatus.EXCUSED")
     List<Long> findClassroomIdsWithOpenMorningLeave(@Param("date") LocalDate date);
 
+    /** Các ngày đã qua còn trẻ nghỉ sáng chưa được đóng (lỡ lần chạy của job). */
+    @Query("SELECT DISTINCT r.date FROM AttendanceRecord r WHERE r.date < :date"
+            + " AND r.absentPart = com.carenest.utils.enums.DayPart.MORNING"
+            + " AND r.status = com.carenest.utils.enums.AttendanceStatus.EXCUSED ORDER BY r.date")
+    List<LocalDate> findPastDatesWithOpenMorningLeave(@Param("date") LocalDate date);
+
     List<AttendanceRecord> findByDateAndAbsentPartAndStatus(
             LocalDate date, DayPart absentPart, AttendanceStatus status);
 }

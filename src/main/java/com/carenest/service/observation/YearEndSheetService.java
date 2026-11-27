@@ -19,4 +19,7 @@ public interface YearEndSheetService {
 
     /** Gọi khi xác nhận đánh giá cuối năm: chốt cả phiếu (kết quả tổng hợp + ô sửa tay) vào đánh giá. */
     void freeze(ChildEvaluation evaluation);
+
+    /** Gọi trước khi xác nhận lại: mở phiếu đã chốt để tính lại, giữ ô sửa tay. */
+    void reopenForRevision(ChildEvaluation evaluation);
 }

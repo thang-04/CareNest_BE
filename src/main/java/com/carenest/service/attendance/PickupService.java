@@ -1,5 +1,6 @@
 package com.carenest.service.attendance;
 
+import com.carenest.dto.attendance.CorrectHandoverTimeRequest;
 import com.carenest.dto.attendance.PickupBoardResponse;
 import com.carenest.dto.attendance.PickupChildResponse;
 import com.carenest.dto.attendance.PickupClassResponse;
@@ -23,6 +24,10 @@ public interface PickupService {
     PickupChildResponse getChild(CurrentUser currentUser, Long childId);
 
     PickupRecordResponse recordResult(CurrentUser currentUser, PickupRequest request);
+
+    /** Sửa giờ trả trẻ trong ngày: chỉ GV phụ trách lớp, bắt ghi lý do. */
+    PickupRecordResponse correctHandoverTime(
+            CurrentUser currentUser, Long pickupId, CorrectHandoverTimeRequest request);
 
     /** Các lần xác minh trong ngày ở các lớp GV đang phụ trách, mới nhất trước. */
     List<PickupRecordResponse> listResults(CurrentUser currentUser, LocalDate date);

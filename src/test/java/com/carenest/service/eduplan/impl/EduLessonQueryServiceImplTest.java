@@ -27,7 +27,7 @@ class EduLessonQueryServiceImplTest {
     private final EduPlanGoalRepository goals = mock(EduPlanGoalRepository.class);
     private final EduConfigService config = mock(EduConfigService.class);
     private final EduLessonQueryServiceImpl service =
-            new EduLessonQueryServiceImpl(docs, releases, goals, config, new ObjectMapper());
+            new EduLessonQueryServiceImpl(docs, releases, goals, config, mock(EduThemeGoals.class), new ObjectMapper());
 
     @Test
     void observationsKeepOldApprovedLessonUntilReplacementLessonIsApproved() {

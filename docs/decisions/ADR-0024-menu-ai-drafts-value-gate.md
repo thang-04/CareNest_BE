@@ -1,6 +1,6 @@
 # ADR-0024 — Nháp gợi ý thực đơn ở `menu_ai_drafts` và cổng giá trị AI
 
-- Status: ACCEPTED
+- Status: SUPERSEDED — tính năng gỡ 27/11/2026 (user chốt), bảng drop ở V206
 - Date: 2026-11-10
 - Liên quan: AI-01..AI-10, NUT-05, NUT-06, NUT-08, NUT-09, NUT-13, NUT-19, NUT-20, NUT-23..NUT-26; module nutrition, ai-assistance; plan `docs/plans/active/2026-11-10-boarding-menu-ai.md`; thiết kế `docs/superpowers/specs/2026-11-09-boarding-ai-quality-gate-design.md`
 

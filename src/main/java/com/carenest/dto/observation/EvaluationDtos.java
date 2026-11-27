@@ -12,6 +12,7 @@ import com.carenest.utils.enums.NapLevel;
 import com.carenest.utils.enums.ObservedBehavior;
 import com.carenest.utils.enums.Participation;
 import com.carenest.utils.enums.TicketType;
+import jakarta.validation.Valid;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -142,7 +143,9 @@ public final class EvaluationDtos {
     public record ProgramCompletionResponse(List<Long> campusIds, List<ProgramRow> rows, ProgramTotals totals) {}
 
     /** content null / rỗng trả mã lỗi riêng (7340) nên không dùng @NotBlank. */
-    public record EvaluationContentRequest(String content) {}
+    /** programCompleted, sheet: chỉ dùng khi xác nhận lại bản cuối năm đã xác nhận; null = giữ như bản cũ. */
+    public record EvaluationContentRequest(
+            String content, Boolean programCompleted, @Valid YearEndSheetDtos.YearEndSheetRequest sheet) {}
 
     /** Tạo lại bản nháp: ai = true thì xin AI viết (OBS-34), thiếu body hoặc false thì viết theo mẫu câu như trước. */
     public record RedraftRequest(Boolean ai) {}
