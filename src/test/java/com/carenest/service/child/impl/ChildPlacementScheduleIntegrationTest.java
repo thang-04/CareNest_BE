@@ -22,6 +22,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -33,6 +34,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,7 +56,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * chuyển lớp (trẻ ở lớp cũ tới hết ngày trước ngày chuyển), thay / hủy lịch, cho nghỉ khi có lịch, nhãn tới ngày đi học.
  * Hôm nay = thứ 3, 10/11/2026.
  */
-@SpringBootTest
+@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class ChildPlacementScheduleIntegrationTest {
@@ -93,6 +96,9 @@ class ChildPlacementScheduleIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     private CurrentUser principal;
     private long teacherA1;
@@ -293,6 +299,53 @@ class ChildPlacementScheduleIntegrationTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(excluded.occupiedCount()).isEqualTo(2);
+    }
+
+    @Test
+    void placementClassesCountEmptyAndScheduledLeave() {
+        long empty = classroom(campusA, "Lớp trống", 20);
+        jdbc.update(
+                "UPDATE children SET scheduled_leave_on = ?, scheduled_leave_reason = 'Kiểm thử nghỉ học' WHERE id = ?",
+                MONDAY,
+                an);
+        var before = intakeService.listPlacementClasses(principal, yearActive, MONDAY.minusDays(1), null);
+        assertThat(before.stream()
+                        .filter(c -> c.id().equals(classA1))
+                        .findFirst()
+                        .orElseThrow()
+                        .occupiedCount())
+                .isEqualTo(1);
+        var fromLeave = intakeService.listPlacementClasses(principal, yearActive, MONDAY, null);
+        assertThat(fromLeave.stream()
+                        .filter(c -> c.id().equals(classA1))
+                        .findFirst()
+                        .orElseThrow()
+                        .occupiedCount())
+                .isZero();
+        assertThat(fromLeave.stream()
+                        .filter(c -> c.id().equals(empty))
+                        .findFirst()
+                        .orElseThrow()
+                        .occupiedCount())
+                .isZero();
+    }
+
+    @Test
+    void placementClassQueryCountDoesNotGrowWithNumberOfClasses() {
+        long small = placementStatements();
+        for (int i = 0; i < 10; i++) classroom(campusA, "Lớp thêm " + i, 20);
+        long large = placementStatements();
+        assertThat(large).isPositive().isEqualTo(small);
+    }
+
+    private long placementStatements() {
+        entityManager.flush();
+        entityManager.clear();
+        Statistics statistics =
+                entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.clear();
+        intakeService.listPlacementClasses(principal, yearActive, TODAY, null);
+        return statistics.getPrepareStatementCount();
     }
 
     @Test
