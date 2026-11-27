@@ -182,6 +182,20 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("Giáo viên bị khóa tài khoản vẫn đứng lớp trên phân công: trả danh sách để màn hình cảnh báo")
+    void lockedClassTeacherIsReported() {
+        jdbc.update("UPDATE user_accounts SET status = 'INACTIVE' WHERE id = ?", teacher1);
+
+        ClassTeachersResponse row = service.getTeacherAssignments(principal, year, null).classes().stream()
+                .filter(c -> c.id().equals(classA1))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(row.teacherIds()).contains(teacher1);
+        assertThat(row.lockedTeacherIds()).containsExactly(teacher1);
+    }
+
+    @Test
     void removingAllTeachersOfActiveYearNeedsReplacement() {
         expectError(
                 () -> service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(), null)),
