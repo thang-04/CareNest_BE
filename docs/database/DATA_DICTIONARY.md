@@ -129,7 +129,7 @@ Mục đích: GV sửa bản đã gửi (trong hạn hoặc khi được mở l�
 Index: `idx_weekly_comment_revisions_comment (weekly_comment_id)`.
 
 ## attendance_cutoffs  (module: school-structure, scope: SCHOOL)
-Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó.
+Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó. V209: `cancelled_at`, `cancelled_by` (FK `user_accounts`) — lịch chưa tới ngày áp dụng bị HT hủy; dòng đã hủy không được đọc khi tính giờ chốt.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |

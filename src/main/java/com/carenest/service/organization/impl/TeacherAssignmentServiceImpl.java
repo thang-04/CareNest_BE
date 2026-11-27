@@ -531,6 +531,9 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         classroomRepository
                 .countPlannedChildren(ids, schoolConfigAccess.today())
                 .forEach(p -> children.merge(p.getClassroomId(), p.getTotal(), Long::sum));
+        Set<Long> locked = teacherUserIds.isEmpty()
+                ? Set.of()
+                : Set.copyOf(staffAssignmentRepository.findInactiveUserIds(teacherUserIds));
         return classes.stream()
                 .map(c -> {
                     List<StaffAssignment> rows = teachers.getOrDefault(c.getId(), List.of());
@@ -554,6 +557,11 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                                     .map(StaffAssignment::getUserId)
                                     .distinct()
                                     .map(id -> new ClassTeachersResponse.Teacher(id, names.get(id)))
+                                    .toList(),
+                            rows.stream()
+                                    .map(StaffAssignment::getUserId)
+                                    .distinct()
+                                    .filter(locked::contains)
                                     .toList());
                 })
                 .toList();

@@ -69,7 +69,9 @@ class AiWeeklyCommentDraftGenerator implements WeeklyCommentDraftGenerator {
                 .append(f.presentDays())
                 .append('/')
                 .append(f.schoolDays())
-                .append(" ngày học.\n");
+                .append(" ngày học")
+                .append(f.halfDays() > 0 ? ", trong đó " + f.halfDays() + " ngày chỉ học một buổi" : "")
+                .append(".\n");
         b.append("- Cảm xúc khi đến lớp (số ngày): ")
                 .append(counts(f.emotion()))
                 .append('\n');

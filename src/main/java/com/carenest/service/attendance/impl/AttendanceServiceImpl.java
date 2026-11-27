@@ -301,7 +301,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             // Ngày ngoài năm học của lớp không ghi điểm danh (sau ngày kết thúc chỉ ghi ngày trong năm được mở lại)
             if ((cls.yearStart() != null && date.isBefore(cls.yearStart()))
                     || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
-                throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
+                throw GlobalException.of(ApiCode.ATTENDANCE_DATE_OUT_OF_YEAR);
             }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
             // Ngày khác hôm nay chỉ ghi được khi lớp/ngày đang được mở lại
@@ -334,6 +334,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             }
             Map<Long, DayPart> absentParts = new HashMap<>();
             Set<Long> leaveCoversMorning = new HashSet<>();
+            Set<Long> keptFullDayExcused = new HashSet<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 LeaveTag tag = tags.get(entry.childId());
                 if (tag == null || tag.noticeOnly()) {
@@ -352,6 +353,17 @@ public class AttendanceServiceImpl implements AttendanceService {
                         tag.part() == LeavePart.FULL_DAY && entry.status() == AttendanceStatus.UNEXCUSED;
                 if (fullDayLocked || (tag.part() == LeavePart.MORNING && !reopened && !mealOnly)) {
                     throw GlobalException.of(ApiCode.LEAVE_ATTENDANCE_LOCKED);
+                }
+                // Nghỉ sáng đã ghép thêm báo nghỉ chiều: cô lưu lại không đổi thì giữ nguyên cả ngày và suất
+                if (tag.part() == LeavePart.MORNING
+                        && current != null
+                        && current.getStatus() == AttendanceStatus.EXCUSED
+                        && current.getAbsentPart() == null
+                        && entry.status() == AttendanceStatus.EXCUSED
+                        && entry.presentPart() == null
+                        && entry.absentPart() == null) {
+                    keptFullDayExcused.add(entry.childId());
+                    continue;
                 }
                 absentParts.put(
                         entry.childId(),
@@ -393,7 +405,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 // ATT-08: sau giờ chốt, lựa chọn Có mặt cả ngày / chỉ sáng / chỉ chiều
                 // là sửa chuyên cần. Không được suy lại hay cắt suất đã chốt theo buổi;
                 // bản ghi chưa có trước đó cũng không được tự sinh suất mới.
-                if (reopened && entry.presentPart() != null) {
+                if (keptFullDayExcused.contains(entry.childId()) || (reopened && entry.presentPart() != null)) {
                     mealsByChild.put(entry.childId(), current == null ? List.of() : current.getMeals());
                     continue;
                 }
@@ -436,7 +448,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                         && record.getStatus() == AttendanceStatus.EXCUSED
                         && fullDayTag != null
                         && !fullDayTag.noticeOnly()
-                        && fullDayTag.part() == LeavePart.FULL_DAY) {
+                        && fullDayTag.part() == LeavePart.FULL_DAY
+                        && !wasPresentBefore(record)) {
                     presentDespiteLeave.add(entry.childId());
                 }
                 DayPart absentPart = absentParts.containsKey(entry.childId())
@@ -495,6 +508,12 @@ public class AttendanceServiceImpl implements AttendanceService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // Đã từng ghi Có mặt trong ngày thì phụ huynh đã được báo, đổi qua lại không báo nữa
+    private boolean wasPresentBefore(AttendanceRecord record) {
+        return historyRepository.findByRecordIdOrderByIdAsc(record.getId()).stream()
+                .anyMatch(h -> h.getStatus() == AttendanceStatus.PRESENT);
     }
 
     private void notifyGuardiansPresent(List<Long> childIds, LocalDate date) {
@@ -637,7 +656,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
             }
             DayInfoResponse info = rules.dayInfo(request.date(), cls, null);
-            if (!info.baseLocked()) throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
+            // ATT-08, ATT-02a: sau giờ chốt, chỉ lớp/ngày PHT đang mở lại mới được sửa suất chưa xác nhận.
+            if (!info.baseLocked() || info.unlock() == null) {
+                throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
+            }
             classroomService.lockForUpdate(classId);
             AttendanceRecord record = recordRepository.findByChildIdInAndDate(List.of(childId), request.date()).stream()
                     .filter(r -> r.getClassroomId().equals(classId))
@@ -672,68 +694,79 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|closeMorningLeaves";
         log.info("{}|START", logPrefix);
         try {
-            LocalDate today = rules.today();
-            List<Long> classIds =
-                    rules.isSchoolDay(today) ? recordRepository.findClassroomIdsWithOpenMorningLeave(today) : List.of();
+            LocalDate now = rules.today();
+            List<LocalDate> dates = new ArrayList<>(recordRepository.findPastDatesWithOpenMorningLeave(now));
+            dates.add(now);
             Instant at = rules.now();
             int closed = 0;
-            for (Long classId : classIds) {
-                ClassroomInfoResponse cls =
-                        classroomService.findClassroomInfo(classId).orElse(null);
-                if (cls == null) {
-                    // Lớp đã xóa hoặc không còn: bỏ qua, không làm hỏng việc đóng buổi của các lớp khác
-                    log.warn("{}|classId={}|SKIP|class not found", logPrefix, classId);
-                    continue;
-                }
-                LocalTime latest = rules.latestArrival(cls.schoolYearId(), today);
-                if (!rules.isLockedAt(today, latest, at)) {
-                    continue;
-                }
-                // Khóa lớp như "Đã đến" rồi mới đọc lại: trẻ vừa được bấm đến không bị ghi vắng cả ngày
-                classroomService.lockForUpdate(classId);
-                List<AttendanceRecord> pending =
-                        recordRepository.findByClassroomIdInAndDate(List.of(classId), today).stream()
-                                .filter(r -> r.getAbsentPart() == DayPart.MORNING
-                                        && r.getStatus() == AttendanceStatus.EXCUSED)
-                                .toList();
-                if (pending.isEmpty()) {
-                    continue;
-                }
-                List<Long> teachers = rules.dayTeacherIds(cls, today);
-                Map<Long, String> names = childService
-                        .findChildBriefs(pending.stream()
-                                .map(AttendanceRecord::getChildId)
-                                .toList())
-                        .entrySet()
-                        .stream()
-                        .collect(Collectors.toMap(
-                                Map.Entry::getKey, e -> e.getValue().fullName()));
-                for (AttendanceRecord r : pending) {
-                    // Sổ báo ăn giữ nguyên (bữa xế đã tính theo công tắc ăn); sai lệch thì BGH mở lại để sửa
-                    r.update(AttendanceStatus.UNEXCUSED, r.getMeals(), r.getRecordedBy(), at);
-                    historyRepository.save(AttendanceRecordHistory.of(r, AttendanceRecordHistory.UPDATED, null));
-                    String body = "Bé " + names.getOrDefault(r.getChildId(), "") + " nghỉ buổi sáng nhưng chưa đến lớp"
-                            + " trước " + latest + ", ghi Vắng cả ngày (sáng có phép, chiều không phép).";
-                    Set<Long> receivers = new LinkedHashSet<>(teachers);
-                    guardianChildLinkService.findLinksOfChild(r.getChildId()).forEach(l -> receivers.add(l.userId()));
-                    if (!receivers.isEmpty()) {
-                        try {
-                            notificationService.notifyUsers(
-                                    receivers,
-                                    NotificationType.LEAVE_REQUEST_CHANGED,
-                                    "Bé chưa đến buổi chiều",
-                                    body,
-                                    r.getChildId());
-                        } catch (RuntimeException notifyEx) {
-                            // Lỗi thông báo không được làm mất việc đóng buổi của cả lớp (job chạy lại mỗi 5 phút)
-                            log.warn(
-                                    "{}|childId={}|NOTIFY_ERROR|type={}",
-                                    logPrefix,
-                                    r.getChildId(),
-                                    notifyEx.getClass().getSimpleName());
-                        }
+            for (LocalDate today : dates) {
+                List<Long> classIds = rules.isSchoolDay(today)
+                        ? recordRepository.findClassroomIdsWithOpenMorningLeave(today)
+                        : List.of();
+                for (Long classId : classIds) {
+                    ClassroomInfoResponse cls =
+                            classroomService.findClassroomInfo(classId).orElse(null);
+                    if (cls != null && cls.yearStatus() != SchoolYearStatus.ACTIVE) {
+                        continue;
                     }
-                    closed++;
+                    if (cls == null) {
+                        // Lớp đã xóa hoặc không còn: bỏ qua, không làm hỏng việc đóng buổi của các lớp khác
+                        log.warn("{}|classId={}|SKIP|class not found", logPrefix, classId);
+                        continue;
+                    }
+                    LocalTime latest = rules.latestArrival(cls.schoolYearId(), today);
+                    if (!rules.isLockedAt(today, latest, at)) {
+                        continue;
+                    }
+                    // Khóa lớp như "Đã đến" rồi mới đọc lại: trẻ vừa được bấm đến không bị ghi vắng cả ngày
+                    classroomService.lockForUpdate(classId);
+                    List<AttendanceRecord> pending =
+                            recordRepository.findByClassroomIdInAndDate(List.of(classId), today).stream()
+                                    .filter(r -> r.getAbsentPart() == DayPart.MORNING
+                                            && r.getStatus() == AttendanceStatus.EXCUSED)
+                                    .toList();
+                    if (pending.isEmpty()) {
+                        continue;
+                    }
+                    List<Long> teachers = rules.dayTeacherIds(cls, today);
+                    Map<Long, String> names = childService
+                            .findChildBriefs(pending.stream()
+                                    .map(AttendanceRecord::getChildId)
+                                    .toList())
+                            .entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    Map.Entry::getKey, e -> e.getValue().fullName()));
+                    for (AttendanceRecord r : pending) {
+                        // Sổ báo ăn giữ nguyên (bữa xế đã tính theo công tắc ăn); sai lệch thì BGH mở lại để sửa
+                        r.update(AttendanceStatus.UNEXCUSED, r.getMeals(), r.getRecordedBy(), at);
+                        historyRepository.save(AttendanceRecordHistory.of(r, AttendanceRecordHistory.UPDATED, null));
+                        String body =
+                                "Bé " + names.getOrDefault(r.getChildId(), "") + " nghỉ buổi sáng nhưng chưa đến lớp"
+                                        + " trước " + latest + ", ghi Vắng cả ngày (sáng có phép, chiều không phép).";
+                        Set<Long> receivers = new LinkedHashSet<>(teachers);
+                        guardianChildLinkService
+                                .findLinksOfChild(r.getChildId())
+                                .forEach(l -> receivers.add(l.userId()));
+                        if (!receivers.isEmpty()) {
+                            try {
+                                notificationService.notifyUsers(
+                                        receivers,
+                                        NotificationType.LEAVE_REQUEST_CHANGED,
+                                        "Bé chưa đến buổi chiều",
+                                        body,
+                                        r.getChildId());
+                            } catch (RuntimeException notifyEx) {
+                                // Lỗi thông báo không được làm mất việc đóng buổi của cả lớp (job chạy lại mỗi 5 phút)
+                                log.warn(
+                                        "{}|childId={}|NOTIFY_ERROR|type={}",
+                                        logPrefix,
+                                        r.getChildId(),
+                                        notifyEx.getClass().getSimpleName());
+                            }
+                        }
+                        closed++;
+                    }
                 }
             }
             log.info("{}|closed={}|END", logPrefix, closed);
@@ -949,7 +982,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                                 r.getEats(),
                                 LeaveRequestServiceImpl.eatsMeals(r.getPart(), cls),
                                 r.isNoticeOnly()),
-                        (a, b) -> a));
+                        // Trùng ngày (nghỉ sáng + báo nghỉ chiều): nhãn của đơn có hiệu lực điểm danh được ưu tiên
+                        (a, b) -> a.noticeOnly() ? b : a));
     }
 
     private ClassroomInfoResponse findClass(Long classId) {

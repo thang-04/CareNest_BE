@@ -428,6 +428,8 @@ class ParentAssessmentIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
+        // Cờ chỉ hiện ở ngày trẻ có mặt, như phiếu đánh giá ngày
+        attendance(classA, d19, "PRESENT");
         ParentRewardsResponse rewards = service.getRewards(parent, child, LocalDate.of(2026, 10, 12), TODAY);
 
         assertThat(rewards.flags())

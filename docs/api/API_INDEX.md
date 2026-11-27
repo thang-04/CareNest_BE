@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 451 endpoint.
+Tổng: 454 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -415,10 +415,12 @@ GET /parent-accounts/phone-change-requests · src/main/java/com/carenest/control
 POST /parent-accounts/phone-change-requests/{requestId}/approve · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#approve
 POST /parent-accounts/phone-change-requests/{requestId}/reject · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#reject
 POST /parent-activation · src/main/java/com/carenest/controller/account/ParentActivationController.java#activateParentAccount
+GET /parent/attendance-schedule · src/main/java/com/carenest/controller/attendance/ParentAttendanceController.java#getSchedule
 GET /permission-change-logs · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionChangeLogs
 GET /permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
 GET /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
 POST /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#recordResult
+PATCH /pickups/{pickupId}/handover-time · src/main/java/com/carenest/controller/attendance/PickupController.java#correctHandoverTime
 GET /pickups/children/{childId} · src/main/java/com/carenest/controller/attendance/PickupController.java#getChild
 GET /pickups/classes · src/main/java/com/carenest/controller/attendance/PickupController.java#listClasses
 GET /role-permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermissions
@@ -436,6 +438,7 @@ POST /school-years/{schoolYearId}/activate · src/main/java/com/carenest/control
 POST /school-years/{schoolYearId}/classes/copy · src/main/java/com/carenest/controller/organization/ClassController.java#copyClasses
 POST /school-years/{schoolYearId}/close · src/main/java/com/carenest/controller/organization/SchoolYearController.java#closeSchoolYear
 POST /school-years/{schoolYearId}/copy · src/main/java/com/carenest/controller/organization/SchoolYearController.java#copyYear
+DELETE /school-years/{schoolYearId}/cutoff · src/main/java/com/carenest/controller/organization/AttendanceCutoffController.java#cancelScheduledCutoff
 GET /school-years/{schoolYearId}/cutoff · src/main/java/com/carenest/controller/organization/AttendanceCutoffController.java#getCutoff
 PUT /school-years/{schoolYearId}/cutoff · src/main/java/com/carenest/controller/organization/AttendanceCutoffController.java#saveCutoff
 GET /school-years/{schoolYearId}/holidays · src/main/java/com/carenest/controller/organization/SchoolYearController.java#getHolidays

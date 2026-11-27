@@ -46,6 +46,15 @@ public interface SchoolYearService {
 
     SchoolYearDetailResponse activateSchoolYear(CurrentUser currentUser, Long schoolYearId, String confirmName);
 
+    /**
+     * Khóa dòng năm học tới hết giao dịch: các lần lưu xếp lớp, xếp tự động và kích hoạt năm học của cùng một năm
+     * chạy lần lượt, không ghi đè nhau. Năm không tồn tại ⇒ không làm gì (người gọi tự báo lỗi sau).
+     */
+    void lockForUpdate(Long schoolYearId);
+
+    /** Năm học có khoảng ngày chứa :date. */
+    java.util.Optional<SchoolYearDetailResponse> findYearContaining(LocalDate date);
+
     SchoolYearDetailResponse closeSchoolYear(CurrentUser currentUser, Long schoolYearId);
 
     /** CFG-YR-01: năm học đã kết thúc ⇒ 409 "School year … is closed". Gọi trước khi ghi dữ liệu gắn năm. */

@@ -17,6 +17,9 @@ public interface AttendanceDayUnlockService {
     record AttendanceDayUnlockedEvent(
             Long classroomId, Long campusId, LocalDate date, Instant validUntil, String reason, Long unlockedBy) {}
 
+    /** Kết thúc sớm một lượt mở; validUntil là hạn cũ, để module đánh giá kết thúc lượt đã mở kèm. */
+    record AttendanceDayUnlockRevokedEvent(Long classroomId, LocalDate date, Instant validUntil, Long revokedBy) {}
+
     List<DayUnlockResponse> getUnlocks(CurrentUser currentUser);
 
     DayUnlockResponse unlockDay(CurrentUser currentUser, DayUnlockRequest request);

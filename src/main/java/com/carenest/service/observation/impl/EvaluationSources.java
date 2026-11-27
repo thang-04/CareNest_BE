@@ -69,7 +69,24 @@ class EvaluationSources {
             StructuredSummary structured,
             List<EvaluationDay> days,
             Set<LocalDate> presentDates,
-            Set<LocalDate> flagDates) {}
+            Set<LocalDate> flagDates,
+            /** ATT-14: số ngày trong presentDays trẻ chỉ học một buổi. */
+            int halfDays) {
+
+        ChildData(
+                int presentDays,
+                int flagCount,
+                StructuredSummary structured,
+                List<EvaluationDay> days,
+                Set<LocalDate> presentDates,
+                Set<LocalDate> flagDates) {
+            this(presentDays, flagCount, structured, days, presentDates, flagDates, 0);
+        }
+
+        ChildData withHalfDays(int count) {
+            return new ChildData(presentDays, flagCount, structured, days, presentDates, flagDates, count);
+        }
+    }
 
     /** Nhận xét của lớp cls: chỉ dữ liệu ghi ở lớp này (trẻ chuyển lớp giữa kỳ không lẫn ngày của lớp kia). */
     Map<Long, ChildData> load(
@@ -105,9 +122,15 @@ class EvaluationSources {
         if (childIds.isEmpty() || to.isBefore(from)) {
             return Map.of();
         }
+        Map<Long, Integer> halfDays = new HashMap<>();
         Set<String> present = (classOnly
                         ? attendanceService.findClassDays(List.of(cls.id()), from, to).stream()
                                 .filter(d -> childIds.contains(d.childId()) && d.status() == AttendanceStatus.PRESENT)
+                                .peek(d -> {
+                                    if (d.absentPart() != null) {
+                                        halfDays.merge(d.childId(), 1, Integer::sum);
+                                    }
+                                })
                                 .map(d -> key(d.childId(), d.date()))
                         : attendanceService.findDayStatuses(childIds, from, to).stream()
                                 .filter(d -> d.status() == AttendanceStatus.PRESENT)
@@ -168,18 +191,19 @@ class EvaluationSources {
             data.put(
                     childId,
                     summarize(
-                            cls,
-                            childId,
-                            presentDates,
-                            dates,
-                            observations,
-                            results,
-                            health,
-                            goals,
-                            projected,
-                            sourceClasses,
-                            recorders,
-                            withDays));
+                                    cls,
+                                    childId,
+                                    presentDates,
+                                    dates,
+                                    observations,
+                                    results,
+                                    health,
+                                    goals,
+                                    projected,
+                                    sourceClasses,
+                                    recorders,
+                                    withDays)
+                            .withHalfDays(halfDays.getOrDefault(childId, 0)));
         }
         return data;
     }

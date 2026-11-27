@@ -149,8 +149,31 @@ class AttendanceServiceImplTest {
                         teacher, classrooms.findClassroomInfo(CLASS).orElseThrow(), TODAY))
                 .thenReturn(true);
         when(rules.dayInfo(eq(TODAY), any(), any()))
-                .thenReturn(
-                        new DayInfoResponse(TODAY, TODAY, "09:00", "08:30", null, null, true, true, NOW, true, null));
+                .thenReturn(new DayInfoResponse(
+                        TODAY,
+                        TODAY,
+                        "09:00",
+                        "08:30",
+                        null,
+                        null,
+                        true,
+                        true,
+                        NOW,
+                        false,
+                        new DayUnlockResponse(
+                                1L,
+                                CLASS,
+                                "Lớp A",
+                                CAMPUS,
+                                TODAY,
+                                NOW.plusSeconds(3600),
+                                "Sửa",
+                                2L,
+                                "PHT",
+                                NOW,
+                                null,
+                                null,
+                                null)));
         when(records.findByChildIdInAndDate(List.of(CHILD), TODAY)).thenReturn(List.of(present));
         when(children.findChildIdsWithoutMeals(Set.of(CHILD))).thenReturn(Set.of());
 
@@ -161,6 +184,23 @@ class AttendanceServiceImplTest {
         assertThat(present.getStatus()).isEqualTo(AttendanceStatus.PRESENT);
         assertThat(present.getMeals()).isEmpty();
         verify(events).publishEvent(any(AttendanceService.AttendanceChangedEvent.class));
+    }
+
+    @Test
+    void correctMealParticipationAfterCutoffRequiresActiveReopen() {
+        CurrentUser teacher = new CurrentUser(1L, "kc", "t", "t", null, Set.of(CareNestRole.TEACHER), Set.of());
+        when(rules.canRecordAttendanceDay(
+                        teacher, classrooms.findClassroomInfo(CLASS).orElseThrow(), TODAY))
+                .thenReturn(true);
+        when(rules.dayInfo(eq(TODAY), any(), any()))
+                .thenReturn(
+                        new DayInfoResponse(TODAY, TODAY, "09:00", "08:30", null, null, true, true, NOW, true, null));
+
+        assertThatThrownBy(() -> service.correctMealParticipation(
+                        teacher, CLASS, CHILD, new CorrectMealParticipationRequest(TODAY, false)))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.ATTENDANCE_LOCKED);
     }
 
     @Test

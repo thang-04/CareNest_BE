@@ -306,7 +306,7 @@ class LeaveRequestIntegrationTest {
         assertThat(leave.appliedDates()).containsExactly(THU);
         expectError(
                 () -> service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Bổ sung")),
-                ApiCode.LEAVE_NO_SCHOOL_DAY);
+                ApiCode.LEAVE_AFTER_CUTOFF);
         assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
                 .isZero();
         // Ngày bị bỏ qua không mang nhãn đơn nghỉ, nên không khóa điểm danh của GV hôm đó (ATT-05b)
@@ -835,6 +835,18 @@ class LeaveRequestIntegrationTest {
         assertThat(row.record().absentPart()).isNull();
         assertThat(row.leave()).isNotNull();
         assertThat(attendedDays(child1)).isEqualTo(1.0);
+
+        // Đổi qua lại trong ngày: phụ huynh chỉ nhận "Cô đã ghi con có mặt" một lần
+        String sent = "SELECT count(*) FROM notifications WHERE title = 'Cô đã ghi con có mặt'";
+        Long first = jdbc.queryForObject(sent, Long.class);
+        for (AttendanceStatus status : List.of(AttendanceStatus.EXCUSED, AttendanceStatus.PRESENT)) {
+            attendanceService.saveClassAttendance(
+                    teacherA,
+                    classA,
+                    new SaveAttendanceRequest(TODAY, List.of(new SaveAttendanceRequest.Entry(child1, status, null))));
+        }
+        assertThat(first).isPositive();
+        assertThat(jdbc.queryForObject(sent, Long.class)).isEqualTo(first);
     }
 
     private void reopenToday() {
@@ -859,11 +871,80 @@ class LeaveRequestIntegrationTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "ATT-12: nghỉ buổi sáng nhiều ngày ghi từng ngày học, giữ bữa xế theo công tắc ăn")
+    void morningLeaveCoversSeveralSchoolDays() {
+        LeaveRequestResponse leave = service.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, THU, FRI, "Học năng khiếu", LeavePart.MORNING, true));
+
+        assertThat(leave.appliedDates()).containsExactly(THU, FRI);
+        entityManager.flush();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM attendance_records WHERE child_id = ? AND absent_part = 'MORNING'",
+                        Integer.class,
+                        child1))
+                .isEqualTo(2);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "Đã nghỉ sáng, sau giờ chốt báo thêm nghỉ chiều: cả ngày có phép, suất giữ nguyên")
+    void afternoonNoticeExtendsMorningLeave() {
+        service.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đi khám", LeavePart.MORNING, true));
+        List<String> mealsBefore = mealsOfToday(child1);
+        clock.now = AFTER_CUTOFF;
+
+        LeaveRequestResponse notice = service.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Ở nhà cả ngày", LeavePart.AFTERNOON, null));
+
+        assertThat(absentPartToday(child1)).isNull();
+        assertThat(mealsOfToday(child1)).isEqualTo(mealsBefore);
+
+        service.cancelLeaveRequest(parent, notice.id());
+
+        assertThat(absentPartToday(child1)).isEqualTo("MORNING");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("Cô chỉ đổi bữa rồi phụ huynh hủy đơn nghỉ sáng: không còn Vắng có phép")
+    void cancellingMorningLeaveAfterMealToggleRemovesExcused() {
+        LeaveRequestResponse leave = service.createLeaveRequest(
+                parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Đi khám", LeavePart.MORNING, true));
+        jdbc.update(
+                "UPDATE attendance_records SET recorded_at = recorded_at + interval '1 minute', meals = ''"
+                        + " WHERE child_id = ? AND date = ?",
+                child1,
+                TODAY);
+        entityManager.clear();
+
+        service.cancelLeaveRequest(parent, leave.id());
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = ?",
+                        Integer.class,
+                        child1,
+                        TODAY))
+                .isZero();
+    }
+
+    private String absentPartToday(long childId) {
+        entityManager.flush();
+        return jdbc.queryForObject(
+                "SELECT absent_part FROM attendance_records WHERE child_id = ? AND date = ?",
+                String.class,
+                childId,
+                TODAY);
+    }
+
+    private List<String> mealsOfToday(long childId) {
+        entityManager.flush();
+        return jdbc.queryForList(
+                "SELECT meals FROM attendance_records WHERE child_id = ? AND date = ?", String.class, childId, TODAY);
+    }
+
+    @Test
     void afternoonLeaveKeepsMorningAttendanceWithoutAfternoonMeal() {
-        expectError(
-                () -> service.createLeaveRequest(
-                        parent, new CreateLeaveRequest(child1, TODAY, THU, "Nghỉ", LeavePart.AFTERNOON, true)),
-                ApiCode.LEAVE_HALF_DAY_SINGLE_DAY);
         service.createLeaveRequest(
                 parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Về quê", LeavePart.AFTERNOON, true));
 

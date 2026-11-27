@@ -9,6 +9,7 @@ import com.carenest.dto.child.PrepClassesResponse;
 import com.carenest.dto.child.SavePlacementsRequest;
 import com.carenest.dto.child.YearReadinessResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
+import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.YearSetupResponse;
 import com.carenest.entity.child.Child;
@@ -177,7 +178,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                                 .toList();
                         Long next = targetGroups.size() == 1 ? targetGroups.getFirst() : null;
                         boolean graduatingClass = !sourceChildren.isEmpty()
-                                && sourceChildren.stream().allMatch(child -> ageMonths(setup, child) >= 72);
+                                && sourceChildren.stream().allMatch(child -> oldEnoughToGraduate(setup, child));
                         List<PlacementBoardResponse.ChildPlacement> children = sourceChildren.stream()
                                 .map(child -> new PlacementBoardResponse.ChildPlacement(
                                         child.getId(),
@@ -263,6 +264,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         log.info("{}|START", logPrefix);
         try {
             checkCanPlace(currentUser, schoolYearId);
+            // Hai người lưu xếp lớp cùng lúc phải chạy lần lượt, người sau đọc bảng đã có thay đổi của người trước
+            schoolYearService.lockForUpdate(schoolYearId);
             YearSetupResponse setup = checkPlanned(schoolYearId);
             checkPlacementOpen(currentUser, setup);
             Board board = loadBoard(setup);
@@ -289,7 +292,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                             child.getFullName(),
                             DISPLAY_DATE.format(child.getScheduledLeaveOn()));
                 }
-                if (item.action() == PlacementAction.GRADUATE && (child == null || ageMonths(setup, child) < 72)) {
+                if (item.action() == PlacementAction.GRADUATE
+                        && (child == null || !oldEnoughToGraduate(setup, child))) {
                     throw GlobalException.of(ApiCode.GRADUATION_NOT_ALLOWED);
                 }
                 if (item.action() == PlacementAction.PROMOTE && (child == null || ageMonths(setup, child) >= 72)) {
@@ -360,6 +364,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         log.info("{}|START", logPrefix);
         try {
             checkCanPlace(currentUser, schoolYearId);
+            schoolYearService.lockForUpdate(schoolYearId);
             YearSetupResponse setup = checkPlanned(schoolYearId);
             checkPlacementOpen(currentUser, setup);
             Board board = loadBoard(setup);
@@ -393,9 +398,12 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                         continue;
                     }
                     Long targetAgeGroup = ageGroupOf(setup, child);
-                    if (targetAgeGroup == null) {
+                    // Trẻ đủ tuổi vào lớp 1 đang ở lớp nhóm lớn nhất không tự xếp học lại lớp mẫu giáo
+                    boolean leavingPreschool = targetAgeGroup == null
+                            || (oldEnoughToGraduate(setup, child) && isOldestGroup(setup, from.ageGroupId()));
+                    if (leavingPreschool) {
                         // Chỉ trẻ đã hoàn thành chương trình tự ra trường; còn lại Hiệu trưởng chọn ra trường / ở lại
-                        if (ageMonths(setup, child) >= 72 && Boolean.TRUE.equals(completion.get(child.getId()))) {
+                        if (oldEnoughToGraduate(setup, child) && Boolean.TRUE.equals(completion.get(child.getId()))) {
                             board.place(child.getId(), from.id(), PlacementAction.GRADUATE, null, currentUser.userId());
                             graduated++;
                         } else {
@@ -435,7 +443,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             checkPrincipal(currentUser);
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             YearReadinessResponse response =
-                    buildReadiness(setup, loadBoard(setup), teachingWeeksOf(currentUser, schoolYearId));
+                    buildReadiness(setup, loadBoard(setup), calendarCheckOf(currentUser, schoolYearId));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -451,11 +459,13 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         log.info("{}|START", logPrefix);
         try {
             checkPrincipal(currentUser);
+            // Không cho lưu xếp lớp chen vào giữa lúc kích hoạt: bảng xếp lớp đọc xong là phải khớp lúc áp dụng
+            schoolYearService.lockForUpdate(schoolYearId);
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             Board board = loadBoard(setup);
             if (setup.year().status() == SchoolYearStatus.PLANNED) {
                 YearReadinessResponse readiness =
-                        buildReadiness(setup, board, teachingWeeksOf(currentUser, schoolYearId));
+                        buildReadiness(setup, board, calendarCheckOf(currentUser, schoolYearId));
                 List<String> stepBlockers = readiness.steps().stream()
                         .filter(s -> s.required() && !s.ok())
                         .map(s -> s.label() + ": " + s.detail())
@@ -490,17 +500,24 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     // Trẻ rời lớp cũ hết ngày trước ngày bắt đầu mới; lên lớp/ở lại thì vào lớp mới từ ngày đó
     private int applyPlacements(YearSetupResponse setup, Board board) {
         LocalDate start = transitionStart(setup);
-        int changed = 0;
+        // Một truy vấn cho mọi trẻ thay vì mỗi trẻ một truy vấn
+        Map<Long, List<Enrollment>> open = board.placements.isEmpty()
+                ? Map.of()
+                : enrollmentRepository.findOpenByChildIds(board.placements.keySet(), start).stream()
+                        .collect(Collectors.groupingBy(Enrollment::getChildId));
         for (ClassPlacement placement : board.placements.values()) {
-            for (Enrollment enrollment : enrollmentRepository.findOpenByChildId(placement.getChildId(), start)) {
+            for (Enrollment enrollment : open.getOrDefault(placement.getChildId(), List.of())) {
                 if (enrollment.getValidFrom().isBefore(start)) {
                     enrollment.endOn(start.minusDays(1));
                 } else {
                     enrollmentRepository.delete(enrollment);
                 }
             }
-            // V10 uk_enrollments_child_open: mỗi trẻ một enrollment mở, ghi việc đóng lớp cũ trước khi mở lớp mới
-            enrollmentRepository.flush();
+        }
+        // V63 uk_enrollments_child_open: mỗi trẻ một enrollment mở, ghi việc đóng lớp cũ trước khi mở lớp mới
+        enrollmentRepository.flush();
+        int changed = 0;
+        for (ClassPlacement placement : board.placements.values()) {
             if (placement.getAction().keepsChildInClass()) {
                 enrollmentRepository.save(
                         Enrollment.start(placement.getChildId(), placement.getToClassroomId(), start));
@@ -514,6 +531,16 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     private int applyPlannedAdmissions(CurrentUser currentUser, YearSetupResponse setup, Board board) {
         LocalDate transitionDate = transitionStart(setup);
         int changed = 0;
+        // Lớp học và enrollment đang mở đọc một lần, không tra lại cho từng hồ sơ nhập học
+        List<Long> placedChildIds = board.admissions.values().stream()
+                .filter(a -> a.getStatus() == PlannedAdmissionStatus.PLACED && a.getClassroomId() != null)
+                .map(PlannedAdmission::getChildId)
+                .toList();
+        Map<Long, List<Enrollment>> open = placedChildIds.isEmpty()
+                ? Map.of()
+                : enrollmentRepository.findOpenByChildIds(placedChildIds, transitionDate).stream()
+                        .collect(Collectors.groupingBy(Enrollment::getChildId));
+        Map<Long, ClassroomInfoResponse> classrooms = new HashMap<>();
         for (PlannedAdmission admission : board.admissions.values()) {
             Child child = board.children.get(admission.getChildId());
             if (admission.getStatus() != PlannedAdmissionStatus.PLACED || admission.getClassroomId() == null) {
@@ -524,15 +551,22 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 }
                 continue;
             }
-            var classroom = classroomService
-                    .findClassroomInfo(admission.getClassroomId())
-                    .orElse(null);
+            if (!classrooms.containsKey(admission.getClassroomId())) {
+                classrooms.put(
+                        admission.getClassroomId(),
+                        classroomService
+                                .findClassroomInfo(admission.getClassroomId())
+                                .orElse(null));
+            }
+            var classroom = classrooms.get(admission.getClassroomId());
             if (child == null || classroom == null || !setup.year().id().equals(classroom.schoolYearId())) {
                 continue;
             }
             LocalDate start =
                     admission.getStartDate().isAfter(transitionDate) ? admission.getStartDate() : transitionDate;
-            if (!enrollmentRepository.findOpenByChildId(child.getId(), start).isEmpty()) {
+            boolean stillEnrolled = open.getOrDefault(child.getId(), List.of()).stream()
+                    .anyMatch(e -> e.getValidTo() == null || !e.getValidTo().isBefore(start));
+            if (stillEnrolled) {
                 throw GlobalException.of(ApiCode.PLACEMENT_CHILD_ALREADY_ENROLLED, child.getFullName());
             }
             enrollmentRepository.save(Enrollment.start(child.getId(), classroom.id(), start, currentUser.userId()));
@@ -629,6 +663,19 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 child.getDateOfBirth(), setup.year().startDate());
     }
 
+    private static boolean oldEnoughToGraduate(YearSetupResponse setup, Child child) {
+        return GraduationAge.oldEnoughForGradeOne(
+                child.getDateOfBirth(), setup.year().startDate());
+    }
+
+    private static boolean isOldestGroup(YearSetupResponse setup, Long ageGroupId) {
+        return setup.ageGroups().stream()
+                .filter(g -> g.ageFromMonths() != null)
+                .max(Comparator.comparing(AgeGroupDetailResponse::ageFromMonths))
+                .map(g -> g.id().equals(ageGroupId))
+                .orElse(false);
+    }
+
     private static boolean fitsAgeGroup(YearSetupResponse setup, Long ageGroupId, Child child) {
         var group = setup.ageGroups().stream()
                 .filter(g -> g.id().equals(ageGroupId))
@@ -654,33 +701,46 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 && !child.getScheduledLeaveOn().isAfter(setup.year().startDate());
     }
 
-    private Integer teachingWeeksOf(CurrentUser currentUser, Long schoolYearId) {
+    private record CalendarCheck(Integer teachingWeeks, List<String> warnings) {}
+
+    private CalendarCheck calendarCheckOf(CurrentUser currentUser, Long schoolYearId) {
         SchoolYearDetailResponse year = schoolYearService.getSchoolYear(currentUser, schoolYearId);
         List<TeachingWeeks.Break> breaks = schoolYearService.getHolidays(currentUser, schoolYearId).stream()
                 .map(h -> new TeachingWeeks.Break(h.startDate(), h.endDate()))
                 .toList();
-        return TeachingWeeks.count(
-                year.semester1Start(), year.semester1End(), year.semester2Start(), year.semester2End(), breaks);
+        return new CalendarCheck(
+                TeachingWeeks.count(
+                        year.semester1Start(), year.semester1End(), year.semester2Start(), year.semester2End(), breaks),
+                TeachingWeeks.warnings(
+                        year.semester1Start(),
+                        year.semester1End(),
+                        year.semester2Start(),
+                        year.semester2End(),
+                        year.startDate(),
+                        year.endDate(),
+                        breaks));
     }
 
-    private YearReadinessResponse buildReadiness(YearSetupResponse setup, Board board, Integer teachingWeeks) {
+    private YearReadinessResponse buildReadiness(YearSetupResponse setup, Board board, CalendarCheck calendar) {
+        Integer teachingWeeks = calendar.teachingWeeks();
         List<YearSetupResponse.SetupClass> classes = setup.classes();
         boolean hasClasses = !classes.isEmpty();
         List<YearReadinessResponse.Step> steps = new ArrayList<>();
-        // Thiếu 35 tuần thực học chỉ cảnh báo (vàng), không chặn kích hoạt (user chốt 26/11/2026)
+        // Lệch khung năm học (thiếu tuần, quá hạn học kỳ) chỉ cảnh báo vàng, không chặn kích hoạt
         boolean weeksOff = teachingWeeks != null && teachingWeeks < TeachingWeeks.STANDARD;
         steps.add(new YearReadinessResponse.Step(
                 "info",
                 STEP_LABELS.get("info"),
                 true,
                 true,
-                weeksOff,
+                weeksOff || !calendar.warnings().isEmpty(),
                 DISPLAY_DATE.format(setup.year().startDate()) + " – "
                         + DISPLAY_DATE.format(setup.year().endDate())
                         + (teachingWeeks == null
                                 ? ""
                                 : " · " + teachingWeeks + " tuần thực học"
-                                        + (weeksOff ? " (chuẩn " + TeachingWeeks.STANDARD + " tuần)" : ""))));
+                                        + (weeksOff ? " (chuẩn " + TeachingWeeks.STANDARD + " tuần)" : ""))
+                        + calendar.warnings().stream().map(w -> " · " + w).collect(Collectors.joining())));
         Set<Long> groupsWithClasses = classes.stream()
                 .map(YearSetupResponse.SetupClass::ageGroupId)
                 .filter(Objects::nonNull)
@@ -996,7 +1056,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         }
         List<Long> childIds = setup.sourceClasses().stream()
                 .flatMap(c -> board.childrenOf(c.id()).stream())
-                .filter(child -> ageMonths(setup, child) >= 72)
+                .filter(child -> oldEnoughToGraduate(setup, child))
                 .map(Child::getId)
                 .toList();
         return programCompletionLookups

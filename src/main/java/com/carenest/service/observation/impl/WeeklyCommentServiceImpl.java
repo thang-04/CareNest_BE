@@ -57,6 +57,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -143,7 +144,6 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             ClassroomInfoResponse cls = editableClass(currentUser, request.classId());
             LocalDate week = weekOf(cls, request.weekStart());
             checkWritable(cls, week);
-            rules.lockClassForUpdate(cls.id());
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<Long> targets = request.childId() == null ? List.copyOf(roster.keySet()) : List.of(request.childId());
             Set<Long> current = currentChildren(cls);
@@ -151,9 +151,33 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             if (request.childId() != null) checkCurrentChild(cls, request.childId());
             targets.forEach(id -> checkInClass(roster, id));
             Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
-            Map<Long, WeeklyComment> existing = comments(cls.id(), roster.keySet(), week);
             boolean ai = request.ai() && aiGenerator.isEnabled();
             boolean aiFailed = false;
+            // Gọi AI trước khi khóa lớp: AI chậm không chặn cô điểm danh, đánh giá của lớp
+            Map<Long, String> aiTexts = new HashMap<>();
+            if (ai) {
+                Set<Long> keep = new HashSet<>(commentRepository.findChildIdsKeptByDrafting(
+                        cls.id(), week, request.overwrite(), request.childId() == null));
+                for (Long childId : targets) {
+                    ChildWeek candidate = data.get(childId);
+                    if (keep.contains(childId) || candidate.facts().presentDays() <= 0) {
+                        continue;
+                    }
+                    try {
+                        aiTexts.put(childId, aiGenerator.write(candidate.facts()));
+                    } catch (RuntimeException ex) {
+                        log.warn(
+                                "{}|aiFallback|childId={}|type={}",
+                                logPrefix,
+                                childId,
+                                ex.getClass().getSimpleName());
+                        aiFailed = true;
+                    }
+                }
+            }
+            rules.lockClassForUpdate(cls.id());
+            checkWritable(cls, week);
+            Map<Long, WeeklyComment> existing = comments(cls.id(), roster.keySet(), week);
             for (Long childId : targets) {
                 WeeklyComment comment = existing.get(childId);
                 checkSameClass(cls, comment);
@@ -170,21 +194,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 if (hasText && !request.overwrite()) {
                     continue;
                 }
-                String text = null;
-                WeeklyCommentSource source = WeeklyCommentSource.TEMPLATE;
-                if (ai && week1.facts().presentDays() > 0) {
-                    try {
-                        text = aiGenerator.write(week1.facts());
-                        source = WeeklyCommentSource.AI;
-                    } catch (RuntimeException ex) {
-                        log.warn(
-                                "{}|aiFallback|childId={}|type={}",
-                                logPrefix,
-                                childId,
-                                ex.getClass().getSimpleName());
-                        aiFailed = true;
-                    }
-                }
+                String text = aiTexts.get(childId);
+                WeeklyCommentSource source = text == null ? WeeklyCommentSource.TEMPLATE : WeeklyCommentSource.AI;
                 if (text == null) {
                     text = templateGenerator.write(week1.facts());
                 }
@@ -906,7 +917,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                     met,
                     unmet,
                     flags,
-                    ticket);
+                    ticket,
+                    d == null ? 0 : d.halfDays());
             out.put(
                     childId,
                     new ChildWeek(

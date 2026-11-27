@@ -62,7 +62,9 @@ class DevSeedIntegrationTest {
             "edu_resource_attachments",
             // Hiệu ứng của đơn nghỉ ghi lúc chạy khi đơn áp vào điểm danh (V201); đơn seed không có dòng nên hủy theo
             // cách cũ (revertLegacy)
-            "leave_attendance_effects");
+            "leave_attendance_effects",
+            // Lịch sử sửa giờ trả trẻ chỉ ghi khi GV sửa lúc chạy (V207)
+            "pickup_time_changes");
 
     @Container
     @ServiceConnection

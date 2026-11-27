@@ -29,6 +29,38 @@ class TeachingWeeksTest {
     }
 
     @Test
+    @DisplayName("Lịch đúng khung năm học thì không cảnh báo")
+    void noWarningForCompliantCalendar() {
+        assertThat(TeachingWeeks.warnings(
+                        LocalDate.of(2026, 9, 7),
+                        LocalDate.of(2027, 1, 8),
+                        LocalDate.of(2027, 1, 18),
+                        LocalDate.of(2027, 5, 21),
+                        LocalDate.of(2026, 9, 5),
+                        LocalDate.of(2027, 5, 31),
+                        List.of()))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("Cảnh báo thiếu tuần từng học kỳ, học kỳ I và năm học kết thúc muộn")
+    void warnsWhenCalendarBreaksFramework() {
+        assertThat(TeachingWeeks.warnings(
+                        LocalDate.of(2026, 10, 5),
+                        LocalDate.of(2027, 1, 18),
+                        LocalDate.of(2027, 2, 15),
+                        LocalDate.of(2027, 6, 4),
+                        LocalDate.of(2026, 10, 5),
+                        LocalDate.of(2027, 6, 4),
+                        List.of()))
+                .containsExactly(
+                        "học kỳ I 16 tuần (khung 18)",
+                        "học kỳ II 16 tuần (khung 17)",
+                        "học kỳ I phải kết thúc trước 18/01/2027",
+                        "năm học phải kết thúc trước hoặc trong ngày 31/05/2027");
+    }
+
+    @Test
     @DisplayName("Thiếu ngày học kỳ thì chưa tính được")
     void unknownWithoutSemesterDates() {
         assertThat(TeachingWeeks.count(S1, null, S1, S1, List.of())).isNull();

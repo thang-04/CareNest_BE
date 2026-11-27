@@ -45,6 +45,11 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     @Query("select e from Enrollment e where e.childId = :childId and (e.validTo is null or e.validTo >= :date)")
     List<Enrollment> findOpenByChildId(@Param("childId") Long childId, @Param("date") LocalDate date);
 
+    /** Như findOpenByChildId nhưng cho nhiều trẻ trong một truy vấn (kích hoạt năm học, tránh N+1). */
+    @Query("select e from Enrollment e where e.childId in :childIds and (e.validTo is null or e.validTo >= :date)")
+    List<Enrollment> findOpenByChildIds(
+            @Param("childIds") java.util.Collection<Long> childIds, @Param("date") LocalDate date);
+
     /** Lớp chưa bắt đầu (ngày bắt đầu đi học hoặc lịch chuyển lớp sau :date) của các trẻ (G94-180/CHD-14). */
     @Query("select e from Enrollment e where e.childId in :childIds and e.validFrom > :date order by e.validFrom, e.id")
     List<Enrollment> findStartingAfter(@Param("childIds") Collection<Long> childIds, @Param("date") LocalDate date);
@@ -95,4 +100,11 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
                         where o.childId = c.id and (o.validTo is null or o.validTo >= :date))))
             """)
     List<Long> findChildIdsLeftSchool(@Param("childIds") Collection<Long> childIds, @Param("date") LocalDate date);
+
+    /** Lịch vào lớp / chuyển lớp của năm học bắt đầu sau :date (rút ngắn năm học). */
+    @Query(
+            value = "select count(*) from enrollments e join classrooms c on c.id = e.classroom_id"
+                    + " where c.school_year_id = :yearId and e.valid_from > :date",
+            nativeQuery = true)
+    long countOfYearStartingAfter(@Param("yearId") Long yearId, @Param("date") LocalDate date);
 }
