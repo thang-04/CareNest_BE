@@ -91,8 +91,8 @@ class EduAiServiceImplTest {
             AiRequest req = inv.getArgument(0);
             assertThat(req.userPrompt()).contains("[WEB-1] Đề tài: Bật xa");
             return new AiRawResult(
-                    "{\"items\":[{\"goalId\":\"1\",\"slot\":\"hoc\",\"name\":\"Bật xa\",\"from\":\"WEB-1\"},"
-                            + "{\"goalId\":\"2\",\"slot\":\"hoc\",\"name\":\"Bịa\",\"from\":\"WEB-9\"}]}",
+                    "{\"items\":[{\"goalId\":\"1\",\"slot\":\"hoc\",\"name\":\"Bật xa\",\"lines\":[0],\"from\":\"WEB-1\"},"
+                            + "{\"goalId\":\"2\",\"slot\":\"hoc\",\"name\":\"Bịa\",\"lines\":[0],\"from\":\"WEB-9\"}]}",
                     "t",
                     "t",
                     "t",
@@ -105,8 +105,8 @@ class EduAiServiceImplTest {
                 new EduAiRequest.Activities(
                         "Gia đình",
                         List.of(
-                                new EduAiRequest.Goal("1", 1, "MT1", List.of()),
-                                new EduAiRequest.Goal("2", 2, "MT2", null))));
+                                new EduAiRequest.Goal("1", 1, "MT1", List.of("Bật xa", "Chạy")),
+                                new EduAiRequest.Goal("2", 2, "MT2", List.of("Đọc thơ")))));
         assertThat(out).hasSize(1);
         assertThat(out.getFirst().ref().id()).isEqualTo("WEB-1");
         assertThat(out.getFirst().ref().title()).isEqualTo("Đề tài: Bật xa");
@@ -156,25 +156,36 @@ class EduAiServiceImplTest {
     }
 
     @Test
-    void activitiesDropUnknownGoalsSlotsAndDuplicates() {
+    @DisplayName("EDU-114: bỏ MT/loại giờ/dòng lạ, mỗi dòng chỉ một hoạt động, được gộp dòng; MT trống bỏ qua")
+    void activitiesFollowContentLines() {
         EduConfigResponse cfg = mock(EduConfigResponse.class);
         when(cfg.weekRows())
                 .thenReturn(List.of(new EduConfigResponse.WeekRow("hoc", "Hoạt động học", false, false, null)));
         when(config.getEduConfig()).thenReturn(cfg);
         aiReturns("""
-                {"items":[{"goalId":"1","slot":"hoc","name":"Thơ: Bé tới trường"},
-                {"goalId":"1","slot":"hoc","name":"Lặp lại"},
-                {"goalId":"99","slot":"hoc","name":"MT lạ"},
-                {"goalId":"2","slot":"bay","name":"Loại giờ lạ"}]}""");
+                {"items":[{"goalId":"1","slot":"hoc","name":"Gộp","lines":[0,1,7]},
+                {"goalId":"1","slot":"hoc","name":"Trùng dòng","lines":[1]},
+                {"goalId":"1","slot":"hoc","name":"Không dòng"},
+                {"goalId":"99","slot":"hoc","name":"MT lạ","lines":[0]},
+                {"goalId":"3","slot":"hoc","name":"MT trống","lines":[0]},
+                {"goalId":"2","slot":"bay","name":"Loại giờ lạ","lines":[0]}]}""");
         var out = service.suggestActivities(
                 user,
                 new EduAiRequest.Activities(
                         "Trường mầm non",
                         List.of(
-                                new EduAiRequest.Goal("1", 1, "MT1", List.of()),
-                                new EduAiRequest.Goal("2", 2, "MT2", null))));
-        assertThat(out).hasSize(1);
-        assertThat(out.getFirst().goalId()).isEqualTo("1");
+                                new EduAiRequest.Goal("1", 1, "MT1", List.of("Hát", "Vỗ tay")),
+                                new EduAiRequest.Goal("2", 2, "MT2", List.of("Đọc thơ")),
+                                new EduAiRequest.Goal("3", 3, "MT3", List.of()))));
+        assertThat(out).extracting(EduAiResponse.Activity::name).containsExactly("Gộp");
+        assertThat(out.getFirst().lines()).containsExactly(0, 1);
+        org.mockito.ArgumentCaptor<AiRequest> request = org.mockito.ArgumentCaptor.forClass(AiRequest.class);
+        verify(ai).complete(request.capture());
+        assertThat(request.getValue().userPrompt()).contains("[1] Vỗ tay").doesNotContain("MT3");
+        // Một lượt tìm tham khảo cho mỗi dòng nội dung
+        verify(rag, org.mockito.Mockito.times(3))
+                .retrieve(
+                        any(), any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyDouble());
     }
 
     @Test

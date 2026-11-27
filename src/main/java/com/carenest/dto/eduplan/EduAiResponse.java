@@ -15,8 +15,11 @@ public final class EduAiResponse {
 
     public record Step(String teacher, String child) {}
 
-    /** ref: mẩu RAG AI ghi "from" (bước b, EDU-113); null khi AI không dựa vào mẩu nào. */
-    public record Activity(String goalId, String slot, String name, RagRef ref) {}
+    /**
+     * ref: mẩu RAG AI ghi "from" (bước b, EDU-113); null khi AI không dựa vào mẩu nào. lines: chỉ số các dòng nội dung (theo
+     * danh sách gửi lên) mà hoạt động dạy (EDU-114).
+     */
+    public record Activity(String goalId, String slot, String name, RagRef ref, List<Integer> lines) {}
 
     /** path: đường dẫn ô trong nội dung giáo án ngày (vd. days.0.sections.hoc.aims). */
     public record DayEdit(List<CellChange> changes) {}

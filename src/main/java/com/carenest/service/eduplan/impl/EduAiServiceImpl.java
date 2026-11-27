@@ -175,33 +175,40 @@ public class EduAiServiceImpl implements EduAiService {
         try {
             Map<String, String> slots = new LinkedHashMap<>();
             eduConfigService.getEduConfig().weekRows().forEach(r -> slots.put(r.key(), r.label()));
+            // EDU-114: nội dung là căn cứ chính; mục tiêu không có dòng nội dung thì bỏ qua
+            Map<String, List<String>> lines = new LinkedHashMap<>();
             StringBuilder p = new StringBuilder("Chủ đề: ")
                     .append(nz(request.themeName()))
-                    .append("\nVới mỗi mục tiêu dưới đây, đề xuất đúng một hoạt động giáo dục giúp trẻ đạt mục tiêu."
-                            + " Chọn loại giờ trong danh sách: ");
+                    .append("\nĐề xuất hoạt động giáo dục DỰA CHÍNH VÀO NỘI DUNG của từng mục tiêu:"
+                            + "\n- Mỗi dòng nội dung (đánh số từ 0) phải có ít nhất một hoạt động dạy đúng nội dung đó."
+                            + "\n- Được gộp nhiều dòng của CÙNG một mục tiêu vào một hoạt động khi thật hợp."
+                            + "\n- Dùng mục tiêu để đối chiếu: hoạt động không giúp đạt mục tiêu thì không đề xuất."
+                            + "\nChọn loại giờ trong danh sách: ");
             slots.forEach((k, v) -> p.append(k).append(" (").append(v).append("); "));
-            p.append("\nMục tiêu:\n");
-            Set<String> ids = new HashSet<>();
+            p.append("\nMục tiêu và nội dung:\n");
             for (EduAiRequest.Goal g : request.goals()) {
-                ids.add(g.id());
+                List<String> own = nullSafe(g.lines()).stream()
+                        .filter(l -> l != null && !l.isBlank())
+                        .toList();
+                if (own.isEmpty() || own.size() != nullSafe(g.lines()).size()) continue;
+                lines.put(g.id(), own);
                 p.append("- id ").append(g.id()).append(": ").append(nz(g.text()));
-                if (g.lines() != null && !g.lines().isEmpty())
-                    p.append(" | nội dung: ").append(String.join("; ", g.lines()));
+                for (int i = 0; i < own.size(); i++)
+                    p.append("\n    [").append(i).append("] ").append(own.get(i));
                 p.append('\n');
             }
-            // RAG bước b: một lần tìm cho cả yêu cầu (tiết kiệm lượt embed), mẩu hoạt động và bài dạy gần nhất
-            StringBuilder query = new StringBuilder(nz(request.themeName()));
-            request.goals().forEach(g -> query.append(' ').append(nz(g.text())));
-            List<EduRagRetriever.Hit> refs = references(query.toString(), List.of("activity", "lesson"), ACTIVITY_REFS);
-            Map<String, EduRagRetriever.Hit> refById = new HashMap<>();
-            refs.forEach(h -> refById.put(h.id(), h));
-            p.append(referenceBlock(refs));
-            p.append("Trả về {\"items\":[{\"goalId\":\"...\",\"slot\":\"...\",\"name\":\"...\",\"from\":\"<id"
-                    + " mẩu tham khảo đã dùng hoặc rỗng>\"}]}.");
+            if (lines.isEmpty()) {
+                log.info("{}|END|empty", logPrefix);
+                return List.of();
+            }
+            Map<String, EduRagRetriever.Hit> refById = activityReferences(request.themeName(), lines);
+            p.append(referenceBlock(List.copyOf(refById.values())));
+            p.append("Trả về {\"items\":[{\"goalId\":\"...\",\"slot\":\"...\",\"name\":\"...\",\"lines\":[0],"
+                    + "\"from\":\"<id mẩu tham khảo đã dùng hoặc rỗng>\"}]}.");
             JsonNode out = ask("edu-activities", p.toString());
             List<EduAiResponse.Activity> list = new ArrayList<>();
-            Set<String> done = new HashSet<>();
-            // EDU-95: chỉ MT và loại giờ có trong yêu cầu, mỗi MT một gợi ý
+            Map<String, Set<Integer>> covered = new HashMap<>();
+            // EDU-95/114: chỉ MT, loại giờ, dòng nội dung có trong yêu cầu; dòng đã có hoạt động thì không gợi ý thêm
             for (JsonNode a : out.path("items")) {
                 String goal = a.path("goalId").asString("");
                 String slot = a.path("slot").asString("");
@@ -209,8 +216,16 @@ public class EduAiServiceImpl implements EduAiService {
                 String from = a.path("from").asString("").trim();
                 // EDU-113: "from" phải là mẩu vừa tìm, không thì bỏ gợi ý (chống bịa nguồn); rỗng = AI tự đề xuất
                 if (!from.isEmpty() && !refById.containsKey(from)) continue;
-                if (!ids.contains(goal) || !slots.containsKey(slot) || name.isBlank() || !done.add(goal)) continue;
-                list.add(new EduAiResponse.Activity(goal, slot, name, from.isEmpty() ? null : ref(refById.get(from))));
+                if (!lines.containsKey(goal) || !slots.containsKey(slot) || name.isBlank()) continue;
+                Set<Integer> done = covered.computeIfAbsent(goal, k -> new HashSet<>());
+                List<Integer> mine = new ArrayList<>();
+                for (JsonNode n : a.path("lines")) {
+                    int i = n.asInt(-1);
+                    if (i >= 0 && i < lines.get(goal).size() && done.add(i)) mine.add(i);
+                }
+                if (mine.isEmpty()) continue;
+                list.add(new EduAiResponse.Activity(
+                        goal, slot, name, from.isEmpty() ? null : ref(refById.get(from)), mine));
             }
             log.info("{}|END", logPrefix);
             return list;
@@ -637,9 +652,25 @@ public class EduAiServiceImpl implements EduAiService {
         return node;
     }
 
-    private static final int ACTIVITY_REFS = 8;
+    private static final int ACTIVITY_REFS = 20;
+    private static final int LINE_REFS = 2;
+    private static final int LINE_QUERIES = 30;
     private static final int LESSON_REFS = 2;
     private static final int REF_CHARS = 700;
+
+    // EDU-114: tìm tham khảo theo từng dòng nội dung. ponytail: tối đa 30 lượt tìm tuần tự, gộp embed khi thấy chậm
+    private Map<String, EduRagRetriever.Hit> activityReferences(String themeName, Map<String, List<String>> lines) {
+        Map<String, EduRagRetriever.Hit> byId = new LinkedHashMap<>();
+        lines.values().stream()
+                .flatMap(List::stream)
+                .distinct()
+                .limit(LINE_QUERIES)
+                .forEach(line -> references(nz(themeName) + " " + line, List.of("activity", "lesson"), LINE_REFS)
+                        .forEach(h -> {
+                            if (byId.size() < ACTIVITY_REFS) byId.putIfAbsent(h.id(), h);
+                        }));
+        return byId;
+    }
 
     /** RAG bước R; lỗi, AI tắt hoặc kho rỗng ⇒ không có tham khảo, AI vẫn gợi ý như cũ (AI-03). */
     private List<EduRagRetriever.Hit> references(String query, List<String> types, int k) {
