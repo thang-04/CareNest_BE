@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 454 endpoint.
+Tổng: 453 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -256,7 +256,6 @@ GET /education-plans/goals/{planId}/changes · src/main/java/com/carenest/contro
 POST /education-plans/goals/{planId}/editing-heartbeat · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#heartbeat
 POST /education-plans/goals/{planId}/finish-editing · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#finishEditing
 POST /education-plans/goals/{planId}/issue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#issueYearPlan
-GET /education-plans/goals/{planId}/previous-year-ticks · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getPreviousYearTicks
 POST /education-plans/goals/{planId}/principal-publish · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#publishByPrincipal
 POST /education-plans/goals/{planId}/return · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#returnYearPlan
 POST /education-plans/goals/{planId}/review-deadline/reopen · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#reopenReviewDeadline
