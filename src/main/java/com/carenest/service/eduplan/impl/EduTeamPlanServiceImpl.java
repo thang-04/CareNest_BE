@@ -172,7 +172,7 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
                         validThemeIds);
             }
             if (plan.getCurriculumSourcePlanId() == null) return;
-            if (submitting && hasInvalidReferences(plan, null))
+            if (submitting && !invalidReferences(plan).isEmpty())
                 throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
             if (submitting
                     && reviews.findAllByTeamPlanIdOrderByIdAsc(plan.getId()).stream()
@@ -210,7 +210,7 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
                 });
     }
 
-    private boolean hasInvalidReferences(EduPlan plan, EduTeamReviewItem scope) {
+    private List<EduContentThemeTick> invalidReferences(EduPlan plan) {
         var current = plans.findById(plan.getCurriculumSourcePlanId()).orElseThrow();
         Set<Long> validContents = contentRows(current.getId()).stream()
                 .map(EduGoalContent::lineage)
@@ -222,19 +222,22 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
                 .collect(Collectors.toMap(EduGoalContent::getId, Function.identity()));
         var localThemes = themes.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
                 .collect(Collectors.toMap(EduTheme::getId, Function.identity()));
-        if (localThemes.isEmpty()) return false;
+        if (localThemes.isEmpty()) return List.of();
         return ticks.findAllByThemeIdIn(localThemes.keySet()).stream()
-                .filter(t -> scope == null
-                        || "CONTENT".equals(scope.getItemKind()) && Objects.equals(scope.getItemId(), t.getContentId())
-                        || "THEME".equals(scope.getItemKind()) && Objects.equals(scope.getItemId(), t.getThemeId()))
-                .anyMatch(t -> {
+                .filter(t -> {
                     var theme = localThemes.get(t.getThemeId());
                     var content = localContents.get(t.getContentId());
                     return !ended(theme)
                             && (content == null
                                     || (content.getLineageId() != null && !validContents.contains(content.lineage()))
                                     || !validThemes.contains(theme.lineage()));
-                });
+                })
+                .toList();
+    }
+
+    private static boolean affects(EduTeamReviewItem item, EduContentThemeTick tick) {
+        return "CONTENT".equals(item.getItemKind()) && Objects.equals(item.getItemId(), tick.getContentId())
+                || "THEME".equals(item.getItemKind()) && Objects.equals(item.getItemId(), tick.getThemeId());
     }
 
     @Override
@@ -247,9 +250,36 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
                     .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
             if (!Objects.equals(item.getSourcePlanId(), plan.getCurriculumSourcePlanId()))
                 throw GlobalException.of(ApiCode.YEAR_PLAN_REVISION_STALE);
-            if (hasInvalidReferences(plan, item)) throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
+            if (invalidReferences(plan).stream().anyMatch(tick -> affects(item, tick)))
+                throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
             item.resolve(userId, clock.instant());
             reviews.save(item);
+            log.info("{}|END", prefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", prefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void resolveOnSave(EduPlan plan, List<Long> itemIds, Long userId) {
+        String prefix = LOG_PREFIX + "|resolveOnSave|planId=" + plan.getId();
+        log.info("{}|START", prefix);
+        try {
+            if (plan.getCurriculumSourcePlanId() == null) return;
+            Set<Long> requested = new HashSet<>(itemIds);
+            var candidates = reviews.findAllByTeamPlanIdOrderByIdAsc(plan.getId()).stream()
+                    .filter(item -> requested.contains(item.getId()) && !item.isResolved()
+                            && Objects.equals(item.getSourcePlanId(), plan.getCurriculumSourcePlanId()))
+                    .toList();
+            if (candidates.isEmpty()) return;
+            var invalid = invalidReferences(plan);
+            Instant now = clock.instant();
+            var checked = candidates.stream()
+                    .filter(item -> invalid.stream().noneMatch(tick -> affects(item, tick)))
+                    .toList();
+            checked.forEach(item -> item.resolve(userId, now));
+            reviews.saveAll(checked);
             log.info("{}|END", prefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", prefix, ex.getClass().getSimpleName());

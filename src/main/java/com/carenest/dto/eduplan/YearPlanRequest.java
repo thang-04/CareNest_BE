@@ -25,7 +25,8 @@ public record YearPlanRequest(
         com.carenest.utils.enums.EduPlanLevel planLevel,
         Long curriculumSourcePlanId,
         @Valid List<BranchTemplate> branchTemplates,
-        com.carenest.utils.enums.EduPlanLevel planType) {
+        com.carenest.utils.enums.EduPlanLevel planType,
+        List<Long> reviewedSourceItemIds) {
     public YearPlanRequest(
             Long schoolYearId,
             Long ageGroupId,
@@ -69,7 +70,8 @@ public record YearPlanRequest(
                 planLevel,
                 curriculumSourcePlanId,
                 branchTemplates,
-                null);
+                null,
+                List.of());
     }
 
     public YearPlanRequest {
@@ -81,6 +83,7 @@ public record YearPlanRequest(
                 : planLevel == null ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel;
         planType = planLevel;
         branchTemplates = branchTemplates == null ? List.of() : List.copyOf(branchTemplates);
+        reviewedSourceItemIds = reviewedSourceItemIds == null ? List.of() : List.copyOf(reviewedSourceItemIds);
     }
 
     @io.swagger.v3.oas.annotations.media.Schema(name = "YearPlanBranchTemplateRequest")

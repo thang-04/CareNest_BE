@@ -516,6 +516,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             saveContent(plan, request);
             teamService.validateMappings(plan, false);
             saveTemplates(plan, request);
+            if (plan.getPlanLevel() == EduPlanLevel.TEAM && !request.reviewedSourceItemIds().isEmpty()) {
+                teamService.resolveOnSave(plan, request.reviewedSourceItemIds(), currentUser.userId());
+            }
             eduWorkflowService.recordAuthor(plan.getId(), null, currentUser.userId(), "CONTENT_WRITE", now);
             plan.recordSave(edit.requestId());
 

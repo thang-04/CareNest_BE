@@ -31282,6 +31282,11 @@ components:
           enum:
           - SCHOOL_YEAR
           - TEAM
+        reviewedSourceItemIds:
+          type: array
+          items:
+            type: integer
+            format: int64
         schoolYearId:
           type: integer
           format: int64

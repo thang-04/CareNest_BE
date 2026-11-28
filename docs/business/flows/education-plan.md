@@ -32,6 +32,8 @@ Theo EDU-71 PROPOSED (user trực tiếp 09/11), nếu giới hạn bị mất h
 
 Theo EDU-67/68 PROPOSED (user trực tiếp 09/11), nếu năm mới và tổ cùng sửa một nội dung thì bản cập nhật tổ giữ bản tổ, báo tổ trưởng rà soát; phiên bản năm điều chỉnh dùng cấu hình giới hạn tại lúc tạo. Khôi phục giới hạn đã mất do lỗi chỉ khi có bằng chứng và giữ trạng thái hồ sơ.
 
+- EDU-62 (Tiền 28/11/2026): khi kế hoạch tổ nhận nguồn năm mới, dòng nội dung cần rà soát có nền đỏ từ ô Nội dung qua các ô Chủ đề và có nhãn chữ. Tổ trưởng thao tác dấu tích trên dòng đó hoặc ở cột chủ đề cần rà soát rồi bấm Lưu. Bỏ rồi tích lại như cũ vẫn được tính. Hệ thống bỏ đánh dấu từng mục đã thao tác khi lưu thành công và liên kết hợp lệ. Mục còn đỏ tiếp tục chặn gửi duyệt.
+
 ## 2. Cấu hình và duyệt — Strict Hierarchy Approval
 
 Chỉ HT có quyền cấu hình người soạn/duyệt theo loại hồ sơ. Phân cấp duyệt tuân thủ tuyệt đối:

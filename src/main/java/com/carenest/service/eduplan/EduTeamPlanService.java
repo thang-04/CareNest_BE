@@ -12,6 +12,8 @@ public interface EduTeamPlanService {
 
     void resolve(EduPlan plan, Long itemId, Long userId);
 
+    void resolveOnSave(EduPlan plan, List<Long> itemIds, Long userId);
+
     List<YearPlanDetailResponse.ReviewItem> reviewItems(EduPlan plan);
 
     List<YearPlanDetailResponse.NewItem> newItems(EduPlan plan);
