@@ -4939,24 +4939,6 @@ paths:
           description: OK
       tags:
       - edu-ai-controller
-  /api/education-plans/ai/class-docs/day/{docKey}/review:
-    post:
-      operationId: reviewDay
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonDayReview"
-          description: OK
-      tags:
-      - edu-ai-controller
   /api/education-plans/ai/feedback:
     post:
       operationId: logFeedback
@@ -5085,6 +5067,7 @@ paths:
           enum:
           - MAIN
           - REVIEW
+          - OVERDUE
       - in: query
         name: classId
         required: false
@@ -5172,7 +5155,7 @@ paths:
       - edu-class-doc-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources:
     get:
-      operationId: list
+      operationId: list_1
       parameters:
       - in: path
         name: docKey
@@ -5185,46 +5168,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonListLearningResourceResponse"
-          description: OK
-      tags:
-      - learning-resource-controller
-    post:
-      operationId: upload
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      - in: header
-        name: Idempotency-Key
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                activityKey:
-                  type: string
-                activityLabel:
-                  type: string
-                file:
-                  type: string
-                  format: binary
-              required:
-              - activityKey
-              - activityLabel
-              - file
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
           description: OK
       tags:
       - learning-resource-controller
@@ -5375,31 +5318,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonString"
-          description: OK
-      tags:
-      - learning-resource-controller
-  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/content:
-    get:
-      operationId: content
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                type: string
-                format: binary
           description: OK
       tags:
       - learning-resource-controller
@@ -5569,6 +5487,7 @@ paths:
           enum:
           - MAIN
           - REVIEW
+          - OVERDUE
       - in: query
         name: classId
         required: false
@@ -6619,7 +6538,7 @@ paths:
       - edu-year-plan-controller
   /api/education-plans/resources:
     get:
-      operationId: list_1
+      operationId: list
       parameters:
       - in: query
         name: q
@@ -15792,17 +15711,6 @@ components:
         servings:
           type: integer
           format: int32
-    DayReview:
-      type: object
-      properties:
-        notes:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReviewNote"
-        summary:
-          type: array
-          items:
-            type: string
     DayRow:
       type: object
       properties:
@@ -24995,19 +24903,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonDayReview:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/DayReview"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonDayUnlockResponse:
       type: object
       properties:
@@ -27798,15 +27693,6 @@ components:
         sourcePlanId:
           type: integer
           format: int64
-    ReviewNote:
-      type: object
-      properties:
-        label:
-          type: string
-        path:
-          type: string
-        text:
-          type: string
     ReviewResolutionRequest:
       type: object
       properties:

@@ -256,49 +256,6 @@ public class EduAiServiceImpl implements EduAiService {
     }
 
     @Override
-    public EduAiResponse.DayReview reviewDay(CurrentUser currentUser, String docKey) {
-        String logPrefix = LOG_PREFIX + "|reviewDay|userId=" + currentUser.userId();
-        log.info("{}|START", logPrefix);
-        try {
-            EduClassDoc day = classDocService.requireDayReviewAccess(currentUser, docKey);
-            Map<String, Cell> cells = cells(day);
-            StringBuilder p =
-                    new StringBuilder("Đọc giáo án ngày dưới đây như người duyệt. Viết 3–5 câu tóm tắt (dạy gì,"
-                            + " bám mục tiêu nào, điểm khác thường) rồi nêu các ý cần xem lại, mỗi ý gắn đúng một ô: hoạt động"
-                            + " có giúp đạt mục tiêu không; nội dung có hợp lứa tuổi không; hoạt động của cô và của trẻ có khớp"
-                            + " từng bước không; mục đích có quan sát được không (tránh \"trẻ hiểu\", \"trẻ biết\")."
-                            + " Không kết luận duyệt hay trả lại.\nCác ô (đường dẫn | tên ô | nội dung):\n");
-            cells.forEach((path, c) -> {
-                if (!c.text().isBlank())
-                    p.append(path)
-                            .append(" | ")
-                            .append(c.label())
-                            .append(" | ")
-                            .append(c.text())
-                            .append('\n');
-            });
-            p.append("Trả về {\"summary\":[\"...\"],\"notes\":[{\"path\":\"...\",\"text\":\"...\"}]}.");
-            JsonNode out = ask("edu-day-review", p.toString());
-            List<String> summary = new ArrayList<>();
-            for (JsonNode s : out.path("summary"))
-                if (summary.size() < 5 && !s.asString("").isBlank()) summary.add(clip(s.asString(""), 500));
-            List<EduAiResponse.ReviewNote> notes = new ArrayList<>();
-            for (JsonNode n : out.path("notes")) {
-                String path = n.path("path").asString("");
-                Cell cell = cells.get(path);
-                String text = clip(n.path("text").asString(""), 500);
-                if (cell == null || text.isBlank() || notes.size() >= 20) continue;
-                notes.add(new EduAiResponse.ReviewNote(path, cell.label(), text));
-            }
-            log.info("{}|END", logPrefix);
-            return new EduAiResponse.DayReview(summary, notes);
-        } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
-            throw ex;
-        }
-    }
-
-    @Override
     public EduAiResponse.ThemeContentMap matchThemeContents(
             CurrentUser currentUser, Long planId, EduAiRequest.ThemeContentMap request) {
         String logPrefix = LOG_PREFIX + "|matchThemeContents|userId=" + currentUser.userId() + "|planId=" + planId;

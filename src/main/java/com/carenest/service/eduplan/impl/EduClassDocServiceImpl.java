@@ -104,7 +104,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             // EDU-90: vai trò người tạo theo (người tạo, ngày tạo), tránh truy vấn lặp cho cả danh sách
             Map<String, Optional<EduWorkflowPolicy.Role>> creatorRoles,
             // GV chủ nhiệm hiện hành theo lớp, nạp một lần cho cả danh sách (tránh truy vấn mỗi hồ sơ)
-            Map<Long, Long> homerooms) {}
+            Map<Long, Long> homerooms,
+            // Hiệu trưởng xem quá hạn: mọi hồ sơ hiện đủ nhưng chỉ đọc
+            boolean viewOnly) {}
 
     private static final String ACTION_SUBMIT = "submit";
     private static final String ACTION_APPROVE = "approve";
@@ -559,31 +561,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public EduClassDoc requireDayReviewAccess(CurrentUser currentUser, String docKey) {
-        String logPrefix = LOG_PREFIX + "|requireDayReviewAccess|userId=" + currentUser.userId();
-        log.info("{}|START", logPrefix);
-        try {
-            EduClassDoc day = requireDayAccess(currentUser, docKey, false);
-            ClassroomInfoResponse cls = requireClass(day.getClassroomId());
-            // EDU-96: tóm tắt AI chỉ cho người soạn và người đang có lượt duyệt kế hoạch giáo dục ngày chứa ngày đó
-            boolean reviewer = dossierOf(day)
-                    .map(root -> toNode(currentUser, root)
-                            .path("permissions")
-                            .path("canApprove")
-                            .asBoolean(false))
-                    .orElse(false);
-            if (!isClassDocAuthor(currentUser, cls, EduClassDoc.DOSSIER) && !reviewer)
-                throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP);
-            log.info("{}|END", logPrefix);
-            return day;
-        } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
-            throw ex;
-        }
-    }
-
-    @Override
     public EduClassDocStatus dayStatus(EduClassDoc day) {
         if (day.getStatus() == EduClassDocStatus.REVIEW) return EduClassDocStatus.REVIEW;
         return dossierOf(day).map(EduClassDoc::getStatus).orElse(day.getStatus());
@@ -616,6 +593,23 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public ClassDocsResponse getClassDocsForReview(CurrentUser currentUser, Long schoolYearId) {
         return getClassDocs(currentUser, schoolYearId, false, true);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public ClassDocsResponse getClassDocsOverdueView(CurrentUser currentUser, Long schoolYearId, Long classId) {
+        String logPrefix =
+                LOG_PREFIX + "|getClassDocsOverdueView|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        try {
+            requireOverdueRead(currentUser, schoolYearId);
+            ClassDocsResponse docs = getClassDocs(currentUser, schoolYearId, false, false, classId, null, null, true);
+            log.info("{}|END", logPrefix);
+            return docs;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     @Override
@@ -1006,6 +1000,19 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Long onlyClassId,
             java.util.function.Function<List<Long>, List<EduClassDoc>> loadDocs,
             Set<Long> outputIds) {
+        return getClassDocs(
+                currentUser, schoolYearId, deadlineBoard, reviewView, onlyClassId, loadDocs, outputIds, false);
+    }
+
+    private ClassDocsResponse getClassDocs(
+            CurrentUser currentUser,
+            Long schoolYearId,
+            boolean deadlineBoard,
+            boolean reviewView,
+            Long onlyClassId,
+            java.util.function.Function<List<Long>, List<EduClassDoc>> loadDocs,
+            Set<Long> outputIds,
+            boolean viewOnly) {
         String logPrefix =
                 LOG_PREFIX + "|getClassDocs|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
@@ -1121,7 +1128,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     years,
                     classroomService.findOpenedDates(classIds),
                     new HashMap<>(),
-                    homerooms);
+                    homerooms,
+                    viewOnly);
             ClassDocsResponse response = new ClassDocsResponse(
                     deadlineBoard
                             ? List.of()
@@ -1134,7 +1142,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             : toNodes(currentUser, shownDocs, EduClassDoc.WEEK, evaluations, context, reviewView),
                     classItems,
                     List.copyOf(staff.values()),
-                    deadlineBoard ? List.of() : buildCreationCapabilities(currentUser, classItems, context),
+                    deadlineBoard
+                            ? List.of()
+                            : viewOnly
+                                    ? viewOnlyCapabilities(classItems)
+                                    : buildCreationCapabilities(currentUser, classItems, context),
                     deadlineBoard
                             ? overdueNodes(currentUser, shownDocs, EduClassDoc.SEMESTER, context)
                             : toNodes(currentUser, shownDocs, EduClassDoc.SEMESTER, evaluations, context, reviewView),
@@ -1198,6 +1210,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     // EDU-89: năm đang hoạt động, hoặc năm sắp tới đã tới ngày mở chuẩn bị (CFG-YR-05)
     private static boolean planYearOpen(SchoolYearDetailResponse year) {
         return year == null || year.status() == SchoolYearStatus.ACTIVE || year.preparing();
+    }
+
+    // Xem quá hạn: không ai tạo được; mã khác AUTHOR_FORBIDDEN để Web hiện cả bản đang soạn (như năm chỉ xem)
+    private static List<ClassDocsResponse.CreationCapability> viewOnlyCapabilities(
+            List<ClassDocsResponse.ClassItem> classItems) {
+        return classItems.stream()
+                .flatMap(cls -> java.util.stream.Stream.of("branch", "theme", "week", "day")
+                        .map(kind -> new ClassDocsResponse.CreationCapability(
+                                Long.parseLong(cls.id()), kind, false, null, "OVERDUE_VIEW")))
+                .toList();
     }
 
     private List<ClassDocsResponse.CreationCapability> buildCreationCapabilities(
@@ -2554,11 +2576,24 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             boolean reviewView) {
         return docs.stream()
                 .filter(d -> kind.equals(d.getKind()))
-                .map(d -> visibleInList(currentUser, d, context, reviewView)
-                        ? toNode(currentUser, d, evaluations.get(d.getId()), context)
-                        : publishedOrFrame(currentUser, d, context))
+                .map(d -> context.viewOnly()
+                        ? viewOnlyNode(currentUser, d, evaluations.get(d.getId()), context)
+                        : visibleInList(currentUser, d, context, reviewView)
+                                ? toNode(currentUser, d, evaluations.get(d.getId()), context)
+                                : publishedOrFrame(currentUser, d, context))
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    /** Bản đầy đủ nhưng không quyền thao tác nào (Hiệu trưởng xem hồ sơ quá hạn). */
+    private ObjectNode viewOnlyNode(
+            CurrentUser currentUser,
+            EduClassDoc doc,
+            EduWorkflowPolicy.Evaluation evaluation,
+            ClassListContext context) {
+        ObjectNode node = toNode(currentUser, doc, evaluation, context);
+        node.putObject("permissions");
+        return node;
     }
 
     /**

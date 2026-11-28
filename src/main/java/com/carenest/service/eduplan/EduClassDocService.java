@@ -22,9 +22,6 @@ public interface EduClassDocService {
     /** EDU-96: tiêu chí gửi duyệt của kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày (đạt / chưa đạt từng dòng), cho ai xem được tài liệu. */
     ObjectNode getClassDocChecks(CurrentUser currentUser, String kind, String docKey);
 
-    /** EDU-96: giáo án ngày mà người dùng là người soạn hoặc đang có lượt duyệt kế hoạch giáo dục ngày chứa nó. */
-    com.carenest.entity.eduplan.EduClassDoc requireDayReviewAccess(CurrentUser currentUser, String docKey);
-
     /** Trạng thái hiệu lực của giáo án ngày: Chờ duyệt nếu ngày hoặc kế hoạch giáo dục ngày chứa nó Chờ duyệt; ban hành theo hồ sơ. */
     com.carenest.utils.enums.EduClassDocStatus dayStatus(com.carenest.entity.eduplan.EduClassDoc day);
 
@@ -35,6 +32,12 @@ public interface EduClassDocService {
 
     /** Tài liệu (đủ nội dung) của đúng một lớp; classes/staff vẫn đủ phạm vi người xem. Lớp ngoài phạm vi ⇒ rỗng. */
     ClassDocsResponse getClassDocsOfClass(CurrentUser currentUser, Long schoolYearId, boolean reviewView, Long classId);
+
+    /**
+     * Hiệu trưởng xem mọi hồ sơ (kể cả chưa ban hành, đang quá hạn) của một lớp ở chế độ chỉ đọc: quyền để rỗng, không có
+     * khả năng tạo. Chỉ Hiệu trưởng có phân công hiệu lực.
+     */
+    ClassDocsResponse getClassDocsOverdueView(CurrentUser currentUser, Long schoolYearId, Long classId);
 
     /** Danh sách gọn có phân trang (không nội dung soạn); reviewView = hàng chờ duyệt. Cùng luật xem như getClassDocs. */
     com.carenest.dto.common.PageResponse<ObjectNode> getClassDocSummaries(

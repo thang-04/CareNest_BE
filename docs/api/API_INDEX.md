@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 458 endpoint.
+Tổng: 455 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -215,7 +215,6 @@ POST /daily-health-entries · src/main/java/com/carenest/controller/attendance/D
 GET /daily-health/overview · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getOverview
 POST /education-plans/ai/activities · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestActivities
 POST /education-plans/ai/class-docs/day/{docKey}/edit · src/main/java/com/carenest/controller/eduplan/EduAiController.java#editDay
-POST /education-plans/ai/class-docs/day/{docKey}/review · src/main/java/com/carenest/controller/eduplan/EduAiController.java#reviewDay
 POST /education-plans/ai/feedback · src/main/java/com/carenest/controller/eduplan/EduAiController.java#logFeedback
 POST /education-plans/ai/lesson-steps · src/main/java/com/carenest/controller/eduplan/EduAiController.java#suggestLessonSteps
 GET /education-plans/ai/rag/search · src/main/java/com/carenest/controller/eduplan/EduAiController.java#searchRag
@@ -230,9 +229,7 @@ POST /education-plans/class-docs/branch/calendar-preview · src/main/java/com/ca
 POST /education-plans/class-docs/branch/file-preview · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#previewBranchFile
 GET /education-plans/class-docs/context · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocContext
 GET /education-plans/class-docs/day/{docKey}/learning-resources · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#list
-POST /education-plans/class-docs/day/{docKey}/learning-resources · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#upload
 DELETE /education-plans/class-docs/day/{docKey}/learning-resources/{id} · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#detach
-GET /education-plans/class-docs/day/{docKey}/learning-resources/{id}/content · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#content
 GET /education-plans/class-docs/day/{docKey}/learning-resources/{id}/url · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#contentUrl
 POST /education-plans/class-docs/day/{docKey}/learning-resources/attach · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#attach
 POST /education-plans/class-docs/day/{docKey}/learning-resources/confirm · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#confirmUpload

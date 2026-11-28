@@ -5,6 +5,7 @@ import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
 import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
+import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.utils.ApiCode;
@@ -76,18 +77,24 @@ public class EduClassDocController {
         String logPrefix =
                 LOG_PREFIX + "|getClassDocs|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
-        ClassDocsResponse docs = classId != null
-                ? classDocService.getClassDocsOfClass(currentUser, schoolYearId, view == ClassDocView.REVIEW, classId)
-                : view == ClassDocView.REVIEW
-                        ? classDocService.getClassDocsForReview(currentUser, schoolYearId)
-                        : classDocService.getClassDocs(currentUser, schoolYearId);
+        if (view == ClassDocView.OVERDUE && classId == null)
+            throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "classId");
+        ClassDocsResponse docs = view == ClassDocView.OVERDUE
+                ? classDocService.getClassDocsOverdueView(currentUser, schoolYearId, classId)
+                : classId != null
+                        ? classDocService.getClassDocsOfClass(
+                                currentUser, schoolYearId, view == ClassDocView.REVIEW, classId)
+                        : view == ClassDocView.REVIEW
+                                ? classDocService.getClassDocsForReview(currentUser, schoolYearId)
+                                : classDocService.getClassDocs(currentUser, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class documents success", docs);
     }
 
     public enum ClassDocView {
         MAIN,
-        REVIEW
+        REVIEW,
+        OVERDUE
     }
 
     @GetMapping("/overdue")
