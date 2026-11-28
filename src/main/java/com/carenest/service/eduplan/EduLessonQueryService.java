@@ -13,6 +13,11 @@ public interface EduLessonQueryService {
     /** Kế hoạch ngày đã duyệt của lớp trong khoảng ngày; ngày chưa có giáo án duyệt thì không có khóa. */
     Map<LocalDate, ApprovedDayLessonResponse> findApprovedDayLessons(Long classroomId, LocalDate from, LocalDate to);
 
+    /**
+     * Như {@link #findApprovedDayLessons} nhưng giữ cả hoạt động gõ tay không gắn mục tiêu, để xem lịch dạy của lớp.
+     */
+    Map<LocalDate, ApprovedDayLessonResponse> findReleasedDayActivities(Long classroomId, LocalDate from, LocalDate to);
+
     Map<Long, Long> findGoalLineages(Collection<Long> goalIds);
 
     record ThemeGoal(Long id, Long lineage, Short goalNo, String text) {}

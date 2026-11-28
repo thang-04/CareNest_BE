@@ -66,7 +66,8 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
 
     // Họ tên nhân sự (bảng user_accounts thuộc identity-access) chỉ đọc để hiển thị, không ghi
     @Query(value = """
-                    select a.campus_id as campusId, u.id as userId, u.full_name as fullName, a.staff_role as staffRole
+                    select a.campus_id as campusId, u.id as userId, u.full_name as fullName, a.staff_role as staffRole,
+                           u.status <> 'ACTIVE' as locked
                     from staff_assignments a
                     join user_accounts u on u.id = a.user_id
                     where a.campus_id is not null
@@ -79,7 +80,8 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
     List<CampusStaff> findActiveCampusStaff(@Param("date") LocalDate date);
 
     @Query(value = """
-                    select r.campus_id as campusId, u.id as userId, u.full_name as fullName, a.staff_role as staffRole
+                    select r.campus_id as campusId, u.id as userId, u.full_name as fullName, a.staff_role as staffRole,
+                           u.status <> 'ACTIVE' as locked
                     from staff_assignments a
                     join classrooms r on r.id = a.classroom_id
                     join user_accounts u on u.id = a.user_id
@@ -300,7 +302,10 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
             value = "select distinct u.full_name from staff_assignments s join user_accounts u on u.id = s.user_id"
                     + " join school_years y on y.id = :yearId where s.campus_id = :campusId"
                     + " and s.staff_role = 'VICE_PRINCIPAL' and s.valid_from <= y.end_date"
-                    + " and (s.valid_to is null or s.valid_to >= y.start_date) order by 1",
+                    + " and (s.valid_to is null or s.valid_to >= y.start_date)"
+                    // Như danh sách điểm trường: phân công không ngày kết thúc hết theo năm học của nó
+                    + " and (s.valid_to is not null or not exists (select 1 from school_years p"
+                    + " where p.end_date >= s.valid_from and p.end_date < y.start_date)) order by 1",
             nativeQuery = true)
     List<String> findYearVicePrincipalNames(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
 
@@ -366,6 +371,9 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
                     + " where coalesce(s.campus_id, c.campus_id) = :campusId"
                     + " and (s.school_year_id = :yearId or (s.school_year_id is null"
                     + " and s.valid_from <= y.end_date and (s.valid_to is null or s.valid_to >= y.start_date)))"
+                    // Như danh sách điểm trường: phân công PHT không ngày kết thúc hết theo năm học của nó
+                    + " and (s.staff_role <> 'VICE_PRINCIPAL' or s.valid_to is not null or not exists (select 1"
+                    + " from school_years p where p.end_date >= s.valid_from and p.end_date < y.start_date))"
                     + " order by s.staff_role, u.full_name",
             nativeQuery = true)
     List<StaffName> findYearStaffNames(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
@@ -406,5 +414,7 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
         String getFullName();
 
         String getStaffRole();
+
+        boolean getLocked();
     }
 }

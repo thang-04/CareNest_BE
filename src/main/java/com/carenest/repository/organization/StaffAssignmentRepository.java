@@ -112,7 +112,8 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             select distinct u.fullName from StaffAssignment a, UserAccount u
             where u.id = a.userId and a.campusId = :campusId
               and a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL
-              and (a.validTo is null or a.validTo >= :date)
+              and (a.validTo >= :date or (a.validTo is null and not exists (
+                  select y from SchoolYear y where y.endDate >= a.validFrom and y.endDate < :date)))
               order by u.fullName
             """)
     List<String> findOpenVicePrincipalNames(@Param("campusId") Long campusId, @Param("date") LocalDate date);

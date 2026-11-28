@@ -206,22 +206,21 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
-    void teacherStepWarnsForShortClassAndBlocksWithoutHomeroomOrTeacher() {
-        // Lớp bé còn 1 giáo viên, chưa có chủ nhiệm ⇒ chặn
+    void teacherStepBlocksShortClassAndClassWithoutHomeroomOrTeacher() {
+        // Lớp bé còn 1 giáo viên, chưa có chủ nhiệm ⇒ chặn, nêu cả hai lý do
         jdbc.update("DELETE FROM staff_assignments WHERE classroom_id = ? AND is_homeroom", newClass3);
         YearReadinessResponse noHomeroom = service.getReadiness(principal, newYear);
         assertThat(teacherStep(noHomeroom).ok()).isFalse();
-        assertThat(teacherStep(noHomeroom).detail()).isEqualTo("1 lớp chưa có GV phụ trách chính");
+        assertThat(teacherStep(noHomeroom).detail()).isEqualTo("1 lớp thiếu 1 GV · 1 lớp chưa có GV phụ trách chính");
         assertThat(noHomeroom.blockers()).anyMatch(b -> b.startsWith("Giáo viên lớp"));
 
-        // Người còn lại làm chủ nhiệm ⇒ chỉ cảnh báo thiếu 1 GV
+        // Người còn lại làm chủ nhiệm nhưng lớp chỉ còn 1 GV ⇒ vẫn chặn (SCH-04, Cần chốt 28/11/2026)
         jdbc.update("UPDATE staff_assignments SET is_homeroom = TRUE WHERE classroom_id = ?", newClass3);
         // Bỏ entity đã nạp trong transaction test để đọc lại giá trị vừa sửa bằng SQL
         entityManager.clear();
-        YearReadinessResponse.Step warn = teacherStep(service.getReadiness(principal, newYear));
-        assertThat(warn.ok()).isTrue();
-        assertThat(warn.warning()).isTrue();
-        assertThat(warn.detail()).isEqualTo("Tất cả lớp có GV và GV phụ trách chính · 1 lớp thiếu 1 GV");
+        YearReadinessResponse.Step shortClass = teacherStep(service.getReadiness(principal, newYear));
+        assertThat(shortClass.ok()).isFalse();
+        assertThat(shortClass.detail()).isEqualTo("1 lớp thiếu 1 GV");
 
         // Lớp không còn giáo viên ⇒ chặn
         jdbc.update("DELETE FROM staff_assignments WHERE classroom_id = ?", newClass3);

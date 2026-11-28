@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 453 endpoint.
+Tổng: 455 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -204,9 +204,11 @@ GET /classes/{classId}/children/{childId}/daily-health · src/main/java/com/care
 GET /classes/{classId}/daily-assessment · src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#getDailySheet
 PUT /classes/{classId}/daily-assessment/general · src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#saveGeneral
 PUT /classes/{classId}/daily-assessment/skills · src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#saveSkills
+GET /classes/{classId}/menu · src/main/java/com/carenest/controller/meals/ClassMenuController.java#getWeek
 GET /classes/{classId}/pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#getBoard
 GET /classes/{classId}/teacher-assignments/history · src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#getClassTeacherHistory
 PUT /classes/{classId}/teachers · src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#assignClassTeachers
+GET /classes/{classId}/teaching-activities · src/main/java/com/carenest/controller/eduplan/ClassTeachingActivityController.java#getWeek
 GET /classes/{classId}/transferred-assessment-history · src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#getTransferredHistory
 GET /classrooms · src/main/java/com/carenest/controller/organization/SchoolStructureController.java#listClassrooms
 POST /daily-health-entries · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#addEntry

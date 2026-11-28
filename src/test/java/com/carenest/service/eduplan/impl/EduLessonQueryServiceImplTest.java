@@ -83,6 +83,40 @@ class EduLessonQueryServiceImplTest {
     }
 
     @Test
+    void teachingActivitiesKeepTypedActivityWithoutGoalsAndSkipDraftDay() {
+        LocalDate monday = LocalDate.of(2026, 11, 9);
+        when(config.getEduConfig())
+                .thenReturn(new EduConfigResponse(
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        null,
+                        List.of(new EduConfigResponse.WeekRow("hoc", "Hoạt động học", false, false, null)),
+                        null));
+        when(goals.findAllById(Set.of())).thenReturn(List.of());
+        EduClassDoc week = doc(EduClassDoc.WEEK, 5L, monday, "{'grid':{'hoc':{'days':['Vẽ ngôi nhà']}}}");
+        EduClassDoc releasedDay = day(EduClassDocStatus.APPROVED, "[]", monday);
+        when(releasedDay.getYearPlanId()).thenReturn(9L);
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(week, releasedDay));
+
+        assertThat(service.findReleasedDayActivities(1L, monday, monday)
+                        .get(monday)
+                        .activities())
+                .extracting("label", "topic")
+                .containsExactly(org.assertj.core.api.Assertions.tuple("Hoạt động học", "Vẽ ngôi nhà"));
+        // Đánh giá trẻ vẫn chỉ nhận hoạt động có mục tiêu
+        assertThat(service.findApprovedDayLessons(1L, monday, monday)
+                        .get(monday)
+                        .activities())
+                .isEmpty();
+
+        EduClassDoc draftDay = day(EduClassDocStatus.DRAFT, "[]", monday);
+        when(draftDay.getYearPlanId()).thenReturn(9L);
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(week, draftDay));
+        assertThat(service.findReleasedDayActivities(1L, monday, monday)).isEmpty();
+    }
+
+    @Test
     void goalIdsKeepLineageMappingAcrossTeamUpdates() {
         EduPlanGoal goal = mock(EduPlanGoal.class);
         when(goal.getId()).thenReturn(300L);

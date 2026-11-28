@@ -91,7 +91,7 @@ public class CampusServiceImpl implements CampusService {
             Map<Long, Long> childCounts = yearId == null
                     ? Map.of()
                     : toMap(campusRepository.countChildrenByCampus(yearId, countDate(yearId, today)));
-            LocalDate staffAt = yearId == null ? today : countDate(yearId, today);
+            LocalDate staffAt = yearId == null ? today : staffDate(yearId, today);
             Map<Long, List<StaffBriefResponse>> vicePrincipals = campusStaff(staffAt, StaffRole.VICE_PRINCIPAL);
             Map<Long, SchoolYearRepository.CampusSnapshot> snapshot = campusSnapshot(yearId);
             // V151: chỉ điểm trường thuộc năm đang xem.
@@ -182,15 +182,18 @@ public class CampusServiceImpl implements CampusService {
                     : toMap(campusRepository.countChildrenByCampus(yearId, countDate))
                             .getOrDefault(campusId, 0L);
             // Xem lại năm cũ phải trả đúng nhân sự ở thời điểm kết thúc năm, cùng mốc với lớp và sĩ số.
+            LocalDate staffAt = yearId == null ? today : staffDate(yearId, today);
             List<StaffBriefResponse> vicePrincipals =
-                    campusStaff(countDate, StaffRole.VICE_PRINCIPAL).getOrDefault(campusId, List.of());
+                    campusStaff(staffAt, StaffRole.VICE_PRINCIPAL).getOrDefault(campusId, List.of());
             List<StaffBriefResponse> kitchenStaff =
                     campusStaff(countDate, StaffRole.KITCHEN_STAFF).getOrDefault(campusId, List.of());
             List<StaffBriefResponse> teachers = yearId == null
                     ? List.of()
-                    : campusRepository.findActiveClassroomStaff(campusId, yearId, countDate).stream()
+                    : campusRepository
+                            .findActiveClassroomStaff(campusId, yearId, teacherDate(yearId, countDate))
+                            .stream()
                             .filter(s -> StaffRole.TEACHER.name().equals(s.getStaffRole()))
-                            .map(s -> new StaffBriefResponse(s.getUserId(), s.getFullName()))
+                            .map(s -> new StaffBriefResponse(s.getUserId(), s.getFullName(), s.getLocked()))
                             .distinct()
                             .toList();
             CampusDetailResponse response = new CampusDetailResponse(
@@ -545,6 +548,39 @@ public class CampusServiceImpl implements CampusService {
                 .orElse(today);
     }
 
+    // Năm sắp diễn ra: GV được phân công từ ngày mở chuẩn bị hoặc đầu năm, xét tại ngày cuối năm để hiện đủ
+    private LocalDate teacherDate(Long yearId, LocalDate countDate) {
+        return schoolYearRepository
+                .findById(yearId)
+                .filter(year -> year.getStatus() == SchoolYearStatus.PLANNED)
+                .map(SchoolYear::getEndDate)
+                .orElse(countDate);
+    }
+
+    // PHT là phân công theo năm: năm sắp diễn ra phải hiển thị từ ngày mở chuẩn bị, không lấy phân công của hôm nay.
+    private LocalDate staffDate(Long yearId, LocalDate today) {
+        return schoolYearRepository
+                .findById(yearId)
+                .map(year -> {
+                    if (year.getEndDate().isBefore(today)) {
+                        return year.getEndDate();
+                    }
+                    if (year.getStatus() == SchoolYearStatus.PLANNED && today.isBefore(year.getPrepDate())) {
+                        LocalDate prep = year.getPrepDate().isAfter(year.getStartDate())
+                                ? year.getStartDate()
+                                : year.getPrepDate();
+                        for (SchoolYear other : schoolYearRepository.findAllByOrderByStartDateDesc()) {
+                            if (other.getEndDate().isBefore(year.getStartDate()) && !prep.isAfter(other.getEndDate())) {
+                                prep = other.getEndDate().plusDays(1);
+                            }
+                        }
+                        return prep;
+                    }
+                    return today;
+                })
+                .orElse(today);
+    }
+
     private Long resolveSchoolYearId(Long schoolYearId) {
         if (schoolYearId != null) {
             if (!schoolYearRepository.existsById(schoolYearId)) {
@@ -564,7 +600,8 @@ public class CampusServiceImpl implements CampusService {
                 .collect(Collectors.groupingBy(
                         CampusRepository.CampusStaff::getCampusId,
                         Collectors.mapping(
-                                s -> new StaffBriefResponse(s.getUserId(), s.getFullName()), Collectors.toList())));
+                                s -> new StaffBriefResponse(s.getUserId(), s.getFullName(), s.getLocked()),
+                                Collectors.toList())));
     }
 
     private List<CampusDetailResponse.KitchenRoom> kitchenRooms(Long yearId, Long campusId) {

@@ -124,12 +124,16 @@ public class YearSetupServiceImpl implements YearSetupService {
         }
         Map<Long, RoomRepository.YearRoomInfo> rooms = roomRepository.findYearRoomInfo(schoolYearId).stream()
                 .collect(Collectors.toMap(RoomRepository.YearRoomInfo::getRoomId, room -> room));
-        Map<Long, List<StaffAssignment>> teachers =
-                staffAssignmentRepository
-                        .findCurrentTeachers(
-                                classes.stream().map(Classroom::getId).toList(), today)
-                        .stream()
-                        .collect(Collectors.groupingBy(StaffAssignment::getClassroomId));
+        List<StaffAssignment> assigned = staffAssignmentRepository.findCurrentTeachers(
+                classes.stream().map(Classroom::getId).toList(), today);
+        // SCH-04: giáo viên bị khóa tài khoản không tính là đủ giáo viên, kể cả làm phụ trách chính
+        Set<Long> locked = assigned.isEmpty()
+                ? Set.of()
+                : Set.copyOf(staffAssignmentRepository.findInactiveUserIds(
+                        assigned.stream().map(StaffAssignment::getUserId).collect(Collectors.toSet())));
+        Map<Long, List<StaffAssignment>> teachers = assigned.stream()
+                .filter(a -> !locked.contains(a.getUserId()))
+                .collect(Collectors.groupingBy(StaffAssignment::getClassroomId));
         return classes.stream()
                 .map(c -> {
                     RoomRepository.YearRoomInfo room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
