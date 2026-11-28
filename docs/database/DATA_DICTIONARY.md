@@ -583,6 +583,7 @@ Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nh�
 | note | VARCHAR(500) | không | Ghi chú; NOTED cần biểu hiện hoặc ghi chú | — |
 | actions | VARCHAR(100) | không | Xử trí khi NOTED (`MONITOR`, `MEDICAL_ROOM`, `PARENT_INFORMED`, `EARLY_PICKUP`, `REFERRAL`) | — |
 | referral_place / referral_time / referral_escort | VARCHAR(150) / TIME / VARCHAR(100) | có | Bắt buộc nơi + giờ khi có `REFERRAL` | — |
+| referral_escort_phone | VARCHAR(10) | có | SĐT di động người đi cùng, lưu dạng 10 số (V211) | Cá nhân |
 | notification_status | VARCHAR(20) | không | `PENDING` (chưa có module thông báo phụ huynh) | — |
 | recorded_by, recorded_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
 Index: `(child_id, date)`, `(classroom_id, date)`.

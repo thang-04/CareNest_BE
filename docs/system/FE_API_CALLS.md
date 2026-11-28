@@ -6,7 +6,7 @@ File sinh tự động, không sửa tay. Sinh lại: `node scripts/check-api-co
 - Path đã chuẩn hóa tham số thành `{x}`. `[module: api|demo]` theo `src/config/integrationModules.js`.
 - Lời gọi có đường dẫn không phải chuỗi literal (vd. ghép từ biến) không nằm trong bảng.
 
-Tổng: 459 lời gọi.
+Tổng: 460 lời gọi.
 
 ```text
 DELETE /accounts/me/photo · src/services/account/api/accountPhotoApi.js [account: api] → src/main/java/com/carenest/controller/account/AccountPhotoController.java#deleteMyPhoto
@@ -403,6 +403,7 @@ POST /staff-assignments · src/services/school-config/api/schoolConfigApi.js [sc
 POST /users · src/services/school-config/api/schoolConfigApi.js [school-config: api] → (BE chưa có — pending)
 PUT /accounts/me/photo · src/services/account/api/accountPhotoApi.js [account: api] → src/main/java/com/carenest/controller/account/AccountPhotoController.java#updateMyPhoto
 PUT /accounts/{x}/permission-overrides · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/account/PermissionController.java#updatePermissionOverrides
+PUT /accounts/{x}/staff-role · src/services/school-config/schoolConfigService.js [school-config: api] → src/main/java/com/carenest/controller/account/AccountController.java#changeStaffRole
 PUT /age-groups/{x} · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/AgeGroupController.java#updateAgeGroup
 PUT /announcement-schedules/{x} · src/services/announcement/api/announcementApi.js [announcements: api] → src/main/java/com/carenest/controller/announcement/AnnouncementScheduleController.java#updateScheduleWithFiles
 PUT /announcement-templates/{x} · src/services/announcement/api/announcementApi.js [announcements: api] → src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#updateTemplate

@@ -22355,6 +22355,16 @@ components:
     ParentDailyHealthResponse:
       type: object
       properties:
+        actions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MONITOR
+            - MEDICAL_ROOM
+            - PARENT_INFORMED
+            - EARLY_PICKUP
+            - REFERRAL
         classId:
           type: integer
           format: int64
@@ -22367,6 +22377,8 @@ components:
           type: string
         recordedByName:
           type: string
+        referral:
+          $ref: "#/components/schemas/Referral"
         symptoms:
           type: array
           items:
@@ -23959,6 +23971,10 @@ components:
         escort:
           type: string
           maxLength: 100
+          minLength: 0
+        escortPhone:
+          type: string
+          maxLength: 20
           minLength: 0
         place:
           type: string

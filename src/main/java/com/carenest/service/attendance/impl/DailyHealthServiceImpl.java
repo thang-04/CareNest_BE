@@ -33,6 +33,7 @@ import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthAction;
@@ -172,6 +173,10 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                     && (referral == null || blank(referral.place()) || referral.time() == null)) {
                 throw GlobalException.of(ApiCode.HEALTH_REFERRAL_INCOMPLETE);
             }
+            String escortPhone = referral == null || blank(referral.escortPhone())
+                    ? null
+                    : PhoneNumbers.normalize(referral.escortPhone())
+                            .orElseThrow(() -> GlobalException.of(ApiCode.PHONE_NUMBER_INVALID));
             // Báo phụ huynh một lần mỗi ngày: lần ghi "cần lưu ý" đầu tiên của trẻ trong ngày
             boolean firstNoted = noted
                     && entryRepository
@@ -195,6 +200,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                             referral == null || blank(referral.escort())
                                     ? null
                                     : referral.escort().trim())
+                    .referralEscortPhone(escortPhone)
                     .recordedBy(currentUser.userId())
                     .recordedAt(rules.now())
                     .build());
@@ -482,7 +488,10 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                         e.getReferralPlace() == null
                                 ? null
                                 : new DailyHealthEntryResponse.Referral(
-                                        e.getReferralPlace(), e.getReferralTime(), e.getReferralEscort()),
+                                        e.getReferralPlace(),
+                                        e.getReferralTime(),
+                                        e.getReferralEscort(),
+                                        e.getReferralEscortPhone()),
                         e.getNotificationStatus(),
                         e.getRecordedBy(),
                         names.get(e.getRecordedBy()),
