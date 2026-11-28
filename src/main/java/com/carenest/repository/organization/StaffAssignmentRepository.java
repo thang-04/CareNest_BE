@@ -112,7 +112,8 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             select distinct u.fullName from StaffAssignment a, UserAccount u
             where u.id = a.userId and a.campusId = :campusId
               and a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL
-              and (a.validTo is null or a.validTo >= :date)
+              and (a.validTo >= :date or (a.validTo is null and not exists (
+                  select y from SchoolYear y where y.endDate >= a.validFrom and y.endDate < :date)))
               order by u.fullName
             """)
     List<String> findOpenVicePrincipalNames(@Param("campusId") Long campusId, @Param("date") LocalDate date);
@@ -228,12 +229,13 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("yearEnd") LocalDate yearEnd,
             @Param("from") LocalDate from);
 
-    // Phương án C (tạm): ứng viên GV = người từng có phân công GV/tổ trưởng (gồm GV vừa được gỡ, để phân công lại)
-    // và tài khoản GV chưa có phân công (tạo không kèm lớp — AUTH-15); điểm trường = điểm trường lớp của phân công
-    // gần nhất (dòng đầu theo valid_from giảm dần), null nếu chưa dạy lớp nào
+    // Ứng viên GV = người từng có phân công GV/tổ trưởng (gồm GV vừa được gỡ, để phân công lại) và tài khoản GV chưa
+    // có phân công; điểm trường = cơ sở công tác (AUTH-15, chốt 21/11/2026), chưa có thì theo lớp của phân công gần
+    // nhất (dòng đầu theo valid_from giảm dần), null nếu chưa dạy lớp nào
     @Query(
-            value = "select u.id as userId, u.full_name as fullName, c.campus_id as campusId"
+            value = "select u.id as userId, u.full_name as fullName, coalesce(w.campus_id, c.campus_id) as campusId"
                     + " from user_accounts u"
+                    + " left join teacher_work_campuses w on w.user_id = u.id"
                     + " left join staff_assignments a on a.user_id = u.id"
                     + " and a.staff_role in ('TEACHER', 'AGE_GROUP_TEAM_LEADER')"
                     + " left join classrooms c on c.id = a.classroom_id"
@@ -259,11 +261,15 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("yearStart") LocalDate yearStart,
             @Param("yearEnd") LocalDate yearEnd);
 
-    // Ứng viên PHT: người từng có phân công PHT (vai trò nằm ở Keycloak, chưa có API tài khoản để đọc)
+    // Ứng viên PHT: tài khoản có vai trò PHT (kể cả chưa từng được phân công điểm trường)
+    // cộng người từng có phân công PHT, để vẫn thấy lịch sử khi vai trò tài khoản đã đổi
     @Query(
-            value = "select distinct u.id as userId, u.full_name as fullName, u.email as email, u.status as status"
-                    + " from staff_assignments a join user_accounts u on u.id = a.user_id"
-                    + " where a.staff_role = 'VICE_PRINCIPAL' order by u.full_name, u.id",
+            value = "select u.id as userId, u.full_name as fullName, u.email as email, u.status as status"
+                    + " from user_accounts u"
+                    + " where u.primary_role = 'VICE_PRINCIPAL'"
+                    + " or exists (select 1 from staff_assignments a"
+                    + " where a.user_id = u.id and a.staff_role = 'VICE_PRINCIPAL')"
+                    + " order by u.full_name, u.id",
             nativeQuery = true)
     List<VicePrincipalRow> findVicePrincipalRows();
 

@@ -2,6 +2,7 @@ package com.carenest.service.account.impl;
 
 import com.carenest.entity.account.PasswordToken;
 import com.carenest.repository.account.*;
+import com.carenest.security.WebSessionRevocations;
 import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.enums.PasswordTokenPurpose;
 import java.time.Instant;
@@ -15,6 +16,8 @@ public class AuthStateStoreImpl implements AuthStateStore {
     private final PasswordTokenRepository passwordTokens;
     private final OtpSendLimitRepository otpSendLimits;
     private final UserAccountRepository accounts;
+    private final WebSessionRevocations webSessions;
+    private final java.time.Clock clock;
 
     @Override
     @Transactional
@@ -120,6 +123,23 @@ public class AuthStateStoreImpl implements AuthStateStore {
     public void cleanup(Instant now) {
         passwordTokens.deleteExpired(now.minusSeconds(3600));
         otpSendLimits.deleteExpired(now);
+        webSessions.purgeExpired();
+    }
+
+    @Override
+    public void revokeWebSessions(String keycloakUserId, java.util.List<String> sessionIds) {
+        if (!sessionIds.isEmpty()) webSessions.revoke(keycloakUserId, sessionIds);
+    }
+
+    @Override
+    public void endWebSession(String keycloakUserId, String sessionId) {
+        if (keycloakUserId != null && sessionId != null) webSessions.end(keycloakUserId, sessionId);
+    }
+
+    @Override
+    @Transactional
+    public void markPasswordChanged(Long userId) {
+        if (userId != null) accounts.markPasswordChanged(userId, clock.instant());
     }
 
     private boolean active(Long id) {

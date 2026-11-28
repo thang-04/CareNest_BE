@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -81,6 +82,20 @@ class AttendanceControllerTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
         verify(attendanceService, never()).saveClassAttendance(any(), any(), any());
+    }
+
+    @Test
+    void teacherCanCorrectAccidentalMealParticipationAfterCutoff() throws Exception {
+        CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
+        given(attendanceService.correctMealParticipation(eq(teacher), eq(3L), eq(5L), any()))
+                .willReturn(new SaveAttendanceResponse(Instant.parse("2026-10-21T01:00:00Z"), 1, 1));
+
+        mockMvc.perform(post("/api/classes/3/attendance/children/5/meal-participation")
+                        .with(token(CareNestRole.TEACHER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"date\":\"2026-10-21\",\"participates\":false}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.changed").value(1));
     }
 
     @Test

@@ -24,8 +24,11 @@ public class EduCurriculumContent {
     @Column(name = "source_id", nullable = false)
     private Long sourceId;
 
-    @Column(name = "age_group_id", nullable = false)
-    private Long ageGroupId;
+    @Column(name = "age_from_months", nullable = false)
+    private Short ageFromMonths;
+
+    @Column(name = "age_to_months", nullable = false)
+    private Short ageToMonths;
 
     @Column(name = "domain_id", nullable = false)
     private Long domainId;

@@ -51,7 +51,7 @@ class StockDeductionListenerIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class ClockConfig {
@@ -84,6 +84,7 @@ class StockDeductionListenerIntegrationTest {
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
         long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
                 + campus + ", " + year + ", 'Lớp E', " + ag3 + ") RETURNING id");
         long child1 = insertId(
@@ -101,6 +102,10 @@ class StockDeductionListenerIntegrationTest {
                 + " unit_price, kcal, protein, lipid, glucid, nutrient_source, storage, origin)"
                 + " VALUES ('GAO-E', 'Gạo', 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', 'DRY', 'PLANT')"
                 + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                rice);
         long dish = insertId("INSERT INTO dishes (code, name, dish_type) VALUES ('COM-E', 'Cơm', 'CARB') RETURNING id");
         jdbc.update(
                 "INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child) VALUES (?, ?, ?, 60)",
@@ -127,6 +132,7 @@ class StockDeductionListenerIntegrationTest {
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principal.userId());
         long supplier = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC E', '0900000002') RETURNING id");
+        jdbc.update("UPDATE food_prices SET supplier_id = ?", supplier);
         var receipt = receiptService.createReceipt(
                 principal,
                 new StockReceiptRequest(
@@ -156,20 +162,15 @@ class StockDeductionListenerIntegrationTest {
 
         mealCountService.confirm(vp, lunch(vp).id());
 
-        // 1 suất × 60 g; gọi xác nhận lại bữa khác cùng ngày không ghi thêm
+        // 1 suất × 60 g; sau xác nhận không còn đường đổi suất qua điểm danh (ATT-07) nên không có điều chỉnh
         assertThat(movementSum("DEDUCT")).isEqualByComparingTo("-60");
-
-        attendanceService.saveClassAttendance(teacher, classroom, request(present(child1), present(child2)));
-        mealCountService.confirm(vp, lunch(vp).id());
-
-        assertThat(movementSum("DEDUCT")).isEqualByComparingTo("-60");
-        assertThat(movementSum("ADJUST")).isEqualByComparingTo("-60");
+        assertThat(movementSum("ADJUST")).isEqualByComparingTo("0");
         assertThat(jdbc.queryForObject(
                         "SELECT required_qty FROM stock_daily_demands WHERE campus_id = ? AND meal_date = ?",
                         BigDecimal.class,
                         campus,
                         TODAY))
-                .isEqualByComparingTo("120");
+                .isEqualByComparingTo("60");
     }
 
     private BigDecimal movementSum(String type) {

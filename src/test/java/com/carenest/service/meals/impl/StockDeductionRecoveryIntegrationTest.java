@@ -61,7 +61,7 @@ class StockDeductionRecoveryIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class ClockConfig {
@@ -100,6 +100,11 @@ class StockDeductionRecoveryIntegrationTest {
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        com.carenest.support.YearAgeGroupFixture.apply(jdbc, year);
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                year);
         long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
                 + campus + ", " + year + ", 'Lớp F', " + ag3 + ") RETURNING id");
         long child = insertId(
@@ -112,6 +117,10 @@ class StockDeductionRecoveryIntegrationTest {
                 + " unit_price, kcal, protein, lipid, glucid, nutrient_source, storage, origin)"
                 + " VALUES ('GAO-F', 'Gạo', 'GRAIN', 'g', 'kg', 1000, 20000, 350, 7, 1, 77, 'TEST', 'DRY', 'PLANT')"
                 + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                rice);
         long dish = insertId("INSERT INTO dishes (code, name, dish_type) VALUES ('COM-F', 'Cơm', 'CARB') RETURNING id");
         jdbc.update(
                 "INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child) VALUES (?, ?, ?, 60)",
@@ -137,6 +146,7 @@ class StockDeductionRecoveryIntegrationTest {
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principal.userId());
         long supplier = insertId("INSERT INTO suppliers (name, phone) VALUES ('NCC F', '0900000003') RETURNING id");
+        jdbc.update("UPDATE food_prices SET supplier_id = ?", supplier);
         var receipt = receiptService.createReceipt(
                 principal,
                 new StockReceiptRequest(
@@ -174,6 +184,17 @@ class StockDeductionRecoveryIntegrationTest {
         DayBoardResponse.DryStock dryStock = dryStock(principal, campus);
         assertThat(dryStock.status()).isNotEqualTo("NOTHING_TO_DEDUCT").isEqualTo("NOT_SYNCED");
         assertThat(dryStock.foodCount()).isEqualTo(1);
+        // Nút Đồng bộ kho theo quyền: HT và PHT của điểm trường được, PHT điểm trường khác thì không (AUTH-20)
+        assertThat(dryStock.canSync()).isTrue();
+        assertThat(dryStock(vp, campus).canSync()).isTrue();
+        long otherCampus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-Y', 'Y') RETURNING id");
+        CurrentUser otherVp = user("vp-other", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
+                otherVp.userId(),
+                otherCampus);
+        assertThat(dryStock(otherVp, campus).canSync()).isFalse();
 
         // Đồng bộ lại (PHT xác nhận suất có quyền): trừ đúng một lần, gọi thêm không trừ lặp
         stockLedgerService.resyncDay(vp, campus, TODAY);

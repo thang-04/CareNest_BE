@@ -12,10 +12,12 @@ import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.service.account.ChildProfileEditService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.ChildEditRoles;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import java.util.ArrayList;
@@ -56,6 +58,7 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
     static final String USERNAME_TAKEN = "Số điện thoại này đã là tên đăng nhập của tài khoản khác.";
 
     private final ChildRecordService childRecordService;
+    private final ChildAccessPolicy childAccessPolicy;
     private final ChildIntakeService childIntakeService;
     private final UserAccountRepository userAccountRepository;
     private final AccountLifecycleOperations accountLifecycle;
@@ -66,6 +69,11 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
         String logPrefix = LOG_PREFIX + "|update|userId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
+            // CHD-11: GV không ghi thẳng, gửi yêu cầu qua ChildProfileChangeRequestService (chỉ trẻ trong phạm vi lớp)
+            if (ChildEditRoles.teacherOnly(actor)) {
+                childAccessPolicy.checkCanViewChild(actor, childId);
+                throw GlobalException.of(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL);
+            }
             ChildEditDraft draft = childRecordService.prepareEdit(actor, childId, request);
             Map<Long, UserAccount> accounts = userAccountRepository
                     .findAllById(draft.guardians().stream()

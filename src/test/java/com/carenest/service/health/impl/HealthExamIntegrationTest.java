@@ -64,7 +64,7 @@ class HealthExamIntegrationTest {
     // Hôm nay 2026-11-10 (giờ trường)
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class ClockConfig {
@@ -544,13 +544,66 @@ class HealthExamIntegrationTest {
     }
 
     @Test
-    @DisplayName("HLT-08: phiếu mới trùng ngày khám với kết quả đo khác của trẻ ⇒ lỗi ô date kèm ngày, báo HT/PHT")
-    void newExamOnTakenDateAsksLeaders() {
+    @DisplayName("HLT-08 (2026-11-24): ngày khám trẻ đã có số đo kỳ cân đo ⇒ vẫn lưu nháp, kết luận; sổ giữ cả hai")
+    void examSavesOnDayWithRoundMeasurement() {
         long round = checks.createHealthCheck(
                         principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"))
                 .id();
-        measurements.createMeasurement(teacherA, child1, measure(round, "15.2", ""));
+        long measured = measurements
+                .createMeasurement(teacherA, child1, measure(round, "15.2", ""))
+                .id();
         checks.closeHealthCheck(principal, round);
+        long campaign = examCampaign(campusA);
+
+        HealthExamResponse draft =
+                exams.saveExam(teacherA, campaign, child1, save(HealthExamCatalog.template(), false, ""));
+        assertThat(draft.measurement().date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(draft.measurement().examStatus()).isEqualTo(HealthExamStatus.DRAFT);
+        HealthExamResponse concluded =
+                exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, ""));
+        assertThat(concluded.measurement().examStatus()).isEqualTo(HealthExamStatus.CONCLUDED);
+        assertThat(rowOf(campaign, child1).result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(measurements.getHealthRecord(teacherA, child1).measurements())
+                .extracting(HealthMeasurementResponse::id, HealthMeasurementResponse::date)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(measured, LocalDate.of(2026, 11, 10)),
+                        org.assertj.core.groups.Tuple.tuple(
+                                concluded.measurement().id(), LocalDate.of(2026, 11, 10)));
+    }
+
+    @Test
+    @DisplayName("HLT-08 (2026-11-24): phiếu khám mới điền sẵn chiều cao, cân nặng của số đo kỳ cân đo cùng ngày")
+    void examPrefillsHeightWeightFromSameDayMeasurement() {
+        // Bình cân ngày 09/11, An cân ngày 10/11 (hôm nay, cùng ngày khám)
+        testClock.setInstant(Instant.parse("2026-11-09T02:00:00Z"));
+        long round = checks.createHealthCheck(
+                        principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"))
+                .id();
+        measurements.createMeasurement(teacherA, child2, measure(round, "14.8", ""));
+        testClock.setInstant(Instant.parse("2026-11-10T02:00:00Z"));
+        measurements.createMeasurement(teacherA, child1, measure(round, "15.6", ""));
+        checks.closeHealthCheck(principal, round);
+        long campaign = examCampaign(campusA);
+
+        HealthExamResponse.HealthExamDraft prefilled =
+                exams.getExam(teacherA, campaign, child1).draft();
+        assertThat(prefilled.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(prefilled.heightCm()).isEqualByComparingTo("98.5");
+        assertThat(prefilled.weightKg()).isEqualByComparingTo("15.6");
+        assertThat(prefilled.headCircumferenceCm()).isNull();
+        // Số đo ngày khác không điền
+        HealthExamResponse.HealthExamDraft blank =
+                exams.getExam(teacherA, campaign, child2).draft();
+        assertThat(blank.heightCm()).isNull();
+        assertThat(blank.weightKg()).isNull();
+    }
+
+    @Test
+    @DisplayName("HLT-08: phiếu mới trùng ngày khám với phiếu khám của đợt khám khác ⇒ lỗi ô date kèm ngày, báo HT/PHT")
+    void newExamOnDayOfAnotherExamAsksLeaders() {
+        long first = examCampaign(campusA);
+        exams.saveExam(teacherA, first, child1, save(HealthExamCatalog.template(), false, ""));
+        checks.closeHealthCheck(principal, first);
         long campaign = examCampaign(campusA);
 
         assertThatThrownBy(
@@ -566,11 +619,168 @@ class HealthExamIntegrationTest {
                                         + "Báo Hiệu trưởng hoặc Phó hiệu trưởng.");
                     });
                 });
-        // Trẻ khác chưa có kết quả hôm nay ⇒ lưu được
+        // Trẻ khác chưa có phiếu khám hôm nay ⇒ lưu được
         assertThat(exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""))
                         .measurement()
                         .date())
                 .isEqualTo(LocalDate.of(2026, 11, 10));
+    }
+
+    @Test
+    @DisplayName("G94-180/HLT-09: trẻ chuyển lớp trong đợt khám ⇒ phiếu hiện ở lớp mới, GV lớp mới sửa; lớp cũ chỉ xem")
+    void examOfTransferredChildFollowsCurrentClass() {
+        long classA2 = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) SELECT "
+                + campusA + ", school_year_id, 'Lớp A2', age_group_id FROM classrooms WHERE id = " + classA
+                + " RETURNING id");
+        CurrentUser teacherA2 = user("he-teachera2", CareNestRole.TEACHER);
+        teach(teacherA2, classA2);
+        long campaign = examCampaign(campusA);
+        long examId = exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, ""))
+                .measurement()
+                .id();
+        // An khám ngày 10/11 ở Lớp A, chuyển sang Lớp A2 từ 12/11
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-11-11' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-11-12')",
+                child1,
+                classA2);
+        entityManager.clear();
+
+        HealthCheckClassResponse.HealthCheckChild inNew = rowIn(campaign, teacherA2, classA2, child1);
+        assertThat(inNew.measurementId()).isEqualTo(examId);
+        assertThat(inNew.result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(inNew.canEdit()).isTrue();
+        assertThat(inNew.measuredIn())
+                .isEqualTo(new HealthCheckClassResponse.MeasuredIn("Lớp A", "Điểm A", LocalDate.of(2026, 11, 10)));
+        HealthCheckClassResponse.HealthCheckChild inOld = rowIn(campaign, teacherA, classA, child1);
+        assertThat(inOld.movedTo())
+                .isEqualTo(new HealthCheckClassResponse.MovedTo("Lớp A2", "Điểm A", LocalDate.of(2026, 11, 12)));
+        assertThat(inOld.canEdit()).isFalse();
+        assertThat(checks.getHealthCheck(vpA, campaign).classes())
+                .extracting(c -> c.className(), c -> c.total(), c -> c.recorded())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Lớp A", 1, 0),
+                        org.assertj.core.groups.Tuple.tuple("Lớp A2", 1, 1));
+        // Phiếu khám theo lớp hiện tại của trẻ: GV lớp mới sửa được, GV lớp cũ không còn mở phiếu
+        assertThat(exams.getExam(teacherA2, campaign, child1).canEdit()).isTrue();
+        expectError(
+                () -> exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, "Sửa (giả)")),
+                ApiCode.HEALTH_EXAM_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/HLT-09: GV lớp mới lưu phiếu khám của trẻ chuyển lớp ⇒ phiếu ở lại lớp lúc khám, lớp cũ vẫn có"
+                    + " dòng đã chuyển")
+    void savingExamOfTransferredChildKeepsClassWhereTaken() {
+        long classA2 = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) SELECT "
+                + campusA + ", school_year_id, 'Lớp A2', age_group_id FROM classrooms WHERE id = " + classA
+                + " RETURNING id");
+        CurrentUser teacherA2 = user("he-teachera2", CareNestRole.TEACHER);
+        teach(teacherA2, classA2);
+        long campaign = examCampaign(campusA);
+        long examId = exams.saveExam(teacherA, campaign, child1, save(HealthExamCatalog.template(), false, ""))
+                .measurement()
+                .id();
+        // An khám dở (nháp) ngày 10/11 ở Lớp A, chuyển sang Lớp A2 từ 12/11; GV Lớp A2 khám tiếp và kết luận
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-11-11' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-11-12')",
+                child1,
+                classA2);
+        entityManager.clear();
+
+        exams.saveExam(teacherA2, campaign, child1, save(exam("NO", null, normal()), true, ""));
+        entityManager.flush();
+
+        assertThat(jdbc.queryForObject("SELECT classroom_id FROM health_measurements WHERE id = ?", Long.class, examId))
+                .isEqualTo(classA);
+        HealthCheckClassResponse.HealthCheckChild inOld = rowIn(campaign, teacherA, classA, child1);
+        assertThat(inOld.result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(inOld.movedTo())
+                .isEqualTo(new HealthCheckClassResponse.MovedTo("Lớp A2", "Điểm A", LocalDate.of(2026, 11, 12)));
+        HealthCheckClassResponse.HealthCheckChild inNew = rowIn(campaign, teacherA2, classA2, child1);
+        assertThat(inNew.measuredIn())
+                .isEqualTo(new HealthCheckClassResponse.MeasuredIn("Lớp A", "Điểm A", LocalDate.of(2026, 11, 10)));
+        assertThat(inNew.canEdit()).isTrue();
+    }
+
+    @Test
+    @DisplayName("G94-180/HLT-09: trẻ đã nghỉ học hoặc sang điểm trường khác ⇒ dòng phiếu khám ở lớp cũ chỉ xem (phiếu"
+            + " chỉ mở ở lớp hiện tại cùng điểm trường của đợt)")
+    void examRowOfChildWhoLeftOrChangedCampusIsReadOnly() {
+        long campaign = examCampaign(campusA);
+        exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, ""));
+        exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""));
+        long child4 = child("Dũng", "2023-04-01");
+        enroll(child4, classA);
+        long classB = jdbc.queryForObject("SELECT id FROM classrooms WHERE name = 'Lớp B'", Long.class);
+        // Từ 12/11: An sang Lớp B (điểm B), Bình nghỉ học
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-11-11' WHERE child_id IN (?, ?) AND classroom_id = ?",
+                child1,
+                child2,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-11-12')",
+                child1,
+                classB);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = '2026-11-12', left_reason = 'Chuyển trường (giả)'"
+                        + " WHERE id = ?",
+                child2);
+        entityManager.clear();
+
+        for (long gone : new long[] {child1, child2}) {
+            HealthCheckClassResponse.HealthCheckChild row = rowOf(campaign, gone);
+            assertThat(row.movedTo()).isNull();
+            assertThat(row.canEdit()).isFalse();
+            expectError(() -> exams.getExam(teacherA, campaign, gone), ApiCode.HEALTH_EXAM_NOT_FOUND);
+        }
+        assertThat(rowOf(campaign, child4).canEdit()).isTrue();
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-01, HLT-08: trẻ điểm danh vắng ngày khám (thứ 2–6) ⇒ không mở phiếu khám mới; phiếu đã có vẫn lưu")
+    void absentChildCannotStartExam() {
+        long campaign = examCampaign(campusA);
+        // Bình đã có phiếu nháp sáng nay rồi về sớm, điểm danh vắng; An vắng không phép cả ngày (thứ 3 10/11)
+        exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""));
+        for (long childId : new long[] {child1, child2}) {
+            jdbc.update(
+                    "INSERT INTO attendance_records (child_id, classroom_id, campus_id, date, status, recorded_by,"
+                            + " recorded_at) VALUES (?, ?, ?, '2026-11-10', 'UNEXCUSED', ?, now())",
+                    childId,
+                    classA,
+                    campusA,
+                    teacherA.userId());
+        }
+
+        assertThatThrownBy(
+                        () -> exams.saveExam(teacherA, campaign, child1, save(HealthExamCatalog.template(), false, "")))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.HEALTH_CHILD_ABSENT);
+                    assertThat(ex.getMessage()).isEqualTo("Trẻ vắng ngày 10/11/2026 (điểm danh). Nhập khi trẻ có mặt.");
+                });
+        assertThat(rowOf(campaign, child1).absentToday()).isTrue();
+        assertThat(rowOf(campaign, child1).result()).isEqualTo(HealthCheckResult.NOT_RECORDED);
+        assertThat(exams.saveExam(teacherA, campaign, child2, save(exam("NO", null, normal()), true, ""))
+                        .measurement()
+                        .examStatus())
+                .isEqualTo(HealthExamStatus.CONCLUDED);
     }
 
     private long examCampaign(long campusId) {
@@ -579,7 +789,12 @@ class HealthExamIntegrationTest {
     }
 
     private HealthCheckClassResponse.HealthCheckChild rowOf(long campaign, long childId) {
-        return checks.getHealthCheckClass(teacherA, campaign, classA).children().stream()
+        return rowIn(campaign, teacherA, classA, childId);
+    }
+
+    private HealthCheckClassResponse.HealthCheckChild rowIn(
+            long campaign, CurrentUser user, long classId, long childId) {
+        return checks.getHealthCheckClass(user, campaign, classId).children().stream()
                 .filter(c -> c.childId().equals(childId))
                 .findFirst()
                 .orElseThrow();
@@ -595,6 +810,77 @@ class HealthExamIntegrationTest {
     // Số đo kỳ cân đo, cao 98,5 cm; ngày đo hệ thống ghi (hôm nay)
     private static HealthMeasurementRequest measure(long round, String weightKg, String reason) {
         return new HealthMeasurementRequest(round, new BigDecimal("98.5"), new BigDecimal(weightKg), "", reason);
+    }
+
+    @Test
+    @DisplayName("HLT-08: nhiệt độ gồm 2 chữ số nguyên, tối đa 2 chữ số sau dấu phẩy (nháp và kết luận)")
+    void temperatureFormatIsCheckedOnDraftAndConclude() {
+        long campaign = examCampaign(campusA);
+        for (String bad : List.of("3115345", "9.5", "36.555")) {
+            HealthExamForm form = withTemperature(HealthExamCatalog.template(), new BigDecimal(bad));
+            assertThatThrownBy(() -> exams.saveExam(teacherA, campaign, child1, save(form, false, "")))
+                    .as("nháp " + bad)
+                    .isInstanceOf(GlobalException.class)
+                    .satisfies(ex -> assertThat(((GlobalException) ex).getFieldErrors())
+                            .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                            .contains(org.assertj.core.groups.Tuple.tuple(
+                                    "exam.vitals.temperatureC",
+                                    "Nhập nhiệt độ gồm 2 chữ số, tối đa 2 chữ số sau dấu phẩy (vd 36,5)")));
+        }
+        // Kết luận 33.5: chỉ còn lỗi khoảng như cũ
+        HealthExamForm low = withTemperature(exam("NO", null, normal()), new BigDecimal("33.5"));
+        assertThatThrownBy(() -> exams.saveExam(teacherA, campaign, child1, save(low, true, "")))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> assertThat(((GlobalException) ex).getFieldErrors())
+                        .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                        .contains(org.assertj.core.groups.Tuple.tuple(
+                                "exam.vitals.temperatureC", "Nhập nhiệt độ từ 34 đến 42 °C")));
+
+        // Khoảng 34-42 so ở 2 số lẻ: 33.96 và 42.04 ngoài khoảng, 34.00 và 42.00 hợp lệ
+        for (String out : List.of("33.96", "42.04")) {
+            HealthExamForm outside = withTemperature(exam("NO", null, normal()), new BigDecimal(out));
+            assertThatThrownBy(() -> exams.saveExam(teacherA, campaign, child1, save(outside, true, "")))
+                    .as(out)
+                    .isInstanceOf(GlobalException.class)
+                    .satisfies(ex -> assertThat(((GlobalException) ex).getFieldErrors())
+                            .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                            .contains(org.assertj.core.groups.Tuple.tuple(
+                                    "exam.vitals.temperatureC", "Nhập nhiệt độ từ 34 đến 42 °C")));
+        }
+        for (String edge : List.of("34.00", "42.00")) {
+            HealthExamForm inside = withTemperature(exam("NO", null, normal()), new BigDecimal(edge));
+            try {
+                exams.saveExam(teacherA, campaign, child1, save(inside, true, ""));
+            } catch (GlobalException ex) {
+                assertThat(ex.getFieldErrors())
+                        .extracting(FieldErrorResponse::field)
+                        .as(edge)
+                        .doesNotContain("exam.vitals.temperatureC");
+            }
+        }
+
+        HealthExamResponse one = exams.saveExam(
+                teacherA,
+                campaign,
+                child1,
+                save(withTemperature(HealthExamCatalog.template(), new BigDecimal("36.5")), false, ""));
+        assertThat(one.measurement().exam().vitals().temperatureC()).isEqualByComparingTo("36.5");
+        HealthExamResponse two = exams.saveExam(
+                teacherA,
+                campaign,
+                child1,
+                save(withTemperature(HealthExamCatalog.template(), new BigDecimal("36.55")), false, ""));
+        assertThat(two.measurement().exam().vitals().temperatureC()).isEqualByComparingTo("36.55");
+        assertThat(exams.getExam(teacherA, campaign, child1)
+                        .measurement()
+                        .exam()
+                        .vitals()
+                        .temperatureC())
+                .isEqualByComparingTo("36.55");
+    }
+
+    private static HealthExamForm withTemperature(HealthExamForm f, BigDecimal temperature) {
+        return withVitals(f, new HealthExamForm.HealthExamVitals(temperature, null, null, null, null, null));
     }
 
     private static HealthExamRequest save(HealthExamForm exam, boolean conclude, String reason) {

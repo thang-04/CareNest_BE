@@ -1,5 +1,6 @@
 package com.carenest.controller.attendance;
 
+import com.carenest.dto.attendance.CorrectHandoverTimeRequest;
 import com.carenest.dto.attendance.PickupBoardResponse;
 import com.carenest.dto.attendance.PickupChildResponse;
 import com.carenest.dto.attendance.PickupClassResponse;
@@ -17,6 +18,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -76,6 +78,17 @@ public class PickupController {
         PickupRecordResponse record = pickupService.recordResult(currentUser, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Record pickup result success", record);
+    }
+
+    @PatchMapping("/pickups/{pickupId}/handover-time")
+    @PreAuthorize("@permissionGuard.has('PICKUP_RECORD')")
+    public ResponseEntity<ResponseJson<PickupRecordResponse>> correctHandoverTime(
+            @PathVariable Long pickupId, @RequestBody CorrectHandoverTimeRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|correctHandoverTime|userId=" + currentUser.userId() + "|pickupId=" + pickupId;
+        log.info("{}|START", logPrefix);
+        PickupRecordResponse record = pickupService.correctHandoverTime(currentUser, pickupId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Correct handover time success", record);
     }
 
     @GetMapping("/pickups")

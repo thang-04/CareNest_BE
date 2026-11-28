@@ -55,6 +55,15 @@ class TemplateWeeklyCommentDraftGeneratorTest {
     }
 
     @Test
+    @DisplayName("ATT-14: tuần có ngày chỉ học một buổi thì nháp nói rõ")
+    void mentionsHalfDays() {
+        String text = generator.write(new WeeklyCommentDraftGenerator.WeekFacts(
+                5, 5, Map.of(), Map.of(), Map.of(), 0, 0, List.of(), List.of(), 0, false, 2));
+
+        assertThat(text).startsWith("Tuần này con đi học đều cả 5 ngày (trong đó 2 ngày học một buổi).");
+    }
+
+    @Test
     @DisplayName("OBS-29: nghỉ cả tuần thì nháp hỏi thăm và gợi ý gia đình, không nhận xét hoạt động")
     void absentAllWeek() {
         String text = generator.write(new WeeklyCommentDraftGenerator.WeekFacts(

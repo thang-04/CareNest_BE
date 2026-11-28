@@ -6,6 +6,7 @@ import com.carenest.dto.account.PermissionResponse;
 import com.carenest.entity.account.PermissionChangeLog;
 import com.carenest.entity.account.UserPermissionOverride;
 import com.carenest.utils.enums.Permission;
+import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -26,23 +27,29 @@ public class PermissionMapper {
                 permission,
                 override.getEffect(),
                 override.getScope(),
+                override.getCampusId(),
                 override.getReason(),
                 override.getCreatedBy(),
                 override.getUpdatedAt());
     }
 
-    public PermissionChangeLogResponse toChangeLogResponse(PermissionChangeLog log) {
+    /** nameOf: userId → họ tên (null nếu không còn tài khoản) để màn lịch sử không phải hiện id. */
+    public PermissionChangeLogResponse toChangeLogResponse(PermissionChangeLog log, Function<Long, String> nameOf) {
         return new PermissionChangeLogResponse(
                 log.getId(),
                 log.getBatchId(),
                 log.getActorUserId(),
+                nameOf.apply(log.getActorUserId()),
                 log.getTargetRole(),
                 log.getTargetUserId(),
+                log.getTargetUserId() == null ? null : nameOf.apply(log.getTargetUserId()),
                 log.getPermissionCode(),
                 log.getBeforeState(),
                 log.getAfterState(),
                 log.getBeforeScope(),
                 log.getAfterScope(),
+                log.getBeforeCampusId(),
+                log.getAfterCampusId(),
                 log.getReason(),
                 log.getChangedAt());
     }

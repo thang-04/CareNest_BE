@@ -22,7 +22,8 @@ public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
             DryStock dryStock,
             String freshReceiptStatus,
             String foodSampleStatus,
-            int foodSamplePendingCount) {}
+            int foodSamplePendingCount,
+            boolean m1FreshSigned) {}
 
     /** Thực đơn tuần chứa ngày và tuần sau: NONE, DRAFT, PUBLISHED. */
     public record WeekMenu(
@@ -40,6 +41,8 @@ public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
      * {@code openShortfallCount}: số dòng thiếu còn mở của điểm trường (mọi ngày).
      * {@code upcomingShortFoodCount}, {@code upcomingShortFrom}: số thực phẩm khô sắp thiếu từ hôm nay tới hết tuần sau
      * theo sĩ số dự kiến và ngày bắt đầu thiếu sớm nhất (NUT-11, P-38); đủ kho ⇒ 0 và null.
+     * {@code m1DrySigned}: biên bản M1 kho khô của ngày đã ký ⇒ ẩn nút đồng bộ kho (bấm Sửa lại biên bản trước).
+     * {@code canSync}: người xem được đồng bộ kho điểm trường này (nhập kho hoặc xác nhận suất, AUTH-20).
      */
     public record DryStock(
             String status,
@@ -47,5 +50,7 @@ public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
             int shortfallFoodCount,
             int openShortfallCount,
             int upcomingShortFoodCount,
-            LocalDate upcomingShortFrom) {}
+            LocalDate upcomingShortFrom,
+            boolean m1DrySigned,
+            boolean canSync) {}
 }

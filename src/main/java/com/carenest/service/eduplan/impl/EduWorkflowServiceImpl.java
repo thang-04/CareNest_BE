@@ -73,6 +73,9 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     private final Clock clock;
     private final com.carenest.repository.eduplan.EduPlanEventRepository eventRepository;
     private final com.carenest.service.organization.ClassroomService classroomService;
+    private final EduPlanTimeLock timeLock;
+    // ponytail: provider phá vòng phụ thuộc (EduClassDocServiceImpl dùng EduWorkflowService)
+    private final org.springframework.beans.factory.ObjectProvider<EduClassDocServiceImpl> classDocService;
 
     private final EduWorkflowPolicy evaluator = new EduWorkflowPolicy();
 
@@ -269,8 +272,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Set<Long> getUnionAuthorUserIdsForDossier(EduClassDoc doc) {
+        // Gọi theo từng hồ sơ chủ đề khi dựng danh sách: không log START/END
         String logPrefix = LOG_PREFIX + "|getUnionAuthorUserIdsForDossier";
-        log.info("{}|START", logPrefix);
         try {
             Set<Long> docIds = new HashSet<>();
             docIds.add(doc.getId());
@@ -292,9 +295,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             }
 
             userIds.addAll(authorRepository.findUserIdsByClassDocIdIn(docIds));
-            var result = Set.copyOf(userIds);
-            log.info("{}|END", logPrefix);
-            return result;
+            return Set.copyOf(userIds);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -422,7 +423,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             List<EduPlan> pendingYears =
                     yearPlanRepository.findAllByStatusInForUpdateOrderByIdAsc(List.of(EduPlanStatus.REVIEW));
             for (EduPlan plan : pendingYears) {
+                // EDU-97: đổi policy không được tự ban hành một lượt REVIEW đã hết hạn.
+                if (reviewDeadlineLocked(plan, settings, today)) continue;
                 RolePolicy yearPolicy = loadPolicy(plan.workflowKey());
+                // BR6.3: chuỗi mới rỗng (HT soạn) ⇒ hồ sơ đang chờ giữ trạng thái cũ, không lỗi, không tự ban hành
+                if (yearPolicy.reviewers().isEmpty()) continue;
                 Evaluation eval = evaluator.evaluate(
                         yearPolicy,
                         plan.getReviewRound(),
@@ -515,7 +520,10 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             var classInfos = batchClassroomInfos(pendingClassDocs);
             var policies = loadAllPolicies();
             for (EduClassDoc doc : pendingClassDocs) {
+                // EDU-97: reconcile chỉ chạy lại sau khi Hiệu trưởng đã mở lại hạn của đúng lượt duyệt.
+                if (reviewDeadlineLocked(doc, settings, today)) continue;
                 RolePolicy currentPolicy = policies.get(EduClassDoc.policyType(doc.getKind()));
+                if (currentPolicy.reviewers().isEmpty()) continue; // BR6.3
                 Set<Long> excludedAuthors = classAuthors.get(doc.getId());
                 ClassroomInfoResponse classroom = classInfos.get(doc.getClassroomId());
                 if (classroom == null) {
@@ -625,6 +633,15 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         event.put("round", round);
         event.put("policyRevision", revision);
         return event;
+    }
+
+    // EDU-109 (9): khóa duyệt = đúng phép tính Quá hạn (hạn hiệu lực chung), không mốc chụp lúc gửi
+    private boolean reviewDeadlineLocked(EduPlan plan, EduSettings settings, LocalDate today) {
+        return timeLock.locked(plan);
+    }
+
+    private boolean reviewDeadlineLocked(EduClassDoc doc, EduSettings settings, LocalDate today) {
+        return classDocService.getObject().reviewDeadlineLocked(doc);
     }
 
     private String appendPolicyHistory(EduClassDoc doc, boolean complete, Long actor, long revision, Instant now) {
@@ -791,14 +808,14 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
     private RolePolicy parsePolicyNode(JsonNode root, String docType) {
         if ("schoolYear".equals(docType) && root != null && !root.has(docType))
-            return new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL));
+            return new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL), docType);
         if (root == null || !root.has(docType)) {
             throw new IllegalStateException("Missing document workflow policy");
         }
         JsonNode typeNode = root.get(docType);
         List<Role> creators = parseRoles(typeNode.get("creators"));
         List<Role> reviewers = parseRoles(typeNode.get("reviewers"));
-        return new RolePolicy(creators, reviewers);
+        return new RolePolicy(creators, reviewers, docType);
     }
 
     private List<Role> parseRoles(JsonNode arrayNode) {
@@ -818,13 +835,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
     @Override
     public List<Approval> parseApprovals(String approvalsJson) {
+        // Helper đọc gọi theo từng hồ sơ trong vòng lặp danh sách: không log START/END (log ồn ~2 dòng × số hồ sơ)
         String logPrefix = LOG_PREFIX + "|parseApprovals";
-        log.info("{}|START", logPrefix);
         try {
             if (approvalsJson == null || approvalsJson.isBlank()) {
-                var result = List.<Approval>of();
-                log.info("{}|END", logPrefix);
-                return result;
+                return List.<Approval>of();
             }
             try {
                 JsonNode tree = objectMapper.readTree(approvalsJson);
@@ -855,7 +870,6 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                             : 0;
                     result.add(new Approval(userId, name, roleKey, at, note, round));
                 }
-                log.info("{}|END", logPrefix);
                 return result;
             } catch (Exception ex) {
                 throw new IllegalStateException("Cannot read stored approval history", ex);
@@ -934,6 +948,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             }
 
             List<Role> reviewers = policy != null ? policy.reviewers() : List.of();
+            // EDU-110 (8)(10): chuỗi rỗng, HT ban hành thẳng ⇒ ô ký Hiệu trưởng lấy từ lượt ban hành
+            if (reviewers.isEmpty() && namesByRole.containsKey(Role.PRINCIPAL)) reviewers = List.of(Role.PRINCIPAL);
             for (Role role : reviewers) {
                 ObjectNode slot = slots.addObject();
                 slot.put("roleKey", role.name());
@@ -1062,8 +1078,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             Instant completedAt,
             String completionPolicyJson,
             String printSnapshotJson) {
+        // Helper dựng response theo từng hồ sơ: không log START/END
         String logPrefix = LOG_PREFIX + "|toReviewStateResponse";
-        log.info("{}|START", logPrefix);
         try {
             List<String> roles =
                     policy != null ? policy.reviewers().stream().map(Enum::name).toList() : List.of();
@@ -1091,7 +1107,6 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                     completedAt,
                     completionPolicyObj,
                     printSnapshotObj);
-            log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -1173,45 +1188,62 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
             // 5. Parse and serialize new policies
             Map<String, RolePolicy> newPolicies = parseRequestPolicies(request);
-            String newPolicyJson = serializePolicies(newPolicies);
 
-            // 6. Check no-op: if normalized policy equals current
-            Map<String, RolePolicy> currentPolicies = loadAllPolicies();
-            if (Objects.equals(currentPolicies, newPolicies)) {
-                var result = getPolicy(currentUser);
-                log.info("{}|NOOP|END", logPrefix);
-                return result;
-            }
+            // 6–8. Ghi policy (nếu khác) + bản chiếu signers + đối chiếu hồ sơ chờ
+            boolean changed = applyPolicyLocked(settings, newPolicies, currentUser.userId(), clock.instant());
 
-            // 7. Update EduSettings: bump revision, update timestamp/user
-            Instant now = clock.instant();
-            settings.updateWorkflowPolicy(newPolicyJson, currentUser.userId(), now);
-
-            // Also keep legacy signers projection in sync
-            RolePolicy yearPol = newPolicies.get("year");
-            RolePolicy branchPol = newPolicies.get("branch");
-            RolePolicy themePol = newPolicies.get("theme");
-            Map<String, List<String>> signersProjection = Map.of(
-                    "year", yearPol.reviewers().stream().map(Enum::name).toList(),
-                    "branch", branchPol.reviewers().stream().map(Enum::name).toList(),
-                    "week", themePol.reviewers().stream().map(Enum::name).toList());
-            settings.update(
-                    objectMapper.writeValueAsString(signersProjection),
-                    settings.getWeekRows(),
-                    currentUser.userId(),
-                    now);
-
-            // 8. Reconcile pending docs atomically in the same transaction
-            reconcilePending(currentUser.userId(), now);
-
-            EduWorkflowPolicyResponse response = getPolicy(currentUser);
-            var result = response;
-            log.info("{}|END", logPrefix);
+            var result = getPolicy(currentUser);
+            log.info("{}|{}END", logPrefix, changed ? "" : "NOOP|");
             return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional
+    public boolean applyPolicy(Map<String, RolePolicy> policies, Long actorUserId, Instant now) {
+        String logPrefix = LOG_PREFIX + "|applyPolicy|userId=" + actorUserId;
+        log.info("{}|START", logPrefix);
+        try {
+            // Người gọi đã lấy khóa findForUpdate trong cùng giao dịch; lấy lại trả về cùng dòng đã khóa
+            EduSettings settings =
+                    settingsRepository.findForUpdate().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+            Map<String, RolePolicy> merged = new java.util.LinkedHashMap<>(loadAllPolicies());
+            merged.putAll(policies);
+            boolean changed = applyPolicyLocked(settings, merged, actorUserId, now);
+            log.info("{}|changed={}|END", logPrefix, changed);
+            return changed;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private boolean applyPolicyLocked(
+            EduSettings settings, Map<String, RolePolicy> newPolicies, Long actorUserId, Instant now) {
+        if (Objects.equals(loadAllPolicies(), newPolicies)) {
+            return false;
+        }
+        settings.updateWorkflowPolicy(serializePolicies(newPolicies), actorUserId, now);
+        // Giữ bản chiếu signers cũ đồng bộ
+        Map<String, List<String>> signersProjection = Map.of(
+                "year",
+                        newPolicies.get("year").reviewers().stream()
+                                .map(Enum::name)
+                                .toList(),
+                "branch",
+                        newPolicies.get("branch").reviewers().stream()
+                                .map(Enum::name)
+                                .toList(),
+                "week",
+                        newPolicies.get("theme").reviewers().stream()
+                                .map(Enum::name)
+                                .toList());
+        settings.update(objectMapper.writeValueAsString(signersProjection), settings.getWeekRows(), actorUserId, now);
+        reconcilePending(actorUserId, now);
+        return true;
     }
 
     private void validatePolicyRequest(EduWorkflowPolicyRequest request) {
@@ -1227,7 +1259,9 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             if (entry == null || entry.creators() == null || entry.reviewers() == null) {
                 throw GlobalException.of(ApiCode.SIGNERS_INVALID);
             }
-            if (entry.creators().size() != 1 || entry.reviewers().isEmpty()) {
+            // BR1.5: chuỗi rỗng chỉ khi HT soạn
+            if (entry.creators().size() != 1
+                    || (entry.reviewers().isEmpty() && !entry.creators().contains(Role.PRINCIPAL.name()))) {
                 throw GlobalException.of(ApiCode.SIGNERS_INVALID);
             }
             if (new HashSet<>(entry.creators()).size() != entry.creators().size()) {
@@ -1276,7 +1310,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             EduWorkflowPolicyRequest.PolicyEntry entry = request.policies().get(type);
             List<Role> creators = entry.creators().stream().map(Role::valueOf).toList();
             List<Role> reviewers = entry.reviewers().stream().map(Role::valueOf).toList();
-            result.put(type, new RolePolicy(creators, reviewers));
+            result.put(type, new RolePolicy(creators, reviewers, type));
         }
         result.putIfAbsent("schoolYear", loadPolicy("schoolYear"));
         return result;

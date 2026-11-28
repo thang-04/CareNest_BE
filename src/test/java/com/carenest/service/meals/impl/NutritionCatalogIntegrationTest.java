@@ -46,7 +46,7 @@ class NutritionCatalogIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     private FoodService foodService;
@@ -56,6 +56,37 @@ class NutritionCatalogIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private com.carenest.service.meals.AgeGroupMealConfigService configs;
+
+    @Autowired
+    private MealPlanEvaluationSupport planning;
+
+    @Test
+    void nutritionTogglePersistsAndOnlyFiltersPlanningGroups() {
+        var principal = new CurrentUser(
+                manager.userId(),
+                "kc-demo",
+                "demo",
+                "Demo",
+                null,
+                Set.of(CareNestRole.PRINCIPAL),
+                Permission.fixedPermissionsOf(CareNestRole.PRINCIPAL));
+        var originalGroups = planning.evaluatedGroups();
+        assertThat(configs.getGroupStatuses()).allMatch(g -> g.enabled());
+        configs.saveConfigs(
+                principal, List.of(), List.of(new com.carenest.dto.meals.NutritionGroupStatus(nursery, false)));
+        assertThat(jdbc.queryForObject(
+                        "select enabled from nutrition_group_settings where age_group_id = ?", Boolean.class, nursery))
+                .isFalse();
+        assertThat(configs.getGroupStatuses()).anyMatch(g -> g.ageGroupId() == nursery && !g.enabled());
+        assertThat(planning.planningGroups()).noneMatch(g -> g.id() == nursery);
+        assertThat(planning.evaluatedGroups()).isEqualTo(originalGroups);
+        configs.saveConfigs(
+                principal, List.of(), List.of(new com.carenest.dto.meals.NutritionGroupStatus(nursery, true)));
+        assertThat(configs.getGroupStatuses()).allMatch(g -> g.enabled());
+    }
 
     private CurrentUser manager;
     private long nursery;
@@ -312,12 +343,15 @@ class NutritionCatalogIntegrationTest {
                 null,
                 null,
                 null,
+                null,
                 "Bảng thành phần thực phẩm Việt Nam",
-                "2017",
                 new BigDecimal(wastePct),
                 FoodStorage.DRY,
                 origin,
                 null,
-                allergenIds);
+                allergenIds,
+                null,
+                null,
+                null);
     }
 }

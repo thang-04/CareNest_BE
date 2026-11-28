@@ -31,6 +31,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 @SpringBootTest
 @Transactional
@@ -39,7 +40,7 @@ class EduBranchRangeIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -218,7 +219,14 @@ class EduBranchRangeIntegrationTest {
                 "kc-" + username,
                 username,
                 "User " + username);
-        return new CurrentUser(id, "kc-" + username, username, "User " + username, null, Set.of(role));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "User " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
     }
 
     private long insertId(String sql, Object... args) {
@@ -248,6 +256,183 @@ class EduBranchRangeIntegrationTest {
                 .isInstanceOf(com.carenest.exception.GlobalException.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_class_docs", Long.class))
                 .isEqualTo(before);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "EDU-100: học kỳ chưa duyệt xóa được nhánh kèm kế hoạch tuần, giáo án Nháp; đã duyệt chỉ đổi tên/ngày; kế hoạch ngày đã ban hành khóa nhánh")
+    void classBranchEditFollowsSemesterAndDossierStatus() {
+        jdbc.update(
+                "UPDATE school_years SET semester1_start='2026-09-01', semester1_end='2027-01-15', "
+                        + "semester2_start='2027-01-18', semester2_end='2027-05-31' "
+                        + "WHERE id = (SELECT school_year_id FROM classrooms WHERE id = ?)",
+                classroomId);
+        var themes = jdbc.queryForList(
+                "SELECT id, start_date, end_date FROM edu_themes WHERE team_plan_id = ? ORDER BY sort_order",
+                teamPlanId);
+        // Chủ đề phụ 1 (02/11–13/11/2026) còn ở tương lai so với đồng hồ 22/10/2026, thuộc học kỳ 1
+        long themeId = ((Number) themes.get(3).get("id")).longValue();
+        String key = "bp_" + classroomId + "_" + teamPlanId;
+        String a = UUID.randomUUID().toString();
+        String b = UUID.randomUUID().toString();
+        ObjectNode saved = classDocService.saveClassDoc(
+                teacher,
+                "branch",
+                key,
+                calendar(
+                        themes,
+                        branch(a, themeId, "2026-11-02", "2026-11-06", "Nhánh A"),
+                        branch(b, themeId, "2026-11-09", "2026-11-13", "Nhánh B")),
+                -1L,
+                null);
+        for (String prefix : List.of("wp_", "dd_"))
+            jdbc.update(
+                    "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, theme_id, week_start, created_by, updated_by, team_plan_id) "
+                            + "VALUES (?, ?, ?, ?, '2026-11-09', ?, ?, ?)",
+                    prefix + classroomId + "_2026-11-09",
+                    prefix.equals("wp_") ? "week" : "day",
+                    classroomId,
+                    themeId,
+                    teacher.userId(),
+                    teacher.userId(),
+                    teamPlanId);
+        entityManager.flush();
+        entityManager.clear();
+
+        // (1)+(3) học kỳ chưa duyệt: xóa nhánh B ⇒ xóa kế hoạch tuần, giáo án ngày Nháp của tuần 09/11
+        saved = classDocService.saveClassDoc(
+                teacher,
+                "branch",
+                key,
+                calendar(themes, branch(a, themeId, "2026-11-02", "2026-11-13", "Nhánh A")),
+                saved.path("version").asLong(),
+                null);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM edu_class_docs WHERE classroom_id = ? AND week_start = '2026-11-09'",
+                        Long.class,
+                        classroomId))
+                .isZero();
+
+        // (2) EDU-111 (1) Tiền 25/11/2026: khóa theo hồ sơ chủ đề, không theo học kỳ ⇒ học kỳ 1 đã duyệt mà chủ đề chưa
+        // gửi thì vẫn thêm, đổi tên/ngày nhánh được
+        String sp = "sp_" + classroomId + "_" + teamPlanId + "_1";
+        assertThat(jdbc.update("UPDATE edu_class_docs SET status = 'APPROVED' WHERE doc_key = ?", sp))
+                .isOne();
+        entityManager.clear();
+        long version = saved.path("version").asLong();
+        saved = classDocService.saveClassDoc(
+                teacher,
+                "branch",
+                key,
+                calendar(
+                        themes,
+                        branch(a, themeId, "2026-11-02", "2026-11-06", "Nhánh A"),
+                        branch(UUID.randomUUID().toString(), themeId, "2026-11-09", "2026-11-13", "Nhánh mới")),
+                version,
+                null);
+        assertThat(saved.path("branches")).hasSize(2);
+        saved = classDocService.saveClassDoc(
+                teacher,
+                "branch",
+                key,
+                calendar(themes, branch(a, themeId, "2026-11-02", "2026-11-13", "Nhánh A đổi tên")),
+                saved.path("version").asLong(),
+                null);
+        assertThat(saved.path("branches").get(0).path("name").asString()).isEqualTo("Nhánh A đổi tên");
+
+        // (2b) phiên bản điều chỉnh: kế hoạch giáo dục chủ đề về Nháp, còn bản ban hành cũ ⇒ sửa như Nháp, thêm nhánh
+        // được
+        jdbc.update(
+                "INSERT INTO edu_class_doc_releases (class_doc_id, dossier_version, print_snapshot, approved_by, released_at) "
+                        + "SELECT id, version, '{}', ?, now() FROM edu_class_docs WHERE doc_key = ?",
+                teacher.userId(),
+                sp);
+        jdbc.update("UPDATE edu_class_docs SET status = 'DRAFT' WHERE doc_key = ?", sp);
+        entityManager.clear();
+        saved = classDocService.saveClassDoc(
+                teacher,
+                "branch",
+                key,
+                calendar(
+                        themes,
+                        branch(a, themeId, "2026-11-02", "2026-11-06", "Nhánh A đổi tên"),
+                        branch(b, themeId, "2026-11-09", "2026-11-13", "Nhánh B thêm lại")),
+                saved.path("version").asLong(),
+                null);
+        assertThat(saved.path("branches")).hasSize(2);
+
+        // (2a) kế hoạch giáo dục ngày của chủ đề đã ban hành ⇒ nhánh của chủ đề khóa
+        jdbc.update(
+                "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, theme_id, status, created_by, updated_by, team_plan_id) "
+                        + "VALUES (?, 'dossier', ?, ?, 'APPROVED', ?, ?, ?) "
+                        + "ON CONFLICT (doc_key) DO UPDATE SET status = 'APPROVED'",
+                "ds_" + classroomId + "_" + themeId,
+                classroomId,
+                themeId,
+                teacher.userId(),
+                teacher.userId(),
+                teamPlanId);
+        entityManager.clear();
+        long last = saved.path("version").asLong();
+        assertCalendarInvalid(() -> classDocService.saveClassDoc(
+                teacher,
+                "branch",
+                key,
+                calendar(themes, branch(a, themeId, "2026-11-02", "2026-11-06", "Nhánh A lần 2")),
+                last,
+                null));
+
+        // (2b) phiên bản điều chỉnh của kế hoạch giáo dục ngày (về Nháp) ⇒ nhánh của chủ đề sửa lại được
+        jdbc.update(
+                "UPDATE edu_class_docs SET status = 'DRAFT' WHERE kind = 'dossier' AND classroom_id = ? AND theme_id = ?",
+                classroomId,
+                themeId);
+        entityManager.clear();
+        saved = classDocService.saveClassDoc(
+                teacher,
+                "branch",
+                key,
+                calendar(themes, branch(a, themeId, "2026-11-02", "2026-11-13", "Nhánh A lần 2")),
+                last,
+                null);
+        assertThat(saved.path("branches")).hasSize(1);
+    }
+
+    private void assertCalendarInvalid(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+        org.assertj.core.api.Assertions.assertThatThrownBy(call)
+                .isInstanceOfSatisfying(
+                        com.carenest.exception.GlobalException.class,
+                        e -> assertThat(e.getApiCode())
+                                .isEqualTo(com.carenest.utils.ApiCode.EDUCATION_CALENDAR_INVALID));
+    }
+
+    private ObjectNode branch(String key, long themeId, String start, String end, String name) {
+        ObjectNode node = objectMapper.createObjectNode();
+        node.put("key", key);
+        node.put("themeId", themeId);
+        node.putNull("sourceTemplateId");
+        node.put("name", name);
+        node.put("startDate", start);
+        node.put("endDate", end);
+        node.putObject("weekNotes");
+        return node;
+    }
+
+    private ObjectNode calendar(List<java.util.Map<String, Object>> themes, ObjectNode... branches) {
+        ObjectNode doc = objectMapper.createObjectNode();
+        doc.put("schemaVersion", 2);
+        doc.put("classId", String.valueOf(classroomId));
+        doc.put("yearPlanId", String.valueOf(teamPlanId));
+        var schedules = doc.putArray("themeSchedules");
+        for (var t : themes) {
+            ObjectNode s = schedules.addObject();
+            s.put("themeId", ((Number) t.get("id")).longValue());
+            s.put("startDate", t.get("start_date").toString());
+            s.put("endDate", t.get("end_date").toString());
+        }
+        var list = doc.putArray("branches");
+        for (ObjectNode b : branches) list.add(b);
+        return doc;
     }
 
     @Test

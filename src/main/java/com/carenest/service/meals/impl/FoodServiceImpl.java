@@ -1,23 +1,35 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.meals.AllergenResponse;
+import com.carenest.dto.meals.FoodDishUsageResponse;
+import com.carenest.dto.meals.FoodHistoryResponse;
 import com.carenest.dto.meals.FoodImportRequest;
 import com.carenest.dto.meals.FoodImportResponse;
+import com.carenest.dto.meals.FoodPriceRequest;
 import com.carenest.dto.meals.FoodRequest;
 import com.carenest.dto.meals.FoodResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.NutritionCatalogMapper;
+import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.meals.FoodHistoryService;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.meals.FoodService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.Allergen;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodGroup;
 import com.carenest.utils.enums.FoodStorage;
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -40,6 +52,10 @@ public class FoodServiceImpl implements FoodService {
 
     private final FoodRepository foodRepository;
     private final NutritionCatalogMapper mapper;
+    private final FoodPriceService foodPriceService;
+    private final FoodHistoryService historyService;
+    private final DishRepository dishRepository;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -64,14 +80,18 @@ public class FoodServiceImpl implements FoodService {
         log.info("{}|START", logPrefix);
         try {
             String term = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
-            List<FoodResponse> response = foodRepository.findAllByOrderByNameAsc().stream()
+            FoodPriceBook book = foodPriceService.bookAll();
+            LocalDate today = LocalDate.now(clock);
+            List<Food> foods = foodRepository.findAllByOrderByNameAsc();
+            Set<Long> locked = stockedIds(foods.stream().map(Food::getId).toList());
+            List<FoodResponse> response = foods.stream()
                     .filter(food -> term.isEmpty()
                             || food.getName().toLowerCase(Locale.ROOT).contains(term)
                             || food.getCode().toLowerCase(Locale.ROOT).contains(term))
                     .filter(food -> foodGroup == null || food.getFoodGroup() == foodGroup)
                     .filter(food -> storage == null || food.getStorage() == storage)
                     .filter(food -> status == null || food.getStatus() == status)
-                    .map(mapper::toResponse)
+                    .map(food -> mapper.toResponse(food, book.at(food.getId(), today), locked.contains(food.getId())))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -87,7 +107,52 @@ public class FoodServiceImpl implements FoodService {
         String logPrefix = LOG_PREFIX + "|getFood|foodId=" + foodId;
         log.info("{}|START", logPrefix);
         try {
-            FoodResponse response = mapper.toResponse(findFood(foodId));
+            FoodResponse response = toResponse(findFood(foodId));
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FoodDishUsageResponse> getFoodDishes(Long foodId) {
+        String logPrefix = LOG_PREFIX + "|getFoodDishes|foodId=" + foodId;
+        log.info("{}|START", logPrefix);
+        try {
+            findFood(foodId);
+            List<FoodDishUsageResponse> response =
+                    dishRepository.findDistinctByIngredientsFoodIdOrderByNameAsc(foodId).stream()
+                            .map(dish -> new FoodDishUsageResponse(
+                                    dish.getId(),
+                                    dish.getCode(),
+                                    dish.getName(),
+                                    dish.getDishType(),
+                                    dish.getIngredients().stream()
+                                            .filter(i ->
+                                                    foodId.equals(i.getFood().getId()))
+                                            .map(i -> new FoodDishUsageResponse.Portion(
+                                                    i.getAgeGroupId(), i.getGramsPerChild()))
+                                            .toList()))
+                            .toList();
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FoodHistoryResponse> getFoodHistory(Long foodId) {
+        String logPrefix = LOG_PREFIX + "|getFoodHistory|foodId=" + foodId;
+        log.info("{}|START", logPrefix);
+        try {
+            findFood(foodId);
+            List<FoodHistoryResponse> response = historyService.getHistory(foodId);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -108,11 +173,21 @@ public class FoodServiceImpl implements FoodService {
             if (!isBlank(request.code()) && foodRepository.existsByCode(code)) {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
+            requireUniqueName(request.name(), null);
             Food food = Food.create(currentUser.userId());
-            apply(food, request, code, resolveAllergens(request.allergenIds()), currentUser.userId());
+            apply(
+                    food,
+                    request,
+                    code,
+                    request.unitPrice(),
+                    resolveAllergens(request.allergenIds()),
+                    currentUser.userId());
             food = foodRepository.save(food);
+            foodPriceService.recordInitialPrice(
+                    food.getId(), request.supplierId(), request.unitPrice(), currentUser.userId());
+            historyService.recordCreated(food.getId(), currentUser.userId());
             log.info("{}|foodId={}|END", logPrefix, food.getId());
-            return mapper.toResponse(food);
+            return toResponse(food);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -132,10 +207,21 @@ public class FoodServiceImpl implements FoodService {
             if (foodRepository.existsByCodeAndIdNot(code, foodId)) {
                 throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
-            apply(food, request, code, resolveAllergens(request.allergenIds()), currentUser.userId());
+            requireUniqueName(request.name(), foodId);
+            requireUnitsUnchangedWhenStocked(food, request);
+            Map<String, String> before = FoodSnapshot.of(food);
+            apply(
+                    food,
+                    request,
+                    code,
+                    food.getUnitPrice(),
+                    resolveAllergens(request.allergenIds()),
+                    currentUser.userId());
             foodRepository.flush();
+            historyService.recordChanges(foodId, currentUser.userId(), before, FoodSnapshot.of(food));
+            adjustPriceIfChanged(currentUser, food, request);
             log.info("{}|END", logPrefix);
-            return mapper.toResponse(food);
+            return toResponse(food);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -149,10 +235,12 @@ public class FoodServiceImpl implements FoodService {
         log.info("{}|START", logPrefix);
         try {
             Food food = findFood(foodId);
+            CatalogStatus from = food.getStatus();
             food.changeStatus(status, currentUser.userId());
             foodRepository.flush();
+            historyService.recordStatusChange(foodId, currentUser.userId(), from, status);
             log.info("{}|END", logPrefix);
-            return mapper.toResponse(food);
+            return toResponse(food);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -185,6 +273,13 @@ public class FoodServiceImpl implements FoodService {
             // Kiểm hết các dòng trước khi lưu: một dòng lỗi thì không lưu dòng nào, báo đủ lỗi theo số dòng
             List<String> errors = new ArrayList<>();
             Set<String> seenCodes = new HashSet<>();
+            // NUT-18: tên không trùng trong danh mục (kể cả mục đã ngừng) và không trùng giữa các dòng của lô
+            Map<String, Long> nameOwners = new HashMap<>();
+            for (Food catalogFood : foodRepository.findAllByOrderByNameAsc()) {
+                nameOwners.putIfAbsent(CatalogNames.key(catalogFood.getName()), catalogFood.getId());
+            }
+            Set<String> seenNames = new HashSet<>();
+            Set<Long> stocked = stockedIds(new ArrayList<>(existing.keySet()));
             for (int i = 0; i < items.size(); i++) {
                 FoodImportRequest.Item item = items.get(i);
                 FoodRequest data = item.data();
@@ -199,11 +294,20 @@ public class FoodServiceImpl implements FoodService {
                         errors.add(row + " trùng mã " + code);
                     }
                 }
+                String nameKey = CatalogNames.key(data.name());
+                Long nameOwner = nameOwners.get(nameKey);
+                if (!seenNames.add(nameKey) || (nameOwner != null && !nameOwner.equals(item.id()))) {
+                    errors.add(row + " trùng tên " + data.name().trim());
+                }
                 if (isBlank(data.nutrientSource())) {
                     errors.add(row + " thiếu nguồn dinh dưỡng");
                 }
                 if (data.origin() == null) {
                     errors.add(row + " thiếu nguồn gốc");
+                }
+                Food current = item.id() == null ? null : existing.get(item.id());
+                if (current != null && unitsChanged(current, data) && stocked.contains(current.getId())) {
+                    errors.add(row + " đã nhập kho nên không đổi được đơn vị tính, đơn vị gốc, quy đổi");
                 }
                 if (data.allergenIds() != null
                         && !data.allergenIds().stream().allMatch(id -> Allergen.fromId(id) != null)) {
@@ -229,13 +333,22 @@ public class FoodServiceImpl implements FoodService {
                     code = nextCode(reserved);
                 }
                 reserved.add(code);
-                apply(food, data, code, resolveAllergens(data.allergenIds()), currentUser.userId());
+                // NUT-27: dòng sửa giữ giá hiện tại; đổi giá qua điều chỉnh giá
+                BigDecimal price = item.id() == null ? data.unitPrice() : food.getUnitPrice();
+                apply(food, data, code, price, resolveAllergens(data.allergenIds()), currentUser.userId());
                 if (item.id() == null) {
                     created++;
                 }
                 foods.add(food);
             }
             foodRepository.saveAll(foods);
+            for (int i = 0; i < items.size(); i++) {
+                if (items.get(i).id() == null) {
+                    FoodRequest data = items.get(i).data();
+                    foodPriceService.recordInitialPrice(
+                            foods.get(i).getId(), data.supplierId(), data.unitPrice(), currentUser.userId());
+                }
+            }
             log.info("{}|created={}|END", logPrefix, created);
             return new FoodImportResponse(created, foods.size() - created);
         } catch (RuntimeException ex) {
@@ -244,8 +357,79 @@ public class FoodServiceImpl implements FoodService {
         }
     }
 
+    private FoodResponse toResponse(Food food) {
+        boolean locked =
+                food.getId() != null && !stockedIds(List.of(food.getId())).isEmpty();
+        return mapper.toResponse(food, priceToday(food), locked);
+    }
+
+    // NUT-32: kho lưu theo đơn vị gốc, số theo đơn vị mua tính lại từ quy đổi hiện tại nên đã nhập kho thì khóa đơn vị
+    private void requireUnitsUnchangedWhenStocked(Food food, FoodRequest request) {
+        if (!unitsChanged(food, request) || stockedIds(List.of(food.getId())).isEmpty()) {
+            return;
+        }
+        String message = "Thực phẩm đã nhập kho, không đổi được. Tạo thực phẩm mới nếu quy cách khác.";
+        List<FieldErrorResponse> errors = new ArrayList<>();
+        if (!food.getPurchaseUnit().equalsIgnoreCase(request.purchaseUnit().trim())) {
+            errors.add(new FieldErrorResponse("purchaseUnit", message));
+        }
+        if (food.getUnit() != request.unit()) {
+            errors.add(new FieldErrorResponse("unit", message));
+        }
+        if (food.getPurchaseUnitSize().compareTo(request.purchaseUnitSize()) != 0) {
+            errors.add(new FieldErrorResponse("purchaseUnitSize", message));
+        }
+        throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
+    }
+
+    private static boolean unitsChanged(Food food, FoodRequest request) {
+        return !food.getPurchaseUnit().equalsIgnoreCase(request.purchaseUnit().trim())
+                || food.getUnit() != request.unit()
+                || food.getPurchaseUnitSize().compareTo(request.purchaseUnitSize()) != 0;
+    }
+
+    private Set<Long> stockedIds(List<Long> foodIds) {
+        return foodIds.isEmpty() ? Set.of() : new HashSet<>(foodRepository.findIdsWithStockHistory(foodIds));
+    }
+
+    private FoodPriceBook.PriceAt priceToday(Food food) {
+        List<Long> ids = food.getId() == null ? List.of() : List.of(food.getId());
+        return foodPriceService.book(ids).at(food.getId(), LocalDate.now(clock));
+    }
+
+    // NUT-27: đổi giá hoặc NCC khi sửa thực phẩm luôn thành một mức giá mới có ngày hiệu lực, không ghi đè mức cũ
+    // nên chi phí các ngày đã qua giữ nguyên; lỗi ngày/lý do làm hỏng cả lần lưu (cùng giao dịch)
+    private void adjustPriceIfChanged(CurrentUser currentUser, Food food, FoodRequest request) {
+        FoodPriceBook.PriceAt current = priceToday(food);
+        boolean priceChanged = request.unitPrice() != null
+                && current.price() != null
+                && request.unitPrice().compareTo(current.price()) != 0;
+        boolean supplierChanged =
+                request.supplierId() != null && !request.supplierId().equals(current.supplierId());
+        if (!priceChanged && !supplierChanged) {
+            return;
+        }
+        LocalDate effectiveFrom = request.effectiveFrom() == null ? LocalDate.now(clock) : request.effectiveFrom();
+        Long supplierId = request.supplierId() == null ? current.supplierId() : request.supplierId();
+        foodPriceService.adjustPrice(
+                currentUser,
+                food.getId(),
+                new FoodPriceRequest(supplierId, request.unitPrice(), effectiveFrom, request.priceReason()));
+    }
+
     private Food findFood(Long foodId) {
         return foodRepository.findById(foodId).orElseThrow(() -> GlobalException.of(ApiCode.FOOD_NOT_FOUND));
+    }
+
+    // NUT-18: tên duy nhất trong danh mục, so cả mục đã ngừng; selfId = thực phẩm đang sửa (bỏ qua chính nó)
+    private void requireUniqueName(String name, Long selfId) {
+        String key = CatalogNames.key(name);
+        boolean taken = foodRepository.findAllByOrderByNameAsc().stream()
+                .anyMatch(food -> !Objects.equals(food.getId(), selfId)
+                        && CatalogNames.key(food.getName()).equals(key));
+        if (taken) {
+            throw GlobalException.of(ApiCode.FOOD_NAME_DUPLICATED, name.trim());
+        }
     }
 
     // NUT-05: số liệu dinh dưỡng phải ghi rõ nguồn
@@ -285,7 +469,8 @@ public class FoodServiceImpl implements FoodService {
         return code;
     }
 
-    private static void apply(Food food, FoodRequest request, String code, Set<Allergen> allergens, Long userId) {
+    private static void apply(
+            Food food, FoodRequest request, String code, BigDecimal unitPrice, Set<Allergen> allergens, Long userId) {
         food.changeInfo(
                 new Food.Info(
                         code,
@@ -294,7 +479,7 @@ public class FoodServiceImpl implements FoodService {
                         request.unit(),
                         request.purchaseUnit().trim(),
                         request.purchaseUnitSize(),
-                        request.unitPrice(),
+                        unitPrice,
                         request.wastePct(),
                         request.storage(),
                         request.origin(),
@@ -304,10 +489,7 @@ public class FoodServiceImpl implements FoodService {
                         request.protein(),
                         request.lipid(),
                         request.glucid(),
-                        request.nutrientSource().trim(),
-                        isBlank(request.nutrientSourceVersion())
-                                ? null
-                                : request.nutrientSourceVersion().trim()),
+                        request.nutrientSource().trim()),
                 new Food.Micronutrients(
                         request.calcium(),
                         request.phosphorus(),
@@ -316,7 +498,8 @@ public class FoodServiceImpl implements FoodService {
                         request.vitaminB1(),
                         request.vitaminB2(),
                         request.vitaminPp(),
-                        request.vitaminC()),
+                        request.vitaminC(),
+                        request.zinc()),
                 allergens,
                 userId);
     }

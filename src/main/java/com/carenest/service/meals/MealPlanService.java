@@ -1,7 +1,9 @@
 package com.carenest.service.meals;
 
+import com.carenest.dto.meals.MealPlanAmendRequest;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
+import com.carenest.dto.meals.MealPlanRevisionResponse;
 import com.carenest.dto.meals.MealPlanSummaryResponse;
 import com.carenest.dto.meals.MenuStatisticsRequest;
 import com.carenest.dto.meals.MenuStatisticsResponse;
@@ -24,4 +26,17 @@ public interface MealPlanService {
 
     /** Chặn khi còn lỗi chặn; công bố xong đồng bộ trừ kho cho các ngày đã có suất chốt (P-38). */
     MealPlanResponse publishMealPlan(CurrentUser currentUser, LocalDate weekStart);
+
+    /**
+     * Sửa ngoại lệ một ngày của tuần đã công bố (NUT-08, P-39): ngày chưa tới hoặc hôm nay trước giờ chốt, lý do bắt
+     * buộc, cân đối chỉ cảnh báo; lưu lịch sử, tính lại trừ kho ngày đã chốt suất, báo phụ huynh và bếp.
+     */
+    MealPlanResponse amendMealPlanDay(
+            CurrentUser currentUser, LocalDate weekStart, LocalDate date, MealPlanAmendRequest request);
+
+    /** Lịch sử sửa ngoại lệ của tuần, mới nhất trước; tuần chưa lập ⇒ rỗng. */
+    List<MealPlanRevisionResponse> getMealPlanRevisions(CurrentUser currentUser, LocalDate weekStart);
+
+    /** Thực đơn tuần vừa được công bố. */
+    record MealPlanPublishedEvent(LocalDate weekStart, Long publishedBy) {}
 }

@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -244,6 +245,65 @@ class ChildEnrollmentControllerTest {
     }
 
     @Test
+    @DisplayName("G94-180/CHD-03: ngày được chọn khi cho nghỉ học cần quyền CHILD_PLACEMENT ⇒ 200 trả hôm nay, khoảng"
+            + " ngày chọn được (user chốt 2026-11-25)")
+    void placementManagerReadsLeaveOptions() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
+        given(childRecordService.leaveOptions(actor, 301L))
+                .willReturn(new com.carenest.dto.child.LeaveOptionsResponse(
+                        LocalDate.of(2026, 11, 10),
+                        false,
+                        "Lý do giả",
+                        LocalDate.of(2026, 11, 11),
+                        LocalDate.of(2027, 5, 31)));
+
+        mockMvc.perform(get("/api/children/301/leave-options").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Get leave options success"))
+                .andExpect(jsonPath("$.data.today").value("2026-11-10"))
+                .andExpect(jsonPath("$.data.todayAllowed").value(false))
+                .andExpect(jsonPath("$.data.todayBlockedReason").value("Lý do giả"))
+                .andExpect(jsonPath("$.data.minDate").value("2026-11-11"))
+                .andExpect(jsonPath("$.data.maxDate").value("2027-05-31"))
+                .andExpect(jsonPath("$.data.nextSchoolDay").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03 (user chốt 2026-11-25): hủy lịch nghỉ học cần quyền CHILD_PLACEMENT ⇒ 200 trả hồ sơ")
+    void placementManagerCancelsScheduledLeave() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
+        given(childRecordService.cancelScheduledLeave(actor, 301L)).willReturn(view(31L));
+
+        mockMvc.perform(delete("/api/children/301/scheduled-leave").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Cancel scheduled leave success"))
+                .andExpect(jsonPath("$.data.id").value(301))
+                .andExpect(jsonPath("$.data.scheduledLeaveOn").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: hủy lịch nghỉ học thiếu quyền CHILD_PLACEMENT ⇒ 403, không gọi service")
+    void cancelScheduledLeaveNeedsPlacementPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(delete("/api/children/301/scheduled-leave").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: ngày được chọn khi cho nghỉ học thiếu quyền CHILD_PLACEMENT ⇒ 403, không gọi service")
+    void leaveOptionsNeedPlacementPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(get("/api/children/301/leave-options").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
+    }
+
+    @Test
     @DisplayName("CHD-10: xếp / chuyển lớp cần quyền CHILD_PLACEMENT ⇒ 200 trả hồ sơ có lớp mới")
     void placementManagerPlacesChild() throws Exception {
         CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
@@ -297,6 +357,29 @@ class ChildEnrollmentControllerTest {
         verify(childRecordService).saveDeclaration(eq(actor), eq(301L), request.capture());
         assertThat(request.getValue().reason()).isEqualTo("Phụ huynh bổ sung");
         assertThat(request.getValue().declaration().allergies().state()).isEqualTo("NONE_REPORTED");
+        // CHD-13: thiếu mealRegistered ⇒ null ở DTO, EnrollmentFormValidator chuẩn hóa thành true
+        assertThat(request.getValue().declaration().mealRegistered()).isNull();
+    }
+
+    @Test
+    @DisplayName("CHD-13: declaration.mealRegistered=false trong JSON tới được service")
+    void healthDeclarationBindsMealRegisteredFalse() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);
+        given(childRecordService.saveDeclaration(eq(actor), eq(301L), any()))
+                .willReturn(new com.carenest.dto.child.HealthDeclarationResponse(
+                        301L, null, null, null, null, 2L, "Demo", null, List.of()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                                "/api/children/301/health-declaration")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"declaration\":{\"mealRegistered\":false},\"reason\":\"Trẻ ăn ở nhà\"}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<com.carenest.dto.child.HealthDeclarationRequest> request =
+                ArgumentCaptor.forClass(com.carenest.dto.child.HealthDeclarationRequest.class);
+        verify(childRecordService).saveDeclaration(eq(actor), eq(301L), request.capture());
+        assertThat(request.getValue().declaration().mealRegistered()).isFalse();
     }
 
     @Test
@@ -481,7 +564,8 @@ class ChildEnrollmentControllerTest {
                         "HS25001",
                         "Nguyễn Minh An",
                         LocalDate.of(2026, 5, 1),
-                        true));
+                        true,
+                        2L));
 
         mockMvc.perform(get("/api/children/duplicate-check")
                         .with(token(CareNestRole.PRINCIPAL))
@@ -708,10 +792,10 @@ class ChildEnrollmentControllerTest {
     @DisplayName("CHD-10: một trong hai quyền lấy lớp là đủ, trả đủ thông tin lớp và sĩ số")
     void placementClassesAcceptEitherPermission(Permission permission) throws Exception {
         CurrentUser principal = authenticateWithPermissions(permission);
-        given(childIntakeService.listPlacementClasses(principal))
+        given(childIntakeService.listPlacementClasses(principal, null, null, null))
                 .willReturn(List.of(
-                        new PlacementClassResponse(21L, "Lớp A", 11L, 31L, 51L, 30, 12, 61L),
-                        new PlacementClassResponse(22L, "Lớp B", 12L, 32L, 51L, null, 0, null)));
+                        new PlacementClassResponse(21L, "Lớp A", 11L, 31L, 51L, 30, 12, 61L, 13),
+                        new PlacementClassResponse(22L, "Lớp B", 12L, 32L, 51L, null, 0, null, 0)));
 
         mockMvc.perform(get("/api/children/placement-classes").with(token(CareNestRole.PRINCIPAL)))
                 .andExpect(status().isOk())
@@ -726,12 +810,13 @@ class ChildEnrollmentControllerTest {
                 .andExpect(jsonPath("$.data[0].schoolYearId").value(51))
                 .andExpect(jsonPath("$.data[0].capacity").value(30))
                 .andExpect(jsonPath("$.data[0].enrolledCount").value(12))
+                .andExpect(jsonPath("$.data[0].occupiedCount").value(13))
                 .andExpect(jsonPath("$.data[0].homeroomTeacherId").value(61))
                 .andExpect(jsonPath("$.data[1].capacity").doesNotExist())
                 .andExpect(jsonPath("$.data[1].enrolledCount").value(0))
                 .andExpect(jsonPath("$.data[1].homeroomTeacherId").doesNotExist());
 
-        verify(childIntakeService).listPlacementClasses(principal);
+        verify(childIntakeService).listPlacementClasses(principal, null, null, null);
         verifyNoInteractions(childEnrollmentService);
     }
 
@@ -739,14 +824,15 @@ class ChildEnrollmentControllerTest {
     @DisplayName("CHD-10: không có lớp phù hợp ⇒ 200, danh sách rỗng")
     void placementClassesCanBeEmpty() throws Exception {
         CurrentUser principal = authenticate(CareNestRole.PRINCIPAL);
-        given(childIntakeService.listPlacementClasses(principal)).willReturn(List.of());
+        given(childIntakeService.listPlacementClasses(principal, null, null, null))
+                .willReturn(List.of());
 
         mockMvc.perform(get("/api/children/placement-classes").with(token(CareNestRole.PRINCIPAL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        verify(childIntakeService).listPlacementClasses(principal);
+        verify(childIntakeService).listPlacementClasses(principal, null, null, null);
     }
 
     @ParameterizedTest(name = "{0}")
@@ -1093,9 +1179,11 @@ class ChildEnrollmentControllerTest {
                 null,
                 List.of(),
                 true,
+                true,
                 null,
                 List.of(),
                 List.of(),
+                null,
                 null);
     }
 

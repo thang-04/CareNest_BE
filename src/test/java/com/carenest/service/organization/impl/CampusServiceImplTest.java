@@ -3,15 +3,19 @@ package com.carenest.service.organization.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.carenest.dto.organization.CampusDetailResponse;
 import com.carenest.dto.organization.CampusRequest;
 import com.carenest.dto.organization.CampusResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.entity.organization.Campus;
+import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.CampusMapper;
 import com.carenest.mapper.organization.SchoolStructureMapper;
@@ -38,6 +42,7 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class CampusServiceImplTest {
@@ -121,6 +126,23 @@ class CampusServiceImplTest {
     }
 
     @Test
+    void duplicatedShortNameIsConflictOnCreateAndUpdate() {
+        given(campusRepository.existsShortName("Cơ sở mới", 0L)).willReturn(true);
+        given(campusRepository.findById(10L)).willReturn(Optional.of(campus(10L, "CS-A", true)));
+        given(campusRepository.existsShortName("Cơ sở mới", 10L)).willReturn(true);
+
+        assertThatThrownBy(() -> service.createCampus(PRINCIPAL, request("CS-N", "Cơ sở mới", false)))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CAMPUS_SHORT_NAME_EXISTS));
+        assertThatThrownBy(() -> service.updateCampus(PRINCIPAL, 10L, request("CS-A", "Cơ sở mới", true)))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CAMPUS_SHORT_NAME_EXISTS));
+        verify(campusRepository, never()).save(any());
+    }
+
+    @Test
     void vicePrincipalCannotCreate() {
         expectError(() -> service.createCampus(VICE_PRINCIPAL, request("CS-C", "Cơ sở C", false)), ApiCode.FORBIDDEN);
         verify(campusRepository, never()).save(any());
@@ -171,6 +193,51 @@ class CampusServiceImplTest {
         assertThat(service.getCampuses(formerVice, null)).isEmpty();
         expectError(() -> service.getCampusDetail(formerVice, 11L, null), ApiCode.FORBIDDEN);
         verify(campusRepository, never()).findAllByOrderByMainDescCodeAsc();
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05: năm sắp diễn ra hiển thị PHT tại ngày mở chuẩn bị, không lấy phân công năm hiện tại")
+    void plannedYearShowsVicePrincipalAtPrepDate() {
+        long plannedYearId = 88L;
+        LocalDate prepDate = LocalDate.of(2026, 11, 27);
+        LocalDate effectivePrepDate = LocalDate.of(2027, 6, 1);
+        SchoolYear planned =
+                SchoolYear.plan("2027-2028", LocalDate.of(2027, 9, 1), LocalDate.of(2028, 5, 31), prepDate);
+        SchoolYear previous = SchoolYear.plan("2026-2027", LocalDate.of(2026, 9, 1), LocalDate.of(2027, 5, 31));
+        ReflectionTestUtils.setField(planned, "id", plannedYearId);
+        Campus campus = campus(10L, "CS-A", true);
+
+        given(schoolYearRepository.existsById(plannedYearId)).willReturn(true);
+        given(schoolYearRepository.findById(plannedYearId)).willReturn(Optional.of(planned));
+        given(schoolYearRepository.findAllByOrderByStartDateDesc()).willReturn(List.of(planned, previous));
+        given(campusRepository.findAllByOrderByMainDescCodeAsc()).willReturn(List.of(campus));
+        given(campusRepository.findYearCampusIds(plannedYearId)).willReturn(List.of(10L));
+        given(campusRepository.findYearMainCampusId(plannedYearId)).willReturn(Optional.of(10L));
+        given(campusRepository.countClassesByCampus(plannedYearId)).willReturn(List.of());
+        given(campusRepository.countChildrenByCampus(plannedYearId, TODAY)).willReturn(List.of());
+        given(campusRepository.findActiveCampusStaff(effectivePrepDate)).willReturn(List.of());
+
+        List<CampusResponse> campuses = service.getCampuses(PRINCIPAL, plannedYearId);
+
+        assertThat(campuses)
+                .singleElement()
+                .satisfies(response -> assertThat(response.vicePrincipals()).isEmpty());
+        verify(campusRepository).findActiveCampusStaff(effectivePrepDate);
+        verify(campusRepository, never()).findActiveCampusStaff(TODAY);
+    }
+
+    @Test
+    @DisplayName("Chưa có năm học đang hoạt động: xem chi tiết điểm trường không truy vấn năm học theo id rỗng")
+    void campusDetailWithoutActiveYear() {
+        given(campusRepository.findById(10L)).willReturn(Optional.of(campus(10L, "CS-A", true)));
+        // Spring Data từ chối id null; repository giả mặc định chỉ trả rỗng nên phải khai rõ
+        given(schoolYearRepository.findById(isNull()))
+                .willThrow(new InvalidDataAccessApiUsageException("The given id must not be null"));
+
+        CampusDetailResponse detail = service.getCampusDetail(PRINCIPAL, 10L, null);
+
+        assertThat(detail.classes()).isEmpty();
+        verify(campusRepository, times(2)).findActiveCampusStaff(TODAY);
     }
 
     private static CampusRequest request(String code, String name, boolean main) {

@@ -3,3 +3,12 @@
 carenest:
   eduplan:
     plan-time-lock-enabled: false
+  # Worker hàng chờ đẩy, gửi hẹn giờ, lịch lặp (spec 019) không chạy nền trong test; test gọi trực tiếp
+  push:
+    worker-delay: 1h
+  email:
+    outbox:
+      delay: 1h
+  announcement:
+    worker-delay: 1h
+    schedule-delay: 1h

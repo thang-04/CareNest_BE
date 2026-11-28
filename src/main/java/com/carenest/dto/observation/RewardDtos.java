@@ -39,7 +39,7 @@ public final class RewardDtos {
             String fullName,
             LocalDate dateOfBirth,
             int schoolDays,
-            int presentDays,
+            double presentDays,
             Integer attendanceRate,
             int weeklyTickets,
             int monthlyTickets,
@@ -68,6 +68,8 @@ public final class RewardDtos {
             List<RewardChildRow> children,
             List<HistoryRow> history,
             boolean canEdit,
+            // Cần chốt 15/11/2026: chỉ GV chủ nhiệm gửi duyệt
+            boolean canSubmit,
             boolean canReview,
             boolean canDecide,
             // OBS-14: ngày mở lập danh sách (kết thúc HK II); null khi năm không còn hoạt động

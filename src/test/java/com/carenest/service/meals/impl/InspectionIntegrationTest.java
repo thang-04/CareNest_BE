@@ -64,7 +64,7 @@ class InspectionIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -157,14 +157,16 @@ class InspectionIntegrationTest {
     @DisplayName("M1 tươi: dựng từ kiểm nhận hàng tươi kèm nhà cung cấp, khối lượng theo kg")
     void freshSkeletonFromCheckWithSupplier() {
         long pork = food("THIT", "Thịt", "FRESH");
+        long lineSupplier = supplier();
         long check = insertId("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at,"
                 + " supplier_id) VALUES (" + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW
-                + "', " + supplier() + ") RETURNING id");
+                + "', " + lineSupplier + ") RETURNING id");
         jdbc.update(
-                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result)"
-                        + " VALUES (?, ?, 2000, 2500, 'ENOUGH')",
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result, supplier_id)"
+                        + " VALUES (?, ?, 2000, 2500, 'ENOUGH', ?)",
                 check,
-                pork);
+                pork,
+                lineSupplier);
 
         assertThat(sheet(approver, InspectionTab.FRESH).rows()).singleElement().satisfies(row -> {
             assertThat(row)
@@ -177,6 +179,57 @@ class InspectionIntegrationTest {
                     .containsEntry("supplierContact", "12 Lê Lợi, 0901234567")
                     .containsEntry("deliveryPerson", "Anh Nam");
         });
+    }
+
+    @Test
+    @DisplayName("M1 tươi: dòng chưa ghi NCC lấy NCC của thực phẩm, không lấy NCC cấp phiếu")
+    void freshSkeletonUsesFoodSupplierNotCheckSupplier() {
+        long pork = food("THIT", "Thịt", "FRESH");
+        long veg = food("RAU", "Rau", "FRESH");
+        long checkSupplier = supplier();
+        long vegSupplier = insertId("INSERT INTO suppliers (name, phone, address, delivery_person)"
+                + " VALUES ('Hợp tác xã Rau sạch', '0912345678', '5 Trần Phú', 'Chị Lan') RETURNING id");
+        jdbc.update("UPDATE food_prices SET supplier_id = ? WHERE food_id = ?", vegSupplier, veg);
+        long check = insertId("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at,"
+                + " supplier_id) VALUES (" + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW
+                + "', " + checkSupplier + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result, supplier_id)"
+                        + " VALUES (?, ?, 2000, 2000, 'ENOUGH', ?)",
+                check,
+                pork,
+                checkSupplier);
+        jdbc.update(
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result)"
+                        + " VALUES (?, ?, 1000, 1000, 'ENOUGH')",
+                check,
+                veg);
+
+        assertThat(sheet(approver, InspectionTab.FRESH).rows())
+                .extracting(r -> r.get("name"), r -> r.get("supplierName"))
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Rau", "Hợp tác xã Rau sạch"),
+                        org.assertj.core.groups.Tuple.tuple("Thịt", "Cơ sở Hòa Phát"));
+    }
+
+    @Test
+    @DisplayName("M1 tươi: kiểm nhận lần 2 không có dòng thì giữ hàng thực nhận ở lần 1")
+    void freshSkeletonKeepsRoundOneWhenRoundTwoEmpty() {
+        long pork = food("THIT", "Thịt", "FRESH");
+        long round1 = insertId("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at,"
+                + " supplier_id) VALUES (" + campus + ", '" + MONDAY + "', 1, " + approver.userId() + ", '" + NOW
+                + "', " + supplier() + ") RETURNING id");
+        jdbc.update(
+                "INSERT INTO fresh_check_lines (check_id, food_id, expected_qty, received_qty, result)"
+                        + " VALUES (?, ?, 2000, 2000, 'ENOUGH')",
+                round1,
+                pork);
+        jdbc.update("INSERT INTO fresh_checks (campus_id, check_date, round, checked_by, checked_at)" + " VALUES ("
+                + campus + ", '" + MONDAY + "', 2, " + approver.userId() + ", '" + NOW + "')");
+
+        assertThat(sheet(approver, InspectionTab.FRESH).rows())
+                .singleElement()
+                .satisfies(row -> assertThat(row).containsEntry("key", "food:" + pork));
     }
 
     @Test
@@ -335,6 +388,37 @@ class InspectionIntegrationTest {
     }
 
     @Test
+    @DisplayName("NUT-21/INS-02: ký M5 khi còn mẫu chờ duyệt thì 6140; duyệt hết ⇒ ký được")
+    void signSampleSheetBlocksWhileSamplePending() {
+        confirmedCount(kindergartenClass, 10);
+        FoodSampleResponse pending = foodSampleService.createSample(
+                kitchen,
+                new FoodSampleRequest(
+                        MONDAY,
+                        MealSession.LUNCH,
+                        List.of(com),
+                        null,
+                        null,
+                        List.of(new FoodSampleRequest.DishDetailInput(com, "100 g", "Hộp nhựa", "2-8 °C"))));
+        inspectionService.save(
+                approver,
+                campus,
+                MONDAY,
+                InspectionTab.SAMPLE,
+                new InspectionSaveRequest(0, Map.of(), List.of(row("sample:" + pending.id()))));
+
+        expectCode(
+                () -> inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null),
+                ApiCode.INSPECTION_SAMPLE_PENDING);
+
+        foodSampleService.approveSample(approver, pending.id());
+        entityManager.flush();
+        entityManager.clear();
+        InspectionSheetResponse signed = inspectionService.sign(approver, campus, MONDAY, InspectionTab.SAMPLE, null);
+        assertThat(signed.status()).isEqualTo(InspectionStatus.SIGNED);
+    }
+
+    @Test
     @DisplayName("AC-8: ảnh trên biên bản chỉ tải được ở đúng điểm trường chứa nó")
     void signatureImageScopedToCampus() {
         List<Map<String, Object>> rows = List.of(row("a"));
@@ -425,11 +509,16 @@ class InspectionIntegrationTest {
     }
 
     private long food(String code, String name, String storage) {
-        return insertId(
+        long foodId = insertId(
                 "INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,"
                         + " kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin) VALUES ('" + code
                         + "', '" + name + "', 'OTHER', 'g', 'kg', 1000, 20000, 100, 5, 1, 10, 'TEST', 0, '" + storage
                         + "', 'PLANT') RETURNING id");
+        jdbc.update(
+                "INSERT INTO food_prices (food_id, price, effective_from, reason)"
+                        + " SELECT id, unit_price, DATE '2000-01-01', 'Giá ban đầu' FROM foods WHERE id = ?",
+                foodId);
+        return foodId;
     }
 
     private long dish(String code, String name, long foodId, long ageGroup) {

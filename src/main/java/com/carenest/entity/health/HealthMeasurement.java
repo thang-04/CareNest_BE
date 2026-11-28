@@ -113,11 +113,16 @@ public class HealthMeasurement {
         this.updatedAt = createdAt;
     }
 
-    /** Phiếu khám mới của trẻ trong đợt khám, nội dung gán bằng {@link #saveExam}. */
-    public static HealthMeasurement newExam(Long childId, Long campaignId, Long measuredBy, Instant at) {
+    /**
+     * Phiếu khám mới của trẻ trong đợt khám, nội dung gán bằng {@link #saveExam}. Lớp là lớp lúc khám, lưu sau không đổi
+     * (G94-180/HLT-09: kết quả ở lại nơi đo).
+     */
+    public static HealthMeasurement newExam(
+            Long childId, Long campaignId, Long classroomId, Long measuredBy, Instant at) {
         HealthMeasurement m = new HealthMeasurement();
         m.childId = childId;
         m.campaignId = campaignId;
+        m.classroomId = classroomId;
         m.note = "";
         m.measuredBy = measuredBy;
         m.examStatus = HealthExamStatus.DRAFT;
@@ -135,9 +140,16 @@ public class HealthMeasurement {
         this.updatedAt = at;
     }
 
+    /**
+     * Người sửa số đo thành người đo (G94-180/HLT-09: GV lớp hiện tại sửa số đo của trẻ đo ở lớp cũ); kỳ, lớp đã đo giữ
+     * nguyên.
+     */
+    public void reassignRecorder(Long userId) {
+        this.measuredBy = userId;
+    }
+
     /** Lưu phiếu khám; {@code conclude}: kết luận và công bố (lần đầu ghi {@code concludedAt}), không thì giữ nháp. */
     public void saveExam(
-            Long classroomId,
             LocalDate date,
             BigDecimal heightCm,
             BigDecimal weightKg,
@@ -146,7 +158,6 @@ public class HealthMeasurement {
             boolean conclude,
             Long userId,
             Instant at) {
-        this.classroomId = classroomId;
         this.date = date;
         this.heightCm = heightCm;
         this.weightKg = weightKg;

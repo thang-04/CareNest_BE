@@ -42,7 +42,7 @@ class EduYearPlanSchemaIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -84,9 +84,9 @@ class EduYearPlanSchemaIntegrationTest {
     }
 
     @Test
-    void seedsFourAgeGroupsAndFiveStandardDomains() {
+    void seedsSixAgeGroupsAndFiveStandardDomains() {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM age_groups", Integer.class))
-                .isEqualTo(4);
+                .isEqualTo(6);
         assertThat(domainRepository.findAllByActiveTrueOrderBySortOrderAsc())
                 .extracting(d -> d.getName())
                 .containsExactly(

@@ -1,8 +1,10 @@
 package com.carenest.controller.meals;
 
 import com.carenest.dto.meals.DayBoardResponse;
+import com.carenest.dto.meals.MealPlanAmendRequest;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
+import com.carenest.dto.meals.MealPlanRevisionResponse;
 import com.carenest.dto.meals.MealPlanSummaryResponse;
 import com.carenest.dto.meals.MenuStatisticsRequest;
 import com.carenest.dto.meals.MenuStatisticsResponse;
@@ -85,6 +87,33 @@ public class MealPlanController {
         MealPlanResponse plan = mealPlanService.publishMealPlan(currentUser, weekStart);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Publish meal plan success", plan);
+    }
+
+    @PutMapping("/meal-plans/{weekStart}/days/{date}/amend")
+    @PreAuthorize("@permissionGuard.has('MENU_MANAGE')")
+    public ResponseEntity<ResponseJson<MealPlanResponse>> amendMealPlanDay(
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Valid @RequestBody MealPlanAmendRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|amendMealPlanDay|userId=" + currentUser.userId() + "|weekStart=" + weekStart
+                + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        MealPlanResponse plan = mealPlanService.amendMealPlanDay(currentUser, weekStart, date, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Amend meal plan day success", plan);
+    }
+
+    @GetMapping("/meal-plans/{weekStart}/revisions")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<MealPlanRevisionResponse>>> getMealPlanRevisions(
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getMealPlanRevisions|userId=" + currentUser.userId() + "|weekStart=" + weekStart;
+        log.info("{}|START", logPrefix);
+        List<MealPlanRevisionResponse> revisions = mealPlanService.getMealPlanRevisions(currentUser, weekStart);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get meal plan revisions success", revisions);
     }
 
     @PostMapping("/menu-statistics")

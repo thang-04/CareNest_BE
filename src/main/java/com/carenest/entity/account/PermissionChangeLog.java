@@ -61,6 +61,12 @@ public class PermissionChangeLog {
     @Column(name = "after_scope", updatable = false, length = 10)
     private PermissionScope afterScope;
 
+    @Column(name = "before_campus_id", updatable = false)
+    private Long beforeCampusId;
+
+    @Column(name = "after_campus_id", updatable = false)
+    private Long afterCampusId;
+
     @Column(nullable = false, updatable = false, length = 500)
     private String reason;
 
@@ -98,6 +104,13 @@ public class PermissionChangeLog {
     public PermissionChangeLog withScopes(PermissionScope before, PermissionScope after) {
         this.beforeScope = before;
         this.afterScope = after;
+        return this;
+    }
+
+    /** Điểm trường được giao cụ thể trước/sau; null = điểm trường PHT đang phân công. */
+    public PermissionChangeLog withCampuses(Long before, Long after) {
+        this.beforeCampusId = before;
+        this.afterCampusId = after;
         return this;
     }
 

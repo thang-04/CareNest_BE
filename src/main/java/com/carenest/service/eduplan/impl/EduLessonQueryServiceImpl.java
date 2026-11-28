@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -43,18 +44,32 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
     private final EduClassDocReleaseRepository releaseRepository;
     private final EduPlanGoalRepository goalRepository;
     private final EduConfigService eduConfigService;
+    private final EduThemeGoals themeGoals;
     private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
     public Map<LocalDate, ApprovedDayLessonResponse> findApprovedDayLessons(
             Long classroomId, LocalDate from, LocalDate to) {
-        String logPrefix = LOG_PREFIX + "|findApprovedDayLessons|classroomId=" + classroomId;
+        return releasedLessons("findApprovedDayLessons", classroomId, from, to, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<LocalDate, ApprovedDayLessonResponse> findReleasedDayActivities(
+            Long classroomId, LocalDate from, LocalDate to) {
+        return releasedLessons("findReleasedDayActivities", classroomId, from, to, true);
+    }
+
+    private Map<LocalDate, ApprovedDayLessonResponse> releasedLessons(
+            String method, Long classroomId, LocalDate from, LocalDate to, boolean keepWithoutGoals) {
+        String logPrefix = LOG_PREFIX + "|" + method + "|classroomId=" + classroomId;
         log.info("{}|START", logPrefix);
         try {
             // EDU-19 + spec 003 FR-008: chấm theo tuần có kế hoạch tuần và giáo án ngày đã ban hành (giáo án ngày duyệt
             // trong
-            // hồ sơ chủ đề); hồ sơ mở lại sửa phần tương lai vẫn giữ ngày đã dạy (phần đã qua khóa sửa, EDU-64)
+            // kế hoạch giáo dục ngày); hồ sơ mở lại sửa phần tương lai vẫn giữ ngày đã dạy (phần đã qua khóa sửa,
+            // EDU-64)
             List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdInOrderByIdAsc(List.of(classroomId));
             Map<String, String> releasedContents = releasedContents(docs);
             Map<String, EduClassDoc> releasedDays = docs.stream()
@@ -71,7 +86,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             if (!weeks.isEmpty()) {
                 List<EduConfigResponse.WeekRow> rows =
                         eduConfigService.getEduConfig().weekRows();
-                // EDU-79 (FR-029): giáo án ngày đã ban hành có bản tuần sửa theo hồ sơ chủ đề thì dùng bản đó
+                // EDU-79 (FR-029): giáo án ngày đã ban hành có bản tuần sửa theo kế hoạch giáo dục ngày thì dùng bản đó
                 List<JsonNode> contents = new ArrayList<>();
                 List<Map<String, JsonNode>> cards = new ArrayList<>();
                 for (EduClassDoc week : weeks) {
@@ -101,7 +116,17 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
                     for (int day = 0; day < SCHOOL_DAYS; day++) {
                         LocalDate date = doc.getWeekStart().plusDays(day);
                         if (!date.isBefore(from) && !date.isAfter(to)) {
-                            result.put(date, dayLesson(doc, contents.get(w), cards.get(w), day, date, rows, goals));
+                            result.put(
+                                    date,
+                                    dayLesson(
+                                            doc,
+                                            contents.get(w),
+                                            cards.get(w),
+                                            day,
+                                            date,
+                                            rows,
+                                            goals,
+                                            keepWithoutGoals));
                         }
                     }
                 }
@@ -132,6 +157,40 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<List<ThemeGoal>> findClassThemeGoals(Long classroomId, Long themeId) {
+        String logPrefix = LOG_PREFIX + "|findClassThemeGoals|classId=" + classroomId + "|themeId=" + themeId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdInOrderByIdAsc(List.of(classroomId));
+            Map<String, String> releasedContents = releasedContents(docs);
+            Optional<List<ThemeGoal>> result = docs.stream()
+                    .filter(d -> EduClassDoc.THEME.equals(d.getKind()) && themeId.equals(d.getThemeId()) && released(d))
+                    .reduce((first, second) -> second)
+                    .map(d -> goalsOfTheme(
+                            d,
+                            readContent(effectiveContent(d, releasedContents)).path("customTicks")));
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private List<ThemeGoal> goalsOfTheme(EduClassDoc doc, JsonNode customTicks) {
+        List<Long> ids = themeGoals.ofTheme(doc.getYearPlanId(), doc.getThemeId(), customTicks).stream()
+                .map(EduThemeGoals.GoalRef::goalId)
+                .toList();
+        Map<Long, EduPlanGoal> goals = goalRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(EduGoalRow::getId, Function.identity()));
+        return ids.stream()
+                .map(goals::get)
+                .map(g -> new ThemeGoal(g.getId(), g.lineage(), g.getGoalNo(), g.getText()))
+                .toList();
+    }
+
     private JsonNode readContent(String json) {
         return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
     }
@@ -143,7 +202,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
         return releasedContents.getOrDefault(doc.getDocKey(), doc.getContent());
     }
 
-    /** docKey → nội dung thành viên trong lần ban hành gần nhất của gói học kỳ / hồ sơ chủ đề. */
+    /** docKey → nội dung thành viên trong lần ban hành gần nhất của kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày. */
     private Map<String, String> releasedContents(List<EduClassDoc> docs) {
         if (docs.stream().noneMatch(d -> d.getStatus() != EduClassDocStatus.APPROVED && released(d))) return Map.of();
         List<Long> rootIds = docs.stream()
@@ -187,7 +246,8 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             int day,
             LocalDate date,
             List<EduConfigResponse.WeekRow> rows,
-            Map<Long, EduPlanGoal> goals) {
+            Map<Long, EduPlanGoal> goals,
+            boolean keepWithoutGoals) {
         List<Activity> activities = new ArrayList<>();
         for (EduConfigResponse.WeekRow row : rows) {
             JsonNode cell = content.path("grid").path(row.key());
@@ -207,8 +267,9 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
                             }
                         }));
             }
-            if (!picked.isEmpty()) {
-                activities.add(new Activity(row.key(), row.label(), topicOf(cell, merged, day), picked));
+            String topic = topicOf(cell, merged, day);
+            if (!picked.isEmpty() || (keepWithoutGoals && !topic.isBlank())) {
+                activities.add(new Activity(row.key(), row.label(), topic, picked));
             }
         }
         long weekNo = content.path("weekNo").asLong(0);

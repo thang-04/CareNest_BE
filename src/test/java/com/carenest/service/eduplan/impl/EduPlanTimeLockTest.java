@@ -45,11 +45,11 @@ class EduPlanTimeLockTest {
     void locksFromSchoolYearStartUntilPrincipalUnlocks() {
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(any())).thenReturn(List.of());
         yearStarts(LocalDate.of(2026, 11, 1));
-        assertThat(new EduPlanTimeLock(years, events, plans, clock, true).locked(plan))
+        assertThat(new EduPlanTimeLock(years, events, plans, null, clock, true).locked(plan))
                 .isFalse();
 
         yearStarts(LocalDate.of(2026, 9, 1));
-        EduPlanTimeLock lock = new EduPlanTimeLock(years, events, plans, clock, true);
+        EduPlanTimeLock lock = new EduPlanTimeLock(years, events, plans, null, clock, true);
         assertThat(lock.locked(plan)).isTrue();
         assertThat(lock.info(plan).state()).isEqualTo(EduDeadline.OVERDUE);
 
@@ -86,7 +86,7 @@ class EduPlanTimeLockTest {
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(any())).thenReturn(List.of());
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(eq(9L))).thenReturn(List.of(unlock));
         // plan (phiên bản điều chỉnh, chưa có sự kiện riêng) cùng chuỗi với bản ban hành id 9 đã được mở khóa
-        assertThat(new EduPlanTimeLock(years, events, plans, clock, true).locked(plan))
+        assertThat(new EduPlanTimeLock(years, events, plans, null, clock, true).locked(plan))
                 .isFalse();
     }
 
@@ -94,7 +94,7 @@ class EduPlanTimeLockTest {
     void disabledFlagNeverLocks() {
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(any())).thenReturn(List.of());
         yearStarts(LocalDate.of(2026, 9, 1));
-        assertThat(new EduPlanTimeLock(years, events, plans, clock, false).locked(plan))
+        assertThat(new EduPlanTimeLock(years, events, plans, null, clock, false).locked(plan))
                 .isFalse();
     }
 }

@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
 /**
  * Phạm vi quản lý nhân sự (AUTH-06, AUTH-15..17). Quyền hành động (ACCOUNT_MANAGE...) đã kiểm ở controller; ở đây
  * kiểm người thao tác được đụng tới role/campus nào:
- * Admin → tài khoản PRINCIPAL (và PARENT tới khi có luồng phụ huynh); HT (có phân công PRINCIPAL) → PHT/GV/bếp toàn
+ * Admin → tạo PRINCIPAL, quản mọi tài khoản trừ PARENT; HT (có phân công PRINCIPAL) → PHT/GV/bếp toàn
  * trường; PHT → GV/bếp trong campus mình đang phụ trách.
  */
 @Slf4j
@@ -91,8 +91,9 @@ public class StaffAccessPolicy {
     }
 
     public boolean canManageAccount(CurrentUser actor, Long targetUserId, CareNestRole targetRole) {
+        // AUTH-06/P-16: Admin quản mọi tài khoản trừ phụ huynh; primary_role null (dữ liệu cũ) vẫn chỉ Admin
         if (actor.hasRole(CareNestRole.ADMIN)) {
-            return true;
+            return targetRole != CareNestRole.PARENT;
         }
         if (targetRole == null) {
             return false;
@@ -111,10 +112,14 @@ public class StaffAccessPolicy {
         // Phân quyền động (Cần chốt 10/11/2026): HT cấp STAFF_ASSIGNMENT_MANAGE toàn trường ⇒ PHT phân công GV/bếp mọi
         // cơ sở
         boolean schoolWide = !managed.isEmpty() && actor.hasSchoolWidePermission(Permission.STAFF_ASSIGNMENT_MANAGE);
+        // HT giao việc phân công tại một điểm trường cụ thể ⇒ chỉ điểm trường đó (AUTH-20, chốt 21/11/2026)
+        Long pinnedCampusId = actor.pinnedCampusId(Permission.STAFF_ASSIGNMENT_MANAGE);
+        boolean inScope = campusId != null
+                && (pinnedCampusId != null
+                        ? !managed.isEmpty() && pinnedCampusId.equals(campusId)
+                        : managed.contains(campusId) || schoolWide);
         boolean allowed = (PRINCIPAL_MANAGED.contains(role) && managesWholeSchool(actor))
-                || (VICE_PRINCIPAL_MANAGED.contains(role)
-                        && campusId != null
-                        && (managed.contains(campusId) || schoolWide));
+                || (VICE_PRINCIPAL_MANAGED.contains(role) && inScope);
         if (!allowed) {
             deny("checkCanAssign", actor, ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
         }
@@ -155,6 +160,10 @@ public class StaffAccessPolicy {
         if (role == CareNestRole.TEACHER || role == CareNestRole.KITCHEN_STAFF) {
             campuses.addAll(
                     staffAssignmentService.findActiveCampusIds(userId, StaffRole.valueOf(role.name()), today()));
+        }
+        // AUTH-15: GV thuộc cơ sở công tác kể cả khi chưa có lớp
+        if (role == CareNestRole.TEACHER) {
+            staffAssignmentService.findTeacherWorkCampusId(userId).ifPresent(campuses::add);
         }
         return campuses;
     }

@@ -21,7 +21,37 @@ interface WeeklyCommentDraftGenerator {
             List<String> metGoals,
             List<String> unmetGoals,
             int flagCount,
-            boolean weeklyTicket) {}
+            boolean weeklyTicket,
+            /** ATT-14: số ngày trong presentDays trẻ chỉ học một buổi. */
+            int halfDays) {
+
+        WeekFacts(
+                int presentDays,
+                int schoolDays,
+                Map<Emotion, Integer> emotion,
+                Map<Participation, Integer> participation,
+                Map<NapLevel, Integer> nap,
+                int lunchFinished,
+                int lunchDays,
+                List<String> metGoals,
+                List<String> unmetGoals,
+                int flagCount,
+                boolean weeklyTicket) {
+            this(
+                    presentDays,
+                    schoolDays,
+                    emotion,
+                    participation,
+                    nap,
+                    lunchFinished,
+                    lunchDays,
+                    metGoals,
+                    unmetGoals,
+                    flagCount,
+                    weeklyTicket,
+                    0);
+        }
+    }
 
     String write(WeekFacts facts);
 }

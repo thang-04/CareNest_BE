@@ -1,10 +1,9 @@
 package com.carenest.service.organization.impl;
 
+import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
-import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
-import com.carenest.repository.organization.AgeGroupRepository;
 import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.service.organization.ClassroomService;
@@ -31,7 +30,7 @@ public class ClassroomServiceImpl implements ClassroomService {
 
     private final ClassroomRepository classroomRepository;
     private final SchoolYearRepository schoolYearRepository;
-    private final AgeGroupRepository ageGroupRepository;
+    private final YearSnapshotReader yearSnapshotReader;
 
     @Override
     @Transactional
@@ -68,8 +67,9 @@ public class ClassroomServiceImpl implements ClassroomService {
         try {
             Optional<ClassroomInfoResponse> info = classroomRepository
                     .findById(classroomId)
-                    .flatMap(c ->
-                            schoolYearRepository.findById(c.getSchoolYearId()).map(y -> toInfo(c, y, ageGroups())));
+                    .flatMap(c -> schoolYearRepository
+                            .findById(c.getSchoolYearId())
+                            .map(y -> toInfo(c, y, ageGroups(y.getId()))));
             log.info("{}|END", logPrefix);
             return info;
         } catch (RuntimeException ex) {
@@ -86,7 +86,7 @@ public class ClassroomServiceImpl implements ClassroomService {
             List<ClassroomInfoResponse> classes = schoolYearRepository
                     .findFirstByStatus(SchoolYearStatus.ACTIVE)
                     .map(year -> {
-                        Map<Long, AgeGroup> groups = ageGroups();
+                        var groups = ageGroups(year.getId());
                         return classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId()).stream()
                                 .map(c -> toInfo(c, year, groups))
                                 .toList();
@@ -111,7 +111,7 @@ public class ClassroomServiceImpl implements ClassroomService {
             List<ClassroomInfoResponse> classes = schoolYearRepository
                     .findById(schoolYearId)
                     .map(year -> {
-                        Map<Long, AgeGroup> groups = ageGroups();
+                        var groups = ageGroups(year.getId());
                         return classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId()).stream()
                                 .map(c -> toInfo(c, year, groups))
                                 .toList();
@@ -197,13 +197,35 @@ public class ClassroomServiceImpl implements ClassroomService {
         }
     }
 
-    private Map<Long, AgeGroup> ageGroups() {
-        return ageGroupRepository.findAll().stream().collect(Collectors.toMap(AgeGroup::getId, Function.identity()));
+    @Override
+    public Map<Long, Long> countMealRegisteredChildren(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|countMealRegisteredChildren|classrooms=" + classroomIds.size() + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> counts = classroomIds.isEmpty()
+                    ? Map.of()
+                    : classroomRepository.countMealRegisteredChildren(classroomIds, date).stream()
+                            .collect(Collectors.toMap(
+                                    ClassroomRepository.ClassroomCount::getClassroomId,
+                                    ClassroomRepository.ClassroomCount::getTotal));
+            log.info("{}|END", logPrefix);
+            return counts;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
-    private static ClassroomInfoResponse toInfo(Classroom c, SchoolYear year, Map<Long, AgeGroup> groups) {
-        AgeGroup group = c.getAgeGroupId() == null ? null : groups.get(c.getAgeGroupId());
-        List<MealSession> sessions = group == null ? List.of() : List.copyOf(group.getMealSessions());
+    private Map<Long, AgeGroupDetailResponse> ageGroups(Long yearId) {
+        return yearSnapshotReader.yearAgeGroups(yearId).stream()
+                .collect(Collectors.toMap(AgeGroupDetailResponse::id, Function.identity()));
+    }
+
+    private static ClassroomInfoResponse toInfo(
+            Classroom c, SchoolYear year, Map<Long, AgeGroupDetailResponse> groups) {
+        var group = c.getAgeGroupId() == null ? null : groups.get(c.getAgeGroupId());
+        List<MealSession> sessions = group == null ? List.of() : List.copyOf(group.mealSessions());
         return new ClassroomInfoResponse(
                 c.getId(),
                 c.getName(),

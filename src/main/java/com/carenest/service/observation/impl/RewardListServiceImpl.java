@@ -91,6 +91,12 @@ public class RewardListServiceImpl implements RewardListService {
             List.of(GOOD, DILIGENT_GOOD, HEALTHY_GOOD, EXCELLENT, UNCLE_HO, PROGRAM_EXCELLENT, PROGRAM_GOOD);
     // Bé chăm: đi học từ 90% số ngày học của lớp (như báo cáo chất lượng tháng)
     static final int DILIGENT_PERCENT = 90;
+
+    // So tỉ lệ chưa làm tròn: 89,5% (có nghỉ nửa buổi) chưa đạt, khớp báo cáo chất lượng tháng
+    static boolean isDiligent(double presentDays, int schoolDays) {
+        return schoolDays > 0 && presentDays * 100 >= DILIGENT_PERCENT * schoolDays;
+    }
+
     static final int NOTE_MAX = 300;
     static final int COMMENT_MAX = 500;
 
@@ -208,6 +214,10 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
             }
             List<RewardItemRequest> items = checkItems(cls, request == null ? null : request.items());
+            // Cần chốt 15/11/2026: GV lớp cùng lập / lưu nháp, chỉ GV chủ nhiệm gửi duyệt
+            if (submit && !rules.isHomeroom(currentUser, cls)) {
+                throw GlobalException.of(ApiCode.SUBMIT_HOMEROOM_ONLY);
+            }
             if (submit && items.isEmpty()) {
                 throw GlobalException.of(ApiCode.REWARD_LIST_EMPTY);
             }
@@ -364,7 +374,7 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private boolean teaches(CurrentUser user, ClassroomInfoResponse cls) {
-        return user.hasRole(CareNestRole.TEACHER) && (rules.canRecord(user, cls) || rules.taughtClosedYear(user, cls));
+        return user.hasRole(CareNestRole.TEACHER) && rules.canView(user, cls);
     }
 
     private boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
@@ -443,12 +453,9 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_NOTE_TOO_LONG, name, NOTE_MAX);
             }
             String lower = note.toLowerCase(Locale.ROOT);
-            DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream()
-                    .filter(lower::contains)
-                    .findFirst()
-                    .ifPresent(term -> {
-                        throw GlobalException.of(ApiCode.REWARD_NOTE_DIAGNOSTIC, name, term);
-                    });
+            DiagnosticTerms.matches(note).stream().findFirst().ifPresent(term -> {
+                throw GlobalException.of(ApiCode.REWARD_NOTE_DIAGNOSTIC, name, term);
+            });
             if (picked.isEmpty()) {
                 // Không có danh hiệu thì không lưu dòng (ghi chú đi kèm danh hiệu)
                 continue;
@@ -522,17 +529,22 @@ public class RewardListServiceImpl implements RewardListService {
                 schoolDays.add(d);
             }
         }
-        Map<Long, Integer> present = new HashMap<>();
+        Map<Long, Double> present = new HashMap<>();
         if (!to.isBefore(cls.yearStart())) {
             for (ClassChildDay d : attendanceService.findClassDays(List.of(cls.id()), cls.yearStart(), to)) {
                 if (!schoolDays.contains(d.date())) {
                     continue;
                 }
                 recorded.add(d.date());
+                // ATT-14: nghỉ nửa buổi tính 0,5 ngày có mặt
                 if (d.status() == AttendanceStatus.PRESENT) {
-                    present.merge(d.childId(), 1, Integer::sum);
+                    present.merge(d.childId(), d.presentDays(), Double::sum);
                 }
             }
+        }
+        // Hôm nay chưa điểm danh thì chưa tính là ngày phải đi, như báo cáo chất lượng tháng
+        if (!recorded.contains(today)) {
+            schoolDays.remove(today);
         }
         // OBS-23: ngày phải đi của từng trẻ = ngày học của lớp trong thời gian trẻ thuộc lớp (trẻ vào giữa năm không
         // bị tính các ngày trước khi vào); số tuần / tháng học cũng theo thời gian trẻ ở lớp
@@ -567,9 +579,9 @@ public class RewardListServiceImpl implements RewardListService {
 
         List<RewardChildRow> rows = children.stream()
                 .map(c -> {
-                    int presentDays = present.getOrDefault(c.id(), 0);
+                    double presentDays = present.getOrDefault(c.id(), 0.0);
                     List<LocalDate> own = expectedDays.getOrDefault(c.id(), List.of());
-                    Integer rate = own.isEmpty() ? null : Math.round(presentDays * 100f / own.size());
+                    Integer rate = own.isEmpty() ? null : (int) Math.round(presentDays * 100 / own.size());
                     long weeks = own.stream()
                             .map(d -> d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
                             .distinct()
@@ -587,7 +599,7 @@ public class RewardListServiceImpl implements RewardListService {
                     // Chăm: đi học từ 90% ngày học; ngoan: phiếu tuần từ nửa số tuần học; ngoan toàn diện: phiếu
                     // tháng từ nửa số tháng học. Gợi ý một danh hiệu cao nhất đạt được, GV quyết định. Luôn gợi ý theo
                     // số liệu hiện có, không chờ đánh giá cuối năm (Cần chốt 10/11/2026)
-                    boolean diligent = rate != null && rate >= DILIGENT_PERCENT;
+                    boolean diligent = isDiligent(presentDays, own.size());
                     boolean good = weeks > 0 && weekly * 2L >= weeks;
                     boolean allRound = months > 0 && monthly * 2L >= months;
                     if (diligent && allRound) {
@@ -674,6 +686,7 @@ public class RewardListServiceImpl implements RewardListService {
                                 e.getNote()))
                         .toList(),
                 canEdit(user, cls, list),
+                canEdit(user, cls, list) && rules.isHomeroom(user, cls),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE && canReview(user, list),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE && canDecide(user, list),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE ? rules.yearEndOpensOn(user, cls) : null,

@@ -26,7 +26,16 @@ public record CutoffResponse(
             Long updatedBy,
             String updatedByName,
             Instant updatedAt,
-            List<Entry> history) {}
+            List<Entry> history,
+            @JsonFormat(pattern = "HH:mm") LocalTime latestAfternoonArrival,
+            @JsonFormat(pattern = "HH:mm") LocalTime dropoffOpenFrom,
+            @JsonFormat(pattern = "HH:mm") LocalTime morningStart,
+            @JsonFormat(pattern = "HH:mm") LocalTime morningEnd,
+            @JsonFormat(pattern = "HH:mm") LocalTime afternoonStart,
+            @JsonFormat(pattern = "HH:mm") LocalTime pickupStart,
+            @JsonFormat(pattern = "HH:mm") LocalTime fullDayPickupFrom,
+            @JsonFormat(pattern = "HH:mm") LocalTime pickupEnd,
+            @JsonFormat(pattern = "HH:mm") LocalTime afternoonEnd) {}
 
     public record Entry(
             Long id,
@@ -36,5 +45,14 @@ public record CutoffResponse(
             String note,
             Long userId,
             String userName,
-            Instant at) {}
+            Instant at,
+            @JsonFormat(pattern = "HH:mm") LocalTime latestAfternoonArrival,
+            @JsonFormat(pattern = "HH:mm") LocalTime dropoffOpenFrom,
+            @JsonFormat(pattern = "HH:mm") LocalTime morningStart,
+            @JsonFormat(pattern = "HH:mm") LocalTime morningEnd,
+            @JsonFormat(pattern = "HH:mm") LocalTime afternoonStart,
+            @JsonFormat(pattern = "HH:mm") LocalTime pickupStart,
+            @JsonFormat(pattern = "HH:mm") LocalTime fullDayPickupFrom,
+            @JsonFormat(pattern = "HH:mm") LocalTime pickupEnd,
+            @JsonFormat(pattern = "HH:mm") LocalTime afternoonEnd) {}
 }

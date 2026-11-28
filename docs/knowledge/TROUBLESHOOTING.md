@@ -24,6 +24,7 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Nguyên nhân: realm `carenest` đã có trong DB Keycloak từ base Compose ⇒ `compose.auth.yaml` import bị bỏ qua (`Realm 'carenest' already exists. Import skipped`), client gateway + flow chưa từng được tạo. Token endpoint trả 401 `invalid_client` ⇒ BE map 503.
 - Xử lý: chạy bootstrap theo `docker/keycloak/auth/README.md` mục Opt-in: preview `node docker/keycloak/auth/bootstrap.mjs` (cần `KC_BOOTSTRAP_ADMIN_*`, `KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET` trong env), duyệt rồi `--apply --enable` (chỉ môi trường local/test).
 - Kiểm: `docker logs carenest_be-keycloak-1 2>&1 | grep -E "Import skipped|client_not_found"`.
+- Biến thể Keycloak mới tinh (import thành công): Web báo "Dịch vụ đăng nhập đang gián đoạn" (503 `1013`), API log `[authGatewayToken]|keycloakStatus=401|oauthErrorCode=unknown`, Keycloak `LOGIN_ERROR ... error="client_disabled"`. Realm dẫn xuất (`prepare.mjs`) luôn tạo gateway DISABLED ⇒ vẫn phải chạy bootstrap `--apply --enable` như trên (gặp 16/11/2026 khi dựng stack test riêng `-p carenest-auth27`).
 
 ### Dev user (`teacher.a`…) báo sai mật khẩu — Keycloak `user_not_found`
 - Nguyên nhân: realm `carenest` đã tồn tại trước khi mount `docker/keycloak/dev/carenest-users-0.json`; `--import-realm` dùng `IGNORE_EXISTING` nên log `Realm 'carenest' already exists. Import skipped` và user dev không bao giờ được tạo. DB app vẫn có seed `user_accounts` nên lệch hai bên. API map `invalid_grant` thành 401 sai mật khẩu (không lộ user tồn tại hay không).
@@ -64,7 +65,7 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Xử lý: mọi service CareNest chạy `network_mode: host`, bind `127.0.0.1:<port>`, gọi nhau qua `127.0.0.1` (`compose.vps.yaml`); image build ở GitHub Actions, VPS chỉ pull. Chi tiết chẩn đoán: `FE:docs/knowledge/TROUBLESHOOTING.md`.
 - Nguồn: user chạy lệnh trên VPS, 2026-10-21 (FE) và 2026-10-30.
 
-### VPS: cổng `8080` / `18080` đã bị chiếm; `web.carenest.edu.vn/api/*` trả nội dung lạ
+### VPS: cổng `8080` / `18080` đã bị chiếm; `thuonghong.carenest.edu.vn/api/*` trả nội dung lạ
 - Nguyên nhân: `*:8080` và `127.0.0.1:18080` là `java` của app khác trên server chung (`ss -ltnp`, 2026-10-30). Caddy FE ban đầu proxy `/api/*` ⇒ `127.0.0.1:8080` nên đi vào app đó.
 - Xử lý: API CareNest nghe `127.0.0.1:18310`; Caddy FE phải trỏ `/api/*` ⇒ `127.0.0.1:18310` (`FE:deploy/caddy/carenest-web.caddy`). Chọn cổng mới: `sudo ss -ltnp | grep :<port>` rỗng rồi ghi bảng cổng `docs/system/DEPLOYMENT.md`.
 

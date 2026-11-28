@@ -13,6 +13,7 @@ import com.carenest.entity.observation.DailyActivityResult;
 import com.carenest.entity.observation.DailyObservation;
 import com.carenest.repository.observation.DailyActivityResultRepository;
 import com.carenest.repository.observation.DailyObservationRepository;
+import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.eduplan.EduLessonQueryService;
@@ -25,6 +26,7 @@ import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.NapLevel;
 import com.carenest.utils.enums.ObservedBehavior;
 import com.carenest.utils.enums.Participation;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,6 +60,7 @@ class EvaluationSources {
     private final EduLessonQueryService eduLessonQueryService;
     private final ObjectMapper objectMapper;
     private final ClassroomService classroomService;
+    private final AccountService accountService;
 
     /** days rỗng khi không yêu cầu (danh sách / cuối năm); presentDates / flagDates cho biểu đồ tuần. */
     record ChildData(
@@ -66,7 +69,24 @@ class EvaluationSources {
             StructuredSummary structured,
             List<EvaluationDay> days,
             Set<LocalDate> presentDates,
-            Set<LocalDate> flagDates) {}
+            Set<LocalDate> flagDates,
+            /** ATT-14: số ngày trong presentDays trẻ chỉ học một buổi. */
+            int halfDays) {
+
+        ChildData(
+                int presentDays,
+                int flagCount,
+                StructuredSummary structured,
+                List<EvaluationDay> days,
+                Set<LocalDate> presentDates,
+                Set<LocalDate> flagDates) {
+            this(presentDays, flagCount, structured, days, presentDates, flagDates, 0);
+        }
+
+        ChildData withHalfDays(int count) {
+            return new ChildData(presentDays, flagCount, structured, days, presentDates, flagDates, count);
+        }
+    }
 
     /** Nhận xét của lớp cls: chỉ dữ liệu ghi ở lớp này (trẻ chuyển lớp giữa kỳ không lẫn ngày của lớp kia). */
     Map<Long, ChildData> load(
@@ -102,9 +122,15 @@ class EvaluationSources {
         if (childIds.isEmpty() || to.isBefore(from)) {
             return Map.of();
         }
+        Map<Long, Integer> halfDays = new HashMap<>();
         Set<String> present = (classOnly
                         ? attendanceService.findClassDays(List.of(cls.id()), from, to).stream()
                                 .filter(d -> childIds.contains(d.childId()) && d.status() == AttendanceStatus.PRESENT)
+                                .peek(d -> {
+                                    if (d.absentPart() != null) {
+                                        halfDays.merge(d.childId(), 1, Integer::sum);
+                                    }
+                                })
                                 .map(d -> key(d.childId(), d.date()))
                         : attendanceService.findDayStatuses(childIds, from, to).stream()
                                 .filter(d -> d.status() == AttendanceStatus.PRESENT)
@@ -149,6 +175,8 @@ class EvaluationSources {
                     .forEach(g -> goals.putIfAbsent(g.id(), g));
         });
 
+        Map<String, Recorder> recorders = withDays ? recorders(observations, results) : Map.of();
+
         Map<Long, ChildData> data = new LinkedHashMap<>();
         for (Long childId : childIds) {
             Set<LocalDate> presentDates = present.stream()
@@ -163,17 +191,19 @@ class EvaluationSources {
             data.put(
                     childId,
                     summarize(
-                            cls,
-                            childId,
-                            presentDates,
-                            dates,
-                            observations,
-                            results,
-                            health,
-                            goals,
-                            projected,
-                            sourceClasses,
-                            withDays));
+                                    cls,
+                                    childId,
+                                    presentDates,
+                                    dates,
+                                    observations,
+                                    results,
+                                    health,
+                                    goals,
+                                    projected,
+                                    sourceClasses,
+                                    recorders,
+                                    withDays)
+                            .withHalfDays(halfDays.getOrDefault(childId, 0)));
         }
         return data;
     }
@@ -190,6 +220,7 @@ class EvaluationSources {
             Map<Long, ApprovedDayLessonResponse.Goal> goals,
             Map<DailyActivityResult, com.carenest.dto.observation.DailySheetResponse.ActivityResult> projected,
             Map<Long, ClassroomInfoResponse> sourceClasses,
+            Map<String, Recorder> recorders,
             boolean withDays) {
         int healthDays = 0;
         int normalDays = 0;
@@ -252,6 +283,7 @@ class EvaluationSources {
                 tally(result.goalsNotMet(), 2, goalCounts, goals, notMet);
             }
             if (withDays) {
+                Recorder recorder = recorders.get(k);
                 days.add(new EvaluationDay(
                         date,
                         dayHealth,
@@ -271,7 +303,10 @@ class EvaluationSources {
                                                 ? o.getClassroomId()
                                                 : rs.getFirst().getClassroomId(),
                                         cls)
-                                .name()));
+                                .name(),
+                        recorder == null ? null : recorder.userId(),
+                        recorder == null ? null : recorder.name(),
+                        recorder == null ? null : recorder.at()));
             }
         }
         Map<String, GoalCount> byGoal = new LinkedHashMap<>();
@@ -290,6 +325,42 @@ class EvaluationSources {
                 participation,
                 new GoalSummary(byGoal));
         return new ChildData(presentDates.size(), flagDates.size(), structured, days, presentDates, flagDates);
+    }
+
+    record Recorder(Long userId, String name, Instant at) {}
+
+    // Người lưu gần nhất của ngày (phần chung hoặc kiến thức kỹ năng), một lần tra tên cho cả khoảng
+    private Map<String, Recorder> recorders(
+            Map<String, DailyObservation> observations, Map<String, List<DailyActivityResult>> results) {
+        Map<String, Recorder> latest = new HashMap<>();
+        observations.forEach((k, o) -> keepLatest(
+                latest,
+                k,
+                o.getUpdatedBy() != null ? o.getUpdatedBy() : o.getRecordedBy(),
+                o.getUpdatedAt() != null ? o.getUpdatedAt() : o.getRecordedAt()));
+        results.forEach((k, rs) -> rs.forEach(r -> keepLatest(
+                latest,
+                k,
+                r.getUpdatedBy() != null ? r.getUpdatedBy() : r.getRecordedBy(),
+                r.getUpdatedAt() != null ? r.getUpdatedAt() : r.getRecordedAt())));
+        Set<Long> ids = latest.values().stream()
+                .map(Recorder::userId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return latest;
+        }
+        Map<Long, String> names = accountService.findFullNames(ids);
+        Map<String, Recorder> named = new HashMap<>();
+        latest.forEach((k, r) -> named.put(k, new Recorder(r.userId(), names.get(r.userId()), r.at())));
+        return named;
+    }
+
+    private static void keepLatest(Map<String, Recorder> map, String key, Long userId, Instant at) {
+        Recorder old = map.get(key);
+        if (old == null || old.at() == null || at != null && at.isAfter(old.at())) {
+            map.put(key, new Recorder(userId, null, at));
+        }
     }
 
     private void tally(

@@ -30,6 +30,7 @@ class EvaluationLockOrderTest {
                 mock(SchoolYearService.class),
                 mock(AgeGroupService.class),
                 mock(EnrollmentService.class),
+                mock(com.carenest.service.attendance.ChildClassHistoryService.class),
                 mock(AccountService.class),
                 mock(EvaluationSources.class),
                 evaluations,
@@ -37,11 +38,26 @@ class EvaluationLockOrderTest {
                 mock(DailyObservationRepository.class),
                 mock(BehaviourTicketRepository.class),
                 mock(YearEndSheetService.class),
-                mock(com.carenest.service.observation.EvaluationDeadlineService.class));
-        var user = new CurrentUser(1L, "demo", "demo", "Demo", null, Set.of(CareNestRole.TEACHER));
+                mock(EvaluationNotifier.class),
+                mock(com.carenest.service.observation.EvaluationDeadlineService.class),
+                mock(AiPeriodCommentDraftGenerator.class),
+                mock(PeriodCommentFactsBuilder.class),
+                mock(com.carenest.repository.observation.RewardListRepository.class),
+                mock(com.carenest.repository.observation.RewardListItemRepository.class),
+                mock(com.carenest.repository.observation.EvaluationRevisionRepository.class),
+                new tools.jackson.databind.ObjectMapper());
+        var user = new CurrentUser(
+                1L,
+                "demo",
+                "demo",
+                "Demo",
+                null,
+                Set.of(CareNestRole.TEACHER),
+                Set.of(com.carenest.utils.enums.Permission.ASSESSMENT_RECORD));
         when(classes.findYearClassrooms(null)).thenReturn(List.of(cls(20L, "A"), cls(10L, "Z")));
         when(rules.today()).thenReturn(LocalDate.of(2026, 10, 28));
         when(rules.canRecord(eq(user), any())).thenReturn(true);
+        when(rules.canView(eq(user), any())).thenReturn(true);
         when(rules.canRecordPeriod(eq(user), any())).thenReturn(true);
         service.list(user, EvaluationPeriodType.YEAR, null, null, null);
         var order = inOrder(classes);

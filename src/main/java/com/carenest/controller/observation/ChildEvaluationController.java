@@ -7,6 +7,7 @@ import com.carenest.dto.observation.EvaluationDtos.EvaluationDetailResponse;
 import com.carenest.dto.observation.EvaluationDtos.EvaluationRow;
 import com.carenest.dto.observation.EvaluationDtos.ProgramCompletionRequest;
 import com.carenest.dto.observation.EvaluationDtos.ProgramCompletionResponse;
+import com.carenest.dto.observation.EvaluationDtos.RedraftRequest;
 import com.carenest.dto.observation.YearEndSheetDtos.YearEndSheetRequest;
 import com.carenest.dto.observation.YearEndSheetDtos.YearEndSheetResponse;
 import com.carenest.security.CurrentUser;
@@ -80,20 +81,23 @@ public class ChildEvaluationController {
     @PostMapping("/assessment/evaluations/{id}/confirm")
     @PreAuthorize("@permissionGuard.has('ASSESSMENT_CONFIRM')")
     public ResponseEntity<ResponseJson<EvaluationRow>> confirm(
-            @PathVariable Long id, @RequestBody EvaluationContentRequest request, CurrentUser currentUser) {
+            @PathVariable Long id, @Valid @RequestBody EvaluationContentRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|confirm|userId=" + currentUser.userId() + "|id=" + id;
         log.info("{}|START", logPrefix);
-        EvaluationRow row = childEvaluationService.confirm(currentUser, id, request.content());
+        EvaluationRow row = childEvaluationService.confirm(
+                currentUser, id, request.content(), request.programCompleted(), request.sheet());
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Confirm evaluation success", row);
     }
 
     @PostMapping("/assessment/evaluations/{id}/redraft")
     @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
-    public ResponseEntity<ResponseJson<EvaluationRow>> redraft(@PathVariable Long id, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|redraft|userId=" + currentUser.userId() + "|id=" + id;
+    public ResponseEntity<ResponseJson<EvaluationRow>> redraft(
+            @PathVariable Long id, @RequestBody(required = false) RedraftRequest request, CurrentUser currentUser) {
+        boolean ai = request != null && Boolean.TRUE.equals(request.ai());
+        String logPrefix = LOG_PREFIX + "|redraft|userId=" + currentUser.userId() + "|id=" + id + "|ai=" + ai;
         log.info("{}|START", logPrefix);
-        EvaluationRow row = childEvaluationService.redraft(currentUser, id);
+        EvaluationRow row = childEvaluationService.redraft(currentUser, id, ai);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Redraft evaluation success", row);
     }

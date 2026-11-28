@@ -1,3 +1,4 @@
 package com.carenest.dto.organization;
 
-public record StaffBriefResponse(Long id, String fullName) {}
+/** locked: tài khoản đang bị khóa / ngừng, phân công vẫn còn. */
+public record StaffBriefResponse(Long id, String fullName, boolean locked) {}

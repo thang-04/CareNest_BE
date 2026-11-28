@@ -24,6 +24,7 @@ import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.Gender;
@@ -143,7 +144,7 @@ class ChildPhotoServiceImplTest {
     @DisplayName("CHD-02: ảnh gắn đúng vị trí trong cùng request và dọn tất cả object mới khi rollback")
     void attachesCorrectGuardianAndCleansRollback() throws Exception {
         Child child = Child.enroll(
-                "TEST", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 1L, LocalDate.of(2026, 11, 5));
+                "TEST", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 1L, LocalDate.of(2026, 11, 5), true);
         ChildGuardian first = guardian(10L, 1L, 0), second = guardian(11L, 1L, 1);
         when(children.findById(1L)).thenReturn(Optional.of(child));
         when(guardians.findAllByChildIdOrderByPositionAsc(1L)).thenReturn(List.of(first, second));
@@ -198,7 +199,7 @@ class ChildPhotoServiceImplTest {
     @DisplayName("CHD-02: giữ ảnh của trẻ khi mở lại hồ sơ, không thay ảnh tài khoản")
     void preservesPortraitOnReadmission() {
         Child child = Child.enroll(
-                "TEST", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 7L, LocalDate.of(2026, 11, 5));
+                "TEST", "Trẻ giả", LocalDate.of(2023, 1, 1), Gender.MALE, false, 7L, LocalDate.of(2026, 11, 5), true);
         child.assignEnrollmentPhoto("existing", "image/png", 10, NOW);
         child.readmit(8L, LocalDate.of(2026, 11, 6));
         assertThat(child.getPhotoKey()).isEqualTo("existing");
@@ -249,6 +250,17 @@ class ChildPhotoServiceImplTest {
         assertThat(result.photoUrl()).isEqualTo("/children/1/photo");
     }
 
+    @Test
+    @DisplayName("AUTH-20: trẻ ngoài phạm vi xem hồ sơ ⇒ CHILD_ACCESS_DENIED, không đọc hồ sơ")
+    void profileOutOfScopeIsForbidden() {
+        when(access.canReadChild(TEACHER, 1L)).thenReturn(false);
+        assertThatThrownBy(() -> service.getProfile(TEACHER, 1L))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ACCESS_DENIED));
+        verifyNoInteractions(intake);
+    }
+
     private static ChildViewResponse profileWithAccountDetails() {
         var guardian = new com.carenest.dto.child.ChildGuardianResponse(
                 "Phụ huynh giả",
@@ -278,10 +290,12 @@ class ChildPhotoServiceImplTest {
                 null,
                 List.of(),
                 false,
+                true,
                 null,
                 List.of(guardian),
                 List.of(),
-                "/children/1/photo");
+                "/children/1/photo",
+                null);
     }
 
     private static ChildGuardian guardian(Long id, Long childId, int position) {

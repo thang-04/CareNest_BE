@@ -20,6 +20,7 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | id | BIGINT identity | không | Khóa chính, dùng làm `userId` trong CareNest | — |
 | keycloak_user_id | VARCHAR(36) | không | = claim `sub` của access token; UNIQUE | AUTH-07 |
 | username | VARCHAR(100) | không | Username Keycloak; UNIQUE. Phụ huynh = SĐT chuẩn hóa, chỉ đổi khi yêu cầu đổi SĐT được duyệt (`guardian_phone_change_requests`, G94-180/AUTH-21 — entity không ghi cột này, đổi bằng `UserAccountRepository.updateUsername`); nhân sự không được là SĐT (AUTH-18) | AUTH-21 |
+| password_changed_at | TIMESTAMPTZ | có | V196: lần đổi/đặt lại mật khẩu gần nhất (đổi, quên, đổi lần đầu, cấp mật khẩu tạm, đổi SĐT đăng nhập, kích hoạt phụ huynh). Access token có `iat` trước giây này bị 401 1002; trả ở `/accounts/me`. Null = chưa ghi nhận. Entity không ghi cột này, đổi bằng `UserAccountRepository.markPasswordChanged` | AUTH_CONTRACT |
 | email | VARCHAR(255) | có | Nhân sự: email đăng nhập/khôi phục mật khẩu (có trên Keycloak). Phụ huynh: email liên hệ, có thể null, chỉ lưu ở đây (không gửi Keycloak, không dùng đăng nhập/khôi phục). Không UNIQUE: phụ huynh được trùng email nhân sự | AUTH-18 |
 | full_name | VARCHAR(150) | không | Họ tên đầy đủ (= `firstName` bên Keycloak) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
@@ -92,6 +93,7 @@ Mục đích: nhận xét tuần theo trẻ gửi phụ huynh. Migration: V129.
 | status | VARCHAR(10) | không | `DRAFT` / `SENT`; SENT thì khóa | OBS-29 |
 | draft_source | VARCHAR(10) | không | `TEMPLATE` / `AI` / `MANUAL`: nguồn bản nháp | OBS-29 |
 | sent_by / sent_at | BIGINT, TIMESTAMPTZ | có | Người, lúc gửi; có ⇔ SENT (CHECK) | OBS-29 |
+| ai_reviewed_at | TIMESTAMPTZ | có | Lần đầu GV xem / sửa nháp AI; null = chưa xem, chặn "Gửi tất cả"; viết lại nháp đặt null (V179, Cần chốt 24/11/2026) | OBS-29 |
 | created_* / updated_* / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Người tạo, lần lưu gần nhất, khóa lạc quan | OBS-29 |
 
 ## weekly_comment_unlocks  (module: learning-observation, scope: CLASS)
@@ -127,7 +129,7 @@ Mục đích: GV sửa bản đã gửi (trong hạn hoặc khi được mở l�
 Index: `idx_weekly_comment_revisions_comment (weekly_comment_id)`.
 
 ## attendance_cutoffs  (module: school-structure, scope: SCHOOL)
-Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó.
+Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó. V209: `cancelled_at`, `cancelled_by` (FK `user_accounts`) — lịch chưa tới ngày áp dụng bị HT hủy; dòng đã hủy không được đọc khi tính giờ chốt.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -135,9 +137,21 @@ Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 �
 | cutoff_time | TIME | không | Giờ chốt (HH:mm) | ATT-06 |
 | effective_from | DATE | không | Ngày bắt đầu áp dụng, nằm trong năm học | ATT-06 |
 | note | VARCHAR(500) | không | Ghi chú lần đổi | — |
+| latest_afternoon_arrival | TIME | không | Giờ đến muộn nhất buổi chiều của trẻ nghỉ sáng, sau `cutoff_time`; mặc định 14:00 (V149) | ATT-13 |
 | created_by | BIGINT FK user_accounts | có | Người đặt | — |
 | created_at | TIMESTAMPTZ | không | Lúc đặt | — |
 Index: `idx_attendance_cutoffs_school_year_id (school_year_id, effective_from)`.
+
+## school_appearance  (module: school-structure, scope: SCHOOL)
+Mục đích: tranh nền giao diện dùng chung cho cả trường (Hiệu trưởng/Phó hiệu trưởng đổi, mọi người dùng đọc). Migration: `V204__create_school_appearance.sql`. Bảng chỉ có một dòng `id = 1`; chưa có dòng = mặc định (AUTO, bật cả 20 tranh, ghim T0).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | SMALLINT | không | Luôn = 1 (CHECK) | — |
+| mode | VARCHAR(20) | không | FIXED / AUTO / DAILY_RANDOM | — |
+| pinned_scene_id | VARCHAR(8) | không | Mã tranh ghim (dùng khi FIXED) | — |
+| enabled_scene_ids | text[] | không | Mã các tranh đang bật, ít nhất một | — |
+| updated_by | BIGINT FK user_accounts | có | Người lưu gần nhất | — |
+| updated_at | TIMESTAMPTZ | không | Lúc lưu gần nhất | — |
 
 ## classrooms  (module: school-structure, scope: CLASS)
 Mục đích: lớp của một campus trong một năm học (năm sau là lớp khác ⇒ phân công cũ không tự áp). Migration: V2.
@@ -191,6 +205,17 @@ Mục đích: phân công nhân sự — nguồn scope của BGH/GV/bếp (ADR-0
 Ràng buộc: `ck_staff_assignments_scope` (đúng cột scope theo vai trò), `ck_staff_assignments_valid_range`, `ck_staff_assignments_homeroom`. Kết thúc phân công = đặt `valid_to`, không xóa (giữ lịch sử); phân công chưa từng có hiệu lực (bắt đầu từ hôm nay/ngày đầu năm sắp tới) thì xóa. Phân công qua API: từ max(hôm nay, ngày đầu năm học) tới ngày cuối năm học. Phân công GV có `valid_to` trước ngày cuối năm học của lớp = dạy thay (AUTH-24, không tính luật một lớp dạy chính/năm).
 Index: `user_id`, `campus_id`, `classroom_id`, `age_group_id`, `school_year_id`.
 
+## teacher_work_campuses  (module: school-structure, scope: CAMPUS)
+Mục đích: cơ sở công tác của giáo viên, có ngay khi tạo tài khoản, chưa cần lớp (AUTH-15, chốt 21/11/2026). PHT/bếp không có dòng ở đây (cơ sở = điểm trường phân công). Migration: V168 (backfill theo lớp dạy chính gần nhất, không lấy dạy thay; GV chưa từng có lớp để trống).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| user_id | BIGINT PK FK user_accounts | không | Giáo viên | AUTH-15 |
+| campus_id | BIGINT FK campuses | không | Cơ sở công tác; xếp dạy chính lớp ở cơ sở khác ⇒ chuyển theo lớp | AUTH-15 |
+| updated_by | BIGINT FK user_accounts | có | Người đặt/chuyển gần nhất; NULL = backfill | — |
+| updated_at | TIMESTAMPTZ | không | | — |
+Đổi/thu hồi vai trò khỏi GV ⇒ xóa dòng. Danh bạ GV (`GET /teacher-assignments`) lấy điểm trường từ đây, chưa có thì theo lớp gần nhất.
+Index: `campus_id`.
+
 ## age_groups  (module: school-structure, scope: SCHOOL)
 Mục đích: nhóm tuổi (khối) dùng chung toàn trường. Migration: `V10__create_age_groups.sql`, seed 4 nhóm `ag-2`..`ag-5` theo UI.
 | Column | Type | Null | Ý nghĩa | Rule ID |
@@ -216,8 +241,43 @@ Mục đích: bản chụp phòng, điểm trường, nhóm tuổi lúc năm h�
 | các cột còn lại | như bảng gốc | | Giá trị lúc kết thúc năm (mã, tên, loại, sức chứa, người phụ trách, trạng thái, địa chỉ, bữa ăn, sĩ số tối đa…) | — |
 Ghi khi năm chuyển CLOSED (kết thúc tay hoặc tự đóng khi kích hoạt năm mới), trong cùng transaction.
 
+## school_year_campus_members  (module: school-structure, scope: SCHOOL)
+Mục đích: danh sách điểm trường riêng của từng năm học (Cần chốt 22/10/2026), như `school_year_age_group_members`. Thêm điểm trường ở năm đang chọn chỉ thêm vào năm đó; xóa ở một năm chỉ bỏ khỏi năm đó (còn lớp / PHT / phòng năm đó thì chặn), không còn năm nào thì xóa hẳn (chỉ khi chưa có dữ liệu). Tạo năm mới chép danh sách của năm gần nhất; lớp và phòng chỉ mở ở điểm trường của năm. Migration: `V151__school_year_campus_members.sql`, `V152__school_year_campus_info.sql`, `V154__school_year_config_per_year.sql`, `V180__school_year_campus_main.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng campus_id | — |
+| campus_id | BIGINT FK campuses (ON DELETE CASCADE) | không | Điểm trường | — |
+| code | VARCHAR(30) | không | Mã của năm; unique không phân biệt hoa thường trong cùng năm | — |
+| name | VARCHAR(150) | không | Tên của năm; unique không phân biệt hoa thường trong cùng năm | — |
+| short_name | VARCHAR(50) | không | Tên ngắn của năm | — |
+| address | VARCHAR(255) | không | Địa chỉ của năm | — |
+| phone | VARCHAR(20) | có | SĐT của năm (V152) | — |
+| status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE` của năm; `campuses.status` = trạng thái năm đang hoạt động | CFG-CP-01 |
+| is_main | BOOLEAN DEFAULT FALSE | không | Điểm trường chính của năm (V180, Cần chốt 24/11/2026); tối đa một dòng `TRUE` mỗi năm (unique một phần `uk_year_campus_main`). Đổi ở năm nào chỉ năm đó đổi; `campuses.is_main` = điểm chính của năm đang hoạt động (đồng bộ khi sửa năm đang hoạt động và khi kích hoạt năm). Bản chụp đóng năm lấy cờ này | — |
+
+## school_year_room_members  (module: school-structure, scope: SCHOOL)
+Mục đích: phòng / phòng ban của từng năm học còn mở (Cần chốt 19/11/2026): thêm, sửa, ngừng, xóa ở năm nào chỉ năm đó. `rooms` giữ thông tin năm đang hoạt động cho module khác; kích hoạt năm áp phòng của năm mới, phòng không có trong năm mới ngừng sử dụng. Năm đã kết thúc vẫn đọc bản chụp `school_year_rooms`. Tạo năm mới chép từ năm gần nhất. Migration: `V154__school_year_config_per_year.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng room_id | — |
+| room_id | BIGINT FK rooms (ON DELETE CASCADE) | không | Phòng | — |
+| campus_id | BIGINT FK campuses; FK ghép tới school_year_campus_members | không | Điểm trường phải có trong chính năm của phòng | — |
+| code, name | như `rooms` | không | Unique không phân biệt hoa thường trong cùng điểm trường – năm | — |
+| room_type, capacity, status | như `rooms` | (như rooms) | Giữ cùng CHECK loại phòng, trạng thái và sức chứa như bảng `rooms` | — |
+| manager_user_id | BIGINT FK user_accounts | có | Người phụ trách; có index cho tra cứu ngược | — |
+| note | VARCHAR(500) | không | Ghi chú của năm | — |
+
+## school_year_age_group_members  (module: school-structure, scope: SCHOOL)
+Mục đích: danh sách nhóm tuổi riêng của từng năm học (Cần chốt 22/10/2026). Thêm, xóa nhóm tuổi ở năm nào chỉ đổi năm đó; mã nhóm (`age_groups.id`) giữ nguyên cho kế hoạch giáo dục, thực đơn, sức khỏe. Tạo năm mới sao chép danh sách của năm gần nhất; sao chép lớp mang nhóm tuổi sang năm đích; bản chụp lúc đóng năm chỉ chụp nhóm của năm. Năm chưa có dòng nào thấy cả danh mục. Migration: `V148__school_year_age_group_members.sql` (năm đã đóng theo bản chụp, năm còn mở nhận cả danh mục).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học; PK cùng age_group_id | CFG-YR-02 |
+| age_group_id | BIGINT FK age_groups (ON DELETE CASCADE) | không | Nhóm tuổi dùng trong năm | — |
+| name, short_name, meal_sessions, nutrition_note | như `age_groups` | không | Thông tin riêng của năm; tên unique không phân biệt hoa thường trong năm | — |
+| age_from_months, age_to_months, max_class_size | như `age_groups` | có | Giữ cùng CHECK khoảng tuổi và sĩ số dương như bảng `age_groups` | — |
+
 ## children  (module: child, scope: CHILD)
-Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
+Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`, `V146__child_meal_registered.sql`, `V185__child_start_date.sql`, `V188__child_start_date_from_first_class.sql`, `V189__child_scheduled_leave.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -230,9 +290,12 @@ Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, 
 | enrolled_on | DATE | không | Ngày tiếp nhận | — |
 | left_on, left_reason | DATE, VARCHAR(300) | có | Ngày, lý do nghỉ học; có đúng khi `LEFT`, mở lại hồ sơ xóa cả hai; `left_on ≥ enrolled_on` | CHD-03 |
 | readmitted_on | DATE | có | Ngày mở lại hồ sơ gần nhất | CHD-03 |
+| scheduled_leave_on, scheduled_leave_reason, scheduled_leave_by | DATE, VARCHAR(300), BIGINT FK user_accounts | có | Lịch nghỉ học chưa tới ngày (V189, user chốt 2026-11-25): trẻ vẫn `ACTIVE` tới ngày đó; job 00:05 (và lần chạy lúc khởi động) đổi trẻ sang `LEFT` rồi xóa cả ba cột; hủy lịch cũng xóa ba cột. Ba cột cùng null hoặc `on` và `reason` cùng có giá trị (`ck_children_scheduled_leave`); `LEFT` thì không còn lịch (`ck_children_scheduled_leave_not_left`); index một phần `idx_children_scheduled_leave_on` cho job | CHD-03, CHD-04 |
+| start_date | DATE | có | Ngày bắt đầu đi học chọn khi tiếp nhận / mở lại hồ sơ (năm sau = ngày bắt đầu đã đăng ký); khác `enrolled_on` (ngày tiếp nhận). null = chưa có ngày (hồ sơ cũ chưa vào lớp; comment cột ở V185 "null = hồ sơ cũ" giữ nguyên vì migration đã commit); trẻ Chờ xếp lớp chưa có ngày thì xếp lớp lần đầu ghi ngày vào lớp; thay lịch vào lớp đầu tiên chưa bắt đầu (trẻ chưa học ngày nào từ lần tiếp nhận / mở lại hồ sơ này) mà ngày trùng ngày lớp bị thay ⇒ theo ngày vào lớp mới; hủy lịch vào lớp giữ nguyên (user chốt 2026-11-25); V188 điền cho hồ sơ cũ | G94-180/CHD-14 |
 | photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(255), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung tùy chọn khi tiếp nhận; private S3, JPG/PNG/WEBP ≤2 MiB; CHECK metadata hoàn chỉnh, V80. Ảnh ChildGuardian tách ảnh tài khoản và đọc theo id ổn định. | CHD-02, PCK-02 |
+| meal_registered | BOOLEAN | không | Cờ "Báo ăn": trẻ ăn ở trường, mặc định TRUE; FALSE ⇒ không khai dị ứng/chế độ ăn, không có suất ăn (dữ liệu đã có giữ nguyên). Migration V144 | CHD-13 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Ràng buộc: `ck_children_status`, `ck_children_gender`, `ck_children_left`, `ck_children_left_on`; `ck_children_complete` (có giới tính, chờ xếp lớp thì có điểm trường) là **NOT VALID**: áp cho mọi dòng thêm/sửa, không kiểm trẻ có trước V63 (chỉ dữ liệu demo — trẻ đó phải nhập đủ khi sửa hồ sơ). V63 sinh `code`, `status`, `enrolled_on`, `intake_campus_id` cho trẻ có sẵn (plan mục 3.9).
+Ràng buộc: `ck_children_status`, `ck_children_gender`, `ck_children_left`, `ck_children_left_on`, `ck_children_scheduled_leave`, `ck_children_scheduled_leave_not_left`; `ck_children_complete` (có giới tính, chờ xếp lớp thì có điểm trường) là **NOT VALID**: áp cho mọi dòng thêm/sửa, không kiểm trẻ có trước V63 (chỉ dữ liệu demo — trẻ đó phải nhập đủ khi sửa hồ sơ). V63 sinh `code`, `status`, `enrolled_on`, `intake_campus_id` cho trẻ có sẵn (plan mục 3.9).
 FE đọc `campusId` của trẻ = điểm trường theo lớp nếu có lớp, không thì `intake_campus_id`.
 Index: `uk_children_code`, `idx_children_intake_campus_id`, `idx_children_date_of_birth` (kiểm trùng hồ sơ — CHD-04).
 
@@ -283,6 +346,8 @@ Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-1
 | placed_by | BIGINT FK user_accounts | không | Người xếp | — |
 | reason | VARCHAR(300) | có | Lý do (bắt buộc khi chuyển lớp — kiểm ở service; NULL khi xếp lần đầu không ghi) | — |
 | placed_at | TIMESTAMPTZ | không | Lúc xếp | — |
+| effective_from | DATE | có | Ngày vào lớp mới, có thể sau hôm nay (lịch chuyển / lớp chưa bắt đầu). V186; dòng cũ điền ngày của `placed_at`; NULL (seed chèn sau V186) đọc như ngày của `placed_at` | G94-180/CHD-14 |
+| cancelled_at, cancelled_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lịch chưa tới ngày bị hủy (`DELETE /children/{id}/placement/scheduled`), bị thay bằng lịch khác hoặc trẻ nghỉ học trước ngày đó; dòng vẫn giữ | G94-180/CHD-14 |
 Index: `idx_child_placements_child` (`child_id`, `placed_at DESC`).
 
 ## attendance_records  (module: attendance, scope: CLASS)
@@ -295,6 +360,7 @@ Mục đích: điểm danh và tham gia ăn của một trẻ trong một ngày 
 | date | DATE | không | Ngày điểm danh | — |
 | status | VARCHAR(20) | không | `PRESENT` / `EXCUSED` / `UNEXCUSED` | — |
 | meals | VARCHAR(40) | không | Bữa trẻ ăn, dạng `LUNCH,AFTERNOON`; vắng = rỗng; chỉ bữa của nhóm tuổi | ATT-02 |
+| absent_part | VARCHAR(10) | có | `MORNING` / `AFTERNOON`: buổi nghỉ có phép theo đơn nửa buổi; `status` là của buổi còn lại (nghỉ sáng: `EXCUSED` = chưa đến, `PRESENT` = đã đến, `UNEXCUSED` = vắng cả ngày). Null = cả ngày (V149) | ATT-13 |
 | recorded_by, recorded_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Lần ghi gần nhất | — |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `(classroom_id, date)`.
@@ -308,9 +374,13 @@ Mục đích: đơn nghỉ phụ huynh gửi qua App (ATT-04, ATT-05, ATT-05b), 
 | child_id | BIGINT FK children | không | |
 | from_date, to_date | DATE | không | CHECK `to_date >= from_date` |
 | reason | VARCHAR(500) | không | |
+| part | VARCHAR(10) | không | `FULL_DAY` (mặc định) / `MORNING` / `AFTERNOON`; nửa buổi CHECK `from_date = to_date` (V149, ATT-12) |
+| eats | BOOLEAN | không | Bé ăn các bữa của buổi còn học (mặc định có; V149, ATT-12) |
 | created_by | BIGINT FK user_accounts | không | Phụ huynh gửi |
 | cancelled_from | DATE | có | Hủy từ ngày này; hiệu lực tới `cancelled_from - 1` |
 | cancelled_by, cancelled_at | BIGINT FK, TIMESTAMPTZ | có | |
+| teacher_seen_at | TIMESTAMPTZ | có | Lần đầu GV của lớp (dạy chính / dạy thay ngày của đơn) mở danh sách đơn hoặc màn điểm danh ngày của đơn; ghi một lần, không ghi đè, BGH mở không tính (V178, Cần chốt 24/11/2026) |
+| teacher_seen_by | BIGINT FK user_accounts | có | GV mở đầu tiên (V178) |
 
 ## attendance_record_history  (module: attendance, scope: CLASS)
 Mục đích: lịch sử ghi/sửa từng bản ghi điểm danh (chỉ thêm). Migration: V21.
@@ -319,6 +389,7 @@ Mục đích: lịch sử ghi/sửa từng bản ghi điểm danh (chỉ thêm).
 | record_id | BIGINT FK attendance_records (ON DELETE CASCADE) | không | | — |
 | action | VARCHAR(20) | không | `RECORDED` / `UPDATED` | — |
 | status, meals | như `attendance_records` | không | Giá trị sau lần ghi | — |
+| absent_part | như `attendance_records` | có | Buổi nghỉ theo đơn sau lần ghi (V149) | ATT-13 |
 | user_id, at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Ai ghi, lúc nào | — |
 | unlock_id | BIGINT FK attendance_day_unlocks | có | Ghi trong lần mở lại ngày | ATT-06 |
 
@@ -351,27 +422,97 @@ Mục đích: mỗi lần GV xác minh người đón khi trả trẻ (PCK-02, P
 Index: `uk_pickup_records_child_date_handed_over`, `(classroom_id, date)`, `(child_id, date)`.
 
 ## notifications  (module: notification, scope: USER)
-Mục đích: thông báo theo người nhận để App/Web hiện danh sách; đẩy tới thiết bị sau khi lưu. Migration: V66, V78, V104.
+Mục đích: thông báo theo người nhận để App/Web hiện danh sách; đồng thời là hàng chờ đẩy (outbox, spec 019) — worker đẩy tới thiết bị sau khi lưu. Migration: V66, V78, V104, V139, V153.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ; `WEEKLY_COMMENT_SENT` (V129, OBS-29); `ATTENDANCE_REMINDER`, `ASSESSMENT_REMINDER`, `ASSESSMENT_REOPENED`, `LEADER_REMINDER` (V133, OBS-30); `STAFF_ASSIGNED`, `CUTOFF_CHANGED`, `LEAVE_REQUEST_CHANGED`, `MEAL_COUNT_CONFIRMED`, `REWARD_LIST_UPDATED` (V134, OBS-31); `DAILY_HEALTH_NOTED`, `SCHOOL_YEAR_ACTIVATED` (V135, OBS-31 bổ sung 14/11); `HEALTH_TREND_APPROVED` (V138, HLT-21). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08, OBS-29, OBS-30, HLT-21 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ; `WEEKLY_COMMENT_SENT` (V129, OBS-29); `ATTENDANCE_REMINDER`, `ASSESSMENT_REMINDER`, `ASSESSMENT_REOPENED`, `LEADER_REMINDER` (V133, OBS-30); `STAFF_ASSIGNED`, `CUTOFF_CHANGED`, `LEAVE_REQUEST_CHANGED`, `MEAL_COUNT_CONFIRMED`, `REWARD_LIST_UPDATED` (V134, OBS-31); `DAILY_HEALTH_NOTED`, `SCHOOL_YEAR_ACTIVATED` (V135, OBS-31 bổ sung 14/11); `HEALTH_TREND_APPROVED` (V138, HLT-21).; `SCHOOL_ANNOUNCEMENT` (V140), `MENU_PUBLISHED`, `LEAVE_REQUEST_CREATED`, `CHILD_EVALUATION_CONFIRMED`, `THEME_EVALUATION_CONFIRMED` (V141). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08, OBS-29, OBS-30, HLT-21 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | link | VARCHAR(255) | có | V109: đường dẫn Web mở thẳng hồ sơ kế hoạch giáo dục; nhắc "Gần đến hạn" không tạo trùng cùng người + loại + link | EDU-74 |
 | created_at | TIMESTAMPTZ | không | | — |
 | read_at | TIMESTAMPTZ | có | Người nhận đã xem (chỉ cho badge của chính họ; trường không theo dõi — PAR-05) | PAR-05 |
-Index: `(user_id, created_at DESC, id DESC)`; V109 `(user_id, type, link) WHERE link IS NOT NULL`.
+| push_state | VARCHAR(10) | không | V130: `PENDING` (chờ đẩy/thử lại), `SENT`, `FAILED` (quá 60 phút hoặc lỗi vĩnh viễn), `SKIPPED` (không thiết bị; mọi dòng có trước V130) | PAR-05 |
+| push_attempts | SMALLINT | không | V130: số lượt đã đẩy | — |
+| push_next_at | TIMESTAMPTZ | có | V130: lần thử lại kế tiếp (lùi dần 1→30 phút) | — |
+| announcement_id | BIGINT FK school_announcements | có | V131: thông báo của trường; duy nhất cùng `user_id` | PAR-05 |
+Index: `(user_id, created_at DESC, id DESC)`; V109 `(user_id, type, link) WHERE link IS NOT NULL`; V130 `(id) WHERE push_state = 'PENDING'`.
+
+## school_announcements  (module: announcement, scope: SCHOOL/CAMPUS)
+Mục đích: thông báo của trường do BGH soạn (PAR-05, PAR-07, PAR-08). Migration: V131, V132 (FK lịch).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| sender_id | BIGINT FK user_accounts | không | HT/PHT gửi; lịch lặp = HT tạo lịch | PAR-07 |
+| title, body | VARCHAR(150), VARCHAR(4000) | không | Nội dung | PAR-07 |
+| scope_type | VARCHAR(10) | không | `SCHOOL`, `CAMPUS`, `AGE_GROUP`, `CLASSROOM` | PAR-07 |
+| scope_campus_id, scope_age_group_id, scope_classroom_id | BIGINT FK | có | Theo phạm vi; lớp thì lưu cả điểm trường của lớp | PAR-07 |
+| roles | VARCHAR(60) | không | `PARENT,TEACHER,KITCHEN,BGH` | PAR-07 |
+| status | VARCHAR(10) | không | `SCHEDULED` → `SENDING` → `SENT`; `SCHEDULED` → `CANCELLED` | PAR-08 |
+| send_at, sent_at | TIMESTAMPTZ | không / có | Giờ hẹn (≤ 30 ngày) / lúc gửi xong | PAR-08 |
+| recipient_count | INT | không | Số người nhận (không theo dõi ai đã đọc) | PAR-05 |
+| schedule_id | BIGINT FK announcement_schedules | có | Tạo từ lịch gửi lặp | PAR-10 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `(send_at) WHERE status IN ('SCHEDULED','SENDING')`, `(created_at DESC, id DESC)`.
+
+## announcement_attachments  (module: announcement)
+Mục đích: tệp đính kèm thông báo của trường, tối đa 5, JPG/PNG/PDF ≤ 10 MB, lưu S3 riêng tư (`announcements/`). Migration: V131.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| announcement_id | BIGINT FK school_announcements ON DELETE CASCADE | không | | PAR-07 |
+| file_key, file_name, content_type, size_bytes | | không | Khóa trên kho, tên gốc, loại, dung lượng | PAR-07 |
+| created_at | TIMESTAMPTZ | không | | — |
+
+## announcement_templates  (module: announcement)
+Mục đích: mẫu soạn sẵn; `campus_id` null = mẫu toàn trường. Migration: V131.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| name, title, body | VARCHAR(100), VARCHAR(150), VARCHAR(4000) | không | | PAR-08 |
+| campus_id | BIGINT FK campuses | có | Mẫu của điểm trường (PHT chỉ sửa mẫu điểm trường mình) | PAR-08 |
+| created_by, created_at, updated_at | | không | | — |
+
+## announcement_schedules  (module: announcement)
+Mục đích: lịch gửi lặp một mẫu theo tuần/tháng, chỉ HT. Migration: V132.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| template_id | BIGINT FK announcement_templates | không | Mẫu đang dùng thì không xóa được | PAR-10 |
+| scope_*, roles | như school_announcements | | Người nhận | PAR-07 |
+| frequency | VARCHAR(10) | không | `WEEKLY` (day_of_week 1–7) / `MONTHLY` (day_of_month 1–31, tháng thiếu ngày ⇒ ngày cuối tháng) | PAR-10 |
+| send_time | TIME | không | Giờ gửi (múi giờ trường) | PAR-10 |
+| next_run_at | TIMESTAMPTZ | không | Lần chạy kế tiếp; ngày nghỉ bị bỏ khi tới lượt | PAR-10, SCH-05 |
+| active | BOOLEAN | không | | — |
+Index: `(next_run_at) WHERE active`.
+
+## notification_rules  (module: notification)
+Mục đích: phần HT đã chỉnh của quy tắc thông báo tự động; danh mục loại nằm trong code `NotificationRuleCatalog`. Migration: V132.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| type | VARCHAR(40) PK | không | Loại thông báo | PAR-09 |
+| enabled | BOOLEAN | không | Loại bắt buộc luôn coi là bật | PAR-09 |
+| title_template, body_template | VARCHAR(150), VARCHAR(500) | có | Câu chữ có biến `{ten}`; null = mặc định | PAR-09 |
+| updated_by, updated_at | | không | | — |
 
 ## device_tokens  (module: notification, scope: USER)
-Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một người dùng, máy đăng nhập người khác thì chuyển. Migration: V66.
+Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một người dùng, máy đăng nhập người khác thì chuyển; token bị FCM báo hỏng hoặc không cập nhật quá 270 ngày thì xóa. Migration: V66, V130.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | | — |
 | token | VARCHAR(512) | không | Token của dịch vụ đẩy; UNIQUE. Bí mật thiết bị — không ghi log | — |
 | platform | VARCHAR(20) | không | `ANDROID` / `IOS` | — |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Index: `uk_device_tokens_token`, `(user_id)`.
+Index: `uk_device_tokens_token`, `(user_id)`, V130 `(updated_at)`.
+
+## notification_email_deliveries  (module: notification, scope: USER)
+Mục đích: hàng chờ email của thông báo kế hoạch giáo dục (`EDU_*`); tạo cùng giao dịch với thông báo, `EmailOutboxWorker` gửi sau commit. Migration: V158 (G94-386).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| notification_id | BIGINT FK notifications (cascade) | không | UNIQUE: mỗi thông báo (1 người nhận × 1 sự kiện) tối đa 1 email | EDU-74 |
+| scope | VARCHAR(300) | có | Phạm vi hiện trong email: năm học · nhóm tuổi · lớp | EDU-74 |
+| state | VARCHAR(10) | không | `PENDING` / `SENT` / `FAILED` / `SKIPPED` | — |
+| attempts | INTEGER | không | Số lần gửi đã thử (≥0) | — |
+| next_attempt_at, last_attempt_at, completed_at | TIMESTAMPTZ | có | Hẹn thử lại / lần thử cuối / lúc kết thúc; CHECK: PENDING ⇔ chưa kết thúc | — |
+| last_error_kind | VARCHAR(32) | có | `NO_EMAIL`, `NO_NOTIFICATION`, `SEND_FAILED`, `INVALID_MESSAGE`; không lưu địa chỉ/nội dung | — |
+| created_at | TIMESTAMPTZ | không | | — |
+Index: `uq_notification_email_delivery`, `idx_notification_email_due (next_attempt_at, id) WHERE state = 'PENDING'`.
 
 ## daily_observations  (module: learning-observation, scope: CHILD)
 Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V41__create_daily_observations.sql`. Dữ liệu quan sát — không log.
@@ -480,13 +621,13 @@ Mục đích: trẻ chưa có kết quả khi đóng đợt/kỳ ("Vắng"), kè
 | classroom_id | BIGINT FK classrooms | không | Lớp của trẻ lúc đóng | — |
 
 ## health_measurements  (module: health, scope: CHILD)
-Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng lần đo). Kỳ cân đo: số đo GV nhập; đợt khám: phiếu khám Phụ lục II (`exam`, HLT-08). Lưu/sửa là công bố cho phụ huynh (`published_at`, HLT-11); phiếu khám nháp chưa công bố, chưa tính là kết quả. Dữ liệu sức khỏe — không log. Migration: V64, V65.
+Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng lần đo). Kỳ cân đo: số đo GV nhập; đợt khám: phiếu khám Phụ lục II (`exam`, HLT-08). Lưu/sửa là công bố cho phụ huynh (`published_at`, HLT-11); phiếu khám nháp chưa công bố, chưa tính là kết quả. Dữ liệu sức khỏe — không log. Migration: V64, V65, V187.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id | BIGINT FK children | không | | — |
 | campaign_id | BIGINT FK health_check_campaigns | không | Đợt/kỳ; UNIQUE `(child_id, campaign_id)` | HLT-01 |
 | classroom_id | BIGINT FK classrooms | không | Lớp của trẻ tại ngày đo (scope, báo cáo theo lớp) | HLT-09 |
-| date | DATE | không | Ngày đo do hệ thống ghi, không sửa (user chốt 2026-11-04): lần nhập đầu = hôm nay kẹp trong khoảng của đợt/kỳ (đợt/kỳ tự đóng sau ngày kết thúc — HLT-17 — nên thực tế là ngày nhập); phiếu khám = ngày lưu lần đầu. Trong khoảng của đợt/kỳ, không ở tương lai; UNIQUE `(child_id, date)` | HLT-01, HLT-08, HLT-13 |
+| date | DATE | không | Ngày đo do hệ thống ghi, không sửa (user chốt 2026-11-04): lần nhập đầu = hôm nay kẹp trong khoảng của đợt/kỳ (đợt/kỳ tự đóng sau ngày kết thúc — HLT-17 — nên thực tế là ngày nhập); phiếu khám = ngày lưu lần đầu. Trong khoảng của đợt/kỳ, không ở tương lai. Mỗi trẻ một ngày tối đa một số đo kỳ cân đo và một phiếu khám: UNIQUE `(child_id, date)` có điều kiện `exam_status IS NULL` / `IS NOT NULL` (V187, thay UNIQUE `(child_id, date)` của V64 — user chốt 2026-11-24) | HLT-01, HLT-08, HLT-13 |
 | height_cm, weight_kg | NUMERIC(4,1) | có (chỉ phiếu khám nháp) | 40–150 cm, 3–60 kg (CHECK) | HLT-01 |
 | head_circumference_cm | NUMERIC(3,1) | có | 30–60 cm; chỉ phiếu khám ghi, khi trẻ chưa quá 60 tháng tại ngày khám. Kỳ cân đo không ghi từ 2026-11-04 (null); số đo kỳ cân đo cũ có thể còn giá trị, sửa số đo giữ nguyên | HLT-01, HLT-08 |
 | note | VARCHAR(500) | không | Ghi chú, không ghi chẩn đoán | — |
@@ -497,7 +638,7 @@ Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng 
 | exam_status | VARCHAR(20) | có | `DRAFT` / `CONCLUDED`; có khi và chỉ khi có `exam` (V65) | HLT-08, HLT-11 |
 | concluded_at | TIMESTAMPTZ | có | Lần kết luận đầu tiên; có khi và chỉ khi `CONCLUDED` (V65) | HLT-08 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Index: `(campaign_id, classroom_id)`.
+Index: `(campaign_id, classroom_id)`; UNIQUE có điều kiện `uk_health_measurements_child_date_round (child_id, date) WHERE exam_status IS NULL` và `uk_health_measurements_child_date_exam (child_id, date) WHERE exam_status IS NOT NULL` (V187).
 
 ## health_measurement_edits  (module: health, scope: CHILD)
 Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
@@ -593,7 +734,7 @@ Mục đích: số suất từng lớp của một bữa. `pending = true` là s
 | meal_count_id | BIGINT FK meal_counts (ON DELETE CASCADE) | không | | — |
 | classroom_id | BIGINT FK classrooms | không | UNIQUE `(meal_count_id, classroom_id, pending)` | — |
 | present / absent / missing | INTEGER ≥ 0 | không | Sĩ số theo điểm danh lúc tổng hợp | — |
-| normal / substitute | INTEGER ≥ 0 | không | Suất thường / suất thay thế (chưa có dữ liệu dị ứng ⇒ thay thế = 0) | NUT-01 |
+| normal / substitute | INTEGER ≥ 0 | không | Suất thường / suất thay thế (từ 25/11/2026 luôn ghi `substitute` = 0, mọi trẻ ăn nằm trong `normal`; dòng cũ có `substitute` > 0 gộp vào `normal` khi đọc; cột chưa xóa) | NUT-01, NUT-02 |
 
 ## meal_count_history  (module: nutrition, scope: CAMPUS)
 Mục đích: lịch sử sổ báo ăn (chỉ thêm). Migration: V26.
@@ -682,7 +823,7 @@ Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V63.
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | child_id | BIGINT FK children | không | | — |
-| action | VARCHAR(20) | không | `ENROLLED` / `UPDATED` / `WITHDRAWN` / `READMITTED` | CHD-03 |
+| action | VARCHAR(20) | không | `ENROLLED` / `UPDATED` / `WITHDRAWN` / `READMITTED`; `LEAVE_SCHEDULED` (đặt lịch nghỉ học, note = lý do), `LEAVE_CANCELLED` (hủy lịch, note = "Lịch nghỉ học từ dd/MM/yyyy") (V189, `ck_child_history_action`); lúc job áp lịch ghi `WITHDRAWN` của người đặt lịch | CHD-03 |
 | user_id | BIGINT FK user_accounts | không | Người làm | — |
 | note | VARCHAR(500) | có | Lý do | CHD-03 |
 | changes | JSONB | có | `[{ field, label, from, to }]` từng ô đổi khi Sửa hồ sơ (ghi từ 2026-11-10); số định danh của trẻ, CCCD phụ huynh chỉ 3 số cuối | CHD-05 |
@@ -706,6 +847,21 @@ Mục đích: yêu cầu đổi SĐT của một phụ huynh trên hồ sơ tr�
 | sms_status | VARCHAR(10) | có | `SENT` / `FAILED` — SMS tên đăng nhập mới sau khi duyệt | L-15 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `uq_phone_change_pending_user` (UNIQUE `user_id` khi `PENDING` — mỗi tài khoản tối đa một yêu cầu chờ), `uq_phone_change_pending_guardian` (UNIQUE `guardian_id` khi `PENDING`, V91), `child_id`, `status`.
+
+## child_profile_change_requests  (module: identity-access, scope: CHILD)
+Mục đích: yêu cầu sửa hồ sơ/khai báo sức khỏe trẻ do GV được cấp thêm CHILD_PROFILE_EDIT gửi; HT hoặc PHT điểm trường của trẻ duyệt mới ghi vào hồ sơ. Migration: V153.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | Trẻ cần sửa (người duyệt theo điểm trường hiện tại của trẻ) | CHD-11 |
+| kind | VARCHAR(30) | không | `PROFILE` / `HEALTH_DECLARATION` | CHD-11 |
+| payload | JSONB | không | Nguyên body GV gửi (`UpdateChildRequest` hoặc `HealthDeclarationRequest`); áp khi duyệt | CHD-11 |
+| status | VARCHAR(20) | không | `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED` (yêu cầu mới cùng loại cùng trẻ thay thế) | CHD-11 |
+| requested_by, requested_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | GV gửi, lúc gửi | CHD-11 |
+| decided_by, decided_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Có khi và chỉ khi `APPROVED`/`REJECTED` | CHD-11 |
+| decision_note | VARCHAR(500) | có | Lý do từ chối (bắt buộc khi `REJECTED`) | CHD-11 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `uq_profile_change_pending` (UNIQUE `child_id, kind` khi `PENDING`), `status`, `requested_by`.
 
 ## parent_sms_logs  (module: identity-access, scope: ACCOUNT)
 Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V63.
@@ -737,46 +893,59 @@ Dùng chung hai điểm trường (SCH-06). Xóa = `status` `INACTIVE` (thực �
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price, kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), nutrient_source_version, waste_pct [0,100), storage `FRESH`/`DRY`, origin `ANIMAL`/`PLANT` (V55), vi chất trên 100 đơn vị ăn được calcium, phosphorus, iron (mg), vitamin_a (µg), vitamin_b1, vitamin_b2, vitamin_pp, vitamin_c (mg) (V73, NUMERIC(10,3), null = chưa có số liệu), allergen_codes (V83, mã chất dị ứng cách dấu phẩy, vd. `EGG,SHRIMP`; danh mục 9 chất cố định là enum `Allergen`, không có bảng riêng), note, status | CHECK nhóm, đơn vị, không âm (cả vi chất khi có giá trị) | NUT-05, NUT-10, NUT-18, NUT-24, NUT-26 |
+| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price (V155: chỉ còn lưu, không đọc làm nguồn giá — giá ở `food_prices`), kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), waste_pct [0,100), storage `FRESH`/`DRY`, origin `ANIMAL`/`PLANT` (V55), vi chất trên 100 đơn vị ăn được calcium, phosphorus, iron, zinc (mg), vitamin_a (µg), vitamin_b1, vitamin_b2, vitamin_pp, vitamin_c (mg) (V73, V172, NUMERIC(10,3), null = chưa có số liệu), allergen_codes (V83, mã chất dị ứng cách dấu phẩy, vd. `EGG,SHRIMP`; danh mục 9 chất cố định là enum `Allergen`, không có bảng riêng), note, status | CHECK nhóm, đơn vị, không âm (cả vi chất khi có giá trị) | NUT-05, NUT-10, NUT-18, NUT-24, NUT-26 |
 | dishes | code (UK), name, dish_type, description, reference (món tham khảo chỉ đọc), status | | NUT-18 |
 | dish_ingredients | dish_id, food_id, age_group_id, grams_per_child (>0) | UK (dish, food, age_group) | NUT-18 |
-| age_group_meal_configs | age_group_id, effective_from, meal_price, kcal min–max, protein/lipid/glucid_pct min–max (cơ cấu P:L:G, % năng lượng), animal/plant_protein_g, animal/plant_lipid_g, glucid_g min–max (V58, gam/trẻ/ngày), morning/lunch/afternoon_kcal_pct min–max (V58, % nhu cầu năng lượng cả ngày của bữa), daily_kcal_need (V62, kcal/trẻ/ngày, > 0), calcium/phosphorus/iron/vitamin_a/vitamin_b1/vitamin_b2/vitamin_pp/vitamin_c `_min`/`_max` (V73, mg hoặc µg/trẻ/ngày trên các bữa trường phục vụ, max null = chỉ cần đạt min) — null = chưa chốt, norm_basis. V58 đổi animal_protein_pct/animal_lipid_pct (V55) sang gam rồi bỏ | UK (age_group, effective_from); min ≤ max (cả vi chất); vi chất ≥ 0; daily_kcal_need > 0 | NUT-17, NUT-19, NUT-24, NUT-25, NUT-26 |
-| suppliers | name, phone, address, id_card (dữ liệu cá nhân), delivery_person, status | | NUT-12 |
+| age_group_meal_configs | age_group_id, effective_from, meal_price, service_fee (V159, phí dịch vụ/trẻ/ngày trong giá suất, mặc định 0; ngân sách thực phẩm = meal_price − service_fee), kcal min–max, protein/lipid/glucid_pct min–max (cơ cấu P:L:G, % năng lượng), animal/plant_protein_g, animal/plant_lipid_g, glucid_g min–max (V58, gam/trẻ/ngày), morning/lunch/afternoon_kcal_pct min–max (V58, % nhu cầu năng lượng cả ngày của bữa), applied_protein_pct/applied_lipid_pct/applied_glucid_pct (V169, cơ cấu áp dụng P:L:G, % năng lượng 0–100, null = chưa chọn), daily_kcal_min/daily_kcal_max (V62 đổi tên, V205 thêm min; nhu cầu năng lượng cả ngày kcal/trẻ/ngày, > 0, min ≤ max; kcal_min/kcal_max là năng lượng khuyến nghị tại trường do hệ thống tính từ khoảng này, protein/lipid/glucid_pct_min/max là khoảng Thông tư nạp sẵn, NUT-33), calcium/phosphorus/iron/zinc/vitamin_a/vitamin_b1/vitamin_b2/vitamin_pp/vitamin_c `_min`/`_max` (V73, V172, mg hoặc µg/trẻ/ngày trên các bữa trường phục vụ, max null = chỉ cần đạt min) — null = chưa chốt, norm_basis. V58 đổi animal_protein_pct/animal_lipid_pct (V55) sang gam rồi bỏ; V198: budget_tolerance_pct (biên % quanh ngân sách thực phẩm để đạt tiền khi cân đối, 0–100, mặc định 5) | UK (age_group, effective_from); 0 ≤ service_fee ≤ meal_price; min ≤ max (cả vi chất); vi chất ≥ 0; daily_kcal_need > 0 | NUT-17, NUT-19, NUT-24, NUT-25, NUT-26, NUT-28 |
+| suppliers | name, phone, address, id_card (dữ liệu cá nhân), delivery_person, status, contract_no, contract_start, contract_end (V155, hợp đồng hiện hành; gia hạn = sửa ngày) | CHECK start ≤ end | NUT-12, NUT-27 |
+| food_history (V183) | food_id, user_id, changed_at, action (`CREATED`/`UPDATED`/`STATUS_CHANGED`), field (nhãn hiển thị), old_value, new_value | chỉ thêm; mỗi dòng một trường đổi khi sửa thực phẩm; đổi giá/NCC không ghi ở đây mà lấy từ food_prices khi đọc lịch sử | NUT-27, G94-460 |
+| food_prices (V155) | food_id, supplier_id (null = chưa gán NCC), price (theo đơn vị mua), effective_from, reason | UK (food, effective_from); price ≥ 0; giá và NCC tại ngày D = dòng có effective_from gần nhất ≤ D (trước dòng đầu dùng dòng đầu); dòng effective_from ≤ hôm nay không sửa/xóa (service); backfill 1 dòng/thực phẩm từ `unit_price` | NUT-27 |
 
 Bữa trong ngày theo nhóm tuổi vẫn ở `age_groups.meal_sessions` (V16), không lặp ở `age_group_meal_configs`.
 
-## Kho khô (module: nutrition, feature `meals`, scope: CAMPUS) — V56, V83
+## Kho khô (module: nutrition, feature `meals`, scope: CAMPUS) — V56, V83, V182
 Kho khô từng điểm trường theo lô (NUT-11). Tồn lô = Σ `stock_movements.quantity` của lô; bút toán không sửa, không xóa. Số lượng theo đơn vị gốc của thực phẩm (g/ml), giá theo đơn vị mua (như `foods.unit_price`).
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| stock_receipts | campus_id, supplier_id, received_date, status `DRAFT`/`CONFIRMED`/`CANCELLED`, note, confirmed_by/at, cancelled_by/at, cancel_reason | Nháp sửa/xóa được; hủy chỉ khi lô chưa bị trừ | NUT-11 |
+| stock_receipts | campus_id, supplier_id, received_date, status `DRAFT`/`CONFIRMED`/`CANCELLED`, note, confirmed_by/at, cancelled_by/at, cancel_reason; V156: forecast_id (FK `fresh_forecasts`, `ON DELETE SET NULL`), from_intake (phiếu sinh từ kiểm nhận hàng khô trong ngày), rejected_lines (jsonb `[{foodId, lotNo, expiryDate, quantity, note}]`: dòng không đạt, không thành lô) | Nháp sửa/xóa được; hủy chỉ khi lô chưa bị trừ; phiếu kiểm nhận lập thẳng `CONFIRMED` | NUT-11 |
 | stock_receipt_lines | receipt_id (CASCADE), food_id (chỉ `DRY` — kiểm ở service), lot_no, expiry_date (≥ ngày nhận — service), quantity > 0, unit_price ≥ 0 | Phiếu đã xác nhận ⇒ mỗi dòng là một **lô** (V83 bỏ bảng `stock_lots`); index FIFO (food, expiry, id) | NUT-10, NUT-11 |
-| stock_movements | lot_id (FK `stock_receipt_lines` = lô), campus_id, food_id, movement_type `RECEIPT`/`DEDUCT`/`ADJUST`/`SHORTFALL_DEDUCT`/`RECEIPT_CANCEL`, quantity ≠ 0 (dương vào, âm ra), meal_date (ngày ăn của bút toán trừ), receipt_id, reason, created_by (null = hệ thống) | | NUT-11, P-38 |
+| stock_movements | lot_id (FK `stock_receipt_lines` = lô), campus_id, food_id, movement_type `RECEIPT`/`DEDUCT`/`ADJUST`/`SHORTFALL_DEDUCT`/`RECEIPT_CANCEL`/`SUPPLIER_RETURN`/`WRITE_OFF` (V182), quantity ≠ 0 (dương vào, âm ra), meal_date (ngày ăn của bút toán trừ), receipt_id, V182: disposal_id (FK `stock_disposals`), reason, created_by (null = hệ thống) | V182: `disposal_id` có giá trị ⇔ loại `SUPPLIER_RETURN`/`WRITE_OFF` | NUT-11, NUT-29, NUT-30, P-38 |
+| stock_disposals | V182: code (unique, `XT-`/`XH-<yyyymmdd>-<điểm trường>-<nn>`), campus_id, kind `SUPPLIER_RETURN`/`WRITE_OFF`, supplier_id (chỉ phiếu trả NCC), disposal_date, reason (≤ 500), created_by, created_at | `supplier_id` có giá trị ⇔ `kind = SUPPLIER_RETURN`; chỉ thêm, không sửa; số lượng từng lô nằm ở `stock_movements.disposal_id` | NUT-29, NUT-30 |
 
 ## Kế hoạch tuần và nhu cầu kho (module: nutrition, feature `meals`) — V57, V83
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| meal_plan_weeks | week_start (thứ Hai, UK), status `DRAFT`/`PUBLISHED`, published_by/at, days (V83, jsonb `[{date, off, note}]`: off = ngày không phục vụ; luôn 5 ngày thứ 2–6) | Công bố cả tuần một lần cho cả trường; đã công bố không sửa | NUT-08, NUT-13 |
+| meal_plan_weeks | week_start (thứ Hai, UK), status `DRAFT`/`PUBLISHED`, published_by/at, days (V83, jsonb `[{date, off, note}]`: off = ngày không phục vụ; luôn 5 ngày thứ 2–6) | Công bố cả tuần một lần cho cả trường; đã công bố chỉ sửa ngoại lệ từng ngày (P-39) | NUT-08, NUT-13 |
 | meal_plan_items | week_id (CASCADE), menu_date (V83 thay day_id), session `MORNING`/`LUNCH`/`AFTERNOON`, menu_block `NURSERY`/`KINDERGARTEN`, dish_id, sort_order | UK (week, date, session, block, dish); khối suy từ `age_groups.age_to_months` ≤ 36 | NUT-13, NUT-18 |
+| meal_plan_day_revisions | week_id, menu_date, before_note/before_items, after_note/after_items (jsonb `[{session, block, dishId, dishName}]`), reason (≥10 ký tự), issues (jsonb cảnh báo cân đối lúc sửa), changed_by, changed_at (V145) | Chỉ thêm, không sửa/xóa; mỗi lần sửa ngoại lệ một ngày đã công bố | NUT-08, P-39 |
 | menu_template_sets (V59) | name, season_label (nhãn mùa), menu_block `NURSERY`/`KINDERGARTEN`, status `ACTIVE`/`INACTIVE` | Bộ 4 tuần thứ 2–6 theo khối | NUT-13 |
 | menu_template_items (V59) | set_id (CASCADE), week_no 1–4, weekday 1–5, session, dish_id, sort_order | UK (set, week, weekday, session, dish) | NUT-13 |
 | stock_daily_demands | campus_id, meal_date, food_id, required_qty (nhu cầu theo suất đã chốt), shortfall_qty (phần thiếu chưa trừ) | UK (campus, date, food); 0 ≤ shortfall ≤ required | NUT-07, NUT-11, P-38 |
+| menu_ai_drafts (V160, V161 `edited_cells` = số ô người duyệt sửa lúc dùng; **drop ở V206**) | kind `MENU_WEEKLY`/`MENU_DAILY`/`MENU_DAY_FIX`, menu_block, week_start, target_date/session, from_dish_id, status `PENDING_REVIEW`/`APPLIED`/`DISMISSED`/`NO_FEASIBLE`, source `AI`/`RULE_BASED`, fallback_reason, provider, model, prompt_version, repair_rounds, latency_ms, request_json (mùa, mong muốn), output_json (ngày → ô → dish_id, lý do đã làm sạch), score_json, issues_json, input_fingerprint (SHA-256), created_by/at, decided_by/at, version | `NO_FEASIBLE` ⇔ source null; `PENDING_REVIEW` mà issues_json còn `BLOCKING` = phương án theo quy tắc chưa đạt định mức (response `feasible=false`); source `AI` ⇒ không fallback_reason; tuần/thay món cần week_start thứ Hai; không FK tới trẻ; không lưu prompt/response thô; không xóa (đo giá trị AI) | AI-01, AI-05, AI-07, NUT-08 |
+| dish_embeddings (V162, cần extension `vector`; **drop ở V206**) | dish_id (PK, FK `dishes` ON DELETE CASCADE), model, content_hash (SHA-256 văn bản embed: tên, loại, thực phẩm chính, nhãn mùa), embedding (`vector` không cố định số chiều), updated_at | Một dòng mỗi món; vector chỉ xếp lại thứ tự món ứng viên theo mong muốn của PHT sau lọc cứng; model hoặc content_hash lệch ⇒ embed lại lười ở lần gợi ý kế tiếp; không index ANN (danh mục vài trăm món); không chứa dữ liệu trẻ; thiếu vector không chặn gợi ý | AI-03, AI-04, AI-06 |
+| edu_rag_chunks (V194, cần extension `vector`) | id (PK, vd `MT-…`, `WEB-5527`), chunk_type (mt/activity/lesson), source (SEED/ISSUED/WEB), source_ref, content (chữ dùng để embed), meta (jsonb: age, theme, subject, url, fullText…), status (ACTIVE/HIDDEN), model, content_hash (SHA-256 của content), embedding (`vector`), created_at, updated_at | Kho mẩu tham khảo cho RAG soạn kế hoạch giáo dục (bước a: nạp kho + tìm thử). Nạp lúc khởi động từ `edu/rag/chunks.jsonl` (SEED, 862 mẩu) và `edu/rag/web_chunks.jsonl` (WEB, 150 giáo án web đã bỏ tên người/trường/địa danh); embed lười theo lô 50 khi model hoặc hash lệch; không index ANN (~1.000 dòng); không chứa dữ liệu trẻ; AI tắt ⇒ tìm từ khóa | AI-03, AI-04, AI-06 |
 
 ## Hàng tươi: bản dự trù và kiểm nhận (module: nutrition, feature `meals`, scope: CAMPUS) — V60, V61, V83
 Hàng tươi (`foods.storage = FRESH`) không vào kho (NUT-12): chỉ có bản dự trù theo kỳ và kiểm nhận 2 lần/ngày. Số lượng theo đơn vị gốc (g/ml), đã cộng thải bỏ. Bảng con dùng khóa thay thế `id` + khóa duy nhất theo khóa nghiệp vụ.
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| fresh_forecasts | campus_id, period_from, period_to, note, counts (V83, jsonb `[{ageGroupId, enrolledCount, expectedCount}]`: số đang học lúc lập, số PHT chốt), created_by, created_at, updated_at | CHECK from ≤ to và ≤ 31 ngày; lưu xong không sửa (đổi = lập bản mới), xóa được | NUT-07 |
+| fresh_forecasts | campus_id, period_from, period_to, note, counts (V83, jsonb `[{ageGroupId, enrolledCount, expectedCount}]`: số đang học lúc lập, số PHT chốt), dry_order (V156, jsonb `[{foodId, quantity}]`: lượng hàng khô đặt cho kỳ, chụp lúc lưu, đơn vị gốc), created_by, created_at, updated_at | CHECK from ≤ to và ≤ 31 ngày; lưu xong không sửa (đổi = lập bản mới), xóa được | NUT-07 |
 | fresh_forecast_lines | forecast_id (CASCADE), menu_date, food_id (chỉ `FRESH` — do service tính), quantity | UK (forecast, date, food); quantity ≥ 0 | NUT-07, NUT-10 |
+| day_balances | V199: balance_date, round 1\|2, rounding_step (null = chưa làm tròn), row_version, saved_by, saved_at | UK (date, round); round ∈ {1, 2}; step > 0 | NUT-31 |
+| day_balance_counts | day_balance_id (CASCADE), campus_id, age_group_id, children | PK (balance, campus, age group); children ≥ 0 | NUT-31 |
+| day_balance_lines | day_balance_id (CASCADE), age_group_id, session, dish_id, food_id, base_grams (trước làm tròn), grams, waste_pct, unit_price, purchase_unit, purchase_unit_size (chụp lúc lưu) | PK (balance, age group, session, dish, food); gam ≥ 0 | NUT-31, NUT-27 |
 | fresh_checks | campus_id, check_date, round 1\|2, forecast_id (null ở lần 2; `ON DELETE SET NULL` — xóa bản dự trù giữ lịch sử), checked_by, checked_at, note | UK (campus, date, round) | NUT-12 |
-| fresh_check_lines | check_id (CASCADE), food_id, expected_qty (chụp lúc ghi), received_qty (không bắt buộc), result `ENOUGH`/`SHORT`/`OVER`, note | UK (check, food) | NUT-12 |
+| fresh_check_lines | check_id (CASCADE), food_id, supplier_id (V155, NCC theo dòng; backfill từ `fresh_checks.supplier_id`), expected_qty (chụp lúc ghi), received_qty (không bắt buộc), result `ENOUGH`/`SHORT`/`OVER`, note; V200: handling_action `ORDER_MORE`/`RETURN`/`KEEP`, handling_qty (cách xử lý chênh lệch ở kiểm nhận lần 2 theo cân đối, đơn vị gốc) | UK (check, food) | NUT-12, NUT-27 |
 | food_samples | campus_id, sample_date, session, sampled_at, recorded_by, status `RECORDED`/`APPROVED`, approved_by/at, disposed_at, disposal_recorded_by, disposal_status `NONE`/`RECORDED`/`APPROVED`, disposal_approved_by/at, note, dish_ids (V83, bigint[] món đã lưu mẫu; service kiểm món tồn tại), created_at, updated_at | CHECK `disposal_status = NONE` ⇔ `disposed_at` null; không UK (một bữa có thể lưu nhiều lần); hủy ≥ 24 giờ sau `sampled_at` do service kiểm | NUT-21 |
 | meal_photos | campus_id, photo_date, session, storage_key (key tệp trong kho S3: UUID cũ hoặc `meals/meal_...`, VARCHAR(255) từ V123), content_type, size_bytes, uploaded_by, uploaded_at | UK (campus, date, session) — đăng lại thì thay dòng và tệp; size > 0 | NUT-16 |
 
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
+
+## revoked_web_sessions (module: identity-access, scope: SYSTEM) — V143, V196
+AUTH-28: phiên Web Keycloak bị đăng nhập mới hơn thay thế, hoặc đã đăng xuất, để chặn ngay access token còn hạn của phiên đó. PK session_id VARCHAR(64) (claim `sid`); keycloak_user_id VARCHAR(36) NOT NULL; revoked_at, expires_at TIMESTAMPTZ NOT NULL, CHECK expires_at > revoked_at; reason VARCHAR(16) NOT NULL DEFAULT 'REPLACED', CHECK IN ('REPLACED','ENDED') (V196: REPLACED ⇒ 401 1016, ENDED = đăng xuất ⇒ 401 1002); index `expires_at` cho dọn. Giữ 10 phút (> tuổi access token 5 phút) rồi xóa. Không lưu token.
 
 ## otp_send_limits (module: identity-access, scope: SYSTEM)
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
@@ -802,7 +971,7 @@ Schema bên dưới là đích sau V97; chỉ kiểm trên scratch, chưa áp d�
 | edu_domains | name VARCHAR(150), display_label, short_label, sort_order, active, standard | UNIQUE name; seed 5 lĩnh vực chuẩn (standard, không xóa); lĩnh vực trường thêm bỏ đi thì active = false (V27) | EDU-09, EDU-11 |
 | edu_class_docs | doc_key (khóa Web: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`, phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<kế hoạch năm>`), kind (branch/theme/week; V103 thêm semester = gói học kỳ `sp_<lớp>_<kế hoạch>_<1|2>`, dossier = hồ sơ chủ đề `ds_<lớp>_<chủ đề>`, day = giáo án ngày `dd_…`), semester_no SMALLINT (V103, chỉ kind semester: 1/2), classroom_id, school_year_plan_id / team_plan_id, theme_id, week_start, status (DRAFT, REVIEW, APPROVED; V88 contract bỏ legacy PENDING_*/REJECTED), content (JSONB object: nội dung soạn; spec 005: `week` có `prep {teacher, child, parent}`, `corners [{id, name, content, aims, prep, steps}]`; `day` có `days[i] = {date, sections {hoc|ngoai_troi|goc|chieu: {aims, prep, rows [{id, title, teacher, child, note}]}}}` — bố cục cũ `aims/prep/steps` chỉ đọc), approvals (JSONB array), history (JSONB array), source_doc_id (V32, bản chép từ phiên bản cũ, ON DELETE SET NULL), ~~adjustments~~ (V32, V103 chuyển sang kind day; **xóa ở V106** cùng `ck_edu_class_docs_adjustments`, `ck_edu_class_docs_adjustments_day`), sign_chain (V41, JSONB array role duyệt chụp lúc gửi), review_round INT DEFAULT 1 (V87), published_by BIGINT (V87), completed_at TIMESTAMPTZ (V87), print_snapshot JSONB (V87), author_tracking_since TIMESTAMPTZ, author_coverage VARCHAR(50), applied_policy_revision BIGINT, completion_policy JSONB, completion_mode VARCHAR(50), created_by, updated_by, created_at, updated_at, version | Một bảng cho 3 loại tài liệu. UNIQUE doc_key; UNIQUE (classroom_id, school_year_plan_id / team_plan_id, kind, theme_id, week_start, semester_no) — cũng là chỉ mục tra theo lớp; CHECK kind, status (DRAFT/REVIEW/APPROVED V88), khóa đúng theo loại (week_start là thứ Hai), kiểu JSONB; FK classroom, year_plan (ON DELETE CASCADE), theme, user | EDU-12..18, EDU-54 |
 | edu_class_doc_releases | id, class_doc_id (FK edu_class_docs, gốc kind dossier/semester — V108 chuyển từ theme), dossier_version BIGINT, print_snapshot JSONB (`signatures` chuỗi ký + `members` nội dung kế hoạch chủ đề và giáo án tuần lúc ban hành), approved_by (FK user_accounts), released_at TIMESTAMPTZ | Mỗi lần hồ sơ chủ đề lớp ban hành một dòng để xem lại bản cũ (V102, backfill bản APPROVED hiện có). UNIQUE (class_doc_id, dossier_version) | EDU-73 |
-| edu_settings | 1 dòng (id = 1): signers (JSON: year, branch, week → danh sách vai trò ký theo thứ tự), week_rows (JSON: key, label, canMerge, allWeek, extraLabel), workflow_policy JSONB (V87), workflow_revision BIGINT DEFAULT 0 (V87), meal_photo_windows (V83, jsonb `[{session, startTime, endTime, updatedBy, updatedAt}]`: khung giờ đăng ảnh bữa ăn chung toàn trường, NUT-16; chưa có bữa ⇒ chưa đăng ảnh được; entity `MealPhotoSettings` của module bán trú), updated_by, updated_at | CHECK id = 1; seed mặc định TT → PHT và 8 dòng tuần (V27); V125 thêm dòng `an_ngu` (Ăn, ngủ), đổi nhãn Hoạt động góc / ngoài trời / chiều, Góc trước Ngoài trời; workflow_policy cấu hình creators và reviewers theo 3 loại tài liệu (V87) | EDU-11, EDU-54 |
+| edu_settings | 1 dòng (id = 1): signers (JSON: year, branch, week → danh sách vai trò ký theo thứ tự), week_rows (JSON: key, label, canMerge, allWeek, extraLabel), workflow_policy JSONB (V87), workflow_revision BIGINT DEFAULT 0 (V87), late_return_grace_days SMALLINT NOT NULL DEFAULT 2 CHECK 0–30 (V145, EDU-94: số ngày lịch gửi lại sau lần trả lại trễ đầu tiên), meal_photo_windows (V83, jsonb `[{session, startTime, endTime, updatedBy, updatedAt}]`: khung giờ đăng ảnh bữa ăn chung toàn trường, NUT-16; chưa có bữa ⇒ chưa đăng ảnh được; entity `MealPhotoSettings` của module bán trú), updated_by, updated_at | CHECK id = 1; seed mặc định TT → PHT và 8 dòng tuần (V27); V125 thêm dòng `an_ngu` (Ăn, ngủ), đổi nhãn Hoạt động góc / ngoài trời / chiều, Góc trước Ngoài trời; workflow_policy cấu hình creators và reviewers theo 3 loại tài liệu (V87) | EDU-11, EDU-54 |
 | edu_document_authors | school_year_plan_id, team_plan_id, class_doc_id (ba FK nullable), user_id FK user_accounts, origin VARCHAR(30), first_authored_at, last_authored_at | num_nonnulls(ba owner)=1; unique partial (school_year_plan_id,user_id), (team_plan_id,user_id), (class_doc_id,user_id); tác giả lớp giữ hai owner header NULL | EDU-54 |
 
 
@@ -849,18 +1018,19 @@ Mục đích: một bảng cho cả ma trận quyền theo role do Hiệu trư�
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| role | VARCHAR(20) | có | Dòng role: chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK, `TEAM_LEADER` từ V38); role khác cố định trong code. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23 |
+| role | VARCHAR(20) | có | Dòng role: chỉ `PRINCIPAL`/`VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK `ck_permission_grants_role`, `TEAM_LEADER` từ V38, `PRINCIPAL` từ V193); role khác cố định trong code. `PRINCIPAL` chỉ có dòng cho 8 mã `EDU_*_EDIT/APPROVE` (API kiểm), mã khác của HT vẫn cố định. Ô tick 8 mã EDU của mọi vai trò quyết định chuỗi soạn/duyệt (`edu_settings.workflow_policy`); 8 mã này không có dòng người. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23, EDU-110 |
 | user_id | BIGINT | có | Dòng người: FK `user_accounts`, người được cấp/thu quyền. Đúng một trong `role`/`user_id` có giá trị (CHECK) | AUTH-10 |
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
 | effect | VARCHAR(10) | có | Chỉ dòng người: `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định); dòng role NULL | AUTH-10, AUTH-13 |
 | scope | VARCHAR(10) | có | Chỉ GRANT (CHECK): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (chỉ mã sửa theo mảng — API kiểm); REVOKE và dòng role NULL (ADR-0023) | AUTH-20 |
+| campus_id | BIGINT | có | FK `campuses`, chỉ GRANT `scope = CAMPUS` (CHECK `ck_permission_grants_campus`): điểm trường HT giao cụ thể, PHT chỉ sửa việc đó ở điểm trường này, kể cả khác điểm trường phụ trách; NULL = điểm trường đang phân công. Migration V167 | AUTH-20 |
 | reason | VARCHAR(500) | có | Lý do; bắt buộc ở dòng người | AUTH-14 |
 | granted_by | BIGINT | có | FK `user_accounts`: người bật ô ma trận (null với dòng seed) / người sửa ngoại lệ gần nhất (bắt buộc, CHECK khác `user_id`) | AUTH-12, AUTH-14 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Index: `uk_permission_grants_role_permission` (role, permission_code) WHERE role IS NOT NULL; `uk_permission_grants_user_permission` (user_id, permission_code) WHERE user_id IS NOT NULL.
 
 ## permission_change_log  (module: identity-access, scope: SYSTEM)
-Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`).
+Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`), V167 (`before_campus_id`, `after_campus_id`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -870,6 +1040,7 @@ Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm 
 | permission_code | VARCHAR(64) | không | Mã quyền đã đổi | — |
 | before_state, after_state | VARCHAR(10) | không | `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ) | AUTH-14 |
 | before_scope, after_scope | VARCHAR(10) | có | Phạm vi GRANT trước/sau (`CAMPUS`/`SCHOOL`); NULL với ma trận, REVOKE, INHERIT | AUTH-14, AUTH-20 |
+| before_campus_id, after_campus_id | BIGINT | có | Điểm trường giao cụ thể trước/sau (NULL = điểm trường đang phân công); đổi nơi giao cũng ghi một dòng | AUTH-14, AUTH-20 |
 | reason | VARCHAR(500) | không | Lý do bắt buộc | AUTH-14 |
 | changed_at | TIMESTAMPTZ | không | Thời điểm đổi | — |
 Index: `idx_permission_change_log_changed_at`, `idx_permission_change_log_target_role`, `idx_permission_change_log_target_user` (kèm `changed_at DESC`).
@@ -893,8 +1064,40 @@ V79: child_evaluations thêm phiếu đánh giá sự phát triển cuối năm 
 
 V81: child_evaluations thêm `domain_comments` TEXT (JSON {"<domainId>": "nhận xét"}, lĩnh vực chưa gắn mã dùng khóa "0") — nhận xét dưới từng lĩnh vực của phiếu cuối năm (OBS-28).
 
+V175: `child_evaluations.sheet_presentation` TEXT nullable — JSON `{ageGroupName, teachers, principal, measurement}` chốt khi xác nhận phiếu cuối năm (OBS-28). Cân đo gồm ngày, cân nặng và chiều cao tại lúc chốt. Phiếu cũ để null, không tự backfill thông tin người ký/cân đo hiện tại thành lịch sử.
+
+V181: `child_evaluation_events.action` thêm `TEMPLATE_DRAFTED` (CHECK `ck_child_evaluation_events_action`: AI_DRAFTED | AI_REDRAFTED | TEMPLATE_DRAFTED | EDITED | CONFIRMED) — nháp hệ thống tạo sẵn từ mẫu câu ghi vết riêng, không ghi là AI (AI-03). Vết cũ `AI_DRAFTED` giữ nguyên.
+V201: `leave_requests.notice_only` BOOLEAN NOT NULL DEFAULT FALSE — đơn báo nghỉ chiều sau giờ chốt chỉ là thông báo (ATT-04, ATT-05b). Bảng mới `leave_attendance_effects` (id identity PK; leave_request_id FK → leave_requests ON DELETE CASCADE; attendance_record_id FK → attendance_records ON DELETE CASCADE; record_created; before_status, before_meals, before_absent_part, before_recorded_by, before_recorded_at; after_recorded_at NOT NULL; UK (leave_request_id, attendance_record_id); CHECK ck_leave_attendance_effect_snapshot) lưu trạng thái điểm danh trước/sau khi đơn nghỉ áp dụng để hủy đơn không ghi đè thao tác của giáo viên.
+V202: `attendance_cutoffs` thêm 8 mốc lịch sinh hoạt (TIME NOT NULL có mặc định): dropoff_open_from 06:30, morning_start 07:00, morning_end 11:00, afternoon_start 13:30, pickup_start 15:00, full_day_pickup_from 15:00 (Cần chốt 25/11/2026, phương án A; trước là 15:30), pickup_end 17:00, afternoon_end 17:00. Đổi số V184 → V191 → V196 khi merge dev và nhánh G94-467 25/11/2026.
+
+V171: child_evaluations thêm nguồn bản nháp (OBS-34, AI-01): `draft_source` VARCHAR(10) NOT NULL DEFAULT 'TEMPLATE' (CHECK TEMPLATE | AI), `draft_model` VARCHAR(100) và `draft_prompt_version` VARCHAR(60) (chỉ có khi nguồn là AI). Nháp cũ đều là mẫu câu nên mặc định TEMPLATE; không lưu prompt hay phản hồi thô (AI-05).
+
 V74: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "Cần cố gắng", OBS-15).
 
 ## Bảng đánh giá học kỳ theo lớp — 05/11/2026
 
 `semester_assessments`: FK classroom_id → classrooms, campus_id → campuses, school_year_id → school_years, confirmed_by → user_accounts; unique(classroom_id,semester_no). period_start/end là kỳ cấu hình; note; result_snapshot TEXT chốt domains/goals/children/counts; confirmed_at; version optimistic. Mỗi lớp-năm (lớp gắn một năm) có tối đa hai bảng, không thay child_evaluations cũ.
+
+
+`nutrition_group_settings` (V170): `age_group_id` PK/FK age_groups (ON DELETE CASCADE), `enabled` boolean mặc định true, `updated_by`, `updated_at`. Cờ chỉ dành cho soạn thực đơn; thiếu dòng được hiểu là bật.
+
+## inspection_day_grants  (module: nutrition, scope: CAMPUS)
+Mục đích: yêu cầu và quyền mở ghi biên bản kiểm thực / sổ lưu mẫu của ngày đã qua 00:00 `Asia/Ho_Chi_Minh`; một dòng = một mẫu + một ngày + một điểm trường. PHT gửi yêu cầu, HT duyệt hoặc tự mở (INS-05). Migration: `V174__create_inspection_day_grants.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| campus_id | BIGINT FK campuses | không | Điểm trường của biên bản | INS-01 |
+| sheet_date | DATE | không | Ngày của biên bản cần mở ghi (đã qua) | INS-05 |
+| tab | VARCHAR(10) | không | `FRESH`/`DRY`/`PROCESS`/`SERVE`/`SAMPLE` (CHECK) | INS-01 |
+| status | VARCHAR(10) | không | `PENDING` chờ HT · `APPROVED` đang mở (còn hạn) · `REJECTED` · `REVOKED` · `CONSUMED` đã ký xong · `EXPIRED` quá hạn chưa ký (CHECK) | INS-05 |
+| self_opened | BOOLEAN | không | `TRUE` khi HT tự mở, không qua duyệt (mặc định `FALSE`) | INS-05 |
+| reason | VARCHAR(500) | không | Lý do yêu cầu / lý do HT tự mở (≥3 ký tự kiểm ở service) | INS-05 |
+| requested_by, requested_by_name, requested_at | BIGINT FK user_accounts, VARCHAR(255), TIMESTAMPTZ | không | Người gửi (hoặc HT tự mở) kèm tên tại thời điểm gửi, giữ được khi tài khoản đổi tên | INS-05 |
+| decided_by, decided_by_name, decided_at, decision_note | BIGINT FK user_accounts, VARCHAR(255), TIMESTAMPTZ, VARCHAR(500) | có | Người quyết định (duyệt, từ chối, thu hồi) và ghi chú; CHECK: khác `PENDING` thì có `decided_at` | INS-05 |
+| expires_at | TIMESTAMPTZ | có | Hạn mở; CHECK: `APPROVED` thì bắt buộc có. Mặc định `Constants.Inspection.GRANT_DEFAULT_HOURS` (48 giờ), HT chọn tối đa 168 | INS-05 |
+| consumed_at | TIMESTAMPTZ | có | Lúc ký thành công đóng quyền mở | INS-05 |
+Index: `uk_inspection_day_grants_open` unique một phần `(campus_id, sheet_date, tab)` khi `status IN ('PENDING','APPROVED')` (mỗi phạm vi chỉ một dòng đang mở); `idx_inspection_day_grants_day (campus_id, sheet_date)`; `idx_inspection_day_grants_queue (status, requested_at)` cho hàng chờ HT.
+Quá hạn tính lười: dòng `APPROVED` quá `expires_at` vẫn nằm trong bảng, API trả `EXPIRED`; yêu cầu mới của cùng phạm vi đóng dòng cũ thành `EXPIRED` rồi mới tạo dòng mới.
+
+## evaluation_revisions  (module: learning-observation, scope: CHILD)
+Mục đích: bản đánh giá đã xác nhận bị thay bằng bản sửa lại (OBS-30). Migration: `V210__evaluation_revisions.sql`. Cột: id, kind (`THEME`/`SEMESTER`/`YEAR`), evaluation_id (bảng theo kind, không FK), snapshot (nội dung bản cũ), replaced_by (FK `user_accounts`), replaced_at. Chỉ thêm, không sửa, không xóa.

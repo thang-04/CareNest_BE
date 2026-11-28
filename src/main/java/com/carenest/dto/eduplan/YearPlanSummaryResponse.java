@@ -33,7 +33,8 @@ public record YearPlanSummaryResponse(
         String sourceMode,
         @com.fasterxml.jackson.annotation.JsonRawValue String durationPolicySnapshot,
         // Spec 005 FR-021a: màn Kế hoạch quá hạn đọc hạn/khóa từ danh sách
-        YearPlanDetailResponse.TimeLock timeLock) {
+        YearPlanDetailResponse.TimeLock timeLock,
+        boolean returned) {
 
     @com.fasterxml.jackson.annotation.JsonProperty
     public com.carenest.utils.enums.EduPlanLevel planType() {
@@ -48,6 +49,67 @@ public record YearPlanSummaryResponse(
     @com.fasterxml.jackson.annotation.JsonProperty
     public Instant sentAt() {
         return sentBy == null ? null : sentBy.at();
+    }
+
+    public YearPlanSummaryResponse(
+            Long id,
+            String code,
+            Long schoolYearId,
+            String schoolYearName,
+            Long ageGroupId,
+            String ageGroupName,
+            String title,
+            EduPlanStatus status,
+            long goalCount,
+            long themeCount,
+            PlanActorResponse owner,
+            PlanActorResponse sentBy,
+            PlanActorResponse issued,
+            PlanActorResponse editing,
+            Instant createdAt,
+            Instant updatedAt,
+            long revision,
+            Instant editExpiresAt,
+            int versionNo,
+            Long sourcePlanId,
+            boolean current,
+            EduReviewStateResponse review,
+            YearPlanDetailResponse.Permissions permissions,
+            com.carenest.utils.enums.EduPlanLevel planLevel,
+            Long curriculumSourcePlanId,
+            String sourceMode,
+            String durationPolicySnapshot,
+            YearPlanDetailResponse.TimeLock timeLock) {
+        this(
+                id,
+                code,
+                schoolYearId,
+                schoolYearName,
+                ageGroupId,
+                ageGroupName,
+                title,
+                status,
+                goalCount,
+                themeCount,
+                owner,
+                sentBy,
+                issued,
+                editing,
+                createdAt,
+                updatedAt,
+                revision,
+                editExpiresAt,
+                versionNo,
+                sourcePlanId,
+                current,
+                review,
+                permissions,
+                planLevel,
+                curriculumSourcePlanId,
+                sourceMode,
+                durationPolicySnapshot,
+                timeLock,
+                false);
     }
 
     public YearPlanSummaryResponse(

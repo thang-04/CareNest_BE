@@ -71,8 +71,9 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
     @Query(
             value =
                     "insert into school_year_rooms (school_year_id, room_id, campus_id, code, name, room_type, capacity,"
-                            + " manager_user_id, status, note) select :yearId, r.id, r.campus_id, r.code, r.name, r.room_type,"
-                            + " r.capacity, r.manager_user_id, r.status, r.note from rooms r where r.status <> 'DELETED'",
+                            + " manager_user_id, status, note) select :yearId, m.room_id, m.campus_id, m.code, m.name,"
+                            + " m.room_type, m.capacity, m.manager_user_id, m.status, m.note"
+                            + " from school_year_room_members m where m.school_year_id = :yearId",
             nativeQuery = true)
     void snapshotRooms(@Param("yearId") Long yearId);
 
@@ -80,8 +81,9 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
     @Query(
             value =
                     "insert into school_year_campuses (school_year_id, campus_id, code, name, short_name, address, phone,"
-                            + " is_main) select :yearId, c.id, c.code, c.name, c.short_name, c.address, c.phone, c.is_main"
-                            + " from campuses c",
+                            + " is_main, status) select :yearId, c.id, m.code, m.name, m.short_name, m.address,"
+                            + " m.phone, m.is_main, m.status from school_year_campus_members m"
+                            + " join campuses c on c.id = m.campus_id where m.school_year_id = :yearId",
             nativeQuery = true)
     void snapshotCampuses(@Param("yearId") Long yearId);
 
@@ -90,8 +92,10 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
             value =
                     "insert into school_year_age_groups (school_year_id, age_group_id, code, name, short_name, sort_order,"
                             + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
-                            + " select :yearId, g.id, g.code, g.name, g.short_name, g.sort_order, g.age_from_months,"
-                            + " g.age_to_months, g.meal_sessions, g.max_class_size, g.nutrition_note from age_groups g",
+                            + " select :yearId, g.id, g.code, m.name, m.short_name, g.sort_order, m.age_from_months,"
+                            + " m.age_to_months, m.meal_sessions, m.max_class_size, m.nutrition_note"
+                            + " from school_year_age_group_members m join age_groups g on g.id = m.age_group_id"
+                            + " where m.school_year_id = :yearId",
             nativeQuery = true)
     void snapshotAgeGroups(@Param("yearId") Long yearId);
 
@@ -104,7 +108,8 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
 
     @Query(
             value = "select campus_id as campusId, code, name, short_name as shortName, address, phone,"
-                    + " is_main as main from school_year_campuses where school_year_id = :yearId order by campus_id",
+                    + " is_main as main, status from school_year_campuses"
+                    + " where school_year_id = :yearId order by campus_id",
             nativeQuery = true)
     List<CampusSnapshot> findCampusSnapshot(@Param("yearId") Long yearId);
 
@@ -150,6 +155,8 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
         String getPhone();
 
         Boolean getMain();
+
+        String getStatus();
     }
 
     interface AgeGroupSnapshot {

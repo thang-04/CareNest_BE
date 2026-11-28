@@ -136,7 +136,7 @@ class ChildControllerTest {
             "D-4: GV xem danh sách; tên cũ classroomId, q của màn Tài khoản phụ huynh vẫn nhận; status nhiều giá trị")
     void teacherListsChildrenWithLegacyParams() throws Exception {
         CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
-        given(childListService.searchChildren(eq(teacher), any()))
+        given(childListService.browseChildren(eq(teacher), any()))
                 .willReturn(new com.carenest.dto.common.PageResponse<>(List.of(), 0, 20, 0, 0));
 
         mockMvc.perform(get("/api/children")
@@ -152,7 +152,7 @@ class ChildControllerTest {
 
         org.mockito.ArgumentCaptor<com.carenest.dto.child.ChildListFilter> filter =
                 org.mockito.ArgumentCaptor.forClass(com.carenest.dto.child.ChildListFilter.class);
-        verify(childListService).searchChildren(eq(teacher), filter.capture());
+        verify(childListService).browseChildren(eq(teacher), filter.capture());
         org.assertj.core.api.Assertions.assertThat(filter.getValue())
                 .isEqualTo(new com.carenest.dto.child.ChildListFilter(
                         5L,
@@ -171,7 +171,7 @@ class ChildControllerTest {
 
         mockMvc.perform(get("/api/children").with(tokenWithRole(CareNestRole.KITCHEN_STAFF)))
                 .andExpect(status().isForbidden());
-        verify(childListService, never()).searchChildren(any(), any());
+        verify(childListService, never()).browseChildren(any(), any());
     }
 
     @Test

@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,6 +42,16 @@ public class Supplier {
 
     @Column(name = "delivery_person", nullable = false, length = 100)
     private String deliveryPerson = "";
+
+    // NUT-27: hợp đồng hiện hành; gia hạn = cập nhật ngày
+    @Column(name = "contract_no", length = 50)
+    private String contractNo;
+
+    @Column(name = "contract_start")
+    private LocalDate contractStart;
+
+    @Column(name = "contract_end")
+    private LocalDate contractEnd;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -74,6 +85,13 @@ public class Supplier {
         this.address = address;
         this.idCard = idCard;
         this.deliveryPerson = deliveryPerson;
+        this.updatedBy = updatedBy;
+    }
+
+    public void changeContract(String contractNo, LocalDate contractStart, LocalDate contractEnd, Long updatedBy) {
+        this.contractNo = contractNo;
+        this.contractStart = contractStart;
+        this.contractEnd = contractEnd;
         this.updatedBy = updatedBy;
     }
 

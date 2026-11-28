@@ -51,7 +51,7 @@ class ConcurrentDailyAssessmentIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     static final class FixedClock extends Clock {
         @Override
@@ -187,7 +187,7 @@ class ConcurrentDailyAssessmentIntegrationTest {
                 + "week_start, status, content, created_by, updated_by) VALUES ('w-a', 'week', " + classA + ", "
                 + plan + ", " + theme + ", '2026-10-26', 'APPROVED', '" + content + "'::jsonb, "
                 + principal.userId() + ", " + principal.userId() + ") RETURNING id");
-        // Spec 003 FR-008: chỉ chấm theo tuần có cả giáo án ngày đã ban hành (hồ sơ chủ đề)
+        // Spec 003 FR-008: chỉ chấm theo tuần có cả giáo án ngày đã ban hành (kế hoạch giáo dục ngày)
         jdbc.update(
                 "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
                         + "created_by, updated_by) SELECT 'd-a', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "

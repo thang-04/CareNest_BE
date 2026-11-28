@@ -3,8 +3,10 @@ package com.carenest.controller.eduplan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -44,6 +46,44 @@ class EduClassDocControllerTest {
 
     @MockitoBean
     private EduClassDocService service;
+
+    @MockitoBean
+    private com.carenest.service.eduplan.EduOverdueBoardService overdueBoardService;
+
+    @Test
+    void overdueReadsRequirePrincipalAndSchoolYear() throws Exception {
+        var url = "/api/education-plans/class-docs/overdue/semester/sp_1";
+        var principal = new CurrentUser(7L, "kc-7", "principal", "Demo", null, Set.of(CareNestRole.PRINCIPAL));
+        given(currentUserService.getCurrentUser()).willReturn(principal);
+        var jwtPrincipal = jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"));
+        mvc.perform(get(url).with(jwtPrincipal)).andExpect(status().isBadRequest());
+        mvc.perform(get(url).param("schoolYearId", "12")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_VICE_PRINCIPAL"))))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+        mvc.perform(get(url).param("schoolYearId", "12").with(jwtPrincipal)).andExpect(status().isOk());
+        verify(service).getOverdueClassDoc(principal, 12L, "semester", "sp_1");
+    }
+
+    @Test
+    @DisplayName("Trang của một lớp: classId ⇒ chỉ tải tài liệu lớp đó; không classId ⇒ cả phạm vi như cũ")
+    void classIdScopesDocsToOneClass() throws Exception {
+        var teacher = new CurrentUser(7L, "kc-7", "teacher", "Demo", null, Set.of(CareNestRole.TEACHER));
+        given(currentUserService.getCurrentUser()).willReturn(teacher);
+        var jwtTeacher = jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"));
+        mvc.perform(get("/api/education-plans/class-docs")
+                        .param("schoolYearId", "1")
+                        .param("classId", "3")
+                        .param("view", "REVIEW")
+                        .with(jwtTeacher))
+                .andExpect(status().isOk());
+        verify(service).getClassDocsOfClass(teacher, 1L, true, 3L);
+        mvc.perform(get("/api/education-plans/class-docs")
+                        .param("schoolYearId", "1")
+                        .with(jwtTeacher))
+                .andExpect(status().isOk());
+        verify(service).getClassDocs(teacher, 1L);
+    }
 
     @Test
     @DisplayName("EDU-47: multipart preview trả tuần hệ thống trong envelope hiện hành")
@@ -89,5 +129,30 @@ class EduClassDocControllerTest {
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(service);
+    }
+
+    @Test
+    @DisplayName("Xem quá hạn của Hiệu trưởng: view=OVERDUE đọc theo lớp, thiếu classId bị chặn trước service")
+    void overdueViewNeedsClassId() throws Exception {
+        var principal = new CurrentUser(7L, "kc-7", "principal", "Demo", null, Set.of(CareNestRole.PRINCIPAL));
+        given(currentUserService.getCurrentUser()).willReturn(principal);
+        var jwtPrincipal = jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"));
+        mvc.perform(get("/api/education-plans/class-docs")
+                        .param("schoolYearId", "12")
+                        .param("view", "OVERDUE")
+                        .with(jwtPrincipal))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+        var empty = new com.carenest.dto.eduplan.ClassDocsResponse(
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                false);
+        given(service.getClassDocsOverdueView(principal, 12L, 5L)).willReturn(empty);
+        mvc.perform(get("/api/education-plans/class-docs")
+                        .param("schoolYearId", "12")
+                        .param("view", "OVERDUE")
+                        .param("classId", "5")
+                        .with(jwtPrincipal))
+                .andExpect(status().isOk());
+        verify(service).getClassDocsOverdueView(principal, 12L, 5L);
     }
 }

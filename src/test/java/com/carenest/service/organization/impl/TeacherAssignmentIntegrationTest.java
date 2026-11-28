@@ -51,7 +51,7 @@ class TeacherAssignmentIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -99,6 +99,14 @@ class TeacherAssignmentIntegrationTest {
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         ageGroup4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
+                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
+                year);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                year);
         classA1 = classroom(campusA, "Lớp A1");
         classA2 = classroom(campusA, "Lớp A2");
         long classB1 = classroom(campusB, "Lớp B1");
@@ -174,6 +182,20 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("Giáo viên bị khóa tài khoản vẫn đứng lớp trên phân công: trả danh sách để màn hình cảnh báo")
+    void lockedClassTeacherIsReported() {
+        jdbc.update("UPDATE user_accounts SET status = 'INACTIVE' WHERE id = ?", teacher1);
+
+        ClassTeachersResponse row = service.getTeacherAssignments(principal, year, null).classes().stream()
+                .filter(c -> c.id().equals(classA1))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(row.teacherIds()).contains(teacher1);
+        assertThat(row.lockedTeacherIds()).containsExactly(teacher1);
+    }
+
+    @Test
     void removingAllTeachersOfActiveYearNeedsReplacement() {
         expectError(
                 () -> service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(), null)),
@@ -199,8 +221,8 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("SCH-04: năm đang học mỗi lớp đúng 2 GV đứng lớp và có chủ nhiệm (Cần chốt 10/11/2026)")
-    void activeYearNeedsExactlyTwoTeachersAndHomeroom() {
+    @DisplayName("SCH-04: năm đang học mỗi lớp 2–3 GV đứng lớp và có GV phụ trách chính (Cần chốt 18/11/2026)")
+    void activeYearNeedsTwoToThreeTeachersAndHomeroom() {
         expectError(
                 () -> service.assignClassTeachers(
                         principal, classA1, new ClassTeachersRequest(List.of(teacher1), teacher1)),
@@ -213,6 +235,21 @@ class TeacherAssignmentIntegrationTest {
                                 principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher2))
                         .homeroomTeacherId())
                 .isEqualTo(teacher2);
+        // Trường thừa giáo viên: lớp có 3 cô được, tối đa 3
+        endAssignments(teacher3);
+        assertThat(service.assignClassTeachers(
+                                principal,
+                                classA1,
+                                new ClassTeachersRequest(List.of(teacher1, teacher2, teacher3), teacher1))
+                        .teacherIds())
+                .containsExactlyInAnyOrder(teacher1, teacher2, teacher3);
+        long teacher4 = user("teacher4");
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal,
+                        classA1,
+                        new ClassTeachersRequest(List.of(teacher1, teacher2, teacher3, teacher4), teacher1)),
+                ApiCode.CLASS_TOO_MANY_TEACHERS);
     }
 
     @Test
@@ -742,6 +779,10 @@ class TeacherAssignmentIntegrationTest {
         long campusId = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classA1);
         long plannedClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity)"
                 + " VALUES (" + campusId + ", " + planned + ", 'Lớp A1 năm sau', " + ageGroup4 + ", 25) RETURNING id");
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note) "
+                        + "SELECT ?, id, name, short_name, age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note FROM age_groups",
+                planned);
         LocalDate prep = LocalDate.of(2027, 8, 5);
 
         service.assignClassTeachers(principal, plannedClass, new ClassTeachersRequest(List.of(teacher1), teacher1));

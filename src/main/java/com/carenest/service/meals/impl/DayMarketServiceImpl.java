@@ -19,6 +19,8 @@ import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.DayMarketService;
+import com.carenest.service.meals.FoodPriceService;
+import com.carenest.service.meals.FoodPriceService.FoodPriceBook;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.FoodStorage;
@@ -62,9 +64,11 @@ public class DayMarketServiceImpl implements DayMarketService {
     private final AgeGroupMealConfigRepository configRepository;
     private final FreshForecastRepository campusLookup;
     private final MealDemandCalculator demandCalculator;
+    private final DayDemand dayDemand;
     private final AgeGroupService ageGroupService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final StockMapper stockMapper;
+    private final FoodPriceService foodPriceService;
     private final Clock clock;
 
     /** Lượng và tiền của một thực phẩm cho một nhóm tuổi. */
@@ -108,11 +112,19 @@ public class DayMarketServiceImpl implements DayMarketService {
         List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, date);
         // NUT-03: chỉ dùng số chốt khi mọi sổ báo ăn của ngày đã xác nhận; chưa đủ thì tính theo sĩ số đang học
         // (NUT-07)
-        boolean confirmed = !counts.isEmpty() && counts.stream().allMatch(MealCount::isConfirmed);
-        List<MealDemandCalculator.Servings> servings = (confirmed
-                        ? demandCalculator.confirmedServings(counts)
-                        : demandCalculator.expectedServings(demandCalculator.enrolledByAgeGroup(campusId, date)))
+        boolean allConfirmed = !counts.isEmpty() && counts.stream().allMatch(MealCount::isConfirmed);
+        // Ngày đã cân đối: số suất và lượng mua theo bản mới nhất (lần 2, chưa có thì lần 1)
+        DayDemand.Balanced balanced = dayDemand.latest(date).orElse(null);
+        boolean confirmed = balanced == null ? allConfirmed : balanced.round() == DayBalanceReader.ROUND_CONFIRMED;
+        List<MealDemandCalculator.Servings> servings = (balanced != null
+                        ? demandCalculator.expectedServings(balancedCounts(balanced, campusId))
+                        : confirmed
+                                ? demandCalculator.confirmedServings(counts)
+                                : demandCalculator.expectedServings(
+                                        demandCalculator.enrolledByAgeGroup(campusId, date)))
                 .stream().filter(s -> s.portions() > 0).toList();
+        Map<Long, BigDecimal> orderShare =
+                balanced == null ? Map.of() : dayDemand.campusShare(balanced, campusId, FoodStorage.FRESH);
         Instant confirmedAt = confirmed
                 ? counts.stream()
                         .map(MealCount::getConfirmedAt)
@@ -136,7 +148,10 @@ public class DayMarketServiceImpl implements DayMarketService {
         Map<Long, Map<Long, BigDecimal>> quantities = new HashMap<>();
         for (AgeGroupDetailResponse group : ageGroups) {
             for (FoodStorage storage : FoodStorage.values()) {
-                MealDemandCalculator.compute(day, dishes, blocks, servingsByGroup.get(group.id()), storage)
+                (balanced == null
+                                ? MealDemandCalculator.compute(
+                                        day, dishes, blocks, servingsByGroup.get(group.id()), storage)
+                                : dayDemand.byServings(balanced, servingsByGroup.get(group.id()), storage))
                         .forEach((foodId, qty) -> {
                             if (qty.signum() > 0) {
                                 quantities
@@ -151,6 +166,8 @@ public class DayMarketServiceImpl implements DayMarketService {
                 : foodRepository.findAllById(quantities.keySet()).stream()
                         .collect(Collectors.toMap(Food::getId, Function.identity()));
 
+        // NUT-27: giá và NCC tại ngày đi chợ
+        FoodPriceBook book = foodPriceService.book(foods.keySet());
         List<DayMarketResponse.DayMarketLine> lines = new ArrayList<>();
         Map<Long, BigDecimal> costByGroup = new HashMap<>();
         BigDecimal freshCost = BigDecimal.ZERO;
@@ -160,12 +177,13 @@ public class DayMarketServiceImpl implements DayMarketService {
             if (food == null) {
                 continue;
             }
+            FoodPriceBook.PriceAt price = book.at(food.getId(), date);
             List<DayMarketResponse.DayMarketGroupShare> shares = new ArrayList<>();
             BigDecimal quantity = BigDecimal.ZERO;
             BigDecimal cost = BigDecimal.ZERO;
             for (AgeGroupDetailResponse group : ageGroups) {
                 BigDecimal qty = entry.getValue().get(group.id());
-                Share share = qty == null ? Share.NONE : new Share(qty, costOf(qty, food));
+                Share share = qty == null ? Share.NONE : new Share(qty, costOf(qty, food, price.price()));
                 shares.add(new DayMarketResponse.DayMarketGroupShare(group.id(), share.quantity(), share.cost()));
                 quantity = quantity.add(share.quantity());
                 cost = cost.add(share.cost());
@@ -179,42 +197,56 @@ public class DayMarketServiceImpl implements DayMarketService {
             lines.add(new DayMarketResponse.DayMarketLine(
                     stockMapper.toFoodRef(food),
                     food.getStorage().name(),
-                    food.getUnitPrice(),
+                    price.price(),
                     quantity,
-                    PurchaseUnits.roundUp(quantity, food),
+                    balanced == null
+                            ? PurchaseUnits.roundUp(quantity, food)
+                            : orderShare.getOrDefault(food.getId(), quantity),
                     cost,
-                    shares));
+                    shares,
+                    price.supplierId(),
+                    price.supplierName(),
+                    price.contractStatus()));
         }
         // Hàng mua chợ trước, hàng xuất kho sau; trong mỗi phần theo tên
         lines.sort(Comparator.comparing((DayMarketResponse.DayMarketLine line) ->
                         FoodStorage.DRY.name().equals(line.storage()))
                 .thenComparing(line -> line.food().name()));
 
-        Map<Long, BigDecimal> prices = mealPrices(date);
+        Map<Long, AgeGroupMealConfig> configs = mealConfigs(date);
         List<DayMarketResponse.DayMarketGroup> groups = new ArrayList<>();
         int totalServings = 0;
         BigDecimal revenue = null;
+        BigDecimal foodBudget = null;
         boolean priceMissing = false;
         for (AgeGroupDetailResponse group : ageGroups) {
             int paid = paidServings(servingsByGroup.get(group.id()));
-            BigDecimal price = prices.get(group.id());
-            BigDecimal groupRevenue = price == null ? null : price.multiply(BigDecimal.valueOf(paid));
-            groups.add(new DayMarketResponse.DayMarketGroup(group.id(), group.name(), paid, price, groupRevenue));
+            AgeGroupMealConfig config = configs.get(group.id());
+            BigDecimal price = config == null ? null : config.getMealPrice();
+            BigDecimal fee = config == null ? null : config.getServiceFee();
+            BigDecimal paidCount = BigDecimal.valueOf(paid);
+            BigDecimal groupRevenue = price == null ? null : price.multiply(paidCount);
+            // NUT-19: ngân sách mua thực phẩm = (giá suất − phí dịch vụ) × số suất
+            BigDecimal groupBudget = price == null ? null : price.subtract(fee).multiply(paidCount);
+            groups.add(new DayMarketResponse.DayMarketGroup(
+                    group.id(), group.name(), paid, price, fee, groupRevenue, groupBudget));
             totalServings += paid;
             if (groupRevenue == null) {
                 priceMissing = true;
             } else {
                 revenue = revenue == null ? groupRevenue : revenue.add(groupRevenue);
+                foodBudget = foodBudget == null ? groupBudget : foodBudget.add(groupBudget);
             }
         }
         BigDecimal totalCost = freshCost.add(dryCost);
         DayMarketResponse.DayMarketTotals totals = new DayMarketResponse.DayMarketTotals(
                 totalServings,
                 revenue,
+                foodBudget,
                 totalCost,
                 freshCost,
                 dryCost,
-                revenue == null || priceMissing ? null : revenue.subtract(totalCost),
+                foodBudget == null || priceMissing ? null : foodBudget.subtract(totalCost),
                 ageGroups.stream()
                         .map(g -> new DayMarketResponse.DayMarketGroupCost(
                                 g.id(), costByGroup.getOrDefault(g.id(), BigDecimal.ZERO)))
@@ -228,7 +260,14 @@ public class DayMarketServiceImpl implements DayMarketService {
                 groups,
                 lines,
                 totals,
-                menu(day, dishes, blocks, ageGroups, servingsByGroup));
+                menu(day, dishes, blocks, ageGroups, servingsByGroup),
+                balanced == null ? null : balanced.round());
+    }
+
+    private static Map<Long, Integer> balancedCounts(DayDemand.Balanced balanced, Long campusId) {
+        return balanced.draft().counts().stream()
+                .filter(c -> campusId.equals(c.campusId()))
+                .collect(Collectors.toMap(c -> c.ageGroupId(), c -> c.children(), Integer::sum));
     }
 
     private static DayMarketResponse empty(Long campusId, LocalDate date, String status) {
@@ -241,17 +280,18 @@ public class DayMarketServiceImpl implements DayMarketService {
                 null,
                 List.of(),
                 List.of(),
-                new DayMarketResponse.DayMarketTotals(0, null, zero, zero, zero, null, List.of()),
-                List.of());
+                new DayMarketResponse.DayMarketTotals(0, null, null, zero, zero, zero, null, List.of()),
+                List.of(),
+                null);
     }
 
     // Tiền theo lượng thực dùng: lượng ÷ quy cách mua × đơn giá đơn vị mua, làm tròn đồng (cùng cách thống kê thực đơn)
-    private static BigDecimal costOf(BigDecimal quantity, Food food) {
+    private static BigDecimal costOf(BigDecimal quantity, Food food, BigDecimal unitPrice) {
         BigDecimal size = food.getPurchaseUnitSize();
-        if (size == null || size.signum() <= 0 || food.getUnitPrice() == null) {
+        if (size == null || size.signum() <= 0 || unitPrice == null) {
             return BigDecimal.ZERO;
         }
-        return quantity.multiply(food.getUnitPrice()).divide(size, 0, RoundingMode.HALF_UP);
+        return quantity.multiply(unitPrice).divide(size, 0, RoundingMode.HALF_UP);
     }
 
     // Tiền ăn thu theo trẻ/ngày ⇒ suất tính tiền lấy bữa trưa; nhóm không ăn trưa lấy bữa đầu tiên có suất
@@ -264,14 +304,14 @@ public class DayMarketServiceImpl implements DayMarketService {
                 .orElse(0);
     }
 
-    /** NUT-17: tiền ăn một trẻ một ngày theo cấu hình hiệu lực gần nhất tính đến {@code date} của từng nhóm tuổi. */
-    private Map<Long, BigDecimal> mealPrices(LocalDate date) {
-        Map<Long, BigDecimal> prices = new HashMap<>();
+    /** NUT-17: giá suất và phí dịch vụ theo cấu hình hiệu lực gần nhất tính đến {@code date} của từng nhóm tuổi. */
+    private Map<Long, AgeGroupMealConfig> mealConfigs(LocalDate date) {
+        Map<Long, AgeGroupMealConfig> configs = new HashMap<>();
         for (AgeGroupMealConfig config :
                 configRepository.findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(date)) {
-            prices.putIfAbsent(config.getAgeGroupId(), config.getMealPrice());
+            configs.putIfAbsent(config.getAgeGroupId(), config);
         }
-        return prices;
+        return configs;
     }
 
     private static List<DayMarketResponse.DayMarketSessionMenu> menu(

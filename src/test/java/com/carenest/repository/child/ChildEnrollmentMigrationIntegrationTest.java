@@ -26,7 +26,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class ChildEnrollmentMigrationIntegrationTest {
 
     @Container
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     private static JdbcTemplate db;
 

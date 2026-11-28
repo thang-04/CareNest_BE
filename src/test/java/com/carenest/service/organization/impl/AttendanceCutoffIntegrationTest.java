@@ -2,7 +2,9 @@ package com.carenest.service.organization.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.organization.CutoffRequest;
 import com.carenest.dto.organization.CutoffResponse;
 import com.carenest.exception.GlobalException;
@@ -18,6 +20,7 @@ import java.time.ZoneId;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,7 +42,7 @@ class AttendanceCutoffIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -115,6 +118,66 @@ class AttendanceCutoffIntegrationTest {
     }
 
     @Test
+    @DisplayName("Giờ hẹn ngày nào áp dụng từ ngày đó; lưu lại y hệt lịch đã hẹn thì báo chưa thay đổi")
+    void scheduledChangeAppliesOnItsDate() {
+        service.saveCutoff(principal, year, new CutoffRequest(LocalTime.of(8, 30), LocalDate.of(2026, 9, 1), null));
+        CutoffRequest december = new CutoffRequest(LocalTime.of(9, 0), LocalDate.of(2026, 12, 1), null);
+        service.saveCutoff(principal, year, december);
+        service.saveCutoff(principal, year, new CutoffRequest(LocalTime.of(8, 45), LocalDate.of(2026, 11, 2), null));
+
+        assertThat(service.findCutoffTime(year, LocalDate.of(2026, 11, 30))).contains(LocalTime.of(8, 45));
+        assertThat(service.findCutoffTime(year, LocalDate.of(2026, 12, 1))).contains(LocalTime.of(9, 0));
+        assertThatThrownBy(() -> service.saveCutoff(principal, year, december))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CUTOFF_UNCHANGED);
+    }
+
+    @Test
+    @DisplayName("Hủy được lịch chưa tới ngày áp dụng; ngày đã áp dụng và mốc đầu năm thì không")
+    void scheduledChangeCanBeCancelledBeforeItApplies() {
+        LocalDate start = LocalDate.of(2026, 9, 1);
+        LocalDate december = LocalDate.of(2026, 12, 1);
+        service.saveCutoff(principal, year, new CutoffRequest(LocalTime.of(8, 30), start, null));
+        service.saveCutoff(principal, year, new CutoffRequest(LocalTime.of(9, 0), december, null));
+        service.saveCutoff(principal, year, new CutoffRequest(LocalTime.of(9, 15), december, null));
+
+        assertThatThrownBy(() -> service.cancelScheduledCutoff(principal, year, start))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CUTOFF_NOT_SCHEDULED);
+        expectError(() -> service.cancelScheduledCutoff(vicePrincipal, year, december), ApiCode.FORBIDDEN);
+
+        CutoffResponse response = service.cancelScheduledCutoff(principal, year, december);
+
+        assertThat(response.setting().history()).hasSize(1);
+        assertThat(service.findCutoffTime(year, december)).contains(LocalTime.of(8, 30));
+        // Dòng đã hủy vẫn còn trong bảng để tra lại
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM attendance_cutoffs WHERE school_year_id = ? AND cancelled_at IS NOT NULL",
+                        Long.class,
+                        year))
+                .isEqualTo(2);
+        assertThatThrownBy(() -> service.cancelScheduledCutoff(principal, year, december))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CUTOFF_NOT_SCHEDULED);
+    }
+
+    @Test
+    @DisplayName("Năm sắp diễn ra: không hủy mốc giờ chốt đầu tiên")
+    void firstSettingCannotBeCancelled() {
+        long next = jdbc.queryForObject(
+                "INSERT INTO school_years (name, start_date, end_date, status) "
+                        + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id",
+                Long.class);
+        LocalDate start = LocalDate.of(2027, 9, 1);
+        service.saveCutoff(principal, next, new CutoffRequest(LocalTime.of(8, 30), start, null));
+
+        assertThatThrownBy(() -> service.cancelScheduledCutoff(principal, next, start))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CUTOFF_FIRST_NOT_CANCELLABLE);
+    }
+
+    @Test
     void vicePrincipalCannotSave() {
         expectError(
                 () -> service.saveCutoff(
@@ -128,6 +191,54 @@ class AttendanceCutoffIntegrationTest {
 
         assertThat(response.setting()).isNull();
         assertThat(response.todayTime()).isNull();
+    }
+
+    @Test
+    void defaultScheduleUsesFullDayPickupFromThreePm() {
+        CutoffResponse response = service.saveCutoff(
+                principal, year, new CutoffRequest(LocalTime.of(8, 30), LocalDate.of(2026, 9, 1), null));
+
+        // PCK-04 (phương án A): mặc định mốc tính đủ ngày 15:00, cột V202 cũng mặc định 15:00
+        assertThat(response.setting().fullDayPickupFrom()).isEqualTo(LocalTime.of(15, 0));
+        assertThat(service.findFullDayPickupFrom(year, LocalDate.of(2026, 9, 2)))
+                .contains(LocalTime.of(15, 0));
+        assertThat(jdbc.queryForObject(
+                        "SELECT column_default FROM information_schema.columns WHERE table_name = 'attendance_cutoffs'"
+                                + " AND column_name = 'full_day_pickup_from'",
+                        String.class))
+                .startsWith("'15:00:00'");
+    }
+
+    @Test
+    void scheduleOutOfOrderReturnsErrorOnEachOffendingField() {
+        CutoffRequest request = new CutoffRequest(
+                LocalTime.of(8, 30),
+                LocalDate.of(2026, 9, 1),
+                null,
+                LocalTime.of(8, 0),
+                null,
+                null,
+                null,
+                LocalTime.of(11, 0),
+                LocalTime.of(15, 0),
+                LocalTime.of(15, 30),
+                null,
+                null);
+
+        assertThatThrownBy(() -> service.saveCutoff(principal, year, request))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                    assertThat(((GlobalException) ex).getFieldErrors())
+                            .extracting(FieldErrorResponse::field, FieldErrorResponse::message)
+                            .containsExactly(
+                                    tuple("afternoonStart", "Bắt đầu chiều phải sau Kết thúc sáng (11:00)"),
+                                    tuple("pickupStart", "Bắt đầu trả trẻ phải bằng hoặc sau Mốc tính đủ ngày (15:30)"),
+                                    tuple(
+                                            "latestAfternoonArrival",
+                                            "Giờ đến muộn nhất buổi chiều phải sau Giờ chốt (08:30)"));
+                });
+        assertThat(service.getCutoff(year).setting()).isNull();
     }
 
     private static void expectError(ThrowingCallable call, ApiCode apiCode) {

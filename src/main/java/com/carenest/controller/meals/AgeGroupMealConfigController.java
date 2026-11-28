@@ -35,6 +35,13 @@ public class AgeGroupMealConfigController {
 
     private final AgeGroupMealConfigService configService;
 
+    @GetMapping("/statuses")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<com.carenest.dto.meals.NutritionGroupStatus>>> getGroupStatuses() {
+        return ResponseJson.toJsonWithData(
+                ApiCode.SUCCESSFUL, "Get nutrition group statuses success", configService.getGroupStatuses());
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
     public ResponseEntity<ResponseJson<List<AgeGroupMealConfigResponse>>> getEffectiveConfigs(
@@ -59,7 +66,7 @@ public class AgeGroupMealConfigController {
     }
 
     @PostMapping
-    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    @PreAuthorize("@permissionGuard.has('MEAL_CONFIG_MANAGE')")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<AgeGroupMealConfigResponse>> createConfig(
             @Valid @RequestBody AgeGroupMealConfigRequest request, CurrentUser currentUser) {
@@ -71,18 +78,21 @@ public class AgeGroupMealConfigController {
     }
 
     @PostMapping("/batch")
-    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    @PreAuthorize("@permissionGuard.has('MEAL_CONFIG_MANAGE')")
     public ResponseEntity<ResponseJson<List<AgeGroupMealConfigResponse>>> saveConfigs(
             @Valid @RequestBody AgeGroupMealConfigBatchRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveConfigs|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        List<AgeGroupMealConfigResponse> configs = configService.saveConfigs(currentUser, request.items());
+        List<AgeGroupMealConfigResponse> configs =
+                request.statuses() == null || request.statuses().isEmpty()
+                        ? configService.saveConfigs(currentUser, request.items())
+                        : configService.saveConfigs(currentUser, request.items(), request.statuses());
         log.info("{}|items={}|END", logPrefix, configs.size());
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save age group meal configs success", configs);
     }
 
     @PutMapping("/{configId}")
-    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    @PreAuthorize("@permissionGuard.has('MEAL_CONFIG_MANAGE')")
     public ResponseEntity<ResponseJson<AgeGroupMealConfigResponse>> updateConfig(
             @PathVariable Long configId,
             @Valid @RequestBody AgeGroupMealConfigRequest request,

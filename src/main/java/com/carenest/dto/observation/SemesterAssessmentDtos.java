@@ -16,9 +16,21 @@ public final class SemesterAssessmentDtos {
 
     // metActivities / assessedActivities giữ tên cũ (không đổi contract): nay là số chủ đề Đạt / chủ đề có kết quả
     // (OBS-25)
+    // sourceClassName: kết quả lấy từ bảng chủ đề của lớp cũ (trẻ chuyển lớp cùng năm), null = lớp hiện tại
     @Schema(name = "SemesterAssessmentGoal")
     public record Goal(
-            Long goalId, Short goalNo, String text, Boolean met, int metActivities, int assessedActivities) {}
+            Long goalId,
+            Short goalNo,
+            String text,
+            Boolean met,
+            int metActivities,
+            int assessedActivities,
+            String sourceClassName) {
+
+        public Goal(Long goalId, Short goalNo, String text, Boolean met, int metActivities, int assessedActivities) {
+            this(goalId, goalNo, text, met, metActivities, assessedActivities, null);
+        }
+    }
 
     @Schema(name = "SemesterAssessmentDomain")
     public record Domain(
@@ -31,7 +43,7 @@ public final class SemesterAssessmentDtos {
             Boolean met) {}
 
     @Schema(name = "SemesterAssessmentChild")
-    public record Child(Long childId, String fullName, List<Domain> domains) {}
+    public record Child(Long childId, String fullName, List<Domain> domains, String historyStatus) {}
 
     @Schema(name = "SemesterAssessmentResponse")
     public record Response(
@@ -48,8 +60,74 @@ public final class SemesterAssessmentDtos {
             List<Child> rows,
             boolean canEdit,
             boolean canConfirm,
+            // Lý do chưa xác nhận được: NO_PERMISSION, NOT_HOMEROOM, YEAR_NOT_ACTIVE, DEADLINE_LOCKED, NOT_ENDED,
+            // INCOMPLETE, CONFIRMED; null khi bấm được
+            String confirmBlockedReason,
             Instant confirmedAt,
             String confirmedByName,
             // Họ tên in ở chỗ ký: GV chủ nhiệm, tổ trưởng chuyên môn, PHT (như bản in cuối chủ đề)
-            ThemeEvaluationDtos.ThemeSigners signers) {}
+            ThemeEvaluationDtos.ThemeSigners signers,
+            Boolean canRevise) {
+
+        public Response(
+                Long classId,
+                String className,
+                Long schoolYearId,
+                String yearName,
+                int semester,
+                LocalDate startDate,
+                LocalDate endDate,
+                String status,
+                String note,
+                List<Domain> domains,
+                List<Child> rows,
+                boolean canEdit,
+                boolean canConfirm,
+                String confirmBlockedReason,
+                Instant confirmedAt,
+                String confirmedByName,
+                ThemeEvaluationDtos.ThemeSigners signers) {
+            this(
+                    classId,
+                    className,
+                    schoolYearId,
+                    yearName,
+                    semester,
+                    startDate,
+                    endDate,
+                    status,
+                    note,
+                    domains,
+                    rows,
+                    canEdit,
+                    canConfirm,
+                    confirmBlockedReason,
+                    confirmedAt,
+                    confirmedByName,
+                    signers,
+                    null);
+        }
+
+        public Response withCanRevise(boolean value) {
+            return new Response(
+                    classId,
+                    className,
+                    schoolYearId,
+                    yearName,
+                    semester,
+                    startDate,
+                    endDate,
+                    status,
+                    note,
+                    domains,
+                    rows,
+                    canEdit,
+                    canConfirm,
+                    confirmBlockedReason,
+                    confirmedAt,
+                    confirmedByName,
+                    signers,
+                    value);
+        }
+    }
 }

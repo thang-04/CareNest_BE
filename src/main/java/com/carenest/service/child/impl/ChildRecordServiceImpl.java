@@ -15,10 +15,13 @@ import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.dto.child.HealthDeclarationDraft;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
+import com.carenest.dto.child.LeaveOptionsResponse;
 import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem;
+import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildAllergy;
 import com.carenest.entity.child.ChildGuardian;
@@ -27,6 +30,7 @@ import com.carenest.entity.child.ChildHealthDeclarationHistory;
 import com.carenest.entity.child.ChildHistory;
 import com.carenest.entity.child.ChildPlacement;
 import com.carenest.entity.child.ChildProfile;
+import com.carenest.entity.child.ClassPlacement;
 import com.carenest.entity.child.Enrollment;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.child.ChildAllergyRepository;
@@ -37,17 +41,22 @@ import com.carenest.repository.child.ChildHistoryRepository;
 import com.carenest.repository.child.ChildPlacementRepository;
 import com.carenest.repository.child.ChildProfileRepository;
 import com.carenest.repository.child.ChildRepository;
+import com.carenest.repository.child.ClassPlacementRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildLeaveDataCheck;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.ChildEditRoles;
 import com.carenest.utils.enums.ChildHistoryAction;
 import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.DeclarationState;
@@ -55,6 +64,8 @@ import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.PlacementAction;
+import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -75,7 +86,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /** Không log họ tên, ngày sinh, SĐT, CCCD — chỉ id, số lượng. */
@@ -86,6 +101,11 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private static final String LOG_PREFIX = "[ChildRecordServiceImpl]";
     private static final int MAX_REASON = 300;
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String NO_ACTIVE_YEAR_LEAVE_TODAY_ONLY =
+            "Chỉ cho nghỉ học từ hôm nay khi chưa có năm học đang hoạt động";
+    // Cùng chữ với câu chặn dữ liệu trong ngày ở withdraw (ô leftAt): đổi câu thì đổi cả hai
+    private static final String SAME_DAY_DATA_BLOCKED =
+            "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Thực hiện nghỉ học từ ngày học tiếp theo.";
 
     private final ChildRepository childRepository;
     private final ChildProfileRepository childProfileRepository;
@@ -97,6 +117,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final ClassroomService classroomService;
     private final StaffAssignmentService staffAssignmentService;
     private final StaffAccessPolicy staffAccessPolicy;
+    private final ChildAccessPolicy childAccessPolicy;
     private final NotificationService notificationService;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
@@ -107,6 +128,12 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final TbContactNotifier tbContactNotifier;
     private final ChildPlacementRepository placementRepository;
     private final PlacementRules placementRules;
+    private final com.carenest.repository.child.PlannedAdmissionRepository plannedAdmissionRepository;
+    private final List<com.carenest.service.child.ChildDayUsageCheck> dayUsageChecks;
+    private final SchoolYearService schoolYearService;
+    private final ClassPlacementRepository classPlacementRepository;
+    private final List<ChildLeaveDataCheck> leaveDataChecks;
+    private final PlatformTransactionManager transactionManager;
 
     @Override
     @Transactional(readOnly = true)
@@ -163,28 +190,18 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         String logPrefix = LOG_PREFIX + "|saveDeclaration|userId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
+            // CHD-11: GV không ghi thẳng, gửi yêu cầu qua ChildProfileChangeRequestService (chỉ trẻ trong phạm vi lớp)
+            if (ChildEditRoles.teacherOnly(actor)) {
+                childAccessPolicy.checkCanViewChild(actor, childId);
+                throw GlobalException.of(ApiCode.CHILD_PROFILE_CHANGE_NEEDS_APPROVAL);
+            }
             LocalDate today = LocalDate.now(clock);
             Instant now = clock.instant();
-            Child child = loadInScope(actor, childId, today);
-            if (child.getStatus() == ChildStatus.LEFT) {
-                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
-            }
-            Map<String, String> errors = new LinkedHashMap<>();
-            HealthDeclarationDraft d = EnrollmentFormValidator.validateDeclarationOnly(
-                    request == null ? null : request.declaration(), child.getDateOfBirth(), today, errors);
-            Optional<ChildHealthDeclaration> existing = declarationRepository.findById(childId);
-            String reason = request == null || request.reason() == null
-                    ? ""
-                    : request.reason().strip();
-            if (existing.isPresent() && reason.isEmpty()) {
-                errors.put("reason", "Nhập lý do thay đổi khai báo");
-            } else if (reason.length() > MAX_REASON) {
-                errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
-            }
-            if (!errors.isEmpty()) {
-                throw GlobalException.withFieldErrors(
-                        ApiCode.INVALID_REQUEST_DATA, EnrollmentFormValidator.toList(errors));
-            }
+            ValidDeclaration valid = validateDeclaration(actor, childId, request, today);
+            Child child = valid.child();
+            HealthDeclarationDraft d = valid.draft();
+            Optional<ChildHealthDeclaration> existing = valid.existing();
+            String reason = valid.reason();
 
             HealthDeclarationResponse.DeclarationAllergies beforeAllergies = existing.map(
                             e -> new HealthDeclarationResponse.DeclarationAllergies(
@@ -197,14 +214,21 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             LocalDate beforeTbDate =
                     existing.map(ChildHealthDeclaration::getTbContactDate).orElse(null);
 
-            ChildHealthDeclaration.Answer diet = answer(d.diet());
+            // CHD-13: không báo ăn ⇒ giữ dị ứng, chế độ ăn đã khai; chưa có khai báo thì dùng giá trị của form
+            boolean keepStored = !d.mealRegistered() && existing.isPresent();
+            DeclarationState allergiesState = keepStored ? existing.get().getAllergiesState() : d.allergiesState();
+            List<String> allergyItems = keepStored ? allergyNames(childId) : d.allergies();
+            ChildHealthDeclaration.Answer diet = keepStored
+                    ? new ChildHealthDeclaration.Answer(
+                            existing.get().getDietState(), existing.get().getDietText())
+                    : answer(d.diet());
             ChildHealthDeclaration.Answer otherNotes = answer(d.otherNotes());
             ChildHealthDeclaration.Answer self = answer(d.selfHistory());
             ChildHealthDeclaration.Answer family = answer(d.familyHistory());
             if (existing.isPresent()) {
                 existing.get()
                         .update(
-                                d.allergiesState(),
+                                allergiesState,
                                 diet,
                                 otherNotes,
                                 self,
@@ -216,7 +240,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             } else {
                 declarationRepository.save(ChildHealthDeclaration.declare(
                         childId,
-                        d.allergiesState(),
+                        allergiesState,
                         diet,
                         otherNotes,
                         self,
@@ -227,13 +251,28 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                         now));
             }
             // CHD-06: dị ứng có hiệu lực ngay cho bếp, điểm danh (đọc child_allergies)
-            allergyRepository.deleteByChildId(childId);
-            allergyRepository.saveAll(d.allergies().stream()
-                    .map(name -> ChildAllergy.of(childId, name))
-                    .toList());
+            if (!keepStored) {
+                allergyRepository.deleteByChildId(childId);
+                allergyRepository.saveAll(d.allergies().stream()
+                        .map(name -> ChildAllergy.of(childId, name))
+                        .toList());
+            }
+            // CHD-13: đổi "Báo ăn" ghi vào lịch sử hồ sơ (lịch sử khai báo chỉ có dị ứng, tiền sử)
+            List<ChildFieldChange> mealChange = new ArrayList<>();
+            change(mealChange, "mealRegistered", "Báo ăn", yesNo(child.isMealRegistered()), yesNo(d.mealRegistered()));
+            child.changeMealRegistration(d.mealRegistered());
+            if (!mealChange.isEmpty()) {
+                childHistoryRepository.save(ChildHistory.record(
+                        childId,
+                        ChildHistoryAction.UPDATED,
+                        actor.userId(),
+                        reason.isEmpty() ? null : reason,
+                        objectMapper.writeValueAsString(mealChange),
+                        now));
+            }
 
             HealthDeclarationResponse.DeclarationAllergies afterAllergies =
-                    new HealthDeclarationResponse.DeclarationAllergies(d.allergiesState(), d.allergies());
+                    new HealthDeclarationResponse.DeclarationAllergies(allergiesState, allergyItems);
             HealthDeclarationResponse.DeclarationMedicalHistory afterHistory = medicalHistoryOf(d);
             String allergyChange = Objects.equals(beforeAllergies, afterAllergies)
                     ? null
@@ -266,7 +305,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                         campusId,
                         beforeTbDate,
                         d.tbContactDate(),
-                        "sửa khai báo sức khỏe",
+                        "sửa khai báo ăn và sức khỏe",
                         actor.userId());
             }
             HealthDeclarationResponse response = findDeclaration(childId);
@@ -319,9 +358,30 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             if (child.getStatus() == ChildStatus.LEFT) {
                 throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
             }
+            // Trẻ đăng ký cho năm học sắp tới: không xếp vào lớp năm đang học (xếp ở Xếp lớp năm học mới)
+            if (plannedAdmissionRepository
+                    .findFirstByChildIdAndStatusIn(
+                            childId,
+                            List.of(
+                                    com.carenest.utils.enums.PlannedAdmissionStatus.PENDING,
+                                    com.carenest.utils.enums.PlannedAdmissionStatus.PLACED))
+                    .isPresent()) {
+                throw GlobalException.of(ApiCode.CHILD_PLANNED_FOR_NEXT_YEAR, child.getFullName());
+            }
             Optional<Enrollment> current = enrollmentRepository.findActiveByChildIdIn(List.of(childId), today).stream()
                     .findFirst();
+            // G94-180/CHD-14: lớp chưa bắt đầu (lịch chuyển hoặc ngày bắt đầu đi học ở tương lai), mỗi trẻ tối đa một
+            Optional<Enrollment> upcoming = enrollmentRepository.findStartingAfter(List.of(childId), today).stream()
+                    .findFirst();
             Long fromClassroomId = current.map(Enrollment::getClassroomId).orElse(null);
+            // Xếp lần đầu không trước ngày bắt đầu đi học; chuyển lớp từ hôm nay. Trống = mốc sớm nhất
+            LocalDate earliest = fromClassroomId == null
+                            && child.getStartDate() != null
+                            && child.getStartDate().isAfter(today)
+                    ? child.getStartDate()
+                    : today;
+            LocalDate effectiveDate =
+                    request == null || request.effectiveDate() == null ? earliest : request.effectiveDate();
 
             Map<String, String> errors = new LinkedHashMap<>();
             Long classId = request == null ? null : request.classId();
@@ -332,13 +392,29 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                 errors.put("classId", "Trẻ đang học lớp này. Chọn lớp khác.");
             } else if (!declarationRepository.existsById(childId)) {
                 // CHD-06: trẻ có khai báo sức khỏe trước khi vào lớp (bếp, điểm danh dùng dị ứng)
-                errors.put("classId", "Trẻ chưa có khai báo sức khỏe. Khai báo trước khi xếp lớp.");
+                errors.put("classId", "Trẻ chưa có khai báo ăn và sức khỏe. Khai báo trước khi xếp lớp.");
             } else {
+                // Khóa lớp tới hết giao dịch: hai người cùng xếp không vượt sĩ số tối đa (Điều 15 Điều lệ)
+                classroomService.lockForUpdate(classId);
                 target = classroomService.findClassroomInfo(classId).orElse(null);
-                String problem = placementRules.classProblem(actor, target, today);
+                // Sĩ số tính từ ngày vào lớp trở đi, không tính lịch cũ của chính trẻ (G94-180/CHD-14). Nhóm tuổi chỉ
+                // gợi ý: xếp, chuyển lớp trong năm được sang lớp nhóm khác (G94-180/CHD-13, user chốt 2026-11-22,
+                // 23/11)
+                String problem = placementRules.classProblem(actor, target, effectiveDate, childId);
                 if (problem != null) {
                     errors.put("classId", problem);
                 }
+            }
+            String dateProblem =
+                    effectiveDateProblem(actor, effectiveDate, earliest, today, fromClassroomId != null, target);
+            if (dateProblem != null) {
+                errors.put("effectiveDate", dateProblem);
+            } else if (child.getScheduledLeaveOn() != null && !effectiveDate.isBefore(child.getScheduledLeaveOn())) {
+                // G94-180/CHD-03 (user chốt 2026-11-25): lớp mới từ ngày nghỉ trở đi vô nghĩa, hủy lịch nghỉ trước
+                errors.put(
+                        "effectiveDate",
+                        "Trẻ nghỉ học từ " + DAY.format(child.getScheduledLeaveOn())
+                                + ". Hủy lịch nghỉ trước khi xếp lớp từ ngày này");
             }
             String reason = request == null || request.reason() == null
                     ? ""
@@ -348,25 +424,56 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             } else if (reason.length() > MAX_REASON) {
                 errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
             }
+            // Ngày đã có điểm danh, sức khỏe, đánh giá thì không đổi lớp từ ngày đó (xét ở ngày chuyển lớp)
+            if (fromClassroomId != null && dateProblem == null && hasDailyOperationalData(childId, effectiveDate)) {
+                errors.put(
+                        "effectiveDate",
+                        "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong ngày này. Chọn ngày chuyển lớp từ ngày học"
+                                + " tiếp theo.");
+            }
             if (!errors.isEmpty()) {
                 throw GlobalException.withFieldErrors(
                         ApiCode.INVALID_REQUEST_DATA, EnrollmentFormValidator.toList(errors));
             }
 
-            // Lớp cũ kết thúc hôm qua; vào lớp cũ ngay hôm nay thì bỏ lớp đó (một trẻ một lớp tại một ngày). Flush
-            // trước
-            // khi mở lớp mới: UNIQUE một enrollment đang mở / trẻ, Hibernate ghi INSERT trước UPDATE/DELETE
+            Instant now = clock.instant();
+            // Mục 2: thay lịch vào lớp đầu tiên chưa bắt đầu ⇒ ngày bắt đầu đi học theo ngày vào lớp mới (chỉ khi ngày
+            // bắt đầu đang trùng ngày lớp bị thay; ngày chọn khi tiếp nhận khác thì giữ nguyên)
+            boolean startFollowsFirstClass = fromClassroomId == null
+                    && upcoming.isPresent()
+                    && upcoming.get().getValidFrom().equals(child.getStartDate())
+                    && neverAttended(child, today);
+            // Chuyển / xếp lại khi đã có lớp chưa bắt đầu ⇒ thay lịch cũ (G94-180/CHD-14); chỉ đổi ngày cùng lớp thì
+            // không báo hủy
+            upcoming.ifPresent(old -> placementRules.cancelUpcoming(
+                    childId,
+                    child.getFullName(),
+                    old,
+                    old.getClassroomId().equals(classId) ? null : classNameOf(old.getClassroomId()),
+                    actor.userId(),
+                    now,
+                    today));
+            // Lớp cũ học tới hết ngày trước ngày vào lớp mới (lịch chuyển: tới ngày đó vẫn ở lớp cũ); vào lớp cũ đúng
+            // ngày này thì bỏ lớp đó (một trẻ một lớp tại một ngày). Flush trước khi mở lớp mới: UNIQUE một enrollment
+            // đang mở / trẻ, Hibernate ghi INSERT trước UPDATE/DELETE
             current.ifPresent(enrollment -> {
-                if (enrollment.getValidFrom().isBefore(today)) {
-                    enrollment.endOn(today.minusDays(1));
+                if (enrollment.getValidFrom().isBefore(effectiveDate)) {
+                    enrollment.endOn(effectiveDate.minusDays(1));
                     enrollmentRepository.saveAndFlush(enrollment);
                 } else {
                     enrollmentRepository.delete(enrollment);
                     enrollmentRepository.flush();
                 }
             });
-            placementRules.startEnrollment(childId, target, actor.userId(), today);
+            placementRules.startEnrollment(childId, target, actor.userId(), effectiveDate);
             // G94-180/CHD-02: lớp ở điểm trường khác ⇒ trẻ chuyển điểm trường (điểm trường suy từ lớp)
+            if (startFollowsFirstClass) {
+                child.startOn(effectiveDate);
+            }
+            // Mục 2 (25/11): trẻ chờ xếp lớp chưa có ngày bắt đầu đi học ⇒ lấy ngày vào lớp đầu tiên
+            if (child.getStatus() == ChildStatus.PENDING_PLACEMENT && child.getStartDate() == null) {
+                child.startOn(effectiveDate);
+            }
             child.placeInClass();
             childRepository.save(child);
             placementRules.recordPlacement(
@@ -376,10 +483,80 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                     target,
                     actor.userId(),
                     reason.isEmpty() ? null : reason,
-                    clock.instant(),
+                    now,
+                    effectiveDate,
                     today);
             ChildViewResponse view = childIntakeService.getChildView(childId);
             log.info("{}|fromClassroomId={}|toClassroomId={}|END", logPrefix, fromClassroomId, target.id());
+            return view;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /**
+     * Chưa học ngày nào trong lần tiếp nhận này: lớp đầu tiên của trẻ bắt đầu sau hôm nay. Trẻ mở lại hồ sơ chỉ xét lớp từ
+     * ngày mở lại (lần học trước không tính). Lớp chưa bắt đầu bị hủy / thay không làm đổi kết quả, nên gọi trước hay sau
+     * {@code cancelUpcoming} đều được.
+     */
+    private boolean neverAttended(Child child, LocalDate today) {
+        Optional<Enrollment> first = child.getReadmittedOn() == null
+                ? enrollmentRepository.findFirstByChildIdOrderByValidFromAscIdAsc(child.getId())
+                : enrollmentRepository.findFirstByChildIdAndValidFromGreaterThanEqualOrderByValidFromAscIdAsc(
+                        child.getId(), child.getReadmittedOn());
+        return first.map(enrollment -> enrollment.getValidFrom().isAfter(today)).orElse(true);
+    }
+
+    @Override
+    @Transactional
+    public ChildViewResponse cancelScheduledPlacement(CurrentUser actor, Long childId) {
+        String logPrefix = LOG_PREFIX + "|cancelScheduledPlacement|userId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            Child child = loadInScope(actor, childId, today);
+            if (child.getStatus() == ChildStatus.LEFT) {
+                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            }
+            Enrollment upcoming = enrollmentRepository.findStartingAfter(List.of(childId), today).stream()
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.withFieldErrors(
+                            ApiCode.INVALID_REQUEST_DATA,
+                            EnrollmentFormValidator.toList(
+                                    Map.of("classId", "Trẻ không có lịch vào lớp hoặc chuyển lớp chưa tới ngày"))));
+            Optional<Enrollment> current = enrollmentRepository.findActiveByChildIdIn(List.of(childId), today).stream()
+                    .findFirst();
+            Long campusId =
+                    classroomService.findCampusId(upcoming.getClassroomId()).orElse(null);
+            // G94-180/CHD-14: hủy lịch ⇒ bỏ lớp chưa bắt đầu, báo GV lớp đó
+            placementRules.cancelUpcoming(
+                    childId,
+                    child.getFullName(),
+                    upcoming,
+                    classNameOf(upcoming.getClassroomId()),
+                    actor.userId(),
+                    clock.instant(),
+                    today);
+            if (current.isPresent()) {
+                // Trẻ ở lại lớp hiện tại, lớp không còn ngày kết thúc
+                Enrollment stay = current.get();
+                stay.reopen();
+                enrollmentRepository.save(stay);
+                placementRules.notifyTeachers(
+                        stay.getClassroomId(),
+                        today,
+                        "Hủy lịch chuyển lớp",
+                        child.getFullName() + " ở lại lớp, không chuyển lớp nữa.",
+                        childId);
+            } else {
+                // Chưa học lớp nào ⇒ về Chờ xếp lớp ở điểm trường của lớp bị hủy; giữ ngày bắt đầu đi học (tiếp nhận
+                // luôn ghi, user chốt 2026-11-25)
+                child.awaitPlacement(campusId);
+                childRepository.save(child);
+            }
+            ChildViewResponse view = childIntakeService.getChildView(childId);
+            log.info("{}|classroomId={}|END", logPrefix, upcoming.getClassroomId());
             return view;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -400,9 +577,11 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                     ? Optional.empty()
                     : enrollmentRepository.findActiveByChildIdIn(List.of(childId), today).stream()
                             .findFirst()
+                            // Đã nghỉ ⇒ lớp cuối; chưa có lớp nào bắt đầu ⇒ lớp sắp vào (G94-180/CHD-14)
                             .or(() -> child.getStatus() == ChildStatus.LEFT
                                     ? enrollmentRepository.findFirstByChildIdOrderByValidFromDescIdDesc(childId)
-                                    : Optional.empty())
+                                    : enrollmentRepository.findStartingAfter(List.of(childId), today).stream()
+                                            .findFirst())
                             .map(Enrollment::getClassroomId);
             ChildClassResponse cls = classroomId
                     .flatMap(classroomService::findClassroomInfo)
@@ -460,7 +639,9 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                             p.getPlacedBy(),
                             userNames.get(p.getPlacedBy()),
                             p.getPlacedAt(),
-                            p.getReason()))
+                            p.getReason(),
+                            p.effectiveDate(),
+                            p.getCancelledAt()))
                     .toList();
             log.info("{}|count={}|END", logPrefix, placements.size());
             return placements;
@@ -485,28 +666,24 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         try {
             LocalDate today = LocalDate.now(clock);
             Child child = loadInScope(actor, childId, today);
-            if (child.getStatus() == ChildStatus.LEFT) {
+            // Lịch nghỉ đã tới ngày mà job chưa áp ⇒ áp ngay, trẻ đã nghỉ
+            if (child.getStatus() == ChildStatus.LEFT || applyDueLeaveNow(child, today) != null) {
                 throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
             }
-            Optional<Enrollment> open = enrollmentRepository.findOpenByChildId(childId, today).stream()
-                    .filter(e -> e.getValidTo() == null)
-                    .findFirst();
+            String scheduledProblem = scheduledLeaveProblem(child);
+            if (scheduledProblem != null) {
+                throw GlobalException.withFieldErrors(
+                        ApiCode.INVALID_REQUEST_DATA,
+                        EnrollmentFormValidator.toList(Map.of("leftAt", scheduledProblem)));
+            }
 
             Map<String, String> errors = new LinkedHashMap<>();
             LocalDate leftAt = parseDate(request == null ? null : request.leftAt());
-            if (leftAt == null) {
-                errors.put("leftAt", "Chọn ngày nghỉ học");
-            } else if (leftAt.isAfter(today)) {
-                errors.put("leftAt", "Ngày nghỉ học không được ở tương lai");
-            } else if (leftAt.isBefore(child.getEnrolledOn())) {
-                errors.put(
-                        "leftAt",
-                        "Ngày nghỉ học không được trước ngày tiếp nhận (" + DAY.format(child.getEnrolledOn()) + ")");
-            } else if (child.getReadmittedOn() != null && leftAt.isBefore(child.getReadmittedOn())) {
-                errors.put(
-                        "leftAt",
-                        "Ngày nghỉ học không được trước ngày mở lại hồ sơ (" + DAY.format(child.getReadmittedOn())
-                                + ")");
+            String leftAtProblem = leftAt == null
+                    ? "Chọn ngày nghỉ học"
+                    : leaveDateProblem(child, leftAt, today, activeYearEnd(actor));
+            if (leftAtProblem != null) {
+                errors.put("leftAt", leftAtProblem);
             }
             String reason = request == null || request.reason() == null
                     ? ""
@@ -516,45 +693,195 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             } else if (reason.length() > MAX_REASON) {
                 errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
             }
+            if (leftAt != null && leftAt.equals(today) && hasDailyOperationalData(childId, today)) {
+                errors.put(
+                        "leftAt",
+                        "Trẻ đã có điểm danh, sức khỏe hoặc đánh giá trong hôm nay. Thực hiện nghỉ học từ ngày học tiếp theo.");
+            }
+            // G94-180/CHD-03 (user chốt 2026-11-25): số đo kỳ cân đo, phiếu khám trong hôm nay cũng chặn nghỉ hôm nay
+            if (leftAt != null && leftAt.equals(today) && hasLeaveData(childId, today)) {
+                errors.putIfAbsent("leftAt", SAME_DAY_DATA_BLOCKED);
+            }
             if (!errors.isEmpty()) {
                 throw GlobalException.withFieldErrors(
                         ApiCode.INVALID_REQUEST_DATA, EnrollmentFormValidator.toList(errors));
             }
 
-            Long classroomId = open.map(Enrollment::getClassroomId).orElse(null);
-            open.ifPresent(enrollment -> {
-                // Nghỉ từ leftAt ⇒ học tới hết ngày trước đó; nghỉ ngay ngày vào lớp thì bỏ lớp đó (như chuyển năm học)
-                if (enrollment.getValidFrom().isBefore(leftAt)) {
-                    enrollment.endOn(leftAt.minusDays(1));
-                    enrollmentRepository.save(enrollment);
-                } else {
-                    // Bỏ lớp này thì có thể không còn lớp nào chỉ ra điểm trường của trẻ (xếp lớp đã bỏ điểm trường
-                    // tiếp
-                    // nhận) ⇒ ghi điểm trường của lớp vào hồ sơ để trẻ đã nghỉ vẫn thuộc điểm trường đó (mở lại, phạm
-                    // vi PHT)
-                    classroomService.findCampusId(enrollment.getClassroomId()).ifPresent(child::keepCampus);
-                    enrollmentRepository.delete(enrollment);
-                }
-            });
-            child.withdraw(leftAt, reason);
-            childRepository.save(child);
-            childHistoryRepository.save(ChildHistory.record(
-                    childId, ChildHistoryAction.WITHDRAWN, actor.userId(), reason, clock.instant()));
-            if (classroomId != null) {
-                Set<Long> teacherIds = new HashSet<>(staffAssignmentService
-                        .findCurrentTeacherIds(List.of(classroomId), today)
-                        .getOrDefault(classroomId, List.of()));
-                notificationService.notifyUsers(
-                        teacherIds,
-                        NotificationType.CHILD_WITHDRAWN,
-                        "Trẻ nghỉ học",
-                        child.getFullName() + " nghỉ học từ ngày " + DAY.format(leftAt) + ".",
-                        childId);
-            }
-            // CHD-04: tài khoản chỉ là phụ huynh không còn con đang học ⇒ khóa sau commit (listener feature account)
-            eventPublisher.publishEvent(new YearTransitionService.ChildrenLeftSchoolEvent(List.of(childId), leftAt));
+            boolean scheduled = leftAt.isAfter(today);
+            Long classroomId = scheduled
+                    ? scheduleLeave(actor, child, leftAt, reason, today)
+                    : applyLeave(child, leftAt, reason, actor.userId(), today, false);
             ChildViewResponse view = childIntakeService.getChildView(childId);
-            log.info("{}|classroomId={}|END", logPrefix, classroomId);
+            log.info("{}|scheduled={}|classroomId={}|END", logPrefix, scheduled, classroomId);
+            return view;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /**
+     * G94-180/CHD-03 (user chốt 2026-11-25): nghỉ từ ngày sau hôm nay ⇒ lịch nghỉ. Trẻ vẫn Đang học; lớp, lịch chuyển lớp,
+     * đăng ký năm sau không đổi tới ngày nghỉ (00:05 ngày đó {@link #applyDueScheduledLeaves} gọi {@link #applyLeave}).
+     * Trả lớp đầu tiên được báo (để log).
+     */
+    private Long scheduleLeave(CurrentUser actor, Child child, LocalDate leftAt, String reason, LocalDate today) {
+        Long childId = child.getId();
+        child.scheduleLeave(leftAt, reason, actor.userId());
+        childRepository.save(child);
+        List<Enrollment> open = openEnrollments(childId, today);
+        // Hôm nay trẻ còn ở lớp năm đang học nên còn trên bảng xếp lớp năm sau: ghi Nghỉ học để kích hoạt năm trước
+        // ngày nghỉ không đưa trẻ vào lớp năm mới
+        open.stream()
+                .filter(e -> !e.getValidFrom().isAfter(today))
+                .findFirst()
+                .ifPresent(current -> markLeavingOnNewYearBoard(childId, current.getClassroomId(), actor.userId()));
+        childHistoryRepository.save(ChildHistory.record(
+                childId, ChildHistoryAction.LEAVE_SCHEDULED, actor.userId(), reason, clock.instant()));
+        List<Long> classroomIds =
+                open.stream().map(Enrollment::getClassroomId).distinct().toList();
+        notifyClassTeachers(
+                classroomIds,
+                today,
+                "Lịch nghỉ học",
+                child.getFullName() + " sẽ nghỉ học từ ngày " + DAY.format(leftAt) + ".",
+                childId);
+        return classroomIds.isEmpty() ? null : classroomIds.getFirst();
+    }
+
+    /**
+     * G94-180/CHD-03, CHD-04: trẻ Đã nghỉ từ {@code leftAt} — cho nghỉ hôm nay, hoặc job áp lịch nghỉ đã tới ngày
+     * ({@code scheduled}). Lớp học tới hết ngày trước đó, lớp chưa bắt đầu bị hủy, xóa lịch nghỉ, hủy đăng ký năm sau,
+     * lịch sử WITHDRAWN của {@code actorId}, báo GV, khóa phụ huynh sau commit. Trả lớp đầu tiên được báo (để log).
+     */
+    private Long applyLeave(
+            Child child, LocalDate leftAt, String reason, Long actorId, LocalDate today, boolean scheduled) {
+        Long childId = child.getId();
+        // G94-180/CHD-03, CHD-14: lớp đang học tới ngày nghỉ (kể cả đang có lịch chuyển) và lớp chưa bắt đầu
+        List<Enrollment> open = openEnrollments(childId, leftAt);
+        // Báo GV lớp đang học và lớp chưa bắt đầu (GV lớp đó đã được báo trẻ sẽ vào)
+        List<Long> classroomIds =
+                open.stream().map(Enrollment::getClassroomId).distinct().toList();
+        boolean keepsClass = open.stream().anyMatch(e -> e.getValidFrom().isBefore(leftAt));
+        boolean campusKept = false;
+        Instant now = clock.instant();
+        for (Enrollment enrollment : open) {
+            // Nghỉ từ leftAt ⇒ học tới hết ngày trước đó; nghỉ ngay ngày vào lớp thì bỏ lớp đó (như chuyển năm học)
+            if (enrollment.getValidFrom().isBefore(leftAt)) {
+                enrollment.endOn(leftAt.minusDays(1));
+                enrollmentRepository.save(enrollment);
+                continue;
+            }
+            // Bỏ hết lớp thì không còn lớp nào chỉ ra điểm trường của trẻ (xếp lớp đã bỏ điểm trường tiếp nhận) ⇒
+            // ghi điểm trường của lớp đầu tiên bị bỏ để trẻ đã nghỉ vẫn thuộc điểm trường đó (mở lại, phạm vi PHT)
+            if (!keepsClass && !campusKept) {
+                classroomService.findCampusId(enrollment.getClassroomId()).ifPresent(child::keepCampus);
+                campusKept = true;
+            }
+            // Lịch chuyển / lớp chưa bắt đầu lúc quyết định nghỉ: xóa và đánh dấu dòng lịch sử đã hủy (G94-180/CHD-14).
+            // Lịch nghỉ đặt trước ngày nghỉ nên mọi lớp từ ngày nghỉ trở đi đều chưa bắt đầu lúc đặt
+            if (scheduled || enrollment.getValidFrom().isAfter(today)) {
+                placementRules.cancelUpcoming(childId, child.getFullName(), enrollment, null, actorId, now, today);
+            } else {
+                enrollmentRepository.delete(enrollment);
+            }
+        }
+        child.withdraw(leftAt, reason);
+        childRepository.save(child);
+        // CHD-11: trẻ đã đăng ký năm sau mà nghỉ học ⇒ hủy đăng ký, kẻo kích hoạt năm mới vẫn nhận trẻ
+        plannedAdmissionRepository
+                .findFirstByChildIdAndStatusIn(
+                        childId,
+                        List.of(
+                                com.carenest.utils.enums.PlannedAdmissionStatus.PENDING,
+                                com.carenest.utils.enums.PlannedAdmissionStatus.PLACED))
+                .ifPresent(admission -> {
+                    admission.cancel();
+                    plannedAdmissionRepository.save(admission);
+                });
+        childHistoryRepository.save(ChildHistory.record(childId, ChildHistoryAction.WITHDRAWN, actorId, reason, now));
+        notifyClassTeachers(
+                classroomIds,
+                today,
+                "Trẻ nghỉ học",
+                child.getFullName() + " nghỉ học từ ngày " + DAY.format(leftAt) + ".",
+                childId);
+        // CHD-04: tài khoản chỉ là phụ huynh không còn con đang học tính tới hôm nay ⇒ khóa sau commit (listener
+        // feature account). Xét theo hôm nay để job áp bù nhiều ngày vẫn thấy đủ anh chị em đã nghỉ
+        eventPublisher.publishEvent(new YearTransitionService.ChildrenLeftSchoolEvent(List.of(childId), today));
+        return classroomIds.isEmpty() ? null : classroomIds.getFirst();
+    }
+
+    // Lớp chưa kết thúc tới ngày date (gồm lớp sẽ học), theo ngày vào lớp
+    private List<Enrollment> openEnrollments(Long childId, LocalDate date) {
+        return enrollmentRepository.findOpenByChildId(childId, date).stream()
+                .sorted(java.util.Comparator.comparing(Enrollment::getValidFrom))
+                .toList();
+    }
+
+    private void notifyClassTeachers(
+            List<Long> classroomIds, LocalDate today, String title, String body, Long childId) {
+        for (Long classroomId : classroomIds) {
+            Set<Long> teacherIds = new HashSet<>(staffAssignmentService
+                    .findCurrentTeacherIds(List.of(classroomId), today)
+                    .getOrDefault(classroomId, List.of()));
+            notificationService.notifyUsers(teacherIds, NotificationType.CHILD_WITHDRAWN, title, body, childId);
+        }
+    }
+
+    // G94-180/CHD-03 (user chốt 2026-11-25): mỗi trẻ tối đa một lịch nghỉ; chọn ngày khác ⇒ hủy lịch trước
+    private String scheduledLeaveProblem(Child child) {
+        return child.getScheduledLeaveOn() == null
+                ? null
+                : "Trẻ đã có lịch nghỉ học từ " + DAY.format(child.getScheduledLeaveOn())
+                        + ". Hủy lịch nghỉ trước khi chọn ngày khác";
+    }
+
+    @Override
+    @Transactional
+    public ChildViewResponse cancelScheduledLeave(CurrentUser actor, Long childId) {
+        String logPrefix = LOG_PREFIX + "|cancelScheduledLeave|userId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            Child child = loadInScope(actor, childId, today);
+            // Lịch tới ngày (≤ hôm nay) mà job 00:05 chưa áp ⇒ áp ngay, không hủy được nữa
+            LocalDate dueLeave = applyDueLeaveNow(child, today);
+            if (dueLeave != null) {
+                throw GlobalException.of(ApiCode.CHILD_LEAVE_ALREADY_DUE, dueLeave);
+            }
+            if (child.getStatus() == ChildStatus.LEFT) {
+                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            }
+            LocalDate leaveOn = child.getScheduledLeaveOn();
+            if (leaveOn == null) {
+                throw GlobalException.of(ApiCode.CHILD_NO_SCHEDULED_LEAVE);
+            }
+            if (leaveKeptByActivatedYear(actor, childId, leaveOn)) {
+                throw GlobalException.of(ApiCode.CHILD_LEAVE_LOCKED_BY_NEW_YEAR);
+            }
+            child.clearScheduledLeave();
+            childRepository.save(child);
+            unmarkLeavingOnNewYearBoard(childId);
+            childHistoryRepository.save(ChildHistory.record(
+                    childId,
+                    ChildHistoryAction.LEAVE_CANCELLED,
+                    actor.userId(),
+                    "Lịch nghỉ học từ " + DAY.format(leaveOn),
+                    clock.instant()));
+            // Cùng các lớp đã được báo lúc đặt lịch: lớp đang học và lớp chưa bắt đầu
+            List<Long> classroomIds = openEnrollments(childId, today).stream()
+                    .map(Enrollment::getClassroomId)
+                    .distinct()
+                    .toList();
+            notifyClassTeachers(
+                    classroomIds,
+                    today,
+                    "Hủy lịch nghỉ học",
+                    "Hủy lịch nghỉ học của " + child.getFullName() + " (từ " + DAY.format(leaveOn) + ").",
+                    childId);
+            ChildViewResponse view = childIntakeService.getChildView(childId);
+            log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -564,12 +891,247 @@ public class ChildRecordServiceImpl implements ChildRecordService {
 
     @Override
     @Transactional(readOnly = true)
+    public LeaveOptionsResponse leaveOptions(CurrentUser actor, Long childId) {
+        String logPrefix = LOG_PREFIX + "|leaveOptions|userId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            Child child = loadInScope(actor, childId, today);
+            // Lịch nghỉ đã tới ngày mà job chưa áp ⇒ áp ngay (transaction riêng, không theo readOnly), trẻ đã nghỉ
+            if (child.getStatus() == ChildStatus.LEFT || applyDueLeaveNow(child, today) != null) {
+                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            }
+            // Câu withdraw trả khi chọn hôm nay, cùng thứ tự: trẻ đã có lịch nghỉ trước hết; dữ liệu
+            // ChildDayUsageCheck đè lỗi ngày cùng ô leftAt; dữ liệu ChildLeaveDataCheck chỉ báo khi ngày không lỗi
+            LocalDate yearEnd = activeYearEnd(actor);
+            String todayProblem = scheduledLeaveProblem(child);
+            if (todayProblem == null) {
+                todayProblem = hasDailyOperationalData(childId, today)
+                        ? SAME_DAY_DATA_BLOCKED
+                        : leaveDateProblem(child, today, today, yearEnd);
+            }
+            if (todayProblem == null && hasLeaveData(childId, today)) {
+                todayProblem = SAME_DAY_DATA_BLOCKED;
+            }
+            boolean todayAllowed = todayProblem == null;
+            // G94-180/CHD-03 (user chốt 2026-11-25): chọn ngày bất kỳ tới hết năm học; nghỉ hè (năm đã kết thúc hoặc
+            // chưa
+            // có năm đang hoạt động) chỉ chọn hôm nay (min = max = hôm nay, vẫn theo todayAllowed)
+            boolean summer = yearEnd == null || yearEnd.isBefore(today);
+            LeaveOptionsResponse options = summer
+                    ? new LeaveOptionsResponse(today, todayAllowed, todayProblem, today, today)
+                    : new LeaveOptionsResponse(
+                            today, todayAllowed, todayProblem, todayAllowed ? today : today.plusDays(1), yearEnd);
+            log.info("{}|todayAllowed={}|END", logPrefix, options.todayAllowed());
+            return options;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public List<Long> applyDueScheduledLeaves(LocalDate today) {
+        String logPrefix = LOG_PREFIX + "|applyDueScheduledLeaves";
+        log.info("{}|START", logPrefix);
+        try {
+            List<Long> due = childRepository.findIdsWithLeaveDue(today);
+            // Mỗi trẻ một transaction mới: lỗi ở một trẻ chỉ rollback trẻ đó; sự kiện khóa phụ huynh chạy sau
+            // commit của chính trẻ đó
+            TransactionTemplate perChild = perChildTransaction();
+            List<Long> applied = new ArrayList<>();
+            for (Long childId : due) {
+                try {
+                    if (Boolean.TRUE.equals(perChild.execute(status -> applyScheduledLeave(childId, today)))) {
+                        applied.add(childId);
+                    }
+                } catch (RuntimeException ex) {
+                    // Lịch của trẻ lỗi còn nguyên: lần chạy sau thử lại
+                    log.warn(
+                            "{}|childId={}|ERROR|type={}",
+                            logPrefix,
+                            childId,
+                            ex.getClass().getSimpleName());
+                }
+            }
+            log.info("{}|due={}|applied={}|END", logPrefix, due.size(), applied.size());
+            return applied;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /**
+     * G94-180/CHD-03: lịch nghỉ đã tới ngày (≤ hôm nay) mà job 00:05 chưa áp (00:00–00:05, hoặc lần chạy trước lỗi ở trẻ
+     * này) ⇒ áp ngay bằng đúng bước của job, transaction riêng có khóa dòng nên chạy trùng job chỉ áp một lần. Áp lỗi thì
+     * lỗi trả về, lịch còn nguyên. Trả ngày nghỉ khi lịch đã tới ngày (trẻ đã nghỉ), null khi không.
+     */
+    private LocalDate applyDueLeaveNow(Child child, LocalDate today) {
+        LocalDate leaveOn = child.getScheduledLeaveOn();
+        if (child.getStatus() == ChildStatus.LEFT || leaveOn == null || leaveOn.isAfter(today)) {
+            return null;
+        }
+        perChildTransaction().execute(status -> applyScheduledLeave(child.getId(), today));
+        return leaveOn;
+    }
+
+    private TransactionTemplate perChildTransaction() {
+        TransactionTemplate perChild = new TransactionTemplate(transactionManager);
+        perChild.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return perChild;
+    }
+
+    // Khóa dòng trẻ rồi xét lại: lần chạy khác vừa áp (00:05 và lúc khởi động) ⇒ bỏ qua, không ghi lịch sử lần 2
+    private boolean applyScheduledLeave(Long childId, LocalDate today) {
+        Child child = childRepository.findLockedById(childId).orElse(null);
+        if (child == null
+                || child.getStatus() == ChildStatus.LEFT
+                || child.getScheduledLeaveOn() == null
+                || child.getScheduledLeaveOn().isAfter(today)) {
+            return false;
+        }
+        applyLeave(
+                child,
+                child.getScheduledLeaveOn(),
+                child.getScheduledLeaveReason(),
+                child.getScheduledLeaveBy(),
+                today,
+                true);
+        return true;
+    }
+
+    /**
+     * G94-180/CHD-03 (user chốt 2026-11-25): ngày nghỉ học là ngày bất kỳ (không bắt buộc ngày học) từ hôm nay tới ngày
+     * kết thúc năm học đang hoạt động ({@code yearEnd}), không trước ngày tiếp nhận / mở lại hồ sơ. Nghỉ hè (năm đã kết
+     * thúc, hoặc chưa có năm đang hoạt động): chỉ nhận hôm nay, không đặt lịch. Null khi hợp lệ. Dùng chung cho withdraw và leaveOptions.
+     */
+    private String leaveDateProblem(Child child, LocalDate leftAt, LocalDate today, LocalDate yearEnd) {
+        if (leftAt.isBefore(today)) {
+            return "Ngày nghỉ học không được trước hôm nay";
+        }
+        if (leftAt.isAfter(today) && yearEnd == null) {
+            return NO_ACTIVE_YEAR_LEAVE_TODAY_ONLY;
+        }
+        if (yearEnd != null && leftAt.isAfter(yearEnd) && leftAt.isAfter(today)) {
+            return "Ngày nghỉ học phải trong năm học (tới " + DAY.format(yearEnd) + ")";
+        }
+        if (leftAt.isBefore(child.getEnrolledOn())) {
+            return "Ngày nghỉ học không được trước ngày tiếp nhận (" + DAY.format(child.getEnrolledOn()) + ")";
+        }
+        if (child.getReadmittedOn() != null && leftAt.isBefore(child.getReadmittedOn())) {
+            return "Ngày nghỉ học không được trước ngày mở lại hồ sơ (" + DAY.format(child.getReadmittedOn()) + ")";
+        }
+        return null;
+    }
+
+    /**
+     * G94-180/CHD-03: ghi quyết định Nghỉ học cho trẻ ở bảng xếp lớp năm sắp tới (thay quyết định cũ nếu có), để kích hoạt
+     * năm trước ngày nghỉ không xếp trẻ vào lớp mới, không báo phụ huynh lớp mới, không chặn bước xếp lớp. Lớp nguồn là
+     * lớp trẻ đang học hôm nay, như bảng xếp lớp đọc.
+     */
+    private void markLeavingOnNewYearBoard(Long childId, Long currentClassroomId, Long actorId) {
+        SchoolYearDetailResponse planned = schoolYearService.findNextPlannedYear();
+        if (planned == null) {
+            return;
+        }
+        ClassPlacement placement = classPlacementRepository.findAllBySchoolYearId(planned.id()).stream()
+                .filter(p -> p.getChildId().equals(childId))
+                .findFirst()
+                .orElseGet(() -> ClassPlacement.create(planned.id(), childId));
+        placement.decide(currentClassroomId, PlacementAction.LEAVE, null, actorId);
+        classPlacementRepository.save(placement);
+    }
+
+    /**
+     * G94-180/CHD-03: hủy lịch nghỉ ⇒ xóa dòng Nghỉ học của trẻ ở bảng xếp lớp năm sắp tới. Chỉ xóa khi quyết định là
+     * Nghỉ học; quyết định khác (chuyển lên, giữ lại...) do người dùng ghi sau đó thì giữ nguyên.
+     */
+    private void unmarkLeavingOnNewYearBoard(Long childId) {
+        SchoolYearDetailResponse planned = schoolYearService.findNextPlannedYear();
+        if (planned == null) {
+            return;
+        }
+        classPlacementRepository.findAllBySchoolYearId(planned.id()).stream()
+                .filter(p -> p.getChildId().equals(childId) && p.getAction() == PlacementAction.LEAVE)
+                .findFirst()
+                .ifPresent(classPlacementRepository::delete);
+    }
+
+    /**
+     * G94-180/CHD-14: ngày vào lớp mới không trước {@code earliest} (hôm nay, hoặc ngày bắt đầu đi học khi xếp lần đầu),
+     * không sau ngày kết thúc năm học của lớp, là ngày học. Null khi hợp lệ.
+     */
+    private String effectiveDateProblem(
+            CurrentUser actor,
+            LocalDate date,
+            LocalDate earliest,
+            LocalDate today,
+            boolean transfer,
+            ClassroomInfoResponse target) {
+        String label = transfer ? "Ngày chuyển lớp" : "Ngày vào lớp";
+        if (date.isBefore(earliest)) {
+            return earliest.equals(today)
+                    ? label + " không được trước hôm nay"
+                    : label + " không được trước ngày bắt đầu đi học (" + DAY.format(earliest) + ")";
+        }
+        if (target != null && target.yearEnd() != null && date.isAfter(target.yearEnd())) {
+            return label + " không được sau ngày kết thúc năm học (" + DAY.format(target.yearEnd()) + ")";
+        }
+        if (!schoolYearService.isSchoolDay(date)) {
+            return SchoolDayMessages.explain(label, date, holidaysOf(actor, target));
+        }
+        return null;
+    }
+
+    // CHD-14: đợt nghỉ của năm lớp đích; chưa có lớp đích thì không có đợt nghỉ để nêu
+    private List<SchoolHolidayItem> holidaysOf(CurrentUser actor, ClassroomInfoResponse target) {
+        return target == null || target.schoolYearId() == null
+                ? List.of()
+                : schoolYearService.getHolidays(actor, target.schoolYearId());
+    }
+
+    // CHD-03: ngày nghỉ học luôn thuộc năm đang hoạt động; chưa có năm đang hoạt động ⇒ null
+    private LocalDate activeYearEnd(CurrentUser actor) {
+        return activeYear(actor).map(SchoolYearDetailResponse::endDate).orElse(null);
+    }
+
+    private Optional<SchoolYearDetailResponse> activeYear(CurrentUser actor) {
+        return schoolYearService.getSchoolYears(actor, SchoolYearStatus.ACTIVE).stream()
+                .findFirst();
+    }
+
+    /**
+     * G94-180/CHD-04: năm mới kích hoạt khi trẻ đã có lịch nghỉ thì kích hoạt coi trẻ là nghỉ (bảng xếp lớp ghi Nghỉ học):
+     * không vào lớp năm mới, phụ huynh bị khóa. Ngày nghỉ trước ngày bắt đầu năm đang hoạt động mà trẻ không có lớp từ
+     * ngày đó ⇒ hủy lịch sẽ để trẻ Đang học mà không có lớp, nên giữ lịch (sau ngày nghỉ dùng Mở lại hồ sơ).
+     */
+    private boolean leaveKeptByActivatedYear(CurrentUser actor, Long childId, LocalDate leaveOn) {
+        LocalDate activeStart =
+                activeYear(actor).map(SchoolYearDetailResponse::startDate).orElse(null);
+        return activeStart != null
+                && leaveOn.isBefore(activeStart)
+                && enrollmentRepository.findOpenByChildId(childId, activeStart).isEmpty();
+    }
+
+    private boolean hasDailyOperationalData(Long childId, LocalDate date) {
+        return dayUsageChecks.stream().anyMatch(check -> check.hasData(childId, date));
+    }
+
+    // G94-180/CHD-03: dữ liệu trong ngày chỉ chặn nghỉ học (số đo, phiếu khám), ngoài ChildDayUsageCheck
+    private boolean hasLeaveData(Long childId, LocalDate date) {
+        return leaveDataChecks.stream().anyMatch(check -> check.hasData(childId, date));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ChildEditDraft prepareEdit(CurrentUser actor, Long childId, UpdateChildRequest request) {
         String logPrefix = LOG_PREFIX + "|prepareEdit|userId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
-            Child child = loadInScope(actor, childId, today);
+            Child child = loadEditable(actor, childId, today);
             if (child.getStatus() == ChildStatus.LEFT) {
                 throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
             }
@@ -734,7 +1296,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
-            Child child = loadInScope(actor, childId, today);
+            Child child = loadEditable(actor, childId, today);
             if (child.getStatus() == ChildStatus.LEFT) {
                 throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
             }
@@ -979,6 +1541,10 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         return value == null ? null : value.toString();
     }
 
+    private static String yesNo(boolean value) {
+        return value ? "Có" : "Không";
+    }
+
     private static String day(LocalDate date) {
         return date == null ? null : DAY.format(date);
     }
@@ -999,6 +1565,62 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             case GUARDIAN -> "Người giám hộ";
             default -> relationship.name();
         };
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkDeclaration(CurrentUser actor, Long childId, HealthDeclarationRequest request) {
+        String logPrefix = LOG_PREFIX + "|checkDeclaration|userId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            validateDeclaration(actor, childId, request, LocalDate.now(clock));
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private record ValidDeclaration(
+            Child child, HealthDeclarationDraft draft, Optional<ChildHealthDeclaration> existing, String reason) {}
+
+    // Phạm vi + hợp lệ của khai báo (CHD-06); dùng chung khi lưu thẳng và khi GV gửi yêu cầu (CHD-11)
+    private ValidDeclaration validateDeclaration(
+            CurrentUser actor, Long childId, HealthDeclarationRequest request, LocalDate today) {
+        Child child = loadEditable(actor, childId, today);
+        if (child.getStatus() == ChildStatus.LEFT) {
+            throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+        }
+        Map<String, String> errors = new LinkedHashMap<>();
+        HealthDeclarationDraft d = EnrollmentFormValidator.validateDeclarationOnly(
+                request == null ? null : request.declaration(), child.getDateOfBirth(), today, errors);
+        Optional<ChildHealthDeclaration> existing = declarationRepository.findById(childId);
+        String reason = request == null || request.reason() == null
+                ? ""
+                : request.reason().strip();
+        if (existing.isPresent() && reason.isEmpty()) {
+            errors.put("reason", "Nhập lý do thay đổi khai báo");
+        } else if (reason.length() > MAX_REASON) {
+            errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
+        }
+        if (!errors.isEmpty()) {
+            throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, EnrollmentFormValidator.toList(errors));
+        }
+        return new ValidDeclaration(child, d, existing, reason);
+    }
+
+    /**
+     * Phạm vi sửa hồ sơ/khai báo sức khỏe. GV được HT cấp thêm CHILD_PROFILE_EDIT (AUTH-10) chỉ sửa trẻ lớp đang được
+     * phân công (AUTH-03, AUTH-13); trẻ ngoài lớp và trẻ không tồn tại cùng 403. BGH theo {@link #loadInScope}.
+     */
+    private Child loadEditable(CurrentUser actor, Long childId, LocalDate today) {
+        if (ChildEditRoles.teacherOnly(actor)) {
+            if (!childAccessPolicy.canViewChild(actor, childId)) {
+                throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
+            }
+            return childRepository.findById(childId).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_ACCESS_DENIED));
+        }
+        return loadInScope(actor, childId, today);
     }
 
     /** Như mở lại hồ sơ: với PHT, trẻ không tồn tại và trẻ ngoài điểm trường cùng 403 (không dò được id). */

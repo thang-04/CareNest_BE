@@ -53,7 +53,7 @@ class EduYearPlanServiceIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     @TestConfiguration
     static class FixedClockConfig {
@@ -272,6 +272,14 @@ class EduYearPlanServiceIntegrationTest {
         return context;
     }
 
+    @Autowired
+    private EduPlanTimeLock timeLock;
+
+    @org.junit.jupiter.api.AfterEach
+    void disableTimeLock() {
+        org.springframework.test.util.ReflectionTestUtils.setField(timeLock, "enabled", false);
+    }
+
     @BeforeEach
     void setUp() {
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
@@ -425,7 +433,7 @@ class EduYearPlanServiceIntegrationTest {
                         List.of(theme("t-1", null))),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
 
-        assertThat(created.code()).isEqualTo("KHN-KHNH-2627-MGB");
+        assertThat(created.code()).isEqualTo("KHN-KHNH-2627-MG3");
         assertThat(created.status()).isEqualTo(EduPlanStatus.DRAFT);
         YearPlanDetailResponse.Domain physical = domain(created, domainPhysical);
         YearPlanDetailResponse.Domain language = domain(created, domainLanguage);
@@ -1603,14 +1611,16 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(underReview.review()).isNotNull();
         assertThat(underReview.review().waitingRole()).isEqualTo("VICE_PRINCIPAL");
 
-        // PRINCIPAL chưa tới lượt: không mở được bản Chờ duyệt (EDU-73(2)(3) ⇒ 7384)
+        // PRINCIPAL ở bước sau của chuỗi: xem được bản Chờ duyệt nhưng chưa tới lượt duyệt (EDU-93)
+        assertThat(service.getYearPlan(principal, draft.id()).permissions().canApprove())
+                .isFalse();
         assertErrorCode(
                 () -> service.issueYearPlan(
                         principal,
                         draft.id(),
                         "HT duyệt sớm",
                         new YearPlanEditRequest(null, underReview.revision(), UUID.randomUUID())),
-                ApiCode.EDU_PLAN_NOT_RELEASED);
+                ApiCode.NOT_YOUR_REVIEW_STEP);
 
         // VICE_PRINCIPAL duyệt bước 1: vẫn giữ REVIEW, chuyển waitingRole sang PRINCIPAL
         YearPlanDetailResponse advanced = service.issueYearPlan(
@@ -1651,6 +1661,123 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
+    void reviewQueueScopesBothPlanLevelsAndKeepsReviewTurnPermissions() {
+        jdbc.update("UPDATE edu_settings SET workflow_policy = jsonb_set(workflow_policy, '{year,reviewers}', "
+                + "'[\"VICE_PRINCIPAL\",\"PRINCIPAL\"]'::jsonb), workflow_revision = workflow_revision + 1");
+        long priorYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
+        long emptyYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31') RETURNING id");
+
+        var team = teamDraft(ageGroup3, leader3);
+        service.submitYearPlan(leader3, team.id(), "Gửi duyệt tổ", edit(leader3, team.id(), true));
+        var annual = service.createYearPlan(
+                vicePrincipal,
+                sampleSchoolYearRequest(ageGroup4),
+                new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
+        service.submitYearPlan(vicePrincipal, annual.id(), "Gửi duyệt năm", edit(vicePrincipal, annual.id(), true));
+        entityManager.flush();
+        long priorAnnual = insertId(
+                "INSERT INTO edu_year_plans (code, school_year_id, age_group_id, title, status, owner_id) "
+                        + "VALUES ('KHN-PRIOR', ?, ?, 'Kế hoạch năm trước', 'REVIEW', ?) RETURNING id",
+                priorYear,
+                ageGroup4,
+                vicePrincipal.userId());
+        long priorSource = insertId(
+                "INSERT INTO edu_year_plans (code, school_year_id, age_group_id, title, status, owner_id) "
+                        + "VALUES ('KHN-PRIOR-SOURCE', ?, ?, 'Nguồn đã ban hành', 'APPROVED', ?) RETURNING id",
+                priorYear,
+                ageGroup3,
+                vicePrincipal.userId());
+        long priorTeam = insertId(
+                "INSERT INTO edu_team_plans "
+                        + "(code, school_year_id, age_group_id, title, status, owner_id, curriculum_source_plan_id) "
+                        + "VALUES ('KHT-PRIOR', ?, ?, 'Kế hoạch tổ năm trước', 'REVIEW', ?, ?) RETURNING id",
+                priorYear,
+                ageGroup3,
+                leader3.userId(),
+                priorSource);
+        entityManager.clear();
+
+        var currentQueue = service.getReviewQueue(principal, schoolYear);
+        assertThat(currentQueue)
+                .extracting(YearPlanSummaryResponse::id)
+                .containsExactlyInAnyOrder(annual.id(), team.id());
+        assertThat(currentQueue).allMatch(plan -> plan.schoolYearId().equals(schoolYear));
+        assertThat(currentQueue)
+                .filteredOn(plan -> plan.id().equals(annual.id()))
+                .singleElement()
+                .satisfies(plan -> assertThat(plan.permissions().canApprove()).isTrue());
+        assertThat(currentQueue)
+                .filteredOn(plan -> plan.id().equals(team.id()))
+                .singleElement()
+                .satisfies(plan -> assertThat(plan.permissions().canApprove()).isFalse());
+        assertThat(service.getReviewQueue(vicePrincipal, schoolYear))
+                .singleElement()
+                .satisfies(plan -> {
+                    assertThat(plan.id()).isEqualTo(team.id());
+                    assertThat(plan.permissions().canApprove()).isTrue();
+                });
+
+        var priorQueue = service.getReviewQueue(principal, priorYear);
+        assertThat(priorQueue)
+                .extracting(YearPlanSummaryResponse::id)
+                .containsExactlyInAnyOrder(priorAnnual, priorTeam);
+        assertThat(priorQueue).allMatch(plan -> !plan.permissions().canApprove());
+        assertThat(service.getReviewQueue(principal, emptyYear)).isEmpty();
+        assertThat(service.getReviewQueue(principal, null))
+                .extracting(YearPlanSummaryResponse::id)
+                .contains(annual.id(), team.id(), priorAnnual, priorTeam);
+    }
+
+    @Test
+    void principalCanListAndReopenExpiredTeamReviewOutsideApprovalChain() {
+        YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
+        YearPlanDetailResponse reviewed =
+                service.submitYearPlan(leader3, draft.id(), "Gửi duyệt", edit(leader3, draft.id(), true));
+        assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .noneMatch(plan -> plan.id().equals(draft.id()));
+
+        entityManager.flush();
+        // EDU-109 (9): khóa duyệt theo hạn hiệu lực chung (bật khóa thời gian cho riêng test này)
+        org.springframework.test.util.ReflectionTestUtils.setField(timeLock, "enabled", true);
+        entityManager.clear();
+        assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .noneMatch(plan -> plan.id().equals(draft.id()));
+        assertErrorCode(() -> service.getYearPlan(principal, draft.id()), ApiCode.EDU_PLAN_NOT_RELEASED);
+        assertThat(service.getOverdueYearPlans(
+                                principal,
+                                schoolYear,
+                                null,
+                                null,
+                                PageRequest.of(0, 20),
+                                com.carenest.utils.enums.EduPlanLevel.TEAM)
+                        .items())
+                .filteredOn(plan -> plan.id().equals(draft.id()))
+                .singleElement()
+                .satisfies(plan -> {
+                    assertThat(plan.timeLock().reviewDeadline().canReopen()).isTrue();
+                    assertThat(plan.timeLock().canUnlock()).isTrue();
+                    assertThat(plan.permissions().canApprove()).isFalse();
+                });
+        var reopened = service.reopenReviewDeadline(
+                principal, reviewed.id(), "Mở lại hạn duyệt", LocalDate.parse("2026-10-28"));
+        assertThat(reopened.timeLock().reviewDeadline().locked()).isFalse();
+        assertThat(reopened.permissions().canApprove()).isFalse();
+        assertThat(service.getOverdueYearPlan(principal, reviewed.id(), schoolYear)
+                        .history())
+                .singleElement();
+        assertErrorCode(() -> service.getOverdueYearPlan(vicePrincipal, reviewed.id(), schoolYear), ApiCode.FORBIDDEN);
+        assertErrorCode(
+                () -> service.getOverdueYearPlan(principal, reviewed.id(), schoolYear + 1),
+                ApiCode.YEAR_PLAN_NOT_FOUND);
+        assertThat(service.getYearPlan(vicePrincipal, draft.id()).permissions().canApprove())
+                .isTrue();
+    }
+
+    @Test
     @DisplayName("T027 [US2]: returnYearPlan trả về DRAFT kèm note; cấm return nếu thiếu note")
     void returnYearPlanRevertsToDraftWithReason() {
         YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
@@ -1674,6 +1801,15 @@ class EduYearPlanServiceIntegrationTest {
                 new YearPlanEditRequest(null, reviewed.revision(), UUID.randomUUID()));
         assertThat(returned.status()).isEqualTo(EduPlanStatus.DRAFT);
         assertThat(returned.lastReturnNote()).isEqualTo("Cần bổ sung tiêu đề cụ thể");
+        assertThat(returned.returned()).isTrue();
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .filteredOn(plan -> plan.id().equals(draft.id()))
+                .singleElement()
+                .satisfies(plan -> {
+                    assertThat(plan.status()).isEqualTo(EduPlanStatus.DRAFT);
+                    assertThat(plan.returned()).isTrue();
+                });
 
         // Sau khi về DRAFT, tác giả có thể sửa lại
         assertThat(service.getYearPlan(leader3, draft.id()).permissions().canEdit())
@@ -1686,7 +1822,35 @@ class EduYearPlanServiceIntegrationTest {
                 "kc-" + username,
                 username,
                 "Demo " + username);
-        return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+        return new CurrentUser(
+                id,
+                "kc-" + username,
+                username,
+                "Demo " + username,
+                null,
+                Set.of(role),
+                com.carenest.security.TestPermissions.eduDefaultsOf(role));
+    }
+
+    @Test
+    @DisplayName("EDU-108 NFR1: HT tắt EDU_SCHOOL_YEAR_PLAN_EDIT của PHT ⇒ tạo kế hoạch năm học bị 403")
+    void vicePrincipalWithoutSchoolYearEditCodeIsForbidden() {
+        var perms = com.carenest.security.TestPermissions.eduDefaultsOf(CareNestRole.VICE_PRINCIPAL);
+        perms.remove(com.carenest.utils.enums.Permission.EDU_SCHOOL_YEAR_PLAN_EDIT);
+        CurrentUser nutritionVp = new CurrentUser(
+                vicePrincipal.userId(),
+                vicePrincipal.keycloakUserId(),
+                vicePrincipal.username(),
+                vicePrincipal.fullName(),
+                null,
+                vicePrincipal.roles(),
+                perms);
+        assertApiError(
+                () -> service.createYearPlan(
+                        nutritionVp,
+                        sampleSchoolYearRequest(ageGroup3),
+                        new YearPlanEditRequest(session(nutritionVp), 0L, UUID.randomUUID())),
+                ApiCode.FORBIDDEN);
     }
 
     @Test

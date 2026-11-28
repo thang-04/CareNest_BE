@@ -91,12 +91,12 @@ class MealDemandCalculator {
         return List.copyOf(merged.values());
     }
 
-    /** Số trẻ đang học tại {@code date} theo nhóm tuổi của các lớp năm học hiện hành ở điểm trường. */
+    /** Số trẻ đang học và có báo ăn (CHD-13) tại {@code date} theo nhóm tuổi của các lớp năm học hiện hành ở điểm trường. */
     Map<Long, Integer> enrolledByAgeGroup(Long campusId, LocalDate date) {
         List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
                 .filter(c -> campusId.equals(c.campusId()) && c.ageGroupId() != null)
                 .toList();
-        Map<Long, Long> perClass = classroomService.countActiveChildren(
+        Map<Long, Long> perClass = classroomService.countMealRegisteredChildren(
                 classes.stream().map(ClassroomInfoResponse::id).toList(), date);
         Map<Long, Integer> byAgeGroup = new HashMap<>();
         for (ClassroomInfoResponse c : classes) {

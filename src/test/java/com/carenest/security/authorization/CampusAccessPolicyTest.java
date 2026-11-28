@@ -19,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -139,6 +140,51 @@ class CampusAccessPolicyTest {
         assertThat(policy.canEditCampus(vicePrincipal, Permission.MEAL_COUNT_CONFIRM, CAMPUS_B))
                 .isTrue();
         assertThat(policy.canEditCampus(vicePrincipal, Permission.MEAL_COUNT_CONFIRM, CAMPUS_B))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: giao tại điểm trường cụ thể chỉ sửa điểm trường đó, không kèm điểm trường phụ trách")
+    void pinnedCampusEditsOnlyThatCampus() {
+        CurrentUser vicePrincipal = new CurrentUser(
+                7L,
+                "kc-7",
+                "demo.user",
+                "Demo User",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.FOOD_SAFETY_APPROVE),
+                Set.of(),
+                Map.of(Permission.FOOD_SAFETY_APPROVE, CAMPUS_B));
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+
+        assertThat(policy.canEditCampus(vicePrincipal, Permission.FOOD_SAFETY_APPROVE, CAMPUS_B))
+                .isTrue();
+        assertThat(policy.canEditCampus(vicePrincipal, Permission.FOOD_SAFETY_APPROVE, CAMPUS_A))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: giao tại điểm trường cụ thể vẫn cần đang có phân công PHT")
+    void pinnedCampusNeedsActiveViceAssignment() {
+        CurrentUser vicePrincipal = new CurrentUser(
+                7L,
+                "kc-7",
+                "demo.user",
+                "Demo User",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.FOOD_SAFETY_APPROVE),
+                Set.of(),
+                Map.of(Permission.FOOD_SAFETY_APPROVE, CAMPUS_B));
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of());
+
+        assertThat(policy.canEditCampus(vicePrincipal, Permission.FOOD_SAFETY_APPROVE, CAMPUS_B))
                 .isFalse();
     }
 

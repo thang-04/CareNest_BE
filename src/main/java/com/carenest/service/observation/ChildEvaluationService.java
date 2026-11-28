@@ -5,6 +5,7 @@ import com.carenest.dto.observation.EvaluationDtos.DevelopmentResponse;
 import com.carenest.dto.observation.EvaluationDtos.EvaluationDetailResponse;
 import com.carenest.dto.observation.EvaluationDtos.EvaluationRow;
 import com.carenest.dto.observation.EvaluationDtos.ProgramCompletionResponse;
+import com.carenest.dto.observation.YearEndSheetDtos.YearEndSheetRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import java.time.LocalDate;
@@ -23,7 +24,12 @@ public interface ChildEvaluationService {
 
     EvaluationRow confirm(CurrentUser currentUser, Long id, String content);
 
-    EvaluationRow redraft(CurrentUser currentUser, Long id);
+    /** Xác nhận, hoặc xác nhận lại bản đã chốt kèm phiếu và kết quả hoàn thành chương trình sửa lại (OBS-30). */
+    EvaluationRow confirm(
+            CurrentUser currentUser, Long id, String content, Boolean programCompleted, YearEndSheetRequest sheet);
+
+    /** ai = true: xin AI viết nháp (OBS-34); AI tắt / lỗi / không đạt kiểm thì viết theo mẫu câu (AI-03). */
+    EvaluationRow redraft(CurrentUser currentUser, Long id, boolean ai);
 
     /** Đánh giá cuối năm trẻ lớp 5–6 tuổi, trước khi xác nhận. */
     EvaluationRow markProgram(CurrentUser currentUser, Long id, Boolean completed);

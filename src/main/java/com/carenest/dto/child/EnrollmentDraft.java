@@ -16,20 +16,81 @@ public record EnrollmentDraft(
         ChildProfileDraft profile,
         HealthDeclarationDraft declaration,
         Long classroomId,
-        Long campusId) {
+        Long campusId,
+        Long schoolYearId,
+        LocalDate startDate) {
 
     public EnrollmentDraft {
         guardians = List.copyOf(guardians);
     }
 
+    public EnrollmentDraft(
+            String fullName,
+            LocalDate dateOfBirth,
+            Gender gender,
+            List<GuardianDraft> guardians,
+            ChildProfileDraft profile,
+            HealthDeclarationDraft declaration,
+            Long classroomId,
+            Long campusId) {
+        this(fullName, dateOfBirth, gender, guardians, profile, declaration, classroomId, campusId, null, null);
+    }
+
     public EnrollmentDraft withPlacement(Long placedClassroomId, Long placedCampusId) {
         return new EnrollmentDraft(
-                fullName, dateOfBirth, gender, guardians, profile, declaration, placedClassroomId, placedCampusId);
+                fullName,
+                dateOfBirth,
+                gender,
+                guardians,
+                profile,
+                declaration,
+                placedClassroomId,
+                placedCampusId,
+                schoolYearId,
+                startDate);
+    }
+
+    /** Năm đang học: ngày bắt đầu đi học (G94-180/CHD-14), không đăng ký năm sau ({@code schoolYearId} giữ null). */
+    public EnrollmentDraft withStartDate(LocalDate chosenStartDate) {
+        return new EnrollmentDraft(
+                fullName,
+                dateOfBirth,
+                gender,
+                guardians,
+                profile,
+                declaration,
+                classroomId,
+                campusId,
+                schoolYearId,
+                chosenStartDate);
+    }
+
+    public EnrollmentDraft withAdmission(Long targetSchoolYearId, LocalDate targetStartDate) {
+        return new EnrollmentDraft(
+                fullName,
+                dateOfBirth,
+                gender,
+                guardians,
+                profile,
+                declaration,
+                classroomId,
+                campusId,
+                targetSchoolYearId,
+                targetStartDate);
     }
 
     public EnrollmentDraft withGuardians(List<GuardianDraft> replaced) {
         return new EnrollmentDraft(
-                fullName, dateOfBirth, gender, replaced, profile, declaration, classroomId, campusId);
+                fullName,
+                dateOfBirth,
+                gender,
+                replaced,
+                profile,
+                declaration,
+                classroomId,
+                campusId,
+                schoolYearId,
+                startDate);
     }
 
     @Override

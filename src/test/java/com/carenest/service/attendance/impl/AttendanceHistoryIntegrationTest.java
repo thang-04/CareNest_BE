@@ -43,7 +43,7 @@ class AttendanceHistoryIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
 
     static final class FixedClock extends Clock {
         @Override
@@ -142,6 +142,55 @@ class AttendanceHistoryIntegrationTest {
                         org.assertj.core.groups.Tuple.tuple(stays, 1),
                         org.assertj.core.groups.Tuple.tuple(left, 1),
                         org.assertj.core.groups.Tuple.tuple(joined, 0));
+    }
+
+    @Autowired
+    private com.carenest.service.organization.ClassroomService classroomService;
+
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("CFG-YR-02 / ATT: bữa theo năm và bữa đã ghi không mất khi cấu hình đổi")
+    void yearlySessionsAndRecordedMealsRemainIndependentOfGlobalCatalog() {
+        long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id=?", Long.class, classA);
+        jdbc.update(
+                "INSERT INTO school_year_age_group_members (school_year_id, age_group_id, name, short_name,"
+                        + " age_from_months, age_to_months, meal_sessions, max_class_size, nutrition_note)"
+                        + " SELECT ?, id, name, short_name, age_from_months, age_to_months, 'LUNCH', max_class_size, ''"
+                        + " FROM age_groups WHERE id=(SELECT age_group_id FROM classrooms WHERE id=?)",
+                year,
+                classA);
+        assertThat(classroomService.findClassroomInfo(classA).orElseThrow().mealSessions())
+                .containsExactly(com.carenest.utils.enums.MealSession.LUNCH);
+        long kid = child("Bữa lịch sử");
+        enroll(kid, "2026-09-01", null);
+        record(kid, "2026-10-19");
+        // Đổi cấu hình sau ngày đã điểm danh; bản ghi LUNCH phải còn trong tổng hợp.
+        jdbc.update("UPDATE school_year_age_group_members SET meal_sessions='AFTERNOON' WHERE school_year_id=?", year);
+        jdbc.update(
+                "UPDATE age_groups SET meal_sessions='LUNCH' WHERE id=(SELECT age_group_id FROM classrooms WHERE id=?)",
+                classA);
+        assertThat(classroomService.findClassroomInfo(classA).orElseThrow().mealSessions())
+                .containsExactly(com.carenest.utils.enums.MealSession.AFTERNOON);
+        var summary = attendanceService.getClassSummary(principal, classA, LocalDate.of(2026, 10, 19), TODAY);
+        assertThat(summary.mealSessions()).contains(com.carenest.utils.enums.MealSession.LUNCH);
+        assertThat(summary.days().getFirst().meals()).containsEntry(com.carenest.utils.enums.MealSession.LUNCH, 1);
+        var tally = attendanceService
+                .tallyMeals(LocalDate.of(2026, 10, 19), campusA, year)
+                .getFirst();
+        assertThat(tally.meals()).containsEntry(com.carenest.utils.enums.MealSession.LUNCH, 1);
+        // Khi đóng năm, cấu hình lớp dùng bản chụp của năm đó.
+        jdbc.update(
+                "INSERT INTO school_year_age_groups (school_year_id, age_group_id, code, name, short_name,"
+                        + " sort_order, meal_sessions, nutrition_note) SELECT ?, id, code, name, short_name, sort_order,"
+                        + " 'LUNCH', '' FROM age_groups WHERE id=(SELECT age_group_id FROM classrooms WHERE id=?)",
+                year,
+                classA);
+        jdbc.update("UPDATE school_years SET status='CLOSED' WHERE id=?", year);
+        entityManager.clear();
+        assertThat(classroomService.findClassroomInfo(classA).orElseThrow().mealSessions())
+                .containsExactly(com.carenest.utils.enums.MealSession.LUNCH);
     }
 
     @Test

@@ -45,6 +45,7 @@ final class EnrollmentFormValidator {
 
     static final int MAX_GUARDIANS = 3;
     static final LocalDate EARLIEST_BIRTH_DATE = LocalDate.of(2018, 1, 1);
+    static final int MIN_INTAKE_AGE_MONTHS = 3;
     // Sinh trước 37 tuần là sinh non: "Sinh non" phải khớp tuần thai (G94-180/CHD-05, user chốt 2026-11-04)
     private static final int FULL_TERM_WEEKS = 37;
 
@@ -74,6 +75,13 @@ final class EnrollmentFormValidator {
         Map<String, String> errors = new LinkedHashMap<>();
         EnrollmentChildInput child = request == null ? null : request.child();
         ChildInfo info = validateChildInfo(child, today, errors, true);
+        // G94-180/CHD-13 (nghiệp vụ chốt 2026-11-22): chỉ tiếp nhận trẻ đủ 3 tháng tuổi tại ngày tiếp nhận; Sửa hồ sơ
+        // không kiểm
+        if (info.dateOfBirth() != null
+                && !errors.containsKey("dateOfBirth")
+                && info.dateOfBirth().plusMonths(MIN_INTAKE_AGE_MONTHS).isAfter(today)) {
+            errors.put("dateOfBirth", "Trẻ phải đủ 3 tháng tuổi tại ngày tiếp nhận");
+        }
         HealthDeclarationDraft declaration =
                 validateDeclaration(request == null ? null : request.declaration(), info.dateOfBirth(), today, errors);
 
@@ -279,34 +287,45 @@ final class EnrollmentFormValidator {
     private static HealthDeclarationDraft validateDeclaration(
             HealthDeclarationInput input, LocalDate dateOfBirth, LocalDate today, Map<String, String> errors) {
         if (input == null) {
-            errors.put("declaration.allergies", "Khai báo sức khỏe còn thiếu");
+            errors.put("declaration.allergies", "Khai báo ăn và sức khỏe còn thiếu");
             return null;
         }
-        AllergiesInput allergies = input.allergies() == null ? new AllergiesInput(null, null) : input.allergies();
-        DeclarationState allergiesState = parseEnum(DeclarationState.class, allergies.state());
-        List<String> items =
-                new ArrayList<>(new LinkedHashSet<>((allergies.items() == null ? List.<String>of() : allergies.items())
-                        .stream()
-                                .map(EnrollmentFormValidator::clean)
-                                .filter(s -> s != null)
-                                .toList()));
-        if (allergiesState == null) {
-            errors.put("declaration.allergies", "Chọn tình trạng dị ứng");
-        } else if (allergiesState == DeclarationState.REPORTED && items.isEmpty()) {
-            errors.put("declaration.allergies", "Nhập ít nhất một thực phẩm/chất gây dị ứng");
-        } else if (allergiesState == DeclarationState.REPORTED && items.stream().anyMatch(s -> s.length() > 100)) {
-            errors.put("declaration.allergies", "Tên chất gây dị ứng tối đa 100 ký tự");
+        // CHD-13: thiếu cờ = có báo ăn; không báo ăn thì bỏ qua dị ứng, chế độ ăn (lưu Chưa cung cấp)
+        boolean mealRegistered = input.mealRegistered() == null || input.mealRegistered();
+        DeclarationState allergiesState;
+        List<String> items;
+        HealthDeclarationDraft.Answer diet;
+        if (mealRegistered) {
+            AllergiesInput allergies = input.allergies() == null ? new AllergiesInput(null, null) : input.allergies();
+            allergiesState = parseEnum(DeclarationState.class, allergies.state());
+            items = new ArrayList<>(
+                    new LinkedHashSet<>((allergies.items() == null ? List.<String>of() : allergies.items())
+                            .stream()
+                                    .map(EnrollmentFormValidator::clean)
+                                    .filter(s -> s != null)
+                                    .toList()));
+            if (allergiesState == null) {
+                errors.put("declaration.allergies", "Chọn tình trạng dị ứng");
+            } else if (allergiesState == DeclarationState.REPORTED && items.isEmpty()) {
+                errors.put("declaration.allergies", "Nhập ít nhất một thực phẩm/chất gây dị ứng");
+            } else if (allergiesState == DeclarationState.REPORTED
+                    && items.stream().anyMatch(s -> s.length() > 100)) {
+                errors.put("declaration.allergies", "Tên chất gây dị ứng tối đa 100 ký tự");
+            }
+            diet = answer(
+                    input.diet(),
+                    false,
+                    500,
+                    "declaration.diet",
+                    "Chọn chế độ ăn",
+                    "Mô tả chế độ ăn riêng của trẻ",
+                    "Nội dung tối đa 500 ký tự",
+                    errors);
+        } else {
+            allergiesState = DeclarationState.NOT_PROVIDED;
+            items = List.of();
+            diet = new HealthDeclarationDraft.Answer(DeclarationState.NOT_PROVIDED, null);
         }
-
-        HealthDeclarationDraft.Answer diet = answer(
-                input.diet(),
-                false,
-                500,
-                "declaration.diet",
-                "Chọn chế độ ăn",
-                "Mô tả chế độ ăn riêng của trẻ",
-                "Nội dung tối đa 500 ký tự",
-                errors);
         // Thông tin khác: BE giả không bắt chọn ⇒ để trống = Chưa cung cấp
         DeclarationAnswerInput otherNotesInput =
                 input.otherNotes() == null || isBlank(input.otherNotes().state())
@@ -362,7 +381,8 @@ final class EnrollmentFormValidator {
         if (allergiesState != DeclarationState.REPORTED) {
             items = List.of();
         }
-        return new HealthDeclarationDraft(allergiesState, items, diet, otherNotes, self, family, tbState, tbDate);
+        return new HealthDeclarationDraft(
+                allergiesState, items, diet, otherNotes, self, family, tbState, tbDate, mealRegistered);
     }
 
     private static HealthDeclarationDraft.Answer answer(

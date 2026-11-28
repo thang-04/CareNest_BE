@@ -8,9 +8,33 @@ public interface AuthGatewayClient {
 
     Tokens login(String identifier, String password);
 
+    /**
+     * Keycloak brute-force đang chặn tài khoản của {@code identifier} tới mốc nào (AUTH-03 đăng nhập).
+     * Keycloak trả lỗi giống sai mật khẩu khi đang chặn nên phải hỏi admin API; không tìm thấy, không bị chặn
+     * hoặc lỗi tra cứu ⇒ rỗng (giữ thông báo sai mật khẩu, không chặn đăng nhập).
+     */
+    java.util.Optional<java.time.Instant> loginBlockedUntil(String identifier);
+
     Tokens refresh(String refreshToken);
 
     void logout(String refreshToken);
+
+    /** Hủy mọi phiên Web gateway khác của user, giữ {@code keepSessionId}; trả id phiên đã hủy. Best-effort, không ném lỗi. */
+    java.util.List<String> revokeOtherWebSessions(String keycloakUserId, String keepSessionId);
+
+    /** User còn phiên Web gateway nào khác {@code keepSessionId} không; lỗi tra cứu ⇒ false (không chặn đăng nhập). */
+    boolean hasOtherWebSessions(String keycloakUserId, String keepSessionId);
+
+    /** Hủy một phiên Keycloak theo id; best-effort, không ném lỗi. */
+    void revokeSession(String sessionId);
+
+    /** Phiên của refresh token bị từ chối có phiên Web mới hơn (từ {@code loginAt}) thay thế không; lỗi tra cứu ⇒ false. */
+    boolean replacedByNewerWebSession(String rejectedRefreshToken, java.time.Instant loginAt);
+
+    /** Đọc {@code sub}/{@code sid} của refresh token gateway (do server niêm phong); không đọc được ⇒ rỗng. */
+    java.util.Optional<SessionRef> sessionOf(String refreshToken);
+
+    record SessionRef(String keycloakUserId, String sessionId) {}
 
     String verifiedCapability(String assertion);
 
@@ -65,6 +89,13 @@ public interface AuthGatewayClient {
     final class InvalidCredentials extends RuntimeException {
         InvalidCredentials() {
             super("Invalid credentials");
+        }
+    }
+
+    /** Đúng mật khẩu nhưng tài khoản đã bị vô hiệu hóa (Keycloak chỉ báo khi mật khẩu đúng). */
+    final class AccountDisabled extends RuntimeException {
+        AccountDisabled() {
+            super("Account disabled");
         }
     }
 

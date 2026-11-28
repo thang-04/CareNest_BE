@@ -120,6 +120,17 @@ WHERE NOT EXISTS (
 );
 `);
 
+  // AUTH-15: cơ sở công tác GV = cơ sở lớp dạy chính gần nhất (như migration V168, seed chạy sau migration)
+  out.push(`INSERT INTO teacher_work_campuses (user_id, campus_id)
+SELECT DISTINCT ON (a.user_id) a.user_id, cl.campus_id
+FROM staff_assignments a
+JOIN classrooms cl ON cl.id = a.classroom_id
+JOIN user_accounts u ON u.id = a.user_id
+WHERE a.staff_role = 'TEACHER' AND NOT a.is_substitute AND u.primary_role = 'TEACHER'
+ORDER BY a.user_id, a.valid_from DESC, a.id DESC
+ON CONFLICT (user_id) DO NOTHING;
+`);
+
   out.push(`INSERT INTO permission_grants (user_id, permission_code, effect, scope, reason, granted_by)
 SELECT u.id, v.permission_code, v.effect, v.scope, v.reason, gb.id
 FROM (VALUES
@@ -128,6 +139,12 @@ ${rows(d.permissionGrants, (g) => [g.user.keycloakId, g.permission, g.effect, g.
 JOIN user_accounts u ON u.keycloak_user_id = v.keycloak_user_id
 JOIN user_accounts gb ON gb.keycloak_user_id = v.granted_by
 WHERE NOT EXISTS (SELECT 1 FROM permission_grants p WHERE p.user_id = u.id AND p.permission_code = v.permission_code);
+
+-- AUTH-20: chỉ mã sửa theo mảng mới có phạm vi cả trường; sửa dòng seed cũ đã ghi SCHOOL cho mã khác
+UPDATE permission_grants SET scope = 'CAMPUS'
+WHERE effect = 'GRANT' AND scope = 'SCHOOL' AND permission_code IN ('NUTRITION_MANAGE', 'MENU_MANAGE');
+UPDATE permission_change_log SET after_scope = 'CAMPUS'
+WHERE after_state = 'GRANT' AND after_scope = 'SCHOOL' AND permission_code IN ('NUTRITION_MANAGE', 'MENU_MANAGE');
 
 -- Lịch sử đổi quyền tương ứng (màn lịch sử phân quyền): trước đó kế thừa vai trò
 INSERT INTO permission_change_log (batch_id, actor_user_id, target_user_id, permission_code, before_state, after_state,

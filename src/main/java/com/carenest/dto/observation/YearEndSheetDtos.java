@@ -45,7 +45,9 @@ public final class YearEndSheetDtos {
             SheetNotes notes,
             EvaluationStatus status,
             boolean canEdit,
-            Instant confirmedAt) {}
+            Instant confirmedAt,
+            // Bản đã xác nhận mà người xem được sửa lại rồi xác nhận lại
+            Boolean canRevise) {}
 
     public record SheetGoalInput(@NotNull Long goalId, Boolean met) {}
 

@@ -10,6 +10,13 @@ import java.util.List;
 public interface AgeGroupMealConfigService {
 
     /** Bản đang áp dụng tại {@code date} (mặc định hôm nay) của từng nhóm tuổi đã có cấu hình. */
+    List<com.carenest.dto.meals.NutritionGroupStatus> getGroupStatuses();
+
+    List<AgeGroupMealConfigResponse> saveConfigs(
+            CurrentUser user,
+            List<AgeGroupMealConfigRequest> requests,
+            List<com.carenest.dto.meals.NutritionGroupStatus> statuses);
+
     List<AgeGroupMealConfigResponse> getEffectiveConfigs(LocalDate date);
 
     List<AgeGroupMealConfigResponse> getConfigVersions(Long ageGroupId);

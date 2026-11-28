@@ -26,7 +26,7 @@ class EduLessonQueryServiceImplTest {
     private final EduPlanGoalRepository goals = mock(EduPlanGoalRepository.class);
     private final EduConfigService config = mock(EduConfigService.class);
     private final EduLessonQueryServiceImpl service =
-            new EduLessonQueryServiceImpl(docs, releases, goals, config, new ObjectMapper());
+            new EduLessonQueryServiceImpl(docs, releases, goals, config, mock(EduThemeGoals.class), new ObjectMapper());
 
     @Test
     void observationsKeepOldApprovedLessonUntilReplacementLessonIsApproved() {
@@ -57,7 +57,8 @@ class EduLessonQueryServiceImplTest {
 
     @Test
     void lessonNeedsReleasedDayPlanOfTheWeek() {
-        // Spec 003 FR-008: kế hoạch tuần ban hành trong gói học kỳ nhưng giáo án ngày chưa duyệt ⇒ chưa chấm
+        // Spec 003 FR-008: kế hoạch tuần ban hành trong kế hoạch giáo dục chủ đề nhưng giáo án ngày chưa duyệt ⇒ chưa
+        // chấm
         LocalDate monday = LocalDate.of(2026, 11, 9);
         when(config.getEduConfig())
                 .thenReturn(new EduConfigResponse(List.of(), List.of(), List.of(), null, List.of(), null));
@@ -79,6 +80,40 @@ class EduLessonQueryServiceImplTest {
         when(doc.getHistory()).thenReturn(history);
         when(doc.getWeekStart()).thenReturn(monday);
         return doc;
+    }
+
+    @Test
+    void teachingActivitiesKeepTypedActivityWithoutGoalsAndSkipDraftDay() {
+        LocalDate monday = LocalDate.of(2026, 11, 9);
+        when(config.getEduConfig())
+                .thenReturn(new EduConfigResponse(
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        null,
+                        List.of(new EduConfigResponse.WeekRow("hoc", "Hoạt động học", false, false, null)),
+                        null));
+        when(goals.findAllById(Set.of())).thenReturn(List.of());
+        EduClassDoc week = doc(EduClassDoc.WEEK, 5L, monday, "{'grid':{'hoc':{'days':['Vẽ ngôi nhà']}}}");
+        EduClassDoc releasedDay = day(EduClassDocStatus.APPROVED, "[]", monday);
+        when(releasedDay.getYearPlanId()).thenReturn(9L);
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(week, releasedDay));
+
+        assertThat(service.findReleasedDayActivities(1L, monday, monday)
+                        .get(monday)
+                        .activities())
+                .extracting("label", "topic")
+                .containsExactly(org.assertj.core.api.Assertions.tuple("Hoạt động học", "Vẽ ngôi nhà"));
+        // Đánh giá trẻ vẫn chỉ nhận hoạt động có mục tiêu
+        assertThat(service.findApprovedDayLessons(1L, monday, monday)
+                        .get(monday)
+                        .activities())
+                .isEmpty();
+
+        EduClassDoc draftDay = day(EduClassDocStatus.DRAFT, "[]", monday);
+        when(draftDay.getYearPlanId()).thenReturn(9L);
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(week, draftDay));
+        assertThat(service.findReleasedDayActivities(1L, monday, monday)).isEmpty();
     }
 
     @Test
@@ -164,7 +199,7 @@ class EduLessonQueryServiceImplTest {
 
     @Test
     void releasedDossierWeekAndMultiGoalCardDriveAssessment() {
-        // FR-026, FR-029: thẻ gắn 2 MT; giáo án ngày đã ban hành có bản tuần theo hồ sơ chủ đề ⇒ dùng bản đó
+        // FR-026, FR-029: thẻ gắn 2 MT; giáo án ngày đã ban hành có bản tuần theo kế hoạch giáo dục ngày ⇒ dùng bản đó
         LocalDate monday = LocalDate.of(2026, 11, 9);
         when(config.getEduConfig())
                 .thenReturn(new EduConfigResponse(

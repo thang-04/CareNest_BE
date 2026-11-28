@@ -20,6 +20,7 @@ import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.RoomType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +57,12 @@ public class RoomServiceImpl implements RoomService {
             schoolConfigAccess.checkCanViewSchool(currentUser);
             Collection<Long> campusFilter = campusId != null ? Set.of(campusId) : null;
             Long yearId = resolveSchoolYearId(schoolYearId);
+            // CFG-YR-05: năm chưa tới ngày mở chuẩn bị chỉ Hiệu trưởng thấy
+            if (schoolYearId != null) {
+                schoolYearRepository
+                        .findById(schoolYearId)
+                        .ifPresent(year -> schoolConfigAccess.checkYearVisible(currentUser, year));
+            }
             boolean closed = yearId != null
                     && schoolYearRepository
                             .findById(yearId)
@@ -71,9 +78,217 @@ public class RoomServiceImpl implements RoomService {
                     ? roomRepository.findAllByStatusNotOrderByCampusIdAscCodeAsc(RoomStatus.DELETED)
                     : roomRepository.findAllByCampusIdInAndStatusNotOrderByCampusIdAscCodeAsc(
                             campusFilter, RoomStatus.DELETED);
-            List<RoomResponse> response = visibleTo(currentUser, toResponses(rooms, yearId));
+            List<RoomResponse> response = visibleTo(currentUser, withYearInfo(toResponses(rooms, yearId), yearId));
             log.info("{}|END", logPrefix);
             return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public RoomResponse createRoom(CurrentUser currentUser, RoomRequest request, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|createRoom|userId=" + currentUser.userId() + "|campusId=" + request.campusId()
+                + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            checkCanManage(currentUser, request.campusId());
+            SchoolYear year = openYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
+            // Cần chốt 19/11/2026: phòng thêm ở năm nào chỉ có ở năm đó; mã, tên không trùng trong năm
+            RoomRequest data = validate(request, null, 0, year.getId());
+            boolean active = year.getStatus() == SchoolYearStatus.ACTIVE;
+            Room room = reusableRoom(data);
+            if (room == null) {
+                room = Room.create(
+                        data.campusId(),
+                        data.room(),
+                        data.name(),
+                        data.type(),
+                        toShort(data.capacity()),
+                        data.managerUserId(),
+                        data.note());
+                // Năm chưa hoạt động: bảng chung chưa dùng phòng này (kích hoạt năm sẽ bật)
+                if (!active) {
+                    room.changeStatus(RoomStatus.INACTIVE);
+                }
+                room = roomRepository.save(room);
+                roomRepository.flush();
+            } else if (active) {
+                // Cùng một phòng vật lý được dùng lại qua các năm; năm đang chạy đồng bộ bảng chung ngay.
+                room.changeInfo(
+                        data.campusId(),
+                        data.room(),
+                        data.name(),
+                        data.type(),
+                        toShort(data.capacity()),
+                        data.managerUserId(),
+                        data.note());
+                room.changeStatus(RoomStatus.ACTIVE);
+            }
+            roomRepository.addToYear(year.getId(), room.getId());
+            roomRepository.updateYearInfo(
+                    year.getId(),
+                    room.getId(),
+                    data.campusId(),
+                    data.room(),
+                    data.name(),
+                    data.type().name(),
+                    toShort(data.capacity()),
+                    data.managerUserId(),
+                    data.note());
+            roomRepository.updateYearStatus(year.getId(), room.getId(), RoomStatus.ACTIVE.name());
+            roomRepository.flush();
+            RoomResponse response = roomInYear(room, year.getId());
+            log.info("{}|roomId={}|END", logPrefix, room.getId());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public RoomResponse updateRoom(CurrentUser currentUser, Long roomId, RoomRequest request, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|updateRoom|userId=" + currentUser.userId() + "|roomId=" + roomId
+                + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            if (schoolYearId == null) {
+                RoomResponse response = updateRoom(currentUser, roomId, request);
+                log.info("{}|END", logPrefix);
+                return response;
+            }
+            Room room = findRoom(roomId);
+            SchoolYear year = openYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
+            RoomRepository.YearRoomInfo info = yearRoom(year.getId(), roomId);
+            if (info == null) {
+                throw GlobalException.of(ApiCode.ROOM_NOT_FOUND);
+            }
+            checkCanManage(currentUser, info.getCampusId());
+            checkCanManage(currentUser, request.campusId());
+            List<Classroom> yearClasses = yearClasses(roomId, year.getId());
+            if (!yearClasses.isEmpty() && !info.getCampusId().equals(request.campusId())) {
+                throw GlobalException.of(
+                        ApiCode.ROOM_IN_USE_BY_CLASS, names(yearClasses), "chuyển sang điểm trường khác");
+            }
+            if (!yearClasses.isEmpty()
+                    && !info.getRoomType().equals(request.type().name())) {
+                throw GlobalException.of(ApiCode.ROOM_IN_USE_BY_CLASS, names(yearClasses), "đổi loại phòng");
+            }
+            RoomRequest data = validate(request, roomId, largestCapacity(yearClasses), year.getId());
+            roomRepository.updateYearInfo(
+                    year.getId(),
+                    roomId,
+                    data.campusId(),
+                    data.room(),
+                    data.name(),
+                    data.type().name(),
+                    toShort(data.capacity()),
+                    data.managerUserId(),
+                    data.note());
+            // Năm đang hoạt động: bảng chung theo cùng (module khác đọc bảng chung)
+            if (year.getStatus() == SchoolYearStatus.ACTIVE) {
+                room.changeInfo(
+                        data.campusId(),
+                        data.room(),
+                        data.name(),
+                        data.type(),
+                        toShort(data.capacity()),
+                        data.managerUserId(),
+                        data.note());
+            }
+            roomRepository.flush();
+            RoomResponse response = roomInYear(room, year.getId());
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public RoomResponse changeRoomStatus(CurrentUser currentUser, Long roomId, RoomStatus status, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|changeRoomStatus|userId=" + currentUser.userId() + "|roomId=" + roomId
+                + "|status=" + status + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            if (status == RoomStatus.DELETED) {
+                throw GlobalException.of(ApiCode.METHOD_NOT_ALLOWED);
+            }
+            if (schoolYearId == null) {
+                RoomResponse response = changeRoomStatus(currentUser, roomId, status);
+                log.info("{}|END", logPrefix);
+                return response;
+            }
+            Room room = findRoom(roomId);
+            SchoolYear year = openYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
+            RoomRepository.YearRoomInfo info = yearRoom(year.getId(), roomId);
+            if (info == null) {
+                throw GlobalException.of(ApiCode.ROOM_NOT_FOUND);
+            }
+            checkCanManage(currentUser, info.getCampusId());
+            List<Classroom> yearClasses = yearClasses(roomId, year.getId());
+            if (status == RoomStatus.INACTIVE && !yearClasses.isEmpty()) {
+                throw GlobalException.of(ApiCode.ROOM_IN_USE_BY_CLASS, names(yearClasses), "ngừng sử dụng");
+            }
+            roomRepository.updateYearStatus(year.getId(), roomId, status.name());
+            if (year.getStatus() == SchoolYearStatus.ACTIVE) {
+                room.changeStatus(status);
+            }
+            roomRepository.flush();
+            RoomResponse response = roomInYear(room, year.getId());
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void deleteRoom(CurrentUser currentUser, Long roomId, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|deleteRoom|userId=" + currentUser.userId() + "|roomId=" + roomId
+                + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            if (schoolYearId == null) {
+                deleteRoom(currentUser, roomId);
+                log.info("{}|END", logPrefix);
+                return;
+            }
+            Room room = findRoom(roomId);
+            SchoolYear year = openYear(schoolYearId);
+            schoolConfigAccess.checkYearVisible(currentUser, year);
+            RoomRepository.YearRoomInfo info = yearRoom(year.getId(), roomId);
+            if (info == null) {
+                throw GlobalException.of(ApiCode.ROOM_NOT_FOUND);
+            }
+            checkCanManage(currentUser, info.getCampusId());
+            List<Classroom> yearClasses = yearClasses(roomId, year.getId());
+            if (!yearClasses.isEmpty()) {
+                throw GlobalException.of(ApiCode.ROOM_IN_USE_BY_CLASS, names(yearClasses), "xóa");
+            }
+            // Xóa ở một năm: chỉ bỏ khỏi năm đó; không còn ở năm nào thì xóa như trước
+            roomRepository.removeFromYear(year.getId(), roomId);
+            roomRepository.flush();
+            if (year.getStatus() == SchoolYearStatus.ACTIVE) {
+                room.changeStatus(RoomStatus.INACTIVE);
+            }
+            if (roomRepository.countYears(roomId) == 0) {
+                checkNoOpenYearClass(roomId, "xóa");
+                if (classroomRepository.existsByRoomId(roomId)) {
+                    room.markDeleted(clock.instant());
+                } else {
+                    roomRepository.delete(room);
+                }
+            }
+            roomRepository.flush();
+            log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -192,18 +407,48 @@ public class RoomServiceImpl implements RoomService {
     }
 
     private RoomRequest validate(RoomRequest request, Long excludeId, int minCapacity) {
+        return validate(request, excludeId, minCapacity, null);
+    }
+
+    private Room reusableRoom(RoomRequest data) {
+        List<Room> matches = roomRepository.findReusableByCodeOrName(data.campusId(), data.room(), data.name());
+        Room byCode = matches.stream()
+                .filter(room -> room.getCode().equalsIgnoreCase(data.room()))
+                .findFirst()
+                .orElse(null);
+        Room byName = matches.stream()
+                .filter(room -> room.getName().equalsIgnoreCase(data.name()))
+                .findFirst()
+                .orElse(null);
+        if (byCode != null && byName != null && !byCode.getId().equals(byName.getId())) {
+            throw GlobalException.of(ApiCode.ROOM_NAME_EXISTS);
+        }
+        return byCode != null ? byCode : byName;
+    }
+
+    // Có năm học (V154): điểm trường hoạt động trong năm đó; mã, tên không trùng trong năm đó
+    private RoomRequest validate(RoomRequest request, Long excludeId, int minCapacity, Long yearId) {
         if (!campusRepository.existsById(request.campusId())) {
             throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);
         }
-        if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
+        boolean campusActive = yearId == null
+                ? campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)
+                : Boolean.TRUE.equals(campusRepository.isActiveInYear(yearId, request.campusId()));
+        if (!campusActive) {
             throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);
         }
         String code = request.room().trim();
         String name = request.name().trim();
-        if (roomRepository.existsCode(request.campusId(), code, excludeId)) {
+        boolean codeTaken = yearId == null
+                ? roomRepository.existsCode(request.campusId(), code, excludeId)
+                : roomRepository.existsCodeInYear(yearId, request.campusId(), code, excludeId);
+        if (codeTaken) {
             throw GlobalException.of(ApiCode.ROOM_CODE_EXISTS);
         }
-        if (roomRepository.existsName(request.campusId(), name, excludeId)) {
+        boolean nameTaken = yearId == null
+                ? roomRepository.existsName(request.campusId(), name, excludeId)
+                : roomRepository.existsNameInYear(yearId, request.campusId(), name, excludeId);
+        if (nameTaken) {
             throw GlobalException.of(ApiCode.ROOM_NAME_EXISTS);
         }
         if (request.type() == RoomType.CLASS && request.capacity() == null) {
@@ -214,12 +459,29 @@ public class RoomServiceImpl implements RoomService {
         }
         // Phòng học: người phụ trách = giáo viên chủ nhiệm của lớp đang dùng phòng, không lưu riêng
         Long managerUserId = request.type() == RoomType.CLASS ? null : request.managerUserId();
+        LocalDate referenceDate = yearReferenceDate(yearId);
         if (managerUserId != null
-                && !roomRepository.isStaffOfCampus(managerUserId, request.campusId(), schoolConfigAccess.today())) {
+                && !roomRepository.isStaffOfCampus(managerUserId, request.campusId(), referenceDate)) {
             throw GlobalException.of(ApiCode.ROOM_MANAGER_INVALID);
+        }
+        if (managerUserId != null
+                && request.type() == RoomType.KITCHEN
+                && !roomRepository.isKitchenManagerOfCampus(managerUserId, request.campusId(), referenceDate)) {
+            throw GlobalException.of(ApiCode.ROOM_KITCHEN_MANAGER_INVALID);
         }
         String note = request.note() == null ? "" : request.note().trim();
         return new RoomRequest(request.campusId(), code, name, request.type(), request.capacity(), managerUserId, note);
+    }
+
+    private LocalDate yearReferenceDate(Long yearId) {
+        LocalDate today = schoolConfigAccess.today();
+        if (yearId == null) {
+            return today;
+        }
+        return schoolYearRepository
+                .findById(yearId)
+                .map(year -> today.isBefore(year.getStartDate()) ? year.getStartDate() : today)
+                .orElse(today);
     }
 
     private void checkNoOpenYearClass(Long roomId, String action) {
@@ -273,10 +535,6 @@ public class RoomServiceImpl implements RoomService {
             return List.of();
         }
         List<Long> roomIds = rooms.stream().map(Room::getId).toList();
-        // usage theo dạng FE: số bản ghi đang trỏ tới phòng (hiện chỉ có lớp, mọi năm học)
-        Map<Long, Long> classUsage = classroomRepository.countByRoomIds(roomIds).stream()
-                .collect(Collectors.toMap(
-                        ClassroomRepository.RoomUsage::getRoomId, ClassroomRepository.RoomUsage::getTotal));
         Map<Long, List<Classroom>> openClasses = classroomRepository.findOpenYearClassesByRoomIds(roomIds).stream()
                 .collect(Collectors.groupingBy(Classroom::getRoomId));
         Set<Long> managerIds = rooms.stream()
@@ -296,12 +554,14 @@ public class RoomServiceImpl implements RoomService {
                 .map(room -> {
                     RoomRepository.RoomHomeroom homeroom =
                             room.getRoomType() == RoomType.CLASS ? homerooms.get(room.getId()) : null;
-                    List<Classroom> classes = openClasses.getOrDefault(room.getId(), List.of());
-                    List<String> yearClasses = classes.stream()
-                            .filter(c -> c.getSchoolYearId().equals(schoolYearId))
-                            .map(Classroom::getName)
+                    List<Classroom> classes = openClasses.getOrDefault(room.getId(), List.of()).stream()
+                            .filter(c ->
+                                    schoolYearId == null || c.getSchoolYearId().equals(schoolYearId))
                             .toList();
-                    // Lý do chưa ngừng / xóa được: tên lớp (năm chưa kết thúc) đang dùng phòng, không lặp
+                    List<String> yearClasses =
+                            classes.stream().map(Classroom::getName).toList();
+                    // Tất cả trạng thái trên màn Phòng ban là theo năm đang xem. Lớp năm cũ không được
+                    // khóa việc sửa bản cấu hình của năm mới, nhưng vẫn giữ nguyên lịch sử năm cũ.
                     List<String> blockers =
                             classes.stream().map(Classroom::getName).distinct().toList();
                     // Phòng học: người phụ trách = GV chủ nhiệm của lớp dùng phòng trong năm học
@@ -323,11 +583,86 @@ public class RoomServiceImpl implements RoomService {
                             room.getStatus(),
                             room.getNote(),
                             yearClasses,
-                            classUsage.containsKey(room.getId())
-                                    ? Map.of("classes", classUsage.get(room.getId()))
-                                    : Map.of(),
+                            classes.isEmpty() ? Map.of() : Map.of("classes", (long) classes.size()),
                             blockers,
                             largestCapacity(classes));
+                })
+                .toList();
+    }
+
+    private SchoolYear openYear(Long schoolYearId) {
+        Long yearId = resolveSchoolYearId(schoolYearId);
+        SchoolYear year =
+                yearId == null ? null : schoolYearRepository.findById(yearId).orElse(null);
+        if (year == null) {
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
+        }
+        if (year.getStatus() == SchoolYearStatus.CLOSED) {
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_CLOSED, year.getName());
+        }
+        return year;
+    }
+
+    private RoomRepository.YearRoomInfo yearRoom(Long yearId, Long roomId) {
+        return roomRepository.findYearRoomInfoById(yearId, roomId).orElse(null);
+    }
+
+    private List<Classroom> yearClasses(Long roomId, Long yearId) {
+        return classroomRepository.findOpenYearClassesByRoomIds(List.of(roomId)).stream()
+                .filter(c -> yearId.equals(c.getSchoolYearId()))
+                .toList();
+    }
+
+    private static String names(List<Classroom> classes) {
+        return classes.stream().map(Classroom::getName).distinct().collect(Collectors.joining(", "));
+    }
+
+    private RoomResponse roomInYear(Room room, Long yearId) {
+        return withYearInfo(toResponses(List.of(room), yearId), yearId).stream()
+                .findFirst()
+                .orElseThrow(() -> GlobalException.of(ApiCode.ROOM_NOT_FOUND));
+    }
+
+    // Năm còn mở có danh sách phòng riêng (V154): chỉ phòng của năm, thông tin của năm, lý do chặn theo lớp năm đó
+    private List<RoomResponse> withYearInfo(List<RoomResponse> rooms, Long yearId) {
+        if (yearId == null) {
+            return rooms;
+        }
+        Map<Long, RoomRepository.YearRoomInfo> info = roomRepository.findYearRoomInfo(yearId).stream()
+                .collect(Collectors.toMap(RoomRepository.YearRoomInfo::getRoomId, i -> i));
+        Set<Long> managerIds = info.values().stream()
+                .map(RoomRepository.YearRoomInfo::getManagerUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> managerNames = managerIds.isEmpty()
+                ? Map.of()
+                : roomRepository.findUserNames(managerIds).stream()
+                        .collect(Collectors.toMap(
+                                RoomRepository.UserName::getUserId, RoomRepository.UserName::getFullName));
+        return rooms.stream()
+                .filter(r -> info.containsKey(r.id()))
+                .map(r -> {
+                    RoomRepository.YearRoomInfo i = info.get(r.id());
+                    RoomType type = RoomType.valueOf(i.getRoomType());
+                    // Phòng học: người phụ trách = GV chủ nhiệm lớp dùng phòng (đã tính trong r)
+                    boolean homeroom = type == RoomType.CLASS;
+                    return new RoomResponse(
+                            r.id(),
+                            i.getCampusId(),
+                            i.getCode(),
+                            i.getName(),
+                            type,
+                            i.getCapacity() == null ? null : i.getCapacity().intValue(),
+                            homeroom ? r.managerUserId() : i.getManagerUserId(),
+                            homeroom
+                                    ? r.managerName()
+                                    : i.getManagerUserId() == null ? null : managerNames.get(i.getManagerUserId()),
+                            RoomStatus.valueOf(i.getStatus()),
+                            i.getNote(),
+                            r.yearClasses(),
+                            r.usage(),
+                            r.yearClasses(),
+                            r.minCapacity());
                 })
                 .toList();
     }

@@ -17,10 +17,12 @@ import com.carenest.repository.meals.InspectionSheetRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.account.UserSignatureService;
+import com.carenest.service.meals.InspectionGrantService;
 import com.carenest.service.meals.InspectionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ImageFiles;
 import com.carenest.utils.enums.FileCategory;
+import com.carenest.utils.enums.FoodSampleStatus;
 import com.carenest.utils.enums.InspectionStatus;
 import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
@@ -29,11 +31,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -58,6 +62,7 @@ public class InspectionServiceImpl implements InspectionService {
     private final CampusAccessPolicy campusAccessPolicy;
     private final UserSignatureService userSignatureService;
     private final FileStorage imageStorage;
+    private final InspectionGrantService grantService;
     private final Clock clock;
 
     @Override
@@ -75,8 +80,19 @@ public class InspectionServiceImpl implements InspectionService {
             for (InspectionTab tab : InspectionTab.values()) {
                 sheets.add(view(tab, saved.get(tab), campusId, day));
             }
-            InspectionDayResponse response =
-                    new InspectionDayResponse(campusId, day, canEdit(currentUser, campusId), sheets);
+            InspectionDayResponse response = new InspectionDayResponse(
+                    campusId,
+                    day,
+                    canEdit(currentUser, campusId),
+                    sheets,
+                    grantService.dayApprovals(
+                            currentUser,
+                            campusId,
+                            day,
+                            sheets.stream()
+                                    .filter(sheet -> !sheet.rows().isEmpty())
+                                    .map(InspectionSheetResponse::tab)
+                                    .collect(Collectors.toCollection(() -> EnumSet.noneOf(InspectionTab.class)))));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -95,6 +111,8 @@ public class InspectionServiceImpl implements InspectionService {
             Instant now = clock.instant();
             requireWritable(currentUser, campusId, date);
             InspectionSheet sheet = lockedSheet(campusId, date, tab);
+            // INS-05: ngày đã qua phải có quyền mở của HT (kiểm sau khi giữ khóa điểm trường)
+            grantService.requireOpenDay(campusId, date, tab);
             if (sheet != null && sheet.isSigned()) {
                 throw GlobalException.of(ApiCode.INSPECTION_SIGNED);
             }
@@ -126,11 +144,20 @@ public class InspectionServiceImpl implements InspectionService {
             Instant now = clock.instant();
             requireWritable(currentUser, campusId, date);
             InspectionSheet sheet = lockedSheet(campusId, date, tab);
+            grantService.requireOpenDay(campusId, date, tab);
             if (sheet == null || sheet.getSheetRows().isEmpty()) {
                 throw GlobalException.of(ApiCode.INSPECTION_NOT_SAVED);
             }
             if (sheet.isSigned()) {
                 throw GlobalException.of(ApiCode.INSPECTION_SIGNED);
+            }
+            // NUT-21/INS-02: sổ M5 soát toàn bộ mẫu của ngày ⇒ phải duyệt hết mẫu chờ của ngày trước khi ký
+            if (tab == InspectionTab.SAMPLE) {
+                long pending =
+                        campusLookup.countByCampusIdAndSampleDateAndStatus(campusId, date, FoodSampleStatus.RECORDED);
+                if (pending > 0) {
+                    throw GlobalException.of(ApiCode.INSPECTION_SAMPLE_PENDING, pending);
+                }
             }
             // Client chỉ lưu ô PHT nhập: bản chụp phải gộp ô hệ thống (tên món, suất...) từ nguồn lúc ký (INS-03)
             List<Map<String, Object>> rows = merge(tab, skeleton.rows(tab, campusId, date), sheet.getSheetRows());
@@ -165,6 +192,8 @@ public class InspectionServiceImpl implements InspectionService {
                         InspectionEvent.SIGNED, currentUser.userId(), currentUser.fullName(), now, null, imageKey);
                 sheet.sign(signature, event, rows, now);
                 sheetRepository.saveAndFlush(sheet);
+                // INS-05: ký xong đóng quyền mở của ngày cũ, sửa lại lần sau cần yêu cầu mới
+                grantService.consume(campusId, date, tab);
             } catch (RuntimeException ex) {
                 imageStorage.removeQuietly(FileCategory.INSPECTION_SIGNATURE, imageKey);
                 throw ex;
@@ -189,7 +218,7 @@ public class InspectionServiceImpl implements InspectionService {
         log.info("{}|START", logPrefix);
         try {
             Instant now = clock.instant();
-            // Sửa lại mọi ngày được (INS-04), kể cả ngày đã qua; chỉ ngày chưa tới mới chưa có biên bản để sửa
+            // INS-04: sửa lại cần lý do; ngày đã qua còn cần quyền mở của HT (INS-05, kiểm sau khi giữ khóa)
             requireEdit(currentUser, campusId);
             requireCampus(campusId);
             String reason = request == null || request.reason() == null
@@ -199,6 +228,7 @@ public class InspectionServiceImpl implements InspectionService {
                 throw GlobalException.of(ApiCode.INSPECTION_REASON_REQUIRED);
             }
             InspectionSheet sheet = lockedSheet(campusId, date, tab);
+            grantService.requireOpenDay(campusId, date, tab);
             if (sheet == null || !sheet.isSigned()) {
                 throw GlobalException.of(ApiCode.INSPECTION_NOT_SIGNED);
             }

@@ -1,0 +1,1 @@
+ALTER TABLE children ADD COLUMN meal_registered BOOLEAN NOT NULL DEFAULT TRUE;

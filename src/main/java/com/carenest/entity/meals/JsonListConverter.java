@@ -48,6 +48,20 @@ public abstract class JsonListConverter<T> implements AttributeConverter<List<T>
     }
 
     @Converter
+    public static class ForecastDryOrders extends JsonListConverter<FreshForecastDryOrder> {
+        public ForecastDryOrders() {
+            super(new TypeReference<>() {});
+        }
+    }
+
+    @Converter
+    public static class RejectedLines extends JsonListConverter<StockRejectedLine> {
+        public RejectedLines() {
+            super(new TypeReference<>() {});
+        }
+    }
+
+    @Converter
     public static class SampleDishDetails extends JsonListConverter<FoodSampleDishDetail> {
         public SampleDishDetails() {
             super(new TypeReference<>() {});
@@ -57,6 +71,20 @@ public abstract class JsonListConverter<T> implements AttributeConverter<List<T>
     @Converter
     public static class PlanDays extends JsonListConverter<MealPlanDay.Info> {
         public PlanDays() {
+            super(new TypeReference<>() {});
+        }
+    }
+
+    @Converter
+    public static class RevisionItems extends JsonListConverter<MealPlanDayRevision.Item> {
+        public RevisionItems() {
+            super(new TypeReference<>() {});
+        }
+    }
+
+    @Converter
+    public static class RevisionIssues extends JsonListConverter<MealPlanDayRevision.Issue> {
+        public RevisionIssues() {
             super(new TypeReference<>() {});
         }
     }

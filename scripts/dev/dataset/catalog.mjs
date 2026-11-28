@@ -14,7 +14,6 @@ const NURSERY = 'ag-2';
 const FACTOR = { 'ag-2': 0.74, 'ag-3': 0.93, 'ag-4': 0.965, 'ag-5': 1.0 };
 const PRICE_NOTE = 'Giá tham khảo chợ Hải Phòng tháng 10/2026';
 const SOURCE = 'Bảng thành phần thực phẩm Việt Nam – Viện Dinh dưỡng';
-const SOURCE_VERSION = 'viendinhduong.vn, tra cứu 09/2026';
 
 // [mã Viện, tên hiển thị, nhóm, kho (D khô/F tươi), đơn vị mua, cỡ đơn vị mua (g|ml), giá/đơn vị mua, % thải bỏ, đơn vị gốc]
 const FOODS = [
@@ -147,8 +146,8 @@ const DISHES = [
 const NORM_BASIS_NT = 'Chương trình GDMN (văn bản hợp nhất 01/VBHN-BGDĐT): nhà trẻ ăn tại trường 600–651 kcal (60–70% nhu cầu cả ngày), đạm 13–20%, béo 30–40%, bột đường 40–57% năng lượng';
 const NORM_BASIS_MG = 'Chương trình GDMN (văn bản hợp nhất 01/VBHN-BGDĐT): mẫu giáo ăn tại trường 615–726 kcal (50–55% nhu cầu cả ngày), đạm 13–20%, béo 25–35%, bột đường 52–60% năng lượng';
 // Vi chất mỗi trẻ mỗi ngày trên các bữa ở trường (khoảng 50–60% nhu cầu khuyến nghị); max trống = chỉ cần đạt tối thiểu
-const MICRO_NT = { calcium: [180, null], phosphorus: [200, null], iron: [3, null], vitaminA: [180, null], vitaminB1: [0.25, null], vitaminB2: [0.25, null], vitaminPp: [3, null], vitaminC: [15, null] };
-const MICRO_MG = { calcium: [200, null], phosphorus: [250, null], iron: [3.5, null], vitaminA: [200, null], vitaminB1: [0.3, null], vitaminB2: [0.3, null], vitaminPp: [4, null], vitaminC: [18, null] };
+const MICRO_NT = { calcium: [180, null], phosphorus: [200, null], iron: [3, null], zinc: [null, null], vitaminA: [180, null], vitaminB1: [0.25, null], vitaminB2: [0.25, null], vitaminPp: [3, null], vitaminC: [15, null] };
+const MICRO_MG = { calcium: [200, null], phosphorus: [250, null], iron: [3.5, null], zinc: [null, null], vitaminA: [200, null], vitaminB1: [0.3, null], vitaminB2: [0.3, null], vitaminPp: [4, null], vitaminC: [18, null] };
 const CONFIGS = {
   'ag-2': { price: 32000, kcal: [600, 651], p: [13, 20], l: [30, 40], g: [40, 57], need: 980, morning: [8, 15], lunch: [28, 35], afternoon: [15, 25], basis: NORM_BASIS_NT, micro: MICRO_NT },
   'ag-3': { price: 34000, kcal: [615, 726], p: [13, 20], l: [25, 35], g: [52, 60], need: 1290, morning: null, lunch: [28, 35], afternoon: [15, 25], basis: NORM_BASIS_MG, micro: MICRO_MG },
@@ -255,7 +254,7 @@ function buildFoods(rows) {
     // Vi chất: ô trống trong bảng Viện coi như không đáng kể (0); vitamin A lấy RAE, thiếu thì retinol + β-caroten/12
     const vitA = r.vit_a_rae_mcg != null ? Number(r.vit_a_rae_mcg) : opt(r.retinol_mcg) + opt(r.carotene_mcg) / 12;
     const micro = {
-      calcium: opt(r.ca_mg), phosphorus: opt(r.p_mg), iron: opt(r.fe_mg), vitaminA: r2(vitA),
+      calcium: opt(r.ca_mg), phosphorus: opt(r.p_mg), iron: opt(r.fe_mg), zinc: r.zn_mg == null || r.zn_mg === '' ? null : Number(r.zn_mg), vitaminA: r2(vitA),
       vitaminB1: opt(r.thiamin_mg), vitaminB2: opt(r.riboflavin_mg), vitaminPp: opt(r.niacin_mg), vitaminC: opt(r.vit_c_mg),
     };
     const origin = ANIMAL_GROUPS.has(group) || ANIMAL_CODES.has(code) ? 'ANIMAL' : 'PLANT';
@@ -386,12 +385,12 @@ export function renderCatalog(rows, { check = true } = {}) {
 
   w('-- 1. Thực phẩm (mã VDD<mã Viện>)');
   w('INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price, kcal, protein, lipid, glucid,');
-  w('                   nutrient_source, nutrient_source_version, waste_pct, storage, origin, note, allergen_codes,');
-  w('                   calcium, phosphorus, iron, vitamin_a, vitamin_b1, vitamin_b2, vitamin_pp, vitamin_c)');
+  w('                   nutrient_source, waste_pct, storage, origin, note, allergen_codes,');
+  w('                   calcium, phosphorus, iron, zinc, vitamin_a, vitamin_b1, vitamin_b2, vitamin_pp, vitamin_c)');
   w('VALUES');
-  w(foods.map((f) => `    (${[f.fcode, f.name, f.group, f.unit, f.pu, f.size, f.price, f.kcal, f.p, f.l, f.g, SOURCE, SOURCE_VERSION,
-    f.waste, f.storage, f.origin, PRICE_NOTE, f.allergen, f.micro.calcium, f.micro.phosphorus, f.micro.iron, f.micro.vitaminA,
-    f.micro.vitaminB1, f.micro.vitaminB2, f.micro.vitaminPp, f.micro.vitaminC].map(q).join(', ')})`).join(',\n'));
+  w(foods.map((f) => `    (${[f.fcode, f.name, f.group, f.unit, f.pu, f.size, f.price, f.kcal, f.p, f.l, f.g, SOURCE,
+    f.waste, f.storage, f.origin, PRICE_NOTE, f.allergen, f.micro.calcium, f.micro.phosphorus, f.micro.iron, f.micro.zinc,
+    f.micro.vitaminA, f.micro.vitaminB1, f.micro.vitaminB2, f.micro.vitaminPp, f.micro.vitaminC].map(q).join(', ')})`).join(',\n'));
   w('ON CONFLICT (code) DO NOTHING;');
   w();
 
@@ -418,12 +417,12 @@ export function renderCatalog(rows, { check = true } = {}) {
   const cfgCols = ['meal_price', 'kcal_min', 'kcal_max', 'protein_pct_min', 'protein_pct_max', 'lipid_pct_min', 'lipid_pct_max',
     'glucid_pct_min', 'glucid_pct_max', 'daily_kcal_need', 'morning_kcal_pct_min', 'morning_kcal_pct_max', 'lunch_kcal_pct_min',
     'lunch_kcal_pct_max', 'afternoon_kcal_pct_min', 'afternoon_kcal_pct_max', 'calcium_min', 'phosphorus_min', 'iron_min',
-    'vitamin_a_min', 'vitamin_b1_min', 'vitamin_b2_min', 'vitamin_pp_min', 'vitamin_c_min', 'norm_basis'];
+    'zinc_min', 'vitamin_a_min', 'vitamin_b1_min', 'vitamin_b2_min', 'vitamin_pp_min', 'vitamin_c_min', 'norm_basis'];
   const cfgRows = AGE_GROUPS.map((ag) => {
     const c = CONFIGS[ag];
     return [ag, c.price, ...c.kcal, ...c.p, ...c.l, ...c.g, c.need, ...(c.morning ?? [null, null]), ...c.lunch, ...c.afternoon,
-      c.micro.calcium[0], c.micro.phosphorus[0], c.micro.iron[0], c.micro.vitaminA[0], c.micro.vitaminB1[0], c.micro.vitaminB2[0],
-      c.micro.vitaminPp[0], c.micro.vitaminC[0], c.basis];
+      c.micro.calcium[0], c.micro.phosphorus[0], c.micro.iron[0], c.micro.zinc[0], c.micro.vitaminA[0], c.micro.vitaminB1[0],
+      c.micro.vitaminB2[0], c.micro.vitaminPp[0], c.micro.vitaminC[0], c.basis];
   });
   w(`INSERT INTO age_group_meal_configs (age_group_id, effective_from, ${cfgCols.join(', ')},`);
   w('                                    created_by, updated_by, created_at, updated_at)');
@@ -438,6 +437,13 @@ export function renderCatalog(rows, { check = true } = {}) {
   w('ON CONFLICT (age_group_id, effective_from) DO NOTHING;');
   w();
 
+  w('-- Trạng thái tham gia soạn thực đơn của nhóm tuổi; chỉ thêm khi chưa có để giữ lựa chọn đã lưu');
+  w('INSERT INTO nutrition_group_settings (age_group_id, enabled)');
+  w('SELECT ag.id, TRUE FROM age_groups ag');
+  w(`WHERE ag.code IN (${AGE_GROUPS.map(q).join(', ')})`);
+  w('ON CONFLICT (age_group_id) DO NOTHING;');
+  w();
+
   w('-- 4. Nhà cung cấp');
   w('INSERT INTO suppliers (name, phone, address, delivery_person, id_card, created_at, updated_at)');
   w("SELECT v.name, v.phone, v.address, v.delivery_person, v.id_card, TIMESTAMPTZ '2026-08-20 14:00+07', TIMESTAMPTZ '2026-08-20 14:00+07'");
@@ -445,6 +451,13 @@ export function renderCatalog(rows, { check = true } = {}) {
   w(SUPPLIERS.map(([n, p, a, d, c]) => `    (${[n, p, a, d, c].map(q).join(', ')})`).join(',\n'));
   w(') AS v (name, phone, address, delivery_person, id_card)');
   w('WHERE NOT EXISTS (SELECT 1 FROM suppliers s WHERE s.name = v.name);');
+  w();
+
+  w("-- 4b. Mức giá ban đầu của thực phẩm (NUT-27): giá theo ngày hiệu lực, chưa gán NCC — PHT gán qua \"Áp dụng hợp đồng mới\"");
+  w("INSERT INTO food_prices (food_id, price, effective_from, reason, created_at, updated_at)");
+  w("SELECT f.id, f.unit_price, DATE '2026-08-20', 'Giá ban đầu', TIMESTAMPTZ '2026-08-20 14:00+07', TIMESTAMPTZ '2026-08-20 14:00+07'");
+  w("FROM foods f");
+  w("WHERE f.code LIKE 'VDD%' AND NOT EXISTS (SELECT 1 FROM food_prices p WHERE p.food_id = f.id);");
   w();
 
   w('-- 5. Bộ thực đơn mẫu 4 tuần (nhà trẻ 3 bữa, mẫu giáo 2 bữa theo age_groups.meal_sessions)');

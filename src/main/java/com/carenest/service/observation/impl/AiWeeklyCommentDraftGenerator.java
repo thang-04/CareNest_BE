@@ -1,9 +1,15 @@
 package com.carenest.service.observation.impl;
 
-import com.carenest.integration.ai.AiClient;
+import com.carenest.integration.ai.AiGateway;
+import com.carenest.integration.ai.AiProperties;
+import com.carenest.integration.ai.AiRequest;
+import com.carenest.utils.enums.AiTask;
 import com.carenest.utils.enums.Emotion;
 import com.carenest.utils.enums.NapLevel;
 import com.carenest.utils.enums.Participation;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +22,8 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 class AiWeeklyCommentDraftGenerator implements WeeklyCommentDraftGenerator {
-    private static final int MAX_TOKENS = 600;
+    private static final String PROMPT_VERSION = "observation/weekly_comment_v1";
+    private static final Duration DEFAULT_DEADLINE = Duration.ofSeconds(20);
     private static final String SYSTEM_PROMPT =
             "Bạn là giáo viên mầm non viết nhận xét tuần gửi phụ huynh. Viết tiếng Việt,"
                     + " 1–2 đoạn văn xuôi ngắn, giọng ấm áp, gọi trẻ là \"con\". Không chia mục, không tiêu đề, không gạch đầu dòng."
@@ -24,23 +31,33 @@ class AiWeeklyCommentDraftGenerator implements WeeklyCommentDraftGenerator {
                     + " không dùng từ chẩn đoán. Nêu tình hình đi học, vui chơi, ăn ngủ, điều con làm tốt, điều con còn lúng túng"
                     + " (nếu có), và kết bằng 1–2 câu gợi ý bố mẹ cùng con làm ở nhà.";
 
-    private final AiClient aiClient;
+    private final AiGateway aiGateway;
+    private final Clock clock;
 
     boolean isEnabled() {
-        return aiClient.isEnabled();
+        return aiGateway.isAvailable(AiTask.WEEKLY_COMMENT);
     }
 
     @Override
     public String write(WeekFacts f) {
-        if (!aiClient.isEnabled()) {
+        if (!isEnabled()) {
             throw new IllegalStateException("ai-disabled");
         }
-        String text = aiClient.complete(new AiClient.AiRequest("weekly-comment", SYSTEM_PROMPT, prompt(f), MAX_TOKENS))
-                .text();
+        Duration deadline = aiGateway
+                .taskConfig(AiTask.WEEKLY_COMMENT)
+                .map(AiProperties.TaskConfig::deadline)
+                .orElse(DEFAULT_DEADLINE);
+        String text = aiGateway
+                .complete(new AiRequest(
+                        AiTask.WEEKLY_COMMENT,
+                        PROMPT_VERSION,
+                        SYSTEM_PROMPT,
+                        prompt(f),
+                        Instant.now(clock).plus(deadline)))
+                .content();
         String clean = text == null ? "" : text.trim();
         String lower = clean.toLowerCase(Locale.ROOT);
-        if (clean.isEmpty()
-                || DailyAssessmentServiceImpl.DIAGNOSTIC_TERMS.stream().anyMatch(lower::contains)) {
+        if (clean.isEmpty() || DiagnosticTerms.containsAny(clean)) {
             throw new IllegalStateException("ai-unusable");
         }
         return clean;
@@ -52,7 +69,9 @@ class AiWeeklyCommentDraftGenerator implements WeeklyCommentDraftGenerator {
                 .append(f.presentDays())
                 .append('/')
                 .append(f.schoolDays())
-                .append(" ngày học.\n");
+                .append(" ngày học")
+                .append(f.halfDays() > 0 ? ", trong đó " + f.halfDays() + " ngày chỉ học một buổi" : "")
+                .append(".\n");
         b.append("- Cảm xúc khi đến lớp (số ngày): ")
                 .append(counts(f.emotion()))
                 .append('\n');

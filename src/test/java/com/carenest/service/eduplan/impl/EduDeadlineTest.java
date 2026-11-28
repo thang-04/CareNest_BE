@@ -6,21 +6,19 @@ import com.carenest.dto.organization.SchoolYearDetailResponse;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 
-/** Spec 003 — hạn gói học kỳ / hồ sơ chủ đề (data-model "Hạn", quickstart Q1, Q2b; SC-001/002). */
+/** Spec 003 — hạn kế hoạch giáo dục chủ đề / kế hoạch giáo dục ngày (data-model "Hạn", quickstart Q1, Q2b; SC-001/002). */
 class EduDeadlineTest {
     private static final LocalDate HAN = LocalDate.of(2026, 11, 16);
 
     private static String state(LocalDate today, boolean approved, LocalDate firstRelease, LocalDate extended) {
-        return EduDeadline.of(HAN, extended, today, approved, firstRelease, null)
-                .state();
+        return EduDeadline.of(HAN, extended, today, approved, firstRelease).state();
     }
 
     @Test
     void nearWindowIsSevenDays() {
         assertThat(state(HAN.minusDays(8), false, null, null)).isEqualTo(EduDeadline.NORMAL);
         assertThat(state(HAN.minusDays(7), false, null, null)).isEqualTo(EduDeadline.NEAR);
-        assertThat(EduDeadline.of(HAN, null, HAN.minusDays(7), false, null, null)
-                        .daysLeft())
+        assertThat(EduDeadline.of(HAN, null, HAN.minusDays(7), false, null).daysLeft())
                 .isEqualTo(7);
         assertThat(state(HAN.minusDays(1), false, null, null)).isEqualTo(EduDeadline.NEAR);
         assertThat(state(HAN, false, null, null)).isEqualTo(EduDeadline.OVERDUE);
@@ -30,7 +28,7 @@ class EduDeadlineTest {
     void releasedStateFollowsCurrentStatus() {
         assertThat(state(HAN.plusDays(3), true, HAN.minusDays(2), null)).isEqualTo(EduDeadline.ON_TIME);
         // đang Chờ duyệt lúc tới hạn, duyệt sau hạn
-        assertThat(state(HAN.plusDays(3), true, HAN.plusDays(1), null)).isEqualTo(EduDeadline.LATE);
+        assertThat(state(HAN.plusDays(3), true, HAN.plusDays(1), null)).isEqualTo(EduDeadline.ISSUED);
         // đã ban hành rồi mở lại sửa phần tương lai sau hạn ⇒ quá hạn, cần mở hạn (analyze F1)
         assertThat(state(HAN.plusDays(3), false, HAN.minusDays(2), null)).isEqualTo(EduDeadline.OVERDUE);
     }
@@ -44,11 +42,11 @@ class EduDeadlineTest {
     }
 
     @Test
-    void classOpenedAfterDeadlineIsNotOverdue() {
-        assertThat(EduDeadline.of(HAN, null, HAN.plusDays(10), false, null, HAN.plusDays(3))
-                        .state())
-                .isEqualTo(EduDeadline.NORMAL);
-        assertThat(EduDeadline.of(null, null, HAN, false, null, null).state()).isEqualTo(EduDeadline.NORMAL);
+    void classOpenedAfterDeadlineIsStillOverdue() {
+        // EDU-109 (9): bỏ ngoại lệ lớp mở sau hạn
+        assertThat(EduDeadline.of(HAN, null, HAN.plusDays(10), false, null).state())
+                .isEqualTo(EduDeadline.OVERDUE);
+        assertThat(EduDeadline.of(null, null, HAN, false, null).state()).isEqualTo(EduDeadline.NORMAL);
     }
 
     @Test
@@ -64,7 +62,7 @@ class EduDeadlineTest {
         assertThat(EduSemesters.of(year, e1.plusDays(3))).contains(2); // bắt đầu trong kỳ nghỉ ⇒ kỳ sau
         assertThat(EduSemesters.of(year, s2.plusWeeks(16))).contains(2);
         assertThat(EduSemesters.start(year, 2)).isEqualTo(s2);
-        assertThat(EduDeadline.of(EduSemesters.start(year, 2), null, s2.minusDays(7), false, null, null)
+        assertThat(EduDeadline.of(EduSemesters.start(year, 2), null, s2.minusDays(7), false, null)
                         .state())
                 .isEqualTo(EduDeadline.NEAR);
         var unconfigured = new SchoolYearDetailResponse(

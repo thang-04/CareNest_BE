@@ -1,5 +1,6 @@
 package com.carenest.mapper.meals;
 
+import com.carenest.dto.meals.StockDisposalResponse;
 import com.carenest.dto.meals.StockFoodRef;
 import com.carenest.dto.meals.StockLotResponse;
 import com.carenest.dto.meals.StockMovementResponse;
@@ -7,6 +8,7 @@ import com.carenest.dto.meals.StockReceiptResponse;
 import com.carenest.dto.meals.StockShortfallResponse;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.StockDailyDemand;
+import com.carenest.entity.meals.StockDisposal;
 import com.carenest.entity.meals.StockLot;
 import com.carenest.entity.meals.StockMovement;
 import com.carenest.entity.meals.StockReceipt;
@@ -35,7 +37,7 @@ public class StockMapper {
     }
 
     public StockReceiptResponse toResponse(
-            StockReceipt receipt, String supplierName, Map<Long, Food> foods, boolean canManage) {
+            StockReceipt receipt, String supplierName, Map<Long, Food> foods, boolean canManage, boolean canCancel) {
         List<StockReceiptResponse.ReceiptLine> lines = receipt.getLines().stream()
                 .map(line -> toLine(line, foods.get(line.getFoodId())))
                 .toList();
@@ -57,7 +59,39 @@ public class StockMapper {
                 receipt.getCancelledAt(),
                 receipt.getCancelReason(),
                 receipt.getCreatedAt(),
-                canManage);
+                canManage,
+                receipt.getForecastId(),
+                receipt.isFromIntake(),
+                receipt.getRejectedLines().stream()
+                        .map(line -> new StockReceiptResponse.RejectedLine(
+                                toFoodRef(foods.get(line.foodId())),
+                                line.lotNo(),
+                                line.expiryDate(),
+                                line.quantity(),
+                                line.note()))
+                        .toList(),
+                canCancel);
+    }
+
+    public StockDisposalResponse.DisposalLine toDisposalLine(StockLot lot, Food food, BigDecimal quantity) {
+        return new StockDisposalResponse.DisposalLine(
+                lot.getId(), lot.getLotNo(), toFoodRef(food), lot.getExpiryDate(), quantity);
+    }
+
+    public StockDisposalResponse toResponse(
+            StockDisposal disposal, String supplierName, List<StockDisposalResponse.DisposalLine> lines) {
+        return new StockDisposalResponse(
+                disposal.getId(),
+                disposal.getCode(),
+                disposal.getKind(),
+                disposal.getCampusId(),
+                disposal.getDisposalDate(),
+                disposal.getSupplierId(),
+                supplierName,
+                disposal.getReason(),
+                lines,
+                disposal.getCreatedBy(),
+                disposal.getCreatedAt());
     }
 
     public StockLotResponse toResponse(StockLot lot, Food food, String supplierName, BigDecimal remaining) {
@@ -85,7 +119,9 @@ public class StockMapper {
                 movement.getMovementType(),
                 movement.getQuantity(),
                 movement.getMealDate(),
+                movement.getCorrectionFor(),
                 movement.getReceiptId(),
+                movement.getDisposalId(),
                 movement.getReason(),
                 movement.getCreatedBy(),
                 movement.getCreatedAt());

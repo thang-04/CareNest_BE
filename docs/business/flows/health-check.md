@@ -80,7 +80,8 @@ Nguồn: user, 2026-11-01 (HLT-17, chưa có xác nhận trường/team); user c
     lâm sàng; lưu nháp nhiều lần
 [S] Lưu lần đầu ⇒ hệ thống ghi ngày khám (hôm nay, kẹp trong đợt); lưu nháp tiếp, kết luận,
     sửa sau kết luận giữ ngày đó; GV không chọn ngày                            (HLT-08, sửa 2026-11-04)
-    Ngày khám trẻ đã có kết quả đo khác ⇒ không lưu, báo HT/PHT
+    Ngày khám trẻ đã có số đo kỳ cân đo vẫn lưu được (2026-11-24); mỗi ngày một phiếu khám (kể cả nháp);
+    trẻ vắng ngày khám (điểm danh) ⇒ không lưu phiếu mới (5042)
 [S] "Điểm cần bác sĩ xem lại" (gợi ý theo tuổi tại ngày khám, không phải kết luận)
 [B] GV nhập kết luận của bác sĩ ⇒ [S] kiểm đủ phiếu, công bố, mức theo dõi theo kết luận (HLT-10, HLT-11)
 [S] Tiền sử ghi ngược về khai báo sức khỏe                                      (HLT-06)

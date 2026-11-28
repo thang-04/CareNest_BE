@@ -31,7 +31,7 @@ public final class ThemeEvaluationDtos {
             Long goalId, Short goalNo, String text, int metChildren, int assessedChildren, Integer rate) {}
 
     /** auto: kết quả hệ thống tính từ KTKN (để màn hình biết ô sửa tay có khác kết quả tự tính không). */
-    public record Cell(Long goalId, Boolean met, boolean manual, Boolean auto) {}
+    public record Cell(Long goalId, Boolean met, boolean manual, Boolean auto, Boolean canEdit) {}
 
     /** passed: trẻ đạt từ passPercent% số MT đã chấm; null khi chưa chấm MT nào. */
     public record ChildRow(
@@ -42,7 +42,9 @@ public final class ThemeEvaluationDtos {
             int met,
             int notMet,
             Integer rate,
-            Boolean passed) {}
+            Boolean passed,
+            Boolean historical,
+            String historyStatus) {}
 
     public record ThemeEvaluationResponse(
             Long classId,
@@ -64,7 +66,35 @@ public final class ThemeEvaluationDtos {
             boolean canConfirm,
             String confirmedByName,
             Instant confirmedAt,
-            ThemeSigners signers) {}
+            ThemeSigners signers,
+            // Bản đã xác nhận mà người xem được sửa lại (còn hạn hoặc đang mở lại)
+            Boolean canRevise) {
+
+        public ThemeEvaluationResponse withCanRevise(boolean value) {
+            return new ThemeEvaluationResponse(
+                    classId,
+                    className,
+                    themeId,
+                    themeName,
+                    startDate,
+                    endDate,
+                    period,
+                    status,
+                    note,
+                    goals,
+                    rows,
+                    assessedChildren,
+                    passedChildren,
+                    notPassedChildren,
+                    passPercent,
+                    canEdit,
+                    canConfirm,
+                    confirmedByName,
+                    confirmedAt,
+                    signers,
+                    value);
+        }
+    }
 
     /**
      * Họ tên in dưới chỗ ký của bản in (không phải bước duyệt): GV chủ nhiệm (chưa có thì các GV lớp), tổ trưởng nhóm tuổi, PHT ban hành kế hoạch năm

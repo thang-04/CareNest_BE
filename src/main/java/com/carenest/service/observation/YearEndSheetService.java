@@ -14,6 +14,12 @@ public interface YearEndSheetService {
     /** GV lớp, năm đang hoạt động, chưa xác nhận: lưu ô sửa tay và 4 lưu ý. */
     YearEndSheetResponse save(CurrentUser currentUser, Long evaluationId, YearEndSheetRequest request);
 
+    /** Phiếu đã xác nhận cho App phụ huynh (chỉ dùng nội bộ, module gọi tự kiểm quyền trẻ); chưa xác nhận ⇒ lỗi. */
+    YearEndSheetResponse getConfirmedSheet(Long evaluationId);
+
     /** Gọi khi xác nhận đánh giá cuối năm: chốt cả phiếu (kết quả tổng hợp + ô sửa tay) vào đánh giá. */
     void freeze(ChildEvaluation evaluation);
+
+    /** Gọi trước khi xác nhận lại: mở phiếu đã chốt để tính lại, giữ ô sửa tay. */
+    void reopenForRevision(ChildEvaluation evaluation);
 }

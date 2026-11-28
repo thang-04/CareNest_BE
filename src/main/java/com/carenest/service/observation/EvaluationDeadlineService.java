@@ -23,6 +23,9 @@ public interface EvaluationDeadlineService {
     List<EvaluationPeriod> periodsOf(ClassroomInfoResponse cls);
 
     /** Quá hạn và không có lần mở lại còn hiệu lực ⇒ EVALUATION_LOCKED; kỳ không xác định được thì bỏ qua. */
+    /** Như checkWritable nhưng trả cờ, dùng để hiện nút. */
+    boolean isWritable(ClassroomInfoResponse cls, EvaluationLockKind kind, String periodKey);
+
     void checkWritable(ClassroomInfoResponse cls, EvaluationLockKind kind, String periodKey);
 
     /** Khóa học kỳ của một đánh giá học kỳ theo ngày kết thúc kỳ: 1 nếu là học kỳ I, còn lại 2. */
@@ -36,7 +39,12 @@ public interface EvaluationDeadlineService {
     EvaluationUnlockResponse revokeUnlock(CurrentUser currentUser, Long unlockId);
 
     /** BGH: lớp quá hạn chưa xong (nhận xét tuần tuần trước, chủ đề, học kỳ, cuối năm) trong phạm vi điểm trường. */
-    List<OverdueClassItem> getOverdue(CurrentUser currentUser, Long campusId);
+    default List<OverdueClassItem> getOverdue(CurrentUser currentUser, Long campusId) {
+        return getOverdue(currentUser, campusId, null);
+    }
+
+    /** Lớp quá hạn theo năm học đang chọn (null = năm đang hoạt động); năm sắp diễn ra trả rỗng. */
+    List<OverdueClassItem> getOverdue(CurrentUser currentUser, Long campusId, Long schoolYearId);
 
     /** Kỳ đã khóa (không đang mở lại) mà còn việc dở của các lớp (BGH nhắc), không kiểm quyền. */
     List<OverdueClassItem> overdueOf(List<ClassroomInfoResponse> classes);
