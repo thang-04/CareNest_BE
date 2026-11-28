@@ -72,9 +72,6 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
                     join user_accounts u on u.id = a.user_id
                     where a.campus_id is not null
                       and a.valid_from <= :date and (a.valid_to is null or a.valid_to >= :date)
-                      and (a.valid_to is not null or a.staff_role <> 'VICE_PRINCIPAL'
-                           or not exists (select 1 from school_years y
-                                          where y.end_date >= a.valid_from and y.end_date < :date))
                     order by u.full_name
                     """, nativeQuery = true)
     List<CampusStaff> findActiveCampusStaff(@Param("date") LocalDate date);
@@ -297,15 +294,12 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
             nativeQuery = true)
     long countClassesInYear(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
 
-    /** PHT phân công cho điểm trường trong khoảng của năm học (V144: phân công PHT theo năm). */
+    /** PHT phân công cho điểm trường trong khoảng của năm học; phân công không ngày kết thúc giữ qua các năm. */
     @Query(
             value = "select distinct u.full_name from staff_assignments s join user_accounts u on u.id = s.user_id"
                     + " join school_years y on y.id = :yearId where s.campus_id = :campusId"
                     + " and s.staff_role = 'VICE_PRINCIPAL' and s.valid_from <= y.end_date"
-                    + " and (s.valid_to is null or s.valid_to >= y.start_date)"
-                    // Như danh sách điểm trường: phân công không ngày kết thúc hết theo năm học của nó
-                    + " and (s.valid_to is not null or not exists (select 1 from school_years p"
-                    + " where p.end_date >= s.valid_from and p.end_date < y.start_date)) order by 1",
+                    + " and (s.valid_to is null or s.valid_to >= y.start_date) order by 1",
             nativeQuery = true)
     List<String> findYearVicePrincipalNames(@Param("campusId") Long campusId, @Param("yearId") Long yearId);
 
@@ -371,9 +365,6 @@ public interface CampusRepository extends JpaRepository<Campus, Long> {
                     + " where coalesce(s.campus_id, c.campus_id) = :campusId"
                     + " and (s.school_year_id = :yearId or (s.school_year_id is null"
                     + " and s.valid_from <= y.end_date and (s.valid_to is null or s.valid_to >= y.start_date)))"
-                    // Như danh sách điểm trường: phân công PHT không ngày kết thúc hết theo năm học của nó
-                    + " and (s.staff_role <> 'VICE_PRINCIPAL' or s.valid_to is not null or not exists (select 1"
-                    + " from school_years p where p.end_date >= s.valid_from and p.end_date < y.start_date))"
                     + " order by s.staff_role, u.full_name",
             nativeQuery = true)
     List<StaffName> findYearStaffNames(@Param("campusId") Long campusId, @Param("yearId") Long yearId);

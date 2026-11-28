@@ -557,7 +557,7 @@ public class CampusServiceImpl implements CampusService {
                 .orElse(countDate);
     }
 
-    // PHT là phân công theo năm: năm sắp diễn ra phải hiển thị từ ngày mở chuẩn bị, không lấy phân công của hôm nay.
+    // Năm sắp diễn ra: xét PHT tại ngày mở chuẩn bị để thấy cả phân công đặt riêng cho năm đó, không lấy ngày hôm nay
     private LocalDate staffDate(Long yearId, LocalDate today) {
         return schoolYearRepository
                 .findById(yearId)
