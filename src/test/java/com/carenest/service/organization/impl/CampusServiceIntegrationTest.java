@@ -470,42 +470,36 @@ class CampusServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Ngừng điểm trường trong năm sắp diễn ra: PHT của năm trước không hiện ở danh sách thì không chặn")
-    void carriedOverVicePrincipalDoesNotBlockPlannedYear() {
-        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
-                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
-        jdbc.update(
-                "INSERT INTO school_year_campus_members (school_year_id, campus_id, code, name, short_name, address, phone, status) "
-                        + "SELECT ?, id, code, name, short_name, address, phone, status FROM campuses",
-                planned);
-        long vpB = insertVicePrincipal("kc-vpb", "PHT năm trước", "2026-09-01");
+    @DisplayName("Phân công PHT giữ qua các năm: năm sắp diễn ra vẫn hiện, tính đủ khi chuẩn bị năm và chặn ngừng")
+    void carriedOverVicePrincipalShowsInPlannedYear() {
+        long planned = insertPlannedYearWithCampuses();
+        insertVicePrincipal("kc-vpb", "PHT năm trước", "2026-09-01");
 
         assertThat(service.getCampuses(principal, planned))
                 .filteredOn(c -> c.id() == campusB)
                 .singleElement()
-                .satisfies(c -> assertThat(c.vicePrincipals()).isEmpty());
-        assertThat(service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE, planned)
-                        .status())
-                .isEqualTo(CampusStatus.INACTIVE);
-
-        // Phân công của chính năm đó vẫn chặn và nêu tên
-        service.changeCampusStatus(principal, campusB, CampusStatus.ACTIVE, planned);
-        jdbc.update("UPDATE staff_assignments SET valid_from = '2027-08-02' WHERE user_id = ?", vpB);
+                .satisfies(c ->
+                        assertThat(c.vicePrincipals()).extracting("fullName").containsExactly("PHT năm trước"));
+        assertThat(service.getCampusDetail(principal, campusB, planned).vicePrincipals())
+                .extracting("fullName")
+                .containsExactly("PHT năm trước");
+        assertThat(yearSetupService.getYearSetup(planned).campusesWithoutVicePrincipal())
+                .doesNotContain(campusA, campusB);
         assertThatThrownBy(() -> service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE, planned))
                 .isInstanceOf(GlobalException.class)
                 .hasMessageContaining("PHT năm trước");
     }
 
     @Test
-    @DisplayName("Ngừng điểm trường: phân công PHT của năm đã kết thúc không còn hiện thì không chặn")
-    void endedYearVicePrincipalDoesNotBlockDeactivation() {
+    @DisplayName("Ngừng điểm trường: PHT được phân công từ năm trước, chưa kết thúc, vẫn chặn")
+    void vicePrincipalFromEarlierYearStillBlocksDeactivation() {
         insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
-        insertVicePrincipal("kc-vpb", "PHT năm đã qua", "2025-09-01");
+        insertVicePrincipal("kc-vpb", "PHT từ năm trước", "2025-09-01");
 
-        assertThat(service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE)
-                        .status())
-                .isEqualTo(CampusStatus.INACTIVE);
+        assertThatThrownBy(() -> service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE))
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("PHT từ năm trước");
     }
 
     @Test
@@ -526,18 +520,16 @@ class CampusServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Bỏ điểm trường khỏi năm sắp diễn ra: PHT của năm trước không hiện thì không chặn")
-    void carriedOverVicePrincipalDoesNotBlockRemovalFromYear() {
+    @DisplayName("Bỏ điểm trường khỏi năm sắp diễn ra: PHT còn phụ trách thì chặn, gỡ rồi mới bỏ được")
+    void carriedOverVicePrincipalBlocksRemovalFromYear() {
         long planned = insertPlannedYearWithCampuses();
         long vpB = insertVicePrincipal("kc-vpb", "PHT năm trước", "2026-09-01");
-        jdbc.update("UPDATE staff_assignments SET valid_from = '2027-08-02' WHERE user_id = ?", vpB);
 
-        // Phân công của chính năm đó vẫn chặn và nêu tên
         assertThatThrownBy(() -> service.deleteCampus(principal, campusB, planned))
                 .isInstanceOf(GlobalException.class)
                 .hasMessageContaining("PHT năm trước");
 
-        jdbc.update("UPDATE staff_assignments SET valid_from = '2026-09-01' WHERE user_id = ?", vpB);
+        jdbc.update("UPDATE staff_assignments SET valid_to = '2027-08-01' WHERE user_id = ?", vpB);
         service.deleteCampus(principal, campusB, planned);
 
         assertThat(service.getCampuses(principal, planned))
