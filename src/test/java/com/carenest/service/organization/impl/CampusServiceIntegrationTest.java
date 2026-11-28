@@ -61,6 +61,12 @@ class CampusServiceIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private com.carenest.service.organization.StaffAssignmentService staffAssignmentService;
+
+    @Autowired
+    private com.carenest.service.organization.TeacherAssignmentService teacherAssignmentService;
+
     private CurrentUser principal;
     private CurrentUser vicePrincipal;
     private long campusA;
@@ -574,6 +580,45 @@ class CampusServiceIntegrationTest {
         assertThat(yearSetupService.getYearSetup(planned).classes())
                 .extracting("teacherCount", "hasHomeroom")
                 .containsExactly(tuple(1, false));
+    }
+
+    @Test
+    @DisplayName(
+            "SCH-04: phân công năm sau đã cắt ngay ngày đầu (đổi / thu hồi vai trò) không còn tính là giáo viên lớp")
+    void teacherEndedAtStartOfPlannedYearIsNotCounted() {
+        long planned = insertPlannedYearWithCampuses();
+        long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusA + ", "
+                + planned + ", 'Lớp A2') RETURNING id");
+        insertTeacher("kc-gv1", "GV đổi vai trò", classroom, "2027-08-02");
+        insertTeacher("kc-gv2", "GV còn lại", classroom, "2027-08-02");
+        long assignment = jdbc.queryForObject(
+                "SELECT a.id FROM staff_assignments a JOIN user_accounts u ON u.id = a.user_id WHERE u.username = 'kc-gv1'",
+                Long.class);
+
+        // Như AccountProvisioningServiceImpl khi đổi / thu hồi vai trò: phân công chưa bắt đầu kết thúc ở ngày bắt đầu
+        staffAssignmentService.endAssignment(assignment, java.time.LocalDate.of(2027, 8, 2));
+
+        assertThat(yearSetupService.getYearSetup(planned).classes())
+                .filteredOn(c -> c.name().equals("Lớp A2"))
+                .singleElement()
+                .satisfies(c -> assertThat(c.teacherCount()).isEqualTo(1));
+        CurrentUser assigner = new CurrentUser(
+                principal.userId(),
+                principal.keycloakUserId(),
+                principal.username(),
+                principal.fullName(),
+                principal.email(),
+                principal.roles(),
+                Set.of(com.carenest.utils.enums.Permission.STAFF_ASSIGNMENT_MANAGE));
+        assertThat(teacherAssignmentService
+                        .getTeacherAssignments(assigner, planned, "all")
+                        .classes())
+                .filteredOn(c -> c.name().equals("Lớp A2"))
+                .singleElement()
+                .satisfies(c -> assertThat(c.teachers()).extracting("fullName").containsExactly("GV còn lại"));
+        assertThat(service.getCampusDetail(principal, campusA, planned).teachers())
+                .extracting("fullName")
+                .containsExactly("GV còn lại");
     }
 
     private long insertPlannedYearWithCampuses() {

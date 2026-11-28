@@ -13,6 +13,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.attendance.ParentAttendanceService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.ParentAttendanceStatus;
@@ -301,6 +302,45 @@ class ParentAttendanceIntegrationTest {
         assertThat(noted.symptoms()).containsExactlyInAnyOrder(HealthSymptom.COUGH, HealthSymptom.FEVER);
         assertThat(noted.note()).isEqualTo("Bé ho nhẹ");
         assertThat(noted.recordedByName()).isEqualTo("teacher");
+    }
+
+    @Test
+    @DisplayName("PAR-01: phụ huynh thấy cách xử trí và thông tin chuyển y tế của con")
+    void dailyHealthShowsActionsAndReferral() {
+        jdbc.update(
+                "INSERT INTO daily_health_entries (request_id, child_id, classroom_id, campus_id, date, temperature,"
+                        + " observation, symptoms, note, actions, referral_place, referral_time, referral_escort,"
+                        + " referral_escort_phone, recorded_by, recorded_at) SELECT 'r3', ?, id, campus_id, '2026-10-19', 39.1, 'NOTED',"
+                        + " 'FEVER', 'Bé sốt', 'PARENT_INFORMED,REFERRAL', 'Trạm y tế', '10:15', 'Cô đi cùng', '0912000111', ?, now()"
+                        + " FROM classrooms WHERE id = ?",
+                child,
+                teacher.userId(),
+                classA);
+        jdbc.update(
+                "INSERT INTO daily_health_entries (request_id, child_id, classroom_id, campus_id, date, temperature,"
+                        + " observation, recorded_by, recorded_at) SELECT 'r4', ?, id, campus_id, '2026-10-20', 36.6,"
+                        + " 'NO_CONCERN', ?, now() FROM classrooms WHERE id = ?",
+                child,
+                teacher.userId(),
+                classB);
+
+        var entries = service.getDailyHealth(parent, child, LocalDate.of(2026, 10, 19), TODAY);
+
+        ParentDailyHealthResponse noted = entries.stream()
+                .filter(e -> e.date().equals(LocalDate.of(2026, 10, 19)))
+                .findFirst()
+                .orElseThrow();
+        assertThat(noted.actions()).containsExactlyInAnyOrder(HealthAction.PARENT_INFORMED, HealthAction.REFERRAL);
+        assertThat(noted.referral().place()).isEqualTo("Trạm y tế");
+        assertThat(noted.referral().time()).isEqualTo(java.time.LocalTime.of(10, 15));
+        assertThat(noted.referral().escort()).isEqualTo("Cô đi cùng");
+        assertThat(noted.referral().escortPhone()).isEqualTo("0912000111");
+        ParentDailyHealthResponse normal = entries.stream()
+                .filter(e -> e.date().equals(LocalDate.of(2026, 10, 20)))
+                .findFirst()
+                .orElseThrow();
+        assertThat(normal.actions()).isEmpty();
+        assertThat(normal.referral()).isNull();
     }
 
     private long record(long classId, LocalDate date, String status, String meals, String absentPart) {

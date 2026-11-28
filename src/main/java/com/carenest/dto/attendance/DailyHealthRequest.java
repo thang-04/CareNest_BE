@@ -39,9 +39,10 @@ public record DailyHealthRequest(
         List<HealthAction> actions,
         @Valid Referral referral) {
 
-    /** Chuyển cơ sở y tế: nơi chuyển, giờ chuyển (HH:mm), người đi kèm. */
+    /** Chuyển cơ sở y tế: nơi chuyển, giờ chuyển (HH:mm), người đi kèm và số điện thoại của người đó. */
     public record Referral(
             @Size(max = 150) String place,
             @JsonFormat(pattern = "HH:mm") LocalTime time,
-            @Size(max = 100) String escort) {}
+            @Size(max = 100) String escort,
+            @Size(max = 20) String escortPhone) {}
 }

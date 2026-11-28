@@ -1,6 +1,7 @@
 package com.carenest.dto.attendance;
 
 import com.carenest.utils.enums.DayPart;
+import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.ParentAttendanceStatus;
@@ -70,7 +71,10 @@ public final class ParentAttendanceDtos {
             List<ParentAttendanceDay> days,
             ParentAttendanceTotals totals) {}
 
-    /** Một lần ghi nhận sức khỏe đầu ngày; note là ghi chú GV gửi phụ huynh (bảng không có ghi chú nội bộ). */
+    /**
+     * Một lần ghi nhận sức khỏe đầu ngày; note là ghi chú GV gửi phụ huynh (bảng không có ghi chú nội bộ). actions: việc GV
+     * đã làm (PAR-01, HLT-14); referral: chỉ có khi chuyển cơ sở y tế, còn lại null.
+     */
     public record ParentDailyHealthResponse(
             LocalDate date,
             BigDecimal temperature,
@@ -78,5 +82,7 @@ public final class ParentAttendanceDtos {
             String note,
             String recordedByName,
             Long classId,
-            String className) {}
+            String className,
+            List<HealthAction> actions,
+            DailyHealthEntryResponse.Referral referral) {}
 }

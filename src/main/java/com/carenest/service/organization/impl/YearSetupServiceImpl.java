@@ -84,7 +84,10 @@ public class YearSetupServiceImpl implements YearSetupService {
             YearSetupResponse response = new YearSetupResponse(
                     toYear(year),
                     source == null ? null : toYear(source),
-                    setupClasses(year.getId(), today),
+                    // Năm sắp tới xét tại ngày cuối năm: phân công đã cắt trước / ngay ngày đầu (đổi vai trò) không còn
+                    // tính
+                    setupClasses(
+                            year.getId(), year.getStatus() == SchoolYearStatus.PLANNED ? year.getEndDate() : today),
                     source == null ? List.of() : setupClasses(source.getId(), today),
                     ageGroups,
                     campuses.stream()
@@ -117,7 +120,7 @@ public class YearSetupServiceImpl implements YearSetupService {
         }
     }
 
-    private List<YearSetupResponse.SetupClass> setupClasses(Long schoolYearId, LocalDate today) {
+    private List<YearSetupResponse.SetupClass> setupClasses(Long schoolYearId, LocalDate asOf) {
         List<Classroom> classes = classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(schoolYearId);
         if (classes.isEmpty()) {
             return List.of();
@@ -125,7 +128,7 @@ public class YearSetupServiceImpl implements YearSetupService {
         Map<Long, RoomRepository.YearRoomInfo> rooms = roomRepository.findYearRoomInfo(schoolYearId).stream()
                 .collect(Collectors.toMap(RoomRepository.YearRoomInfo::getRoomId, room -> room));
         List<StaffAssignment> assigned = staffAssignmentRepository.findCurrentTeachers(
-                classes.stream().map(Classroom::getId).toList(), today);
+                classes.stream().map(Classroom::getId).toList(), asOf);
         // SCH-04: giáo viên bị khóa tài khoản không tính là đủ giáo viên, kể cả làm phụ trách chính
         Set<Long> locked = assigned.isEmpty()
                 ? Set.of()

@@ -29,5 +29,5 @@ public record DailyHealthEntryResponse(
         Instant recordedAt) {
 
     public record Referral(
-            String place, @JsonFormat(pattern = "HH:mm") LocalTime time, String escort) {}
+            String place, @JsonFormat(pattern = "HH:mm") LocalTime time, String escort, String escortPhone) {}
 }

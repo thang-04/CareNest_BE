@@ -135,8 +135,8 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (teacherIds.isEmpty()) {
                 current.forEach(assignment -> endOrRemove(assignment, start));
                 staffAssignmentRepository.flush();
-                ClassTeachersResponse response = toClassTeachers(List.of(classroom), schoolConfigAccess.today())
-                        .getFirst();
+                ClassTeachersResponse response =
+                        toClassTeachers(List.of(classroom), asOf(year)).getFirst();
                 log.info("{}|removedAll|END", logPrefix);
                 return response;
             }
@@ -208,8 +208,8 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                         "/attendance",
                         false);
             }
-            ClassTeachersResponse response = toClassTeachers(List.of(classroom), schoolConfigAccess.today())
-                    .getFirst();
+            ClassTeachersResponse response =
+                    toClassTeachers(List.of(classroom), asOf(year)).getFirst();
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -493,9 +493,13 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                         .toList());
     }
 
-    // Năm đã kết thúc: xem giáo viên / sĩ số như lúc kết thúc năm (không theo hôm nay)
+    // Năm đã kết thúc: xem giáo viên / sĩ số như lúc kết thúc năm. Năm sắp tới: xét tại ngày cuối năm, bỏ phân công đã
+    // cắt ngay ngày đầu (đổi / thu hồi vai trò)
     private LocalDate asOf(SchoolYear year) {
         LocalDate today = schoolConfigAccess.today();
+        if (year.getStatus() == SchoolYearStatus.PLANNED) {
+            return year.getEndDate();
+        }
         if (year.getStatus() != SchoolYearStatus.CLOSED) {
             return today;
         }

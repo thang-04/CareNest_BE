@@ -679,6 +679,32 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    void referralKeepsEscortPhoneAndRejectsInvalidOne() {
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1)));
+
+        expectError(() -> healthService.addEntry(teacherA, referral("p1", "12345")), ApiCode.PHONE_NUMBER_INVALID);
+
+        var saved = healthService.addEntry(teacherA, referral("p2", "+84 912 000 111"));
+
+        assertThat(saved.referral().escort()).isEqualTo("Cô đi cùng");
+        assertThat(saved.referral().escortPhone()).isEqualTo("0912000111");
+    }
+
+    private DailyHealthRequest referral(String requestId, String escortPhone) {
+        return new DailyHealthRequest(
+                requestId,
+                classA,
+                child1,
+                TODAY,
+                new java.math.BigDecimal("39.1"),
+                HealthObservation.NOTED,
+                List.of(HealthSymptom.FEVER),
+                "",
+                List.of(HealthAction.REFERRAL),
+                new DailyHealthRequest.Referral("Trạm y tế", java.time.LocalTime.of(8, 0), "Cô đi cùng", escortPhone));
+    }
+
+    @Test
     void teacherRecordsHealthOnlyForPresentChildToday() {
         expectError(
                 () -> healthService.addEntry(teacherA, health("r1", child1, HealthObservation.NO_CONCERN)),

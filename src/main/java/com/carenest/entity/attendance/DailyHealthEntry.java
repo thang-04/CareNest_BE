@@ -78,6 +78,9 @@ public class DailyHealthEntry {
     @Column(name = "referral_escort", length = 100)
     private String referralEscort;
 
+    @Column(name = "referral_escort_phone", length = 10)
+    private String referralEscortPhone;
+
     @Column(name = "notification_status", nullable = false, length = 20)
     private String notificationStatus;
 
@@ -102,6 +105,7 @@ public class DailyHealthEntry {
             String referralPlace,
             LocalTime referralTime,
             String referralEscort,
+            String referralEscortPhone,
             Long recordedBy,
             Instant recordedAt) {
         this.requestId = requestId;
@@ -117,6 +121,7 @@ public class DailyHealthEntry {
         this.referralPlace = referralPlace;
         this.referralTime = referralTime;
         this.referralEscort = referralEscort;
+        this.referralEscortPhone = referralEscortPhone;
         this.notificationStatus = NOTIFICATION_PENDING;
         this.recordedBy = recordedBy;
         this.recordedAt = recordedAt;

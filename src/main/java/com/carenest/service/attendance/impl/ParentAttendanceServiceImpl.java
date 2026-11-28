@@ -1,5 +1,6 @@
 package com.carenest.service.attendance.impl;
 
+import com.carenest.dto.attendance.DailyHealthEntryResponse;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceDay;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceResponse;
 import com.carenest.dto.attendance.ParentAttendanceDtos.ParentAttendanceSchedule;
@@ -205,7 +206,9 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                                 e.getNote(),
                                 names.get(e.getRecordedBy()),
                                 e.getClassroomId(),
-                                cls == null ? null : cls.name());
+                                cls == null ? null : cls.name(),
+                                e.getObservation() == HealthObservation.NOTED ? e.getActions() : List.of(),
+                                referralOf(e));
                     })
                     .toList();
             log.info("{}|count={}|END", logPrefix, result.size());
@@ -391,5 +394,13 @@ public class ParentAttendanceServiceImpl implements ParentAttendanceService {
                     cls.id(),
                     cls.name());
         }
+    }
+
+    // Chỉ trả thông tin chuyển y tế của lần ghi "cần lưu ý" có nơi chuyển
+    private static DailyHealthEntryResponse.Referral referralOf(DailyHealthEntry e) {
+        return e.getObservation() != HealthObservation.NOTED || e.getReferralPlace() == null
+                ? null
+                : new DailyHealthEntryResponse.Referral(
+                        e.getReferralPlace(), e.getReferralTime(), e.getReferralEscort(), e.getReferralEscortPhone());
     }
 }
